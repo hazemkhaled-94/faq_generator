@@ -31,6 +31,12 @@ from database.qa_generator import (
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def judging(monkeypatch) -> None:
+    """The phase on: the test environment ships it off."""
+    monkeypatch.setenv("ASSESSMENT_ENABLED", "true")
+
+
 @pytest.fixture
 def corpus(engine, database):
     """One document, one passage, one fact, one topic and two questions.
@@ -412,6 +418,14 @@ def test_a_queue_told_nothing_enrols_what_the_settings_say(corpus, engine) -> No
         "the fixture holds one artefact of each judgeable kind, and "
         "ASSESSMENT_SAMPLE in the test environment is well above that"
     )
+
+
+def test_the_phase_switched_off_enrols_nothing(corpus, engine, monkeypatch) -> None:
+    """ASSESSMENT_ENABLED off: `start` and `enrol` from the api do nothing."""
+    monkeypatch.setenv("ASSESSMENT_ENABLED", "false")
+
+    assert AssessmentQueue().enrol() == 0
+    assert enrolled(engine) == {}
 
 
 def test_what_a_caller_names_beats_what_the_settings_say(corpus, engine) -> None:

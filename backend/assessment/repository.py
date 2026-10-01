@@ -222,6 +222,9 @@ class AssessmentQueue(RowQueue):
         from settings.store import resolved
 
         settings = Settings.load(resolved())
+        if not settings.enabled:
+            # The phase off enrols nothing, as ASSESSMENT_ENABLED says.
+            return (), 0, False
         return (
             self._kinds if self._kinds is not None else tuple(settings.kinds),
             self._sample if self._sample is not None else settings.sample,
