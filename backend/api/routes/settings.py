@@ -135,7 +135,13 @@ class Changed:
 
 
 def _described(service: str) -> tuple[ServiceSettings, dict[str, str]]:
-    """Reads one service's settings, and the source they resolved from."""
+    """Reads one service's settings, and the source they resolved from.
+
+    The version first: a write landing during the reads then leaves the
+    page holding an older version than its values, and its PATCH conflicts
+    rather than overwriting that write.
+    """
+    version = store.version()
     resolved = store.resolved()
     overrides = store.overrides()
     changed_at = store.changed_at()
@@ -143,7 +149,7 @@ def _described(service: str) -> tuple[ServiceSettings, dict[str, str]]:
     return (
         ServiceSettings(
             service=service,
-            version=store.version(),
+            version=version,
             settings=[
                 SettingState(
                     name=one.name,
