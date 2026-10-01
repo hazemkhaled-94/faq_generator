@@ -235,6 +235,11 @@ None of these reaches a network.
   away the Run button and `POST /pipeline/run`, both of which then report
   themselves unavailable; every queue verb on every surface is untouched.
 - **The orchestrator cannot fix a row.** It has no database access by design.
+- **A run draws no release.** The `corpus` job ends at `assessments` and
+  leaves the last release in place. `make questions-balance` draws one: it
+  re-verifies every stored question first, which needs the spaCy pipelines
+  the api image does not carry, so no route the job could call does it.
+  `make corpus` runs it after `questions`.
 - **The api holds this webserver's address, not this package's code.** The
   queries it sends are pinned to Dagster 1.13 and proved against a live
   server by `tests/smoke/test_orchestrator_queries.py`.
