@@ -200,6 +200,11 @@ class AssessmentService(StageService):
                     "every metric approved"
                     if assessed.approved
                     else f"not approved by: {', '.join(assessed.refused)}"
+                    if assessed.refused
+                    else (
+                        f"judged on {len(assessed.judgements)} of "
+                        f"{assessed.metrics_due} metrics"
+                    )
                 ),
                 by_model=True,
                 metadata=about | {"direction": "maximize"},

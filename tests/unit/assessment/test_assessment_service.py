@@ -113,10 +113,12 @@ def _judgement(metric: str, label: str, score: float, approved: bool) -> Judgeme
 APPROVING = (
     _judgement(JudgeMetric.HALLUCINATION, "factual", 0.0, True),
     _judgement(JudgeMetric.RELEVANCE, "relevant", 1.0, True),
+    _judgement(JudgeMetric.TOXICITY, "non-toxic", 0.0, True),
 )
 REFUSING = (
     _judgement(JudgeMetric.HALLUCINATION, "hallucinated", 1.0, False),
     _judgement(JudgeMetric.RELEVANCE, "relevant", 1.0, True),
+    _judgement(JudgeMetric.TOXICITY, "non-toxic", 0.0, True),
 )
 
 
@@ -154,6 +156,28 @@ def test_one_metric_refusing_refuses_the_artefact() -> None:
     assert written.refused == (JudgeMetric.HALLUCINATION,)
 
 
+def test_a_verdict_on_part_of_the_metrics_is_not_an_approval() -> None:
+    """Five abstentions and one pass have not backed the artefact whole."""
+    from assessment.models import Assessed
+
+    passed = Judgement(
+        metric=JudgeMetric.RELEVANCE,
+        label="relevant",
+        score=1.0,
+        approved=True,
+        explanation="on subject",
+    )
+    thin = Assessed(
+        assessment_id=1,
+        judgements=(passed,),
+        judge_model="test/judge",
+        prompt_version="1",
+        metrics_due=6,
+    )
+
+    assert thin.approved is False
+
+
 def test_a_judge_that_cannot_be_reached_fails_the_row() -> None:
     """And records no verdict at all.
 
@@ -185,7 +209,12 @@ def test_every_metric_becomes_an_annotation_named_the_way_phoenix_names_it(
     _service(queue, _Judge(*APPROVING), evaluations).process_next()
 
     by_name = {one.name: one for one in evaluations.verdicts}
-    assert set(by_name) == {SUMMARY, JudgeMetric.HALLUCINATION, JudgeMetric.RELEVANCE}
+    assert set(by_name) == {
+        SUMMARY,
+        JudgeMetric.HALLUCINATION,
+        JudgeMetric.RELEVANCE,
+        JudgeMetric.TOXICITY,
+    }
     assert all(one.by_model for one in evaluations.verdicts), "must post as LLM"
     assert all(one.span_id == "b" * 16 for one in evaluations.verdicts)
 
@@ -287,7 +316,7 @@ def test_the_phase_writes_no_column_a_stage_reads(judgements) -> None:
 
 
 def test_a_verdict_records_what_its_kind_was_due() -> None:
-    """A fact is due three metrics; APPROVING answers two of them.
+    """A fact is due three metrics; this judge answers two of them.
 
     Without the count, a verdict that lost a metric to an unreachable model
     and a whole one are the same row: both read `assessed`, and `retry`
@@ -295,12 +324,13 @@ def test_a_verdict_records_what_its_kind_was_due() -> None:
     """
     queue = _Queue(_fact())
 
-    _service(queue, _Judge(*APPROVING)).process_next()
+    _service(queue, _Judge(*APPROVING[:2])).process_next()
 
     written = queue.recorded[0]
     assert written.metrics_due == len(metrics_of(ArtifactKind.FACT))
     assert len(written.judgements) == 2
     assert written.abstained == 1
+    assert written.approved is False, "two of three is not backed whole"
 
 
 def test_a_whole_verdict_reports_no_abstention() -> None:
