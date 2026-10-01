@@ -200,7 +200,7 @@ def view() -> None:
     page.header("Facts")
 
     client = backend.catalog_api()
-    overview, analysis, service = st.container(), st.container(), st.container()
+    overview, service = st.container(), st.container()
 
     words, field, chosen, pager = catalog.find(
         "facts",
@@ -262,13 +262,13 @@ def view() -> None:
             }
         )
 
-    with analysis, st.expander("Analysis"):
-        page.findings(_checks(quality, chosen["kind"], counts))
-
     with service, page.panel("Extraction"):
         stage.service(client, _EXTRACTION)
-        explain.panel(_SERVICE, "How extraction works")
-        configure.panel("extraction")
+        with page.folds():
+            with st.expander("Analysis"):
+                page.findings(_checks(quality, chosen["kind"], counts))
+            explain.panel(_SERVICE, "How extraction works")
+            configure.panel("extraction")
 
     with page.panel(f"Facts · {total:,}"):
         if not rows:

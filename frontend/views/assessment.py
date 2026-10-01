@@ -216,7 +216,7 @@ def view() -> None:
     page.header("Assessment")
 
     client = backend.catalog_api()
-    overview, analysis, service = st.container(), st.container(), st.container()
+    overview, service = st.container(), st.container()
 
     plan = client.assessment_plan()
 
@@ -299,16 +299,6 @@ def view() -> None:
             "Neither side is right by default.",
         )
 
-    with analysis, st.expander("Analysis"):
-        page.findings(_checks(quality, counts, plan, looking_at))
-        st.caption(
-            "A judgement is never a gate. What decides whether a fact is "
-            "kept is the checker, and what decides a question is the gates; "
-            "this is a second opinion recorded beside them so the two can "
-            "be compared. An LLM judge was measured at chance on the German "
-            "half of one corpus, which is why it cannot reject anything."
-        )
-
     with service, page.panel("Assessment — the evaluation phase"):
         judging = _judging(plan)
         stage.service(client, _ASSESSMENT, scopes=_scopes(judging))
@@ -328,8 +318,19 @@ def view() -> None:
             f"{plan['judge_model'] or 'LLM_MODEL, which is marking its own work'}"
             f" · template version {plan['prompt_version']}"
         )
-        explain.panel(_SERVICE, "How the evaluation phase works")
-        configure.panel("assessment")
+        with page.folds():
+            with st.expander("Analysis"):
+                page.findings(_checks(quality, counts, plan, looking_at))
+                st.caption(
+                    "A judgement is never a gate. What decides whether a fact "
+                    "is kept is the checker, and what decides a question is "
+                    "the gates; this is a second opinion recorded beside them "
+                    "so the two can be compared. An LLM judge was measured at "
+                    "chance on the German half of one corpus, which is why it "
+                    "cannot reject anything."
+                )
+            explain.panel(_SERVICE, "How the evaluation phase works")
+            configure.panel("assessment")
 
     with page.panel(f"Assessments · {total:,}"):
         if not rows:

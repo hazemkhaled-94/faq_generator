@@ -171,9 +171,6 @@ def view() -> None:
             }
         )
 
-    with st.expander("Analysis"):
-        page.findings(page.queue_rows("Documents", counts, _STATES))
-
     # Before Parsing, because it is the broader of the two: this takes the
     # corpus through every stage, and the panel below runs the one stage
     # this page owns.
@@ -182,8 +179,11 @@ def view() -> None:
 
     with page.panel("Parsing"):
         stage.service(client, _PARSING)
-        explain.panel(_SERVICE, "How parsing works")
-        configure.panel("parsing")
+        with page.folds():
+            with st.expander("Analysis"):
+                page.findings(page.queue_rows("Documents", counts, _STATES))
+            explain.panel(_SERVICE, "How parsing works")
+            configure.panel("parsing")
 
     words, _, chosen, pager = catalog.find(
         "documents",

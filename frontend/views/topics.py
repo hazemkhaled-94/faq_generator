@@ -132,14 +132,14 @@ def view() -> None:
     with page.panel("Overview"):
         page.stats(_overview(fit, topics))
 
-    with st.expander("Analysis"):
-        page.findings(_health(fit, topics))
-        _map(client, fit)
-
     with page.panel("Topic modelling"):
         stage.fit(client, _TOPICS)
-        explain.panel(_SERVICE, "How topic modelling works")
-        configure.panel("topics")
+        with page.folds():
+            with st.expander("Analysis"):
+                page.findings(_health(fit, topics))
+                _map(client, fit)
+            explain.panel(_SERVICE, "How topic modelling works")
+            configure.panel("topics")
 
     words, field, chosen, pager = catalog.find(
         "topics",

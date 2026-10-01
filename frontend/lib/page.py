@@ -5,8 +5,8 @@ on every interaction, so nothing persists between calls except the HTTP
 session, which lib.backend caches.
 
 Every page is the same sequence of panels, top to bottom: the figures worth
-seeing on arrival, an analysis fold nobody has to open, the one service this
-page runs, search, filters, the table of everything, and the row a person
+seeing on arrival, the one service this page runs with its folds beside each
+other, search and filters, the table of everything, and the row a person
 picked. A view that follows that order needs no layout of its own.
 
 A panel is what separates one section from the next, and `panel` is the only
@@ -66,6 +66,13 @@ def panel(title: str) -> Iterator[Any]:
     with box:
         st.html(f"<div class='qa-panel-label'>{title}</div>")
         yield box
+
+
+@contextmanager
+def folds() -> Iterator[Any]:
+    """Opens one row for a service's folds, stacked once one is opened."""
+    with st.container(horizontal=True, key="folds"):
+        yield
 
 
 def stats(values: Mapping[str, tuple[str, str]]) -> None:

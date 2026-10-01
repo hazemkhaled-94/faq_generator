@@ -113,7 +113,7 @@ def view() -> None:
     # Held open above the search box and filled below it: the fold measures
     # the page of rows those filters select, and a panel is drawn where it is
     # created rather than where it is filled.
-    analysis, service = st.container(), st.container()
+    service = st.container()
 
     words, field, chosen, pager = catalog.find(
         "passages",
@@ -141,13 +141,13 @@ def view() -> None:
         "passages",
     )
 
-    with analysis, st.expander("Analysis"):
-        page.findings(_analysis(counts, rows))
-
     with service, page.panel("Chunking"):
         stage.service(client, _CHUNKING)
-        explain.panel(_SERVICE, "How chunking works")
-        configure.panel("chunking")
+        with page.folds():
+            with st.expander("Analysis"):
+                page.findings(_analysis(counts, rows))
+            explain.panel(_SERVICE, "How chunking works")
+            configure.panel("chunking")
 
     with page.panel(f"Passages · {total:,}"):
         if not rows:

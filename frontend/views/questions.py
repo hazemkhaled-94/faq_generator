@@ -350,7 +350,7 @@ def view() -> None:
     page.header("Questions")
 
     client = backend.catalog_api()
-    overview, analysis, service = st.container(), st.container(), st.container()
+    overview, service = st.container(), st.container()
 
     words, field, chosen, pager = catalog.find(
         "questions",
@@ -438,20 +438,21 @@ def view() -> None:
             }
         )
 
-    with analysis, st.expander("Analysis"):
-        st.caption(
-            "Every check this stage makes of itself. **Should be** is what a "
-            "healthy run looks like — `0` for a gate, because a gate counts "
-            "what it refused; a dash where the row is a spread rather than a "
-            "verdict, and there is no right answer to compare it to. The "
-            "gates are explained in full under Question generation below."
-        )
-        page.findings(_analysis(quality, counts, client.question_plan()))
-
     with service, page.panel("Question generation"):
         stage.service(client, _QUESTIONS)
-        explain.panel(_SERVICE, "How question generation works")
-        configure.panel("questions")
+        with page.folds():
+            with st.expander("Analysis"):
+                st.caption(
+                    "Every check this stage makes of itself. **Should be** is "
+                    "what a healthy run looks like — `0` for a gate, because a "
+                    "gate counts what it refused; a dash where the row is a "
+                    "spread rather than a verdict, and there is no right answer "
+                    "to compare it to. The gates are explained in full under "
+                    "How question generation works."
+                )
+                page.findings(_analysis(quality, counts, client.question_plan()))
+            explain.panel(_SERVICE, "How question generation works")
+            configure.panel("questions")
 
     with page.panel(f"Questions · {total:,}"):
         if not rows:
