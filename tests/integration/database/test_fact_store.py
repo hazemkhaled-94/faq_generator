@@ -876,6 +876,33 @@ def test_a_re_judgement_never_reaches_a_fact_the_cap_refused(engine, database) -
     assert len(offered) == 1, "the capped fact was offered for re-judgement"
 
 
+def test_a_re_judgement_never_reaches_a_fact_refused_as_a_duplicate(
+    engine, database
+) -> None:
+    """The checks cannot reproduce what the dedup probe decided either."""
+    from seed import digest, document, fact, passage
+    from sqlalchemy.orm import Session
+
+    from extraction.repository import FactCatalog
+
+    with Session(engine) as session:
+        sha = digest("c")
+        session.add(document(sha))
+        at = passage(sha, ordinal=1, text="The device weighs 4 kg.", language="en")
+        session.add(at)
+        session.flush()
+        kept = fact(at.id)
+        refused = fact(at.id)
+        refused.validated = False
+        refused.rejection_code = Rejection.DUPLICATE
+        session.add_all([kept, refused])
+        session.commit()
+
+    offered = list(FactCatalog().judged())
+
+    assert len(offered) == 1, "the duplicate was offered for re-judgement"
+
+
 class TestTheEmbeddingBackfill:
     """`make extract-embed`, against the database it writes to.
 

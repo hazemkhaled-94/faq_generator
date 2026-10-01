@@ -710,7 +710,12 @@ class FactCatalog(Repository):
             # statement, they make nothing of that, and the row would come
             # back validated - quietly undoing EXTRACTION_MIN_OTHER_SHARE
             # across the corpus. `make extract-recap` is what re-applies it.
-            .where(Fact.rejection_code.is_distinct_from(Rejection.OVER_CAP))
+            # Nor a duplicate, which the dedup probe decided and no check
+            # reproduces.
+            .where(
+                Fact.rejection_code.is_distinct_from(Rejection.OVER_CAP),
+                Fact.rejection_code.is_distinct_from(Rejection.DUPLICATE),
+            )
             # One row per passage, consecutive per fact, so a fact is read off
             # the run of rows carrying its id.
             .order_by(Fact.id, FactPassage.position)
