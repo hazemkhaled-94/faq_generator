@@ -14,7 +14,7 @@ figures; this one holds only what is wrong with them.
 | [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) | yes |
 | [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | the 17 |
 | [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | |
-| [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | |
+| [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | 8 of them |
 | [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) | |
 | [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) | |
 
@@ -202,6 +202,11 @@ do not add up to anything. The writer ignores it.
 refuse to `malformed` where the question opens *How many* / *Wie viele* and
 the answer's leading integer equals the number of cited facts. Three lines,
 and it catches what the directive cannot enforce from inside the prompt.
+
+Shipped for two or more cited facts and a count written in digits. Sized
+against this run it refuses 8 accepted questions, all 8 in the release. The
+counts written as words — `zwei Faktoren`, `two` — and the 17 that name the
+offer are not caught.
 
 ## Boilerplate cited to the wrong document
 

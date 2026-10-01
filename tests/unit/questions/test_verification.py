@@ -2312,6 +2312,41 @@ def test_a_question_word_naming_no_family_leaves_the_type_alone() -> None:
     assert asked_as("Which plant builds the device?", "enumeration")
 
 
+_TWO_FACTS = (
+    "ATDD is a test-first approach.",
+    "In BDD, the When part of a scenario triggers the behaviour.",
+)
+
+
+def test_a_count_equal_to_the_facts_cited_is_malformed() -> None:
+    """The question counts the offer, not anything in the corpus."""
+    assert (
+        code(
+            checked(
+                question_text=(
+                    "How many sections are identified across ATDD's approach type "
+                    "and the BDD scenario part that triggers behavior?"
+                ),
+                target_answer="2 sections",
+                statements=_TWO_FACTS,
+            )
+        )
+        == QuestionRejection.MALFORMED
+    )
+
+
+def test_a_count_the_facts_cited_do_not_equal_is_left_alone() -> None:
+    """Three steps out of two facts is a count of something else."""
+    assert (
+        checked(
+            question_text="How many steps does the review process take?",
+            target_answer="3 steps",
+            statements=_TWO_FACTS,
+        )
+        is None
+    )
+
+
 def test_a_temporal_answer_needs_two_periods() -> None:
     """`How did it change from 2024 to 2025?` is answered with both years."""
     assert periods("from 72 hours in 2024 to 48 hours in 2025", "en")

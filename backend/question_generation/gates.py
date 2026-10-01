@@ -220,6 +220,10 @@ def fitting(
     return asked, first or _misfits(answer, asked, bounds, verbs)
 
 
+#: The opening of a question asking for a count.
+_HOW_MANY = r"^(how many|wie viele)\b"
+
+
 def structural(
     *,
     question_text: str,
@@ -306,6 +310,26 @@ def structural(
             (
                 f"it asks {len(asked_about)} things ({', '.join(asked_about)}); "
                 f"a chatbot answering one of them is neither right nor wrong"
+            ),
+        ), form
+
+    # A count of the facts the writer was handed rather than of anything the
+    # corpus holds.
+    #
+    # ponytail: a count written in digits only; `zwei` and `two` pass.
+    # Upgrade: read number words off the parse.
+    leading = re.match(r"\s*(\d+)\b", target_answer or "")
+    if (
+        re.search(_HOW_MANY, normalised(asked))
+        and leading
+        and len(statements) > 1
+        and int(leading.group(1)) == len(statements)
+    ):
+        return (
+            QuestionRejection.MALFORMED,
+            (
+                f"it asks how many and answers {leading.group(1)}, the number "
+                f"of facts it cites, so it counts the prompt and not the corpus"
             ),
         ), form
 
@@ -907,9 +931,7 @@ _ASKED_FOR: dict[str, frozenset[str]] = {
     r"^(when|wann)\b": frozenset(
         {QuestionType.CONDITION, QuestionType.TEMPORAL, QuestionType.FACTOID}
     ),
-    r"^(how many|wie viele)\b": frozenset(
-        {QuestionType.FACTOID, QuestionType.AGGREGATION}
-    ),
+    _HOW_MANY: frozenset({QuestionType.FACTOID, QuestionType.AGGREGATION}),
     r"^(what is|was ist)\b": frozenset(
         {QuestionType.DEFINITION, QuestionType.FACTOID, QuestionType.AGGREGATION}
     ),
