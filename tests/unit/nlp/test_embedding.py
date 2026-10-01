@@ -81,3 +81,22 @@ def test_cosine_needs_two_vectors_of_the_same_width() -> None:
     """A silent zip would compare the first half of one with all of another."""
     with pytest.raises(ValueError):
         cosine([1.0, 0.0], [1.0, 0.0, 0.0])
+
+
+@loads_the_model
+def test_a_passage_cut_to_the_chunk_budget_fits_the_embedder() -> None:
+    """The prefix and the special tokens are reserved out of the budget."""
+    from transformers import AutoTokenizer
+
+    from nlp.windows import PREFIX
+    from preprocessing.chunking.passages import PassageBuilder
+
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(MODEL, local_files_only=True)
+    except Exception as exc:  # noqa: BLE001 - any failure is the same answer
+        pytest.skip(f"{MODEL} is not in the cache: {exc}")
+    budget = PassageBuilder(
+        embedding_model=MODEL, max_tokens=512, merge_peers=True
+    )._max_tokens
+
+    assert len(tokenizer(PREFIX + "word " * budget)["input_ids"]) <= 512

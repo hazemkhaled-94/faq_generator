@@ -25,19 +25,13 @@ import logging
 
 from sentence_transformers import SentenceTransformer
 
-from nlp.windows import window
+from nlp.windows import PREFIX, window
 
 log = logging.getLogger(__name__)
 
 #: What every embedding column holds. A model of another width would be
 #: refused by the database one row at a time, with nothing saying why.
 WIDTH = 1024
-
-#: e5 was trained on prefixed inputs and scores badly without one. Every
-#: comparison here is between two texts of the same kind - a fact against
-#: facts, a question against questions - and e5 asks for one prefix on both
-#: sides of a symmetric comparison, so there is one prefix and no branch.
-_PREFIX = "query: "
 
 
 class Embedder:
@@ -82,7 +76,7 @@ class Embedder:
         if not texts:
             return []
         return self._model.encode(
-            [_PREFIX + text for text in texts],
+            [PREFIX + text for text in texts],
             normalize_embeddings=True,
             show_progress_bar=False,
         ).tolist()

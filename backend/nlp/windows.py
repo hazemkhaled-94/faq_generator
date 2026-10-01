@@ -18,6 +18,11 @@ import logging
 
 log = logging.getLogger(__name__)
 
+#: What the embedder puts in front of every text. e5 was trained on
+#: prefixed inputs, and both sides of every comparison here are one kind of
+#: text, so one prefix serves.
+PREFIX = "query: "
+
 #: Above this, a declared length is a sentinel rather than a window.
 #: A tokenizer reports `model_max_length` as a number near 1e30 when the
 #: checkpoint says nothing, and truncating to 1e30 truncates nothing.
@@ -51,3 +56,8 @@ def window(tokenizer, wanted: int) -> int:
             wanted,
         )
     return min(wanted, declared)
+
+
+def reserved(tokenizer) -> int:
+    """The tokens the embedder adds to a text: `PREFIX` and the special tokens."""
+    return len(tokenizer(PREFIX)["input_ids"])

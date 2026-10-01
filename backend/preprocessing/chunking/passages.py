@@ -22,6 +22,7 @@ from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import read
 from nlp.language import detect
+from nlp.windows import reserved
 from preprocessing.chunking.models import Chunk, Chunking
 
 
@@ -124,10 +125,12 @@ class PassageBuilder:
             merge_peers: Whether to combine undersized neighbours that share
                 a heading.
         """
-        self._max_tokens = max_tokens
-        self._tokenizer = HuggingFaceTokenizer.from_pretrained(
+        loaded = HuggingFaceTokenizer.from_pretrained(
             model_name=embedding_model, max_tokens=max_tokens
         )
+        # Less what the embedder adds, so a passage cut to it fits its window.
+        self._max_tokens = max_tokens - reserved(loaded.tokenizer)
+        self._tokenizer = loaded.model_copy(update={"max_tokens": self._max_tokens})
         self._chunker = HybridChunker(
             tokenizer=self._tokenizer,
             merge_peers=merge_peers,
