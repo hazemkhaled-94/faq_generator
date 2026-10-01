@@ -194,6 +194,16 @@ def test_a_value_past_what_a_column_holds_is_refused_not_an_error(corpus, path) 
     assert verb(path).status_code in (400, 422)
 
 
+@pytest.mark.parametrize("run", ["a%00b", "r" * 200])
+def test_a_run_name_no_column_should_hold_is_refused(corpus, run) -> None:
+    """`run` is written into every queued row's run column."""
+    assert corpus.post(f"/parsing/start?run={run}").status_code == 422
+    assert (
+        corpus.post(f"/parsing/document/{digest('b')}/start?run={run}").status_code
+        == 422
+    )
+
+
 def test_a_narrowing_that_selects_nothing_is_not_an_error(corpus) -> None:
     """A document with no rows for this stage is a count of zero."""
     answered = corpus.post(f"/parsing/document/{digest('unknown')}/start")

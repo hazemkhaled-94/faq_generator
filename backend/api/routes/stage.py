@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Literal, Protocol
+from typing import Annotated, Any, ClassVar, Literal, Protocol
 from uuid import uuid4
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from api.errors import ApiError, ErrorBody
+from api.params import NAME_MAX, NO_NUL
 from stages import QueueState, Unnarrowable
 
 log = logging.getLogger(__name__)
@@ -39,6 +40,9 @@ log = logging.getLogger(__name__)
 #: danger actually needs is a narrowing, which is what `confirm` below
 #: enforces on the corpus-wide form.
 Action = Literal["start", "stop", "retry", "rerun", "reclaim"]
+
+#: The run a verb's queued rows are stamped with, which each of them stores.
+RunName = Annotated[str | None, Query(max_length=NAME_MAX, pattern=NO_NUL)]
 
 #: Every verb `answered` can put into words, which is `Action` plus the one
 #: a single stage has. `enrol` is the assessment phase's: nothing upstream
@@ -299,7 +303,7 @@ def stage_router(*, name: str, repository: StageRepository) -> APIRouter:
 
     @router.post("/{action}", status_code=202, responses=refusals)
     def whole_queue(
-        action: Action, confirm: bool = False, run: str | None = None
+        action: Action, confirm: bool = False, run: RunName = None
     ) -> StageAction:
         """Runs one queue verb over everything this stage owns.
 
@@ -343,7 +347,7 @@ def stage_router(*, name: str, repository: StageRepository) -> APIRouter:
 
     @router.post("/{scope}/{value}/{action}", status_code=202, responses=refusals)
     def scoped_action(
-        scope: str, value: str, action: Action, run: str | None = None
+        scope: str, value: str, action: Action, run: RunName = None
     ) -> StageAction:
         """Runs one queue verb against a single item.
 
