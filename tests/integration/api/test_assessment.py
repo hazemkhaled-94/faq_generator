@@ -89,6 +89,7 @@ def test_the_configuration_panel_opens(client) -> None:
         "ASSESSMENT_JUDGE_MODEL",
         "ASSESSMENT_KINDS",
         "ASSESSMENT_SAMPLE",
+        "ASSESSMENT_STRATIFY",
     }
 
 
