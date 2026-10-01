@@ -31,6 +31,41 @@ def test_an_accepted_upload_answers_with_its_digest(client, pdf) -> None:
     assert len(body["sha256"]) == 64
 
 
+def test_an_upload_being_stored_holds_up_no_other_request(
+    client, pdf, monkeypatch
+) -> None:
+    """A slow ingest runs off the event loop, so /health still answers."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from api.routes import documents
+
+    made = documents.ingesting
+
+    def slow():
+        service = made()
+        ingest = service.ingest
+
+        def waited(upload):
+            time.sleep(1.0)
+            return ingest(upload)
+
+        service.ingest = waited
+        return service
+
+    monkeypatch.setattr(documents, "ingesting", slow)
+
+    with ThreadPoolExecutor(1) as pool:
+        uploading = pool.submit(upload, client, pdf)
+        time.sleep(0.2)
+        began = time.monotonic()
+        client.get("/health")
+        waited_for = time.monotonic() - began
+        assert uploading.result().status_code == 200
+
+    assert waited_for < 0.5, f"/health waited {waited_for:.2f}s behind the upload"
+
+
 def test_the_same_file_twice_is_answered_not_refused(client, pdf) -> None:
     """A duplicate is an answer; the caller is told which document it is."""
     first = upload(client, pdf).json()

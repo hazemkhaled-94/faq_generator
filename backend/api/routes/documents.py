@@ -151,8 +151,11 @@ def _removed(sha256: str, remove: Callable[[str], Removal | None]) -> Removal:
 
 
 @router.post("/documents", responses={code: _REFUSALS[code] for code in (413, 415)})
-async def add_document(request: Request, file: UploadFile) -> IngestResult:
+def add_document(request: Request, file: UploadFile) -> IngestResult:
     """Accepts one uploaded document, synchronously.
+
+    A plain function, so FastAPI runs it off the event loop: the ingest
+    queries the database, hashes and writes the object store.
 
     Everything after this is batch work the workers pick up by watching
     documents.parse_status.
@@ -176,7 +179,7 @@ async def add_document(request: Request, file: UploadFile) -> IngestResult:
     # measured afterwards. Every client that posts a file sets Content-Length;
     # the upgrade path for one that does not is a bounded chunked read, or a
     # body limit on a reverse proxy in front of this.
-    upload = UploadedFile(filename=filename, data=await file.read())
+    upload = UploadedFile(filename=filename, data=file.file.read())
     return _respond(service.ingest(upload))
 
 
