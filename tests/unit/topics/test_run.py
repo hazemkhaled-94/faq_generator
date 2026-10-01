@@ -212,3 +212,20 @@ def test_a_model_that_will_not_load_costs_its_own_language_only(cli) -> None:
 
     assert cli.run("--render") == 0
     assert set(cli.figures) == {"topics/en.html"}
+
+
+def test_a_named_run_puts_this_stage_in_its_project(cli, monkeypatch) -> None:
+    """As queue_main does for every other stage."""
+    from topic_modelling import run as module
+
+    configured: list[dict] = []
+    monkeypatch.setattr(
+        module.telemetry,
+        "configure",
+        lambda *_, **options: configured.append(options),
+    )
+    monkeypatch.setattr(module, "named_run", lambda: "the comparison")
+
+    cli.run("--status")
+
+    assert configured[0]["named"] == "the comparison"

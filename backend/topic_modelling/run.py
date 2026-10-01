@@ -16,7 +16,7 @@ from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
 from database.qa_generator import engine
 from llm.check import before_work
 from settings import decimal
-from settings.runs import run_id
+from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages import watch
 from stages.cli import _ready, parser, reloading
@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     # With the run, as `stages/cli.queue_main` does for the other four
     # stages. Without it this stage's spans went to Phoenix's `default`
     # project, so a pass over the pipeline was four projects and a heap.
-    telemetry.configure("topic_modelling", run=run_id())
+    telemetry.configure("topic_modelling", run=run_id(), named=named_run())
     telemetry.trace_engine(engine())
 
     if args.status:
