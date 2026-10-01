@@ -93,28 +93,33 @@ class AssessmentService(StageService):
         ) as current:
             try:
                 judgements = self._judge.judge(artifact)
+                trace_id, span_id = current_ids()
+                assessed = Assessed(
+                    assessment_id=artifact.assessment_id,
+                    judgements=judgements,
+                    judge_model=self._judge.model,
+                    prompt_version=PROMPT_VERSION,
+                    # What the kind was DUE, which is not what came back: the
+                    # judge abstains per metric when the model will not
+                    # answer, and the row would otherwise read `assessed`
+                    # whether it got six judgements or two.
+                    metrics_due=len(metrics_of(artifact.kind)),
+                    trace_id=trace_id,
+                    span_id=span_id,
+                )
+                self._repository.record(assessed)
             except JudgeUnavailable as exc:
                 # Failed rather than recorded as disapproval. A judge that
                 # could not be reached has found nothing wrong with the
                 # artefact, and `retry` is what moves this row.
                 self._fail(artifact.assessment_id, str(exc), current)
                 return artifact.assessment_id
-
-            trace_id, span_id = current_ids()
-            assessed = Assessed(
-                assessment_id=artifact.assessment_id,
-                judgements=judgements,
-                judge_model=self._judge.model,
-                prompt_version=PROMPT_VERSION,
-                # What the kind was DUE, which is not what came back: the
-                # judge abstains per metric when the model will not answer,
-                # and the row would otherwise read `assessed` whether it got
-                # six judgements or two.
-                metrics_due=len(metrics_of(artifact.kind)),
-                trace_id=trace_id,
-                span_id=span_id,
-            )
-            self._repository.record(assessed)
+            except Exception as exc:
+                self._fail(
+                    artifact.assessment_id, f"{type(exc).__name__}: {exc}", current
+                )
+                log.exception("failed assessment %d", artifact.assessment_id)
+                return artifact.assessment_id
             self._done(current)
 
             current.set_attribute("assessment.approved", assessed.approved)

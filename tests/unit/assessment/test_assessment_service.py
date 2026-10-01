@@ -193,6 +193,23 @@ def test_a_judge_that_cannot_be_reached_fails_the_row() -> None:
     assert queue.failed == [(11, "nothing answered")]
 
 
+def test_any_other_error_fails_the_row_and_the_drain_goes_on() -> None:
+    """A worker that died on one artefact would leave it in progress."""
+
+    class Broken(_Judge):
+        def judge(self, artifact):
+            raise ValueError("the answer was not JSON")
+
+    queue = _Queue(_fact(), _fact())
+
+    _service(queue, Broken()).drain()
+
+    assert not queue.recorded
+    assert [why for _, why in queue.failed] == [
+        "ValueError: the answer was not JSON"
+    ] * 2
+
+
 def test_every_metric_becomes_an_annotation_named_the_way_phoenix_names_it(
     monkeypatch,
 ) -> None:
