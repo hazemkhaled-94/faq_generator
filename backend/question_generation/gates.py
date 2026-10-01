@@ -948,8 +948,12 @@ def enumerates(answer: str, language: str | None) -> bool:
     return len(phrases(answer, language)) >= _ENUMERATED
 
 
+#: The least share of an answer's content lemmas the question did not carry.
+_NEW = 0.25
+
+
 def restates(question: str, answer: str, language: str | None) -> bool:
-    """Whether the answer adds no content word the question did not have.
+    """Whether the answer adds almost no content word the question did not have.
 
     `Wofür sind statische Analysen bei statischen Wartbarkeitstests
     geeignet?` answered `für statische Wartbarkeitstests` has asked nothing:
@@ -957,14 +961,16 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     the question back scores full marks. Measured over 3,535 accepted
     answers, 3.3% read like that.
 
-    Full containment, not a share. There IS no gate here for "the question
-    is its own fact rearranged" and that is deliberate - it was written
-    twice, measured against 61 rows, and both formulations refused `Wie hoch
-    war die Arbeitslosenquote im August 2025?` answered `6,4 Prozent`, which
-    is as good as a benchmark question gets. For a single atomic fact a good
-    question IS the fact minus its answer. This is the narrower thing: not
-    that the answer came from the question's subject, but that it adds
-    nothing to it at all.
+    Fewer than `_NEW` of the answer's content lemmas new to the question:
+    `accurate test metrics for exploratory testing sessions can be
+    challenging to determine` adds one in six. There IS no gate here for
+    "the question is its own fact rearranged" and that is deliberate - it
+    was written twice, measured against 61 rows, and both formulations
+    refused `Wie hoch war die Arbeitslosenquote im August 2025?` answered
+    `6,4 Prozent`, which is as good as a benchmark question gets. For a
+    single atomic fact a good question IS the fact minus its answer. This is
+    the narrower thing: not that the answer came from the question's
+    subject, but that it adds almost nothing to it.
 
     An answer carrying a NUMBER is exempt, and that exemption is what makes
     the gate usable. `content` drops numerals, so `In wie viele Kategorien
@@ -990,7 +996,7 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     read = pipeline(language)(answer)
     if any(token.pos_ == "NUM" or token.like_num for token in read):
         return False
-    return said <= content(question, language)
+    return len(said - content(question, language)) / len(said) < _NEW
 
 
 #: How much of what the verifier independently recovered may be missing from

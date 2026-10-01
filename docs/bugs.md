@@ -12,7 +12,7 @@ figures; this one holds only what is wrong with them.
 | [The weld answers in two fragments](#the-weld-answers-in-two-fragments) | 100 | [`gates.py`](../backend/question_generation/gates.py) | yes |
 | [The type disagrees with the interrogative](#the-type-disagrees-with-the-interrogative) | 57 | [`checker.py`](../backend/question_generation/checker.py) | yes |
 | [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) | |
-| [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | |
+| [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | the 17 |
 | [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | |
 | [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | |
 | [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) | |
@@ -144,10 +144,16 @@ Two shapes, 52 release rows between them.
 **Fix.** `restates_question` exists and is too loose — it fires on the whole
 string where the defect is that the answer's content words are a subset of
 the question's. Read it on content lemmas and refuse where fewer than a
-quarter are new. For the run-ons, `wrong_form` already knows the declared
-form; a `value` or `explanation` carrying three or more coordinated `when`
-clauses is a list that was typed as something else, and refusing it there
-needs no new gate.
+quarter are new. A comparison is exempt: it names both of its subjects by
+construction, and `compares` is its gate. Sized against this run that
+refuses 30 accepted questions, 19 of them in the release.
+
+The run-ons are not fixed. `wrong_form` already knows the declared form,
+but the example above is stored as a `list`, not a `value` or an
+`explanation`, and a `value` or `explanation` carrying three or more `when`
+clauses is one accepted question in this run, whose answer is sound. No
+reading tried — coordinated clauses, coordinating conjunctions, repeated
+`when` — separates the 35 from the answers that are lists of conditions.
 
 ## Facts that open on a demonstrative
 

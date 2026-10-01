@@ -414,13 +414,15 @@ class QuestionChecker:
                 ),
             )
 
-        if restates(candidate.question_text, target, language):
+        if candidate.spec.name != QuestionType.COMPARISON and restates(
+            candidate.question_text, target, language
+        ):
             return (
                 QuestionRejection.RESTATES_QUESTION,
                 (
-                    "its answer adds no content word the question did not "
-                    "already carry, so echoing the question back scores full "
-                    "marks"
+                    "its answer adds almost no content word the question did "
+                    "not already carry, so echoing the question back scores "
+                    "full marks"
                 ),
             )
 

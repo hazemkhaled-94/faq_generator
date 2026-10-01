@@ -2150,6 +2150,38 @@ def test_an_answer_adding_no_content_word_restates_the_question() -> None:
     )
 
 
+def test_an_answer_adding_one_word_in_six_restates_the_question() -> None:
+    """`challenging` is the one lemma the question did not carry."""
+    assert restates(
+        "Why can accurate test metrics be hard to determine for exploratory "
+        "testing sessions?",
+        "accurate test metrics for exploratory testing sessions can be "
+        "challenging to determine",
+        "en",
+    )
+
+
+def test_a_comparison_naming_both_sides_again_is_not_a_restatement() -> None:
+    """A comparison names both of its subjects by construction."""
+    recording = Recording(recovers="higher demands in Agile")
+
+    result = build(recording).check(
+        candidate(
+            question_text=(
+                "How do Agile and sequential development models differ in their "
+                "demands on social skills?"
+            ),
+            target_answer=(
+                "higher social-skill demands in Agile and lower demands in "
+                "sequential development models"
+            ),
+            question_type=QuestionType.COMPARISON,
+        )
+    )
+
+    assert result.rejected_reason != QuestionRejection.RESTATES_QUESTION
+
+
 def test_an_answer_that_adds_something_does_not_restate() -> None:
     """The gate is full containment, not a share."""
     assert not restates(
