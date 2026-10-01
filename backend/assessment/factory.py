@@ -44,6 +44,7 @@ def build_service(
         repository=AssessmentQueue(
             kinds=judged_kinds(settings),
             sample=settings.sample,
+            stratify=settings.stratify,
             version=version,
         ),
         judge=Judge(Client(asked)),

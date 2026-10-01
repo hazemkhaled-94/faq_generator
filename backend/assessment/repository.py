@@ -41,6 +41,8 @@ from database.qa_generator import (
     Assessment,
     AssessmentMetric,
     Fact,
+    FactPassage,
+    Passage,
     Question,
     QuestionFact,
     QuestionStatus,
@@ -178,6 +180,7 @@ class AssessmentQueue(RowQueue):
         *,
         kinds: tuple[str, ...] | None = None,
         sample: int | None = None,
+        stratify: bool | None = None,
         version: str | None = None,
     ) -> None:
         """Binds the queue, with what to enrol and what to stamp on a verdict.
@@ -197,18 +200,23 @@ class AssessmentQueue(RowQueue):
         super().__init__(lease)
         self._kinds = tuple(kinds) if kinds else None
         self._sample = sample
+        self._stratify = stratify
         self._version = version
 
-    def _asked(self) -> tuple[tuple[str, ...], int]:
-        """Which kinds to enrol and how many of each, as they stand now.
+    def _asked(self) -> tuple[tuple[str, ...], int, bool]:
+        """Which kinds to enrol, how many of each and how, as they stand now.
 
         Read per call rather than per instance: the api builds this queue
         once at import and serves it for the life of the process, so a
         setting changed through the Configuration panel has to reach it
         without a restart.
         """
-        if self._kinds is not None and self._sample is not None:
-            return self._kinds, self._sample
+        if (
+            self._kinds is not None
+            and self._sample is not None
+            and self._stratify is not None
+        ):
+            return self._kinds, self._sample, self._stratify
         from assessment.config import Settings
         from settings.store import resolved
 
@@ -216,6 +224,7 @@ class AssessmentQueue(RowQueue):
         return (
             self._kinds if self._kinds is not None else tuple(settings.kinds),
             self._sample if self._sample is not None else settings.sample,
+            self._stratify if self._stratify is not None else settings.stratify,
         )
 
     # ── Enrolling ────────────────────────────────────────────────────────
@@ -231,35 +240,54 @@ class AssessmentQueue(RowQueue):
         Returns:
             How many artefacts were enrolled.
         """
-        kinds, sample = self._asked()
+        kinds, sample, stratify = self._asked()
         with self._session.begin() as session:
             # Counted off RETURNING rather than off `rowcount`. An
             # `ON CONFLICT DO NOTHING` that inserted nothing reports -1,
             # not 0, so three kinds already enrolled summed to -3 and a
             # second `start` claimed to have un-enrolled the corpus.
             return sum(
-                len(session.execute(self._enrolment(kind, sample)).fetchall())
+                len(session.execute(self._enrolment(kind, sample, stratify)).fetchall())
                 for kind in kinds
             )
 
-    def _enrolment(self, kind: str, sample: int):
+    def _enrolment(self, kind: str, sample: int, stratify: bool = False):
         """The INSERT that enrols one kind's artefacts."""
-        enrolled: dict[str, tuple[Select, str]] = {
-            ArtifactKind.FACT: (select(Fact.id).order_by(Fact.id.desc()), "fact_id"),
+        enrolled: dict[str, tuple[Select, str, tuple]] = {
+            ArtifactKind.FACT: (
+                select(Fact.id)
+                .join(
+                    FactPassage,
+                    (FactPassage.fact_id == Fact.id) & (FactPassage.position == 0),
+                )
+                .join(Passage, Passage.id == FactPassage.passage_id)
+                .order_by(Fact.id.desc()),
+                "fact_id",
+                (Passage.language,),
+            ),
             ArtifactKind.TOPIC: (
                 select(Topic.id).where(_IS_TOPIC).order_by(Topic.id.desc()),
                 "topic_id",
+                (Topic.language,),
             ),
             ArtifactKind.QUESTION: (
                 select(Question.id)
                 .where(_JUDGEABLE_QUESTION)
                 .order_by(Question.id.desc()),
                 "question_id",
+                (Question.language, Question.question_type),
             ),
         }
-        source, column = enrolled[kind]
+        source, column, bands = enrolled[kind]
         # Newest first, so a sample of a corpus judged once already is the
         # part that arrived since rather than the part judged before.
+        # Stratified, the first of every band in random order, then the
+        # second, so a sample spans every band.
+        if stratify:
+            source = source.order_by(None).order_by(
+                func.row_number().over(partition_by=bands, order_by=func.random()),
+                func.random(),
+            )
         if sample > 0:
             source = source.limit(sample)
         chosen = source.subquery()

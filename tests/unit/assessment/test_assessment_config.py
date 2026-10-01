@@ -20,6 +20,7 @@ VALUES = {
     "ASSESSMENT_JUDGE_MODEL": "azure/gpt-5.4",
     "ASSESSMENT_KINDS": "fact,topic,question",
     "ASSESSMENT_SAMPLE": "200",
+    "ASSESSMENT_STRATIFY": "false",
 }
 
 

@@ -34,6 +34,9 @@ class Settings:
     #: How many artefacts of each kind one `start` enrols, newest first.
     #: 0 is every one of them.
     sample: int
+    #: Whether a sample is drawn evenly across language, and across type for
+    #: a question, in random order within each, instead of newest first.
+    stratify: bool = False
 
     @property
     def unlimited(self) -> bool:
@@ -48,6 +51,7 @@ class Settings:
             judge_model=optional("ASSESSMENT_JUDGE_MODEL", source),
             kinds=csv("ASSESSMENT_KINDS", source),
             sample=integer("ASSESSMENT_SAMPLE", source),
+            stratify=boolean("ASSESSMENT_STRATIFY", source),
         )
 
 

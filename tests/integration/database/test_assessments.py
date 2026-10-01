@@ -377,3 +377,60 @@ def test_what_a_caller_names_beats_what_the_settings_say(corpus, engine) -> None
     AssessmentQueue(kinds=("question",), sample=1).enrol()
 
     assert set(enrolled(engine)) == {"question"}
+
+
+@pytest.fixture
+def two_languages(engine, database) -> dict[str, list[int]]:
+    """Three German questions written before three English ones."""
+    with Session(engine) as session:
+        sha = digest("a")
+        session.add(document(sha))
+        session.flush()
+        held = passage(sha)
+        session.add(held)
+        session.flush()
+        one = fact(held.id, statement="A reply is due in five days.")
+        session.add(one)
+        session.flush()
+        written: dict[str, list[int]] = {"de": [], "en": []}
+        for language in ("de", "en"):
+            for _ in range(3):
+                asked = question(
+                    language=language,
+                    target_answer="Five days.",
+                    status=QuestionStatus.ACCEPTED,
+                )
+                session.add(asked)
+                session.flush()
+                session.add(link(asked.id, one.id))
+                written[language].append(asked.id)
+        session.commit()
+        return written
+
+
+def _enrolled_questions(engine) -> set[int]:
+    """The question ids an assessment was enrolled for."""
+    with engine.connect() as connection:
+        return set(
+            connection.execute(
+                select(Assessment.question_id).where(
+                    Assessment.question_id.is_not(None)
+                )
+            ).scalars()
+        )
+
+
+def test_a_sample_takes_the_newest_questions(two_languages, engine) -> None:
+    """The incremental case: what arrived since the last run."""
+    AssessmentQueue(kinds=("question",), sample=2, stratify=False).enrol()
+
+    assert _enrolled_questions(engine) <= set(two_languages["en"])
+
+
+def test_a_stratified_sample_spans_the_languages(two_languages, engine) -> None:
+    """ASSESSMENT_STRATIFY: a measurement run judges every band, not the tail."""
+    AssessmentQueue(kinds=("question",), sample=2, stratify=True).enrol()
+
+    chosen = _enrolled_questions(engine)
+    assert len(chosen & set(two_languages["de"])) == 1
+    assert len(chosen & set(two_languages["en"])) == 1

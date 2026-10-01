@@ -882,6 +882,13 @@ SETTINGS: tuple[Setting, ...] = (
         "call per fact.",
     ),
     Setting(
+        name="ASSESSMENT_STRATIFY",
+        service="assessment",
+        kind="boolean",
+        help="Whether the sample spans every language, and every type of "
+        "question, in random order, instead of taking the newest rows.",
+    ),
+    Setting(
         name="WORKER_POLL_SECONDS",
         service="platform",
         kind="decimal",

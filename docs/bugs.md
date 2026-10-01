@@ -16,7 +16,7 @@ figures; this one holds only what is wrong with them.
 | [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | yes |
 | [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | 8 of them |
 | [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) | yes |
-| [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) | |
+| [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) | yes |
 
 292 of the 1,341 — **21.8%** — carry at least one of them.
 
@@ -254,6 +254,12 @@ written for. Add `ASSESSMENT_STRATIFY`, default off, which enrols evenly
 across language and question type and orders randomly within each band, and
 set it for a measurement run. Until it exists,
 [measurements.md](measurements.md) says which rows were judged.
+
+Shipped as `ASSESSMENT_STRATIFY`, off in
+[`backend.env`](../configs/env/backend.env). A fact's band is the language
+of the passage it was read from, a topic's its own language, a question's
+its language and its type. The figures in measurements.md stay the
+last-written German slice until a run is judged with it set.
 
 ## Reproducing this page
 

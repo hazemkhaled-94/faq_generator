@@ -236,6 +236,7 @@ From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 | --- | --- |
 | `ASSESSMENT_KINDS` | Which artefacts are judged |
 | `ASSESSMENT_SAMPLE` | How many of each kind one `start` enrols, newest first. 0 is all of them |
+| `ASSESSMENT_STRATIFY` | Whether that sample spans every language, and every type of question, in random order, instead of taking the newest |
 
 ## Layout
 
