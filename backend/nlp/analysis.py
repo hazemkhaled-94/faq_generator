@@ -433,6 +433,8 @@ def _foreign(token, language: str) -> bool:
         language in _capitalises_nouns()
         and token.pos_ in _NOMINAL
         and token.text[:1].islower()
+        # `eGovernment`, `iOS`: a capital after the first letter is a name.
+        and not any(char.isupper() for char in token.text[1:])
     )
 
 

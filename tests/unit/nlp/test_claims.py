@@ -51,3 +51,10 @@ def test_a_hyphenated_compound_is_a_content_lemma() -> None:
     from nlp.analysis import content
 
     assert "ki-verordnung" in content("die KI-Verordnung der EU", "de")
+
+
+def test_a_name_written_with_a_lower_case_initial_is_kept() -> None:
+    """`eGovernment` is a German noun with a capital, just not the first."""
+    from nlp.analysis import content
+
+    assert "egovernment" in content("Das eGovernment erfordert Tests.", "de")
