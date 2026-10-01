@@ -10,7 +10,7 @@ figures; this one holds only what is wrong with them.
 | | Release rows | Where the fix goes | Fixed |
 |---|---|---|---|
 | [The weld answers in two fragments](#the-weld-answers-in-two-fragments) | 100 | [`gates.py`](../backend/question_generation/gates.py) | yes |
-| [The type disagrees with the interrogative](#the-type-disagrees-with-the-interrogative) | 57 | [`checker.py`](../backend/question_generation/checker.py) | |
+| [The type disagrees with the interrogative](#the-type-disagrees-with-the-interrogative) | 57 | [`checker.py`](../backend/question_generation/checker.py) | yes |
 | [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) | |
 | [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | |
 | [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | |
@@ -93,8 +93,19 @@ mis-composes every quota drawn from it.
 **Fix.** `wrong_type` already fires in
 [`checker.py`](../backend/question_generation/checker.py) and reads only the
 answer. Give it the question too: where the interrogative names a family,
-refuse a type outside it. One dict of five forms, and the families are the
-table above.
+refuse a type outside it. One dict of five forms, `_ASKED_FOR` in
+[`gates.py`](../backend/question_generation/gates.py):
+
+| Form | Family |
+|---|---|
+| Why / Warum | `reason`, `implication`, `consequence` |
+| When / Wann | `condition`, `temporal`, `factoid` |
+| How many / Wie viele | `factoid`, `aggregation` |
+| What is / Was ist | `definition`, `factoid`, `aggregation` |
+| How … differ | `comparison` |
+
+Sized against this run it refuses 88 accepted questions, 64 of them in the
+release.
 
 ## The release breaks threads
 

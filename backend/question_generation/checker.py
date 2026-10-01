@@ -7,8 +7,9 @@ it:
   answer_too_short  free: nothing worth scoring against
   answer_too_long   free: not the form of answer that was asked for
   wrong_form        free: a value carrying a verb, an explanation with none
-  wrong_type      free: an entity question asking after no party, an
-                  enumeration answered with one thing
+  wrong_type      free: a question word asking for another kind, an entity
+                  question asking after no party, an enumeration answered
+                  with one thing
   explanation_unusable  free: the long answer is the wrong length, asserts a
                   number the passages do not carry, or only restates the key
   asks_nothing_new  free: a follow-up citing nothing its root did not, so a
@@ -63,6 +64,7 @@ from question_generation.gates import (
     adds_up,
     agrees,
     anchored,
+    asked_as,
     asks_for_an_agent,
     asserted,
     cites_source,
@@ -349,9 +351,18 @@ class QuestionChecker:
         embedding because every one of them reads what the writer already
         returned, and a candidate refused here costs nothing at all.
 
-        An unanswerable question faces none of them: it has no answer, so
-        it has no explanation and no answer shape to be wrong about.
+        An unanswerable question faces only the question word: it has no
+        answer, so it has no explanation and no answer shape to be wrong
+        about.
         """
+        if not asked_as(candidate.question_text, candidate.spec.name):
+            return (
+                QuestionRejection.WRONG_TYPE,
+                (
+                    f"it was planned as {candidate.spec.name} and its question "
+                    f"word asks for another kind"
+                ),
+            )
         if not candidate.answerable:
             return None
 

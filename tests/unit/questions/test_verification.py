@@ -22,6 +22,7 @@ from question_generation.gates import (
     _folded,
     agrees,
     anchored,
+    asked_as,
     asks_for_an_agent,
     compares,
     enumerates,
@@ -2250,6 +2251,33 @@ def test_a_comparison_saying_which_side_is_more_passes() -> None:
         "internal reports may be less formal, external reports are more formal",
         "en",
     )
+
+
+def test_a_why_question_typed_as_a_procedure_is_the_wrong_type() -> None:
+    """The type is read off the question word as well as off the answer."""
+    recording = Recording(recovers="4 kg")
+
+    result = build(recording).check(
+        candidate(
+            question_text="Why is the device built at the Hamburg plant?",
+            target_answer="because the plant holds the press line",
+            question_type=QuestionType.PROCEDURE,
+        )
+    )
+
+    assert result.rejected_reason == QuestionRejection.WRONG_TYPE
+    assert recording.embedded == 0
+
+
+def test_a_why_question_typed_as_a_reason_is_asked_as_it_was_planned() -> None:
+    """The family a question word names holds the type that answers it."""
+    assert asked_as("Why is the device built at the Hamburg plant?", "reason")
+    assert not asked_as("Wie viele Werke bauen das Gerät?", "definition")
+
+
+def test_a_question_word_naming_no_family_leaves_the_type_alone() -> None:
+    """`Which` asks for any kind of thing."""
+    assert asked_as("Which plant builds the device?", "enumeration")
 
 
 def test_a_temporal_answer_needs_two_periods() -> None:

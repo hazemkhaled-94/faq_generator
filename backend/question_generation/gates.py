@@ -30,7 +30,7 @@ import re
 from collections.abc import Mapping, Sequence
 from itertools import combinations
 
-from database.qa_generator import AnswerForm, QuestionRejection
+from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
 from nlp.analysis import (
     claim,
     content,
@@ -893,6 +893,42 @@ def asks_for_an_agent(question: str, answer: str, language: str | None) -> bool:
         entity.label_ in ("PER", "PERSON", "ORG")
         for entity in pipeline(language)(answer).ents
     )
+
+
+#: The types a question's opening asks for, by the opening. An opening not
+#: here names no type.
+#:
+#: ponytail: openings in the two languages NLP_MODELS configures; a third
+#: language asks through none of them. Upgrade: a per-language setting.
+_ASKED_FOR: dict[str, frozenset[str]] = {
+    r"^(why|warum)\b": frozenset(
+        {QuestionType.REASON, QuestionType.IMPLICATION, QuestionType.CONSEQUENCE}
+    ),
+    r"^(when|wann)\b": frozenset(
+        {QuestionType.CONDITION, QuestionType.TEMPORAL, QuestionType.FACTOID}
+    ),
+    r"^(how many|wie viele)\b": frozenset(
+        {QuestionType.FACTOID, QuestionType.AGGREGATION}
+    ),
+    r"^(what is|was ist)\b": frozenset(
+        {QuestionType.DEFINITION, QuestionType.FACTOID, QuestionType.AGGREGATION}
+    ),
+    r"^(how|wie|worin|wodurch)\b.*\b(differs?|distinguish(es)?|unterscheide[nt]?)\b": (
+        frozenset({QuestionType.COMPARISON})
+    ),
+}
+
+
+def asked_as(question: str, kind: str) -> bool:
+    """Whether a type is one the question's opening asks for.
+
+    True where the opening names no type.
+    """
+    folded = normalised(question)
+    for opening, kinds in _ASKED_FOR.items():
+        if re.search(opening, folded):
+            return kind in kinds
+    return True
 
 
 #: The fewest items an enumeration answers with. Its own directive says "if
