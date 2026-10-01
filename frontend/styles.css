@@ -76,8 +76,11 @@ footer { visibility: hidden; }
    holding a form, and a page of seven of them reads as a stack of cards
    rather than as one page with sections. */
 [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .qa-panel-label) {
-  gap: .55rem;
+  gap: .55rem; padding: .75rem .875rem;
 }
+
+/* The gap between sections. */
+[data-testid="stMain"] [data-testid="stVerticalBlock"] { gap: .75rem; }
 
 /* ── Figures: small, because only the important ones are here ───────── */
 
