@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Iterator
 from functools import lru_cache
-from importlib.metadata import version
 from itertools import takewhile
 
 from spacy.tokens import Doc, Span
@@ -96,11 +95,6 @@ def normalised(text: str) -> str:
     only casefold folds ß to ss - "STRASSE" and "Straße" are the same word.
     """
     return _WHITESPACE.sub(" ", text).strip().casefold()
-
-
-#: Recorded on every fact, beside the model and the prompt: the parser
-#: decides the verdicts, so two parsers are two datasets.
-VERSION = version("spacy")
 
 
 #: Dependency labels that hang a clause off another one rather than standing

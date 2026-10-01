@@ -22,9 +22,10 @@ from extraction.models import (
     PassageToExtract,
     Provenance,
 )
-from nlp.analysis import VERSION, claim, normalised, vocabulary
+from nlp.analysis import claim, normalised, vocabulary
 from nlp.models import Claim, Sentence
 from nlp.pipelines import name as pipeline_name
+from nlp.pipelines import version as pipeline_version
 from settings import decimal
 
 #: What joins the cited spans into the evidence stored on the fact. Two
@@ -471,7 +472,7 @@ def _fact(
         prompt_version=provenance.prompt_version if provenance else None,
         extraction_temperature=provenance.temperature if provenance else None,
         spacy_model=pipeline_name(passage.language),
-        spacy_version=VERSION,
+        spacy_version=pipeline_version(passage.language),
     )
 
 
@@ -509,5 +510,5 @@ def _absent(
         prompt_version=provenance.prompt_version if provenance else None,
         extraction_temperature=provenance.temperature if provenance else None,
         spacy_model=pipeline_name(read[0].language if read else None),
-        spacy_version=VERSION,
+        spacy_version=pipeline_version(read[0].language if read else None),
     )

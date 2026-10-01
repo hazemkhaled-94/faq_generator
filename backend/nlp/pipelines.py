@@ -63,3 +63,12 @@ def name(language: str | None) -> str:
     """Returns the model identifier used for a language."""
     models, default = _configured()
     return models.get((language or "").strip().lower(), models[default])
+
+
+def version(language: str | None) -> str:
+    """Returns the version of the pipeline used for a language.
+
+    Recorded on every fact beside its name: the pipeline decides the
+    verdicts, so two versions of one are two datasets.
+    """
+    return pipeline(language).meta["version"]

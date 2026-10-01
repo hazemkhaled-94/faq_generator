@@ -42,6 +42,15 @@ def test_one_claim_drawn_from_its_sentence_is_accepted(checker) -> None:
     assert only(good).passage_id == checker.passage.id
 
 
+def test_a_fact_records_the_version_of_the_pipeline_that_parsed_it(checker) -> None:
+    """The model's own version, not spaCy's: the model decides the parse."""
+    from nlp.pipelines import pipeline
+
+    good = checker.atomic("The device weighs 4 kg.")
+
+    assert good.spacy_version == pipeline("en").meta["version"]
+
+
 def test_the_source_own_words_are_accepted_when_they_narrow_the_claim(checker) -> None:
     """One claim taken out of a sentence carrying two is still a fact."""
     narrowed = checker.atomic("The device runs for 12 hours.")

@@ -79,7 +79,11 @@ RUN pip install --no-cache-dir -r requirements.lock
 # network: a pipeline missing at run time fails every passage of every
 # document, and nothing downloads one on demand.
 ARG SPACY_MODELS="de_core_news_md en_core_web_md"
-RUN for model in ${SPACY_MODELS}; do python -m spacy download "$model"; done
+# The version every pipeline is pinned to. The Makefile reads it from here.
+ARG SPACY_MODEL_VERSION=3.8.0
+RUN for model in ${SPACY_MODELS}; do \
+      python -m spacy download "$model-${SPACY_MODEL_VERSION}" --direct; \
+    done
 
 # Fails the build if any CUDA wheel is present.
 RUN ! pip list --format=freeze | grep -q '^nvidia-'

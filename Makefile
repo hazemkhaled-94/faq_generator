@@ -312,13 +312,14 @@ dev: install certs logs-dir
 SPACY_MODELS := $(strip $(shell sed -n 's/^NLP_MODELS=//p' configs/env/backend.env \
                                 | tr ',' '\n' | cut -d: -f2))
 export SPACY_MODELS
+SPACY_MODEL_VERSION := $(shell sed -n 's/^ARG SPACY_MODEL_VERSION=//p' backend/api/Dockerfile)
 
 # Install the Python dependencies and the spaCy pipelines.
 install:
 	poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
 	@for model in $(SPACY_MODELS); do \
 	  attempt=1; \
-	  until poetry run python -m spacy download $$model; do \
+	  until poetry run python -m spacy download $$model-$(SPACY_MODEL_VERSION) --direct; do \
 	    attempt=$$((attempt + 1)); \
 	    if [ $$attempt -gt 3 ]; then \
 	      echo "could not download $$model after 3 attempts" >&2; exit 1; \
