@@ -83,7 +83,7 @@ footer { visibility: hidden; }
 
 [data-testid="stMetric"] { padding: .45rem .6rem; }
 [data-testid="stMetricLabel"] p {
-  font-size: 0.7rem !important; font-weight: 600;
+  font-size: 0.86rem !important; font-weight: 600;
   letter-spacing: 0.02em; color: var(--qa-muted);
 }
 /* Figures are set in the deep purple. */
@@ -119,7 +119,7 @@ footer { visibility: hidden; }
 /* ── The state line beside a service's controls ─────────────────────── */
 
 .qa-state {
-  font-size: 0.78rem; color: var(--qa-muted); padding-top: .5rem;
+  font-size: 0.86rem; color: var(--qa-muted); padding-top: .5rem;
   display: flex; align-items: center; gap: .45rem;
 }
 .qa-state-bad { color: var(--qa-danger); }
@@ -139,7 +139,7 @@ footer { visibility: hidden; }
 
 /* ── Deletion: the one place a second colour is spent ───────────────── */
 
-.qa-danger-note { color: var(--qa-danger); font-size: 0.78rem; }
+.qa-danger-note { color: var(--qa-danger); font-size: 0.86rem; }
 
 [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .qa-danger-note) {
   border-color: var(--qa-danger-line) !important;

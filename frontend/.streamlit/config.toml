@@ -18,6 +18,7 @@
 font = "Graphik, Graphik Regular, Arial, Helvetica, sans-serif"
 headingFont = "Graphik Semibold, Graphik, Arial, Helvetica, sans-serif"
 headingFontWeights = [700, 700, 600, 600, 600, 600]
+baseFontSize = 14
 baseRadius = "0.5rem"
 buttonRadius = "0.5rem"
 metricValueFontWeight = 700
