@@ -908,6 +908,15 @@ class View:
         self.app.checkbox(key).uncheck()
         return self._rerun()
 
+    def switch(self, key: str, on: bool) -> View:
+        """Turns one of the page's toggles on or off."""
+        self.app.toggle(key=key).set_value(on)
+        return self._rerun()
+
+    def rerun(self) -> View:
+        """Runs the page again, as its poll does."""
+        return self._rerun()
+
     def save_configuration(self) -> View:
         """Presses Save in the configuration panel every page draws.
 

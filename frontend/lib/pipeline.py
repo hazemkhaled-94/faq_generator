@@ -197,19 +197,24 @@ def _automation(client, automation: dict) -> None:
         )
         return
 
+    # The switches follow the backend whenever it moved since this page last
+    # read it: a keyed toggle takes `value` only the first time it is drawn.
+    if st.session_state.get("pipeline-automation-seen") != (on_arrival, nightly):
+        st.session_state["pipeline-automation-seen"] = (on_arrival, nightly)
+        st.session_state["pipeline-on-arrival"] = on_arrival
+        st.session_state["pipeline-nightly"] = nightly
+
     with st.expander(
         "Run it without being asked" + (f" · {', '.join(running)}" if running else "")
     ):
         chosen = st.toggle(
             "When a document is uploaded",
-            value=on_arrival,
             key="pipeline-on-arrival",
             help="Starts a run whenever documents are sitting unasked-for. "
             "This is what makes the pipeline unattended.",
         )
         clocked = st.toggle(
             "Every night at 02:00 UTC",
-            value=nightly,
             key="pipeline-nightly",
             help="A topic fit is corpus-wide and goes stale on every new "
             "document, which is what makes a clock worth having.",

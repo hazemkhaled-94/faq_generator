@@ -207,3 +207,46 @@ def test_without_an_orchestrator_there_is_nothing_to_switch(page) -> None:
     )
 
     assert "No orchestrator" in opened.text()
+
+
+def test_a_switch_changed_elsewhere_is_not_sent_back(page) -> None:
+    """Another tab turned it on; this one must not turn it off again."""
+    scripted = client()
+    opened = page(pipeline_api=scripted)
+
+    scripted._answers["state"] = pipeline(
+        orchestration=orchestration(
+            automation={
+                "available": True,
+                "on_arrival": True,
+                "nightly": False,
+                "detail": None,
+            }
+        )
+    )
+    opened.rerun()
+
+    assert scripted.calls("automate") == []
+
+
+def test_a_switch_turned_on_here_is_saved_once(page) -> None:
+    """The one PUT the panel sends, sent for the change and not again."""
+    scripted = client()
+
+    def saved(**switches) -> tuple[bool, str]:
+        """Stores the switches, as the backend does."""
+        scripted._answers["state"] = pipeline(
+            orchestration=orchestration(
+                automation={"available": True, "detail": None, **switches}
+            )
+        )
+        return True, "Saved."
+
+    scripted._answers["automate"] = saved
+    opened = page(pipeline_api=scripted)
+
+    opened.switch("pipeline-on-arrival", True)
+
+    assert [one[2] for one in scripted.calls("automate")] == [
+        {"on_arrival": True, "nightly": False}
+    ]
