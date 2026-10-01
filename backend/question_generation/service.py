@@ -194,7 +194,8 @@ def _recheck(
     # is a question whose stored scopes stopped being true, which is a
     # quieter kind of wrong and so worth naming. Compared on the scopes and
     # not on the band, because two different spreads can land in one band
-    # and the scopes are what a reader filters on.
+    # and the scopes are what a reader filters on. Not on the topic scope,
+    # which a refit moves with no fact or citation changing.
     now = criteria_of(
         passages=question.passages,
         documents=question.documents,
@@ -208,7 +209,6 @@ def _recheck(
         for name, was, is_now in (
             ("passage_scope", question.passage_scope, now.passage_scope),
             ("document_scope", question.document_scope, now.document_scope),
-            ("topic_scope", question.topic_scope, now.topic_scope),
         )
         if was and was != is_now
     ]

@@ -129,3 +129,19 @@ def _stored(question: str, answer: str, kind: str, form: str) -> JudgedQuestion:
         question_type=kind,
         answer_form=form,
     )
+
+
+def test_a_refit_moving_the_topics_is_not_a_changed_source() -> None:
+    """A refit rewrites the dominant topics under a stored question."""
+    stored = replace(
+        _stored(
+            "Why does a request have to be confirmed in writing?",
+            "so that the agreed response time can be evidenced later",
+            QuestionType.REASON,
+            AnswerForm.EXPLANATION,
+        ),
+        topic_scope="single_topic",
+        topics=2,
+    )
+
+    assert _recheck(None, Settings.load(), stored) is None  # type: ignore[arg-type]
