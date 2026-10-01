@@ -213,6 +213,25 @@ def test_a_verdict_and_its_metrics_land_together(corpus, engine) -> None:
         }
 
 
+def test_a_reset_row_waits_with_no_verdict(corpus, engine) -> None:
+    """The old template's verdict would otherwise read as current."""
+    queue = AssessmentQueue(kinds=("fact",), sample=0, stratify=False)
+    queue.start()
+    claimed = queue.claim()
+    assert claimed is not None
+    queue.record(_judged(claimed.assessment_id, approved=True))
+
+    queue.reset()
+
+    with Session(engine) as session:
+        row = session.get(Assessment, claimed.assessment_id)
+        held = session.scalars(select(func.count()).select_from(AssessmentMetric)).one()
+    assert row is not None
+    assert row.assess_status == Status.PENDING
+    assert (row.approved, row.assessed_at, row.judge_model) == (None, None, None)
+    assert held == 0
+
+
 def test_judging_again_replaces_the_metrics_rather_than_adding_to_them(
     corpus, engine
 ) -> None:

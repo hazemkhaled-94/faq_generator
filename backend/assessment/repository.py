@@ -22,6 +22,7 @@ from sqlalchemy import (
     or_,
     select,
     union_all,
+    update,
 )
 from sqlalchemy import insert as sa_insert
 from sqlalchemy.dialects.postgresql import insert
@@ -313,12 +314,34 @@ class AssessmentQueue(RowQueue):
     def reset(self, within: Any = None, *, trigger: str | None = None) -> int:
         """Enrols anything new, then queues every row again.
 
-        A re-run under a changed template is what this serves. The verdicts
-        already stored are overwritten when each row is judged again rather
-        than appended to, so a corpus never holds two opinions from two
-        template versions with nothing saying which is current.
+        A re-run under a changed template is what this serves. The verdict
+        of every row queued again is cleared first, so a row waiting to be
+        judged, or one whose re-run fails, holds no opinion from a template
+        version that is no longer current.
         """
         self.enrol()
+        chosen = select(Assessment.id).where(
+            Assessment.assess_status != Status.IN_PROGRESS
+        )
+        if within is not None:
+            chosen = chosen.where(within)
+        with self._session.begin() as session:
+            session.execute(
+                delete(AssessmentMetric).where(
+                    AssessmentMetric.assessment_id.in_(chosen)
+                )
+            )
+            session.execute(
+                update(Assessment)
+                .where(Assessment.id.in_(chosen))
+                .values(
+                    approved=None,
+                    assessed_at=None,
+                    metrics_due=None,
+                    judge_model=None,
+                    prompt_version=None,
+                )
+            )
         return super().reset(within, trigger=trigger)
 
     # ── Claiming and recording ───────────────────────────────────────────
