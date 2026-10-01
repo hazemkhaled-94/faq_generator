@@ -53,7 +53,10 @@ def test_the_wrapping_a_model_adds_is_taken_off(said, stored) -> None:
     assert LabellerDriver(said).names("a", "b") == stored
 
 
-@pytest.mark.parametrize("refusal", ["Mixed", "mixed", "MIXED", "  Mixed. "])
+@pytest.mark.parametrize(
+    "refusal",
+    ["Mixed", "mixed", "MIXED", "  Mixed. ", "„Mixed“", "“Mixed”", "Gemischt"],
+)
 def test_a_refusal_is_not_stored_as_a_name(refusal) -> None:
     """A model that finds no subject leaves the topic unnamed."""
     assert LabellerDriver(refusal).names("a", "b") is None

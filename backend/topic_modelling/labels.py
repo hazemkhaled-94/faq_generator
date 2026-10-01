@@ -81,6 +81,14 @@ Excerpts this topic covers:
 {{excerpts}}"""
 
 
+#: What the prompt asks for where the terms share no subject, and that word
+#: as a model writing in German translates it.
+#:
+#: ponytail: a word list in the two languages NLP_MODELS configures.
+#: Upgrade: a boolean field on `_Label` the model sets instead.
+_REFUSALS = frozenset({"mixed", "gemischt"})
+
+
 class _Label(BaseModel):
     """The name the model gives one topic."""
 
@@ -139,9 +147,9 @@ class TopicLabeller:
             log.warning("could not name topic %d: %s", topic.topic_index, exc)
             return None
         # One strip over the whole set, so a full stop inside a closing quote
-        # takes the quote with it.
-        name = answer.label.strip("\"'. \n\t")
-        if not name or name.casefold() == "mixed":
+        # takes the quote with it. German and typographic quotes as well.
+        name = answer.label.strip("\"'. \n\t“”„‚‘’«»‹›")
+        if not name or name.casefold() in _REFUSALS:
             return None
         # Asked for in the prompt and enforced here: an unnamed topic reads as
         # unnamed, where two topics under one name read as one topic.
