@@ -504,7 +504,9 @@ _DOCUMENTS = frozenset(
 #: Lemmas that attribute what follows them to a source. `laut dem
 #: Jahresbericht` says where the answer is whatever the noun turns out to be,
 #: so this one needs nothing beside it.
-_ATTRIBUTIONS = frozenset({"laut", "gemäß", "ausweislich", "according", "per"})
+#: Read on the lemma and on the word, because spaCy lemmatises `according`
+#: to `accord`.
+_ATTRIBUTIONS = frozenset({"laut", "gemäß", "ausweislich", "according"})
 
 #: A bracketed reference as a bibliography writes one: `[R22]`, `[12]`.
 _BRACKETED = re.compile(r"\[[A-Za-z]{0,3}\s?\d{1,4}[a-z]?\]")
@@ -563,7 +565,8 @@ def cites_source(question: str, language: str | None) -> bool | None:
         # question points at and never names, which is a question failing to
         # stand on its own rather than one citing a source, and the two are
         # different gates.
-        if lemma in _ATTRIBUTIONS and _names_something(tokens[position + 1 :]):
+        attributes = lemma in _ATTRIBUTIONS or token.lower_ in _ATTRIBUTIONS
+        if attributes and _names_something(tokens[position + 1 :]):
             return True
         # `Abschnitt 2.2`, `Kapitel 5`, `section 4`.
         if lemma in _DIVISIONS and following is not None and _identifier(following):
@@ -578,7 +581,8 @@ def cites_source(question: str, language: str | None) -> bool | None:
             and _CITED_YEAR.match(following.text.strip())
         ):
             return True
-        if lemma in _DOCUMENTS:
+        # A noun: `the standard 48-hour window` uses the word as an adjective.
+        if lemma in _DOCUMENTS and token.pos_ in ("NOUN", "PROPN"):
             # `die Norm ISO/IEC 20246`: the document named and numbered.
             if following is not None and _identifier(following):
                 return True

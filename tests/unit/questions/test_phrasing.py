@@ -40,6 +40,7 @@ pytestmark = pytest.mark.nlp
             "de",
         ),
         ("What does section 4 say about weekend cover?", "en"),
+        ("According to the service manual, how long is a reply allowed?", "en"),
     ],
 )
 def test_a_named_source_is_settled_without_a_model(
@@ -63,6 +64,8 @@ def test_a_named_source_is_settled_without_a_model(
         ("Wer trägt die Verantwortung für den vierteljährlichen Risikobericht?", "de"),
         ("How many faults were reported to the site manager in 2025?", "en"),
         ("Within how many hours is an urgent support request answered?", "en"),
+        ("How many errors occur per 1,000 transactions?", "en"),
+        ("What is the standard 48-hour reply window for?", "en"),
     ],
 )
 def test_what_needs_a_reading_is_left_to_one(question: str, language: str) -> None:
