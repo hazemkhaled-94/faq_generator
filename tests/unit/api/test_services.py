@@ -96,3 +96,14 @@ def test_a_portless_service_is_neither_up_nor_down(monkeypatch) -> None:
 
     assert state.ok is None
     assert "queue" in state.detail
+
+
+def test_every_compose_worker_is_in_the_catalogue() -> None:
+    """System health listed five workers while compose ran six."""
+    import re
+    from pathlib import Path
+
+    compose = (Path(__file__).resolve().parents[3] / "compose.yaml").read_text()
+    run = set(re.findall(r"^  ([a-z]+-worker):", compose, re.MULTILINE))
+
+    assert run <= {one.name for one in services.CATALOGUE}

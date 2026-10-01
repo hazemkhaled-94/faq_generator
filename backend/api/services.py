@@ -79,6 +79,7 @@ CATALOGUE: tuple[Service, ...] = (
     Service("extract-worker", "Turns a passage into facts that cite a sentence"),
     Service("topic-worker", "Fits topics over each language's vocabulary"),
     Service("question-worker", "Turns a topic's facts into questions"),
+    Service("assess-worker", "Judges facts, topics and questions with a second model"),
     Service("dagster-webserver", "Runs the stages in order, and on a schedule", 3000),
     Service("dagster-daemon", "Works the schedules and sensors the webserver holds"),
     Service("argilla", "Where a person accepts or rejects what was generated", 6900),
