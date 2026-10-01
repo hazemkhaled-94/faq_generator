@@ -10,7 +10,7 @@ from lib import backend, catalog, configure, explain, lineage, page, stage
 
 #: The one stage this page runs. A fit is all-or-nothing over one
 #: vocabulary, so it has no per-topic form.
-_TOPICS = stage.Queue("topics", "Topic modelling", "fits", "modelled")
+_TOPICS = stage.Queue("topics", "fits", "modelled")
 
 #: What fails a fit. Nothing here judges one topic - a fit succeeds whole or
 #: not at all - so these are raised rather than fitted through.

@@ -8,7 +8,7 @@ from lib import backend, catalog, configure, explain, lineage, page, stage
 
 #: The one stage this page runs. It queues over a passage, so a fact picked
 #: below is run by the passage it was drawn from.
-_EXTRACTION = stage.Queue("extraction", "Extraction", "passages", "extracted")
+_EXTRACTION = stage.Queue("extraction", "passages", "extracted")
 
 #: The columns the search box can look in, by the heading each carries in
 #: the table below, mapped to the name /facts takes.

@@ -43,10 +43,9 @@ _ORDER = ("new", "pending", "in_progress", "failed")
 class Queue:
     """One stage as a page refers to it: its name and how it reads."""
 
-    def __init__(self, name: str, label: str, unit: str, done: str) -> None:
-        """Names a stage, what to call it, what it counts and its end state."""
+    def __init__(self, name: str, unit: str, done: str) -> None:
+        """Names a stage, what it counts and its end state."""
         self.name = name
-        self.label = label
         self.unit = unit
         self.done = done
 

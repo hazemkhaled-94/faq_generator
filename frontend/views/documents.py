@@ -16,7 +16,7 @@ from lib import backend, catalog, configure, explain, lineage, page, pipeline, s
 
 #: The one stage this page runs. Chunking is the Passages page's and
 #: extraction is the Facts page's; neither can be reached from here.
-_PARSING = stage.Queue("parsing", "Parsing", "documents", "parsed")
+_PARSING = stage.Queue("parsing", "documents", "parsed")
 
 #: What refuses a document, by the failure the row carries. Not gates in
 #: the sense the later stages have them - nothing here judges quality - but

@@ -14,7 +14,7 @@ _WORKBOOK = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 #: The one stage this page runs. It queues over topics, which the Topics
 #: page fits; nothing here can fit them.
-_QUESTIONS = stage.Queue("questions", "Question generation", "topics", "generated")
+_QUESTIONS = stage.Queue("questions", "topics", "generated")
 
 #: The columns the search box can look in, by the heading each carries in
 #: the table below, mapped to the name /questions takes.

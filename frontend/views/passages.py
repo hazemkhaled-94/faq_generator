@@ -8,7 +8,7 @@ from lib import backend, catalog, configure, explain, lineage, page, stage
 
 #: The one stage this page runs. It queues over a document and replaces all
 #: of its passages at once, so a passage picked below is run by its document.
-_CHUNKING = stage.Queue("chunking", "Chunking", "documents", "chunked")
+_CHUNKING = stage.Queue("chunking", "documents", "chunked")
 
 #: What refuses a document here. One, because nothing in this stage judges
 #: quality: a passage is cut or it is not.

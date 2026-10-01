@@ -96,12 +96,6 @@ def find(
     return typed, fields[heading], chosen, pager
 
 
-def field_name(fields: dict[str, str], field: str | None) -> str:
-    """Names a searched column the way the search panel showed it."""
-    heading = next((k for k, v in fields.items() if v == field), next(iter(fields)))
-    return heading.lower()
-
-
 def _slots(
     choices: dict[str, tuple[str, Sequence[str], str]],
     documents: list[dict] | None,

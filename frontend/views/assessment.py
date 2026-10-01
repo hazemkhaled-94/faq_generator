@@ -15,7 +15,7 @@ import streamlit as st
 from lib import backend, catalog, configure, explain, page, stage
 
 #: The one stage this page runs.
-_ASSESSMENT = stage.Queue("assessment", "Assessment", "artifacts", "assessed")
+_ASSESSMENT = stage.Queue("assessment", "artifacts", "assessed")
 
 #: The order this phase works in, and what runs each step.
 _STEPS = (
