@@ -1478,11 +1478,11 @@ def adds_up(answer: str, passages: Sequence[str]) -> bool | None:
 
     # Stated outright is not an aggregation, but it is not wrong arithmetic
     # either; `_derived` is the gate that refuses a lookup wearing this name.
-    for size in range(1, _TERM_CAP + 1):
-        for combination in combinations(available, size):
-            if abs(sum(combination) - total) < 1e-9:
-                return not _summed_years(combination, size)
-    return False
+    return any(
+        abs(sum(combination) - total) < 1e-9 and not _summed_years(combination, size)
+        for size in range(1, _TERM_CAP + 1)
+        for combination in combinations(available, size)
+    )
 
 
 def _summed_years(combination: tuple[float, ...], size: int) -> bool:

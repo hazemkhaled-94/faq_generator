@@ -20,6 +20,7 @@ from question_generation.checker import QuestionChecker
 from question_generation.gates import (
     OVERLAP,
     _folded,
+    adds_up,
     agrees,
     anchored,
     asked_as,
@@ -2310,6 +2311,14 @@ def test_a_why_question_typed_as_a_reason_is_asked_as_it_was_planned() -> None:
 def test_a_question_word_naming_no_family_leaves_the_type_alone() -> None:
     """`Which` asks for any kind of thing."""
     assert asked_as("Which plant builds the device?", "enumeration")
+
+
+def test_a_total_is_found_past_a_sum_of_two_years() -> None:
+    """2010 + 2015 also make 4025; the desks and rooms are the total."""
+    assert adds_up(
+        "4025",
+        ["Founded in 2010, revised in 2015.", "The site has 4000 desks and 25 rooms."],
+    )
 
 
 _TWO_FACTS = (
