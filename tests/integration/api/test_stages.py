@@ -179,6 +179,21 @@ def test_a_value_the_column_cannot_hold_is_refused_as_400(corpus) -> None:
     assert answered.json()["code"] == "invalid_value"
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/extraction/passage/99999999999999999999/status",
+        "/parsing/document/a%00/status",
+        "/extraction/passage/99999999999999999999/start",
+    ],
+)
+def test_a_value_past_what_a_column_holds_is_refused_not_an_error(corpus, path) -> None:
+    """An id past bigint and a NUL each reached the driver and answered 500."""
+    verb = corpus.post if path.endswith("start") else corpus.get
+
+    assert verb(path).status_code in (400, 422)
+
+
 def test_a_narrowing_that_selects_nothing_is_not_an_error(corpus) -> None:
     """A document with no rows for this stage is a count of zero."""
     answered = corpus.post(f"/parsing/document/{digest('unknown')}/start")

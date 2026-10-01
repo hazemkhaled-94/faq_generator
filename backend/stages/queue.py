@@ -279,7 +279,13 @@ class StageQueue(Repository):
             ValueError: If the value is not what that column holds.
         """
         column = self.scopes[scope]
-        return column == column.type.python_type(value)
+        # A NUL and an int past bigint are refused by the driver, not matched.
+        if "\x00" in value:
+            raise ValueError(f"{value!r} carries a NUL")
+        cast = column.type.python_type(value)
+        if isinstance(cast, int) and not -(2**63) <= cast < 2**63:
+            raise ValueError(f"{value!r} is past what a bigint holds")
+        return column == cast
 
     def narrowed(self, scope: str, value: str) -> Any:
         """Builds that condition, refusing a scope or a value with a reason.
