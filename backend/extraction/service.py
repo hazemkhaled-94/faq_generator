@@ -160,11 +160,8 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
         within: A condition narrowing which passages are read, or None.
 
     Returns:
-        How many facts were refused.
+        How many facts were refused or given back.
     """
-    if cap is None:
-        log.info("EXTRACTION_MIN_OTHER_SHARE caps nothing; no fact was touched")
-        return 0
     written = catalog.recap(
         cap,
         f"the passage yielded more than the {cap} atomic fact(s) "
@@ -172,7 +169,7 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
         f"a number, a date or a name were kept ahead of it",
         within,
     )
-    log.info("refused %d atomic fact(s) over the cap of %d a passage", written, cap)
+    log.info("moved %d atomic fact(s) across the cap of %s a passage", written, cap)
     return written
 
 

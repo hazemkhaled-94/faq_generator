@@ -917,6 +917,34 @@ def test_a_re_judgement_never_reaches_a_fact_refused_as_a_duplicate(
     assert len(offered) == 1, "the duplicate was offered for re-judgement"
 
 
+def test_a_raised_cap_gives_back_the_facts_a_lower_one_refused(store, corpus) -> None:
+    """`make extract-recap` moves a verdict both ways, as a cap moves."""
+    first = corpus["a"][0]
+    store.store(
+        first,
+        checked(first, "One claim."),
+        checked(first, "Two claims."),
+        checked(first, "Three claims."),
+    )
+
+    assert store.catalog.recap(1, "over the cap") == 2
+    store.catalog.recap(3, "over the cap")
+
+    assert [row[0] for row in store.rows("validated")] == [True, True, True]
+    assert store.rows("rejection_code", where="rejection_code IS NOT NULL") == []
+
+
+def test_no_cap_gives_back_every_fact_a_cap_refused(store, corpus) -> None:
+    """EXTRACTION_MIN_OTHER_SHARE set to cap nothing."""
+    first = corpus["a"][0]
+    store.store(first, checked(first, "One claim."), checked(first, "Two claims."))
+    store.catalog.recap(1, "over the cap")
+
+    store.catalog.recap(None, "over the cap")
+
+    assert [row[0] for row in store.rows("validated")] == [True, True]
+
+
 class TestTheEmbeddingBackfill:
     """`make extract-embed`, against the database it writes to.
 

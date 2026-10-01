@@ -20,6 +20,7 @@ from sqlalchemy import (
     literal,
     or_,
     select,
+    true,
     update,
 )
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -555,8 +556,11 @@ class FactCatalog(Repository):
             if held:
                 yield cast("int", current), held
 
-    def recap(self, cap: int, reason: str, within=None) -> int:
+    def recap(self, cap: int | None, reason: str, within=None) -> int:
         """Refuses the atomic facts already stored above the cap.
+
+        And gives back a fact an earlier, lower cap refused that is inside
+        this one. None caps nothing and gives back every one.
 
         The counterpart of `extract-revalidate` and the same bargain: what
         the model wrote is the record of one extraction and is kept, only
@@ -575,7 +579,7 @@ class FactCatalog(Repository):
             within: A condition on Passage narrowing which are read, or None.
 
         Returns:
-            How many facts were refused.
+            How many facts were refused or given back.
         """
         ranked = (
             select(
@@ -597,7 +601,7 @@ class FactCatalog(Repository):
             )
             .where(
                 Fact.kind == FactKind.ATOMIC,
-                Fact.validated,
+                Fact.validated | (Fact.rejection_code == Rejection.OVER_CAP),
                 # As `over_cap` ranks one in flight: a statement composed
                 # from a grid does not compete. The cap exists to leave room
                 # for the digests, and a table yields none.
@@ -607,16 +611,29 @@ class FactCatalog(Repository):
         if within is not None:
             ranked = ranked.where(_resting(within))
         over = ranked.subquery()
+        inside = over.c.rank <= cap if cap is not None else true()
         with self._session.begin() as session:
-            return session.execute(
+            refused = session.execute(
                 update(Fact)
-                .where(Fact.id.in_(select(over.c.id).where(over.c.rank > cap)))
+                .where(
+                    Fact.validated,
+                    Fact.id.in_(select(over.c.id).where(~inside)),
+                )
                 .values(
                     validated=False,
                     rejection_code=Rejection.OVER_CAP,
                     validation_error=reason,
                 )
             ).rowcount
+            returned = session.execute(
+                update(Fact)
+                .where(
+                    Fact.rejection_code == Rejection.OVER_CAP,
+                    Fact.id.in_(select(over.c.id).where(inside)),
+                )
+                .values(validated=True, rejection_code=None, validation_error=None)
+            ).rowcount
+        return refused + returned
 
     def unembedded(self, limit: int, within=None) -> list[tuple[int, str]]:
         """The next facts carrying no vector, as (id, statement).
