@@ -273,6 +273,16 @@ def test_a_fitted_topic_arrives_new_to_question_generation(store) -> None:
     assert {row["question_status"] for row in store.stored_topics()} == {Status.NEW}
 
 
+def test_a_language_the_fit_skipped_keeps_its_topics(store) -> None:
+    """A language with no vocabulary this time is not fitted, so not replaced."""
+    store.given_passages(de=1, en=1)
+    store.store(fitting("de"), fitting("en"))
+
+    store.store(fitting("en"))
+
+    assert {row["language"] for row in store.stored_topics()} == {"de", "en"}
+
+
 def test_a_fit_that_produced_no_topic_writes_nothing(store) -> None:
     """An empty result is not a model, and must not empty the table."""
     store.given_passages(de=1)
