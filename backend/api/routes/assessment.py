@@ -31,7 +31,15 @@ from settings.store import resolved
 #: by. Literals rather than free strings, so the OpenAPI document lists
 #: them and the frontend's pickers cannot drift from what is accepted.
 Kind = Literal["fact", "topic", "question"]
-Metric = Literal["hallucination", "relevance", "qa_correctness", "summarization"]
+Metric = Literal[
+    "hallucination",
+    "relevance",
+    "qa_correctness",
+    "summarization",
+    "toxicity",
+    "conciseness",
+    "refusal",
+]
 
 #: Where a search looks. The artefact is "which fact was this about";
 #: the explanation is "what did the judge say", and that is the half no

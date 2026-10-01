@@ -53,6 +53,14 @@ def test_a_filter_offers_exactly_what_the_column_holds(name: str) -> None:
     )
 
 
+def test_the_assessment_filter_offers_every_metric_a_verdict_carries() -> None:
+    """`?metric=toxicity` answered 422 while toxicity was being judged."""
+    from api.routes import assessment
+    from database.qa_generator import JudgeMetric
+
+    assert set(get_args(assessment.Metric)) == {str(one) for one in JudgeMetric}
+
+
 def test_the_band_filter_offers_exactly_the_three_bands() -> None:
     """Spelled `Band` rather than after its enum, so it is checked by name."""
     from api.routes import questions
