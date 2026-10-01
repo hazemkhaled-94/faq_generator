@@ -741,7 +741,9 @@ class ExtractionService(StageService):
         ) as current:
             try:
                 facts = self._passage(passage, current)
-                facts = self._deduplicated(facts, current, passage.id)
+                facts = self._capped(
+                    self._deduplicated(facts, current, passage.id), current
+                )
                 stored = self._repository.store(
                     passage.id, facts, self._embedded(passage)
                 )
@@ -844,15 +846,19 @@ class ExtractionService(StageService):
         ]
         if not facts:
             _nothing_found(passage, current)
+        return facts + self._digested(passage)
+
+    def _capped(self, facts: list[CheckedFact], current) -> list[CheckedFact]:
+        """Refuses the atomic facts past the cap, after dedup has refused its own."""
         cap = self._atomic_cap
         refused = over_cap(facts, cap)
-        if cap is not None and refused:
-            current.set_attribute("extract.over_cap", len(refused))
-            facts = [
-                _refuse(fact, cap) if position in refused else fact
-                for position, fact in enumerate(facts)
-            ]
-        return facts + self._digested(passage)
+        if cap is None or not refused:
+            return facts
+        current.set_attribute("extract.over_cap", len(refused))
+        return [
+            _refuse(fact, cap) if position in refused else fact
+            for position, fact in enumerate(facts)
+        ]
 
     def _embedded(self, passage: PassageToExtract) -> list[float] | None:
         """The passage's own vector, or None when this deployment writes none."""

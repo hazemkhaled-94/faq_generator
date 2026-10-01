@@ -460,6 +460,7 @@ class Extraction:
         kinds: tuple[str, ...] = (),
         duplicate_cosine: float = 0.0,
         embed: bool = False,
+        atomic_cap: int | None = None,
     ) -> None:
         """Wires the service.
 
@@ -473,6 +474,8 @@ class Extraction:
             embed: Whether to wire an embedder at all. Implied by a threshold
                 above 0, and asked for on its own to write vectors with no
                 gate.
+            atomic_cap: The most validated atomic facts a passage keeps, or
+                None for no cap.
         """
         from extraction.extractors import (
             DigestExtractor,
@@ -498,6 +501,7 @@ class Extraction:
             else None,
             embedder=self.vectors,  # type: ignore[arg-type]
             duplicate_cosine=duplicate_cosine,
+            atomic_cap=atomic_cap,
         )
 
     def run(self) -> int:

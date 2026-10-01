@@ -249,6 +249,21 @@ class TestTheDedupGate:
         assert "fact 7" in (stored[0].validation_error or "")
         assert stored[0].twin_id == 7, "its citation is recorded on fact 7"
 
+    def test_a_duplicate_takes_no_place_under_the_atomic_cap(self) -> None:
+        """Dedup first, then the cap over what is left."""
+        facts = {
+            "facts": [
+                {"sentences": [0], "statement": "The device weighs 4 kg."},
+                {"sentences": [0], "statement": "The device weighs 4 kg."},
+                {"sentences": [0], "statement": "The device runs for 12 hours."},
+            ]
+        }
+        run = Extraction(passage(), facts=facts, duplicate_cosine=0.9, atomic_cap=2)
+        run.next()
+
+        kept = [one.statement for one in run.queue.stored[1] if one.validated]
+        assert kept == ["The device weighs 4 kg.", "The device runs for 12 hours."]
+
     def test_a_twin_below_the_threshold_is_not_a_duplicate(self) -> None:
         """Sharing a subject is not saying the same thing."""
         run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9)
