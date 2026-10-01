@@ -77,7 +77,7 @@ def build_service(
             # ECB and NCAs, who conducts the due diligence check?` for
             # naming nothing, which is the kind of loss a gate must not
             # cause. Recoverability is unaffected: that one is checkable.
-            judge_phrasing=independent,
+            judge_phrasing=phrasing_model.model != writer_model.model,
             # For the same reason, and it matters more here: the entailment
             # pass can only accept, so a writer running it over its own
             # answer would wave through everything its own recall missed.

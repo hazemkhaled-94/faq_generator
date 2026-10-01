@@ -365,21 +365,18 @@ def test_a_topic_is_held_by_the_beat_and_not_by_the_lease() -> None:
     assert HEARTBEAT_SECONDS * 2 < StageQueue.lease.total_seconds()
 
 
-def test_the_phrasing_gate_is_off_when_one_model_does_both() -> None:
-    """The factory decides it, from the two models it resolved.
+def test_the_phrasing_gate_is_off_when_the_phrasing_model_is_the_writer(
+    monkeypatch,
+) -> None:
+    """The factory decides it from the model that holds the opinions.
 
-    Through `models`, which is what the factory calls, rather than through a
-    copy of the rule here: the rule changed once already, when the writer
-    became overridable, and a test carrying its own copy went on passing.
-
-    Every combination of the two settings is in
-    tests/unit/questions/test_models.py. This is the wiring: that the flag
-    the checker ends up holding is the one the resolution produced.
+    Through `build_service` itself, so the flag the checker ends up holding
+    is the one the factory set, not a copy of the rule here.
     """
     from llm.config import Settings as ModelSettings
-    from question_generation.checker import QuestionChecker
-    from question_generation.factory import models
+    from question_generation import factory
 
+    monkeypatch.setattr(factory, "Embedder", lambda *args: object())
     model = ModelSettings(
         model="ollama/writer",
         base_url=None,
@@ -391,26 +388,25 @@ def test_the_phrasing_gate_is_off_when_one_model_does_both() -> None:
         reasoning_effort=None,
     )
 
-    def built(verifier: str | None) -> bool:
-        """Whether a checker wired for this verifier may judge phrasing."""
-        writer, checker_model, _ = models(
-            replace(SETTINGS, model=None, verifier_model=verifier), model
+    def judges(verifier: str | None, phrasing: str | None) -> bool:
+        """Whether a service wired for these models may judge phrasing."""
+        service = factory.build_service(
+            replace(
+                SETTINGS,
+                model=None,
+                verifier_model=verifier,
+                phrasing_model=phrasing,
+            ),
+            model,
         )
-        checker = QuestionChecker(
-            embedder=object(),
-            verifier=object(),
-            nearest=lambda embedding: None,
-            threshold=0.93,
-            judge_phrasing=writer.model != checker_model.model,
-        )
-        return checker._judge_phrasing
+        return service._checker._judge_phrasing
 
-    assert built("ollama/verifier") is True
-    assert built(None) is False
-    # Naming the writer's own model is the same as naming none, which the
-    # setting being set would have hidden.
-    assert built("ollama/writer") is False
-    assert model.model == "ollama/writer"
+    assert judges("ollama/verifier", None) is True
+    assert judges(None, None) is False
+    assert judges("ollama/writer", None) is False
+    # The opinions come from the phrasing model, whoever verifies.
+    assert judges(None, "ollama/phrasing") is True
+    assert judges("ollama/verifier", "ollama/writer") is False
 
 
 # ── Follow-up threads ──────────────────────────────────────────────────────
