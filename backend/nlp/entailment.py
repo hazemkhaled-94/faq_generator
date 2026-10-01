@@ -193,7 +193,8 @@ class Entailment:
                 {"text": premise, "text_pair": hypothesis}
                 for premise, hypothesis in pairs
             ],
-            truncation=True,
+            # The premise only: the hypothesis is the answer being judged.
+            truncation="only_first",
             max_length=self._max_tokens,
             batch_size=len(pairs),
         )

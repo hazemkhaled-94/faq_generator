@@ -105,6 +105,29 @@ def test_nothing_to_judge_costs_no_forward_pass() -> None:
     assert Entailment("a/checkpoint-that-does-not-exist").judge_all([]) == []
 
 
+def test_only_the_premise_is_cut_to_fit_the_window() -> None:
+    """The hypothesis is the answer being judged, so it is kept whole."""
+    asked: dict = {}
+
+    def classify(pairs, **options):
+        asked.update(options)
+        return [
+            [
+                {"label": "entailment", "score": 0.8},
+                {"label": "neutral", "score": 0.1},
+                {"label": "contradiction", "score": 0.1},
+            ]
+            for _ in pairs
+        ]
+
+    judge = Entailment("a/checkpoint")
+    judge.__dict__["_loaded"] = classify
+
+    judge.judge_all([("A long passage.", "An answer.")])
+
+    assert asked["truncation"] == "only_first"
+
+
 # ── The window one setting gives two encoders ─────────────────────────────
 
 
