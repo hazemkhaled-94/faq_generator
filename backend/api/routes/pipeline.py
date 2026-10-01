@@ -33,6 +33,7 @@ from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter
+from sqlalchemy import func, select
 
 from api.dependencies import (
     assessment_queue,
@@ -46,6 +47,7 @@ from api.dependencies import (
 from api.errors import ApiError, ErrorBody
 from api.orchestrator import Automation, Orchestration, Refused, Run, Unavailable
 from api.routes.stage import StageStatus, answered, status_of
+from database.qa_generator import engine
 
 log = logging.getLogger(__name__)
 
@@ -79,6 +81,9 @@ Fanned = Literal["start", "stop", "retry"]
 
 #: Answered when `run` is asked of a deployment that has no orchestrator.
 _NO_ORCHESTRATOR = 503
+
+#: The advisory lock a launch holds, so two cannot both pass the check.
+_LAUNCHING = 0x5155_4E00
 
 
 @dataclass(frozen=True)
@@ -213,14 +218,23 @@ def run() -> Run:
             `no_orchestrator` if this deployment has none, or its webserver
             is not answering.
     """
-    live = orchestrator.state().running
-    if live is not None:
-        raise ApiError(
-            409,
-            "already_running",
-            f"run {live.id} is already taking this corpus through. Stop it "
-            f"first, or wait for it.",
-        )
+    with engine().begin() as connection:
+        # Held from the check to the launch, so a second request waits and
+        # then reads the run the first one started.
+        connection.execute(select(func.pg_advisory_xact_lock(_LAUNCHING)))
+        live = orchestrator.state().running
+        if live is not None:
+            raise ApiError(
+                409,
+                "already_running",
+                f"run {live.id} is already taking this corpus through. Stop it "
+                f"first, or wait for it.",
+            )
+        return _launched()
+
+
+def _launched() -> Run:
+    """The run the orchestrator started, or the refusal it gave."""
     try:
         return orchestrator.launch()
     except Unavailable as missing:

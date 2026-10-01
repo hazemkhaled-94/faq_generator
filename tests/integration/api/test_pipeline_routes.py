@@ -328,6 +328,31 @@ def test_a_second_run_is_refused_rather_than_racing_the_first(client, orchestrat
     assert fake.launched == 0
 
 
+def test_two_requests_at_once_launch_one_run(client, orchestrator):
+    """The check and the launch hold one lock, so the second reads the first."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    fake = orchestrator()
+
+    def slow() -> Run:
+        time.sleep(0.5)
+        fake._running = Run(id="new-run", status="QUEUED")
+        fake.launched += 1
+        return fake._running
+
+    fake.launch = slow  # type: ignore[method-assign]
+
+    with ThreadPoolExecutor(2) as pool:
+        statuses = sorted(
+            one.status_code
+            for one in pool.map(lambda _: client.post("/pipeline/run"), range(2))
+        )
+
+    assert statuses == [202, 409]
+    assert fake.launched == 1
+
+
 def test_run_without_an_orchestrator_says_what_to_use_instead(client, orchestrator):
     """503, and the refusal names the per-stage route that still works."""
     orchestrator(available=False)
