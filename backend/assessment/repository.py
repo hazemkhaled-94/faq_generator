@@ -218,7 +218,7 @@ class AssessmentQueue(RowQueue):
             and self._stratify is not None
         ):
             return self._kinds, self._sample, self._stratify
-        from assessment.config import Settings
+        from assessment.config import Settings, judged_kinds
         from settings.store import resolved
 
         settings = Settings.load(resolved())
@@ -226,7 +226,7 @@ class AssessmentQueue(RowQueue):
             # The phase off enrols nothing, as ASSESSMENT_ENABLED says.
             return (), 0, False
         return (
-            self._kinds if self._kinds is not None else tuple(settings.kinds),
+            self._kinds if self._kinds is not None else judged_kinds(settings),
             self._sample if self._sample is not None else settings.sample,
             self._stratify if self._stratify is not None else settings.stratify,
         )

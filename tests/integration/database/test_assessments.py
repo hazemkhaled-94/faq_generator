@@ -428,6 +428,17 @@ def test_the_phase_switched_off_enrols_nothing(corpus, engine, monkeypatch) -> N
     assert enrolled(engine) == {}
 
 
+def test_a_kind_that_is_not_one_is_refused_before_anything_is_enrolled(
+    corpus, engine, monkeypatch
+) -> None:
+    """Named, rather than a KeyError after the kinds before it went in."""
+    monkeypatch.setenv("ASSESSMENT_KINDS", "fact,figure")
+
+    with pytest.raises(ValueError, match="figure"):
+        AssessmentQueue().enrol()
+    assert enrolled(engine) == {}
+
+
 def test_what_a_caller_names_beats_what_the_settings_say(corpus, engine) -> None:
     """The worker resolves both to stamp the version beside them."""
     AssessmentQueue(kinds=("question",), sample=1).enrol()
