@@ -48,7 +48,6 @@ from database.qa_generator import (
     Derivation,
     QuestionRejection,
     QuestionStatus,
-    QuestionType,
 )
 from nlp.analysis import content, pointing
 from nlp.embedding import Embedder, cosine
@@ -64,23 +63,18 @@ from question_generation.gates import (
     adds_up,
     agrees,
     anchored,
-    asked_as,
-    asks_for_an_agent,
     asserted,
     cites_source,
-    compares,
-    enumerates,
     explains,
     incomplete,
     moves_on,
     near_verdict,
     on_topic,
-    periods,
-    restates,
     same_material,
     shared_lemmas,
     structural,
     subject,
+    typed,
 )
 from question_generation.models import (
     LONG_ANSWER_CHARS,
@@ -347,84 +341,23 @@ class QuestionChecker:
     def _kind(self, candidate: Candidate) -> tuple[str, str] | None:
         """What a rule can settle about the kind and the long answer.
 
-        Three readings, none of which calls anything. They sit ahead of the
-        embedding because every one of them reads what the writer already
-        returned, and a candidate refused here costs nothing at all.
-
-        An unanswerable question faces only the question word: it has no
-        answer, so it has no explanation and no answer shape to be wrong
-        about.
+        `typed`, which re-verify applies to a stored row too, and the long
+        answer, which needs the passages. None calls anything. They sit ahead
+        of the embedding because every one of them reads what the writer
+        already returned, and a candidate refused here costs nothing at all.
         """
-        if not asked_as(candidate.question_text, candidate.spec.name):
-            return (
-                QuestionRejection.WRONG_TYPE,
-                (
-                    f"it was planned as {candidate.spec.name} and its question "
-                    f"word asks for another kind"
-                ),
-            )
-        if not candidate.answerable:
-            return None
+        failed = typed(
+            candidate.question_text,
+            candidate.target_answer,
+            candidate.answerable,
+            candidate.spec.name,
+            candidate.group.language,
+        )
+        if failed or not candidate.answerable:
+            return failed
 
         target = candidate.target_answer or ""
         language = candidate.group.language
-
-        if candidate.spec.name == QuestionType.ENTITY and not asks_for_an_agent(
-            candidate.question_text, target, language
-        ):
-            return (
-                QuestionRejection.WRONG_TYPE,
-                (
-                    "it was planned as an entity question and asks after no "
-                    "party: neither the question word nor the answer names "
-                    "anybody who does, decides or owns anything"
-                ),
-            )
-
-        if candidate.spec.name == QuestionType.ENUMERATION and not enumerates(
-            target, language
-        ):
-            return (
-                QuestionRejection.WRONG_TYPE,
-                (
-                    "it was planned as an enumeration and its answer holds one "
-                    "thing, so there is no set behind it"
-                ),
-            )
-
-        if candidate.spec.name == QuestionType.COMPARISON and not compares(
-            candidate.question_text, target, language
-        ):
-            return (
-                QuestionRejection.WRONG_TYPE,
-                (
-                    "it was planned as a comparison and either names one thing "
-                    "or answers with one side, so there is nothing compared"
-                ),
-            )
-
-        if candidate.spec.name == QuestionType.TEMPORAL and not periods(
-            target, language
-        ):
-            return (
-                QuestionRejection.WRONG_TYPE,
-                (
-                    "it was planned as a temporal question and its answer "
-                    "carries fewer than two periods, so nothing changed in it"
-                ),
-            )
-
-        if candidate.spec.name != QuestionType.COMPARISON and restates(
-            candidate.question_text, target, language
-        ):
-            return (
-                QuestionRejection.RESTATES_QUESTION,
-                (
-                    "its answer adds almost no content word the question did "
-                    "not already carry, so echoing the question back scores "
-                    "full marks"
-                ),
-            )
 
         if not explains(
             candidate.answer_explanation or "",

@@ -25,7 +25,7 @@ from question_generation.checker import (
     annotation,
 )
 from question_generation.config import Settings
-from question_generation.gates import names_parties, near_verdict, structural
+from question_generation.gates import names_parties, near_verdict, structural, typed
 from question_generation.generation import QuestionWriter
 from question_generation.models import (
     Candidate,
@@ -138,10 +138,10 @@ def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     The counterpart of `extract-revalidate`, and the same bargain: what the
     model wrote is the record of one generation and is kept, and only the
     verdict is replaced. The round trip is left out because it is the one
-    gate that costs a call, and the three that are free are the three that
-    catch what changes underneath a stored question - a fact re-judged and
-    now rejected, a citation deleted by a re-extraction, a duplicate written
-    by a later run.
+    gate that costs a call. What runs is what catches a change underneath a
+    stored question - a fact re-judged and now rejected, a citation deleted
+    by a re-extraction, a duplicate written by a later run - and the type
+    rules, so a rule added to them reaches the rows already stored.
 
     It only ever rejects. Accepting is a person's, and a re-check that
     un-rejected would quietly overturn somebody's decision on its next run.
@@ -232,6 +232,17 @@ def _recheck(
     if failed:
         return failed
 
+    if question.question_type is not None:
+        failed = typed(
+            question.question_text,
+            question.target_answer,
+            question.answerable,
+            question.question_type,
+            question.language,
+        )
+        if failed:
+            return failed
+
     if question.embedding is None:
         return None
     return near_verdict(
@@ -249,9 +260,12 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         settings: The shares the release is held to.
         within: A condition narrowing which questions may be drawn, or None.
 
+    Re-verifies first, so the draw reads rows that pass today's gates.
+
     Returns:
         How many questions were drawn into the release.
     """
+    reverify(catalog, settings, within)
     pool = catalog.releasable(within)
     if not pool:
         log.warning("no accepted question carries both a difficulty and a type")

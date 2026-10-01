@@ -903,6 +903,12 @@ def test_a_release_spreads_over_its_own_kinds() -> None:
 
         drawn: tuple[int, ...] = ()
 
+        def judged(self, within=None):
+            return []
+
+        def reject(self, verdicts):
+            return 0
+
         def releasable(self, within=None):
             return pool
 

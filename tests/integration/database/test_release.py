@@ -22,6 +22,10 @@ pytestmark = pytest.mark.integration
 BANDS = {"easy": 1, "medium": 1, "hard": 1}
 TYPES = {"factoid": 1, "reason": 1}
 
+#: An answer of the form each kind asks for, so the re-verify a draw runs
+#: first keeps every row.
+_ANSWERS = {"factoid": "4 kg", "reason": "because the frame is built to weigh 4 kg"}
+
 
 @pytest.fixture
 def written(engine, database):
@@ -46,7 +50,7 @@ def written(engine, database):
             for band, kind, answerable, status in rows:
                 asked = question(
                     question_text=f"A {band} {kind} question?",
-                    target_answer="4 kg" if answerable else None,
+                    target_answer=_ANSWERS[kind] if answerable else None,
                     answerable=answerable,
                     difficulty=band,
                     question_type=kind,

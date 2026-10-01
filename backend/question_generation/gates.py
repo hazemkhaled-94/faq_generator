@@ -1133,6 +1133,73 @@ def periods(answer: str, language: str | None) -> bool:
 _DATED = re.compile(r"(1[89]|20)\d{2}|^\d{1,2}[./]\d{1,2}")
 
 
+def typed(
+    question: str,
+    answer: str | None,
+    answerable: bool,
+    kind: str,
+    language: str | None,
+) -> tuple[str, str] | None:
+    """What the type rules say about a question of this kind, or None.
+
+    An unanswerable question faces only its question word: it has no answer
+    to be the wrong shape.
+    """
+    if not asked_as(question, kind):
+        return (
+            QuestionRejection.WRONG_TYPE,
+            f"it was planned as {kind} and its question word asks for another kind",
+        )
+    if not answerable:
+        return None
+    target = answer or ""
+    if kind == QuestionType.ENTITY and not asks_for_an_agent(
+        question, target, language
+    ):
+        return (
+            QuestionRejection.WRONG_TYPE,
+            (
+                "it was planned as an entity question and asks after no "
+                "party: neither the question word nor the answer names "
+                "anybody who does, decides or owns anything"
+            ),
+        )
+    if kind == QuestionType.ENUMERATION and not enumerates(target, language):
+        return (
+            QuestionRejection.WRONG_TYPE,
+            (
+                "it was planned as an enumeration and its answer holds one "
+                "thing, so there is no set behind it"
+            ),
+        )
+    if kind == QuestionType.COMPARISON and not compares(question, target, language):
+        return (
+            QuestionRejection.WRONG_TYPE,
+            (
+                "it was planned as a comparison and either names one thing "
+                "or answers with one side, so there is nothing compared"
+            ),
+        )
+    if kind == QuestionType.TEMPORAL and not periods(target, language):
+        return (
+            QuestionRejection.WRONG_TYPE,
+            (
+                "it was planned as a temporal question and its answer "
+                "carries fewer than two periods, so nothing changed in it"
+            ),
+        )
+    if kind != QuestionType.COMPARISON and restates(question, target, language):
+        return (
+            QuestionRejection.RESTATES_QUESTION,
+            (
+                "its answer adds almost no content word the question did "
+                "not already carry, so echoing the question back scores "
+                "full marks"
+            ),
+        )
+    return None
+
+
 def moves_on(cited: Sequence[int], root: Sequence[int]) -> bool:
     """Whether a follow-up reaches a fact the question before it did not.
 
