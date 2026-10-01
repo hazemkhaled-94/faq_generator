@@ -128,7 +128,8 @@ def _controls(client) -> None:
         _report(client.act("retry"))
 
     row.caption(_reads(stages, running, working, failed))
-    _automation(client, orchestration.get("automation") or {})
+    with row:
+        _automation(client, orchestration.get("automation") or {})
 
 
 def _run_help(available: bool, running: dict | None) -> str:
