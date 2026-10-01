@@ -39,7 +39,7 @@ _COUNTS = {
 _STATE = {True: "up", False: "down", None: "no port"}
 
 
-def _services(client) -> None:
+def _services(running: list[dict]) -> None:
     """Draws every container the deployment runs, with a link to each.
 
     The whole of compose rather than the browsable half. A page called
@@ -47,20 +47,11 @@ def _services(client) -> None:
     Redis up", which is the question somebody has when a stage stops
     claiming rows.
     """
-    running = client.services()
     if not running:
         st.caption("The backend is unreachable, so it cannot report the services.")
         return
 
-    up = sum(1 for one in running if one["ok"] is True)
     down = [one for one in running if one["ok"] is False]
-    page.stats(
-        {
-            "Services": (f"{len(running):,}", "Containers this deployment runs."),
-            "Up": (f"{up:,}", "Accepted a connection on their port."),
-            "Down": (f"{len(down):,}", "Refused one. A worker serves no port."),
-        }
-    )
     if down:
         st.warning(
             "Not answering: " + ", ".join(one["name"] for one in down),
@@ -101,6 +92,7 @@ def view() -> None:
     client = backend.health_api()
     api_ok, api_message = client.reachable()
     components = client.components()
+    running = client.services()
 
     rows = [
         {
@@ -128,11 +120,20 @@ def view() -> None:
                     f"{sum(1 for one in rows if one['State'] == 'failed'):,}",
                     "Components that did not answer.",
                 ),
+                "Services": (f"{len(running):,}", "Containers this deployment runs."),
+                "Up": (
+                    f"{sum(1 for one in running if one['ok'] is True):,}",
+                    "Accepted a connection on their port.",
+                ),
+                "Down": (
+                    f"{sum(1 for one in running if one['ok'] is False):,}",
+                    "Refused one. A worker serves no port.",
+                ),
             }
         )
 
     with page.panel("Services"):
-        _services(client)
+        _services(running)
 
     # The model, the tokenizer and the language pipelines the six stages
     # share. A stage naming its own model does it on its own page.
