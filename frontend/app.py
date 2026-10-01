@@ -19,11 +19,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Above the navigation, so every page carries it and no page repeats it.
-st.html(
-    "<div class='qa-brand'><div class='qa-brand-title'>Q&amp;A Generator</div></div>"
-)
-
 st.navigation(
     [
         st.Page(

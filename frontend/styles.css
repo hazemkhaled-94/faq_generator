@@ -45,22 +45,22 @@ footer { visibility: hidden; }
 
 /* ── Masthead ───────────────────────────────────────────────────────── */
 
-/* The name over the purple rule, and no mark of any kind. */
-.qa-brand {
-  padding-bottom: .75rem;
-  margin-bottom: 1.5rem;
+/* The page title and the name, on one line over the purple rule. */
+.qa-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding-bottom: .5rem;
   border-bottom: 2px solid transparent;
   border-image: linear-gradient(90deg, #460073 0%, #A100FF 45%, #C2A3FF 100%) 1;
 }
 .qa-brand-title {
-  font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;
-  line-height: 1.2; color: var(--qa-title);
+  font-size: 0.86rem; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--qa-muted);
 }
 
 /* Headlines are short, large and tight. */
 .qa-page-title {
-  font-size: 2rem; font-weight: 700; letter-spacing: -0.03em;
-  line-height: 1.08; color: var(--qa-title); margin: 0 0 1.1rem;
+  font-size: 1.5rem; font-weight: 700; letter-spacing: -0.03em;
+  line-height: 1.1; color: var(--qa-title);
 }
 
 /* ── Panels: one per section, which is what separates them ──────────── */
