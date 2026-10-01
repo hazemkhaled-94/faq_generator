@@ -23,7 +23,7 @@ from database.qa_generator import (
 )
 from llm.client import ModelUnavailable
 from question_generation.config import Settings
-from question_generation.models import CheckedQuestion, TopicToCover
+from question_generation.models import CheckedQuestion, FactGroup, TopicToCover
 from question_generation.queue import QuestionQueue
 from question_generation.service import QuestionGenerationService
 from stages.queue import StageQueue
@@ -630,7 +630,7 @@ def test_a_gate_the_writer_could_have_satisfied_is_worth_asking_again() -> None:
         rejected_reason=QuestionRejection.COMPOUND,
     )
 
-    assert again(refused, easy_plan()) is not None
+    assert again(refused, easy_plan(), _NARROW) is not None
 
 
 def test_a_duplicate_is_not_worth_asking_again() -> None:
@@ -643,14 +643,14 @@ def test_a_duplicate_is_not_worth_asking_again() -> None:
         rejected_reason=QuestionRejection.DUPLICATE,
     )
 
-    assert again(refused, easy_plan()) is None
+    assert again(refused, easy_plan(), _NARROW) is None
 
 
 def test_a_question_that_stood_is_left_alone() -> None:
     """Nothing to fix, and a second call would only risk the first draft."""
     from question_generation.service import again
 
-    assert again(accepted_question(), easy_plan()) is None
+    assert again(accepted_question(), easy_plan(), _NARROW) is None
 
 
 def test_a_question_narrower_than_its_slot_is_asked_to_widen() -> None:
@@ -662,21 +662,35 @@ def test_a_question_narrower_than_its_slot_is_asked_to_widen() -> None:
     """
     from question_generation.service import again
 
-    assert again(accepted_question(), wide_plan()) is not None
+    assert again(accepted_question(), wide_plan(), _WIDE) is not None
 
 
 def test_a_question_that_met_its_band_is_not_asked_to_widen() -> None:
     """The band is a request, and this one was granted."""
     from question_generation.service import again
 
-    assert again(accepted_question(band=Difficulty.MEDIUM), wide_plan()) is None
+    assert again(accepted_question(band=Difficulty.MEDIUM), wide_plan(), _WIDE) is None
 
 
 def test_a_single_passage_slot_is_never_asked_to_widen() -> None:
     """It was never offered a second passage to use."""
     from question_generation.service import again
 
-    assert again(accepted_question(), easy_plan()) is None
+    assert again(accepted_question(), easy_plan(), _NARROW) is None
+
+
+def test_a_sample_of_one_passage_is_never_asked_to_widen() -> None:
+    """The deal fell back to one passage, so there is nothing to widen to."""
+    from question_generation.service import again
+
+    assert again(accepted_question(), wide_plan(), _NARROW) is None
+
+
+#: A sample dealt from one passage, and one dealt across two documents.
+_NARROW = FactGroup((source(1, document="a", passage_id=1),))
+_WIDE = FactGroup(
+    (source(1, document="a", passage_id=1), source(2, document="b", passage_id=2))
+)
 
 
 def accepted_question(band: str = Difficulty.EASY) -> CheckedQuestion:
@@ -887,7 +901,7 @@ def test_a_retry_accepted_after_an_accepted_draft_supersedes_it(monkeypatch) -> 
     monkeypatch.setattr(
         module,
         "again",
-        lambda checked, plan: (
+        lambda checked, plan, sample: (
             "widen" if checked.question_text.startswith("draft 1") else None
         ),
     )

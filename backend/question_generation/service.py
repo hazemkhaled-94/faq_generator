@@ -363,7 +363,7 @@ def _report(pool, release, drawn, written: int) -> None:
         )
 
 
-def again(checked: CheckedQuestion, plan: Plan) -> str | None:
+def again(checked: CheckedQuestion, plan: Plan, sample: FactGroup) -> str | None:
     """What to tell the writer about this draft, or None to keep it as it is.
 
     Two reasons to ask a second time, and they are not the same kind of
@@ -381,15 +381,21 @@ def again(checked: CheckedQuestion, plan: Plan) -> str | None:
     and the question bands easy. Planned-medium collapsed to easy 83 times
     and planned-hard 30 times, which is why the accepted set came out 96.5%
     easy however the mix was set. This one only ever asks - the accepted
-    draft stands if the second attempt turns out worse.
+    draft stands if the second attempt turns out worse. And only where the
+    sample dealt, cited whole, reaches the band: a deal that fell back to one
+    passage has nothing to widen to.
     """
     if checked.rejected_reason in _NOTES:
         return _NOTES[checked.rejected_reason]
+    whole = sample.criteria(
+        checked.criteria.answer_chars, long_answer=checked.criteria.long_answer
+    )
     if (
         checked.accepted
         and plan.answerable
         and plan.spans
         and _RANK[checked.criteria.difficulty] < _RANK[plan.band]
+        and _RANK[whole.difficulty] >= _RANK[plan.band]
     ):
         return _WIDEN
     return None
@@ -804,7 +810,7 @@ class QuestionGenerationService(StageService):
         # without it a topic would happily write the same question twice.
         drafts = [self._checked(self._writer.write(sample, plan), accepted)]
         for _ in range(self._settings.retries):
-            note = again(drafts[-1], plan)
+            note = again(drafts[-1], plan, sample)
             if note is None:
                 break
             log.info("asking again for %r: %s", drafts[-1].question_text, note)
