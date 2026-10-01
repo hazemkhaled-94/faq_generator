@@ -353,39 +353,39 @@ class AssessmentQueue(RowQueue):
         transaction because the judging after it takes minutes, and the
         text is read once the row is safely this worker's.
         """
-        taken = self._claim(
-            Assessment.id,
-            Assessment.artifact_kind,
-            Assessment.fact_id,
-            Assessment.topic_id,
-            Assessment.question_id,
-        )
-        if taken is None:
-            return None
-        # By name rather than by position: `_claim` appends the row's
-        # trigger to whatever a stage asked it to return.
-        assessment_id, kind = taken.id, taken.artifact_kind
-        held: dict[str, int] = {
-            ArtifactKind.FACT: taken.fact_id,
-            ArtifactKind.TOPIC: taken.topic_id,
-            ArtifactKind.QUESTION: taken.question_id,
-        }
-        artifact_id = held[kind]
-        with self._session() as session:
-            row = session.execute(_fields_query(kind, artifact_id)).mappings().first()
-        if row is None:
-            # The artefact went between the claim and this read. The
-            # cascade takes the assessment row too, so this is the narrow
-            # window where a delete landed mid-drain: nothing to judge, and
-            # nothing wrong.
+        while True:
+            taken = self._claim(
+                Assessment.id,
+                Assessment.artifact_kind,
+                Assessment.fact_id,
+                Assessment.topic_id,
+                Assessment.question_id,
+            )
+            if taken is None:
+                return None
+            # By name rather than by position: `_claim` appends the row's
+            # trigger to whatever a stage asked it to return.
+            assessment_id, kind = taken.id, taken.artifact_kind
+            held: dict[str, int] = {
+                ArtifactKind.FACT: taken.fact_id,
+                ArtifactKind.TOPIC: taken.topic_id,
+                ArtifactKind.QUESTION: taken.question_id,
+            }
+            artifact_id = held[kind]
+            with self._session() as session:
+                row = (
+                    session.execute(_fields_query(kind, artifact_id)).mappings().first()
+                )
+            if row is not None:
+                return ArtifactToJudge(
+                    assessment_id=assessment_id,
+                    kind=kind,
+                    artifact_id=artifact_id,
+                    fields={name: str(value) for name, value in row.items()},
+                )
+            # The artefact went between the claim and this read: a delete
+            # landed mid-drain. Nothing to judge, so the next row is taken.
             self._finish(assessment_id)
-            return None
-        return ArtifactToJudge(
-            assessment_id=assessment_id,
-            kind=kind,
-            artifact_id=artifact_id,
-            fields={name: str(value) for name, value in row.items()},
-        )
 
     def record(self, assessed: Assessed) -> None:
         """Writes one artefact's verdict and every metric behind it.

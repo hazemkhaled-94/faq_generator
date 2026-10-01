@@ -213,6 +213,29 @@ def test_a_verdict_and_its_metrics_land_together(corpus, engine) -> None:
         }
 
 
+def test_an_artefact_gone_before_it_is_read_hands_over_the_next(
+    corpus, engine, monkeypatch
+) -> None:
+    """A delete landing mid-drain is not an empty queue."""
+    from sqlalchemy import false
+
+    from assessment import repository
+
+    read = repository._fields_query
+    calls: list[int] = []
+
+    def vanishing(kind, artifact_id):
+        calls.append(artifact_id)
+        query = read(kind, artifact_id)
+        return query.where(false()) if len(calls) == 1 else query
+
+    monkeypatch.setattr(repository, "_fields_query", vanishing)
+    queue = AssessmentQueue(kinds=("fact", "topic"), sample=0, stratify=False)
+    queue.start()
+
+    assert queue.claim() is not None, "the second artefact was not handed over"
+
+
 def test_a_reset_row_waits_with_no_verdict(corpus, engine) -> None:
     """The old template's verdict would otherwise read as current."""
     queue = AssessmentQueue(kinds=("fact",), sample=0, stratify=False)
