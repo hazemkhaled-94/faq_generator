@@ -13,7 +13,7 @@ figures; this one holds only what is wrong with them.
 | [The type disagrees with the interrogative](#the-type-disagrees-with-the-interrogative) | 57 | [`checker.py`](../backend/question_generation/checker.py) | yes |
 | [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) | yes |
 | [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | the 17 |
-| [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | |
+| [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | yes |
 | [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | 8 of them |
 | [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) | |
 | [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) | |
@@ -179,6 +179,13 @@ the finite verb. Both shipped spaCy pipelines carry the tags, so this costs
 no model call, and the existing `unresolved_reference` refusal in
 [`validation.py`](../backend/extraction/validation.py) fires on the longer
 array without changing.
+
+Shipped as what `_opens` reads before the first finite verb, which also takes
+`The effectiveness of this approach`. Sized against this run it refuses 179
+of the validated facts the model wrote; 61 accepted questions rest on one,
+36 in the release and 15 on it alone. A fact already stored changes only on
+`make extract-revalidate`. `In such cases` is not caught: `such` carries no
+demonstrative tag.
 
 ## Questions that count their own citations
 

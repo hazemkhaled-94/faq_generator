@@ -6,6 +6,7 @@ import re
 from collections.abc import Iterable, Iterator
 from functools import lru_cache
 from importlib.metadata import version
+from itertools import takewhile
 
 from spacy.tokens import Doc, Span
 
@@ -242,9 +243,30 @@ def _refers(token) -> bool:
     return "3" in token.morph.get("Person") or "Dem" in token.morph.get("PronType")
 
 
+def _opens(token) -> bool:
+    """Whether a token opening a statement points at something before it.
+
+    A demonstrative determiner, `Diese Bibliotheken`, or a German pronominal
+    adverb, `Hierfür`.
+    """
+    return (
+        token.pos_ == "DET" and "Dem" in token.morph.get("PronType", [])
+    ) or token.tag_ == "PROAV"
+
+
 def _references(span: Doc | Span) -> tuple[str, ...]:
-    """Collects the pronouns that leave a statement dependent on its context."""
-    return tuple(sorted({t.text.casefold() for t in span if _refers(t)}))
+    """Collects what leaves a statement dependent on its context.
+
+    The pronouns anywhere, and what `_opens` reads before the first finite
+    verb.
+    """
+    opening = takewhile(lambda t: "Fin" not in t.morph.get("VerbForm", []), span)
+    return tuple(
+        sorted(
+            {t.text.casefold() for t in span if _refers(t)}
+            | {t.text.casefold() for t in opening if _opens(t)}
+        )
+    )
 
 
 #: Lemmas that point at an earlier mention without any morphology saying so.

@@ -158,6 +158,30 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
 
 
 @pytest.mark.parametrize(
+    ("statement", "language", "pointer"),
+    [
+        (
+            "These types of documentation typically form part of the test basis.",
+            "en",
+            "these",
+        ),
+        ("Diese Bibliotheken erben die Klassen der Kernbibliotheken.", "de", "diese"),
+        ("Hierfür werden Testdaten benötigt.", "de", "hierfür"),
+    ],
+)
+def test_a_statement_opening_on_a_demonstrative_is_refused(
+    statement, language, pointer
+) -> None:
+    """`Diese Bibliotheken` names libraries the statement never introduced."""
+    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNRESOLVED_REFERENCE, (
+        judged.validation_error
+    )
+    assert pointer in judged.unresolved_references
+
+
+@pytest.mark.parametrize(
     ("statement", "cited"),
     [
         ("Ein zentrales Risiko ergibt sich aus Handelskonflikten.", 0),
