@@ -202,9 +202,9 @@ def view() -> None:
     client = backend.catalog_api()
     overview, analysis, service = st.container(), st.container(), st.container()
 
-    words, field = catalog.search("facts", _FIELDS)
-    chosen, pager = catalog.filters(
+    words, field, chosen, pager = catalog.find(
         "facts",
+        _FIELDS,
         {
             "kind": (
                 "Readings",

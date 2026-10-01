@@ -185,9 +185,9 @@ def view() -> None:
         explain.panel(_SERVICE, "How parsing works")
         configure.panel("parsing")
 
-    words, _ = catalog.search("documents", _FIELDS)
-    chosen, pager = catalog.filters(
+    words, _, chosen, pager = catalog.find(
         "documents",
+        _FIELDS,
         {"parse_status": ("Parse states", _STATES, "One parse state.")},
     )
 

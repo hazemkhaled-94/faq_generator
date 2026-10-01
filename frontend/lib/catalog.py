@@ -1,12 +1,7 @@
-"""The search panel, the filter panel and the pager they share.
+"""The search, the filters and the pager, in one panel.
 
-Two panels, not one. Searching is typing words and choosing where to look for
-them; filtering is narrowing to a value a column already holds. They were one
-toolbar and read as five equal boxes, four of which were not the search.
-
-The pager is drawn in the filter panel because it narrows what is shown
-without changing what matched, and because the total it counts through is
-only known after the rows are fetched.
+The search box comes first and widest, the pager last. The pager's slot is
+filled after the rows are fetched, once their total is known.
 """
 
 from __future__ import annotations
@@ -20,9 +15,11 @@ from streamlit.delta_generator import DeltaGenerator
 
 from lib import config, page
 
-#: Filters to a row before the next wraps. Wide enough that the common pages
-#: draw one row, narrow enough that Questions' six do not squeeze to nothing.
-_PER_ROW = 4
+#: Width of each control, in the units a row is measured in.
+_WORDS, _COLUMN, _FILTER, _PAGER = 3, 3, 2, 1.5
+
+#: Width of one row of controls.
+_ROW = 13.5
 
 
 def label_for(document: dict) -> str:
@@ -30,35 +27,73 @@ def label_for(document: dict) -> str:
     return document.get("filename") or f"{document['sha256'][:12]}…"
 
 
-def search(key: str, fields: dict[str, str]) -> tuple[str, str]:
-    """Draws the search panel and returns the words and the column.
+def find(
+    key: str,
+    fields: dict[str, str],
+    choices: dict[str, tuple[str, Sequence[str], str]],
+    documents: list[dict] | None = None,
+) -> tuple[str, str, dict[str, str | None], DeltaGenerator]:
+    """Draws the search and the filters, and reserves the pager's slot.
 
     `fields` maps the heading a column carries in the table to the name the
-    route takes for it.
+    route takes for it; the column picker is drawn only when there are two
+    or more.
+
+    `choices` maps the name the route takes to the heading, the values and
+    the tooltip. Each returns the chosen value, or None for the `All` entry
+    every picker carries first.
+
+    The document picker is drawn even when the corpus is empty, disabled
+    rather than absent.
+
+    Returns:
+        The words, the column they are looked in, the chosen filter values,
+        and the slot `paged` draws the pager into.
     """
-    with page.panel("Search"):
-        # The column picker is drawn only where there is a choice: one page
-        # searches filename, title and digest together, because a person
-        # looking for a document does not know which of the three they
-        # remember.
-        words, column = st.columns([3, 2]) if len(fields) > 1 else (st, None)
-        typed = words.text_input(
+    slots = _slots(choices, documents)
+    widths = [
+        _WORDS,
+        *([_COLUMN] if len(fields) > 1 else []),
+        *[_FILTER] * len(slots),
+        _PAGER,
+    ]
+
+    chosen: dict[str, str | None] = {}
+    with page.panel("Search and filters"):
+        cells = iter(_laid_out(widths))
+        typed = next(cells).text_input(
             "Words",
             key=f"{key}-search",
             placeholder="Contains…",
             help="A case-insensitive substring. Not a word search.",
         )
         heading = (
-            next(iter(fields))
-            if column is None
-            else column.selectbox(
+            next(cells).selectbox(
                 "In column",
                 list(fields),
                 key=f"{key}-field",
                 help="Where the words are looked for.",
             )
+            if len(fields) > 1
+            else next(iter(fields))
         )
-    return typed, fields[heading]
+        for name, label, options, named, explanation in slots:
+            picked = next(cells).selectbox(
+                label,
+                options,
+                key=f"{key}-{name}",
+                disabled=len(options) == 1,
+                help=explanation,
+            )
+            chosen[name] = (
+                named.get(picked)
+                if named is not None
+                else picked
+                if picked in options[1:]
+                else None
+            )
+        pager = next(cells)
+    return typed, fields[heading], chosen, pager
 
 
 def field_name(fields: dict[str, str], field: str | None) -> str:
@@ -67,20 +102,11 @@ def field_name(fields: dict[str, str], field: str | None) -> str:
     return heading.lower()
 
 
-def filters(
-    key: str,
+def _slots(
     choices: dict[str, tuple[str, Sequence[str], str]],
-    documents: list[dict] | None = None,
-) -> tuple[dict[str, str | None], DeltaGenerator]:
-    """Draws the filter panel and reserves the slot the pager fills.
-
-    `choices` maps the name the route takes to the heading, the values and
-    the tooltip. Each returns the chosen value, or None for the `All` entry
-    every picker carries first.
-
-    The document picker is drawn even when the corpus is empty, disabled
-    rather than absent, so nothing beside it moves.
-    """
+    documents: list[dict] | None,
+) -> list[tuple[str, str, list[str], dict | None, str]]:
+    """Lists every picker: the document first, where there is one."""
     slots: list[tuple[str, str, list[str], dict | None, str]] = []
     if documents is not None:
         named = {
@@ -94,39 +120,26 @@ def filters(
         (name, heading, [f"All {heading.lower()}", *values], None, explanation)
         for name, (heading, values, explanation) in choices.items()
     ]
-
-    chosen: dict[str, str | None] = {}
-    with page.panel("Filters"):
-        # One column past the pickers, which is where the pager goes.
-        columns = _laid_out(len(slots) + 1)
-        for column, (name, heading, options, named, explanation) in zip(
-            columns, slots, strict=False
-        ):
-            picked = column.selectbox(
-                heading,
-                options,
-                key=f"{key}-{name}",
-                disabled=len(options) == 1,
-                help=explanation,
-            )
-            chosen[name] = (
-                named.get(picked)
-                if named is not None
-                else picked
-                if picked in options[1:]
-                else None
-            )
-    return chosen, columns[len(slots)]
+    return slots
 
 
-def _laid_out(count: int) -> list[DeltaGenerator]:
-    """Splits that many pickers across as many rows of columns as they need."""
-    drawn: list[DeltaGenerator] = []
-    while len(drawn) < count:
-        # A short last row keeps the width a full row has, rather than
-        # spreading two pickers across the page.
-        drawn += list(st.columns(_PER_ROW))[: min(count - len(drawn), _PER_ROW)]
-    return drawn
+def wrapped(widths: Sequence[float]) -> list[list[float]]:
+    """Packs controls of these widths into rows, in order, none wider than one."""
+    packed: list[list[float]] = [[]]
+    for width in widths:
+        if packed[-1] and sum(packed[-1]) + width > _ROW:
+            packed.append([])
+        packed[-1].append(width)
+    return packed
+
+
+def _laid_out(widths: Sequence[float]) -> list[DeltaGenerator]:
+    """Draws one cell per control, each row padded out to the full width."""
+    cells: list[DeltaGenerator] = []
+    for row in wrapped(widths):
+        spare = _ROW - sum(row)
+        cells += st.columns([*row, spare] if spare else row)[: len(row)]
+    return cells
 
 
 def paged(

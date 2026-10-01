@@ -115,9 +115,9 @@ def view() -> None:
     # created rather than where it is filled.
     analysis, service = st.container(), st.container()
 
-    words, field = catalog.search("passages", _FIELDS)
-    chosen, pager = catalog.filters(
+    words, field, chosen, pager = catalog.find(
         "passages",
+        _FIELDS,
         {
             "block_type": (
                 "Types",

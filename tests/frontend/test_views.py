@@ -112,17 +112,17 @@ def test_a_page_adds_at_most_one_fold_of_its_own(open_view, name) -> None:
 
 @pytest.mark.parametrize("name", LISTING)
 def test_every_page_is_laid_out_the_same_way(open_view, name) -> None:
-    """Overview, the service, search, filters, the table. In that order.
+    """Overview, the service, search and filters, the table. In that order.
 
-    Topics carries a sixth: its deletion is over the whole model rather
+    Topics carries a fifth: its deletion is over the whole model rather
     than over a row, so the box is on the page and not in a selection.
     Documents carries one more again, which `BEYOND_THE_STAGE` names.
     """
     drawn = _stage_panels(name, open_view(name).panels())
 
-    assert [drawn[0], *drawn[2:4]] == ["Overview", "Search", "Filters"], drawn
-    assert drawn[4].lower().startswith(name), drawn
-    assert drawn[5:] in ([], ["Delete"]), drawn
+    assert [drawn[0], drawn[2]] == ["Overview", "Search and filters"], drawn
+    assert drawn[3].lower().startswith(name), drawn
+    assert drawn[4:] in ([], ["Delete"]), drawn
 
 
 @pytest.mark.parametrize("name", LISTING)
@@ -248,6 +248,14 @@ def test_searching_is_a_separate_control_from_filtering(open_view, name) -> None
         f"{name}-field",
         f"{name}-page",
     }, keys
+
+
+def test_the_search_and_filters_wrap_only_once_a_row_is_full() -> None:
+    """Questions' ten controls take two rows; Facts' six take one."""
+    from lib.catalog import _COLUMN, _FILTER, _PAGER, _WORDS, wrapped
+
+    assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 7, _PAGER])) == 2
+    assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 3, _PAGER])) == 1
 
 
 @pytest.mark.parametrize("name", LISTING)

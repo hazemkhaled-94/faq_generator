@@ -141,9 +141,9 @@ def view() -> None:
         explain.panel(_SERVICE, "How topic modelling works")
         configure.panel("topics")
 
-    words, field = catalog.search("topics", _FIELDS)
-    chosen, pager = catalog.filters(
+    words, field, chosen, pager = catalog.find(
         "topics",
+        _FIELDS,
         {
             "language": (
                 "Languages",

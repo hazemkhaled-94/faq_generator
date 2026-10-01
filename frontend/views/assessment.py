@@ -222,9 +222,9 @@ def view() -> None:
 
     looking_at = _looking_at()
 
-    words, field = catalog.search("assessment", _FIELDS)
-    chosen, pager = catalog.filters(
+    words, field, chosen, pager = catalog.find(
         "assessment",
+        _FIELDS,
         {
             "metric": (
                 "Refused by",
