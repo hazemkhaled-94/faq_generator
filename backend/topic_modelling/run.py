@@ -19,7 +19,7 @@ from settings import decimal
 from settings.runs import run_id
 from settings.store import snapshot
 from stages import watch
-from stages.cli import parser, reloading
+from stages.cli import _ready, parser, reloading
 from stages.prompts import record
 from topic_modelling import prompts
 from topic_modelling.config import Settings
@@ -140,7 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     # falls back to their terms where it does not, so an absent model is a
     # choice and an unanswering one is a fit that would fail on every label.
     if (naming := Settings.load(snapshot()[0]).model) is not None:
-        before_work(naming)
+        if not _ready("topic_modelling", lambda: before_work(naming), args.watch):
+            return 1
         # Here rather than at the top, for the same reason `before_work` is:
         # a deployment with no model never sends this prompt, and a row
         # saying it did would be a record of a call nothing made.

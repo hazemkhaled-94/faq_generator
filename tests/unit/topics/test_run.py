@@ -179,3 +179,26 @@ def test_visualise_writes_what_it_has_when_one_language_is_missing(cli) -> None:
 
     assert cli.run("--visualise") == 0
     assert set(cli.files()) == {"de.html"}, cli.files()
+
+
+def test_a_watching_worker_waits_for_a_naming_model_that_is_down(
+    cli, monkeypatch
+) -> None:
+    """Exiting is a restart, a new run id and a Phoenix project per attempt."""
+    from stages import cli as stages_cli
+    from topic_modelling import run as module
+
+    monkeypatch.setenv("LLM_MODEL", "ollama/namer")
+    asked: list[tuple] = []
+
+    def flaky(*models) -> None:
+        asked.append(models)
+        if len(asked) == 1:
+            raise RuntimeError("the model is not up yet")
+
+    monkeypatch.setattr(module, "before_work", flaky)
+    monkeypatch.setattr(stages_cli.time, "sleep", lambda _: None)
+
+    assert cli.run("--watch") == 0
+    assert len(asked) == 2
+    assert cli.watched
