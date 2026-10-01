@@ -32,7 +32,7 @@ typography:
   heading:
     fontFamily: Graphik, Arial, Helvetica, sans-serif
     fontWeight: 600
-    fontSize: 0.8rem
+    fontSize: 0.95rem
     letterSpacing: -0.01em
   body:
     fontFamily: Graphik, Arial, Helvetica, sans-serif
@@ -41,7 +41,7 @@ typography:
   label:
     fontFamily: Graphik, Arial, Helvetica, sans-serif
     fontWeight: 600
-    fontSize: 0.7rem
+    fontSize: 0.86rem
     letterSpacing: 0.02em
   figure:
     fontFamily: Graphik, Arial, Helvetica, sans-serif
@@ -107,10 +107,14 @@ least eight rows, before any scrolling.
 |---|---|
 | Header: page title, product name, rule | ≤ 56px |
 | Overview: one strip of figures | ≤ 72px of content |
-| Analysis fold, closed | one row |
-| Service: queue verbs and state line, then its folds | ≤ 56px plus the folds |
-| Find: search, filters, pager | one row, two on Questions |
+| Service: queue verbs and state line, then its three folds in one row | ≤ 120px |
+| Search and filters: search, filters, pager | one row, two on Questions |
 | Table | everything left |
+
+Measured on 2026-10-01, the table panel starts at 471px on Passages, Facts
+and Topics, 535–538px on Assessment and Questions, and 572px on Documents.
+System health fits its figures and services table, and its components table
+starts in the fold.
 
 What is shown only on request (a picked row, an open fold) may push below the
 fold. What a page opens with may not.
@@ -155,10 +159,11 @@ the queue spinner.
 
 | Component | Rule |
 |---|---|
-| Panel | `page.panel`. Label 0.8rem/600 in purple, then content, with a 12px gap. |
+| Panel | `page.panel`. Label 0.95rem/600 in purple, then content, with a gap of about 8px. |
 | Figures | `page.stats`. Unbordered inside the Overview panel, and each carries a tooltip. |
-| Queue row | `stage.service`. The verbs are sized to their labels, with the state line muted beside them. Disabled verbs stay readable and say why in their tooltip. |
-| Find | `catalog.find`. One panel; the search box comes first and widest, the pager last. |
+| Queue row | `stage.service`, `pipeline.panel`. A horizontal container. The verbs are sized to their labels, with the state line muted beside them. Disabled verbs stay readable and say why in their tooltip. |
+| Folds | `page.folds`. Analysis, How it works and Configuration share one row while closed. An opened fold stacks them all at full width. |
+| Search and filters | `catalog.find`. One panel; the search box comes first and widest, the pager last, and the controls wrap only when a row is full. |
 | Table | `page.table`. A Streamlit dataframe with single-row selection, filled with the tinted header. |
 | Deletion | `stage.removal`. A red panel; the first click arms it and a separately labelled second click acts. |
 
@@ -181,4 +186,6 @@ the queue spinner.
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-10-01 | Initial design system created | Created by /design-consultation from the existing theme and design knowledge. Tables sat 74–255px below a 900px fold on seven of eight pages. |
-| 2026-10-01 | 14px base, merged header, one Find panel, unbordered figures | Buys back the vertical space the fold rule needs. |
+| 2026-10-01 | 14px base, merged header, one Search and filters panel, unbordered figures | Buys back the vertical space the fold rule needs. |
+| 2026-10-01 | Labels at 0.86rem, section labels at 0.95rem | At a 14px base the earlier 0.7rem labels came out under 12px. |
+| 2026-10-01 | A service's folds share one row; Analysis moved into the service panel | Three stacked folds cost about 90px on every listing page. |
