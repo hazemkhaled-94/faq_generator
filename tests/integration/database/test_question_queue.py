@@ -1244,6 +1244,25 @@ def test_a_passage_with_no_embedding_is_never_called_furniture(corpus, engine) -
     assert QuestionQueue(boilerplate_cosine=0.95).facts(written["topics"][0])
 
 
+def test_a_repeated_passage_is_never_offered_as_a_bridge(corpus, engine) -> None:
+    """The same furniture, reached through another topic's weight."""
+    written = corpus(topics=2, facts_per_topic=2, documents=2)
+    first, second = written["topics"]
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO passage_topics (passage_id, topic_id, weight) "
+                "SELECT passage_id, :second, 0.5 FROM passage_topics "
+                "WHERE topic_id = :first"
+            ),
+            {"first": first, "second": second},
+        )
+    _embed(engine, _SAME)
+
+    assert QuestionQueue(boilerplate_cosine=0.0).bridging(second), "no bridge at all"
+    assert QuestionQueue(boilerplate_cosine=0.95).bridging(second) == []
+
+
 # ── The link back to the trace ─────────────────────────────────────────────
 
 

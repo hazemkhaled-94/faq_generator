@@ -418,6 +418,7 @@ class QuestionQueue(RowQueue):
                     Fact.kind.in_(self._kinds),
                     Passage.language.is_not(None),
                     ~_ALREADY_ASKED,
+                    ~repeated_across_documents(self._boilerplate),
                 )
                 .order_by(Fact.id)
             ).all()
