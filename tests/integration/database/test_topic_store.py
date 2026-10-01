@@ -273,6 +273,16 @@ def test_a_fitted_topic_arrives_new_to_question_generation(store) -> None:
     assert {row["question_status"] for row in store.stored_topics()} == {Status.NEW}
 
 
+def test_a_fit_finishing_after_a_delete_writes_nothing(store) -> None:
+    """`DELETE /topics` took the request; the fit it answered is stale."""
+    store.given_passages(de=1)
+    fit = store.claim() or store.request()
+    store.catalog.delete_all()
+
+    assert store.store(fitting("de"), fit_id=fit) == 0
+    assert store.stored_topics() == []
+
+
 def test_a_language_the_fit_skipped_keeps_its_topics(store) -> None:
     """A language with no vocabulary this time is not fitted, so not replaced."""
     store.given_passages(de=1, en=1)

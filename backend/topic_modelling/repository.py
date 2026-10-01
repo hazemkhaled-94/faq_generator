@@ -237,6 +237,17 @@ class TopicQueue(StageQueue):
             How many memberships were written.
         """
         with self._session.begin() as session:
+            # The request gone is a delete that came after the claim, and the
+            # fit answering it writes nothing. Locked so none comes between.
+            if (
+                session.scalar(
+                    select(Topic.id)
+                    .where(Topic.id == fit_id, _OUTSTANDING)
+                    .with_for_update()
+                )
+                is None
+            ):
+                return 0
             # Read as values, not as func.now(): these go into an executemany
             # below, where a SQL function cannot be a bound parameter.
             requested_at, fitted_at = session.execute(
