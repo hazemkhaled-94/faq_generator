@@ -190,7 +190,14 @@ def interrogatives(text: str, language: str | None) -> tuple[str, ...]:
     gelten als reguliert?` carries two and is one question. Measured over 17
     real questions, the question words separated 16.
     """
-    return tuple(token.text for token in _read(text, language) if _interrogative(token))
+    return tuple(
+        token.text
+        for token in _read(text, language)
+        if _interrogative(token)
+        # Not a Penn W-word inside a relative or adverbial clause. Penn only:
+        # STTS labels a German question word itself `mo`.
+        and not (token.tag_.startswith("W") and _dependent(token))
+    )
 
 
 def _units(span: Doc | Span) -> tuple[str, ...]:

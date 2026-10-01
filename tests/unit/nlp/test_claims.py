@@ -58,3 +58,21 @@ def test_a_name_written_with_a_lower_case_initial_is_kept() -> None:
     from nlp.analysis import content
 
     assert "egovernment" in content("Das eGovernment erfordert Tests.", "de")
+
+
+@pytest.mark.parametrize(
+    ("question", "asked"),
+    [
+        ("What happens when a test fails?", ("What",)),
+        ("What is the tool that supports the review?", ("What",)),
+        ("Wann wird ein Test wiederholt?", ("Wann",)),
+    ],
+)
+def test_a_relative_or_subordinate_word_is_not_a_question_word(
+    question: str, asked: tuple[str, ...]
+) -> None:
+    """`when a test fails` sets a condition; it asks nothing."""
+    from nlp.analysis import interrogatives
+
+    language = "de" if question.startswith("Wann") else "en"
+    assert interrogatives(question, language) == asked
