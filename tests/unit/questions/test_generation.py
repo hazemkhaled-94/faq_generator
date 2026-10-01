@@ -75,6 +75,16 @@ def test_the_two_kinds_are_written_from_different_prompts() -> None:
     assert "does NOT answer" in model.system
 
 
+def test_a_perturbation_is_not_told_its_question_must_be_answered() -> None:
+    """The user message an answerable question gets says the opposite."""
+    model = StubModel(question="Q?", answer="A")
+
+    QuestionWriter(model).write(group(), plan(answerable=False))
+
+    assert "must be answered" not in model.user
+    assert "both answers" not in model.user
+
+
 def test_a_perturbation_is_taken_from_one_fact_even_out_of_a_larger_group() -> None:
     """Moving a claim out of reach is a change to one claim.
 

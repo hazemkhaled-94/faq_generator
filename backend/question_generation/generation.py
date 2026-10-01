@@ -167,6 +167,18 @@ _USER = (
     "Write the question and both answers in {{language}}.{{note}}"
 )
 
+#: The user message an unanswerable question is asked with.
+_USER_PERTURB = (
+    "FACT - the question moves this one detail out of reach:\n"
+    "{{facts}}\n"
+    "\n"
+    "PASSAGE(S) - context only, so you know what the material is "
+    "about. Never quote or name a heading or a title out of them:\n"
+    "{{passages}}\n"
+    "\n"
+    "Write the question in {{language}}.{{note}}"
+)
+
 #: Appended to the conversation for a follow-up, after the facts.
 _USER_FOLLOW = "{{sample}}\n\n{{conversation}}"
 
@@ -321,7 +333,7 @@ class QuestionWriter:
         first = FactGroup(sample.facts[:1])
         written = self._client.answer(
             system=_PERTURB.replace("{{asks}}", plan.spec.asks),
-            user=self._prompt(first, note),
+            user=self._prompt(first, note, _USER_PERTURB),
             shape=_Unanswered,
             prompt_version=PROMPT_VERSION,
         )
@@ -388,7 +400,7 @@ class QuestionWriter:
         return FactGroup(chosen or sample.facts[:1])
 
     @staticmethod
-    def _prompt(sample: FactGroup, note: str = "") -> str:
+    def _prompt(sample: FactGroup, note: str = "", template: str = _USER) -> str:
         """Renders one sample: the facts numbered, then their passages.
 
         The passages are fenced and labelled, as extraction fences a heading
@@ -415,7 +427,7 @@ class QuestionWriter:
             else ""
         )
         return (
-            _USER.replace("{{facts}}", numbered)
+            template.replace("{{facts}}", numbered)
             .replace("{{passages}}", context)
             .replace("{{language}}", named(sample.language))
             .replace("{{note}}", again)

@@ -26,6 +26,7 @@ from question_generation.generation import (
     _PERTURB,
     _USER,
     _USER_FOLLOW,
+    _USER_PERTURB,
     _Answered,
     _Unanswered,
 )
@@ -76,7 +77,9 @@ def _writer(settings: Settings | None = None) -> Iterator[Composed]:
             yield Composed(
                 f"{name} (spans)", PROMPT_VERSION, spanning, _USER, _ANSWERED, writes
             )
-    yield Composed("perturb", PROMPT_VERSION, _PERTURB, _USER, _UNANSWERED, writes)
+    yield Composed(
+        "perturb", PROMPT_VERSION, _PERTURB, _USER_PERTURB, _UNANSWERED, writes
+    )
     yield Composed("follow", PROMPT_VERSION, _FOLLOW, _USER_FOLLOW, _ANSWERED, writes)
 
 

@@ -33,7 +33,7 @@ from question_generation.generation import _FOLLOW, _PERTURB
 from question_generation.types import PROMPT_VERSION, SPECS
 
 #: The version every digest below was taken under.
-VERSION = "10"
+VERSION = "11"
 
 #: The prompts of the two gates that are not the writer's, each pinned to
 #: its own module's PROMPT_VERSION. They were unpinned and the verifier was
