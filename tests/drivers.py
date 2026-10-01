@@ -325,7 +325,9 @@ class Queue:
         self.embeddings[passage_id] = embedding
         return len(facts)
 
-    def nearest_fact(self, embedding: list[float], within=()) -> Twin | None:
+    def nearest_fact(
+        self, embedding: list[float], within=(), excluding=None
+    ) -> Twin | None:
         """The stored fact this queue was told to answer with."""
         return self.twin
 

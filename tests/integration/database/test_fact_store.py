@@ -988,3 +988,15 @@ class TestTheEmbeddingBackfill:
 
         assert twin is not None
         assert twin.statement == "A claim about it."
+
+    def test_a_passage_read_again_is_not_its_own_twin(
+        self, store, corpus, embedder
+    ) -> None:
+        """Its old facts are about to be replaced, so they refuse nothing."""
+        from extraction.service import embed
+
+        first = corpus["a"][0]
+        store.store(first, checked(first, "A claim about it."))
+        embed(store.catalog, embedder)
+
+        assert store.queue.nearest_fact([1.0] + [0.0] * 1023, excluding=first) is None

@@ -744,7 +744,7 @@ class ExtractionService(StageService):
         ) as current:
             try:
                 facts = self._passage(passage, current)
-                facts = self._deduplicated(facts, current)
+                facts = self._deduplicated(facts, current, passage.id)
                 stored = self._repository.store(
                     passage.id, facts, self._embedded(passage)
                 )
@@ -863,7 +863,9 @@ class ExtractionService(StageService):
             return None
         return self._embedder.embed(for_passage(passage.text))
 
-    def _deduplicated(self, facts: list[CheckedFact], current) -> list[CheckedFact]:
+    def _deduplicated(
+        self, facts: list[CheckedFact], current, passage_id: int
+    ) -> list[CheckedFact]:
         """Embeds every fact and refuses the ones already in the corpus.
 
         Two probes per candidate, because neither alone is enough. The index
@@ -891,7 +893,7 @@ class ExtractionService(StageService):
             if threshold <= 0 or not fact.validated:
                 checked.append(fact)
                 continue
-            twin = self._nearest(vector, written)
+            twin = self._nearest(vector, written, passage_id)
             if twin is not None:
                 # The only reading in this service that is a measurement:
                 # every other check is structural, and a citation resolves
@@ -920,10 +922,17 @@ class ExtractionService(StageService):
         return checked
 
     def _nearest(
-        self, vector: list[float], written: Sequence[tuple[str, list[float]]]
+        self,
+        vector: list[float],
+        written: Sequence[tuple[str, list[float]]],
+        passage_id: int,
     ) -> Twin | None:
-        """The closest stored fact, this passage's own kept facts included."""
-        twin = self._repository.nearest_fact(vector)
+        """The closest stored fact, this passage's own kept facts included.
+
+        Not one of the facts this passage's last reading left, which `store`
+        is about to replace.
+        """
+        twin = self._repository.nearest_fact(vector, excluding=passage_id)
         for statement, other in written:
             score = cosine(vector, other)
             if twin is None or score > twin.similarity:

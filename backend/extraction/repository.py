@@ -320,7 +320,10 @@ class PassageQueue(RowQueue):
         return len(facts)
 
     def nearest_fact(
-        self, embedding: list[float], within: Sequence[int] = ()
+        self,
+        embedding: list[float],
+        within: Sequence[int] = (),
+        excluding: int | None = None,
     ) -> Twin | None:
         """The validated fact closest to this vector, or None if there is none.
 
@@ -328,6 +331,9 @@ class PassageQueue(RowQueue):
         whole corpus, which is what dedup wants: a duplicate written from
         another document is still a duplicate, and at this corpus's size the
         HNSW index answers either in single-digit milliseconds.
+
+        `excluding` is a passage being read again: a fact citing it and no
+        other passage is one its `store` replaces, so it is no twin.
         """
         distance = Fact.embedding.cosine_distance(embedding)
         query = (
@@ -342,6 +348,21 @@ class PassageQueue(RowQueue):
                     select(FactPassage.fact_id).where(
                         FactPassage.passage_id.in_(within)
                     )
+                )
+            )
+        if excluding is not None:
+            query = query.where(
+                Fact.id.not_in(
+                    select(FactPassage.fact_id)
+                    .where(
+                        FactPassage.fact_id.in_(
+                            select(FactPassage.fact_id).where(
+                                FactPassage.passage_id == excluding
+                            )
+                        )
+                    )
+                    .group_by(FactPassage.fact_id)
+                    .having(func.count() == 1)
                 )
             )
         with self._session() as session:
