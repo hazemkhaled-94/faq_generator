@@ -81,7 +81,6 @@ footer { visibility: hidden; }
 
 /* ── Figures: small, because only the important ones are here ───────── */
 
-[data-testid="stMetric"] { padding: .45rem .6rem; }
 [data-testid="stMetricLabel"] p {
   font-size: 0.86rem !important; font-weight: 600;
   letter-spacing: 0.02em; color: var(--qa-muted);
@@ -89,13 +88,7 @@ footer { visibility: hidden; }
 /* Figures are set in the deep purple. */
 [data-testid="stMetricValue"] {
   font-size: 1.5rem !important; letter-spacing: -0.02em; line-height: 1.2;
-  color: var(--qa-deep);
-}
-/* Every figure box the same height whatever its label wraps to. */
-[data-testid="stColumn"] > [data-testid="stVerticalBlock"],
-[data-testid="stColumn"] [data-testid="stElementContainer"]:has([data-testid="stMetric"]),
-[data-testid="stMetric"] {
-  height: 100%;
+  color: var(--qa-deep); font-variant-numeric: tabular-nums;
 }
 
 /* ── Buttons ────────────────────────────────────────────────────────── */

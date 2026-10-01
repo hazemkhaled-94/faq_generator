@@ -77,7 +77,7 @@ def stats(values: Mapping[str, tuple[str, str]]) -> None:
     for column, (label, (value, explanation)) in zip(
         st.columns(len(values)), values.items(), strict=True
     ):
-        column.metric(label, value, help=explanation, border=True)
+        column.metric(label, value, help=explanation)
 
 
 def attributes(rows: Mapping[str, Any]) -> None:
