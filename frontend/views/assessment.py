@@ -180,19 +180,23 @@ def _judging(plan: dict) -> list[tuple[str, str]]:
     with what the worker and the Dagster asset would do on their own.
     """
     configured = set(plan.get("kinds") or _KINDS)
-    st.caption("Judge:")
+    row = st.container(horizontal=True, vertical_alignment="center")
+    row.caption("Judge:", width="content")
     picked = []
-    for column, (kind, (label, _)) in zip(
-        st.columns(len(_KINDS)), _KINDS.items(), strict=True
-    ):
+    for kind, (label, _) in _KINDS.items():
         metrics = len(plan.get("metrics", {}).get(kind, ()))
-        if column.checkbox(
+        if row.checkbox(
             label,
             key=f"assessment-judge-{kind}",
             value=kind in configured,
             help=f"{metrics} model call(s) per {label.lower().rstrip('s')}.",
         ):
             picked.append(("kind", kind))
+    row.caption(
+        f"Judging {', '.join(plan['kinds'])} with "
+        f"{plan['judge_model'] or 'LLM_MODEL, which is marking its own work'}"
+        f" · template version {plan['prompt_version']}"
+    )
     return picked
 
 
@@ -257,7 +261,14 @@ def view() -> None:
     counts = client.stage_status("assessment")["rows"]
 
     with overview, page.panel("Overview"):
-        _tabs()
+        with st.container(horizontal=True, vertical_alignment="center"):
+            _tabs()
+            st.checkbox(
+                "Show only the disagreements",
+                key="assessment-disagreements",
+                help="The artefacts the pipeline kept and the judge refused. "
+                "Neither side is right by default.",
+            )
         if not plan["enabled"]:
             st.info(
                 "The evaluation phase is switched off. Set "
@@ -292,12 +303,6 @@ def view() -> None:
                 ),
             }
         )
-        st.checkbox(
-            "Show only the disagreements",
-            key="assessment-disagreements",
-            help="The artefacts the pipeline kept and the judge refused. "
-            "Neither side is right by default.",
-        )
 
     with service, page.panel("Assessment — the evaluation phase"):
         judging = _judging(plan)
@@ -313,11 +318,6 @@ def view() -> None:
                 + " and ".join(_KINDS[kind][0].lower() for _, kind in judging)
                 + " only."
             )
-        st.caption(
-            f"Judging {', '.join(plan['kinds'])} with "
-            f"{plan['judge_model'] or 'LLM_MODEL, which is marking its own work'}"
-            f" · template version {plan['prompt_version']}"
-        )
         with page.folds():
             with st.expander("Analysis"):
                 page.findings(_checks(quality, counts, plan, looking_at))
