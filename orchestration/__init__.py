@@ -26,11 +26,13 @@ from dagster import (
     AssetKey,
     AssetMaterialization,
     AssetSelection,
+    DagsterRunStatus,
     DefaultScheduleStatus,
     DefaultSensorStatus,
     Definitions,
     MetadataValue,
     RunRequest,
+    RunsFilter,
     ScheduleDefinition,
     SensorResult,
     SkipReason,
@@ -52,6 +54,14 @@ log = logging.getLogger(__name__)
 
 #: Everything, in order. Each asset waits for the stage before it to drain,
 #: so this is the corpus going end to end in one run.
+#: A run that has not finished.
+_GOING = [
+    DagsterRunStatus.QUEUED,
+    DagsterRunStatus.NOT_STARTED,
+    DagsterRunStatus.STARTING,
+    DagsterRunStatus.STARTED,
+]
+
 corpus = define_asset_job(
     name="corpus",
     selection=AssetSelection.all(),
@@ -111,6 +121,10 @@ def arrivals(context):
         # next arrival that it is a new one rather than the same one again.
         context.update_cursor(json.dumps({"waiting": 0, "run": asked.get("run", 0)}))
         return SkipReason("no document is waiting to be asked for")
+    if context.instance.get_runs(
+        filters=RunsFilter(job_name=corpus.name, statuses=_GOING), limit=1
+    ):
+        return SkipReason("a corpus run is already queued or running")
     if not queue.idle:
         # The cursor is left alone: the run already going is the one that
         # asked, and this tick has decided nothing.

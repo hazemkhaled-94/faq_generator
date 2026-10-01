@@ -14,7 +14,14 @@ import pytest
 
 pytest.importorskip("dagster", reason="the pipeline group is not installed")
 
-from dagster import RunRequest, SkipReason, build_sensor_context
+from dagster import (
+    DagsterInstance,
+    DagsterRun,
+    DagsterRunStatus,
+    RunRequest,
+    SkipReason,
+    build_sensor_context,
+)
 
 import orchestration
 from orchestration.client import Queue
@@ -48,9 +55,11 @@ def answering(monkeypatch, **rows: int) -> None:
     monkeypatch.setattr(orchestration, "Backend", Stub)
 
 
-def evaluate():
-    """Runs one sensor tick."""
-    return orchestration.arrivals(build_sensor_context())
+def evaluate(instance=None):
+    """Runs one sensor tick, against an instance holding no run unless given."""
+    return orchestration.arrivals(
+        build_sensor_context(instance=instance or DagsterInstance.ephemeral())
+    )
 
 
 def test_a_document_nobody_asked_for_starts_a_run(monkeypatch) -> None:
@@ -58,6 +67,20 @@ def test_a_document_nobody_asked_for_starts_a_run(monkeypatch) -> None:
     answering(monkeypatch, new=3)
 
     assert isinstance(evaluate(), RunRequest)
+
+
+def test_nothing_starts_while_a_corpus_run_is_going(monkeypatch) -> None:
+    """An upload mid-run is read by the run already going through parsing."""
+    answering(monkeypatch, new=3)
+    instance = DagsterInstance.ephemeral()
+    instance.add_run(
+        DagsterRun(job_name="corpus", run_id="going", status=DagsterRunStatus.STARTED)
+    )
+
+    answer = evaluate(instance)
+
+    assert isinstance(answer, SkipReason)
+    assert "corpus run" in str(answer.skip_message)
 
 
 def test_an_empty_queue_starts_nothing(monkeypatch) -> None:
@@ -115,17 +138,19 @@ def test_the_same_number_arriving_twice_asks_twice(monkeypatch) -> None:
     size of an earlier one.
     """
     answering(monkeypatch, new=3)
-    context = build_sensor_context()
+    context = build_sensor_context(instance=DagsterInstance.ephemeral())
     first = orchestration.arrivals(context).run_key
 
     # Worked, and drained. The tick that finds nothing is what records
     # that the queue emptied.
     answering(monkeypatch, parsed=3)
-    context = build_sensor_context(cursor=context.cursor)
+    context = build_sensor_context(cursor=context.cursor, instance=context.instance)
     orchestration.arrivals(context)
 
     answering(monkeypatch, new=3, parsed=3)
-    again = orchestration.arrivals(build_sensor_context(cursor=context.cursor))
+    again = orchestration.arrivals(
+        build_sensor_context(cursor=context.cursor, instance=context.instance)
+    )
 
     assert isinstance(again, RunRequest)
     assert again.run_key != first
@@ -140,10 +165,12 @@ def test_two_ticks_over_an_unchanged_queue_share_a_key_through_the_cursor(
     worker held the same three documents would queue a run a minute.
     """
     answering(monkeypatch, new=3)
-    context = build_sensor_context()
+    context = build_sensor_context(instance=DagsterInstance.ephemeral())
     first = orchestration.arrivals(context).run_key
 
-    again = orchestration.arrivals(build_sensor_context(cursor=context.cursor))
+    again = orchestration.arrivals(
+        build_sensor_context(cursor=context.cursor, instance=context.instance)
+    )
 
     assert again.run_key == first
 
