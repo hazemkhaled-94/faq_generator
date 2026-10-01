@@ -72,6 +72,15 @@ def test_a_point_the_model_already_marked_is_not_marked_twice(marker) -> None:
     assert outline.statement == f"{BULLET}Weighs 4 kg\n{BULLET}Ships"
 
 
+@pytest.mark.parametrize("point", ["-20 °C is the lowest", "**Note**: keep dry"])
+def test_a_point_opening_on_a_sign_or_emphasis_keeps_it(point) -> None:
+    """Only a marker followed by a space is a bullet."""
+    answer = {"summary": "s", "outline": [point, "Ships"]}
+    outline = DigestExtractor(Model(answer), (FactKind.OUTLINE,)).extract(passage())[0]
+
+    assert outline.statement == f"{BULLET}{point}\n{BULLET}Ships"
+
+
 def test_an_empty_reading_is_dropped_rather_than_stored() -> None:
     """Nothing is stored for a reading the model did not give."""
     facts = DigestExtractor(Model({"summary": "   ", "outline": []}), BOTH).extract(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import ClassVar
 
 from pydantic import BaseModel, Field
@@ -179,5 +180,5 @@ class DigestExtractor(Extractor):
 
 def _bulleted(points: list[str]) -> str:
     """Joins the points into one statement, one bullet per line."""
-    kept = [point.strip().lstrip("-•* ").strip() for point in points]
+    kept = [re.sub(r"^[-•*]\s+", "", point.strip()) for point in points]
     return "\n".join(f"{BULLET}{point}" for point in kept if point)
