@@ -28,9 +28,6 @@ from lib import page
 #: How often the panel redraws. The same interval the stage controls use.
 POLL_SECONDS = 3
 
-#: Run, then the three that act on every queue, then the line of state.
-_CONTROLS = [1.3, 1.2, 1.2, 1.2, 4.2]
-
 #: What each Dagster run status means for somebody reading a page. Anything
 #: not here is shown as Dagster spells it, lower-cased.
 _RUN_READS = {
@@ -80,15 +77,13 @@ def _controls(client) -> None:
         if one.get("stage") != "assessment"
     )
 
-    begun, started, halted, retried, reads = st.columns(
-        _CONTROLS, vertical_alignment="center"
-    )
+    row = st.container(horizontal=True, vertical_alignment="center")
 
-    if begun.button(
+    if row.button(
         "Run the pipeline",
         key="pipeline-run",
         type="primary",
-        width="stretch",
+        width="content",
         disabled=not available or running is not None,
         help=_run_help(available, running),
     ):
@@ -97,10 +92,10 @@ def _controls(client) -> None:
     # Every label here names the corpus, because the panel below this one
     # carries the same three verbs for the one stage this page owns. Two
     # controls reading `Start` on one page is a control nobody can use.
-    if started.button(
+    if row.button(
         "Start every stage",
         key="pipeline-start",
-        width="stretch",
+        width="content",
         disabled=not ready,
         help=f"Queues the {ready:,} row(s) ready to be worked, in every "
         "stage. One stretch of the pipeline, not all of it."
@@ -109,10 +104,10 @@ def _controls(client) -> None:
     ):
         _report(client.act("start"))
 
-    if halted.button(
+    if row.button(
         "Stop everything",
         key="pipeline-stop",
-        width="stretch",
+        width="content",
         disabled=not working and running is None,
         help="Takes back everything queued and stops the run behind it. "
         "Whatever a worker holds right now finishes."
@@ -121,10 +116,10 @@ def _controls(client) -> None:
     ):
         _report(client.act("stop"))
 
-    if retried.button(
+    if row.button(
         "Retry failures",
         key="pipeline-retry",
-        width="stretch",
+        width="content",
         disabled=not failed,
         help=f"Returns the {failed:,} failed row(s) of every stage to the queue."
         if failed
@@ -132,7 +127,7 @@ def _controls(client) -> None:
     ):
         _report(client.act("retry"))
 
-    reads.markdown(_reads(stages, running, working, failed))
+    row.caption(_reads(stages, running, working, failed))
     _automation(client, orchestration.get("automation") or {})
 
 

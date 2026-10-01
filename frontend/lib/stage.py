@@ -35,9 +35,6 @@ from lib import page
 #: not to hammer the API, short enough that a long run looks alive.
 POLL_SECONDS = 3
 
-#: The four verbs, then the line saying where the queue stands.
-_CONTROLS = [1.2, 1.2, 1.2, 1.2, 4.0]
-
 #: The order the states are read out in, which is the order a row moves
 #: through them.
 _ORDER = ("new", "pending", "in_progress", "failed")
@@ -151,49 +148,47 @@ def _verbs(
         """Runs one verb over whatever this control is pointed at."""
         _act(client, queue.name, scope, action, scopes)
 
-    begun, halted, retried, redone, state = st.columns(
-        _CONTROLS, vertical_alignment="center"
-    )
+    row = st.container(horizontal=True, vertical_alignment="center")
 
-    if begun.button(
+    if row.button(
         "Start all" if everything else "Start",
         key=_key("start", queue, scope),
         type="primary",
         disabled=not waiting,
-        width="stretch",
+        width="content",
         help=f"Queues the {waiting:,} {unit} never asked for."
         if waiting
         else f"No {unit} are waiting.",
     ):
         act("start")
 
-    if halted.button(
+    if row.button(
         "Stop",
         key=_key("stop", queue, scope),
         disabled=not queued,
-        width="stretch",
+        width="content",
         help=f"Takes the {queued:,} queued {unit} back off the queue."
         if queued
         else f"No {unit} are queued.",
     ):
         act("stop")
 
-    if retried.button(
+    if row.button(
         "Retry",
         key=_key("retry", queue, scope),
         disabled=not failed,
-        width="stretch",
+        width="content",
         help=f"Queues the {failed:,} failed {unit} again."
         if failed
         else f"No {unit} have failed.",
     ):
         act("retry")
 
-    if redone.button(
+    if row.button(
         "Redo all" if everything else "Redo",
         key=_key("rerun", queue, scope),
         disabled=not total,
-        width="stretch",
+        width="content",
         help=f"Queues every {unit} again, finished ones included, and "
         "rebuilds what this stage made of them."
         if total
@@ -201,7 +196,7 @@ def _verbs(
     ):
         act("rerun")
 
-    _state(state, queue, counts, failed)
+    _state(row, queue, counts, failed)
 
 
 def _fit_verbs(client, queue: Queue) -> None:
@@ -211,16 +206,14 @@ def _fit_verbs(client, queue: Queue) -> None:
     failed = counts.get("failed", 0)
     running = busy(counts)
 
-    begun, halted, retried, _, state = st.columns(
-        _CONTROLS, vertical_alignment="center"
-    )
+    row = st.container(horizontal=True, vertical_alignment="center")
 
-    if begun.button(
+    if row.button(
         "Fit all",
         key=_key("discover", queue, None),
         type="primary",
         disabled=running,
-        width="stretch",
+        width="content",
         help="Queues one fit over every passage, one model per language. "
         "Replaces every stored topic."
         if not running
@@ -228,27 +221,27 @@ def _fit_verbs(client, queue: Queue) -> None:
     ):
         _act(client, queue.name, None, "discover")
 
-    if halted.button(
+    if row.button(
         "Stop",
         key=_key("stop", queue, None),
         disabled=not queued,
-        width="stretch",
+        width="content",
         help=f"Takes the {queued:,} queued fit(s) back off the queue."
         if queued
         else "No fit is queued.",
     ):
         _act(client, queue.name, None, "stop")
 
-    if retried.button(
+    if row.button(
         "Retry",
         key=_key("retry", queue, None),
         disabled=not failed,
-        width="stretch",
+        width="content",
         help="Queues a failed fit again." if failed else "No fit has failed.",
     ):
         _act(client, queue.name, None, "retry")
 
-    _state(state, queue, counts, failed)
+    _state(row, queue, counts, failed)
 
 
 def _state(into, queue: Queue, counts: dict[str, int], failed: int) -> None:

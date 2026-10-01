@@ -112,7 +112,7 @@ footer { visibility: hidden; }
 /* ── The state line beside a service's controls ─────────────────────── */
 
 .qa-state {
-  font-size: 0.86rem; color: var(--qa-muted); padding-top: .5rem;
+  font-size: 0.86rem; color: var(--qa-muted);
   display: flex; align-items: center; gap: .45rem;
 }
 .qa-state-bad { color: var(--qa-danger); }
