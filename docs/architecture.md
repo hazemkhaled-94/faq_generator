@@ -18,7 +18,7 @@ flowchart TD
     ext -->|facts, each citing a sentence| top[topic_modelling]
     top -->|topics, passage memberships| qgn[question_generation]
     qgn --> out([questions with known answers])
-    qgn -->|every fact, topic and question| ass[assessment]
+    qgn -->|a sample of facts, topics and answerable questions| ass[assessment]
     ass --> opinion([a judgement beside each verdict])
 
     ext -.calls.-> llm{{served model}}
@@ -38,15 +38,17 @@ flowchart TD
 | `extraction` | `passages.extract_status` | one passage | `facts`, `fact_passages` | `extracted` |
 | `topic_modelling` | `topics.status` | every passage's vocabulary | `topics`, `passage_topics` | `modelled` |
 | `question_generation` | `topics.question_status` | one topic's facts | `questions`, `question_facts` | `generated` |
-| `assessment` | `assessments.assess_status` | one fact, topic or question | `assessments`, `assessment_metrics` | `assessed` |
+| `assessment` | `assessments.assess_status` | one fact, topic or answerable question | `assessments`, `assessment_metrics` | `assessed` |
 
 Ingestion owns no queue: an upload writes a row and an object, and parsing is
 what is then asked to run.
 
 Assessment owns a queue with nothing upstream to fill it. No stage hands it an
-artefact, so `start` **enrols** whatever has no assessment and then queues it —
+artefact, so `start` **enrols** the newest `ASSESSMENT_SAMPLE` of each kind in
+`ASSESSMENT_KINDS`, skipping what is already enrolled, and then queues them —
 topic modelling's arrangement, where asking is what creates the work, reached
-from the other direction. It is also the one stage that can be switched off
+from the other direction. Unanswerable questions are never enrolled: they have
+no answer for the facts to support. It is also the one stage that can be switched off
 entirely, with `ASSESSMENT_ENABLED`, because it is the one stage the dataset
 does not depend on.
 
@@ -74,6 +76,8 @@ stateDiagram-v2
     in_progress --> failed: raised
     in_progress --> failed: lease expired
     failed --> pending: retry
+    in_progress --> pending: reclaim
+    done --> pending: rerun
     done --> [*]
 ```
 
