@@ -249,6 +249,8 @@ def _recheck(
         catalog.nearest(question.embedding, before=question.id, excluding=pending),
         answerable=question.answerable,
         threshold=settings.duplicate_cosine,
+        question=question.question_text,
+        language=question.language,
     )
 
 

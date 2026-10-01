@@ -7,11 +7,13 @@ does not run leaves the stored release as it was.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
 from question_generation.config import Settings
-from question_generation.models import JudgedQuestion
+from question_generation.models import JudgedQuestion, Neighbour
 from question_generation.service import _recheck
 
 pytestmark = pytest.mark.nlp
@@ -71,7 +73,42 @@ def test_a_stored_question_is_rechecked_against_the_type_rules(
     question: str, answer: str, kind: str, form: str, expected: str | None
 ) -> None:
     """What re-verify stores for a row the checker would refuse today."""
-    stored = JudgedQuestion(
+    failed = _recheck(None, Settings.load(), _stored(question, answer, kind, form))  # type: ignore[arg-type]
+
+    assert (failed[0] if failed else None) == expected, failed
+
+
+class _Nearest:
+    """A catalogue whose nearest accepted question is one fixed twin."""
+
+    def __init__(self, twin: Neighbour) -> None:
+        self._twin = twin
+
+    def nearest(self, embedding, before=None, excluding=()):
+        return self._twin
+
+
+def test_a_twin_asking_another_thing_is_not_a_duplicate_on_re_check() -> None:
+    """The `asks_the_same` veto the checker applies, applied again."""
+    stored = replace(
+        _stored(
+            "Why does a request have to be confirmed in writing?",
+            "so that the agreed response time can be evidenced later",
+            QuestionType.REASON,
+            AnswerForm.EXPLANATION,
+        ),
+        embedding=[1.0],
+    )
+    twin = Neighbour(
+        "Which requests have to be confirmed in writing?", True, similarity=0.95
+    )
+
+    assert _recheck(_Nearest(twin), Settings.load(), stored) is None  # type: ignore[arg-type]
+
+
+def _stored(question: str, answer: str, kind: str, form: str) -> JudgedQuestion:
+    """One accepted, answerable English question resting on one fact."""
+    return JudgedQuestion(
         id=1,
         question_text=question,
         target_answer=answer,
@@ -92,7 +129,3 @@ def test_a_stored_question_is_rechecked_against_the_type_rules(
         question_type=kind,
         answer_form=form,
     )
-
-    failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
-
-    assert (failed[0] if failed else None) == expected, failed
