@@ -50,14 +50,33 @@ class Tokenizer:
     own length produces.
     """
 
-    def __init__(self, windows: int = 1) -> None:
-        """Repeats the same context over this many windows."""
+    def __init__(self, windows: int = 1, encoding: Encoding | None = None) -> None:
+        """Repeats the same context over this many windows, or answers this."""
         self._windows = windows
+        self._encoding = encoding
+        self.strides: list[int] = []
 
-    def __call__(self, question: str, context: str, **ignored) -> Encoding:
-        """Encodes one pair."""
-        del ignored
+    @staticmethod
+    def num_special_tokens_to_add(pair: bool = False) -> int:
+        """[CLS] and [SEP], and a second [SEP] for a pair."""
+        return 3 if pair else 2
+
+    def __call__(self, question: str, context: str | None = None, **options):
+        """Encodes one question, or one pair.
+
+        Raises:
+            ValueError: Where the stride reaches the room the question leaves,
+                which is where a fast tokenizer panics.
+        """
         asked = question.split()
+        if context is None:
+            return {"input_ids": [0] * len(asked)}
+        room = options["max_length"] - len(asked) - 3
+        if options["stride"] >= room:
+            raise ValueError(f"stride {options['stride']} reaches the room {room}")
+        self.strides.append(options["stride"])
+        if self._encoding is not None:
+            return self._encoding
         words = [(one.start(), one.end()) for one in re.finditer(r"\S+", context)]
         sequence = [None, *([0] * len(asked)), None, *([1] * len(words))]
         offsets = [(0, 0)] * (len(asked) + 2) + [list(one) for one in words]
@@ -218,7 +237,7 @@ def test_a_token_covering_no_characters_is_not_a_span() -> None:
     starts[padded] = ends[padded] = 20.0
     starts[4], ends[5] = 1.0, 1.0
     built.__dict__["_loaded"] = (
-        lambda *args, **kwargs: Encoding([sequence], [offsets]),
+        Tokenizer(encoding=Encoding([sequence], [offsets])),
         Model([starts], [ends]),
     )
 
@@ -236,15 +255,34 @@ def test_the_model_names_itself_for_the_row_it_read() -> None:
 def test_a_window_carrying_none_of_the_passage_is_skipped() -> None:
     """A window that is all question and padding has nothing to offer."""
     built = Extractive("a/checkpoint")
-    tokenizer = Tokenizer()
     encoding = Encoding([[None, 0, 0, None]], [[(0, 0)] * 4])
     built.__dict__["_loaded"] = (
-        lambda *args, **kwargs: encoding,
+        Tokenizer(encoding=encoding),
         Model([[0.0] * 4], [[0.0] * 4]),
     )
-    del tokenizer
 
     assert built.answer(QUESTION, [CONTEXT], confidence=0.0) is None
+
+
+def test_a_long_question_narrows_the_stride_to_the_room_it_leaves() -> None:
+    """A stride the passage has no room for makes a fast tokenizer panic."""
+    built = Extractive("a/checkpoint", max_tokens=20)
+    tokenizer = Tokenizer()
+    built.__dict__["_loaded"] = (tokenizer, Model([[0.0] * 30], [[0.0] * 30]))
+
+    built.answer(" ".join(["word"] * 12) + "?", [CONTEXT], confidence=0.0)
+
+    assert tokenizer.strides and tokenizer.strides[0] < 20 - 12 - 3
+
+
+def test_a_question_longer_than_the_window_reads_nothing() -> None:
+    """It falls through to the verifier, which reads it whole."""
+    built = Extractive("a/checkpoint", max_tokens=20)
+    built.__dict__["_loaded"] = (Tokenizer(), Model([[0.0]], [[0.0]]))
+
+    assert (
+        built.answer(" ".join(["word"] * 30) + "?", [CONTEXT], confidence=0.0) is None
+    )
 
 
 # ── Over several passages ─────────────────────────────────────────────────

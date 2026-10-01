@@ -141,6 +141,15 @@ class Extractive:
         than as a share of the whole vocabulary of spans.
         """
         tokenizer, model = self._loaded
+        # What the window leaves the passage once the question is in it. A
+        # stride reaching it makes a fast tokenizer panic.
+        room = (
+            self._max_tokens
+            - len(tokenizer(question, add_special_tokens=False)["input_ids"])
+            - tokenizer.num_special_tokens_to_add(pair=True)
+        )
+        if room <= 0:
+            return None
         encoded = tokenizer(
             question,
             context,
@@ -148,7 +157,7 @@ class Extractive:
             # The question is kept whole and the passage is what slides. A
             # question truncated to fit is a different question.
             truncation="only_second",
-            stride=_STRIDE,
+            stride=min(_STRIDE, room // 2),
             return_overflowing_tokens=True,
             return_offsets_mapping=True,
             padding=True,
