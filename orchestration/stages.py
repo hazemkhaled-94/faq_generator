@@ -289,11 +289,14 @@ def assessments(context: AssetExecutionContext) -> Output[int]:
         "assessment", timeout=settings.drain_timeout, poll=settings.poll_seconds
     )
     done = produced(queue.rows)
+    judge = plan.get("judge_model") or "no model"
+    if plan.get("self_judging"):
+        judge += " (the writer, judging its own work)"
     return Output(
         done,
         metadata={
             "enabled": True,
-            "judge": plan.get("judge_model") or "LLM_MODEL (judging its own work)",
+            "judge": judge,
             "kinds judged": MetadataValue.json(plan.get("kinds") or []),
             "queued by this run": queued,
             "artifacts judged": done,

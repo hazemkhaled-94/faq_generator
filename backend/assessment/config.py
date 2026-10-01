@@ -51,6 +51,13 @@ class Settings:
         )
 
 
+def judge_of(settings: Settings, source: Source = None) -> tuple[str | None, bool]:
+    """The model the next run judges with, and whether it is the writer's."""
+    writer = optional("LLM_MODEL", source)
+    judge = settings.judge_model or writer
+    return judge, judge == writer
+
+
 def judged_kinds(settings: Settings) -> tuple[str, ...]:
     """The kinds this deployment judges, refusing a name that is not one.
 

@@ -143,6 +143,16 @@ def test_the_judge_is_named_beside_the_figures(page) -> None:
     assert "ollama_chat/qwen3:14b" in drawn.stats().values()
 
 
+def test_a_writer_judging_its_own_work_is_warned_about(page) -> None:
+    """And the host command that judges with ASSESSMENT_JUDGE_MODEL is named."""
+    assert "marking its own work" not in page().text()
+
+    drawn = page(assessment_plan={**ASSESSMENT_PLAN, "self_judging": True})
+
+    assert "marking its own work" in drawn.text()
+    assert "make assess" in drawn.text()
+
+
 def test_nothing_matching_is_a_caption_rather_than_an_empty_table(page) -> None:
     """The shape every other listing page answers an empty filter with."""
     drawn = page(assessments=page_of())

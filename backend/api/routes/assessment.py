@@ -22,6 +22,7 @@ from api.dependencies import assessment_catalog, assessment_queue
 from api.params import Limit, Offset, SearchText
 from api.routes.stage import StageAction, answered, stage_router
 from assessment.config import Settings as AssessmentSettings
+from assessment.config import judge_of
 from assessment.models import AssessmentQuality, StoredAssessment
 from assessment.templates import PROMPT_VERSION, TEMPLATES, metrics_of
 from settings.store import resolved
@@ -82,7 +83,10 @@ class JudgePlan:
     """
 
     enabled: bool
+    #: ASSESSMENT_JUDGE_MODEL, or LLM_MODEL where that names nothing.
     judge_model: str | None
+    #: Whether that model is the writer's.
+    self_judging: bool
     kinds: list[str]
     sample: int
     prompt_version: str
@@ -98,10 +102,13 @@ def plan() -> JudgePlan:
     Read per request, stored overrides included: what the next run will
     judge rather than what the last one did.
     """
-    settings = AssessmentSettings.load(resolved())
+    source = resolved()
+    settings = AssessmentSettings.load(source)
+    judge, self_judging = judge_of(settings, source)
     return JudgePlan(
         enabled=settings.enabled,
-        judge_model=settings.judge_model,
+        judge_model=judge,
+        self_judging=self_judging,
         kinds=list(settings.kinds),
         sample=settings.sample,
         prompt_version=PROMPT_VERSION,

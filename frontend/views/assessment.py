@@ -192,10 +192,14 @@ def _judging(plan: dict) -> list[tuple[str, str]]:
             help=f"{metrics} model call(s) per {label.lower().rstrip('s')}.",
         ):
             picked.append(("kind", kind))
+    judge = plan["judge_model"] or "no model"
     row.caption(
-        f"Judging {', '.join(plan['kinds'])} with "
-        f"{plan['judge_model'] or 'LLM_MODEL, which is marking its own work'}"
-        f" · template version {plan['prompt_version']}"
+        f":orange[Next run: {judge}, the writer, marking its own work.] "
+        "`make assess-start` then `make assess` judges from the host with "
+        "ASSESSMENT_JUDGE_MODEL"
+        if plan["self_judging"]
+        else f"Judging {', '.join(plan['kinds'])} with {judge} · "
+        f"template version {plan['prompt_version']}"
     )
     return picked
 
@@ -294,7 +298,7 @@ def view() -> None:
                         "for a person rather than a verdict."
                     ),
                 ),
-                "Judge": (
+                "Judged by": (
                     ", ".join(quality["judge_models"]) or "—",
                     (
                         "The model that answered. It should not be the model "

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from assessment import run as cli
-from assessment.config import Settings, judged_kinds
+from assessment.config import Settings, judge_of, judged_kinds
 from assessment.factory import judge_model
 from llm.config import Settings as ModelSettings
 
@@ -73,6 +73,19 @@ def test_the_judge_is_the_model_the_setting_names() -> None:
         judge_model(settings(ASSESSMENT_JUDGE_MODEL=""), model()).model
         == "ollama_chat/gemma4:31b"
     )
+
+
+def test_the_plan_names_the_writer_when_it_is_the_judge() -> None:
+    """The model the next run judges with, and whether that is the writer."""
+    writer = {"LLM_MODEL": "ollama_chat/gemma4:31b"}
+
+    assert judge_of(settings(), writer) == ("azure/gpt-5.4", False)
+    assert judge_of(settings(ASSESSMENT_JUDGE_MODEL=""), writer) == (
+        "ollama_chat/gemma4:31b",
+        True,
+    )
+    named = settings(ASSESSMENT_JUDGE_MODEL="ollama_chat/gemma4:31b")
+    assert judge_of(named, writer)[1] is True
 
 
 def test_a_hosted_judge_does_not_keep_the_local_runtime_address() -> None:
