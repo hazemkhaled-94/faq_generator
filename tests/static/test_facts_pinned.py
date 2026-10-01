@@ -102,6 +102,7 @@ SHAPES = {
         "embedding",
         "gate_scores",
         "confidence",
+        "twin_id",
     },
     "FactSource": {
         "passage_id",

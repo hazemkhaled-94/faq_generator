@@ -651,6 +651,7 @@ def _duplicate(fact: CheckedFact, twin: Twin, threshold: float) -> CheckedFact:
         fact,
         validated=False,
         rejection_code=Rejection.DUPLICATE,
+        twin_id=twin.fact_id or None,
         validation_error=(
             f"says what fact {twin.fact_id} already says at cosine "
             f"{twin.similarity:.3f}, over the {threshold:.2f} "

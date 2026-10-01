@@ -8,16 +8,20 @@ from itertools import groupby
 from typing import ClassVar, cast
 
 from sqlalchemy import (
+    ARRAY,
     ColumnElement,
+    Integer,
     Select,
     Table,
     bindparam,
     delete,
     func,
     insert,
+    literal,
     select,
     update,
 )
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
 from database.qa_generator import (
@@ -35,6 +39,7 @@ from extraction.models import (
     WRITTEN,
     CandidateFact,
     CheckedFact,
+    Citation,
     Cited,
     FactQuality,
     FactSource,
@@ -284,13 +289,13 @@ class PassageQueue(RowQueue):
             How many facts were written.
         """
         with self._session.begin() as session:
+            # The citations, not the facts: the orphan trigger deletes a fact
+            # left citing nothing, and keeps one another passage still cites.
             session.execute(
-                delete(Fact).where(
-                    Fact.kind != FactKind.BRIDGE,
-                    Fact.id.in_(
-                        select(FactPassage.fact_id).where(
-                            FactPassage.passage_id == passage_id
-                        )
+                delete(FactPassage).where(
+                    FactPassage.passage_id == passage_id,
+                    FactPassage.fact_id.in_(
+                        select(Fact.id).where(Fact.kind != FactKind.BRIDGE)
                     ),
                 )
             )
@@ -385,7 +390,44 @@ def _write(session, facts: list[CheckedFact], version: str | None = None) -> int
     ]
     if links:
         session.execute(insert(FactPassage), links)
+    for fact in facts:
+        if fact.twin_id is not None:
+            for cited in fact.citations:
+                _cite(session, fact.twin_id, cited)
     return len(facts)
+
+
+def _cite(session, fact_id: int, cited: Citation) -> None:
+    """Adds one citation to a stored fact, after its last one.
+
+    Nothing where the fact has no citation left, which is a fact this
+    transaction deleted, or already cites the passage.
+    """
+    position = func.max(FactPassage.position) + 1
+    session.execute(
+        pg_insert(FactPassage)
+        .from_select(
+            [
+                "fact_id",
+                "passage_id",
+                "position",
+                "sentence_ids",
+                "evidence_start",
+                "evidence_end",
+            ],
+            select(
+                literal(fact_id),
+                literal(cited.passage_id),
+                position,
+                literal(cited.sentence_ids, ARRAY(Integer)),
+                literal(cited.start, Integer),
+                literal(cited.end, Integer),
+            )
+            .where(FactPassage.fact_id == fact_id)
+            .having(func.count() > 0),
+        )
+        .on_conflict_do_nothing()
+    )
 
 
 def _row(fact: CheckedFact, version: str | None = None) -> dict:

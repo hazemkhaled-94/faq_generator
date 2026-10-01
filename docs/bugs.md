@@ -15,7 +15,7 @@ figures; this one holds only what is wrong with them.
 | [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | the 17 |
 | [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | yes |
 | [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | 8 of them |
-| [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) | |
+| [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) | yes |
 | [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) | |
 
 292 of the 1,341 — **21.8%** — carry at least one of them.
@@ -228,6 +228,13 @@ a marker to the wrong one.
 `fact_passages` beside the surviving fact rather than dropping it. The fact
 then cites every document that states it, and the Citations sheet gains a row
 instead of naming the wrong one.
+
+Shipped with two changes the citation needs. `store` replaces a passage's
+citations rather than its facts, and `delete_fact_without_passage` deletes a
+fact other than a bridge only on its last citation. Without them, reading
+the second document again, or deleting it, would delete the fact the first
+document states. A fact already stored gains its citation only when the
+passage is extracted again.
 
 ## The evaluation phase judges the newest rows
 

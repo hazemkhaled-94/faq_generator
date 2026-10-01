@@ -114,6 +114,56 @@ class TestStoring:
 
         assert [row[0] for row in store.rows("statement")] == ["Three."]
 
+    def test_a_duplicate_cites_its_passage_beside_the_fact_it_repeats(
+        self, store, corpus
+    ) -> None:
+        """The surviving fact then cites every document that states it."""
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+
+        store.store(
+            other,
+            checked(
+                other,
+                "Requests are answered in 48 hours.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                twin_id=survivor,
+            ),
+        )
+
+        assert [
+            (passage, position)
+            for fact, passage, position in store.links()
+            if fact == survivor
+        ] == [(first, 0), (other, 1)]
+
+    def test_reading_the_duplicate_again_keeps_the_fact_it_repeats(
+        self, store, corpus
+    ) -> None:
+        """The other document still states it, so it is not deleted."""
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+        store.store(
+            other,
+            checked(
+                other,
+                "Requests are answered in 48 hours.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                twin_id=survivor,
+            ),
+        )
+
+        store.store(other)
+
+        assert store.rows("id") == [(survivor,)]
+        assert [(fact, passage) for fact, passage, _ in store.links()] == [
+            (survivor, first)
+        ]
+
     def test_only_the_passage_read_is_replaced(self, store, corpus) -> None:
         """Two workers on one document do not delete each other's results."""
         first, second = corpus["a"]

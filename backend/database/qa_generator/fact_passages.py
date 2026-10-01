@@ -79,23 +79,32 @@ class FactPassage(Base):
     passage: Mapped[Passage] = relationship(back_populates="fact_links")
 
 
-#: Deletes a fact once any passage it rests on is gone. Re-chunking cascades
+#: Deletes a fact once a passage it rests on is gone. Re-chunking cascades
 #: to this table and not to the fact, and a foreign key cascades parent to
 #: child and never the reverse, so without this a claim outlives its evidence.
 #:
-#: Unconditional, for every kind: the spans here are the whole of what a fact
-#: rests on, so losing one is losing part of the claim. Re-entrant by
+#: A bridge goes on any citation: its spans are the whole of what it rests
+#: on, so losing one is losing part of the claim. Any other fact goes on its
+#: last: each further citation is a duplicate stating the whole claim again,
+#: recorded where extraction refused it. Re-entrant by
 #: construction - the cascade from facts back into this table fires it again,
 #: and the second firing finds no fact to delete.
 #:
 #: Declared here, beside the table it belongs to, and executed by the
-#: migration that creates that table: autogenerate sees tables and columns,
+#: migrations: autogenerate sees tables and columns,
 #: never a trigger.
 DELETE_ORPHAN_FUNCTION = """
 CREATE OR REPLACE FUNCTION delete_fact_without_passage() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    DELETE FROM facts WHERE id = OLD.fact_id;
+    DELETE FROM facts f
+     WHERE f.id = OLD.fact_id
+       AND (
+           f.kind = 'bridge'
+           OR NOT EXISTS (
+               SELECT 1 FROM fact_passages fp WHERE fp.fact_id = f.id
+           )
+       );
     RETURN NULL;
 END;
 $$;

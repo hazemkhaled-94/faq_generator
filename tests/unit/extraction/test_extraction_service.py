@@ -219,6 +219,7 @@ class TestTheDedupGate:
         stored = run.queue.stored[1]
         assert [one.validated for one in stored] == [True, False]
         assert stored[1].rejection_code == Rejection.DUPLICATE
+        assert stored[1].twin_id is None, "its twin has no id until stored"
 
     def test_a_refused_duplicate_is_kept_with_its_reason(self) -> None:
         """Drop-rate evidence, like every other refusal."""
@@ -238,6 +239,7 @@ class TestTheDedupGate:
         stored = run.queue.stored[1]
         assert stored[0].rejection_code == Rejection.DUPLICATE
         assert "fact 7" in (stored[0].validation_error or "")
+        assert stored[0].twin_id == 7, "its citation is recorded on fact 7"
 
     def test_a_twin_below_the_threshold_is_not_a_duplicate(self) -> None:
         """Sharing a subject is not saying the same thing."""

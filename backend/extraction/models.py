@@ -184,6 +184,8 @@ class CheckedFact:
     #: does not.
     gate_scores: list[dict] = field(default_factory=list)
     confidence: float | None = None
+    #: The stored fact a duplicate repeats, which gains this one's citations.
+    twin_id: int | None = None
 
 
 @dataclass(frozen=True)
