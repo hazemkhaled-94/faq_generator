@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query
 
 from api.dependencies import passage_catalog
 from api.errors import ApiError, ErrorBody
-from api.params import DocumentFilter, Limit, Offset, RowId, SearchText
+from api.params import NO_NUL, DocumentFilter, Limit, Offset, RowId, SearchText
 from preprocessing.chunking.models import PassageDetail, StoredPassage
 
 router = APIRouter(tags=["passages"])
@@ -33,7 +33,7 @@ def passages(
     document: DocumentFilter = None,
     q: SearchText = None,
     field: SearchField = "text",
-    block_type: str | None = Query(default=None, max_length=60),
+    block_type: str | None = Query(default=None, max_length=60, pattern=NO_NUL),
     limit: Limit = 50,
     offset: Offset = 0,
 ) -> PassagePage:

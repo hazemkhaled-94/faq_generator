@@ -190,3 +190,8 @@ def test_status_names_each_service_it_fronts(client) -> None:
         "extraction",
         "topic_modelling",
     } <= set(body)
+
+
+def test_a_block_type_carrying_nul_is_refused_before_the_driver(client) -> None:
+    """Every other text filter refuses one; this one reached psycopg."""
+    assert client.get("/passages?block_type=a%00").status_code == 422
