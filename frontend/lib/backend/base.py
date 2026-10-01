@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 #: How long each verb waits, by what it costs the backend. A read is a query;
 #: a delete walks three stores; a post carries a file.
-_TIMEOUTS = {"GET": 10.0, "PATCH": 30.0, "DELETE": 60.0, "POST": 60.0}
+_TIMEOUTS = {"GET": 10.0, "PATCH": 30.0, "PUT": 30.0, "DELETE": 60.0, "POST": 60.0}
 
 
 class Endpoint:
