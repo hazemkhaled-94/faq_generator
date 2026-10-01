@@ -62,6 +62,9 @@ _GOING = [
     DagsterRunStatus.STARTED,
 ]
 
+#: A run that ended without finishing.
+_ENDED = [DagsterRunStatus.FAILURE, DagsterRunStatus.CANCELED]
+
 corpus = define_asset_job(
     name="corpus",
     selection=AssetSelection.all(),
@@ -133,6 +136,14 @@ def arrivals(context):
         )
 
     run = asked.get("run", 0) + (waiting != asked.get("waiting"))
+    # A key whose run failed is one Dagster will not run again.
+    if context.instance.get_runs(
+        filters=RunsFilter(
+            tags={"dagster/run_key": f"new-{run}-{waiting}"}, statuses=_ENDED
+        ),
+        limit=1,
+    ):
+        run += 1
     context.update_cursor(json.dumps({"waiting": waiting, "run": run}))
     log.info("%d document(s) uploaded and never asked for; starting", waiting)
     return RunRequest(run_key=f"new-{run}-{waiting}")

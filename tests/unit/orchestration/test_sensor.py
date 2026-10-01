@@ -156,6 +156,29 @@ def test_the_same_number_arriving_twice_asks_twice(monkeypatch) -> None:
     assert again.run_key != first
 
 
+def test_a_key_whose_run_failed_is_not_asked_for_again(monkeypatch) -> None:
+    """Dagster drops a run key it has seen, so the documents would wait."""
+    answering(monkeypatch, new=3)
+    instance = DagsterInstance.ephemeral()
+    context = build_sensor_context(instance=instance)
+    first = orchestration.arrivals(context).run_key
+    instance.add_run(
+        DagsterRun(
+            job_name="corpus",
+            run_id="failed",
+            status=DagsterRunStatus.FAILURE,
+            tags={"dagster/run_key": first},
+        )
+    )
+
+    again = orchestration.arrivals(
+        build_sensor_context(cursor=context.cursor, instance=instance)
+    )
+
+    assert isinstance(again, RunRequest)
+    assert again.run_key != first
+
+
 def test_two_ticks_over_an_unchanged_queue_share_a_key_through_the_cursor(
     monkeypatch,
 ) -> None:
