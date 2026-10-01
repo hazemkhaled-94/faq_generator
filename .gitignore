@@ -243,6 +243,9 @@ configs/env/provider.env
 # Claude Code
 .claude
 
+# Understand-Anything knowledge graph
+/.ua/
+
 # Documents kept beside the code but not part of it. By extension at the
 # root rather than by stem: a stem rule stops matching the moment a file is
 # renamed, and `git add -A` is one keystroke. The repository tracks no .docx
