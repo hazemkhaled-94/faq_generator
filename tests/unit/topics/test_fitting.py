@@ -112,12 +112,18 @@ def test_a_passage_with_no_lemmas_at_all_is_counted(fitter) -> None:
     assert empty.unplaced == 1, empty.unplaced
 
 
-def test_a_weight_floor_above_every_weight_places_nothing(settings, passages) -> None:
+def test_a_weight_floor_emptying_a_passage_leaves_it_unplaced(
+    settings, passages
+) -> None:
     """The floor is the other reason a passage can end up unplaced."""
-    floored = FitterDriver(settings | {"min_weight": 1.0}, passages).fit("de")
+    mixed = PassageVocabulary(
+        id=99, lemmas=["lieferung", "versand", "wartung", "reparatur"]
+    )
 
-    assert floored.fitting.weights == []
-    assert floored.unplaced == len(passages), floored.unplaced
+    floored = FitterDriver(settings | {"min_weight": 0.9}, [*passages, mixed]).fit("de")
+
+    assert 99 not in floored.placed_ids, "the passage split over two topics stayed"
+    assert floored.unplaced >= 1, floored.unplaced
 
 
 def test_the_weight_floor_is_exclusive(settings, passages) -> None:
@@ -185,6 +191,8 @@ def test_a_topic_signature_is_drawn_from_the_terms_of_its_own_subject(fitter) ->
         {"top_terms": -1},
         {"min_weight": 0},
         {"min_weight": -0.1},
+        # A weight is normalised, so none is above 1 and none would be kept.
+        {"min_weight": 1},
         {"min_weight": 1.5},
         {"no_above": 0},
         {"no_above": -0.5},
@@ -198,7 +206,8 @@ def test_a_fitter_that_cannot_do_its_job_is_refused(settings, bad) -> None:
 
 
 @pytest.mark.parametrize(
-    "allowed", [{"min_weight": 1}, {"no_above": 1}, {"num_topics": 2}, {"top_terms": 1}]
+    "allowed",
+    [{"min_weight": 0.999}, {"no_above": 1}, {"num_topics": 2}, {"top_terms": 1}],
 )
 def test_the_edge_of_each_range_is_allowed(settings, allowed) -> None:
     """The bounds are inclusive where the message says they are."""

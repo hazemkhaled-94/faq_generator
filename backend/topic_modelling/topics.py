@@ -104,10 +104,11 @@ class TopicFitter:
                 f"TOPIC_TOP_TERMS={top_terms} leaves a topic with no signature; "
                 "it must be at least 1"
             )
-        if not 0 < min_weight <= 1:
+        if not 0 < min_weight < 1:
             raise ValueError(
                 f"TOPIC_MIN_WEIGHT={min_weight} is not a probability floor; it "
-                "must be above 0 and at most 1"
+                "must be above 0 and below 1, since a membership is kept only "
+                "above it"
             )
         if not 0 < no_above <= 1:
             raise ValueError(

@@ -138,10 +138,14 @@ def test_a_passage_the_weight_floor_emptied_is_counted_as_unplaced(
     Only a passage holding none of the vocabulary used to be counted, so a
     floor that rejected every weight reported full coverage.
     """
-    floored = FitterDriver(settings | {"min_weight": 1.0}, passages).fit("de")
+    mixed = PassageVocabulary(
+        id=99, lemmas=["lieferung", "versand", "wartung", "reparatur"]
+    )
 
-    assert floored.unplaced == len(passages), floored.unplaced
-    assert floored.fitting.weights == []
+    floored = FitterDriver(settings | {"min_weight": 0.9}, [*passages, mixed]).fit("de")
+
+    assert 99 not in floored.placed_ids, "the passage split over two topics stayed"
+    assert floored.unplaced >= 1, floored.unplaced
 
 
 def test_a_passage_with_no_lemmas_does_not_divide_by_zero(fitter) -> None:
