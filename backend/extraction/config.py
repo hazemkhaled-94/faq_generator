@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from database.qa_generator import FactKind
@@ -47,7 +48,8 @@ def atomic_cap(digests: int, share: float) -> int | None:
     """
     if digests <= 0 or not 0 < share < 1:
         return None
-    return max(1, int(digests * (1 - share) / share))
+    # Rounded before the floor: 2 * 0.6 / 0.4 is 2.9999999999999996.
+    return max(1, math.floor(digests * (1 - share) / share + 1e-9))
 
 
 @dataclass(frozen=True)
