@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from lib import backend, catalog, configure, explain, lineage, page, stage
 
@@ -113,9 +112,6 @@ _SERVICE = explain.Service(
     steps=_STEPS,
     gates=_GATES,
 )
-
-#: Room for the pyLDAvis figure, which is drawn at a fixed size.
-_MAP_HEIGHT = 850
 
 #: What the search box can look in.
 _FIELDS = {"Label and terms": "both", "Label": "label", "Terms": "terms"}
@@ -366,7 +362,7 @@ def _map(client, fit: dict) -> None:
     if drawn is None:
         st.caption(f"No map for {language}. A fit draws one.")
         return
-    components.html(drawn, height=_MAP_HEIGHT, scrolling=True)
+    st.iframe(drawn)
 
 
 def _detail(client, chosen: dict, topics: list[dict]) -> None:
