@@ -258,7 +258,9 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         return 0
 
     bands = _supplied(pool, settings.release_difficulty, "band", "difficulty")
-    types = _supplied(pool, settings.type_mix, "kind", "question_type")
+    types = _supplied(
+        pool, settings.release_types or settings.type_mix, "kind", "question_type"
+    )
     if not bands or not types:
         log.warning("nothing accepted can fill any quota; no release was drawn")
         catalog.release([])

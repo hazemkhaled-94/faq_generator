@@ -2233,6 +2233,25 @@ def test_a_comparison_naming_both_sides_passes() -> None:
     )
 
 
+def test_a_comparison_answering_with_two_definitions_is_refused() -> None:
+    """The weld: one fragment per side, and no difference between them."""
+    assert not compares(
+        "How does algorithmic bias differ from area under curve (AUC)?",
+        "a type of bias caused by the ML algorithm, a measure of how well a "
+        "classifier can distinguish between two classes",
+        "en",
+    )
+
+
+def test_a_comparison_saying_which_side_is_more_passes() -> None:
+    """A comparative is a difference stated outright."""
+    assert compares(
+        "How do internal reports and external reports differ in formality?",
+        "internal reports may be less formal, external reports are more formal",
+        "en",
+    )
+
+
 def test_a_temporal_answer_needs_two_periods() -> None:
     """`How did it change from 2024 to 2025?` is answered with both years."""
     assert periods("from 72 hours in 2024 to 48 hours in 2025", "en")

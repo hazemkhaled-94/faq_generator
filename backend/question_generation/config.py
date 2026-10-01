@@ -225,6 +225,8 @@ class Settings:
     answer_confidence: float = 0.9
     #: The longest pair either encoder reads, in tokens.
     encoder_max_tokens: int = 512
+    #: How a release spreads over the kinds, or None for type_mix.
+    release_types: dict[str, int] | None = None
 
     @classmethod
     def load(cls, source: Source = None) -> Settings:
@@ -303,4 +305,9 @@ class Settings:
             encoder_max_tokens=integer("ENCODER_MAX_TOKENS", source),
             answer_model=optional("QA_MODEL", source),
             answer_confidence=decimal("QA_ANSWER_CONFIDENCE", source),
+            release_types=(
+                _weights("QUESTIONS_RELEASE_TYPES", SPECS, source)
+                if optional("QUESTIONS_RELEASE_TYPES", source)
+                else None
+            ),
         )

@@ -1016,8 +1016,40 @@ def compares(question: str, answer: str, language: str | None) -> bool:
     Counted on noun phrases, the same reading `enumerates` uses, because a
     comparison is punctuated differently in every language and `A und B`,
     `A gegenüber B` and `A, B` are one shape to a phrase count.
+
+    The answer also has to state a difference: see `_contrasts`.
     """
-    return len(phrases(question, language)) >= 2 and len(phrases(answer, language)) >= 2
+    if len(phrases(question, language)) < 2 or len(phrases(answer, language)) < 2:
+        return False
+    return _contrasts(question, answer, language)
+
+
+def _contrasts(question: str, answer: str, language: str | None) -> bool:
+    """Whether a comparison answer states a difference between its two sides.
+
+    True where the answer carries a comparative, or where its two sides share
+    a content lemma the question did not supply. True where it has no two
+    sides to read.
+
+    ponytail: a lexical reading of a judgement. It refuses a comparison
+    whose shared attribute is named in the question (`bei der Zahl ihrer
+    Kerne`); the upgrade is to deal comparison facts that share an attribute.
+    """
+    read = pipeline(language)(answer)
+    if any("Cmp" in token.morph.get("Degree", []) for token in read):
+        return True
+    seams = (
+        [token.i for token in read if token.text == ";"]
+        or [token.i for token in read if token.text == ","]
+        or [token.i for token in read if token.pos_ == "CCONJ"]
+    )
+    if not seams:
+        return True
+    left, right = (
+        content(side.text, language)
+        for side in (read[: seams[0]], read[seams[0] + 1 :])
+    )
+    return bool((left & right) - content(question, language))
 
 
 def periods(answer: str, language: str | None) -> bool:

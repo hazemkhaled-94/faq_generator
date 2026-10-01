@@ -387,7 +387,7 @@ So the run overgenerates and the composition is chosen afterwards.
 |---|---|
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of the release that may have no answer. A ceiling |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands |
-| `QUESTIONS_TYPE_MIX` | Reused, so a type a deployment turned off gets no quota it cannot fill |
+| `QUESTIONS_RELEASE_TYPES` | How it spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 
 They are **marginals, not a joint distribution**: an even spread of kinds
 within each band is not reachable, because a `factoid` answers with a value
@@ -544,6 +544,7 @@ each one exactly once.
 | `QUESTIONS_RELEASE_SIZE` | How many to draw. `0` is the largest the pool can fill |
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How a release spreads over the bands |
+| `QUESTIONS_RELEASE_TYPES` | How a release spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 | `QUESTIONS_MODEL` | A different writer. Unset means `LLM_MODEL` |
 | `QUESTIONS_VERIFIER_MODEL` | The second model. Naming the writer's own, or none, turns off the opinion gates |
 | `QUESTIONS_PHRASING_MODEL` | The model asked what a question's wording amounts to. Never sees a passage |

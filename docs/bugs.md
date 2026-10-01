@@ -7,16 +7,16 @@ Everything counted here was measured against the run
 questions and the 1,341 the balanced release drew. That page holds the run's
 figures; this one holds only what is wrong with them.
 
-| | Release rows | Where the fix goes |
-|---|---|---|
-| [The weld answers in two fragments](#the-weld-answers-in-two-fragments) | 100 | [`gates.py`](../backend/question_generation/gates.py) |
-| [The type disagrees with the interrogative](#the-type-disagrees-with-the-interrogative) | 57 | [`checker.py`](../backend/question_generation/checker.py) |
-| [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) |
-| [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) |
-| [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) |
-| [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) |
-| [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) |
-| [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) |
+| | Release rows | Where the fix goes | Fixed |
+|---|---|---|---|
+| [The weld answers in two fragments](#the-weld-answers-in-two-fragments) | 100 | [`gates.py`](../backend/question_generation/gates.py) | yes |
+| [The type disagrees with the interrogative](#the-type-disagrees-with-the-interrogative) | 57 | [`checker.py`](../backend/question_generation/checker.py) | |
+| [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) | |
+| [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | |
+| [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | |
+| [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | |
+| [Boilerplate cited to the wrong document](#boilerplate-cited-to-the-wrong-document) | 6 | [`extraction`](../backend/extraction/README.md) | |
+| [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) | |
 
 292 of the 1,341 — **21.8%** — carry at least one of them.
 
@@ -58,16 +58,19 @@ third condition beside its two phrase counts:
 def compares(question: str, answer: str, language: str | None) -> bool:
     if len(phrases(question, language)) < 2 or len(phrases(answer, language)) < 2:
         return False
-    return _contrasts(answer, language)
+    return _contrasts(question, answer, language)
 ```
 
-`_contrasts` reads true where the answer holds a connective its language
-marks contrast with, or a finite verb on both sides of its split. It already
-routes to `wrong_type` through
+`_contrasts` reads true where the answer carries a comparative, or where its
+two sides share a content lemma the question did not supply — the attribute
+the two differ in. It already routes to `wrong_type` through
 [`checker.py`](../backend/question_generation/checker.py), so no new
-rejection code is needed. Sized against this run it removes 138 rows — 5.7%
-of the accepted pool — and empties part of the comparison quota, so re-draw
-the release after.
+rejection code is needed. Sized against this run it removes 155 rows — 6.4%
+of the accepted pool, 97 of them in the release — and leaves 33 comparisons.
+A release drawn at an even mix of kinds out of 33 holds 395 questions, so
+`QUESTIONS_RELEASE_TYPES` gives `comparison` a lower weight in the release
+than `QUESTIONS_TYPE_MIX` gives it in the writer's plan. Re-draw the release
+after.
 
 ## The type disagrees with the interrogative
 

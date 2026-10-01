@@ -602,6 +602,14 @@ SETTINGS: tuple[Setting, ...] = (
         "unanswerable questions, which are always easy.",
     ),
     Setting(
+        name="QUESTIONS_RELEASE_TYPES",
+        service="questions",
+        kind="mapping",
+        optional=True,
+        invalidates=("questions",),
+        help="How a release spreads over the kinds. Absent reuses QUESTIONS_TYPE_MIX.",
+    ),
+    Setting(
         name="QUESTIONS_MODEL",
         service="questions",
         kind="text",

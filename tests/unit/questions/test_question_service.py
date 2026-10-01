@@ -882,3 +882,46 @@ def test_a_retry_is_numbered_by_the_draft_that_wrote_it() -> None:
     # The accepted one is stored last, so position and attempt disagree -
     # which is the whole reason the column exists.
     assert drafts[-1][0] == 2
+
+
+def test_a_release_spreads_over_its_own_kinds() -> None:
+    """QUESTIONS_RELEASE_TYPES, where set, decides the kinds a release holds."""
+    from uuid import uuid4
+
+    from question_generation.balance import Row
+    from question_generation.service import balance
+
+    pool = [
+        Row(id=at, answerable=True, difficulty=Difficulty.EASY, question_type=kind)
+        for at, kind in enumerate(
+            [QuestionType.FACTOID] * 30 + [QuestionType.REASON] * 30, start=1
+        )
+    ]
+
+    class Catalog:
+        """Offers the pool and keeps what was drawn."""
+
+        drawn: tuple[int, ...] = ()
+
+        def releasable(self, within=None):
+            return pool
+
+        def release(self, ids):
+            self.drawn = tuple(ids)
+            return uuid4(), len(self.drawn)
+
+    catalog = Catalog()
+    balance(
+        catalog,
+        replace(
+            SETTINGS,
+            release_difficulty={Difficulty.EASY: 1},
+            release_unanswerable=0.0,
+            release_types={QuestionType.FACTOID: 1},
+        ),
+    )
+
+    assert catalog.drawn
+    assert {pool[at - 1].question_type for at in catalog.drawn} == {
+        QuestionType.FACTOID
+    }
