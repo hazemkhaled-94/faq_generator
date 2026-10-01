@@ -371,6 +371,20 @@ class TestBridges:
         assert removed == 2
         assert store.rows("statement") == []
 
+    def test_a_narrowed_pass_clears_every_bridge_of_the_topics_it_reads(
+        self, store, corpus
+    ) -> None:
+        """`by_topic` reads a touched topic whole, so it writes those again."""
+        first, second = corpus["b"]
+        store.topic("Support", corpus["a"][0], first, second)
+        store.bridges(
+            checked(
+                first, "Within b.", kind=FactKind.BRIDGE, passage_ids=[first, second]
+            )
+        )
+
+        assert store.catalog.clear_bridges(Passage.doc_sha256 == digest("a")) == 1
+
     def test_losing_a_passage_deletes_the_bridge_that_needed_it(
         self, store, corpus
     ) -> None:

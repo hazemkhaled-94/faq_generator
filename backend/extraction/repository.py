@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
     insert,
     literal,
+    or_,
     select,
     update,
 )
@@ -145,6 +146,15 @@ def _passage(row, language: str | None) -> PassageToExtract:
 #: on. Aliased, because the document filter reaches the table again to ask
 #: about every other passage the fact rests on.
 _OPENS = aliased(FactPassage)
+
+
+def _topics(within) -> Select:
+    """The topics holding a passage the condition selects."""
+    return (
+        select(DOMINANT.c.topic_id)
+        .join(Passage, Passage.id == DOMINANT.c.passage_id)
+        .where(within)
+    )
 
 
 def _resting(condition) -> ColumnElement[bool]:
@@ -510,13 +520,7 @@ class FactCatalog(Repository):
             .order_by(DOMINANT.c.topic_id, Passage.doc_sha256, Passage.ordinal)
         )
         if within is not None:
-            query = query.where(
-                DOMINANT.c.topic_id.in_(
-                    select(DOMINANT.c.topic_id)
-                    .join(Passage, Passage.id == DOMINANT.c.passage_id)
-                    .where(within)
-                )
-            )
+            query = query.where(DOMINANT.c.topic_id.in_(_topics(within)))
 
         with self._session() as session:
             held: list[PassageToExtract] = []
@@ -651,14 +655,27 @@ class FactCatalog(Repository):
 
         Args:
             within: A condition on Passage narrowing which bridges go, or
-                None for every one of them.
+                None for every one of them. Every bridge of a topic holding
+                a selected passage goes, as `by_topic` reads those whole.
 
         Returns:
             How many were deleted.
         """
         chosen = select(Fact.id).where(Fact.kind == FactKind.BRIDGE)
         if within is not None:
-            chosen = chosen.where(_resting(within))
+            # And every passage of a topic `by_topic` reads whole.
+            chosen = chosen.where(
+                _resting(
+                    or_(
+                        within,
+                        Passage.id.in_(
+                            select(DOMINANT.c.passage_id).where(
+                                DOMINANT.c.topic_id.in_(_topics(within))
+                            )
+                        ),
+                    )
+                )
+            )
         with self._session.begin() as session:
             return session.execute(delete(Fact).where(Fact.id.in_(chosen))).rowcount
 
