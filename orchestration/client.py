@@ -138,12 +138,20 @@ class Backend:
         """
         deadline = time.monotonic() + timeout
         while True:
-            queue = self.status(stage)
-            if queue.idle:
+            try:
+                queue = self.status(stage)
+            except requests.exceptions.RequestException as exc:
+                # The workers drain on whether this is asking or not.
+                log.warning("could not read %s's queue, asking again: %s", stage, exc)
+                queue = None
+            if queue is not None and queue.idle:
                 return queue
             if time.monotonic() >= deadline:
+                left = (
+                    queue.outstanding if queue is not None else "an unknown number of"
+                )
                 raise TimeoutError(
-                    f"{stage} still has {queue.outstanding} row(s) after "
+                    f"{stage} still has {left} row(s) after "
                     f"{timeout:.0f}s. The work is queued and the worker has "
                     f"it; only this run stopped waiting."
                 )

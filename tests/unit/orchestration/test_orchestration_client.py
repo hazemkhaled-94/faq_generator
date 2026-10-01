@@ -110,6 +110,24 @@ def test_drain_polls_until_the_queue_empties() -> None:
     assert len(session.asked) == 3
 
 
+def test_a_poll_that_fails_is_asked_again_rather_than_failing_the_drain() -> None:
+    """An api restarting mid-drain is not a stage that failed."""
+
+    class Restarting(Session):
+        def request(self, method: str, url: str, params: dict, timeout: float):
+            if not self.asked:
+                self.asked.append((method, url[len(BASE) :]))
+                raise requests.exceptions.ConnectionError("api restarting")
+            return super().request(method, url, params, timeout)
+
+    session = Restarting({"/parsing/status": [queue(parsed=8)]})
+
+    state = Backend(BASE, session).drain("parsing", timeout=5, poll=0)
+
+    assert state.rows == {"parsed": 8}
+    assert len(session.asked) == 2
+
+
 def test_drain_gives_up_rather_than_waiting_for_ever() -> None:
     """Giving up watching is not failing the rows, and says so."""
     session = Session({"/parsing/status": [queue(pending=4)]})
