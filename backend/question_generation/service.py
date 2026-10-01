@@ -818,8 +818,20 @@ class QuestionGenerationService(StageService):
                 )
             )
         best = max(range(len(drafts)), key=lambda one: (drafts[one].accepted, one))
-        drafts.append(drafts.pop(best))
-        return drafts
+        kept = drafts.pop(best)
+        # One sample keeps one accepted question: an accepted draft the
+        # retry replaced is refused, as the duplicate it is of the kept one.
+        drafts = [
+            replace(
+                one,
+                status=QuestionStatus.REJECTED,
+                rejected_reason=QuestionRejection.DUPLICATE,
+            )
+            if one.accepted
+            else one
+            for one in drafts
+        ]
+        return [*drafts, kept]
 
     def _followups(
         self,

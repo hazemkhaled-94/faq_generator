@@ -884,6 +884,35 @@ def test_a_retry_is_numbered_by_the_draft_that_wrote_it() -> None:
     assert drafts[-1][0] == 2
 
 
+def test_a_retry_accepted_after_an_accepted_draft_supersedes_it(monkeypatch) -> None:
+    """One sample, one accepted question: the earlier draft is refused."""
+    from question_generation import service as module
+
+    monkeypatch.setattr(
+        module,
+        "again",
+        lambda checked, plan: (
+            "widen" if checked.question_text.startswith("draft 1") else None
+        ),
+    )
+    service, queue = build(
+        topic(),
+        [source(1, passage_id=1, language="en")],
+        writer=RetryingWriter(),
+        settings=replace(SETTINGS, retries=1, per_topic=1, followup_share=0.0),
+    )
+
+    service.process_next()
+
+    drafts = {
+        one.question_text[:7]: (one.status, one.rejected_reason)
+        for one in queue.written
+        if one.question_text.startswith("draft ")
+    }
+    assert drafts["draft 2"] == ("accepted", None)
+    assert drafts["draft 1"] == ("rejected", QuestionRejection.DUPLICATE)
+
+
 def test_a_release_spreads_over_its_own_kinds() -> None:
     """QUESTIONS_RELEASE_TYPES, where set, decides the kinds a release holds."""
     from uuid import uuid4
