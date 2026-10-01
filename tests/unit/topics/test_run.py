@@ -202,3 +202,13 @@ def test_a_watching_worker_waits_for_a_naming_model_that_is_down(
     assert cli.run("--watch") == 0
     assert len(asked) == 2
     assert cli.watched
+
+
+def test_a_model_that_will_not_load_costs_its_own_language_only(cli) -> None:
+    """The other languages are still redrawn, and the command answers."""
+    cli.fits = ["de", "en"]
+    cli.stored_models["topics/de.npz"] = b"an older format"
+    cli.fitted("en")
+
+    assert cli.run("--render") == 0
+    assert set(cli.figures) == {"topics/en.html"}

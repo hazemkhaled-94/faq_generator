@@ -215,8 +215,12 @@ def _render(only: str | None = None) -> int:
         # language whose render raises should have no figure rather than
         # the one belonging to whatever was there before.
         export.remove(key)
-        page = render(load(held), language)
-        export.put(key, page, content_type=export.TOPIC_VISUALISATION_TYPE)
+        try:
+            page = render(load(held), language)
+            export.put(key, page, content_type=export.TOPIC_VISUALISATION_TYPE)
+        except Exception:
+            log.exception("could not redraw the %s figure", language)
+            continue
         drawn += 1
         log.info("redrew the %s figure from its model (%d bytes)", language, len(page))
     return 0 if drawn else 1
