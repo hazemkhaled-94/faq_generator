@@ -62,8 +62,8 @@ _GOING = [
     DagsterRunStatus.STARTED,
 ]
 
-#: A run that ended without finishing.
-_ENDED = [DagsterRunStatus.FAILURE, DagsterRunStatus.CANCELED]
+#: A run that ended without finishing and that nobody stopped.
+_ENDED = [DagsterRunStatus.FAILURE]
 
 corpus = define_asset_job(
     name="corpus",
@@ -128,6 +128,12 @@ def arrivals(context):
         filters=RunsFilter(job_name=corpus.name, statuses=_GOING), limit=1
     ):
         return SkipReason("a corpus run is already queued or running")
+    # ponytail: reads Stop off the cancelled run, so a stage stopped on its
+    # own page is still read as an arrival. Upgrade: the backend records
+    # which rows a stop took back.
+    last = context.instance.get_runs(filters=RunsFilter(job_name=corpus.name), limit=1)
+    if last and last[0].status == DagsterRunStatus.CANCELED:
+        return SkipReason("the last corpus run was stopped; start the next by hand")
     if not queue.idle:
         # The cursor is left alone: the run already going is the one that
         # asked, and this tick has decided nothing.

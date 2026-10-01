@@ -156,6 +156,22 @@ def test_the_same_number_arriving_twice_asks_twice(monkeypatch) -> None:
     assert again.run_key != first
 
 
+def test_a_stopped_run_is_not_started_again_by_the_sensor(monkeypatch) -> None:
+    """Stop puts pending documents back to new, which reads as an arrival."""
+    answering(monkeypatch, new=3)
+    instance = DagsterInstance.ephemeral()
+    instance.add_run(
+        DagsterRun(
+            job_name="corpus", run_id="stopped", status=DagsterRunStatus.CANCELED
+        )
+    )
+
+    answer = evaluate(instance)
+
+    assert isinstance(answer, SkipReason)
+    assert "stopped" in str(answer.skip_message)
+
+
 def test_a_key_whose_run_failed_is_not_asked_for_again(monkeypatch) -> None:
     """Dagster drops a run key it has seen, so the documents would wait."""
     answering(monkeypatch, new=3)
