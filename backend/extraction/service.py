@@ -580,17 +580,21 @@ def _unread_prose(passage: PassageToExtract) -> bool:
     A finite verb is what tells the two apart, so it is asked here rather
     than read off a column that was written as zero.
     """
-    if not passage.table_cells:
-        return False
+    return bool(passage.table_cells and _prose(passage))
+
+
+def _prose(passage: PassageToExtract) -> list:
+    """The lines of a table passage outside its grids that assert something."""
     gridded = {
         cell.get("line")
         for grid in passage.table_cells
         for cell in grid.get("cells", ())
     }
-    return any(
-        one.index not in gridded and claim(one.text, passage.language).predicates
+    return [
+        one
         for one in passage.sentences
-    )
+        if one.index not in gridded and claim(one.text, passage.language).predicates
+    ]
 
 
 def over_cap(facts: Sequence[CheckedFact], cap: int | None) -> set[int]:
@@ -838,8 +842,8 @@ class ExtractionService(StageService):
 
         facts = [
             self._checker.check(passage, candidate, reader.method, reader.provenance)
-            for reader in self._readers(passage, current)
-            for candidate in reader.extract(passage)
+            for reader, shown in self._readers(passage, current)
+            for candidate in reader.extract(shown)
         ]
         if not facts:
             _nothing_found(passage, current)
@@ -931,14 +935,18 @@ class ExtractionService(StageService):
 
         Usually the one its block type routes to. A passage that merged a
         table with the prose around it gets both: the cell reader for the
-        grid and the model for the rest.
+        grid and the model for the prose lines alone. Each beside the
+        passage it is shown.
         """
         routed = self._extractors.for_block_type(passage.block_type)
         default = self._extractors.default
         if routed is default or not _unread_prose(passage):
-            return [routed]
+            return [(routed, passage)]
         current.set_attribute("extract.prose_beside_a_table", True)
-        return [routed, default]
+        return [
+            (routed, passage),
+            (default, replace(passage, sentences=_prose(passage))),
+        ]
 
     def _digested(self, passage: PassageToExtract) -> list[CheckedFact]:
         """Reads what the passage is about, when there is enough to condense.

@@ -181,6 +181,14 @@ class TestProseMergedWithATable:
         methods = {one.extraction_method for one in run.queue.stored[1]}
         assert methods == {"deterministic", "llm"}
 
+    def test_the_model_is_shown_the_prose_and_not_the_grid(self) -> None:
+        """The cell reader has the grid; the model restating it would mislabel."""
+        run = Extraction(table_passage(prose=self.PROSE), facts=ATOMIC)
+        run.next()
+
+        assert self.PROSE in run.model.sent["user"]
+        assert "| Compact | 4 |" not in run.model.sent["user"]
+
     def test_a_table_with_no_prose_still_needs_no_model(self) -> None:
         """The rendered rows and the `|---|` separator carry no finite verb."""
         run = Extraction(table_passage(), facts=ATOMIC)
