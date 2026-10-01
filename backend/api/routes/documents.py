@@ -170,9 +170,11 @@ def add_document(request: Request, file: UploadFile) -> IngestResult:
     service = ingesting()
 
     # Checked before the body is touched. Content-Length covers the whole
-    # multipart body, so it is an upper bound rather than the file's size.
+    # multipart body, so it is an upper bound rather than the file's size:
+    # past the limit by more than the framing, and `ingest` holds the file
+    # itself to the limit exactly.
     declared = _declared_size(request)
-    if declared is not None and declared > service.max_file_size_bytes:
+    if declared is not None and declared > service.max_file_size_bytes + _FRAMING:
         return _respond(service.refuse_oversized(filename, declared))
 
     # ponytail: a request declaring no length is still read in full and
@@ -181,6 +183,11 @@ def add_document(request: Request, file: UploadFile) -> IngestResult:
     # body limit on a reverse proxy in front of this.
     upload = UploadedFile(filename=filename, data=file.file.read())
     return _respond(service.ingest(upload))
+
+
+#: The most a multipart body adds around the file: boundaries and the part's
+#: headers.
+_FRAMING = 64 * 1024
 
 
 def _declared_size(request: Request) -> int | None:

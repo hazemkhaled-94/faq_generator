@@ -66,6 +66,22 @@ def test_an_upload_being_stored_holds_up_no_other_request(
     assert waited_for < 0.5, f"/health waited {waited_for:.2f}s behind the upload"
 
 
+def test_a_file_just_under_the_limit_is_accepted(client, pdf, monkeypatch) -> None:
+    """Content-Length counts the multipart framing as well as the file."""
+    from api.routes import documents
+
+    made = documents.ingesting
+
+    def limited():
+        service = made()
+        service._max_file_size_bytes = len(pdf) + 10
+        return service
+
+    monkeypatch.setattr(documents, "ingesting", limited)
+
+    assert upload(client, pdf).status_code == 200
+
+
 def test_the_same_file_twice_is_answered_not_refused(client, pdf) -> None:
     """A duplicate is an answer; the caller is told which document it is."""
     first = upload(client, pdf).json()
