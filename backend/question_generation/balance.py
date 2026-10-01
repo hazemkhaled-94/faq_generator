@@ -145,7 +145,9 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
     """
     bands = dict(quota.difficulty)
     types = dict(quota.types)
-    left = {True: quota.size - quota.unanswerable, False: quota.unanswerable}
+    # A ceiling: places the pool has no unanswerable row for go to answerable.
+    held = min(quota.unanswerable, sum(not row.answerable for row in pool))
+    left = {True: quota.size - held, False: held}
     cells = _celled([row for row in pool if row.follows_id is None])
     turns: dict[int, list[Row]] = {}
     for row in sorted(pool, key=lambda one: one.id):

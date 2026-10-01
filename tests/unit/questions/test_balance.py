@@ -330,3 +330,10 @@ def test_a_root_drawn_carries_its_thread_with_it() -> None:
     ]
 
     assert choose(pool, quota).ids == [1, 2, 3]
+
+
+def test_unanswerable_places_the_pool_cannot_fill_go_to_answerable_rows() -> None:
+    """A ceiling, not a reservation: the release is not smaller for it."""
+    quota = quota_of(10, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.1)
+
+    assert choose([row(n) for n in range(1, 21)], quota).size == 10
