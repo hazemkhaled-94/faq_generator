@@ -44,3 +44,10 @@ def test_a_noun_phrase_asserts_nothing() -> None:
 
     phrase = "Die Erhöhung der Eigenkapitalquote auf 12,5 Prozent"
     assert claim(phrase, "de").predicates == 0
+
+
+def test_a_hyphenated_compound_is_a_content_lemma() -> None:
+    """`die KI-Verordnung der EU` is not about the EU alone."""
+    from nlp.analysis import content
+
+    assert "ki-verordnung" in content("die KI-Verordnung der EU", "de")
