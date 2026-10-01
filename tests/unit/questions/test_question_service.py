@@ -795,6 +795,28 @@ def test_the_follow_up_share_is_a_share_of_the_ACCEPTED_roots() -> None:
     assert len(followed) == len(accepted_roots)
 
 
+def test_the_follow_up_share_is_a_share_of_the_answerable_roots() -> None:
+    """An unanswerable root has no follow-up, so it takes no thread's place."""
+    facts = [source(n, document="a", passage_id=n) for n in range(24)]
+    settings = replace(
+        SETTINGS,
+        per_topic=8,
+        unanswerable_share=0.5,
+        followup_share=0.5,
+        max_followups=1,
+    )
+    service, queue = build(topic(), facts, settings=settings)
+
+    service.process_next()
+
+    threads = queue.stored[0]
+    answerable = [one for one in threads if one[0].accepted and one[0].answerable]
+    followed = [one for one in threads if len(one) > 1]
+
+    assert len(answerable) >= 2, "the fixture accepted too few answerable roots"
+    assert len(followed) == len(answerable) // 2
+
+
 # ── The credits page, which is not a subject ───────────────────────────────
 
 
