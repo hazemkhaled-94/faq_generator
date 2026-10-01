@@ -151,3 +151,18 @@ def test_an_id_that_is_not_a_number_names_nothing(client, corpus) -> None:
 def test_a_kind_the_pipeline_does_not_produce_is_refused(client) -> None:
     """The route names what may be traced, so the OpenAPI document does."""
     assert client.get("/lineage/sentence/1").status_code == 422
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/lineage/fact/\u00b2",
+        "/lineage/fact/9223372036854775808",
+        "/lineage/document/a%00",
+    ],
+)
+def test_an_id_that_names_no_row_is_not_found_rather_than_an_error(
+    client, path
+) -> None:
+    """A Unicode digit, an id past bigint and a NUL each reached the driver."""
+    assert client.get(path).status_code == 404

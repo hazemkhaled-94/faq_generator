@@ -22,6 +22,7 @@ from datetime import datetime
 
 from sqlalchemy import func, select
 
+from api.params import BIGINT_MAX
 from database.qa_generator import (
     Assessment,
     Document,
@@ -378,8 +379,13 @@ def of(kind: str, row_id: str) -> Lineage | None:
     # A document is keyed by its digest; everything else by a row id, and a
     # row id that is not a number names nothing rather than raising.
     key: int | None = None
-    if kind != "document":
-        if not row_id.isdigit():
+    if kind == "document":
+        # A NUL is refused by the driver rather than matching nothing.
+        if "\x00" in row_id:
+            return None
+    else:
+        # ASCII digits only: `²` is a digit to isdigit and not to int.
+        if not (row_id.isascii() and row_id.isdigit()) or int(row_id) > BIGINT_MAX:
             return None
         key = int(row_id)
     with sessions()() as session:
