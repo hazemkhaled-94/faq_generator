@@ -3,8 +3,7 @@
 Every flag is the same operation as a route under /questions. Most of them
 are `stages.cli.queue_main`'s and are covered there; what is this stage's
 own is the two operations no other stage has - the re-check and the release
-draw - and the lease, which is derived from how much a topic costs rather
-than from how much one row does.
+draw - and that its queue is built without a lease of its own.
 """
 
 from __future__ import annotations

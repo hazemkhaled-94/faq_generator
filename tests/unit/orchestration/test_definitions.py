@@ -24,8 +24,8 @@ from tests.conftest import ROOT
 #: things that happen to be in a list.
 #:
 #: `assessments` is last and is not a stage the corpus moves THROUGH: it
-#: judges what the five before it produced and writes nothing any of them
-#: reads. It is in the chain so that it runs after all of them, which is
+#: judges what the five before it produced, and none of their workers reads
+#: what it writes. It is in the chain so that it runs after all of them, which is
 #: the one thing about its position that matters.
 ORDER = (
     "parsed_documents",

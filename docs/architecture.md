@@ -6,8 +6,9 @@ module may import, and what runs in a container.
 ## 1. What a document becomes
 
 Six packages, in the order a document moves. Each writes its own tables and
-reads the previous one's. A seventh, `assessment`, runs after all of them and
-writes nothing any of them reads.
+reads the previous one's. A seventh, `assessment`, runs after all of them, and
+no stage's worker reads what it writes: only the api, the workbook export and
+the review tool do.
 
 ```mermaid
 flowchart TD
@@ -57,9 +58,9 @@ reads `parse_status`, which is how parsing and chunking own different columns
 of the same `documents` row.
 
 The five buckets are `documents`, `parsed`, `models`, `export` and `archive` —
-`S3_BUCKETS` in `.env`. `models` holds what the topic fit produced and
-`export` a figure drawn from it, which is why they are two. See
-[`backend/blob_store/`](../backend/blob_store/README.md).
+`S3_BUCKETS` in `configs/env/deployment.env`. `models` holds what the topic
+fit produced and `export` a figure drawn from it, which is why they are two.
+See [`backend/blob_store/`](../backend/blob_store/README.md).
 
 ## 2. What a worker does with one row
 
@@ -91,10 +92,11 @@ Claiming is `SELECT … FOR UPDATE SKIP LOCKED`, one row at a time:
 podman compose up -d --scale extract-worker=4
 ```
 
-Every claim is timestamped and every lease is derived from what the stage
-costs — extraction's from `LLM_TIMEOUT_SECONDS` × `LLM_MAX_ATTEMPTS`. A row a
-worker died holding is failed by the next run of that stage, and `retry`
-returns it.
+Every claim is timestamped, and the worker holding it refreshes the timestamp
+every `HEARTBEAT_SECONDS`, so one lease serves every stage however long its
+work takes. A row a worker died holding is failed by the next run of that
+stage, and `retry` returns it; `reclaim` returns it without waiting out the
+lease.
 
 ## 3. What a module may import
 
@@ -134,19 +136,20 @@ flowchart TD
 | `stages-are-independent` | No backend service imports another |
 
 There are two deliberate edges the contracts name. `settings.changes`
-imports each service's `config` submodule, because refusing a setting that
-would stop a service means calling that service's own `Settings.load`. And
+imports `llm.config` and the `config` submodule of every stage but
+`assessment`, because refusing a setting that would stop a service means
+calling that service's own `Settings.load`. And
 `question_generation.export` imports `assessment.repository` — one import,
 in a function body, in the module that is a command line rather than a
 library: `workbook()` takes the judgements as an argument and imports
 nothing, which is what lets the api call it holding its own catalogue.
 
 **One module sits outside the graph.** `backend/confidence.py` is a leaf
-imported by both extraction and question generation — how close a row came
-to the verdict that would have refused it, which is a reading both stages
-take and neither owns. It imports nothing but the standard library, so it
-cannot create an edge between them; it is not in `.importlinter`'s
-`root_packages`, so nothing enforces that.
+imported by extraction, question generation and `stages.recalibrate` — how
+close a row came to the verdict that would have refused it, which is a
+reading both stages take and neither owns. It imports nothing but the
+standard library, so it cannot create an edge between them; it is not in
+`.importlinter`'s `root_packages`, so nothing enforces that.
 
 A service package re-exports nothing, so a caller naming
 `extraction.repository` pays for that submodule and no more. The contracts

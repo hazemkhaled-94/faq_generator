@@ -36,8 +36,8 @@ it.
 
 `SELECT … FOR UPDATE SKIP LOCKED` on `passages.extract_status`. The claim is
 timestamped rather than held as a row lock, and a later run sweeps a claim
-that outlived its lease. The lease is derived from `LLM_TIMEOUT_SECONDS` and
-`LLM_MAX_ATTEMPTS`.
+that outlived its lease. The lease is the one every stage shares; see
+[`backend/stages/`](../stages/README.md).
 
 ### Step 2 — Skip what asserts nothing
 

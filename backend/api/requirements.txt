@@ -53,8 +53,8 @@ opentelemetry-exporter-otlp-proto-grpc>=1.44.0,<2.0.0
 # see the note in pyproject.toml for why deptry could not say so.
 opentelemetry-instrumentation-sqlalchemy>=0.65b0
 # Every model call as a span carrying its prompt, completion and tokens.
-# Imported by llm/client.py, which already imports litellm, and not by
-# telemetry: the api runs telemetry too and must load neither.
+# Imported inside telemetry.instrument_llm(), which only llm/client.py calls,
+# so the api runs telemetry without loading it or litellm.
 openinference-instrumentation-litellm>=0.1.45,<0.2.0
 # The CLIENT, not the server: Phoenix itself is a container, and the server
 # package carries its own web app, database layer and sqlean build for

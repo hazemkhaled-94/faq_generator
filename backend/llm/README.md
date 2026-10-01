@@ -48,9 +48,8 @@ Each means `LLM_MODEL` when absent. Three more name a model for one
 `QUESTIONS_PHRASING_MODEL` and `QUESTIONS_VERIFIER_MODEL` — and
 `make spend-by-shape` is what each of them costs.
 
-The address, the mode and the patience stay `LLM_*`: extraction's lease comes
-from `LLM_TIMEOUT_SECONDS` and `LLM_MAX_ATTEMPTS`, so a stage that could
-change either could have a healthy worker swept as abandoned.
+The address, the mode and the patience stay `LLM_*`, one value for every
+stage.
 
 `QUESTIONS_VERIFIER_MODEL` is a different thing: a **second** model that
 checks the first one's work. See
@@ -161,8 +160,8 @@ The values are in the file named beside each, once.
 | `LLM_BASE_URL` | `.env` | Where that model is served |
 | `LLM_STRUCTURED_MODE` | `backend.env` | How a typed answer is asked for |
 | `LLM_TEMPERATURE` | `backend.env` | Zero, so a re-run is comparable to the last one |
-| `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take. Extraction's lease derives from it |
-| `LLM_MAX_ATTEMPTS` | `backend.env` | Attempts per call. The lease derives from this too |
+| `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |
+| `LLM_MAX_ATTEMPTS` | `backend.env` | Attempts per call |
 | `LLM_NUM_CTX` | `backend.env` | The context window to ask the runtime for |
 | `LLM_REASONING_EFFORT` | `backend.env` | For a model that has the knob. Unset sends nothing, so the model keeps its own default |
 | `OLLAMA_BASE_URL` | `.env` | Where a self-hosted model is served |
@@ -189,8 +188,6 @@ model is asked anything — see [`evaluation/`](../../evaluation/README.md).
 
 - **A rate limit is not retried by this package.** Raising
   `LLM_MAX_ATTEMPTS` does not help a 429.
-- **Raising `LLM_TIMEOUT_SECONDS` lengthens the extraction lease**, so a
-  genuinely stuck worker is swept later too.
 - **`LLM_TEMPERATURE=0` is not a guarantee of determinism.** A model's
   answers still move between versions and quantisations, which is why
   `tests/eval/` never gates.

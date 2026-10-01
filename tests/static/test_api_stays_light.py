@@ -1,6 +1,6 @@
 """The API process loads no model, no converter and no inference library.
 
-One image serves the api and all five workers, so every stage's libraries are
+One image serves the api and all six workers, so every stage's libraries are
 installed in the container the api runs in. What keeps them out of the *process*
 is that a service package re-exports nothing and a caller names the submodule it
 wants: the api imports each stage's catalogue and never its service.

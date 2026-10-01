@@ -60,7 +60,7 @@ The trigger exists because a cascade cannot express it: a question rests on
 *several* facts, so `ON DELETE CASCADE` from `facts` would take the question
 when its **first** citation went rather than its last.
 
-`ingest_events.document_sha256` is `ON DELETE SET NULL`, so the record that
+`ingest_events.sha256` is `ON DELETE SET NULL`, so the record that
 an upload happened outlives the document.
 
 What a deletion does **not** take is `topics`, which has no foreign key to a

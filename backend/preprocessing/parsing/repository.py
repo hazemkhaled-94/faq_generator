@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import ClassVar
 
 from sqlalchemy import select
@@ -41,8 +40,6 @@ class ParseQueue(RowQueue):
     #: The narrowings this stage accepts.
     scopes: ClassVar[dict[str, InstrumentedAttribute]] = {"document": Document.sha256}
     done = Status.PARSED
-    #: Four times PARSING_TIMEOUT_SECONDS.
-    lease = timedelta(hours=2)
     next_pending = _NEXT_PENDING
 
     def claim(self) -> ClaimedDocument | None:

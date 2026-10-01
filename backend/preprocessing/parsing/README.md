@@ -23,7 +23,8 @@ One worker process, `parse-worker`, running
 `python -m preprocessing.parsing.run --watch`. It claims the next document
 whose `parse_status` is `pending` with `FOR UPDATE SKIP LOCKED`. A worker
 killed mid-document leaves its row `in_progress`; the next run's sweep fails
-any claim older than the lease — four times `PARSING_TIMEOUT_SECONDS`.
+any claim older than the lease every stage shares; see
+[`backend/stages/`](../../stages/README.md).
 
 ### Step 1 — Dispatch on the media type
 
@@ -129,7 +130,7 @@ Read from the environment at start-up, with no defaults in code. Tuning is in
 | `PARSING_MIN_CONFIDENCE` | Lowest lower-bound confidence a conversion may carry and be kept, in [0, 1] |
 | `PARSING_TABLE_MODE` | TableFormer mode: `fast` or `accurate`. Anything else is refused when the pipeline is constructed |
 | `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. Turning it on also turns on `generate_parsed_pages` |
-| `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run. The lease is four times this |
+| `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run |
 | `DOCLING_ARTIFACTS_PATH` | Where Docling's weights are. Must be a real path or absent — an empty value resolves to the working directory |
 
 The language settings are shared with chunking and described there.

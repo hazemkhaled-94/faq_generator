@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import ClassVar, cast
 
 from sqlalchemy import Table, bindparam, delete, func, insert, select, update
@@ -75,7 +74,6 @@ class ChunkQueue(RowQueue):
     #: The narrowings this stage accepts.
     scopes: ClassVar[dict[str, InstrumentedAttribute]] = {"document": Document.sha256}
     done = Status.CHUNKED
-    lease = timedelta(minutes=30)
     next_pending = _NEXT_PENDING
     #: A document with no parsed form has nothing to chunk. The only stage
     #: that declares this, because it is the only one queueing over rows it

@@ -93,6 +93,7 @@ type = independence
 ignore_imports =
     question_generation.export -> assessment.repository
 modules =
+    archive
     assessment
     extraction
     ingestion

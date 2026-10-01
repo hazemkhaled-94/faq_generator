@@ -325,9 +325,7 @@ class StageQueue(Repository):
         an `in_progress` row. `retry` takes the failed, `rerun` explicitly
         skips what a worker holds, and `stop` takes back only what has not
         begun - so a worker killed mid-row left that row unreachable until
-        its lease ran out. Question generation's lease is derived from the
-        work a topic costs and computes to 67 days at the settings this
-        was written under, which is not a wait.
+        its lease ran out.
 
         `abandon` is the automatic version and stays the normal one: it
         sweeps on a lease, because a row a LIVE worker holds must not be

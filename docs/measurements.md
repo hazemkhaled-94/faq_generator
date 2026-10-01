@@ -308,8 +308,7 @@ Per call, over the run:
 | Question generation | 0.8 s | 2.4 s | 12.6 s |
 | Evaluation phase | 0.7 s | 1.0 s | 2.2 s |
 
-`LLM_TIMEOUT_SECONDS` and the leases derived from it are sized against the
-slowest column. A locally served model of the same size is one to two orders
+`LLM_TIMEOUT_SECONDS` is sized against the slowest column. A locally served model of the same size is one to two orders
 slower per call, and the wall clock above is the figure that moves.
 
 ## Test coverage

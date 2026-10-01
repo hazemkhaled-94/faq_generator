@@ -154,7 +154,7 @@ x-model-env-files: &model-env-files
 # ── Workers ────────────────────────────────────────────────────────────────
 
 x-worker: &worker
-  # Shared with api; one build for all six services.
+  # Shared with api; one build for the api and all six workers.
   image: qa_generator-backend:latest
   build:
     context: .
