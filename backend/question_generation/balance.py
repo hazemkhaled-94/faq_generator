@@ -39,6 +39,8 @@ class Row:
     answerable: bool
     difficulty: str
     question_type: str
+    #: The turn this one follows, or None for a root.
+    follows_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -136,11 +138,19 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
     fill and leaves that judgement there.
 
     Ties go to the lowest question id, so the draw is reproducible.
+
+    Threads are drawn whole: only a root is chosen, and it brings every turn
+    under it, each counted against its own buckets. A follow-up whose root
+    is not in the pool is never drawn.
     """
     bands = dict(quota.difficulty)
     types = dict(quota.types)
     left = {True: quota.size - quota.unanswerable, False: quota.unanswerable}
-    cells = _celled(pool)
+    cells = _celled([row for row in pool if row.follows_id is None])
+    turns: dict[int, list[Row]] = {}
+    for row in sorted(pool, key=lambda one: one.id):
+        if row.follows_id is not None:
+            turns.setdefault(row.follows_id, []).append(row)
     chosen: list[int] = []
 
     while len(chosen) < quota.size:
@@ -164,11 +174,14 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
                 best = (score, key)
         if best is None:
             break
-        answerable, band, kind = best[1]
-        chosen.append(cells[best[1]].pop(0).id)
-        left[answerable] -= 1
-        bands[band] -= 1
-        types[kind] -= 1
+        thread = [cells[best[1]].pop(0)]
+        for turn in thread:
+            thread.extend(turns.get(turn.id, ()))
+        for turn in thread:
+            chosen.append(turn.id)
+            left[turn.answerable] -= 1
+            bands[turn.difficulty] = bands.get(turn.difficulty, 0) - 1
+            types[turn.question_type] = types.get(turn.question_type, 0) - 1
 
     short = {name: count for name, count in (bands | types).items() if count > 0}
     if left[True] > 0:

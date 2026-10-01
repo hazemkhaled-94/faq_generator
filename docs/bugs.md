@@ -11,7 +11,7 @@ figures; this one holds only what is wrong with them.
 |---|---|---|---|
 | [The weld answers in two fragments](#the-weld-answers-in-two-fragments) | 100 | [`gates.py`](../backend/question_generation/gates.py) | yes |
 | [The type disagrees with the interrogative](#the-type-disagrees-with-the-interrogative) | 57 | [`checker.py`](../backend/question_generation/checker.py) | yes |
-| [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) | |
+| [The release breaks threads](#the-release-breaks-threads) | 46 | [`catalog.py`](../backend/question_generation/catalog.py) | yes |
 | [Answers that are not answers](#answers-that-are-not-answers) | 52 | [`gates.py`](../backend/question_generation/gates.py) | the 17 |
 | [Facts that open on a demonstrative](#facts-that-open-on-a-demonstrative) | 30 | [`analysis.py`](../backend/nlp/analysis.py) | |
 | [Questions that count their own citations](#questions-that-count-their-own-citations) | 42 | [`gates.py`](../backend/question_generation/gates.py) | |
@@ -122,6 +122,10 @@ threads: a root carries its descendants into the release and counts against
 its own quota. The alternative, a pool of roots only, is exact on quota and
 drops the 377 accepted follow-ups entirely. Prefer threads-whole — the
 follow-ups are the part of the set that tests multi-turn retrieval.
+
+`thread_position` is not needed: `choose` walks `follows_id`. Redrawn over
+this run's pool, the release holds 247 follow-ups and none without its
+parent.
 
 ## Answers that are not answers
 

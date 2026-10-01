@@ -299,3 +299,34 @@ def test_a_bucket_the_pool_genuinely_cannot_supply_is_still_refused() -> None:
     )
 
     assert not close_enough(short)
+
+
+# ── Threads ────────────────────────────────────────────────────────────────
+
+
+def test_a_follow_up_is_never_drawn_without_the_turn_it_follows() -> None:
+    """`Why are they shown there?` is a question only after its parent."""
+    quota = quota_of(2, {Difficulty.EASY: 1}, TYPES, 0.0)
+    pool = [
+        row(1),
+        row(2),
+        Row(3, True, Difficulty.EASY, QuestionType.REASON, follows_id=2),
+    ]
+
+    chosen = set(choose(pool, quota).ids)
+
+    assert all(
+        one.follows_id in chosen for one in pool if one.id in chosen and one.follows_id
+    )
+
+
+def test_a_root_drawn_carries_its_thread_with_it() -> None:
+    """The follow-ups are the part of the set that tests multi-turn retrieval."""
+    quota = quota_of(3, {Difficulty.EASY: 1}, TYPES, 0.0)
+    pool = [
+        row(1),
+        Row(2, True, Difficulty.EASY, QuestionType.REASON, follows_id=1),
+        Row(3, True, Difficulty.EASY, QuestionType.REASON, follows_id=2),
+    ]
+
+    assert choose(pool, quota).ids == [1, 2, 3]

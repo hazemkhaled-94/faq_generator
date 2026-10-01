@@ -337,7 +337,7 @@ class QuestionCatalog(Repository):
     def releasable(self, within=None) -> list[Row]:
         """Every accepted question a release may be chosen from.
 
-        Only the three columns the choosing reads. A question with no
+        Only the columns the choosing reads. A question with no
         difficulty or no type is left out rather than given a bucket: it
         would be chosen into a quota it cannot be counted against, and the
         report would then disagree with the set it describes.
@@ -347,6 +347,7 @@ class QuestionCatalog(Repository):
             Question.answerable,
             Question.difficulty,
             Question.question_type,
+            Question.follows_id,
         ).where(
             Question.status == QuestionStatus.ACCEPTED,
             Question.difficulty.is_not(None),
@@ -361,6 +362,7 @@ class QuestionCatalog(Repository):
                     answerable=row.answerable,
                     difficulty=row.difficulty,
                     question_type=row.question_type,
+                    follows_id=row.follows_id,
                 )
                 for row in session.execute(query.order_by(Question.id))
             ]
