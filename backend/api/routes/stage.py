@@ -18,13 +18,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Annotated, Any, ClassVar, Literal, Protocol
+from typing import Any, ClassVar, Literal, Protocol
 from uuid import uuid4
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 
 from api.errors import ApiError, ErrorBody
-from api.params import NAME_MAX, NO_NUL
+from api.params import RunName
 from stages import QueueState, Unnarrowable
 
 log = logging.getLogger(__name__)
@@ -40,9 +40,6 @@ log = logging.getLogger(__name__)
 #: danger actually needs is a narrowing, which is what `confirm` below
 #: enforces on the corpus-wide form.
 Action = Literal["start", "stop", "retry", "rerun", "reclaim"]
-
-#: The run a verb's queued rows are stamped with, which each of them stores.
-RunName = Annotated[str | None, Query(max_length=NAME_MAX, pattern=NO_NUL)]
 
 #: Every verb `answered` can put into words, which is `Action` plus the one
 #: a single stage has. `enrol` is the assessment phase's: nothing upstream

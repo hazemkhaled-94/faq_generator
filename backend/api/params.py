@@ -57,6 +57,9 @@ NO_NUL = r"^[^\x00]*$"
 #: exist to stop.
 NAME_MAX = 80
 
+#: The run a verb's queued rows are stamped with, which each of them stores.
+RunName = Annotated[str | None, Query(max_length=NAME_MAX, pattern=NO_NUL)]
+
 SearchText = Annotated[
     str | None,
     Query(max_length=SEARCH_MAX, pattern=NO_NUL),

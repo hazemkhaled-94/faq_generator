@@ -202,6 +202,8 @@ def test_a_run_name_no_column_should_hold_is_refused(corpus, run) -> None:
         corpus.post(f"/parsing/document/{digest('b')}/start?run={run}").status_code
         == 422
     )
+    assert corpus.post(f"/topics/discover?run={run}").status_code == 422
+    assert corpus.post(f"/topics/retry?run={run}").status_code == 422
 
 
 def test_a_narrowing_that_selects_nothing_is_not_an_error(corpus) -> None:

@@ -21,7 +21,7 @@ from api.dependencies import (
     topics_queue,
 )
 from api.errors import ApiError, ErrorBody
-from api.params import RowId
+from api.params import RowId, RunName
 from api.routes.stage import StageAction, StageStatus, answered, status_of
 from topic_modelling.models import StoredTopic, TopicFit, TopicRemoval
 
@@ -118,7 +118,7 @@ def visualisation(language: str) -> Response:
 
 
 @router.post("/discover", status_code=202)
-def discover(run: str | None = None) -> TopicDiscovery:
+def discover(run: RunName = None) -> TopicDiscovery:
     """Queues a fit over the whole corpus.
 
     Returns at once. Every existing topic and membership is replaced when the
@@ -148,7 +148,7 @@ def stop() -> StageAction:
 
 
 @router.post("/retry")
-def retry(run: str | None = None) -> StageAction:
+def retry(run: RunName = None) -> StageAction:
     """Returns a failed fit to the queue."""
     trigger = run or uuid4().hex
     return answered("topics", "retry", topics_queue.retry(trigger=trigger), run=trigger)
