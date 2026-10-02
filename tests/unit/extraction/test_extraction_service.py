@@ -228,6 +228,7 @@ class TestTheDedupGate:
         assert [one.validated for one in stored] == [True, False]
         assert stored[1].rejection_code == Rejection.DUPLICATE
         assert stored[1].twin_id is None, "its twin has no id until stored"
+        assert "fact 0" not in (stored[1].validation_error or "")
 
     def test_a_refused_duplicate_is_kept_with_its_reason(self) -> None:
         """Drop-rate evidence, like every other refusal."""

@@ -648,13 +648,14 @@ def _refuse(fact: CheckedFact, cap: int) -> CheckedFact:
 
 def _duplicate(fact: CheckedFact, twin: Twin, threshold: float) -> CheckedFact:
     """Marks one fact as a near twin of a fact already stored."""
+    named = f"fact {twin.fact_id}" if twin.fact_id else "a fact this passage kept"
     return replace(
         fact,
         validated=False,
         rejection_code=Rejection.DUPLICATE,
         twin_id=twin.fact_id or None,
         validation_error=(
-            f"says what fact {twin.fact_id} already says at cosine "
+            f"says what {named} already says at cosine "
             f"{twin.similarity:.3f}, over the {threshold:.2f} "
             f"EXTRACTION_DUPLICATE_COSINE allows: {twin.statement!r}"
         ),
