@@ -166,3 +166,32 @@ def test_an_id_that_names_no_row_is_not_found_rather_than_an_error(
 ) -> None:
     """A Unicode digit, an id past bigint and a NUL each reached the driver."""
     assert client.get(path).status_code == 404
+
+
+def test_a_step_longer_than_the_page_shows_its_first_twenty(
+    client, engine, database
+) -> None:
+    """The twenty shown are the lowest ids, not whichever the set gave up."""
+    sha = digest("b")
+    with Session(engine) as session:
+        session.add(document(sha, title="A long report", parse_status=Status.PARSED))
+        held = fitted(0, label="Delivery")
+        session.add(held)
+        session.flush()
+        ids = []
+        for ordinal in range(1, 31):
+            at = passage(sha, ordinal=ordinal, text=f"Passage {ordinal}.")
+            session.add(at)
+            session.flush()
+            session.add(membership(at.id, held.id))
+            ids.append(at.id)
+        session.commit()
+        topic_id = held.id
+
+    steps = client.get(f"/lineage/topic/{topic_id}").json()["steps"]
+    (passages,) = [one for one in steps if one["kind"] == "passage"]
+
+    assert passages["total"] == 30
+    assert [one["id"] for one in passages["artifacts"]] == [
+        str(one) for one in sorted(ids)[:20]
+    ]

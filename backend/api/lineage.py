@@ -392,13 +392,15 @@ def of(kind: str, row_id: str) -> Lineage | None:
         found = _ancestors(session, kind, row_id, key)
         if not found[kind]:
             return None
-        judged = _judgements(session, found)
+        # Sorted before the page is cut, so it is the first twenty.
+        shown = {at: sorted(ids)[:_PER_STEP] for at, ids in found.items()}
+        judged = _judgements(session, shown)
         held = {
-            "document": _documents(session, found["document"][:_PER_STEP]),
-            "passage": _passages(session, found["passage"][:_PER_STEP]),
-            "fact": _facts(session, found["fact"][:_PER_STEP], judged),
-            "topic": _topics(session, found["topic"][:_PER_STEP], judged),
-            "question": _questions(session, found["question"][:_PER_STEP], judged),
+            "document": _documents(session, shown["document"]),
+            "passage": _passages(session, shown["passage"]),
+            "fact": _facts(session, shown["fact"], judged),
+            "topic": _topics(session, shown["topic"], judged),
+            "question": _questions(session, shown["question"], judged),
         }
         if not any(held.values()):
             return None
