@@ -1221,7 +1221,7 @@ test:
 # Without the slow ones: no spaCy pipelines, no pyright, no containers.
 # Over every core, which the unit layer can be: it shares no container.
 test-fast:
-	poetry run pytest -n auto -m "not nlp and not types and not integration and not perf"
+	poetry run pytest -n auto -m "not nlp and not types and not integration and not smoke and not eval and not perf"
 
 # The layers on their own, for working on one of them.
 test-unit:

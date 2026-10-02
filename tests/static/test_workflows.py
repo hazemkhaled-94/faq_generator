@@ -74,6 +74,18 @@ def test_every_marker_a_workflow_selects_on_is_registered(path: Path) -> None:
     assert selected <= declared, sorted(selected - declared)
 
 
+@pytest.mark.parametrize("marker", ["smoke", "eval", "integration"])
+def test_the_fast_target_starts_no_container(marker: str) -> None:
+    """`make test-fast` is the quick check, and a smoke test builds both images."""
+    from collections import defaultdict
+
+    makefile = (ROOT / "Makefile").read_text()
+    recipe = re.search(r"^test-fast:\n\t(.+)$", makefile, re.MULTILINE)
+    expression = _SELECTOR.search(recipe[1])[1]
+
+    assert not eval(expression, {}, defaultdict(bool, {marker: True})), expression
+
+
 def test_the_gate_waits_for_every_other_job() -> None:
     """One job for a branch protection rule to require.
 
