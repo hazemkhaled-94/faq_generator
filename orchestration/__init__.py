@@ -278,6 +278,11 @@ def progress(context):
             )
 
     context.update_cursor(json.dumps(counted))
+    if context.instance.get_runs(
+        filters=RunsFilter(job_name=corpus.name, statuses=_GOING), limit=1
+    ):
+        # Counted into the cursor and not filed: the run's own assets record it.
+        return SkipReason("a corpus run is going, and its assets record its work")
     if not events:
         return SkipReason("no stage has produced or failed anything new")
     log.info("recorded %d event(s) nobody asked this to watch", len(events))
