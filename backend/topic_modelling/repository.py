@@ -258,8 +258,9 @@ class TopicQueue(StageQueue):
                     func.now(),
                 )
             ).one()
-            # The fitted languages only: one the fit skipped keeps its topics.
-            fitted = [fitting.language for fitting in fittings]
+            # The fitted languages only: one the fit skipped, or fitted to no
+            # topic, keeps its topics.
+            fitted = [fitting.language for fitting in fittings if fitting.topics]
             session.execute(
                 delete(Topic).where(
                     (~_OUTSTANDING & Topic.language.in_(fitted)) | (Topic.id == fit_id)

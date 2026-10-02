@@ -295,9 +295,13 @@ def test_a_language_the_fit_skipped_keeps_its_topics(store) -> None:
 
 def test_a_fit_that_produced_no_topic_writes_nothing(store) -> None:
     """An empty result is not a model, and must not empty the table."""
-    store.given_passages(de=1)
+    from dataclasses import replace
 
-    assert store.store() == 0
+    store.given_passages(de=2)
+    store.store(fitting("de"))
+
+    assert store.store(replace(fitting("de"), topics=[])) == 0
+    assert len(store.stored_topics()) == 2, "the empty fit emptied the table"
 
 
 # ── Labels ────────────────────────────────────────────────────────────────
