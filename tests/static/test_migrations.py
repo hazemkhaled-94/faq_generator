@@ -68,10 +68,21 @@ def test_every_parent_named_exists(scripts: ScriptDirectory) -> None:
 
 def test_every_revision_can_be_taken_back_out(scripts: ScriptDirectory) -> None:
     """An upgrade with no downgrade is a one-way door."""
+    import ast
+
     for revision in scripts.walk_revisions():
-        source = Path(revision.path).read_text()
-        assert "def downgrade()" in source, revision.path
-        body = source.split("def downgrade()", 1)[1]
-        assert "pass" not in body.split("\n")[1:3], (
-            f"{Path(revision.path).name} has an empty downgrade"
+        tree = ast.parse(Path(revision.path).read_text())
+        downgrade = next(
+            (
+                one
+                for one in tree.body
+                if isinstance(one, ast.FunctionDef) and one.name == "downgrade"
+            ),
+            None,
         )
+        assert downgrade is not None, revision.path
+        assert not all(
+            isinstance(one, ast.Pass)
+            or (isinstance(one, ast.Expr) and isinstance(one.value, ast.Constant))
+            for one in downgrade.body
+        ), f"{Path(revision.path).name} has an empty downgrade"
