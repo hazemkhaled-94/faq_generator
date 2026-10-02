@@ -143,3 +143,15 @@ def test_the_command_line_stops_when_the_phase_is_off(monkeypatch, caplog) -> No
 
     assert not built, "nothing is built when the phase is off"
     assert "ASSESSMENT_ENABLED" in caplog.text
+
+
+def test_a_judge_named_as_the_writer_is_warned_about(caplog) -> None:
+    """Naming the writer's own model is the same as naming none."""
+    from assessment.factory import build_service
+
+    writer = model()
+
+    with caplog.at_level("WARNING"):
+        build_service(settings(ASSESSMENT_JUDGE_MODEL=writer.model), writer)
+
+    assert "judging the pipeline's own output" in caplog.text

@@ -32,12 +32,12 @@ def build_service(
 ) -> AssessmentService:
     """Wires the service and its collaborators."""
     asked = judge_model(settings, model)
-    if asked.model == model.model and not settings.judge_model:
+    if asked.model == model.model:
         log.warning(
             "%s is judging the pipeline's own output, because "
-            "ASSESSMENT_JUDGE_MODEL names nothing. A model marking its own "
-            "work agrees with itself, and this phase exists to hold an "
-            "opinion the pipeline does not already hold.",
+            "ASSESSMENT_JUDGE_MODEL names it or names nothing. A model marking "
+            "its own work agrees with itself, and this phase exists to hold "
+            "an opinion the pipeline does not already hold.",
             asked.model,
         )
     return AssessmentService(

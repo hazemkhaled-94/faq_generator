@@ -24,9 +24,8 @@ class Settings:
     #: an empty queue, `start` enrols nothing and the Dagster asset reports
     #: that it is off rather than that it did nothing.
     enabled: bool
-    #: The model asked. Absent, the verifier's model, and absent that,
-    #: LLM_MODEL - so a deployment that sets nothing still judges with
-    #: something rather than refusing to start.
+    #: The model asked. Absent, LLM_MODEL - so a deployment that sets
+    #: nothing still judges with something rather than refusing to start.
     judge_model: str | None
     #: Which artefacts are judged. Narrowing it is how a deployment pays for
     #: the questions and not for twenty thousand facts.
