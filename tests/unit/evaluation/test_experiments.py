@@ -152,12 +152,17 @@ def test_the_constant_floor_is_what_ignoring_the_input_scores() -> None:
     )
 
 
-def test_the_floor_is_computed_from_the_cases_not_written_down() -> None:
+@pytest.mark.parametrize(
+    ("said", "majority"),
+    [([True, True, False], True), ([False, False, True], False), ([True, False], True)],
+)
+def test_the_floor_is_computed_from_the_cases_not_written_down(
+    monkeypatch, said, majority
+) -> None:
     """Adding a case has to move the floor, or it goes stale silently."""
-    majority = experiments._majority("names_its_source")
-    said = [bool(one["names_its_source"]) for one in cases.PHRASING]
+    monkeypatch.setattr(cases, "PHRASING", [{"names_its_source": one} for one in said])
 
-    assert majority == (sum(said) * 2 >= len(said))
+    assert experiments._majority("names_its_source") is majority
 
 
 def test_a_judgement_is_scored_against_its_label() -> None:

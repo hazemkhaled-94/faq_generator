@@ -14,15 +14,41 @@ import pytest
 from telemetry import projects
 
 
+class Answer:
+    """One response, already a success."""
+
+    def __init__(self, body: dict) -> None:
+        """Holds the body it answers with."""
+        self._body = body
+
+    def raise_for_status(self) -> None:
+        """Answers 200."""
+
+    def json(self) -> dict:
+        """The body."""
+        return self._body
+
+
+class Phoenix:
+    """A Phoenix holding one project, its spans served a page at a time."""
+
+    def __init__(self, name: str, spans: list[str]) -> None:
+        """Holds the project and the names of its spans."""
+        self._name = name
+        self._spans = spans
+
+    def get(self, path: str, params: dict) -> Answer:
+        """The project listing, or the first page of the project's spans."""
+        if path == "/v1/projects":
+            return Answer({"data": [{"id": self._name, "name": self._name}]})
+        page = self._spans[: params["limit"]]
+        return Answer({"data": [{"name": one} for one in page]})
+
+
 def project(name: str, spans: list[str]) -> projects.Project:
-    """One project holding spans with these names."""
-    return projects.Project(
-        id=name,
-        name=name,
-        spans=len(spans),
-        work=any(one != projects.CALL for one in spans),
-        whole=len(spans) < projects.SAMPLE,
-    )
+    """One project holding spans with these names, as `held` reads it."""
+    (read,) = projects.held(Phoenix(name, spans))
+    return read
 
 
 def test_a_project_of_nothing_but_model_calls_is_spent() -> None:
@@ -47,7 +73,7 @@ def test_a_project_too_big_to_read_in_one_page_is_left_alone() -> None:
     corpus of labelling behind them. Read to the sample limit, every span
     seen is a model call - and deleting on that reading destroys the run.
     """
-    filled = project("5-topic_modelling", [projects.CALL] * projects.SAMPLE)
+    filled = project("5-topic_modelling", [projects.CALL] * (projects.SAMPLE + 5))
 
     assert not filled.work, "every span read was a model call"
     assert not filled.whole, "and the page was full, so there may be more"

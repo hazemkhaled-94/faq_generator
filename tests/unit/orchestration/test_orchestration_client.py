@@ -195,12 +195,19 @@ def test_the_backend_url_comes_from_the_environment(monkeypatch) -> None:
 def test_an_error_status_is_raised_rather_than_read(monkeypatch) -> None:
     """A refusal must not be parsed as a queue with no rows."""
 
+    class Unavailable(Reply):
+        """A 503, whose body reads as a queue with no rows."""
+
+        def raise_for_status(self) -> None:
+            """Raises the way requests does on an error status."""
+            raise requests.exceptions.HTTPError("503 Service Unavailable")
+
     class Refusing(Session):
-        """Raises the way requests does on an error status."""
+        """Answers every call with a 503."""
 
         def request(self, method, url, params, timeout):
             """Refuses."""
-            raise requests.exceptions.HTTPError("503 Service Unavailable")
+            return Unavailable(queue())
 
     with pytest.raises(requests.exceptions.HTTPError):
         Backend(BASE, Refusing({})).status("parsing")

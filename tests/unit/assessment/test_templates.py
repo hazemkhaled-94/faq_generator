@@ -153,6 +153,28 @@ def test_a_score_is_zero_or_one_and_the_shape_is_closed(one) -> None:
     assert set(getattr(field.annotation, "__args__", ())) == set(one.labels)
 
 
+def test_the_scores_and_directions_are_the_ones_phoenix_configures() -> None:
+    """Read off the installed evaluator configs, for every metric they hold."""
+    configs = pytest.importorskip(
+        "phoenix.evals.__generated__.classification_evaluator_configs"
+    )
+    held = {
+        config.name: config
+        for config in (getattr(configs, name) for name in configs.__all__)
+        if isinstance(config, configs.ClassificationEvaluatorConfig)
+    }
+    ours = {one.metric: one for one in EVERY if one.metric in held}
+
+    assert set(ours) >= {
+        JudgeMetric.HALLUCINATION,
+        JudgeMetric.CONCISENESS,
+        JudgeMetric.REFUSAL,
+    }
+    for metric, one in ours.items():
+        assert one.scores == held[metric].choices, metric
+        assert direction_of(metric) == held[metric].optimization_direction, metric
+
+
 def test_hallucination_is_scored_the_way_phoenix_scores_it() -> None:
     """The one metric here whose good label scores ZERO.
 

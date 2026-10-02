@@ -20,7 +20,6 @@ from __future__ import annotations
 from typing import ClassVar
 
 import pytest
-from phoenix.client.types import PromptVersion
 
 from llm.config import Settings as ModelSettings
 from stages.prompts import Composed
@@ -70,20 +69,26 @@ class Row:
 
 
 def built(model: ModelSettings, row: Row) -> dict:
-    """The version the publisher would send, read back as Phoenix stores it."""
-    call = {
-        "model": model.model,
-        "messages": [
-            {"role": "system", "content": row.text},
-            {"role": "user", "content": row.user_text},
-        ],
-        **parameters(model),
-    }
-    if (shape := _response_format(row)) is not None:
-        call["response_format"] = shape
-    return PromptVersion.from_openai(
-        call, template_format="MUSTACHE", model_provider=provider(model.model)
-    )._dumps()
+    """The version `publish` sends for this row, as Phoenix stores it."""
+    held = Recorder()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("PHOENIX_BASE_URL", "http://phoenix.invalid:6006")
+        patch.setattr("stages.publish.client", lambda base_url=None: held)
+        publish(
+            row.service,
+            [
+                Composed(
+                    name=row.name,
+                    version=row.version,
+                    text=row.text,
+                    user_text=row.user_text,
+                    response_schema=row.response_schema,
+                )
+            ],
+            model,
+        )
+    ((_, sent),) = held.created
+    return sent
 
 
 def test_a_published_version_carries_both_messages() -> None:
