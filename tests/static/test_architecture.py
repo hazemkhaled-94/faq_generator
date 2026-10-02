@@ -62,8 +62,15 @@ def page() -> str:
 
 @pytest.mark.parametrize("layer", sorted(_layers()))
 def test_every_layer_is_on_the_page(layer: str, page: str) -> None:
-    """A module the contract layers is a module the diagram draws."""
-    assert layer in page, (
+    """A module the contract layers is a module the diagram draws.
+
+    In the layer graph itself and as a whole word: `api` is on the page a
+    dozen times outside it.
+    """
+    graph = page.split("## 3. What a module may import", 1)[1]
+    graph = graph.split("```mermaid", 1)[1].split("```", 1)[0]
+
+    assert re.search(rf"\b{layer}\b", graph), (
         f"{layer} is a layer in .importlinter and is named nowhere in "
         f"docs/architecture.md. Add it to the layer graph, or take it out "
         f"of the contract."

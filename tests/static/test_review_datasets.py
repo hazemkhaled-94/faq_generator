@@ -100,12 +100,14 @@ def test_no_two_settings_of_one_dataset_share_a_name(name: str) -> None:
 
 def test_the_judge_reaches_every_dataset() -> None:
     """All three, or a reviewer sees two machine verdicts on some rows only."""
-    # The call sites, not the definitions: `def _judge_field()` carries the
-    # same characters and would make this read one too many.
-    source = SOURCE.read_text(encoding="utf-8")
+    for name, function in settings_functions().items():
+        called = {
+            node.func.id
+            for node in ast.walk(function)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
 
-    assert source.count("            _judge_field(),") == 3
-    assert source.count("            *_judge_metadata(),") == 3
+        assert {"_judge_field", "_judge_metadata"} <= called, name
 
 
 def test_the_metadata_a_record_carries_is_the_metadata_declared() -> None:

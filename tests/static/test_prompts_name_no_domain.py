@@ -238,13 +238,25 @@ def test_every_lemma_list_is_named_in_the_onboarding_guide() -> None:
 
 
 def test_the_guide_names_no_list_that_has_been_deleted() -> None:
-    """The other direction: a guide naming a list nothing holds is stale."""
-    held = {
-        name
-        for module, names in LEMMA_LISTS.items()
-        for name in names
-        if name in (ROOT / module).read_text(encoding="utf-8")
-    }
-    named = {name for names in LEMMA_LISTS.values() for name in names}
+    """The other direction: a guide naming a list nothing holds is stale.
 
-    assert named == held, f"named but no longer defined: {sorted(named - held)}"
+    Read off the guide's own table, where `same` is the module above.
+    """
+    named: dict[str, Path] = {}
+    where = None
+    for name, place in re.findall(
+        r"^\| `(_[A-Z_]+)` \| (.+?) \|", ONBOARDING.read_text(), re.MULTILINE
+    ):
+        linked = re.search(r"\]\(([^)]+)\)", place)
+        where = (ONBOARDING.parent / linked[1]).resolve() if linked else where
+        assert where is not None, f"{name} names no module"
+        named[name] = where
+
+    stale = [
+        f"{name} in {path.name}"
+        for name, path in named.items()
+        if not re.search(rf"^{name}\b", path.read_text(), re.MULTILINE)
+    ]
+
+    assert named, "the guide's table of lists was not found"
+    assert not stale, f"named but no longer defined: {stale}"

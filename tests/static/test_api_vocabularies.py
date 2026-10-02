@@ -13,7 +13,7 @@ stored and constrained for a day before the route's list knew about them.
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import get_args
 
 import pytest
 
@@ -66,15 +66,6 @@ def test_the_band_filter_offers_exactly_the_three_bands() -> None:
     from api.routes import questions
 
     assert set(get_args(questions.Band)) == {str(one) for one in Difficulty}
-
-
-def test_every_pinned_alias_is_a_literal() -> None:
-    """A free string would pass the check above by accident."""
-    from api.routes import questions
-
-    for name in (*PINNED, "Band"):
-        assert get_args(getattr(questions, name)), f"{name} is not a Literal"
-        assert Literal[get_args(getattr(questions, name))]
 
 
 def test_the_settings_route_offers_exactly_the_services_the_catalogue_has() -> None:

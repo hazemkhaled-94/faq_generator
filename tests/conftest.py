@@ -120,7 +120,8 @@ POSTGRES_IMAGE = "pgvector/pgvector:pg18"
 SEAWEEDFS_IMAGE = "chrislusf/seaweedfs:4.44"
 
 #: What configs/postgres/init.sh installs before the schema is built. The
-#: migrations create these too; tests/static asserts the two agree.
+#: migrations create these too; tests/static compares init.sh with the
+#: migrations, not with this tuple.
 EXTENSIONS = ("vector", "pg_trgm")
 
 
