@@ -164,7 +164,7 @@ def test_deleting_a_document_takes_the_bridges_that_rested_on_it(
 
 
 def test_the_orphan_trigger_is_installed(engine, database) -> None:
-    """Declared beside the table, executed by the migration that made it."""
+    """Installed by a migration, which carries its own copy of the SQL."""
     with engine.connect() as connection:
         triggers = set(
             connection.execute(text("SELECT tgname FROM pg_trigger")).scalars()

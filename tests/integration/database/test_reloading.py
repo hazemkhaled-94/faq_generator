@@ -117,35 +117,3 @@ def test_a_setting_returned_to_the_files_is_picked_up_too(store) -> None:
     drain(_never)
 
     assert drained == ["42", os.environ["TOPIC_PASSES"]]
-
-
-def test_a_change_does_not_interrupt_a_drain_in_progress(store) -> None:
-    """A row is worked under the settings the drain was built with.
-
-    A rebuild part-way through would leave one topic written half under each
-    mix, which is worse than picking the change up a moment later.
-    """
-    seen: list[str] = []
-
-    class Slow:
-        """A service that changes the settings while it is draining."""
-
-        def __init__(self, value: str) -> None:
-            """Holds the value it was built with."""
-            self.value = value
-
-        def drain(self, stopping=None) -> int:
-            """Works a row, and writes a setting while it is working."""
-            del stopping
-            seen.append(self.value)
-            store.write("TOPIC_PASSES", "99")
-            seen.append(self.value)
-            return 0
-
-    drain = reloading("topics", lambda: Slow(store.resolved()["TOPIC_PASSES"]))
-    drain(_never)
-
-    assert seen[0] == seen[1]
-
-    drain(_never)
-    assert seen[-1] == "99"

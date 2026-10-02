@@ -103,10 +103,14 @@ def test_deleting_the_document_takes_the_whole_chain(written, engine) -> None:
         assert connection.execute(text("SELECT count(*) FROM facts")).scalar() == 0
 
 
-def test_a_question_with_no_facts_at_all_is_left_alone(engine, database) -> None:
+def test_a_question_with_no_facts_at_all_is_left_alone(written, engine) -> None:
     """The trigger fires on a deleted link, not on a question that had none."""
+    _, facts = written(1)
     with Session(engine) as session:
         session.add(question())
         session.commit()
+
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM facts WHERE id = :id"), {"id": facts[0]})
 
     assert counts(engine) == (1, 0)

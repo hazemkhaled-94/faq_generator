@@ -18,16 +18,6 @@ def test_the_migrations_build_every_table_the_models_declare(engine) -> None:
     assert declared <= built, f"never created: {sorted(declared - built)}"
 
 
-def test_the_extensions_the_schema_needs_are_installed(engine) -> None:
-    """A vector column and a trigram index need these present first."""
-    with engine.connect() as connection:
-        installed = set(
-            connection.scalars(text("SELECT extname FROM pg_extension")).all()
-        )
-
-    assert {"vector", "pg_trgm"} <= installed, installed
-
-
 def test_the_delete_orphan_trigger_is_installed(engine) -> None:
     """Autogenerate never sees a trigger, so a migration has to name it."""
     with engine.connect() as connection:

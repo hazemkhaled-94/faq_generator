@@ -115,17 +115,36 @@ def test_the_request_is_counted_by_neither_queue_as_the_other_one(
     assert sum(TopicQueue().counts_by_status().values()) == 4
 
 
-def test_reset_and_stop_and_retry_all_leave_the_request_alone(corpus, engine) -> None:
-    """Every inherited verb carries the predicate, not just the ones used."""
+@pytest.mark.parametrize(
+    ("verb", "held"),
+    [
+        ("start", Status.NEW),
+        ("stop", Status.PENDING),
+        ("retry", Status.FAILED),
+        ("reset", Status.GENERATED),
+    ],
+)
+def test_reset_and_stop_and_retry_all_leave_the_request_alone(
+    corpus, engine, verb, held
+) -> None:
+    """Every inherited verb carries the predicate, not just the ones used.
+
+    The request is put in the status each verb moves, so a verb that missed
+    the predicate would move it.
+    """
     corpus(topics=1, request=True)
-    queue = QuestionQueue()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE topics SET question_status = :held, question_error = :error "
+                "WHERE topic_index IS NULL"
+            ),
+            {"held": held, "error": "boom" if held == Status.FAILED else None},
+        )
 
-    queue.start()
-    queue.stop()
-    queue.retry()
-    queue.reset()
+    getattr(QuestionQueue(), verb)()
 
-    assert statuses(engine)[Status.NEW] == 1, "the request was moved"
+    assert statuses(engine).get(held) == 1, "the request was moved"
 
 
 def test_abandon_never_sweeps_the_request(corpus, engine) -> None:
@@ -486,11 +505,16 @@ def test_a_question_whose_passage_has_no_topic_lists_no_topic(engine, database) 
     assert rows[0].documents == [digest("a")]
 
 
-def test_a_topic_with_no_memberships_has_no_facts_to_ask_about(corpus) -> None:
+def test_a_topic_with_no_memberships_has_no_facts_to_ask_about(corpus, engine) -> None:
     """A fit that placed no passage in a topic leaves it with nothing."""
-    written = corpus(topics=1, facts_per_topic=0)
+    placed, empty = corpus(topics=2)["topics"]
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM passage_topics WHERE topic_id = :id"), {"id": empty}
+        )
 
-    assert QuestionQueue().facts(written["topics"][0]) == []
+    assert QuestionQueue().facts(empty) == []
+    assert QuestionQueue().facts(placed), "the other topic's facts went too"
 
 
 def test_finishing_a_topic_that_produced_nothing_still_marks_it_done(

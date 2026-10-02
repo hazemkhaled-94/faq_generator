@@ -78,9 +78,16 @@ def test_a_fit_that_finishes_leaves_the_request_queued_behind_it(store) -> None:
 
 
 def test_a_claim_takes_a_request_and_never_a_topic(store) -> None:
-    """Running a topic as a fit would replace the whole table."""
+    """Running a topic as a fit would replace the whole table.
+
+    The topics are set pending, so only their index tells them apart.
+    """
+    from sqlalchemy import text
+
     store.given_passages(de=2)
     store.store(fitting("de"))
+    with store.engine.begin() as connection:
+        connection.execute(text("UPDATE topics SET status = 'pending'"))
 
     assert store.claim() is None, "a fitted topic was claimed as a request"
 
@@ -175,6 +182,8 @@ def test_excerpts_come_back_for_the_passages_asked_for(store) -> None:
 
 def test_asking_for_no_excerpt_reaches_no_database(store) -> None:
     """A topic with no strongest passage is not a query."""
+    store.given_passages(de=2)
+
     assert store.queue.excerpts([]) == []
 
 
@@ -687,9 +696,24 @@ class TestATopicSitsWhereItsPassagesDo:
         assert vectors[1][7] == pytest.approx(1.0)
 
     def test_a_centroid_is_a_unit_vector(self, store) -> None:
-        """Normalised, so a cosine between two is a dot product."""
-        vectors = self.placed(store, first=0, second=7).topic_vectors()
+        """Normalised, so a cosine between two is a dot product.
 
+        Two passages on different axes, whose mean is half a unit long.
+        """
+        store.given_passages(de=2)
+        one, two = store.passages["de"]
+        store.given_passage_vectors(**{str(one): 0, str(two): 1})
+        store.queue.replace(
+            store.request(),
+            [
+                fitting(
+                    "de",
+                    weights=[PassageWeight(one, 0, 0.9), PassageWeight(two, 0, 0.9)],
+                )
+            ],
+        )
+
+        vectors = store.topic_vectors()
         length = sum(one * one for one in vectors[0]) ** 0.5
         assert length == pytest.approx(1.0)
 

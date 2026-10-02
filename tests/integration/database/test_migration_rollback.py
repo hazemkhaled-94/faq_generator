@@ -28,12 +28,6 @@ def spare(postgres: str) -> Iterator[str]:
         connection.execute(text(f'CREATE DATABASE "{name}"'))
     url = postgres.rsplit("/", 1)[0] + "/" + name
 
-    built = create_engine(url)
-    with built.begin() as connection:
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-    built.dispose()
-
     try:
         yield url
     finally:

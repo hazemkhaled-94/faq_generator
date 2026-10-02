@@ -422,12 +422,13 @@ def test_a_queue_told_nothing_enrols_what_the_settings_say(corpus, engine) -> No
     default enrolled 11,392 artefacts under an ASSESSMENT_SAMPLE of 200,
     and `start` would have queued all of them.
     """
+    from settings.store import Settings
+
+    Settings().write("ASSESSMENT_KINDS", "fact,question")
+
     AssessmentQueue().enrol()
 
-    assert sum(enrolled(engine).values()) == 3, (
-        "the fixture holds one artefact of each judgeable kind, and "
-        "ASSESSMENT_SAMPLE in the test environment is well above that"
-    )
+    assert enrolled(engine) == {"fact": 1, "question": 1}
 
 
 def test_the_phase_switched_off_enrols_nothing(corpus, engine, monkeypatch) -> None:

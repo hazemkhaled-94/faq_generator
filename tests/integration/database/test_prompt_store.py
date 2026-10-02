@@ -140,7 +140,9 @@ def test_two_services_may_share_a_name_at_one_version(written) -> None:
     )
 
 
-def test_recording_nothing_writes_nothing(engine, database) -> None:
+def test_recording_nothing_writes_nothing(written) -> None:
     """A stage with no versioned prompt costs no query."""
+    before = [one.id for one in stored()]
+
     assert record("questions", []) == 0
-    assert stored() == []
+    assert [one.id for one in stored()] == before

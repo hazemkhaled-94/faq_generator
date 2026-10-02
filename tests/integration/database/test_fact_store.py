@@ -402,7 +402,7 @@ class TestBridges:
         assert store.links() == []
 
     def test_losing_the_anchor_deletes_the_bridge_too(self, store, corpus) -> None:
-        """The foreign key does this one, without the trigger."""
+        """The trigger does this one too: the anchor is a citation like any other."""
         anchor, other = corpus["a"][0], corpus["b"][0]
         store.bridges(
             checked(
@@ -515,7 +515,12 @@ class TestListing:
         a_first, b_first = corpus["a"][0], corpus["b"][0]
         store.store(
             a_first,
-            checked(a_first, "The device weighs 4 kg.", kind=FactKind.ATOMIC),
+            checked(
+                a_first,
+                "The device weighs 4 kg.",
+                kind=FactKind.ATOMIC,
+                evidence_text="Its mass is 4 kg.",
+            ),
             checked(a_first, "A short summary.", kind=FactKind.SUMMARY),
         )
         store.store(
@@ -562,7 +567,14 @@ class TestListing:
 
     @pytest.mark.parametrize(
         ("field", "term", "found"),
-        [("statement", "weighs", 1), ("evidence", "weighs", 1), ("both", "4 kg", 1)],
+        [
+            ("statement", "weighs", 1),
+            ("evidence", "weighs", 0),
+            ("evidence", "mass", 1),
+            ("statement", "mass", 0),
+            ("both", "mass", 1),
+            ("both", "weighs", 1),
+        ],
     )
     def test_the_search_looks_only_in_the_column_it_was_given(
         self, store, written, field, term, found
