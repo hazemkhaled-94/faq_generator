@@ -10,6 +10,11 @@ own and nobody held the two together.
 from __future__ import annotations
 
 import pytest
+from seed import digest, document, fact, fitted, link, passage, question
+from sqlalchemy.orm import Session
+
+from assessment.repository import AssessmentQueue
+from database.qa_generator import QuestionStatus
 
 pytestmark = pytest.mark.integration
 
@@ -61,11 +66,31 @@ def test_the_report_answers_with_nothing_judged(client) -> None:
 
 
 @pytest.mark.parametrize("kind", ["fact", "topic", "question"])
-def test_the_listing_narrows_to_one_kind(client, kind: str) -> None:
+def test_the_listing_narrows_to_one_kind(client, engine, monkeypatch, kind) -> None:
     """Which is how a reader asks for the questions alone."""
-    answered = client.get("/assessment", params={"kind": kind})
+    monkeypatch.setenv("ASSESSMENT_ENABLED", "true")
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        held = passage(digest("a"))
+        session.add(held)
+        session.flush()
+        said = fact(held.id, statement="A reply is due in five days.")
+        asked = question(
+            question_text="How long is allowed for a reply?",
+            target_answer="Five days.",
+            status=QuestionStatus.ACCEPTED,
+        )
+        session.add_all([said, asked, fitted(0, label="Response times")])
+        session.flush()
+        session.add(link(asked.id, said.id))
+        session.commit()
+    AssessmentQueue().start()
 
-    assert answered.status_code == 200
+    listed = client.get("/assessment", params={"kind": kind}).json()
+
+    assert listed["total"] == 1
+    assert [one["kind"] for one in listed["assessments"]] == [kind]
 
 
 def test_a_kind_no_artefact_has_is_refused(client) -> None:

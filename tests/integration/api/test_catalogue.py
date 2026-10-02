@@ -49,13 +49,19 @@ def test_the_passages_listing_pages_and_totals(produced) -> None:
     assert {one["ordinal"] for one in listed["passages"]} == {1, 2}
 
 
-def test_the_passages_listing_can_be_narrowed_to_one_document(produced) -> None:
+def test_the_passages_listing_can_be_narrowed_to_one_document(produced, engine) -> None:
     """Every page offers the same document picker."""
     client, _ = produced
+    with Session(engine) as session:
+        session.add(document(digest("b"), language="en", chunk_status="chunked"))
+        session.flush()
+        session.add(passage(digest("b"), ordinal=1, text="Another report."))
+        session.commit()
 
     listed = client.get("/passages", params={"document": digest("a")}).json()
 
     assert listed["total"] == 2
+    assert {one["doc_sha256"] for one in listed["passages"]} == {digest("a")}
 
 
 def test_a_document_with_no_passages_lists_none(produced) -> None:

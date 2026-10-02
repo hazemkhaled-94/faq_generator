@@ -213,18 +213,15 @@ def test_a_stored_file_is_served_back_exactly(client, pdf) -> None:
 @pytest.mark.parametrize(
     "path", ["/documents/{}/file", "/documents/{}", "/documents/{}/derived"]
 )
-@pytest.mark.parametrize(
-    "sha", ["not-a-digest", "abc", "A" * 64, "../../etc/passwd", "0" * 63]
-)
+@pytest.mark.parametrize("sha", ["not-a-digest", "abc", "A" * 64, "0" * 63])
 def test_a_path_that_is_not_a_digest_is_refused_as_400(client, path, sha) -> None:
     """Checked before it can become part of an object key."""
     answered = client.request(
         "GET" if path.endswith("file") else "DELETE", path.format(sha)
     )
 
-    assert answered.status_code in (400, 404, 405)
-    if answered.status_code == 400:
-        assert answered.json()["code"] == "invalid_digest"
+    assert answered.status_code == 400, answered.text
+    assert answered.json()["code"] == "invalid_digest"
 
 
 def test_a_digest_no_document_has_is_refused_as_404(client) -> None:

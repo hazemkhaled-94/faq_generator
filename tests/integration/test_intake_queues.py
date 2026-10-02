@@ -594,7 +594,7 @@ def catalogue(engine, database):
         session.add_all(
             [
                 event(submitted_filename="first-name.pdf", sha256=A),
-                event(submitted_filename="second-name.pdf", sha256=A),
+                event(submitted_filename="a-later-name.pdf", sha256=A),
                 event(submitted_filename="other.pdf", sha256=B),
                 event(
                     submitted_filename="refused.pdf",
@@ -628,13 +628,18 @@ def test_a_document_is_named_by_the_upload_it_first_arrived_under(catalogue) -> 
     assert {one.sha256: one.filename for one in listed}[A] == "first-name.pdf"
 
 
-def test_the_name_and_the_date_come_from_the_same_upload(catalogue) -> None:
+def test_the_name_and_the_date_come_from_the_same_upload(catalogue, engine) -> None:
     """Two independent aggregates would take them from different rows."""
     _, listed = catalogue.page()
+    uploaded = one(
+        engine,
+        "SELECT submitted_at FROM ingest_events "
+        "WHERE submitted_filename = 'first-name.pdf'",
+    ).submitted_at
 
     first = next(one for one in listed if one.sha256 == A)
     assert first.filename == "first-name.pdf"
-    assert first.first_seen is not None
+    assert first.first_seen == uploaded
 
 
 def test_a_refused_upload_is_no_document(catalogue) -> None:
@@ -713,7 +718,7 @@ def test_only_the_first_name_a_document_arrived_under_is_searchable(
     become a second way to find the document.
     """
     assert catalogue.page("first-name")[0] == 1
-    assert catalogue.page("second-name")[0] == 0
+    assert catalogue.page("a-later-name")[0] == 0
 
 
 def test_a_document_is_found_by_its_own_digest(catalogue) -> None:

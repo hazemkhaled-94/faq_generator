@@ -156,21 +156,19 @@ def test_a_change_that_stales_something_says_so(cli, store) -> None:
     assert any("rerun" in line for line in said)
 
 
-def test_the_command_line_and_the_route_refuse_the_same_thing(client) -> None:
+def test_the_command_line_and_the_route_refuse_the_same_thing(client, cli) -> None:
     """One decision, reached through two doors.
 
     The command line called the route's own function once, which meant a
     command line that imported FastAPI and the whole composition root. Both
     now call settings.changes, and this is what says they still agree.
     """
-    from settings.changes import Refused, apply
-
     refused = client.patch(
         "/settings/topics", json={"values": {"TOPIC_PASSES": "many"}}
     )
 
-    with pytest.raises(Refused) as directly:
-        apply("topics", {"TOPIC_PASSES": "many"})
+    with pytest.raises(SystemExit) as typed:
+        cli(["--service", "topics", "--set", "TOPIC_PASSES=many"])
 
-    assert refused.json()["code"] == directly.value.code
-    assert refused.json()["detail"] == directly.value.detail
+    assert refused.status_code == 400, refused.text
+    assert typed.value.code == refused.json()["detail"]

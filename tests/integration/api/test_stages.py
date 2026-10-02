@@ -73,17 +73,33 @@ def test_starting_a_stage_answers_202_with_what_moved(corpus, stage) -> None:
     assert "queued" in body["detail"]
 
 
-@pytest.mark.parametrize("stage", STAGES)
-def test_a_verb_that_queues_answers_with_the_run_it_queued_under(corpus, stage) -> None:
+@pytest.mark.parametrize(
+    ("stage", "column"),
+    [
+        ("parsing", "documents.parse_trigger"),
+        ("chunking", "documents.chunk_trigger"),
+        ("extraction", "passages.extract_trigger"),
+    ],
+)
+def test_a_verb_that_queues_answers_with_the_run_it_queued_under(
+    corpus, engine, stage, column
+) -> None:
     """Minted here when the caller names none, and answered back.
 
     Somebody who pressed a button has to be able to find the rows it
     produced afterwards, and the row carries this and not the id of the
     worker that happens to claim it.
     """
+    from sqlalchemy import text
+
     answered = corpus.post(f"/{stage}/start").json()
 
-    assert answered["run"]
+    table, name = column.split(".")
+    with engine.connect() as connection:
+        stamped = connection.execute(
+            text(f"SELECT DISTINCT {name} FROM {table} WHERE {name} IS NOT NULL")
+        ).scalars()
+        assert set(stamped) == {answered["run"]}
 
 
 @pytest.mark.parametrize("stage", STAGES)
@@ -129,8 +145,12 @@ def test_a_verb_no_stage_has_is_refused(corpus, stage) -> None:
     assert corpus.post(f"/{stage}/obliterate").status_code == 422
 
 
-@pytest.mark.parametrize("stage", ["parsing", "chunking", "extraction"])
-def test_a_stage_narrowed_to_a_document_reports_only_that_one(corpus, stage) -> None:
+@pytest.mark.parametrize(
+    ("stage", "held"), [("parsing", 1), ("chunking", 1), ("extraction", 2)]
+)
+def test_a_stage_narrowed_to_a_document_reports_only_that_one(
+    corpus, stage, held
+) -> None:
     """The same shape, with the scope and value it was asked about."""
     answered = corpus.get(f"/{stage}/document/{digest('a')}/status")
 
@@ -138,6 +158,7 @@ def test_a_stage_narrowed_to_a_document_reports_only_that_one(corpus, stage) -> 
     body = answered.json()
     assert body["scope"] == "document"
     assert body["value"] == digest("a")
+    assert sum(body["rows"].values()) == held, body["rows"]
 
 
 def test_a_narrowed_verb_moves_only_that_documents_rows(corpus) -> None:
@@ -146,7 +167,6 @@ def test_a_narrowed_verb_moves_only_that_documents_rows(corpus) -> None:
 
     assert answered.status_code == 202
     assert answered.json()["rows"] == 2
-    assert "document" in answered.json()["detail"] or answered.json()["rows"] == 2
 
 
 def test_extraction_narrows_to_one_passage(corpus, engine) -> None:

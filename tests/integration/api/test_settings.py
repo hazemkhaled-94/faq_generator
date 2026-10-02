@@ -24,8 +24,18 @@ OWNED = [
     ("extraction", "EXTRACTION_BRIDGE_PASSAGES", "3"),
     ("topics", "TOPIC_PASSES", "42"),
     ("questions", "QUESTIONS_PER_TOPIC", "9"),
+    ("assessment", "ASSESSMENT_SAMPLE", "11"),
     ("platform", "LLM_TEMPERATURE", "0.5"),
 ]
+
+
+def test_every_service_the_route_serves_is_in_the_table() -> None:
+    """A service missing below is one no test here reads or changes."""
+    from typing import get_args
+
+    from api.routes.settings import Service
+
+    assert [service for service, _, _ in OWNED] == list(get_args(Service))
 
 
 def test_every_service_reports_its_settings(client) -> None:
@@ -411,13 +421,18 @@ def test_the_upload_limit_takes_effect_without_a_restart(client, pdf) -> None:
 
 def test_raising_the_upload_limit_takes_effect_too(client, pdf) -> None:
     """The same change in the other direction, so it is the limit that moved."""
+    two_megabytes = pdf + b"%" * (2 * 1024 * 1024)
     client.patch("/settings/ingestion", json={"values": {"MAX_FILE_SIZE_MB": "1"}})
+    refused = client.post(
+        "/documents", files={"file": ("two.pdf", two_megabytes, "application/pdf")}
+    )
     client.patch("/settings/ingestion", json={"values": {"MAX_FILE_SIZE_MB": "100"}})
 
     accepted = client.post(
-        "/documents", files={"file": ("small.pdf", pdf, "application/pdf")}
+        "/documents", files={"file": ("two.pdf", two_megabytes, "application/pdf")}
     )
 
+    assert refused.status_code == 413, refused.text
     assert accepted.status_code == 200, accepted.text
 
 

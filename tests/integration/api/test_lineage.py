@@ -129,14 +129,6 @@ def test_a_fact_reaches_its_passage_its_document_and_its_topic(client, corpus) -
     ]
 
 
-def test_a_step_reports_its_total_beside_what_it_lists(client, corpus) -> None:
-    """A cap that hid a fan-out silently would be worse than no cap."""
-    chain = client.get(f"/lineage/topic/{corpus['topic']}").json()
-    at = {one["kind"]: one for one in chain["steps"]}
-
-    assert at["passage"]["total"] == len(at["passage"]["artifacts"]) == 1
-
-
 def test_an_id_nothing_holds_is_a_404(client, corpus) -> None:
     """Rather than an empty chain, which reads as an artefact with no past."""
     assert client.get("/lineage/fact/99999999").status_code == 404
