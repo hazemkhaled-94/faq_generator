@@ -37,7 +37,7 @@ PROSE = st.text(
 
 
 @given(chunks=st.lists(PROSE, min_size=1, max_size=8))
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_chunking_stores_every_chunk_that_holds_anything(chunks) -> None:
     """Nothing is discarded on size, and a blank chunk is not a passage."""
     expected = [text.strip() for text in chunks if text.strip()]
@@ -52,7 +52,7 @@ def test_chunking_stores_every_chunk_that_holds_anything(chunks) -> None:
 
 
 @given(chunks=st.lists(PROSE, min_size=1, max_size=8))
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_ordinals_run_from_one_without_a_gap(chunks) -> None:
     """A reader counts on the first being 1 and on there being no hole."""
     try:
@@ -64,7 +64,7 @@ def test_ordinals_run_from_one_without_a_gap(chunks) -> None:
 
 
 @given(chunks=st.lists(PROSE, min_size=1, max_size=8), budget=st.integers(1, 20))
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_the_oversized_count_never_exceeds_the_passages_stored(chunks, budget) -> None:
     """A tripwire, not a filter: it counts what was kept."""
     try:
@@ -76,7 +76,7 @@ def test_the_oversized_count_never_exceeds_the_passages_stored(chunks, budget) -
 
 
 @given(text=PROSE)
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_repairing_text_twice_changes_nothing_the_second_time(text) -> None:
     """The repair is a normalisation, so it has to be idempotent."""
     from preprocessing.parsing.pipelines.pdf import _mend
@@ -87,7 +87,7 @@ def test_repairing_text_twice_changes_nothing_the_second_time(text) -> None:
 
 
 @given(text=PROSE)
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_repairing_text_leaves_no_control_character(text) -> None:
     """Newline and tab are the two the passage text is allowed to keep."""
     from preprocessing.parsing.pipelines.pdf import _mend
@@ -102,7 +102,7 @@ def test_repairing_text_leaves_no_control_character(text) -> None:
 
 
 @given(text=PROSE)
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_repairing_text_leaves_only_ordinary_spaces(text) -> None:
     """A model asked to copy a span back types U+0020 for all of them."""
     from preprocessing.parsing.pipelines.pdf import _mend
@@ -115,7 +115,7 @@ def test_repairing_text_leaves_only_ordinary_spaces(text) -> None:
 
 
 @given(typed=st.text(min_size=1, max_size=40))
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_a_search_never_reaches_the_database_as_a_wildcard(typed) -> None:
     """Whatever a person types is characters, not a pattern."""
     from sqlalchemy import select
@@ -182,7 +182,7 @@ def _dealt(rows, wanted, size, shape):
     size=st.integers(1, 4),
     shape=SHAPES,
 )
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_a_fact_is_never_written_about_twice_in_one_deal(
     rows, wanted, size, shape
@@ -199,7 +199,7 @@ def test_a_fact_is_never_written_about_twice_in_one_deal(
     size=st.integers(1, 4),
     shape=SHAPES,
 )
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_no_sample_is_empty_or_over_the_cap(rows, wanted, size, shape) -> None:
     """An empty sample has no language and no difficulty to read off it.
@@ -219,7 +219,7 @@ def test_no_sample_is_empty_or_over_the_cap(rows, wanted, size, shape) -> None:
     size=st.integers(1, 4),
     shape=SHAPES,
 )
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_a_sample_never_spans_more_passages_than_its_shape_asked_for(
     rows, wanted, size, shape
@@ -241,7 +241,7 @@ def test_a_sample_never_spans_more_passages_than_its_shape_asked_for(
     size=st.integers(1, 4),
     shape=SHAPES,
 )
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_every_scope_always_matches_the_spread_it_is_read_from(
     rows, wanted, size, shape
@@ -275,7 +275,7 @@ def test_every_scope_always_matches_the_spread_it_is_read_from(
     answer=st.integers(0, 200),
     follows=st.booleans(),
 )
-@settings(max_examples=300, deadline=None)
+@settings(deadline=None)
 def test_the_difficulty_band_never_disagrees_with_its_own_score(
     passages, documents, topics, answer, follows
 ) -> None:
@@ -303,7 +303,7 @@ def test_the_difficulty_band_never_disagrees_with_its_own_score(
     documents=st.integers(1, 5),
     topics=st.integers(1, 5),
 )
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_a_wider_scope_is_never_easier(passages, documents, topics) -> None:
     """Every criterion points the same way, so the band is monotonic."""
     from question_generation.models import criteria_of
@@ -333,7 +333,7 @@ MIX = st.dictionaries(
 
 
 @given(mix=MIX, slots=st.integers(0, 60))
-@settings(max_examples=300, deadline=None)
+@settings(deadline=None)
 def test_a_kind_with_no_weight_is_never_written(mix, slots) -> None:
     """Which is the switch for choosing what a run produces.
 
@@ -348,7 +348,7 @@ def test_a_kind_with_no_weight_is_never_written(mix, slots) -> None:
 
 
 @given(mix=MIX, slots=st.integers(0, 60))
-@settings(max_examples=300, deadline=None)
+@settings(deadline=None)
 def test_the_slots_allocated_are_the_slots_asked_for(mix, slots) -> None:
     """A mix decides the proportions, never how many questions there are."""
     from question_generation.planning import allocate
@@ -357,7 +357,7 @@ def test_the_slots_allocated_are_the_slots_asked_for(mix, slots) -> None:
 
 
 @given(mix=MIX, slots=st.integers(1, 60))
-@settings(max_examples=300, deadline=None)
+@settings(deadline=None)
 def test_a_heavier_weight_never_takes_fewer_slots_than_a_lighter_one(
     mix, slots
 ) -> None:
@@ -384,7 +384,7 @@ def test_a_heavier_weight_never_takes_fewer_slots_than_a_lighter_one(
     mix=MIX,
     share=st.floats(0.0, 1.0),
 )
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_a_plan_never_asks_for_a_shape_its_type_cannot_use(wanted, mix, share) -> None:
     """A comparison drawn from one passage is a question about one thing."""
     from question_generation.planning import plans
@@ -402,7 +402,7 @@ def test_a_plan_never_asks_for_a_shape_its_type_cannot_use(wanted, mix, share) -
 
 
 @given(count=st.integers(1, 40), share=st.floats(0.0, 1.0))
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_the_unanswerable_share_is_never_more_than_it_was_asked_for(
     count, share
 ) -> None:
@@ -431,7 +431,7 @@ def given_setting(value: str):
 
 
 @given(value=st.integers(min_value=-(10**9), max_value=10**9))
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_a_whole_number_setting_round_trips(value) -> None:
     """Whatever int() accepts, read back as the same number."""
     from settings import integer
@@ -441,7 +441,7 @@ def test_a_whole_number_setting_round_trips(value) -> None:
 
 
 @given(value=SETTING)
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_a_setting_that_is_not_a_number_is_always_refused(value) -> None:
     """Never a silent zero, whatever the string is."""
     from settings import integer
@@ -463,7 +463,7 @@ def test_a_setting_that_is_not_a_number_is_always_refused(value) -> None:
         max_size=6,
     )
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_a_list_setting_keeps_every_name_and_invents_none(names) -> None:
     """The separator is what splits it, and nothing else."""
     from settings import csv
@@ -473,7 +473,7 @@ def test_a_list_setting_keeps_every_name_and_invents_none(names) -> None:
 
 
 @given(passage_id=st.integers(min_value=1, max_value=2**31 - 1))
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_a_narrowing_coerces_any_id_the_column_can_hold(passage_id) -> None:
     """Comparing an integer column against a string is an error at the database."""
     from extraction.repository import PassageQueue

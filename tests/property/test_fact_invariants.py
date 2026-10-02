@@ -37,7 +37,7 @@ def _passages(rows):
 
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_a_group_holds_exactly_the_passages_asked_for(rows, wanted, size) -> None:
     """A short tail is dropped rather than offered as a smaller group."""
@@ -46,7 +46,7 @@ def test_a_group_holds_exactly_the_passages_asked_for(rows, wanted, size) -> Non
 
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_a_passage_is_never_offered_twice_in_one_group(rows, wanted, size) -> None:
     """The same passage twice bridges nothing."""
@@ -55,7 +55,7 @@ def test_a_passage_is_never_offered_twice_in_one_group(rows, wanted, size) -> No
 
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_no_more_groups_than_were_asked_for(rows, wanted, size) -> None:
     """The count multiplied by the topics is what a bridge run costs."""
@@ -63,7 +63,7 @@ def test_no_more_groups_than_were_asked_for(rows, wanted, size) -> None:
 
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_a_topic_smaller_than_one_group_offers_none(rows, wanted, size) -> None:
     """There is no pair to put together."""
@@ -77,7 +77,7 @@ def test_a_topic_smaller_than_one_group_offers_none(rows, wanted, size) -> None:
     cited=st.lists(st.integers(-5, 5), max_size=4),
     kind=st.sampled_from([FactKind.ATOMIC, FactKind.SUMMARY, FactKind.OUTLINE]),
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_a_verdict_and_its_code_always_agree(statement, cited, kind) -> None:
     """The column's CHECK constraint refuses a row where they do not."""
@@ -93,7 +93,7 @@ def test_a_verdict_and_its_code_always_agree(statement, cited, kind) -> None:
     statement=st.text(max_size=120),
     cited=st.lists(st.integers(0, 1), min_size=1, max_size=2, unique=True),
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_an_evidence_span_always_resolves_in_its_passage(statement, cited) -> None:
     """The invariant every reader of fact_passages relies on."""
@@ -122,7 +122,7 @@ def test_an_evidence_span_always_resolves_in_its_passage(statement, cited) -> No
         max_size=4,
     ),
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_a_bridge_records_only_passages_it_was_offered(statement, rests_on) -> None:
     """A position or a sentence outside the group resolves to nothing."""
@@ -158,7 +158,7 @@ def test_a_bridge_records_only_passages_it_was_offered(statement, rests_on) -> N
 
 
 @given(points=st.lists(st.text(max_size=20), max_size=6))
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 @pytest.mark.nlp
 def test_an_outline_is_refused_on_its_shape_before_anything_else(points) -> None:
     """A bullet is a fragment, so nothing can be read off its grammar."""

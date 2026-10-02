@@ -86,6 +86,22 @@ def test_the_fast_target_starts_no_container(marker: str) -> None:
     assert not eval(expression, {}, defaultdict(bool, {marker: True})), expression
 
 
+def test_every_property_test_runs_the_profiles_example_count() -> None:
+    """A `max_examples` written on a test overrides `HYPOTHESIS_PROFILE`."""
+    import ast
+
+    pinned = [
+        f"{path.name}:{call.lineno}"
+        for path in sorted((ROOT / "tests/property").glob("test_*.py"))
+        for call in ast.walk(ast.parse(path.read_text()))
+        if isinstance(call, ast.Call)
+        and getattr(call.func, "id", None) == "settings"
+        and any(keyword.arg == "max_examples" for keyword in call.keywords)
+    ]
+
+    assert not pinned, pinned
+
+
 def test_the_gate_waits_for_every_other_job() -> None:
     """One job for a branch protection rule to require.
 

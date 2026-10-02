@@ -55,7 +55,7 @@ def fit(lemmas: list[list[str]]):
 
 
 @given(lemmas=st.lists(LEMMAS, min_size=1, max_size=6))
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_every_stored_weight_is_a_probability(lemmas) -> None:
     """The CHECK on passage_topics.weight holds for any corpus."""
     fitting = fit(lemmas)
@@ -67,7 +67,7 @@ def test_every_stored_weight_is_a_probability(lemmas) -> None:
 
 
 @given(lemmas=st.lists(LEMMAS, min_size=1, max_size=6))
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_every_passage_is_either_placed_or_counted_as_unplaced(lemmas) -> None:
     """The two are exhaustive, so the coverage figure cannot drift."""
     fitting = fit(lemmas)
@@ -82,7 +82,7 @@ def test_every_passage_is_either_placed_or_counted_as_unplaced(lemmas) -> None:
 
 
 @given(lemmas=st.lists(LEMMAS, min_size=1, max_size=6))
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_a_membership_always_names_a_topic_the_fit_produced(lemmas) -> None:
     """A weight pointing at no topic is a membership nothing can resolve."""
     fitting = fit(lemmas)
@@ -94,7 +94,7 @@ def test_a_membership_always_names_a_topic_the_fit_produced(lemmas) -> None:
 
 
 @given(lemmas=st.lists(LEMMAS, min_size=1, max_size=6))
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_a_membership_always_names_a_passage_the_fit_read(lemmas) -> None:
     """A weight on an id nothing holds would fail the foreign key."""
     fitting = fit(lemmas)
@@ -106,7 +106,7 @@ def test_a_membership_always_names_a_passage_the_fit_read(lemmas) -> None:
 
 
 @given(lemmas=st.lists(LEMMAS, min_size=1, max_size=6))
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_the_space_is_rectangular(lemmas) -> None:
     """PyLDAvis is handed matrices, and a ragged one is a broken figure."""
     fitting = fit(lemmas)
@@ -124,7 +124,7 @@ def test_the_space_is_rectangular(lemmas) -> None:
 
 
 @given(lemmas=st.lists(LEMMAS, min_size=1, max_size=6))
-@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_every_row_of_the_space_is_a_distribution(lemmas) -> None:
     """Each sums to 1, which is what makes the areas in the figure mean anything."""
     fitting = fit(lemmas)
@@ -137,7 +137,7 @@ def test_every_row_of_the_space_is_a_distribution(lemmas) -> None:
 
 
 @given(lemmas=st.lists(LEMMAS, min_size=1, max_size=6))
-@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_a_seeded_fit_is_reproducible(lemmas) -> None:
     """The same corpus and settings must give the same topics every time."""
     first, second = fit(lemmas), fit(lemmas)
@@ -155,7 +155,7 @@ def test_a_seeded_fit_is_reproducible(lemmas) -> None:
 
 
 @given(left=TERMS, right=TERMS)
-@settings(max_examples=200, deadline=None)
+@settings(deadline=None)
 def test_overlap_is_symmetric_and_bounded(left, right) -> None:
     """A share of terms, so it reads the same in either direction."""
     assert _jaccard(left, right) == _jaccard(right, left)
@@ -163,7 +163,7 @@ def test_overlap_is_symmetric_and_bounded(left, right) -> None:
 
 
 @given(terms=TERMS)
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_a_signature_wholly_overlaps_itself(terms) -> None:
     """The one case where a label is certain to be carried."""
     assert _jaccard(terms, terms) == 1.0
@@ -173,7 +173,7 @@ def test_a_signature_wholly_overlaps_itself(terms) -> None:
     fitted=st.lists(TERMS, max_size=5),
     previous=st.lists(st.tuples(TERMS, st.text(min_size=1, max_size=8)), max_size=5),
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_carrying_labels_keeps_every_topic_as_it_was(fitted, previous) -> None:
     """Only the label may move; the index and the terms are the fit's."""
     topics = [FittedTopic(index, terms) for index, terms in enumerate(fitted)]
@@ -194,7 +194,7 @@ def test_carrying_labels_keeps_every_topic_as_it_was(fitted, previous) -> None:
     fitted=st.lists(TERMS, max_size=5),
     previous=st.lists(st.tuples(TERMS, st.text(min_size=1, max_size=8)), max_size=5),
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_no_previous_label_is_carried_twice(fitted, previous) -> None:
     """Two topics may compete for a label; only one may have it."""
     topics = [FittedTopic(index, terms) for index, terms in enumerate(fitted)]
@@ -211,7 +211,7 @@ def test_no_previous_label_is_carried_twice(fitted, previous) -> None:
 
 
 @given(fitted=st.lists(TERMS, max_size=5))
-@settings(max_examples=50, deadline=None)
+@settings(deadline=None)
 def test_a_first_fit_carries_no_label(fitted) -> None:
     """There is nothing to carry from, and that is not an error."""
     topics = [FittedTopic(index, terms) for index, terms in enumerate(fitted)]
@@ -223,7 +223,7 @@ def test_a_first_fit_carries_no_label(fitted) -> None:
 
 
 @given(num_topics=st.integers(min_value=-5, max_value=1))
-@settings(max_examples=20, deadline=None)
+@settings(deadline=None)
 def test_too_few_topics_is_never_a_partition(num_topics) -> None:
     """Below two there is nothing to tell apart."""
     with pytest.raises(ValueError, match="TOPIC_NUM_TOPICS"):
@@ -231,7 +231,7 @@ def test_too_few_topics_is_never_a_partition(num_topics) -> None:
 
 
 @given(min_weight=st.floats(min_value=-5, max_value=0))
-@settings(max_examples=20, deadline=None)
+@settings(deadline=None)
 def test_a_floor_at_or_below_zero_is_refused(min_weight) -> None:
     """The column's CHECK requires a weight above zero."""
     with pytest.raises(ValueError, match="TOPIC_MIN_WEIGHT"):
@@ -244,7 +244,7 @@ def test_a_floor_at_or_below_zero_is_refused(min_weight) -> None:
         st.floats(min_value=1.0001, max_value=5),
     )
 )
-@settings(max_examples=20, deadline=None)
+@settings(deadline=None)
 def test_a_share_outside_zero_to_one_is_refused(no_above) -> None:
     """It is a share of the corpus, so it cannot exceed all of it."""
     with pytest.raises(ValueError, match="TOPIC_NO_ABOVE"):
