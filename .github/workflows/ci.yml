@@ -147,6 +147,8 @@ jobs:
           df -h /
 
       - uses: ./.github/actions/setup
+      # compose.yaml requires two variables only .env.example declares.
+      - run: cp .env.example .env
       - run: make test-smoke
 
   # The two halves put together. Neither job covers the other's: the

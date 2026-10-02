@@ -86,6 +86,17 @@ def test_the_fast_target_starts_no_container(marker: str) -> None:
     assert not eval(expression, {}, defaultdict(bool, {marker: True})), expression
 
 
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+def test_a_job_running_the_smoke_layer_writes_a_dot_env_first(path: Path) -> None:
+    """Without one, compose cannot resolve and every compose check skips."""
+    for name, job in loaded(path)["jobs"].items():
+        runs = [step.get("run", "") for step in job.get("steps", [])]
+        smoke = [at for at, run in enumerate(runs) if "test-smoke" in run]
+        written = [at for at, run in enumerate(runs) if "cp .env.example .env" in run]
+
+        assert not smoke or (written and written[0] < smoke[0]), name
+
+
 def test_every_property_test_runs_the_profiles_example_count() -> None:
     """A `max_examples` written on a test overrides `HYPOTHESIS_PROFILE`."""
     import ast
