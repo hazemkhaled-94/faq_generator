@@ -41,6 +41,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from database.qa_generator import ArtifactKind, JudgeMetric
+from llm.prompt import fill
 
 #: Bumped whenever a template below changes what it asks for, or when the
 #: SET a kind is asked changes. Recorded on every assessment, because two
@@ -169,10 +170,9 @@ class Template:
                 f"{self.metric} on a {self.kind} needs {', '.join(self.fields)} "
                 f"and was not given {', '.join(missing)}"
             )
-        text = self.user
-        for name, value in fields.items():
-            text = text.replace("{{" + name + "}}", value)
-        return text
+        return fill(
+            self.user, {"{{" + name + "}}": value for name, value in fields.items()}
+        )
 
     def shape(self) -> type[BaseModel]:
         """The Pydantic shape this metric's answer must come back in.

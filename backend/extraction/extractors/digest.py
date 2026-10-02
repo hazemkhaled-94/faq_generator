@@ -11,6 +11,7 @@ from database.qa_generator import FactKind
 from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import BULLET, CandidateFact, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
+from llm.prompt import fill
 from nlp.models import named
 
 #: Recorded on every summary and outline drawn with the prompt below.
@@ -171,10 +172,13 @@ class DigestExtractor(Extractor):
             if passage.section_path
             else ""
         )
-        return (
-            _USER.replace("{{context}}", heading)
-            .replace("{{excerpt}}", passage.text)
-            .replace("{{language}}", named(passage.language))
+        return fill(
+            _USER,
+            {
+                "{{context}}": heading,
+                "{{excerpt}}": passage.text,
+                "{{language}}": named(passage.language),
+            },
         )
 
 

@@ -10,6 +10,7 @@ from database.qa_generator import FactKind
 from extraction.extractors.base import ExtractionFailed
 from extraction.models import CandidateFact, Cited, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
+from llm.prompt import fill
 from nlp.models import named as in_language
 
 #: Recorded on every bridge drawn with the prompt below. Bumped whenever that
@@ -228,8 +229,12 @@ class BridgeExtractor:
             blocks.append(f"[P{position}]{heading}\n{numbered}")
         # Every passage of a group is of one topic, and a topic is fitted
         # over one language's vocabulary, so the first is as good as a vote.
-        return _USER.replace("{{excerpts}}", "\n\n".join(blocks)).replace(
-            "{{language}}", in_language(offered[0].language)
+        return fill(
+            _USER,
+            {
+                "{{excerpts}}": "\n\n".join(blocks),
+                "{{language}}": in_language(offered[0].language),
+            },
         )
 
 

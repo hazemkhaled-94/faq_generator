@@ -256,3 +256,16 @@ def test_every_topic_keeps_its_own_index_and_terms() -> None:
 
     assert carried[0].topic_index == 7, carried[0]
     assert carried[0].top_terms == SECOND, carried[0]
+
+
+def test_a_name_taken_that_carries_a_placeholder_is_shown_as_written() -> None:
+    """A label naming `{{excerpts}}` pulled the excerpts into the taken line."""
+    from topic_modelling.models import FittedTopic
+
+    driver = LabellerDriver("Warehouse safety")
+
+    driver.labeller.label(
+        FittedTopic(0, ["a", "b"]), "en", ["an excerpt"], ["the {{excerpts}} topic"]
+    )
+
+    assert "the {{excerpts}} topic" in driver.prompt

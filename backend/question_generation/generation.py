@@ -21,6 +21,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from llm.client import Client
+from llm.prompt import fill
 from nlp.models import named
 from question_generation.models import Candidate, FactGroup
 from question_generation.planning import Plan
@@ -306,8 +307,12 @@ class QuestionWriter:
         """
         written = self._client.answer(
             system=_FOLLOW.replace("{{type}}", _typed(plan.spec)),
-            user=_USER_FOLLOW.replace("{{sample}}", self._prompt(sample)).replace(
-                "{{conversation}}", self._conversation(thread)
+            user=fill(
+                _USER_FOLLOW,
+                {
+                    "{{sample}}": self._prompt(sample),
+                    "{{conversation}}": self._conversation(thread),
+                },
             ),
             shape=_Answered,
             prompt_version=PROMPT_VERSION,
@@ -426,9 +431,12 @@ class QuestionWriter:
             if note
             else ""
         )
-        return (
-            template.replace("{{facts}}", numbered)
-            .replace("{{passages}}", context)
-            .replace("{{language}}", named(sample.language))
-            .replace("{{note}}", again)
+        return fill(
+            template,
+            {
+                "{{facts}}": numbered,
+                "{{passages}}": context,
+                "{{language}}": named(sample.language),
+                "{{note}}": again,
+            },
         )

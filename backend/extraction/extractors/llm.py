@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import CandidateFact, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
+from llm.prompt import fill
 from nlp.models import named
 
 #: Recorded on every fact drawn with the prompt below. Bumped whenever that
@@ -240,8 +241,11 @@ class LlmExtractor(Extractor):
         numbered = "\n".join(
             f"[{sentence.index}] {sentence.text}" for sentence in passage.sentences
         )
-        return (
-            _USER.replace("{{context}}", heading)
-            .replace("{{excerpt}}", numbered)
-            .replace("{{language}}", named(passage.language))
+        return fill(
+            _USER,
+            {
+                "{{context}}": heading,
+                "{{excerpt}}": numbered,
+                "{{language}}": named(passage.language),
+            },
         )

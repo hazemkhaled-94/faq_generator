@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from pydantic import BaseModel, Field
 
 from llm.client import Client, ModelUnavailable
+from llm.prompt import fill
 from topic_modelling.models import FittedTopic
 
 log = logging.getLogger(__name__)
@@ -170,9 +171,12 @@ class TopicLabeller:
             f"- {excerpt[:_EXCERPT_CHARS].strip()}" for excerpt in excerpts
         )
         already = f"Names already taken:\n{', '.join(taken)}\n\n" if taken else ""
-        return (
-            _USER.replace("{{language}}", self._languages.get(language, language))
-            .replace("{{taken}}", already)
-            .replace("{{terms}}", ", ".join(topic.top_terms))
-            .replace("{{excerpts}}", shown)
+        return fill(
+            _USER,
+            {
+                "{{language}}": self._languages.get(language, language),
+                "{{taken}}": already,
+                "{{terms}}": ", ".join(topic.top_terms),
+                "{{excerpts}}": shown,
+            },
         )
