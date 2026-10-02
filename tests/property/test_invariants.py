@@ -183,6 +183,7 @@ def _dealt(rows, wanted, size, shape):
     shape=SHAPES,
 )
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_a_fact_is_never_written_about_twice_in_one_deal(
     rows, wanted, size, shape
 ) -> None:
@@ -199,6 +200,7 @@ def test_a_fact_is_never_written_about_twice_in_one_deal(
     shape=SHAPES,
 )
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_no_sample_is_empty_or_over_the_cap(rows, wanted, size, shape) -> None:
     """An empty sample has no language and no difficulty to read off it.
 
@@ -218,6 +220,7 @@ def test_no_sample_is_empty_or_over_the_cap(rows, wanted, size, shape) -> None:
     shape=SHAPES,
 )
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_a_sample_never_spans_more_passages_than_its_shape_asked_for(
     rows, wanted, size, shape
 ) -> None:
@@ -239,6 +242,7 @@ def test_a_sample_never_spans_more_passages_than_its_shape_asked_for(
     shape=SHAPES,
 )
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_every_scope_always_matches_the_spread_it_is_read_from(
     rows, wanted, size, shape
 ) -> None:

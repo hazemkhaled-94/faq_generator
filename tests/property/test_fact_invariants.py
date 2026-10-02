@@ -38,6 +38,7 @@ def _passages(rows):
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_a_group_holds_exactly_the_passages_asked_for(rows, wanted, size) -> None:
     """A short tail is dropped rather than offered as a smaller group."""
     for one in grouped(_passages(rows), wanted, size):
@@ -46,6 +47,7 @@ def test_a_group_holds_exactly_the_passages_asked_for(rows, wanted, size) -> Non
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_a_passage_is_never_offered_twice_in_one_group(rows, wanted, size) -> None:
     """The same passage twice bridges nothing."""
     for one in grouped(_passages(rows), wanted, size):
@@ -54,6 +56,7 @@ def test_a_passage_is_never_offered_twice_in_one_group(rows, wanted, size) -> No
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_no_more_groups_than_were_asked_for(rows, wanted, size) -> None:
     """The count multiplied by the topics is what a bridge run costs."""
     assert len(grouped(_passages(rows), wanted, size)) <= wanted
@@ -61,6 +64,7 @@ def test_no_more_groups_than_were_asked_for(rows, wanted, size) -> None:
 
 @given(rows=TOPIC, wanted=st.integers(1, 8), size=st.integers(2, 4))
 @settings(max_examples=200, deadline=None)
+@pytest.mark.nlp
 def test_a_topic_smaller_than_one_group_offers_none(rows, wanted, size) -> None:
     """There is no pair to put together."""
     passages = _passages(rows)

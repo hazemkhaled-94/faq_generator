@@ -14,6 +14,8 @@ from extraction.extractors.base import ExtractionFailed
 from extraction.extractors.bridge import PROMPT_VERSION, BridgeExtractor
 from llm.client import ModelUnavailable
 
+pytestmark = pytest.mark.nlp
+
 ANSWER = {
     "facts": [
         {

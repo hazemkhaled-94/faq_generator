@@ -14,6 +14,8 @@ from drivers import passage
 
 from extraction.service import grouped
 
+pytestmark = pytest.mark.nlp
+
 
 def topic(*documents: str):
     """Builds one passage per entry, each naming the document it came from.

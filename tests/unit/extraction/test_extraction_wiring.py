@@ -17,6 +17,8 @@ from extraction.factory import build_bridge, build_service, models
 from llm.config import Settings as ModelSettings
 from stages.queue import StageQueue
 
+pytestmark = pytest.mark.nlp
+
 MODEL = ModelSettings(
     model="ollama/test-model",
     base_url="http://model.invalid",
@@ -130,8 +132,11 @@ def test_the_bridge_reader_is_built_apart_from_the_queue() -> None:
     assert build_bridge(MODEL).provenance.model == "ollama/test-model"
 
 
-def test_the_settings_are_read_from_the_environment_when_none_are_given() -> None:
+def test_the_settings_are_read_from_the_environment_when_none_are_given(
+    monkeypatch,
+) -> None:
     """A worker starting up reads what the deployment declared."""
+    monkeypatch.setenv("EXTRACTION_DUPLICATE_COSINE", "0")
     built = build_service(MODEL)
 
     assert built._checker is not None

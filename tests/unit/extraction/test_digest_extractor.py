@@ -15,6 +15,8 @@ from extraction.extractors.digest import PROMPT_VERSION, DigestExtractor
 from extraction.models import BULLET
 from llm.client import ModelUnavailable
 
+pytestmark = pytest.mark.nlp
+
 BOTH = (FactKind.SUMMARY, FactKind.OUTLINE)
 
 ANSWER = {

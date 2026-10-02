@@ -34,6 +34,8 @@ from question_generation.selection import (
     strided,
 )
 
+pytestmark = pytest.mark.nlp
+
 
 def facts_of(passage_id: int, document: str, count: int = 2, **kwargs) -> list:
     """One passage's worth of facts, numbered so no two collide."""

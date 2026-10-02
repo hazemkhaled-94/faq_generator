@@ -29,6 +29,8 @@ from question_generation.service import QuestionGenerationService
 from stages.queue import StageQueue
 from stages.service import HEARTBEAT_SECONDS
 
+pytestmark = pytest.mark.nlp
+
 SETTINGS = Settings(
     per_topic=4,
     sample_size=4,
