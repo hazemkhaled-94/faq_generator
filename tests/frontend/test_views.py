@@ -13,6 +13,7 @@ import requests
 from pages import (
     LISTING,
     OWNED,
+    PASSAGE_DETAIL,
     QUESTION,
     QUESTION_SOURCE,
     SHA,
@@ -457,9 +458,15 @@ def test_the_documents_page_can_narrow_to_one_parse_state(open_view) -> None:
 
 def test_the_passages_page_numbers_the_sentences_a_fact_would_cite(open_view) -> None:
     """The number in the first column is what a citation refers to."""
-    tables = open_view("passages").select(0).tables()
+    sentences = [
+        {"i": 4, "start": 0, "end": 30, "predicates": 1},
+        {"i": 5, "start": 31, "end": 62, "predicates": 1},
+    ]
+    client = Answers(**answers(passage=changed(PASSAGE_DETAIL, sentences=sentences)))
 
-    assert "Claims" in tables
+    drawn = open_view("passages", client).select(0)
+
+    assert list(drawn.table("Claims")["#"]) == [4, 5]
 
 
 def test_the_passages_page_runs_chunking_over_the_document_it_belongs_to(

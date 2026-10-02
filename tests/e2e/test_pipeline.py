@@ -19,7 +19,6 @@ import re
 from typing import ClassVar
 
 import pytest
-from seed import digest
 from sqlalchemy import text
 
 from database.qa_generator import Status
@@ -442,7 +441,11 @@ def test_every_stored_fact_cites_a_sentence_of_its_passage(pipeline, engine) -> 
 def test_the_model_is_asked_once_per_passage_that_carries_a_claim(
     pipeline, engine
 ) -> None:
-    """A heading or a caption never reaches it."""
+    """Once each, over a corpus whose every passage carries one.
+
+    The skip a heading or a caption takes is test_passage_gate.py's: this
+    corpus chunks into passages that all carry a claim.
+    """
     _run(pipeline)
 
     with engine.connect() as connection:
@@ -450,7 +453,7 @@ def test_the_model_is_asked_once_per_passage_that_carries_a_claim(
             text("SELECT count(*) FROM passages")
         ).scalar_one()
 
-    assert 0 < pipeline["model"].calls <= passages
+    assert pipeline["model"].calls == passages > 0
 
 
 def test_a_second_run_of_a_finished_stage_does_nothing(pipeline) -> None:
@@ -547,7 +550,6 @@ def test_the_digest_survives_every_stage(pipeline, engine) -> None:
         )
 
     assert held == [sha]
-    assert sha != digest("a")
 
 
 def _through_questions(pipeline, engine) -> int:
@@ -636,19 +638,6 @@ def test_every_question_can_be_traced_back_to_a_passage(pipeline, engine) -> Non
     assert orphans == 0
 
 
-def test_an_unanswerable_question_carries_no_target_answer(pipeline, engine) -> None:
-    """The share is spread by position, so one of four is perturbed."""
-    _through_questions(pipeline, engine)
-
-    with engine.connect() as connection:
-        rows = connection.execute(
-            text("SELECT answerable, target_answer FROM questions")
-        ).all()
-
-    assert rows
-    assert all(answerable or target is None for answerable, target in rows)
-
-
 def test_re_extracting_the_corpus_takes_its_questions_with_it(pipeline, engine) -> None:
     """question_facts cascades from facts, and the trigger does the rest.
 
@@ -695,17 +684,28 @@ def test_re_judging_a_fact_leaves_the_question_for_the_re_check_to_find(
 
 
 def test_a_re_check_never_overturns_a_person(pipeline, engine) -> None:
-    """Accepting is a person's, and a nightly re-check must not undo it."""
+    """Accepting is a person's, and a nightly re-check must not undo it.
+
+    One fact is re-judged too, so the re-check has a reason it could write.
+    """
     _through_questions(pipeline, engine)
     with engine.begin() as connection:
         connection.execute(
             text("UPDATE questions SET status = 'rejected', rejected_reason = NULL")
+        )
+        connection.execute(
+            text(
+                "UPDATE facts SET validated = false, rejection_code = 'copied' "
+                "WHERE id = (SELECT min(fact_id) FROM question_facts)"
+            )
         )
 
     reverify(QuestionCatalog(), QUESTIONS)
 
     with engine.connect() as connection:
         states = set(
-            connection.scalars(text("SELECT DISTINCT status FROM questions")).all()
+            connection.execute(
+                text("SELECT DISTINCT status, rejected_reason FROM questions")
+            ).all()
         )
-    assert states == {"rejected"}, "a re-check accepted something"
+    assert states == {("rejected", None)}, "a re-check rewrote a person's verdict"

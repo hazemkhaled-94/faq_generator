@@ -713,6 +713,15 @@ class View:
             for one in self.app.dataframe
         )
 
+    def table(self, holding: str):
+        """The one table with a column of this name, as its DataFrame."""
+        (found,) = [
+            one.value
+            for one in self.app.dataframe
+            if holding in getattr(one.value, "columns", ())
+        ]
+        return found
+
     def stats(self) -> dict[str, str]:
         """Every figure on the page, by its label."""
         return {one.label: one.value for one in self.app.metric}

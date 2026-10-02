@@ -71,17 +71,17 @@ def test_the_corpus_is_counted_by_reading(page) -> None:
 
 def test_the_kind_a_fact_was_stored_under_is_shown_in_the_table(page) -> None:
     """So a reader can tell a summary from a claim without opening it."""
-    tables = page(facts=page_of(changed(FACT, kind="summary"))).tables()
+    listing = page(facts=page_of(changed(FACT, kind="summary"))).table("Statement")
 
-    assert "Summary" in tables
+    assert list(listing["Kind"]) == ["Summary"]
 
 
-def test_a_reading_the_page_has_no_description_for_is_still_counted(page) -> None:
-    """A kind added to the backend should not vanish from the figures."""
+def test_a_reading_the_page_has_no_description_for_is_still_listed(page) -> None:
+    """A kind added to the backend should not vanish from the table."""
     drawn = page(facts=page_of(changed(FACT, kind="invented")))
 
     assert drawn.raised == []
-    assert "invented" in drawn.tables()
+    assert list(drawn.table("Statement")["Kind"]) == ["invented"]
 
 
 # ── The checks ────────────────────────────────────────────────────────────
@@ -115,11 +115,18 @@ def test_each_check_says_which_kinds_face_it(page) -> None:
 
 def test_a_check_nothing_failed_reads_as_ok(page) -> None:
     """And one something failed does not."""
-    tables = page(
-        fact_quality=changed(FACT_QUALITY, total=2, validated=1, rejected={"copied": 1})
-    ).tables()
+    checks = (
+        page(
+            fact_quality=changed(
+                FACT_QUALITY, total=2, validated=1, rejected={"copied": 1}
+            )
+        )
+        .table("State")
+        .set_index("Check")["State"]
+    )
 
-    assert "Attention" in tables
+    assert checks["Not copied"] == "Attention"
+    assert checks["Asserts something"] == "OK"
 
 
 def test_a_rejection_code_the_page_has_never_heard_of_is_still_reported(page) -> None:
@@ -132,7 +139,7 @@ def test_a_rejection_code_the_page_has_never_heard_of_is_still_reported(page) ->
 
 def test_a_refused_fact_names_the_check_it_failed(page) -> None:
     """In the table, so a reader need not open it to know why."""
-    tables = page(
+    listing = page(
         facts=page_of(
             changed(
                 FACT,
@@ -141,9 +148,9 @@ def test_a_refused_fact_names_the_check_it_failed(page) -> None:
                 validation_error="added 70%",
             )
         )
-    ).tables()
+    ).table("Statement")
 
-    assert "Nothing invented" in tables
+    assert list(listing["Failed check"]) == ["Nothing invented"]
 
 
 def test_the_reason_a_fact_was_refused_is_on_the_fact(page) -> None:

@@ -142,10 +142,17 @@ def test_every_path_the_frontend_calls_exists(published) -> None:
     assert not missing, f"the frontend calls paths the API does not serve: {missing}"
 
 
-#: The stages the frontend names when it composes a queue path, and the
-#: scopes it narrows them with.
-STAGES = ("parsing", "chunking", "extraction", "topics", "questions")
-SCOPES = ("", "/document/{}", "/passage/{}")
+#: The stages the frontend names when it composes a queue path, read off
+#: the `stage.Queue` each page builds.
+STAGES = tuple(
+    sorted(
+        {
+            name
+            for view in (ROOT / "frontend/views").glob("*.py")
+            for name in re.findall(r'stage\.Queue\("(\w+)"', view.read_text())
+        }
+    )
+)
 
 #: What the pipeline client composes `/pipeline/{action}` from. One route
 #: each rather than one route taking an action, so each is checked by name.
@@ -174,15 +181,15 @@ def test_every_stage_the_frontend_names_answers_for_its_queue(published, stage) 
 
 
 @pytest.mark.parametrize("stage", ("parsing", "chunking", "extraction", "questions"))
-@pytest.mark.parametrize("scope", SCOPES)
-def test_every_narrowed_stage_path_the_frontend_builds_exists(
-    published, stage, scope
-) -> None:
-    """The narrowed pair, which the per-item controls call."""
-    served = {templated(path) for path in published["paths"]}
-    built = f"/{stage}/{{}}/{{}}/status" if scope else f"/{stage}/status"
+def test_every_narrowed_stage_path_the_frontend_builds_exists(published, stage) -> None:
+    """The narrowed pair, which the per-item controls call.
 
-    assert built in served, sorted(served)
+    The scope is a path parameter, so a document and a passage are one
+    route here; which scopes a stage takes is the integration layer's.
+    """
+    served = {templated(path) for path in published["paths"]}
+
+    assert f"/{stage}/{{}}/{{}}/status" in served, sorted(served)
 
 
 def _raised_by(endpoint) -> set[int]:

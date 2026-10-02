@@ -279,8 +279,14 @@ def test_a_bridge_reaches_its_recorded_verdict(
 
 def test_every_kind_appears_in_this_table() -> None:
     """A kind with no rows here is a kind nothing pins."""
-    covered = {FactKind.ATOMIC, FactKind.SUMMARY, FactKind.OUTLINE, FactKind.BRIDGE}
-    assert covered == set(FactKind)
+    tables = {
+        FactKind.ATOMIC: [*ATOMIC, *GERMAN_ATOMIC],
+        FactKind.SUMMARY: SUMMARIES,
+        FactKind.OUTLINE: OUTLINES,
+        FactKind.BRIDGE: BRIDGES,
+    }
+
+    assert {kind for kind, rows in tables.items() if rows} == set(FactKind)
 
 
 def test_every_refusal_appears_in_this_table() -> None:

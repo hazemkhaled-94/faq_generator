@@ -82,7 +82,7 @@ def test_every_topic_is_tabled_with_its_terms(page) -> None:
 
 def test_a_topic_with_no_label_reads_as_unnamed_rather_than_blank(page) -> None:
     """An empty cell is indistinguishable from a bug."""
-    assert "—" in page().tables()
+    assert list(page().table("Top terms")["Label"]) == ["—"]
 
 
 def test_a_topic_with_no_language_still_renders(page) -> None:
@@ -157,9 +157,12 @@ def test_a_failed_fit_is_reported_beside_the_working_topics(page) -> None:
 
 def test_a_topic_excluded_by_hand_is_reported_as_a_decision(page) -> None:
     """Not as a fault: what counts as a subject belongs to the corpus."""
-    tables = page(topics=[changed(TOPIC, include_in_coverage=False)]).tables()
+    drawn = page(topics=[changed(TOPIC, include_in_coverage=False)])
+    checks = drawn.table("State").set_index("Check")
 
-    assert "excluded by hand" in tables
+    assert checks.loc["Topics counted in coverage", "Value"] == "1 excluded"
+    assert checks.loc["Topics counted in coverage", "State"] == "OK"
+    assert list(drawn.table("Top terms")["In coverage"]) == ["no"]
 
 
 def test_every_setting_the_page_names_is_one_that_exists(page) -> None:

@@ -9,6 +9,9 @@ test reaches.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 import requests
 from pages import SETTINGS, Answers, settings
@@ -17,15 +20,11 @@ pytestmark = pytest.mark.frontend
 
 #: Every page and the service its panel configures. One page configures one
 #: service, and this is that mapping as the views declare it.
-PAGES = [
-    ("upload", "ingestion"),
-    ("documents", "parsing"),
-    ("passages", "chunking"),
-    ("facts", "extraction"),
-    ("topics", "topics"),
-    ("questions", "questions"),
-    ("health", "platform"),
-]
+PAGES = sorted(
+    (view.stem, found[1])
+    for view in (Path(__file__).resolve().parents[2] / "frontend/views").glob("*.py")
+    if (found := re.search(r'configure\.panel\("(\w+)"\)', view.read_text()))
+)
 
 
 @pytest.mark.parametrize(("name", "service"), PAGES)

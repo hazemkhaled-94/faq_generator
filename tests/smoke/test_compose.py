@@ -40,6 +40,7 @@ EXPECTED = {
     "extract-worker",
     "topic-worker",
     "question-worker",
+    "assess-worker",
     "streamlit",
 }
 
@@ -181,13 +182,16 @@ def test_every_dependency_names_a_service_that_exists(resolved) -> None:
 def test_the_workers_run_the_stage_each_is_named_for(resolved) -> None:
     """One image serves all of them, so the command is what differs."""
     services = resolved["services"]
-    for worker, module in (
-        ("parse-worker", "preprocessing.parsing.run"),
-        ("chunk-worker", "preprocessing.chunking.run"),
-        ("extract-worker", "extraction.run"),
-        ("topic-worker", "topic_modelling.run"),
-        ("question-worker", "question_generation.run"),
-    ):
+    workers = {
+        "parse-worker": "preprocessing.parsing.run",
+        "chunk-worker": "preprocessing.chunking.run",
+        "extract-worker": "extraction.run",
+        "topic-worker": "topic_modelling.run",
+        "question-worker": "question_generation.run",
+        "assess-worker": "assessment.run",
+    }
+    assert set(workers) == {name for name in services if name.endswith("-worker")}
+    for worker, module in workers.items():
         command = " ".join(str(part) for part in services[worker].get("command", []))
         assert module in command, f"{worker} runs {command!r}"
 
@@ -214,35 +218,30 @@ def test_everything_waited_on_has_a_healthcheck_to_wait_for(resolved) -> None:
 def test_the_stages_wait_for_the_stores_they_write_to(resolved) -> None:
     """A worker that starts first fails its first row and stops."""
     services = resolved["services"]
-    for worker in (
-        "api",
-        "parse-worker",
-        "chunk-worker",
-        "extract-worker",
-        "question-worker",
-    ):
+    for worker in BACKEND_SERVICES:
         waits_for = set(services[worker].get("depends_on", {}))
         assert "postgres" in waits_for, f"{worker} waits for {sorted(waits_for)}"
 
 
-#: The services built from the backend image. One image, one PYTHONPATH, and
-#: one working tree bind-mounted over it.
-BACKEND_SERVICES = (
-    "api",
-    "parse-worker",
-    "chunk-worker",
-    "extract-worker",
-    "topic-worker",
-    "question-worker",
+#: The services built from the backend image, read off compose.yaml. One
+#: image, one PYTHONPATH, and one working tree bind-mounted over it.
+_DECLARED = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+BACKEND_SERVICES = tuple(
+    sorted(
+        name
+        for name, service in _DECLARED.items()
+        if service.get("image") == _DECLARED["api"]["image"]
+    )
 )
 
 
 def backend_packages() -> set[str]:
-    """Every importable package under backend/, as the image lays them out."""
+    """Every importable package and module under backend/, as the image has them."""
     return {
         found.name
         for found in (ROOT / "backend").iterdir()
-        if found.is_dir() and (found / "__init__.py").exists()
+        if (found.is_dir() and (found / "__init__.py").exists())
+        or found.suffix == ".py"
     }
 
 
@@ -257,7 +256,7 @@ def mounted_packages(service: dict) -> set[str]:
 
 @pytest.mark.parametrize("service", BACKEND_SERVICES)
 def test_every_backend_service_mounts_every_backend_package(resolved, service) -> None:
-    """One image serves all six, so one of them mounting less runs a mix.
+    """One image serves all seven, so one of them mounting less runs a mix.
 
     The failure this catches is not a missing file. The package is in the
     image, so a container whose mount list has fallen behind runs today's
@@ -345,7 +344,7 @@ def test_the_orchestrator_is_told_where_the_backend_is(resolved, service) -> Non
 def test_the_orchestrator_does_not_run_the_backend_image(resolved, service) -> None:
     """The orchestrator is not built from the backend image.
 
-    That image serves the api and all five workers and carries torch,
+    That image serves the api and all six workers and carries torch,
     spaCy, Docling and litellm because some process in it needs each. This
     one makes HTTP calls: sharing it would put three gigabytes behind a
     process whose whole job is to POST and poll.
