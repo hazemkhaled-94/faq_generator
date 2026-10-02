@@ -42,6 +42,21 @@ def row(
     return Row(id=id, answerable=answerable, difficulty=band, question_type=kind)
 
 
+#: A pool whose kinds sit unevenly across the bands, as a real run's do.
+SKEWED = {
+    (Difficulty.EASY, QuestionType.FACTOID, True): 90,
+    (Difficulty.MEDIUM, QuestionType.FACTOID, True): 20,
+    (Difficulty.HARD, QuestionType.FACTOID, True): 2,
+    (Difficulty.EASY, QuestionType.REASON, True): 10,
+    (Difficulty.MEDIUM, QuestionType.REASON, True): 40,
+    (Difficulty.HARD, QuestionType.REASON, True): 30,
+    (Difficulty.EASY, QuestionType.COMPARISON, True): 5,
+    (Difficulty.MEDIUM, QuestionType.COMPARISON, True): 30,
+    (Difficulty.HARD, QuestionType.COMPARISON, True): 40,
+}
+SKEWED_TYPES = {**TYPES, QuestionType.COMPARISON: 1}
+
+
 def pool(counts: dict[tuple[str, str, bool], int]) -> list[Row]:
     """A pool holding this many questions of each band, kind and answerability."""
     built: list[Row] = []
@@ -234,20 +249,14 @@ def test_a_release_may_come_a_little_short_of_its_quota() -> None:
     target is "about a third each", so a few places short is taken and
     reported rather than thrown away.
     """
-    counted = {
-        (band, kind, True): 60
-        for band in (Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD)
-        for kind in (QuestionType.FACTOID, QuestionType.REASON)
-    }
-    held = pool(counted)
+    held = pool(SKEWED)
 
-    release = largest(held, BANDS, TYPES, 0.0)
-    got = composition(held, release.ids)
-    bands = got["difficulty"]
+    release = largest(held, BANDS, SKEWED_TYPES, 0.0)
+    exact = largest(held, BANDS, SKEWED_TYPES, 0.0, tolerance=0.0)
 
-    # Nearly the whole pool, and every band within a few points of a third.
-    assert release.size > len(held) * 0.9
-    assert max(bands.values()) - min(bands.values()) <= release.size * 0.05
+    assert release.short, "the pool fills every quota, so nothing was tolerated"
+    assert close_enough(release)
+    assert release.size > exact.size
 
 
 def test_what_it_could_not_fill_is_still_reported() -> None:
@@ -273,16 +282,12 @@ def test_the_tolerance_is_set_above_the_endgame_not_below_it() -> None:
     a largest release of 58; at 8% the same questions gave 1,145, with the
     bands closer to even. So this is a floor as much as a ceiling.
     """
-    counted = {
-        (band, kind, True): 60
-        for band in (Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD)
-        for kind in (QuestionType.FACTOID, QuestionType.REASON)
-    }
-    held = pool(counted)
+    held = pool(SKEWED)
 
-    release = largest(held, BANDS, TYPES, 0.0)
+    release = largest(held, BANDS, SKEWED_TYPES, 0.0)
+    tight = largest(held, BANDS, SKEWED_TYPES, 0.0, tolerance=0.03)
 
-    assert release.size > len(held) * 0.9
+    assert release.size > tight.size
 
 
 def test_a_bucket_the_pool_genuinely_cannot_supply_is_still_refused() -> None:

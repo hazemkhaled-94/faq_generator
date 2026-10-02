@@ -670,14 +670,18 @@ def test_a_passage_with_nothing_left_widens_to_itself() -> None:
 
 def test_a_widened_fact_is_spent_and_never_dealt_again() -> None:
     """A sample is an offer, and offering one twice writes it twice."""
-    deal = Deal(facts_of(1, "a", count=4) + facts_of(2, "b", count=2), wanted=2, size=2)
+    deal = Deal(facts_of(1, "a", count=6), wanted=3, size=2, rounds=3)
     root = deal.sample()
     assert root is not None
-    taken = {fact.id for fact in deal.widen(root).facts}
+    widened = {fact.id for fact in deal.widen(root).facts} - {f.id for f in root.facts}
 
-    later = deal.sample()
+    later = set()
+    while (one := deal.sample()) is not None:
+        later |= {fact.id for fact in one.facts}
 
-    assert later is None or not (taken & {fact.id for fact in later.facts})
+    assert widened, "nothing was widened, so nothing could be dealt twice"
+    assert later, "the passage was not offered again"
+    assert not widened & later
 
 
 # ── Which shape of fact a form is offered first ────────────────────────────

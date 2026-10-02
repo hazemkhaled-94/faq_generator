@@ -7,6 +7,8 @@ malformed question reach the verifier is a test of a bill.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 from factories import candidate, group, source
 
@@ -40,7 +42,7 @@ from question_generation.gates import (
     structural,
 )
 from question_generation.models import Neighbour
-from question_generation.verifier import Reading
+from question_generation.verifier import Reading, Verifier
 
 pytestmark = pytest.mark.nlp
 
@@ -335,7 +337,6 @@ class Recording:
         #: one that always said yes would hide every rejection below it.
         self.backs = backs
         self.threaded: tuple = ()
-        self.asked: str = ""
         self.embedded = 0
         self.verified = 0
         self.supported = 0
@@ -1010,6 +1011,7 @@ def test_a_self_judged_verifier_cannot_reject_for_naming_a_source() -> None:
         verifier=recording,
         nearest=lambda embedding: None,
         threshold=0.93,
+        phrasing=recording,
         judge_phrasing=False,
     )
 
@@ -1260,7 +1262,12 @@ def test_no_gate_asks_the_verifier_what_kind_of_question_it_is_reading() -> None
         )
     )
 
-    assert recording.asked == ""
+    assert list(inspect.signature(Verifier.read).parameters) == [
+        "self",
+        "question",
+        "passages",
+        "thread",
+    ]
 
 
 def test_the_type_and_the_form_are_stored_on_the_question() -> None:
@@ -1551,7 +1558,7 @@ def test_a_floor_of_zero_turns_the_gate_off() -> None:
     assert on_topic("What is the top speed of a swallow?", "en", frozenset({"a"}), 0.0)
 
 
-def test_an_unanswerable_question_another_passage_answers_is_refused() -> None:
+def test_an_unanswerable_question_no_other_passage_answers_stands() -> None:
     """The one claim here that is about the corpus and not about two passages.
 
     A question wrongly carrying "nothing here answers this" marks a correct

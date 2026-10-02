@@ -266,7 +266,7 @@ def test_a_topic_writes_no_more_than_it_was_asked_for() -> None:
 
     service.process_next()
 
-    assert len(queue.written) >= SETTINGS.per_topic
+    assert len(queue.stored[0]) == SETTINGS.per_topic, "one thread per root"
 
 
 def test_the_run_sees_what_it_has_already_accepted() -> None:
@@ -483,14 +483,20 @@ def test_a_rejected_root_is_never_followed() -> None:
 
 def test_a_follow_up_is_written_from_the_same_sample_as_its_root() -> None:
     """So the thread is about one subject rather than two in sequence."""
-    facts = [source(n, document="a", passage_id=1) for n in range(3)]
+    facts = [source(n, document="a", passage_id=n // 3) for n in range(12)]
+    passage_of = {one.id: one.passage_id for one in facts}
     service, queue = build(topic(), facts)
 
     service.process_next()
 
-    for thread in queue.stored[0]:
-        cited = {fact for one in thread for fact in one.fact_ids}
-        assert cited <= {one.id for one in facts}
+    followed = [thread for thread in queue.stored[0] if len(thread) > 1]
+    assert followed, "no thread ran past its root"
+    for root, *rest in followed:
+        for one in rest:
+            assert set(root.fact_ids) <= set(one.fact_ids)
+            assert {passage_of[f] for f in one.fact_ids} <= {
+                passage_of[f] for f in root.fact_ids
+            }
 
 
 def test_a_follow_up_is_shown_what_was_already_asked() -> None:
