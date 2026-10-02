@@ -787,6 +787,7 @@ class AssessmentCatalog(Repository):
                     Assessment.judge_model,
                     Assessment.assessed_at,
                     _VERDICT[kind].label("verdict"),
+                    Assessment.assess_status,
                 )
                 .join(entity, key == link)
                 .where(Assessment.artifact_kind == kind, link.in_(ids))
@@ -797,7 +798,7 @@ class AssessmentCatalog(Repository):
                 id=row[0],
                 kind=kind,
                 artifact_id=row[1],
-                status=Status.ASSESSED,
+                status=row[6],
                 approved=row[2],
                 judge_model=row[3],
                 prompt_version=None,

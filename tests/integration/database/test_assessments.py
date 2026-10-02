@@ -332,6 +332,16 @@ def test_verdicts_are_read_back_by_artefact_id(corpus) -> None:
     assert len(found[corpus["fact"]].metrics) == 2
 
 
+def test_a_verdict_not_yet_reached_reads_as_waiting(corpus) -> None:
+    """A row the judge has not got to is not `assessed`."""
+    AssessmentQueue(kinds=("fact",)).start()
+
+    found = AssessmentCatalog().verdicts_for("fact", [corpus["fact"]])
+
+    assert found[corpus["fact"]].status == Status.PENDING
+    assert found[corpus["fact"]].approved is None
+
+
 def test_a_page_across_the_kinds_is_one_window_and_not_three(corpus) -> None:
     """Every row once, in id order, however many kinds are in the page.
 
