@@ -105,3 +105,12 @@ def test_the_runs_there_are_can_be_listed(stored) -> None:
     found = {run: total for run, total, _ in stored.known()}
 
     assert found == {"run-a": 10, "run-b": 10}
+
+
+def test_a_deleted_run_is_listed_by_when_it_ran(stored, engine) -> None:
+    """The archive's own ids say when a row was deleted, not when it was written."""
+    with engine.begin() as connection:
+        connection.execute(text("SELECT setval('archived_rows_id_seq', 1000000)"))
+        connection.execute(text("DELETE FROM questions WHERE run_id = 'run-a'"))
+
+    assert [run for run, _, _ in stored.known()] == ["run-b", "run-a"]

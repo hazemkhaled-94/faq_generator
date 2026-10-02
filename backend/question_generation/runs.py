@@ -26,7 +26,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, literal, select, union_all
+from sqlalchemy import BigInteger, func, literal, select, union_all
 
 from database.qa_generator import Question, QuestionStatus
 from database.qa_generator.archived_rows import ArchivedRow
@@ -147,7 +147,7 @@ class RunCatalog(Repository):
         archived = select(
             ArchivedRow.payload["run_id"].astext.label("run"),
             func.count().label("total"),
-            func.max(ArchivedRow.id).label("newest"),
+            func.max(ArchivedRow.payload["id"].astext.cast(BigInteger)).label("newest"),
             literal(True).label("archived"),
         ).where(
             ArchivedRow.table_name == "questions",
