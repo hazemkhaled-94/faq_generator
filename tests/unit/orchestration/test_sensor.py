@@ -411,8 +411,10 @@ def test_every_stage_is_asked_at_once(monkeypatch) -> None:
     monkeypatch.setattr(orchestration, "Backend", Slow)
     stages = len(orchestration.stages.ALL_STAGES)
 
+    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+
     began = time.monotonic()
-    orchestration.progress(build_sensor_context(instance=DagsterInstance.ephemeral()))
+    orchestration.progress(context)
     took = time.monotonic() - began
 
     assert took < held * stages / 2
