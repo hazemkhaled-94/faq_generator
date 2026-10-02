@@ -410,7 +410,7 @@ def test_a_passage_runs_out_of_facts_before_it_runs_out_of_rounds() -> None:
 
 
 def test_rounds_of_one_is_what_it_always_was() -> None:
-    """The default, so nothing changes for a deployment that does not ask."""
+    """The `Deal` default; QUESTIONS_SAMPLES_PER_PASSAGE ships at 3."""
     facts = [f for p in range(3) for f in facts_of(p, "a", count=4)]
 
     once = Deal(facts, wanted=10, size=2)

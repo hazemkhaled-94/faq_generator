@@ -9,8 +9,19 @@ import os
 import signal
 from typing import Any
 
+import pytest
+
 from stages.service import StageService
 from stages.worker import Shutdown, watch
+
+
+@pytest.fixture(autouse=True)
+def _handlers():
+    """Puts back the SIGTERM and SIGINT handlers a Shutdown installs."""
+    held = {one: signal.getsignal(one) for one in (signal.SIGTERM, signal.SIGINT)}
+    yield
+    for one, handler in held.items():
+        signal.signal(one, handler)
 
 
 def test_a_signal_is_recorded_rather_than_raised() -> None:

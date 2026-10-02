@@ -94,10 +94,9 @@ def test_the_whole_golden_set_is_scored(extractor) -> None:
         )
         expected += example["claims"]
 
+    assert proposed, "the model proposed nothing for any passage"
     print(
         f"\ngolden set: {proposed} proposed, {validated} validated, "
         f"{expected} expected; "
         f"precision {validated / proposed:.0%}, recall {validated / expected:.0%}"
     )
-
-    assert proposed, "the model proposed nothing for any passage"

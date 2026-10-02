@@ -2396,7 +2396,7 @@ def test_subject_matter_is_not_a_credits_page() -> None:
 
 
 def test_a_density_of_zero_turns_the_reading_off() -> None:
-    """The default, so a caller that says nothing gets every passage."""
+    """Zero excludes nothing; the default and QUESTIONS_PARTY_DENSITY are 0.25."""
     assert not names_parties("Graham Bath, Judy McKay, Rex Black", "en", 0.0)
 
 

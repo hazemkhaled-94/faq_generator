@@ -850,7 +850,7 @@ def test_a_passage_of_names_is_never_asked_about() -> None:
 
 
 def test_a_density_of_zero_asks_about_every_passage() -> None:
-    """The default, so nothing is excluded unless a deployment says so."""
+    """Zero excludes nothing; QUESTIONS_PARTY_DENSITY ships at 0.25."""
     credits = "Graham Bath, Judy McKay, Tauhida Parveen, Rex Black, Mike Smith"
     facts = [source(1, passage_id=1, passage_text=credits, language="en")]
     service, queue = build(
