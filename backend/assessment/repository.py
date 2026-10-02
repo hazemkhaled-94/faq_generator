@@ -25,7 +25,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy import insert as sa_insert
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg, insert
 from sqlalchemy.orm import InstrumentedAttribute
 
 from assessment.models import (
@@ -116,8 +116,10 @@ _LINK: dict[str, tuple[Any, Any, Any]] = {
 
 def _question_facts():
     """The facts one question rests on, as the list a template takes."""
+    # The first _FACTS_SHOWN by id, so two runs show one question the same list.
+    listed = array_agg(aggregate_order_by(func.concat("- ", Fact.statement), Fact.id))
     return (
-        select(func.string_agg(func.concat("- ", Fact.statement), "\n"))
+        select(func.array_to_string(listed[1:_FACTS_SHOWN], "\n"))
         .select_from(QuestionFact)
         .join(Fact, Fact.id == QuestionFact.fact_id)
         .where(QuestionFact.question_id == Question.id)

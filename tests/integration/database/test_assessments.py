@@ -501,3 +501,28 @@ def test_a_stratified_sample_spans_the_languages(two_languages, engine) -> None:
     chosen = _enrolled_questions(engine)
     assert len(chosen & set(two_languages["de"])) == 1
     assert len(chosen & set(two_languages["en"])) == 1
+
+
+def test_a_question_is_judged_on_its_first_facts_in_order(engine, database) -> None:
+    """At most _FACTS_SHOWN of them, by id, so two runs show the same list."""
+    with Session(engine) as session:
+        sha = digest("a")
+        session.add(document(sha))
+        session.flush()
+        held = passage(sha)
+        session.add(held)
+        session.flush()
+        facts = [fact(held.id, statement=f"Claim {n}.") for n in range(10)]
+        session.add_all(facts)
+        asked = question(target_answer="Ten.", status=QuestionStatus.ACCEPTED)
+        session.add(asked)
+        session.flush()
+        session.add_all(link(asked.id, one.id) for one in reversed(facts))
+        session.commit()
+
+    queue = AssessmentQueue(kinds=("question",), sample=0, stratify=False)
+    queue.start()
+    claimed = queue.claim()
+
+    assert claimed is not None
+    assert claimed.fields["facts"].splitlines() == [f"- Claim {n}." for n in range(8)]
