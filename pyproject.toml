@@ -373,6 +373,9 @@ filterwarnings = [
     # is also what a leaked psycopg connection raises - which was a real
     # defect in tests/conftest.py and has to keep failing.
     "ignore:Unclosed <MemoryObject(Receive|Send)Stream:ResourceWarning",
+    # pytest-benchmark notes a benchmark at collection, before `-m` deselects
+    # it, and warns under xdist that it cannot run one.
+    "ignore::pytest_benchmark.logger.PytestBenchmarkWarning",
 ]
 
 # Measured over every package a deployment runs, not just the backend: the
