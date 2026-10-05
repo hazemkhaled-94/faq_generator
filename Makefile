@@ -512,7 +512,7 @@ schema-down:
 # records it as being at the newest revision. For a deployment that predates
 # migrations.
 schema-stamp:
-	$(LOADENV) && poetry run alembic stamp head
+	$(LOADENV) && poetry run alembic stamp $(or $(rev),head)
 
 # Drops every table and rebuilds from the revisions. Irreversible.
 schema-reset:
