@@ -244,14 +244,39 @@ def _refers(token) -> bool:
     return "3" in token.morph.get("Person") or "Dem" in token.morph.get("PronType")
 
 
+#: Nouns naming the source document, as lemma or as written.
+_SOURCE = frozenset(
+    {
+        "syllabus",
+        "section",
+        "chapter",
+        "document",
+        "lehrplan",
+        "lehrplans",
+        "abschnitt",
+        "kapitel",
+        "dokument",
+    }
+)
+
+
+def _sourced(token) -> bool:
+    """Whether a determiner's head or next word names the source document."""
+    nouns = [token.head] + ([token.nbor()] if token.i + 1 < len(token.doc) else [])
+    return any({t.lemma_.casefold(), t.text.casefold()} & _SOURCE for t in nouns)
+
+
 def _opens(token) -> bool:
     """Whether a token opening a statement points at something before it.
 
-    A demonstrative determiner, `Diese Bibliotheken`, or a German pronominal
-    adverb, `Hierfür`.
+    A demonstrative determiner, `Diese Bibliotheken`, unless it names the
+    source document, `Dieser Lehrplan`; or a German pronominal adverb,
+    `Hierfür`.
     """
     return (
-        token.pos_ == "DET" and "Dem" in token.morph.get("PronType", [])
+        token.pos_ == "DET"
+        and "Dem" in token.morph.get("PronType", [])
+        and not _sourced(token)
     ) or token.tag_ == "PROAV"
 
 

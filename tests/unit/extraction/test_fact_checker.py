@@ -191,6 +191,32 @@ def test_a_statement_opening_on_a_demonstrative_is_refused(
 
 
 @pytest.mark.parametrize(
+    ("statement", "language"),
+    [
+        ("This syllabus defines adaptability as the ease of modification.", "en"),
+        ("Each keyword in this training course syllabus is defined.", "en"),
+        ("This section focuses on branch testing.", "en"),
+        ("This chapter discusses black-box test techniques.", "en"),
+        ("Extracts from this document may be copied for non-commercial use.", "en"),
+        ("Dieser Lehrplan behandelt zwei Modelle.", "de"),
+        ("Die Lernziele dieses Lehrplans enden mit einem Aktionsverb.", "de"),
+        ("Dieser Abschnitt behandelt datengetriebenes Testen.", "de"),
+        ("Die in diesem Kapitel behandelten Verfahren sind Black-Box-Verfahren.", "de"),
+    ],
+)
+def test_a_demonstrative_naming_the_source_document_is_not_a_reference(
+    statement, language
+) -> None:
+    """`Dieser Lehrplan` is the document the citation names."""
+    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code != Rejection.UNRESOLVED_REFERENCE, (
+        judged.validation_error
+    )
+    assert not judged.unresolved_references
+
+
+@pytest.mark.parametrize(
     ("statement", "cited"),
     [
         ("Ein zentrales Risiko ergibt sich aus Handelskonflikten.", 0),
