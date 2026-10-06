@@ -226,13 +226,17 @@ Acceptance falls from 37.1% at the root to 31.4% and 26.4%.
 | Difficulty | `easy` 352, `medium` 335, `hard` 352 — 33.9 / 32.2 / 33.9% |
 | Unanswerable | 105 — 10.1%, against a ceiling of 10% |
 
-`comparison` is short of its quota: the pool holds only 34 accepted
-comparisons after re-verification, so the release takes all it can. Every
-other kind filled its target.
+The draw aimed at 1,055 places and filled 1,039: it ran 16 short on `medium`.
+`comparison` is at its weighted target, not short of supply.
+`QUESTIONS_RELEASE_TYPES` weighs it 1 against 4 for every other kind, so its
+quota is 25; the release drew 23 of the 34 accepted, within `TOLERANCE`. The
+kind the pool could not supply is `aggregation`: all 97 accepted were drawn,
+6 short of its quota of 103.
 
 The accepted pool was 53.7% easy and 22.0% unanswerable; the release is
 evenly banded and at its unanswerable ceiling. Re-verification shrank the
-comparison pool from 188 to 34, so the kind mix is uneven at that type only.
+comparison pool from 188 to 34, and the release weight keeps that kind at a
+quarter of the others' share.
 
 ## Coverage
 
