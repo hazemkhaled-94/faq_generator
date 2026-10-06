@@ -340,7 +340,7 @@ def structural(
         return (
             QuestionRejection.MALFORMED,
             (
-                f"it asks how many and answers {leading.group(1)}, the number "
+                f"it asks how many and answers {word}, the number "
                 f"of facts it cites, so it counts the prompt and not the corpus"
             ),
         ), form
