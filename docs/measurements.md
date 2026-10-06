@@ -1,9 +1,10 @@
 # Measurements
 
-Every number on this page comes from one run of the pipeline, on
-**2026-09-26**. Nothing here is averaged over runs or carried forward from an
-earlier one: re-measuring means taking a corpus through again and rewriting
-the page.
+Every number on this page comes from one pipeline run. The corpus,
+extraction, topic, and evaluation figures are from **2026-09-26**. The
+accepted pool and release were re-verified under fixed gates and redrawn on
+**2026-10-06** — same 16 documents, same 5,873 written questions, no
+re-extraction.
 
 This is the only place in the repository that holds run figures. A README
 that needs one links here.
@@ -96,9 +97,9 @@ German documents, 4 the other way.
 
 | Block type | Passages | Carrying a validated fact |
 |---|---|---|
-| `text` | 2,022 | 1,679 |
-| `list_item` | 570 | 374 |
-| `table` | 329 | 207 |
+| `text` | 2,022 | 1,646 |
+| `list_item` | 570 | 363 |
+| `table` | 329 | 193 |
 | `document_index` | 154 | 0 |
 
 `document_index` yields nothing: a contents page states no claim a citation
@@ -112,36 +113,38 @@ can rest on.
 |---|---|---|
 | Vocabulary after filtering | 2,870 terms | 2,445 terms |
 | Passages in no topic | 10 | 2 |
-| Largest topic, share of its language | 4.3% | 4.3% |
+| Largest topic, share of its language | 6.6% | 5.9% |
 
-Topics hold 42 to 308 dominant passages, 182.8 on average. 9 of the 76 went
+Topics hold 10 to 99 dominant passages, 40.4 on average. 9 of the 76 went
 unlabelled, below `TOPIC_LABEL_MIN_FACT_SHARE`.
 
 ## Question generation
 
-5,873 questions written, **2,416 accepted — 41.1%**. 4,186 candidates were
-first attempts and 1,687 were retries.
+5,873 questions written, **2,108 accepted — 35.9%**. 4,186 candidates were
+first attempts and 1,687 were retries. The accepted count reflects
+re-verification on 2026-10-06 under fixed type and duplicate gates; 308
+previously accepted questions were rejected at that step.
 
 | Gate | Refused | Share of written |
 |---|---|---|
 | `compound` | 881 | 15.0% |
 | `not_recoverable` | 520 | 8.9% |
 | `answerable_after_all` | 504 | 8.6% |
+| `wrong_type` | 304 | 5.2% |
 | `answerable_elsewhere` | 264 | 4.5% |
 | `asks_nothing_new` | 231 | 3.9% |
 | `answer_incomplete` | 200 | 3.4% |
+| `restates_question` | 153 | 2.6% |
 | `explanation_unusable` | 135 | 2.3% |
-| `restates_question` | 126 | 2.1% |
+| `duplicate` | 131 | 2.2% |
 | `leaks_source` | 120 | 2.0% |
-| `duplicate` | 100 | 1.7% |
 | `off_thread` | 76 | 1.3% |
 | `unanchored` | 71 | 1.2% |
 | `off_topic` | 69 | 1.2% |
-| `wrong_type` | 62 | 1.1% |
 | `wrong_form` | 49 | 0.8% |
 | `answer_too_long` | 31 | 0.5% |
+| `malformed` | 14 | 0.2% |
 | `answer_too_short` | 12 | 0.2% |
-| `malformed` | 6 | 0.1% |
 
 How far each gate was reached:
 
@@ -158,75 +161,78 @@ How far each gate was reached:
 
 | Kind | Accepted | Share |
 |---|---|---|
-| `reason` | 387 | 16.0% |
-| `condition` | 323 | 13.4% |
-| `factoid` | 311 | 12.9% |
-| `definition` | 268 | 11.1% |
-| `application` | 208 | 8.6% |
-| `comparison` | 188 | 7.8% |
-| `procedure` | 179 | 7.4% |
-| `consequence` | 159 | 6.6% |
-| `enumeration` | 151 | 6.3% |
-| `implication` | 131 | 5.4% |
-| `aggregation` | 111 | 4.6% |
+| `reason` | 366 | 17.4% |
+| `condition` | 319 | 15.1% |
+| `factoid` | 294 | 13.9% |
+| `definition` | 252 | 12.0% |
+| `application` | 177 | 8.4% |
+| `procedure` | 169 | 8.0% |
+| `enumeration` | 147 | 7.0% |
+| `consequence` | 132 | 6.3% |
+| `implication` | 121 | 5.7% |
+| `aggregation` | 97 | 4.6% |
+| `comparison` | 34 | 1.6% |
 
 `entity` and `temporal` carry a weight of 0 and were not written.
 
 | | | |
 |---|---|---|
-| Language | German 1,304 | English 1,112 |
-| Answerable | 1,945 — 80.5% | Unanswerable 471 — 19.5% |
-| Passage scope | `single_passage` 1,453 | `multi_passage` 963 |
-| Document scope | `single_document` 1,645 | `cross_document` 771 |
-| Topic scope | `single_topic` 1,976 | `multi_topic` 440 |
+| Language | German 1,146 | English 962 |
+| Answerable | 1,645 — 78.0% | Unanswerable 463 — 22.0% |
+| Passage scope | `single_passage` 1,332 | `multi_passage` 776 |
+| Document scope | `single_document` 1,476 | `cross_document` 632 |
+| Topic scope | `single_topic` 1,745 | `multi_topic` 363 |
 
 | Difficulty | Accepted | Share |
 |---|---|---|
-| `easy` | 1,211 | 50.1% |
-| `hard` | 666 | 27.6% |
-| `medium` | 539 | 22.3% |
+| `easy` | 1,131 | 53.7% |
+| `hard` | 539 | 25.6% |
+| `medium` | 438 | 20.8% |
 
 | Cognitive level | Accepted |
 |---|---|
-| `analyse` | 976 |
-| `apply` | 710 |
-| `understand` | 419 |
-| `recall` | 311 |
+| `analyse` | 750 |
+| `apply` | 665 |
+| `understand` | 399 |
+| `recall` | 294 |
 
-An accepted question cites 1.53 facts on average, at most 3.
+An accepted question cites 1.49 facts on average, at most 3.
 
 ### Answer length
 
 | Form | Accepted | Median | Mean | Range |
 |---|---|---|---|---|
-| `explanation` | 1,157 | 123 | 139 | 23 – 594 |
-| `list` | 399 | 104 | 113 | 9 – 293 |
-| `value` | 389 | 29 | 32 | 1 – 80 |
+| `explanation` | 978 | 127 | 141 | 25 – 594 |
+| `value` | 356 | 29 | 33 | 1 – 80 |
+| `list` | 311 | 100 | 109 | 9 – 291 |
 
 ### Follow-up threads
 
 | Position | Written | Accepted |
 |---|---|---|
-| 1 — root | 4,879 | 2,039 |
-| 2 | 717 | 277 |
-| 3 | 277 | 100 |
+| 1 — root | 4,879 | 1,810 |
+| 2 | 717 | 225 |
+| 3 | 277 | 73 |
 
-Acceptance falls from 41.8% at the root to 38.6% and 36.1%.
+Acceptance falls from 37.1% at the root to 31.4% and 26.4%.
 
 ## The balanced release
 
-1,341 questions drawn from the 2,416 accepted — a 55.5% yield. Every quota
-was filled but one.
+1,039 questions drawn from the 2,108 accepted — a 49.3% yield.
 
 | Held at | Result |
 |---|---|
-| Kind | 10 kinds at 123 — 9.2% each; `aggregation` 111 — 8.3%, the pool's limit |
-| Difficulty | `easy` 449, `medium` 445, `hard` 447 — 33.5 / 33.2 / 33.3% |
-| Unanswerable | 135 — 10.1%, against a ceiling of 10% |
+| Kind | `condition`, `factoid`, `reason` 103; `application`, `definition`, `implication`, `procedure` 102; `consequence`, `enumeration` 101; `aggregation` 97; `comparison` 23 |
+| Difficulty | `easy` 352, `medium` 335, `hard` 352 — 33.9 / 32.2 / 33.9% |
+| Unanswerable | 105 — 10.1%, against a ceiling of 10% |
 
-The accepted pool was 50.1% easy and 19.5% unanswerable; the release is
-evenly banded and at its unanswerable ceiling. That gap is what balancing
-does.
+`comparison` is short of its quota: the pool holds only 34 accepted
+comparisons after re-verification, so the release takes all it can. Every
+other kind filled its target.
+
+The accepted pool was 53.7% easy and 22.0% unanswerable; the release is
+evenly banded and at its unanswerable ceiling. Re-verification shrank the
+comparison pool from 188 to 34, so the kind mix is uneven at that type only.
 
 ## Coverage
 
@@ -234,12 +240,12 @@ does.
 |---|---|
 | Passages | 3,080 |
 | Passages a validated fact rests on | 2,205 — 71.6% |
-| Passages an accepted question rests on | 1,547 — 70.2% of askable, 50.2% of all |
+| Passages an accepted question rests on | 1,466 — 66.5% of askable, 47.6% of all |
 | Validated facts | 9,056 |
-| Facts an accepted question cites | 3,293 — 36.4% |
-| Questions per passage asked about | 1.56 |
+| Facts an accepted question cites | 2,904 — 32.1% |
+| Questions per passage asked about | 1.44 |
 | Questions per fact cited | 0.73 |
-| Accepted questions per topic | 196.5, from 1 to 395 |
+| Accepted questions per topic | 32.5 mean, 0 – 87 |
 
 The 875 passages carrying no validated fact are ones the extractor skipped or
 whose every statement a check refused.
@@ -251,12 +257,16 @@ How close a row came to the verdict that would have refused it.
 | | Rows | Mean | Range |
 |---|---|---|---|
 | Validated facts | 9,055 | 0.191 | 0.000 – 0.915 |
-| Accepted questions | 2,416 | 0.230 | 0.000 – 1.000 |
+| Accepted questions | 2,108 | 0.228 | 0.000 – 1.000 |
 
 ## The evaluation phase
 
 `azure/gpt-4.1` over a sample of 200 facts, 200 questions and all 76 topics.
 It records an opinion and changes no verdict.
+
+The sample was drawn newest-first by id, not stratified: facts 11,955–12,154
+and questions 5,597–5,873 — the last-written German slice. These figures
+describe that slice, not the corpus as a whole.
 
 | Artefact | Judged | Approved | Refused |
 |---|---|---|---|
@@ -289,10 +299,10 @@ Questions:
 
 | | Judge approved | Judge refused |
 |---|---|---|
-| Accepted | 71 | 20 |
-| Rejected | 73 | 36 |
+| Accepted | 60 | 16 |
+| Rejected | 84 | 40 |
 
-The judge approves 86 of the 96 facts the checker refused and 73 of the 109
+The judge approves 86 of the 96 facts the checker refused and 84 of the 124
 questions the gates rejected. The two do not measure the same thing: the
 checker asks whether a citation resolves and a gate holds, the judge whether
 an artefact reads as sound. The disagreeing pairs are the queue for a person.
