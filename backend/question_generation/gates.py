@@ -223,6 +223,16 @@ def fitting(
 #: The opening of a question asking for a count.
 _HOW_MANY = r"^(how many|wie viele)\b"
 
+#: Counts written out, in the two languages NLP_MODELS configures.
+_COUNTS = {
+    word: value
+    for words in (
+        "two three four five six seven eight nine ten eleven twelve",
+        "zwei drei vier fünf sechs sieben acht neun zehn elf zwölf",
+    )
+    for value, word in enumerate(words.split(), start=2)
+}
+
 
 def structural(
     *,
@@ -316,14 +326,16 @@ def structural(
     # A count of the facts the writer was handed rather than of anything the
     # corpus holds.
     #
-    # ponytail: a count written in digits only; `zwei` and `two` pass.
-    # Upgrade: read number words off the parse.
-    leading = re.match(r"\s*(\d+)\b", target_answer or "")
+    # ponytail: digits, or a word from two to twelve in German or English; a
+    # third language or a larger written count passes. Upgrade: read number
+    # words off the parse.
+    leading = re.match(r"\s*(\w+)", target_answer or "")
+    word = leading.group(1).lower() if leading else ""
+    said = int(word) if word.isdecimal() else _COUNTS.get(word)
     if (
         re.search(_HOW_MANY, normalised(asked))
-        and leading
         and len(statements) > 1
-        and int(leading.group(1)) == len(statements)
+        and said == len(statements)
     ):
         return (
             QuestionRejection.MALFORMED,

@@ -2351,6 +2351,41 @@ def test_a_count_equal_to_the_facts_cited_is_malformed() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            (
+                "How many sections are identified across ATDD's approach type "
+                "and the BDD scenario part that triggers behavior?"
+            ),
+            "two sections",
+            "en",
+        ),
+        (
+            "Wie viele Abschnitte nennen die Angaben zu ATDD und BDD zusammen?",
+            "Zwei Abschnitte",
+            "de",
+        ),
+    ],
+)
+def test_a_count_written_out_equal_to_the_facts_cited_is_malformed(
+    question: str, answer: str, language: str
+) -> None:
+    """`two` and `zwei` count the offer as surely as `2` does."""
+    assert (
+        code(
+            checked(
+                question_text=question,
+                target_answer=answer,
+                language=language,
+                statements=_TWO_FACTS,
+            )
+        )
+        == QuestionRejection.MALFORMED
+    )
+
+
 def test_a_count_the_facts_cited_do_not_equal_is_left_alone() -> None:
     """Three steps out of two facts is a count of something else."""
     assert (
