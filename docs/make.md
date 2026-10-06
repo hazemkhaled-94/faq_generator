@@ -38,7 +38,7 @@ the first passage of a run:
   ok       PHOENIX_ADMIN_SECRET
   ok       LLM_BASE_URL is not host-local
 
-Asking azure/gpt-5.4 one question...
+Asking <LLM_MODEL> one question...
 ```
 
 ## The short list

@@ -33,9 +33,7 @@ database:
 | Assessment | Judgement of a question by an independent model |
 | Summary | The counts for what the filter selected |
 
-The run recorded in [docs/measurements.md](docs/measurements.md) produced
-2,416 accepted questions from 16 documents, and a balanced release of 1,341
-of them.
+See [docs/measurements.md](docs/measurements.md) for what one run produced.
 
 ## Prerequisites
 
