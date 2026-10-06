@@ -135,13 +135,6 @@ after corpus ingestion is complete does not persist across a Dagster restart.
 Fix: gate the sensor on an explicit `INGESTION_OPEN` flag rather than on row
 presence.
 
-**F128 — Re-judging an atomic fact blanks every citation span but its first.**
-`rejudge` in [`repository.py`](../backend/extraction/repository.py) clears
-the span on every citation of a fact and restores only the one the checker
-returns. `make extract-revalidate` would leave the boilerplate facts' second
-citations pointing at no sentence. Fix: rewrite spans only for the passages
-the checker returned.
-
 ## Reproducing this page
 
 The counts are queries over `questions`, `facts`, `question_facts` and

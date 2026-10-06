@@ -850,6 +850,31 @@ class TestRejudging:
         assert statement == "A claim.", "the statement is never rewritten"
         assert (validated, code) == (False, Rejection.COPIED)
 
+    def test_a_citation_the_verdict_does_not_name_keeps_its_span(
+        self, store, corpus
+    ) -> None:
+        """An atomic verdict cites its first passage; a twin's citation stays."""
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+        store.store(
+            other,
+            checked(
+                other,
+                "Requests are answered in 48 hours.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                twin_id=survivor,
+            ),
+        )
+        before = store.citations()
+
+        store.catalog.rejudge(
+            [(survivor, checked(first, "Requests are answered in 48 hours."))]
+        )
+
+        assert store.citations() == before
+
     def test_writing_no_verdicts_writes_nothing(self, store) -> None:
         """An empty batch is not a statement worth sending."""
         assert store.catalog.rejudge([]) == 0

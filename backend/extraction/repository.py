@@ -845,14 +845,7 @@ class FactCatalog(Repository):
                     for fact_id, checked in verdicts
                 ],
             )
-            # Cleared first: a passage the checks no longer resolve against
-            # keeps no span, and its row is left saying so rather than saying
-            # what last year's parse found.
-            session.execute(
-                update(_LINKS)
-                .where(_LINKS.c.fact_id.in_([fact_id for fact_id, _ in verdicts]))
-                .values(sentence_ids=None, evidence_start=None, evidence_end=None)
-            )
+            # Only the passages the verdict cites; None clears a span.
             spans = [
                 {
                     "row": fact_id,
