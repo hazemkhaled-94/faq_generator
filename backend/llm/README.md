@@ -84,9 +84,9 @@ key in a login keychain — and a container has none of them.
 
 ```ini
 LLM_MODEL=<what the host calls>                     # .env
-LLM_CONTAINER_MODEL=ollama_chat/gemma4:12b          # what the containers call
-QUESTIONS_VERIFIER_CONTAINER_MODEL=ollama_chat/granite4.2:8b
-OLLAMA_CONTAINER_URL=http://host.docker.internal:11434
+LLM_CONTAINER_MODEL=<what the containers call>
+QUESTIONS_VERIFIER_CONTAINER_MODEL=<what the containers verify with>
+OLLAMA_CONTAINER_URL=<where the containers reach Ollama>
 ```
 
 `LLM_CONTAINER_MODEL` and `OLLAMA_CONTAINER_URL` are **required**:

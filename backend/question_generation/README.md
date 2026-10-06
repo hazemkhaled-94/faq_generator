@@ -26,8 +26,8 @@ slot per question, each carrying the kind to write, the difficulty band to
 aim for, and whether it is meant to have an answer at all.
 
 ```ini
-QUESTIONS_TYPE_MIX=factoid:1,definition:1,entity:1,...
-QUESTIONS_DIFFICULTY_MIX=easy:2,medium:3,hard:3
+QUESTIONS_TYPE_MIX=factoid:<weight>,definition:<weight>,entity:<weight>,...
+QUESTIONS_DIFFICULTY_MIX=easy:<weight>,medium:<weight>,hard:<weight>
 ```
 
 Weights are spread over the slots by **highest averages**, so the counts are
@@ -65,9 +65,8 @@ cited, so a question that narrowed bands as what it is.
 
 A reading type is offered the condensed facts first; a `value` type is not.
 `QUESTIONS_MEETS_FLOOR` would narrow the sample where the second passage
-meets nothing, and ships at `0` — the sweep found no threshold that removes
-the welds without throwing away sound questions. See
-[measurements](../../docs/measurements.md).
+meets nothing, and ships off — the sweep found no threshold that removes
+the welds without throwing away sound questions.
 
 **The corpus's own furniture is never offered.** A copyright notice, contents
 page or revision table is real text a fact extracts from cleanly and no gate
@@ -211,7 +210,7 @@ Applied cheapest first.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|
-| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, or is one of its own facts handed back | nothing |
+| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or asks how many and answers with the number of facts it cites | nothing |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |
 | `wrong_form` | answers in the wrong shape | nothing |
@@ -229,7 +228,7 @@ Applied cheapest first.
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
 | `answer_incomplete` | has a key naming far less than the verifier found | the same round trip |
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite answers it | a lemma probe and a second call |
-| `source_changed` | rests on a fact that no longer passes its own checks | nothing |
+| `source_changed` | rests on a fact that no longer passes its own checks, or whose citations no longer match its stored passage or document scope | nothing |
 
 `questions.rejected_reason` holds exactly these. `source_changed` is the one
 no run of the writer produces — it is `make questions-reverify` carrying a
@@ -313,8 +312,7 @@ just out of reach. `QUESTIONS_UNANSWERABLE_SHARE` sets how many are
 planned `easy` and from one passage.
 
 Attempted, not held: they face three gates of their own, and those gates
-bite, which is why the default is `0.30` rather than the share a release
-should hold. Over-setting is safe — `QUESTIONS_RELEASE_UNANSWERABLE` is a
+bite, which is why the default sits above the share a release should hold. Over-setting is safe — `QUESTIONS_RELEASE_UNANSWERABLE` is a
 ceiling.
 
 | | |
@@ -393,8 +391,8 @@ They are **marginals, not a joint distribution**: an even spread of kinds
 within each band is not reachable, because a `factoid` answers with a value
 and a short answer cannot earn the length point a `hard` question needs.
 
-`QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill
-without missing a quota. The command reports what it drew, the yield, and any
+`QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
+within `TOLERANCE` of every quota. The command reports what it drew, the yield, and any
 quota the pool came up short on.
 
 Nothing is deleted and nothing is rewritten. A release is a column on rows

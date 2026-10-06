@@ -268,9 +268,10 @@ one `Status` enum, one container image. The rules are enforced by
   not modelled.
 - **`EMBEDDING_MODEL` cannot be changed without a migration.**
   `questions.embedding` is `vector(1024)`.
-- **The model is the bottleneck, not the pipeline.** Question generation was
-  two thirds of the wall clock and 71% of the spend on the measured run, and a
-  locally served model is one to two orders slower per call than a hosted one.
+- **The model is the bottleneck, not the pipeline.** Question generation takes
+  most of the wall clock and the spend ([measurements](docs/measurements.md)),
+  and a locally served model is one to two orders slower per call than a hosted
+  one.
 
 ## Licence
 

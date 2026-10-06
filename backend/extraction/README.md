@@ -51,7 +51,7 @@ A passage is skipped, and marked read with nothing found, when:
 A table is exempt from the last two, because it is read from its cell grid.
 It is not exempt from one more: a grid whose filled cells are more than half
 identifiers — `TA-BO1`, `K2`, `1.7`, a tick — states nothing a reader would
-look up. The threshold is 0.5; see [measurements](../../docs/measurements.md).
+look up. The share is `_CODE_CELLS` in [`service.py`](service.py).
 
 ### Step 3 — Read the claims
 
@@ -91,7 +91,7 @@ for, first failure winning:
 | asserts something | `asserts_nothing` | ● | ● | | ● |
 | exactly one claim | `not_atomic` | ● | | | ● |
 | nothing invented | `unsupported_addition` | ● | ● | ● | ● |
-| no dangling pronoun | `unresolved_reference` | ● | | | ● |
+| no dangling pronoun or demonstrative | `unresolved_reference` | ● | | | ● |
 | shorter than its passage | `not_condensed` | | ● | ● | |
 | two points or more | `not_listed` | | | ● | |
 | rests on two passages | `not_bridging` | | | | ● |

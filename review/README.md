@@ -82,8 +82,8 @@ python -m review.run --status
 often the person and the model reached the same one**:
 
 ```text
-facts: 120 of 12154 reviewed (98 accepted, 22 rejected); agreed with the model on 104 of them, 87%
-questions: 0 of 5873 reviewed; nobody has looked, so there is no agreement to report
+facts: <reviewed> of <total> reviewed (<accepted> accepted, <rejected> rejected); agreed with the model on <agreed> of them, <share>%
+questions: 0 of <total> reviewed; nobody has looked, so there is no agreement to report
 ```
 
 It is a query because the two verdicts are kept in different columns and
