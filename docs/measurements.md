@@ -1,8 +1,10 @@
 # Measurements
 
 Every number on this page describes one state of one pipeline run. The
-corpus, parsing, chunking, topic and evaluation figures, the wall clock and
-the spend are from the run of **2026-09-26**. The fact verdicts, the
+corpus, parsing, chunking and topic figures, the topic judgements, the wall
+clock and the spend are from the run of **2026-09-26**. The facts and
+questions under *The evaluation phase* were judged on **2026-10-06** in a
+stratified run of their own. The fact verdicts, the
 accepted pool and the release are that run's output as it stands on
 **2026-10-06**: the same 16 documents and the same 5,873 written questions,
 re-verified under fixed gates with two targeted fact repairs applied. It is
@@ -277,28 +279,48 @@ How close a row came to the verdict that would have refused it.
 
 ## The evaluation phase
 
-`azure/gpt-4.1` over a sample of 200 facts, 200 questions and all 76 topics.
-It records an opinion and changes no verdict.
+`azure/gpt-4.1` judges a sample of facts and questions, and every topic. It
+records an opinion and changes no verdict.
 
-The sample was drawn newest-first by id, not stratified: facts 11,955–12,154
-and questions 5,597–5,873 — the last-written German slice. These figures
-describe that slice, not the corpus as a whole.
+The facts and questions are one stratified run, identified in the database
+as `assessments.run_id = 'assess-stratified-2026-10-06'`. 200 of each kind
+were drawn with `ASSESSMENT_STRATIFY` set: questions spread evenly over
+language and question type, facts over language, in random order within
+each band. 8 of the 400 drawn had been judged before and were skipped, so
+the run enrolled 198 facts and 194 questions.
+
+1 verdict is left out. The network dropped during the run, and that row
+was stored on fewer metrics than its kind is due. Every figure below counts
+only the rows whose metrics are complete: the run's rows where the
+`assessment_metrics` count reaches `metrics_due`.
+
+| | German | English | Total |
+|---|---|---|---|
+| Facts | 100 | 98 | 198 |
+| Questions | 92 | 101 | 193 |
+
+The questions hold 17 to 19 of each of the 11 kinds. The facts are 140
+validated and 58 refused; the questions 85 accepted and 108 rejected.
+
+The 76 topics were judged in the run of 2026-09-26, all of them, so the
+stratified run had none to add.
 
 | Artefact | Judged | Approved | Refused |
 |---|---|---|---|
-| `fact` | 200 | 186 | 14 |
-| `question` | 200 | 144 | 56 |
+| `fact` | 198 | 180 | 18 |
+| `question` | 193 | 141 | 52 |
 | `topic` | 76 | 56 | 20 |
 
 | Metric | Judgements | Mean score | Approved |
 |---|---|---|---|
-| `toxicity` | 400 | 0.000 | 400 |
-| `conciseness` | 200 | 1.000 | 200 |
-| `refusal` | 200 | 0.040 | 192 |
-| `relevance` | 476 | 0.935 | 445 |
-| `qa_correctness` | 200 | 0.870 | 174 |
-| `hallucination` | 400 | 0.105 | 358 |
-| `summarization` | 76 | 0.803 | 61 |
+| `toxicity` | 391 | 0.000 | 391 |
+| `relevance` | 391 | 0.967 | 378 |
+| `hallucination` | 391 | 0.100 | 352 |
+| `conciseness` | 193 | 0.964 | 186 |
+| `qa_correctness` | 193 | 0.834 | 161 |
+| `refusal` | 193 | 0.041 | 185 |
+| `relevance`, topics | 76 | 0.829 | 63 |
+| `summarization`, topics | 76 | 0.803 | 61 |
 
 `hallucination` is scored to minimise: 0.0 is the good label.
 
@@ -308,20 +330,43 @@ Facts:
 
 | | Judge approved | Judge refused |
 |---|---|---|
-| Validated | 100 | 3 |
-| Refused | 86 | 11 |
+| Validated | 132 | 8 |
+| Refused | 48 | 10 |
 
 Questions:
 
 | | Judge approved | Judge refused |
 |---|---|---|
-| Accepted | 60 | 15 |
-| Rejected | 84 | 41 |
+| Accepted | 57 | 28 |
+| Rejected | 84 | 24 |
 
-The judge approves 86 of the 97 facts the checker refused and 84 of the 125
-questions the gates rejected. The two do not measure the same thing: the
-checker asks whether a citation resolves and a gate holds, the judge whether
-an artefact reads as sound. The disagreeing pairs are the queue for a person.
+Questions by language:
+
+| | Accepted, judge approved | Rejected, judge approved |
+|---|---|---|
+| German | 35 of 51 | 34 of 41 |
+| English | 22 of 34 | 50 of 67 |
+
+Judge approval of what the pipeline kept against what it refused, by a
+two-proportion z-test, with Fisher's exact test beside it for the small
+cells:
+
+| | Kept | Refused | p, z-test | p, Fisher |
+|---|---|---|---|---|
+| Questions | 57 of 85 — 67% | 84 of 108 — 78% | 0.096 | 0.105 |
+| Questions, German | 35 of 51 — 69% | 34 of 41 — 83% | 0.115 | 0.148 |
+| Questions, English | 22 of 34 — 65% | 50 of 67 — 75% | 0.298 | 0.354 |
+| Facts | 132 of 140 — 94% | 48 of 58 — 83% | 0.010 | 0.015 |
+| Facts, German | 66 of 70 — 94% | 25 of 30 — 83% | 0.079 | 0.123 |
+| Facts, English | 66 of 70 — 94% | 23 of 28 — 82% | 0.060 | 0.114 |
+
+At this sample size the judge does not distinguish accepted from rejected
+questions: the difference is not significant overall or in either language.
+It approves validated facts more often than refused ones across the sample,
+and the difference is significant there; within one language the samples
+are too small to tell. The two do not measure the same thing: the checker
+asks whether a citation resolves and a gate holds, the judge whether an
+artefact reads as sound. The disagreeing pairs are the queue for a person.
 
 ## Model latency
 
@@ -352,9 +397,30 @@ Not a run figure. `make test-coverage` re-measures.
 ```bash
 make corpus                       # every stage in order
 make questions-balance            # draw the release
-make assess-start && make assess  # the evaluation phase
 make pipeline-status              # the counts
 make spend LOG=run.log            # the calls and the cost
+```
+
+The evaluation phase's facts and questions, as the stratified run was
+invoked:
+
+```bash
+make assess-enrol ASSESSMENT_STRATIFY=true    # draw the sample; no model call
+make assess-start                             # queue it
+make assess RUN_ID=assess-stratified-2026-10-06
+```
+
+`assess-start` enrols again before it queues, and a stratified enrolment
+draws a new random sample each time, so it ran without
+`ASSESSMENT_STRATIFY`. Newest-first, its enrolment found nothing new.
+
+Its figures count only complete verdicts:
+
+```sql
+SELECT a.* FROM assessments a
+WHERE a.run_id = 'assess-stratified-2026-10-06'
+  AND (SELECT count(*) FROM assessment_metrics m WHERE m.assessment_id = a.id)
+      >= a.metrics_due;
 ```
 
 Per-stage wall clock comes from the run's log files in `./logs`, and the

@@ -10,7 +10,6 @@ figures; this one holds only what is wrong with them.
 |---|---|---|---|
 | [Two subjects welded under one question word](#two-subjects-welded-under-one-question-word) | 11 | [`gates.py`](../backend/question_generation/gates.py) | no |
 | [Questions that count their own citations](#questions-that-count-their-own-citations) | 4 | [`gates.py`](../backend/question_generation/gates.py) | partial |
-| [The evaluation phase judges the newest rows](#the-evaluation-phase-judges-the-newest-rows) | — | [`repository.py`](../backend/assessment/repository.py) | yes |
 
 15 of the 1,015 — **1.5%** — carry at least one of them.
 
@@ -70,24 +69,6 @@ question carrying *in den Angaben*, *zusammen*, *insgesamt*, *together*,
 *combined*, *in total* or *across … and …*, read by hand. That proxy flags 23;
 the other 19 use the words in their ordinary sense — *zusammengesetzt*, *im
 Zusammenhang mit*, *across the team*.
-
-## The evaluation phase judges the newest rows
-
-`_enrolment` orders by id descending so an incremental run judges what
-arrived since the last one. On a first run over a finished corpus that takes
-the tail: question ids 5,597–5,873 and fact ids 11,955–12,154, contiguous,
-**200 of 200 German and no English at all**. The assessed facts are 52%
-validated against 73.7% across the run, so the slice is not the corpus.
-
-Every figure under *The evaluation phase* in
-[measurements.md](measurements.md) therefore describes the last-written
-German slice — `qa_correctness`, `hallucination`, both disagreement matrices.
-
-**Fix shipped.** `ASSESSMENT_STRATIFY`, off by default in
-[`backend.env`](../configs/env/backend.env), enrols evenly across language
-and question type and orders randomly within each band. The figures in
-measurements.md stay the last-written German slice until a run is judged with
-it set.
 
 ## Measured limitations
 
