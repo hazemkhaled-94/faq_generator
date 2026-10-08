@@ -299,9 +299,10 @@ def publish(service: str, composed: Iterable[Composed], model: ModelSettings) ->
                         f"Also sent: {also}."
                     ),
                     # MUSTACHE, so the `{{name}}` in a user template reads as
-                    # the variable it is. Safe for the system half: no prompt
-                    # in the source carries a double brace, and the single
-                    # ones in bridge's worked example are not a substitution.
+                    # the variable it is. Safe for the system half: perturb's
+                    # `{{asks}}` and follow's `{{type}}` are filled in before
+                    # sending and are variables here too, and the single
+                    # braces in bridge's worked example are not a substitution.
                     template_format="MUSTACHE",
                     model_provider=named_provider,  # type: ignore[arg-type]
                 ),
