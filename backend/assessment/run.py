@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import sys
 
+import telemetry
 from assessment import prompts
 from assessment.config import Settings, judged_kinds
 from assessment.factory import UNNAMED, build_service, judge_model
@@ -55,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     # perfectly ordinary deployment, and it must not be stopped at
     # start-up by a setting for a model nothing is going to call.
     if not Settings.load(snapshot()[0]).enabled:
+        telemetry.configure("assessment", tracing=False)
         log.info("%s", OFF)
         return 0
 

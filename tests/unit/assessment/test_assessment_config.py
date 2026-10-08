@@ -7,6 +7,8 @@ is a different thing from finding an empty queue and has to read as one.
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from assessment import run as cli
@@ -181,12 +183,41 @@ def test_the_command_line_stops_when_the_phase_is_off(monkeypatch, caplog) -> No
     monkeypatch.setattr(
         "assessment.run.build_service", lambda *a: built.append(a) or None
     )
+    monkeypatch.setattr("assessment.run.telemetry.configure", lambda *a, **k: None)
 
     with caplog.at_level("INFO"):
         assert cli.main(["--status"]) == 0
 
     assert not built, "nothing is built when the phase is off"
     assert "ASSESSMENT_ENABLED" in caplog.text
+
+
+def test_the_phase_off_message_is_logged_once_logging_is_set_up(monkeypatch) -> None:
+    """Logged before the handlers exist, it reached nobody on the host."""
+    monkeypatch.setattr(
+        "assessment.run.snapshot",
+        lambda: ({**VALUES, "ASSESSMENT_ENABLED": "false"}, "environment"),
+    )
+    events: list[str] = []
+    monkeypatch.setattr(
+        "assessment.run.telemetry.configure",
+        lambda *a, **k: events.append("configured"),
+    )
+
+    class Recorder(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            events.append("logged")
+
+    logger = logging.getLogger("assessment.run")
+    handler = Recorder()
+    monkeypatch.setattr(logger, "level", logging.INFO)
+    logger.addHandler(handler)
+    try:
+        assert cli.main(["--status"]) == 0
+    finally:
+        logger.removeHandler(handler)
+
+    assert events == ["configured", "logged"]
 
 
 def test_a_judge_named_as_the_writer_is_warned_about(caplog) -> None:
