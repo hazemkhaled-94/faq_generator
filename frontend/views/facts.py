@@ -300,6 +300,9 @@ def view() -> None:
             ],
             key="facts-table",
             column_config={
+                # Widths of "deterministic" and "Within the passage's share".
+                "Method": st.column_config.TextColumn(width=110),
+                "Failed check": st.column_config.TextColumn(width=200),
                 "Statement": st.column_config.TextColumn(width="large"),
                 "Cited": st.column_config.TextColumn(width="medium"),
             },
