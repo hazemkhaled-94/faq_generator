@@ -6,6 +6,8 @@ with the reason, because a status page that 500s says nothing at all.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from api.status import Counter, StatusService
@@ -32,8 +34,32 @@ def test_a_healthy_backend_reports_every_component(service) -> None:
 
 
 def test_the_database_reports_the_schema_as_applied(service) -> None:
-    """Every model's table is compared against the live ones."""
-    assert service.snapshot()["database"].detail == "Connected, schema applied."
+    """The live revision is the code's head."""
+    database = service.snapshot()["database"]
+
+    assert database.ok
+    assert database.detail == "Connected, schema applied."
+
+
+def test_a_database_behind_the_code_names_both_revisions(service, engine) -> None:
+    """Every table exists one revision back, so only the revision tells."""
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import text
+
+    migrations = Path(__file__).resolve().parents[2] / "backend/database/migrations"
+    head = ScriptDirectory(str(migrations)).get_revision("head")
+    stamp = text("UPDATE alembic_version SET version_num = :revision")
+    with engine.begin() as connection:
+        connection.execute(stamp, {"revision": head.down_revision})
+    try:
+        database = service.snapshot()["database"]
+    finally:
+        with engine.begin() as connection:
+            connection.execute(stamp, {"revision": head.revision})
+
+    assert database.ok is False
+    assert head.revision in database.detail
+    assert head.down_revision in database.detail
 
 
 def test_the_object_store_names_and_measures_its_buckets(service) -> None:
