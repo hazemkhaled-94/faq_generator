@@ -328,3 +328,20 @@ def test_the_api_and_the_frontend_hold_no_phoenix_admin_secret() -> None:
     ]
 
     assert not holding, "\n".join(holding)
+
+
+def test_every_image_built_here_runs_with_no_capability_and_no_way_to_gain_one() -> (
+    None
+):
+    """Each runs as `app`, binds a port above 1024 and needs no capability."""
+    services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    built = {name: one for name, one in services.items() if "build" in one}
+    loose = [
+        name
+        for name, service in built.items()
+        if "no-new-privileges:true" not in service.get("security_opt", [])
+        or service.get("cap_drop") != ["ALL"]
+    ]
+
+    assert len(built) == 10, sorted(built)
+    assert not loose, sorted(loose)

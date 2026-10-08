@@ -167,6 +167,8 @@ x-worker: &worker
     args:
       SPACY_MODELS: ${SPACY_MODELS:-de_core_news_md en_core_web_md}
   restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
   env_file: [configs/env/backend.env]
   extra_hosts:
     - "host.docker.internal:host-gateway"
@@ -217,6 +219,8 @@ x-dagster: &dagster
     context: .
     dockerfile: orchestration/Dockerfile
   restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
   # backend.env for INGESTION_OPEN.
   env_file: [configs/env/orchestration.env, configs/env/backend.env]
   environment:
@@ -481,6 +485,8 @@ services:
       args:
         SPACY_MODELS: ${SPACY_MODELS:-de_core_news_md en_core_web_md}
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     env_file: [configs/env/backend.env]
     environment:
       # model-env, and no provider.env: the api serves the model settings
@@ -677,6 +683,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     environment:
       TZ: UTC
       BACKEND_URL: ${BACKEND_CONTAINER_URL}
