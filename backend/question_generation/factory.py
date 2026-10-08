@@ -56,6 +56,7 @@ def build_service(
         )
 
     catalog = QuestionCatalog()
+    judge_phrasing = phrasing_model.model != writer_model.model
     return QuestionGenerationService(
         repository=QuestionQueue(
             kinds=settings.fact_kinds,
@@ -64,6 +65,9 @@ def build_service(
             # A passage that repeats across the corpus is its furniture,
             # and no gate downstream refuses a question about furniture.
             boilerplate_cosine=settings.boilerplate_cosine,
+            writer_model=writer_model.model,
+            verifier_model=verifier_model.model,
+            phrasing_model=phrasing_model.model if judge_phrasing else None,
         ),
         writer=QuestionWriter(Client(writer_model)),
         checker=QuestionChecker(
@@ -77,7 +81,7 @@ def build_service(
             # ECB and NCAs, who conducts the due diligence check?` for
             # naming nothing, which is the kind of loss a gate must not
             # cause. Recoverability is unaffected: that one is checkable.
-            judge_phrasing=phrasing_model.model != writer_model.model,
+            judge_phrasing=judge_phrasing,
             # For the same reason, and it matters more here: the entailment
             # pass can only accept, so a writer running it over its own
             # answer would wave through everything its own recall missed.

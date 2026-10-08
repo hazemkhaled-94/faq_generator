@@ -286,6 +286,9 @@ class QuestionQueue(RowQueue):
         kinds: tuple[str, ...] = ASKABLE,
         version: str | None = None,
         boilerplate_cosine: float = 0.0,
+        writer_model: str | None = None,
+        verifier_model: str | None = None,
+        phrasing_model: str | None = None,
     ) -> None:
         """Binds to the session factory, with the kinds of fact it may offer.
 
@@ -293,7 +296,7 @@ class QuestionQueue(RowQueue):
         the only shape every prompt and gate here was written for.
 
         `version` is the configuration every question it writes was written
-        under.
+        under, and the three models are the ones that wrote and checked it.
 
         `boilerplate_cosine` is QUESTIONS_BOILERPLATE_COSINE. 0 by default,
         so a caller that says nothing gets every passage: this excludes
@@ -308,6 +311,11 @@ class QuestionQueue(RowQueue):
         self._kinds = kinds
         self._version = version
         self._boilerplate = boilerplate_cosine
+        self._models = {
+            "writer_model": writer_model,
+            "verifier_model": verifier_model,
+            "phrasing_model": phrasing_model,
+        }
 
     def claim(self) -> TopicToCover | None:
         """Takes the next topic off the queue."""
@@ -473,6 +481,7 @@ class QuestionQueue(RowQueue):
                             rejected_reason=question.rejected_reason,
                             status_changed_at=func.now(),
                             settings_version=self._version,
+                            **self._models,
                             # Read here rather than carried on the row, as
                             # run_id above is and for the same reason: the
                             # process that writes a question is the one

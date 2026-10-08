@@ -393,6 +393,21 @@ class Question(Base):
         "gates held it to are all in the settings that version names. NULL for a "
         "question written before a setting could be changed without a restart.",
     )
+    writer_model: Mapped[str | None] = mapped_column(
+        Text,
+        comment="The model that wrote this question. NULL for a question written "
+        "before this was recorded.",
+    )
+    verifier_model: Mapped[str | None] = mapped_column(
+        Text,
+        comment="The model the verifying gates asked about this question. NULL for "
+        "a question written before this was recorded.",
+    )
+    phrasing_model: Mapped[str | None] = mapped_column(
+        Text,
+        comment="The model the phrasing gate asked about this question. NULL when "
+        "that gate was off, or for a question written before this was recorded.",
+    )
     trace_id: Mapped[str | None] = mapped_column(
         Text,
         index=True,

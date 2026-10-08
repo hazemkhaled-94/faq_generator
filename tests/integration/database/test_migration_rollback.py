@@ -24,6 +24,9 @@ RELEASED = "3fe4226da3b6"
 REJECTED = "04419594a51e"
 DIGEST = "8213be66d5ba"
 DECIDED = "1ff74784a860"
+MODELLED = "bf8f2e65c149"
+#: Every revision after the previous head, oldest first.
+LATER = (RELEASED, REJECTED, DIGEST, DECIDED, MODELLED)
 
 #: Three documents, four passages, nine facts and five questions on them.
 #: Question 1 rests on documents a and b, 3 is already rejected, and 5
@@ -389,7 +392,7 @@ EVERY = (
 )
 
 
-def test_the_four_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> None:
+def test_the_later_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> None:
     """Head to the previous head one revision at a time, and back, losing nothing."""
     from alembic import command
 
@@ -416,13 +419,16 @@ def test_the_four_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> N
     before = held()
     command.upgrade(config, "head")
     at_head = held()
-    assert at_head["questions"] == before["questions"]
+    # The three model columns, NULL on every question already there.
+    assert at_head["questions"] == [
+        (*row, None, None, None) for row in before["questions"]
+    ]
 
-    for _ in (DECIDED, DIGEST, REJECTED, RELEASED):
+    for _ in LATER:
         command.downgrade(config, "-1")
     assert version(spare) == PREVIOUS_HEAD
     assert held() == before
 
     command.upgrade(config, "head")
-    assert version(spare) == DECIDED
+    assert version(spare) == LATER[-1]
     assert held() == at_head

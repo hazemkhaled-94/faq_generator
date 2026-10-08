@@ -383,6 +383,46 @@ def test_storing_writes_the_questions_their_links_and_finishes_the_topic(
         )
 
 
+def test_a_stored_question_names_the_models_that_wrote_and_checked_it(
+    corpus, engine
+) -> None:
+    """A host and a container drain one queue, each under its own models."""
+    from question_generation.models import CheckedQuestion, criteria_of
+
+    written = corpus(topics=1, facts_per_topic=1)
+    topic_id = written["topics"][0]
+    queue = QuestionQueue(
+        writer_model="ollama/writer",
+        verifier_model="ollama/verifier",
+        phrasing_model="ollama/judge",
+    )
+
+    queue.store(
+        topic_id,
+        [
+            [
+                CheckedQuestion(
+                    question_text="What does the device weigh?",
+                    target_answer="4 kg",
+                    answerable=True,
+                    criteria=criteria_of(
+                        passages=1, documents=1, topics=1, answer_chars=4
+                    ),
+                    language="en",
+                    status="accepted",
+                    rejected_reason=None,
+                    fact_ids=tuple(written["facts"][topic_id]),
+                )
+            ]
+        ],
+    )
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            text("SELECT writer_model, verifier_model, phrasing_model FROM questions")
+        ).one() == ("ollama/writer", "ollama/verifier", "ollama/judge")
+
+
 def test_a_second_run_adds_to_the_questions_rather_than_replacing_them(
     corpus, engine
 ) -> None:
