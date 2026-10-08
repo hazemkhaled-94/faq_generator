@@ -50,7 +50,7 @@
           "refId": "A",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT stage, status, rows FROM (\n  SELECT 1 AS ord, 'parsing'  AS stage, parse_status   AS status, count(*) AS rows FROM documents GROUP BY parse_status\n  UNION ALL\n  SELECT 2, 'chunking',   chunk_status,   count(*) FROM documents GROUP BY chunk_status\n  UNION ALL\n  SELECT 3, 'extraction', extract_status, count(*) FROM passages  GROUP BY extract_status\n  UNION ALL\n  SELECT 4, 'topics',     status,         count(*) FROM topics WHERE topic_index IS NULL GROUP BY status\n  UNION ALL\n  SELECT 5, 'questions',  question_status, count(*) FROM topics WHERE topic_index IS NOT NULL GROUP BY question_status\n) q ORDER BY ord, status"
+          "rawSql": "SELECT stage, status, rows FROM (\n  SELECT 1 AS ord, 'parsing'  AS stage, parse_status   AS status, count(*) AS rows FROM documents GROUP BY parse_status\n  UNION ALL\n  SELECT 2, 'chunking',   chunk_status,   count(*) FROM documents GROUP BY chunk_status\n  UNION ALL\n  SELECT 3, 'extraction', extract_status, count(*) FROM passages  GROUP BY extract_status\n  UNION ALL\n  SELECT 4, 'topics',     status,         count(*) FROM topics WHERE topic_index IS NULL GROUP BY status\n  UNION ALL\n  SELECT 5, 'questions',  question_status, count(*) FROM topics WHERE topic_index IS NOT NULL GROUP BY question_status\n  UNION ALL\n  SELECT 6, 'assessment', assess_status,  count(*) FROM assessments GROUP BY assess_status\n) q ORDER BY ord, status"
         }
       ]
     },
@@ -83,7 +83,7 @@
           "refId": "A",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT 'parsing' AS stage, count(*) AS failed FROM documents WHERE parse_status = 'failed'\nUNION ALL SELECT 'chunking',   count(*) FROM documents WHERE chunk_status   = 'failed'\nUNION ALL SELECT 'extraction', count(*) FROM passages  WHERE extract_status = 'failed'\nUNION ALL SELECT 'topics',     count(*) FROM topics WHERE topic_index IS NULL     AND status          = 'failed'\nUNION ALL SELECT 'questions',  count(*) FROM topics WHERE topic_index IS NOT NULL AND question_status = 'failed'"
+          "rawSql": "SELECT 'parsing' AS stage, count(*) AS failed FROM documents WHERE parse_status = 'failed'\nUNION ALL SELECT 'chunking',   count(*) FROM documents WHERE chunk_status   = 'failed'\nUNION ALL SELECT 'extraction', count(*) FROM passages  WHERE extract_status = 'failed'\nUNION ALL SELECT 'topics',     count(*) FROM topics WHERE topic_index IS NULL     AND status          = 'failed'\nUNION ALL SELECT 'questions',  count(*) FROM topics WHERE topic_index IS NOT NULL AND question_status = 'failed'\nUNION ALL SELECT 'assessment', count(*) FROM assessments WHERE assess_status = 'failed'"
         }
       ]
     },

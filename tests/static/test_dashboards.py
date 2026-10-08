@@ -12,6 +12,7 @@ Read as files rather than by asking Grafana, so this needs no container.
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -131,6 +132,33 @@ def test_every_field_a_log_panel_groups_on_is_mapped(name: str) -> None:
         f"filebeat.yml. Elasticsearch will map it as `text`, and the panel "
         f"will render empty."
     )
+
+
+def _stages() -> list[str]:
+    """Every stage `/pipeline` reports, read off the route's source."""
+    tree = ast.parse((ROOT / "backend/api/routes/pipeline.py").read_text())
+    (stages,) = [
+        node.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(getattr(target, "id", None) == "STAGES" for target in node.targets)
+    ]
+    return [pair.elts[0].value for pair in stages.elts]
+
+
+@pytest.mark.parametrize("title", ["Queue depth by stage", "Failed, by stage"])
+def test_the_corpus_dashboard_counts_every_stage_queue(title: str) -> None:
+    """A stage left out reads as a queue with nothing in it."""
+    (panel,) = [
+        one
+        for one in DASHBOARDS["pipeline-state.json"]["panels"]
+        if one.get("title") == title
+    ]
+    queries = " ".join(target.get("rawSql", "") for target in panel["targets"])
+    missing = [stage for stage in _stages() if f"'{stage}'" not in queries]
+
+    assert len(_stages()) >= 6, _stages()
+    assert not missing, missing
 
 
 def _sources(dashboard: dict):
