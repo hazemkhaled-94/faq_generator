@@ -164,7 +164,15 @@ def _filtered(query, document, topic, search, status, answerable, field, **scope
     return query
 
 
-def _ids(document, topic, search, status, answerable, field, **scopes) -> Select:
+def _ids(
+    document=None,
+    topic=None,
+    search=None,
+    status=None,
+    answerable=None,
+    field=None,
+    **scopes,
+) -> Select:
     """The questions a filter selects, as one id apiece.
 
     Every figure is measured over this rather than over the joined query,
@@ -255,39 +263,15 @@ def _present(values: Sequence[Any] | None) -> list[str]:
 def _stored(row: Any) -> StoredQuestion:
     """Reads one row of the listing back as a question."""
     return StoredQuestion(
-        id=row.id,
-        question_text=row.question_text,
-        target_answer=row.target_answer,
-        answer_explanation=row.answer_explanation,
-        answerable=row.answerable,
-        difficulty=row.difficulty,
-        passage_scope=row.passage_scope,
-        document_scope=row.document_scope,
-        topic_scope=row.topic_scope,
-        answer_chars=row.answer_chars,
-        language=row.language,
-        status=row.status,
-        rejected_reason=row.rejected_reason,
-        reviewed_verdict=row.reviewed_verdict,
-        created_at=_when(row.created_at),
-        facts=row.facts,
-        documents=_present(row.documents),
-        topics=_present(row.topics),
-        statements=_present(row.statements),
-        evidence=_present(row.evidence),
-        thread_position=row.thread_position,
-        follows_id=row.follows_id,
-        question_type=row.question_type,
-        cognitive_level=row.cognitive_level,
-        answer_form=row.answer_form,
-        planned_difficulty=row.planned_difficulty,
-        prompt_version=row.prompt_version,
-        trace_id=row.trace_id,
-        span_id=row.span_id,
-        confidence=row.confidence,
-        gate_scores=list(row.gate_scores or ()),
-        attempt=row.attempt,
-        released=row.released,
+        **row._asdict()
+        | {
+            "created_at": _when(row.created_at),
+            "documents": _present(row.documents),
+            "topics": _present(row.topics),
+            "statements": _present(row.statements),
+            "evidence": _present(row.evidence),
+            "gate_scores": list(row.gate_scores or ()),
+        }
     )
 
 
@@ -577,7 +561,7 @@ class QuestionCatalog(Repository):
                     Question.embedding,
                     Question.question_type,
                     Question.answer_form,
-                    func.coalesce(func.bool_and(HOLDS), False).label("holds"),
+                    func.coalesce(func.bool_and(HOLDS), False).label("facts_validated"),
                     func.count(func.distinct(Passage.doc_sha256)).label("documents"),
                     func.count(func.distinct(Passage.id)).label("passages"),
                     func.count(func.distinct(DOMINANT.c.topic_id)).label("topics"),
@@ -593,30 +577,15 @@ class QuestionCatalog(Repository):
         with self._session() as session:
             for row in session.execute(query):
                 yield JudgedQuestion(
-                    id=row.id,
-                    question_text=row.question_text,
-                    target_answer=row.target_answer,
-                    answerable=row.answerable,
-                    difficulty=row.difficulty,
-                    passage_scope=row.passage_scope,
-                    document_scope=row.document_scope,
-                    topic_scope=row.topic_scope,
-                    follows_id=row.follows_id,
-                    language=row.language,
-                    status=row.status,
-                    embedding=list(row.embedding)
-                    if row.embedding is not None
-                    else None,
-                    statements=tuple(
-                        one for one in row.statements or () if one is not None
-                    ),
-                    facts_validated=bool(row.holds),
-                    documents=row.documents,
-                    passages=row.passages,
-                    topics=row.topics,
-                    question_type=row.question_type,
-                    answer_form=row.answer_form,
-                    reviewed_verdict=row.reviewed_verdict,
+                    **row._asdict()
+                    | {
+                        "embedding": list(row.embedding)
+                        if row.embedding is not None
+                        else None,
+                        "statements": tuple(
+                            one for one in row.statements or () if one is not None
+                        ),
+                    }
                 )
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:
@@ -801,16 +770,7 @@ class QuestionCatalog(Repository):
             ],
         )
 
-    def citations(
-        self,
-        document: str | None = None,
-        topic: int | None = None,
-        search: str | None = None,
-        status: str | None = None,
-        answerable: bool | None = None,
-        field: str | None = None,
-        **scopes: Any,
-    ) -> list[Citation]:
+    def citations(self, **where: Any) -> list[Citation]:
         """What every question a filter selects was written from.
 
         The same rows :meth:`detail` reads one question at a time, for a
@@ -830,11 +790,7 @@ class QuestionCatalog(Repository):
         query, emptied the subquery's own FROM and turned a filter on
         1,229 rows into six million.
         """
-        chosen = (
-            _ids(document, topic, search, status, answerable, field, **scopes)
-            .correlate(None)
-            .subquery()
-        )
+        chosen = _ids(**where).correlate(None).subquery()
         with self._session() as session:
             rows = session.execute(
                 select(
@@ -982,20 +938,8 @@ class QuestionCatalog(Repository):
             topics_in_coverage=in_coverage,
             mean_question_chars=round(float(row.chars), 1),
             mean_answer_chars=round(float(row.answer), 1),
-            rejected=spread["rejected"],
-            difficulty=spread["difficulty"],
-            passage_scope=spread["passage_scope"],
-            document_scope=spread["document_scope"],
-            topic_scope=spread["topic_scope"],
-            question_type=spread["question_type"],
-            cognitive_level=spread["cognitive_level"],
-            answer_form=spread["answer_form"],
-            planned_difficulty=spread["planned_difficulty"],
             planned_met=row.planned_met,
             cognitive_level_checked=row.levels_checked,
-            passages_total=reach.passages_total,
-            passages_with_facts=reach.passages_with_facts,
-            passages_asked=reach.passages_asked,
-            facts_validated=reach.facts_validated,
-            facts_asked=reach.facts_asked,
+            **spread,
+            **reach._asdict(),
         )
