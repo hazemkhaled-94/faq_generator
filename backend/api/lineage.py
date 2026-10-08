@@ -23,6 +23,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 
 from api.params import BIGINT_MAX
+from assessment.repository import APPROVED
 from database.qa_generator import (
     Assessment,
     Document,
@@ -137,8 +138,8 @@ def _judgements(session, kinds: dict[str, list]) -> dict[tuple[str, str], str]:
         if kind not in column or not ids:
             continue
         rows = session.execute(
-            select(column[kind], Assessment.approved).where(
-                column[kind].in_(ids), Assessment.approved.is_not(None)
+            select(column[kind], APPROVED).where(
+                column[kind].in_(ids), APPROVED.is_not(None)
             )
         ).all()
         for row_id, approved in rows:

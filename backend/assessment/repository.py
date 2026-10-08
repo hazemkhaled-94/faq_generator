@@ -82,6 +82,20 @@ _NEXT_PENDING = (
     .scalar_subquery()
 )
 
+#: A verdict standing on fewer metrics than its version asked for.
+_THIN = and_(
+    Assessment.metrics_due.is_not(None),
+    select(func.count())
+    .select_from(AssessmentMetric)
+    .where(AssessmentMetric.assessment_id == Assessment.id)
+    .scalar_subquery()
+    < Assessment.metrics_due,
+)
+
+#: `approved` as every reader takes it: NULL for a thin verdict, which is
+#: neither approved nor refused.
+APPROVED = case((_THIN, None), else_=Assessment.approved)
+
 #: How many facts one question's judgement is shown. A question rests on
 #: one or two, so this is a ceiling against a pathological row rather than
 #: a sample: past it the prompt outgrows the window, and a prompt over the
@@ -443,27 +457,16 @@ class AssessmentQueue(RowQueue):
         other five answer in.
         """
         counts = dict(self.counts_by_status())
-        # A verdict standing on fewer metrics than its version asked for.
-        # Counted here rather than left to whoever writes the query,
-        # because the row is `assessed` either way and `retry` cannot find
-        # it: nothing failed, the judge was simply unreachable for part of
-        # it. `metrics_due` is what makes this SQL rather than code.
-        thin = (
-            select(func.count())
-            .select_from(Assessment)
-            .where(
-                Assessment.metrics_due.is_not(None),
-                select(func.count())
-                .select_from(AssessmentMetric)
-                .where(AssessmentMetric.assessment_id == Assessment.id)
-                .scalar_subquery()
-                < Assessment.metrics_due,
-            )
-        )
         with self._session() as session:
             for name, condition in (
-                ("approved", Assessment.approved.is_(True)),
-                ("refused", Assessment.approved.is_(False)),
+                ("approved", APPROVED.is_(True)),
+                ("refused", APPROVED.is_(False)),
+                # Counted here rather than left to whoever writes the query,
+                # because the row is `assessed` either way and `retry` cannot
+                # find it: nothing failed, the judge was simply unreachable
+                # for part of it. `metrics_due` is what makes this SQL rather
+                # than code.
+                ("thin", _THIN),
             ):
                 counts[name] = (
                     session.execute(
@@ -471,7 +474,6 @@ class AssessmentQueue(RowQueue):
                     ).scalar()
                     or 0
                 )
-            counts["thin"] = session.execute(thin).scalar() or 0
         return counts
 
 
@@ -564,9 +566,9 @@ class AssessmentCatalog(Repository):
         link, entity, key = _LINK[kind]
         where: list[Any] = [Assessment.artifact_kind == kind]
         if approved is not None:
-            where.append(Assessment.approved.is_(approved))
+            where.append(APPROVED.is_(approved))
         if disagreements:
-            where.append(Assessment.approved.is_(False))
+            where.append(APPROVED.is_(False))
             where.append(_VERDICT[kind] == "accepted")
         if metric:
             where.append(
@@ -638,7 +640,7 @@ class AssessmentCatalog(Repository):
                 Assessment.artifact_kind.label("artifact_kind"),
                 link.label("artifact_id"),
                 Assessment.assess_status.label("assess_status"),
-                Assessment.approved.label("approved"),
+                APPROVED.label("approved"),
                 Assessment.judge_model.label("judge_model"),
                 Assessment.prompt_version.label("prompt_version"),
                 Assessment.run_id.label("run_id"),
@@ -704,11 +706,11 @@ class AssessmentCatalog(Repository):
                 counts = session.execute(
                     select(
                         func.count(),
-                        func.count().filter(Assessment.approved.is_not(None)),
-                        func.count().filter(Assessment.approved.is_(True)),
+                        func.count().filter(APPROVED.is_not(None)),
+                        func.count().filter(APPROVED.is_(True)),
                         func.count().filter(
                             and_(
-                                Assessment.approved.is_(False),
+                                APPROVED.is_(False),
                                 _VERDICT[one] == "accepted",
                             )
                         ),
@@ -783,7 +785,7 @@ class AssessmentCatalog(Repository):
                 select(
                     Assessment.id,
                     link.label("artifact_id"),
-                    Assessment.approved,
+                    APPROVED,
                     Assessment.judge_model,
                     Assessment.assessed_at,
                     _VERDICT[kind].label("verdict"),

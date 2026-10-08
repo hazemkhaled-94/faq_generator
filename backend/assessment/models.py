@@ -202,6 +202,7 @@ class AssessmentQuality:
     approved_by_kind: dict[str, int]
     metrics: list[MetricQuality]
     judge_models: list[str]
-    #: Enrolled but not yet judged, which is what says a phase is part-way
-    #: through rather than that the judge refused everything.
+    #: Enrolled but not yet judged on every metric due, which is what says a
+    #: phase is part-way through rather than that the judge refused
+    #: everything.
     outstanding: int = 0

@@ -12,6 +12,8 @@ a polymorphic pair, and it is the only place that choice is checked.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from seed import digest, document, fact, fitted, link, passage, question
 from sqlalchemy import func, select
@@ -315,6 +317,30 @@ def test_the_report_counts_a_disagreement_only_one_way(corpus, engine) -> None:
     assert quality.judged == 1
     assert quality.approved == 0
     assert quality.disagreements == 1, "the seeded fact is validated"
+
+
+def test_a_thin_verdict_is_neither_approved_nor_refused(corpus) -> None:
+    """Two of a fact's three metrics answered: stored unapproved, read as thin."""
+    queue = AssessmentQueue(kinds=("fact",))
+    queue.start()
+    claimed = queue.claim()
+    assert claimed is not None
+    queue.record(replace(_judged(claimed.assessment_id, approved=True), metrics_due=3))
+    catalog = AssessmentCatalog()
+
+    counts = queue.counts()
+    quality = catalog.quality("fact")
+    _, rows = catalog.page()
+
+    assert (counts["approved"], counts["refused"], counts["thin"]) == (0, 0, 1)
+    assert (quality.judged, quality.approved, quality.refused) == (0, 0, 0)
+    assert quality.disagreements == 0
+    assert (
+        catalog.verdicts_for("fact", [corpus["fact"]])[corpus["fact"]].approved is None
+    )
+    assert [one.approved for one in rows] == [None]
+    assert catalog.page(approved=False)[0] == 0
+    assert catalog.page(disagreements=True)[0] == 0
 
 
 def test_verdicts_are_read_back_by_artefact_id(corpus) -> None:

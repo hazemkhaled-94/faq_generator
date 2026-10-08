@@ -273,7 +273,8 @@ poetry run pytest tests/unit/assessment
 - **A judge that cannot be reached fails a row; it does not refuse an
   artefact.** `assess-retry` is what moves it.
 - **One metric abstaining leaves a partial verdict.** The artefact is still
-  `assessed`, judged on the metrics that answered.
+  `assessed`, judged on the metrics that answered, and every reader counts it
+  as thin: neither approved nor refused.
 - **Unanswerable questions are not enrolled.** They have no answer to judge.
 - **`hallucination` scores 1.0 for the bad label.** Read the direction.
 - **A sample is the default.** `ASSESSMENT_SAMPLE=0` judges the corpus, and

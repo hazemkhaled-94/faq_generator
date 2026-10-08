@@ -9,10 +9,17 @@ from __future__ import annotations
 
 import pytest
 from seed import digest, document, fact, fitted, membership, passage
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from database.qa_generator import (
+    Assessment,
+    AssessmentMetric,
+    JudgeMetric,
+    QuestionFact,
+    Status,
+)
 from database.qa_generator import Question as QuestionRow
-from database.qa_generator import QuestionFact, Status
 
 pytestmark = pytest.mark.integration
 
@@ -92,6 +99,42 @@ def test_each_step_carries_the_artefact_it_produced(client, corpus) -> None:
     assert at["topic"]["artifacts"][0]["label"] == "Delivery"
     assert at["question"]["artifacts"][0]["verdict"] == "rejected"
     assert at["question"]["artifacts"][0]["reason"] == "leaks_source"
+
+
+def test_a_thin_verdict_reads_as_no_judgement(client, corpus, engine) -> None:
+    """One metric of three answered is neither an approval nor a refusal."""
+    with Session(engine) as session:
+        for kind, column, metrics_due in (
+            ("fact", "fact_id", 3),
+            ("question", "question_id", None),
+        ):
+            judged = Assessment(
+                artifact_kind=kind,
+                assess_status=Status.ASSESSED,
+                approved=False,
+                assessed_at=func.now(),
+                metrics_due=metrics_due,
+                **{column: corpus[kind]},
+            )
+            session.add(judged)
+            session.flush()
+            session.add(
+                AssessmentMetric(
+                    assessment_id=judged.id,
+                    metric=JudgeMetric.RELEVANCE,
+                    label="relevant",
+                    score=1.0,
+                    approved=True,
+                    explanation="on subject",
+                )
+            )
+        session.commit()
+
+    chain = client.get(f"/lineage/question/{corpus['question']}").json()
+    at = {one["kind"]: one["artifacts"][0] for one in chain["steps"]}
+
+    assert at["fact"]["judge"] is None
+    assert at["question"]["judge"] == "refused"
 
 
 def test_a_question_reports_every_gate_that_read_it(client, corpus) -> None:
