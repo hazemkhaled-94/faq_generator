@@ -860,9 +860,9 @@ SETTINGS: tuple[Setting, ...] = (
         service="assessment",
         kind="text",
         optional=True,
-        help="The model that judges. Absent calls the one LLM_MODEL names, "
-        "which makes the pipeline mark its own work - name a different one, "
-        "for the reason QUESTIONS_VERIFIER_MODEL exists.",
+        help="The model that judges. Absent, nothing is judged. Name one "
+        "that is not LLM_MODEL, for the reason QUESTIONS_VERIFIER_MODEL "
+        "exists.",
     ),
     Setting(
         name="ASSESSMENT_KINDS",

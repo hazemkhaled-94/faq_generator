@@ -24,8 +24,8 @@ class Settings:
     #: an empty queue, `start` enrols nothing and the Dagster asset reports
     #: that it is off rather than that it did nothing.
     enabled: bool
-    #: The model asked. Absent, LLM_MODEL - so a deployment that sets
-    #: nothing still judges with something rather than refusing to start.
+    #: The model asked. Absent, nothing is judged: LLM_MODEL in its place
+    #: would be the writer marking its own work.
     judge_model: str | None
     #: Which artefacts are judged. Narrowing it is how a deployment pays for
     #: the questions and not for twenty thousand facts.
@@ -56,10 +56,14 @@ class Settings:
 
 
 def judge_of(settings: Settings, source: Source = None) -> tuple[str | None, bool]:
-    """The model the next run judges with, and whether it is the writer's."""
+    """The model the next run judges with, and whether it is the writer's.
+
+    None where ASSESSMENT_JUDGE_MODEL names nothing, and then nothing is
+    judged.
+    """
     writer = optional("LLM_MODEL", source)
-    judge = settings.judge_model or writer
-    return judge, judge == writer
+    judge = settings.judge_model
+    return judge, judge is not None and judge == writer
 
 
 def judged_kinds(settings: Settings) -> tuple[str, ...]:

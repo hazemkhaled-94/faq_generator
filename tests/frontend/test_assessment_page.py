@@ -153,6 +153,13 @@ def test_a_writer_judging_its_own_work_is_warned_about(page) -> None:
     assert "make assess" in drawn.text()
 
 
+def test_a_judge_nobody_named_is_warned_about(page) -> None:
+    """The next run judges nothing, rather than with the writer."""
+    drawn = page(assessment_plan={**ASSESSMENT_PLAN, "judge_model": None})
+
+    assert "ASSESSMENT_JUDGE_MODEL names no model" in drawn.text()
+
+
 def test_nothing_matching_is_a_caption_rather_than_an_empty_table(page) -> None:
     """The shape every other listing page answers an empty filter with."""
     drawn = page(assessments=page_of())

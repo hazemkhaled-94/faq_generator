@@ -123,9 +123,9 @@ x-model-env: &model-env
   # the HOST's - `make assess` uses it and reaches a hosted provider from
   # a shell that has the credential.
   #
-  # Unset here, so the judge falls back to LLM_MODEL above and the worker
-  # judges with the container's own Ollama. Set
-  # ASSESSMENT_JUDGE_CONTAINER_MODEL to point the worker somewhere else,
+  # Unset here, so the worker judges nothing: a judge that names no model is
+  # refused rather than read as LLM_MODEL above. Set
+  # ASSESSMENT_JUDGE_CONTAINER_MODEL to point the worker at a model,
   # including at a hosted provider - provider.env is already given to the
   # processes that call a model, so it will authenticate. That is a
   # deliberate decision to make, not a default to inherit: inheriting a

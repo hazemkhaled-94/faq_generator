@@ -910,6 +910,7 @@ questions-export:
 #
 # ASSESSMENT_JUDGE_MODEL is who judges, and it should not be LLM_MODEL: a
 # model asked whether its own facts follow from its own evidence says yes.
+# Unset, `assess` judges nothing.
 #
 # ASSESSMENT_KINDS and ASSESSMENT_SAMPLE in configs/env/backend.env are the
 # cost dials. All three kinds at a sample of 200 is a few hundred model

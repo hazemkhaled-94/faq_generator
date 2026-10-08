@@ -192,9 +192,12 @@ def _judging(plan: dict) -> list[tuple[str, str]]:
             help=f"{metrics} model call(s) per {label.lower().rstrip('s')}.",
         ):
             picked.append(("kind", kind))
-    judge = plan["judge_model"] or "no model"
+    judge = plan["judge_model"]
     row.caption(
-        f":orange[Next run: {judge}, the writer, marking its own work.] "
+        ":orange[ASSESSMENT_JUDGE_MODEL names no model, so the next run judges "
+        "nothing.]"
+        if not judge
+        else f":orange[Next run: {judge}, the writer, marking its own work.] "
         "`make assess-start` then `make assess` judges from the host with "
         "ASSESSMENT_JUDGE_MODEL"
         if plan["self_judging"]

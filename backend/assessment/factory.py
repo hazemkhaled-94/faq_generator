@@ -17,13 +17,22 @@ log = logging.getLogger(__name__)
 def judge_model(settings: Settings, shared: ModelSettings) -> ModelSettings:
     """The model that judges, which is not the one that wrote.
 
-    `ASSESSMENT_JUDGE_MODEL` names it. Absent, the shared model - and that
-    absence is worth warning about rather than refusing, because a judge
-    that is also the writer is a model marking its own work. The same
-    argument `question_generation.factory` makes about the verifier, and it
-    bites harder here: the whole value of this phase is that it is an
-    opinion the pipeline did not already hold.
+    `ASSESSMENT_JUDGE_MODEL` names it, and naming nothing is refused rather
+    than read as the shared model, because a judge that is also the writer
+    is a model marking its own work. The same argument
+    `question_generation.factory` makes about the verifier, and it bites
+    harder here: the whole value of this phase is that it is an opinion the
+    pipeline did not already hold.
+
+    Raises:
+        ValueError: If ASSESSMENT_JUDGE_MODEL names no model.
     """
+    if not settings.judge_model:
+        raise ValueError(
+            "ASSESSMENT_JUDGE_MODEL names no model, so nothing is judged. Name "
+            "one that is not LLM_MODEL: a model marking its own work agrees "
+            "with itself."
+        )
     return shared.overridden(settings.judge_model)
 
 
@@ -35,7 +44,7 @@ def build_service(
     if asked.model == model.model:
         log.warning(
             "%s is judging the pipeline's own output, because "
-            "ASSESSMENT_JUDGE_MODEL names it or names nothing. A model marking "
+            "ASSESSMENT_JUDGE_MODEL names it. A model marking "
             "its own work agrees with itself, and this phase exists to hold "
             "an opinion the pipeline does not already hold.",
             asked.model,

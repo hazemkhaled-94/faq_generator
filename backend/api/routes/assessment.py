@@ -91,7 +91,8 @@ class JudgePlan:
     """
 
     enabled: bool
-    #: ASSESSMENT_JUDGE_MODEL, or LLM_MODEL where that names nothing.
+    #: ASSESSMENT_JUDGE_MODEL, or None where that names nothing and nothing
+    #: is judged.
     judge_model: str | None
     #: Whether that model is the writer's.
     self_judging: bool

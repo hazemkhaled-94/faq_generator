@@ -228,7 +228,7 @@ From `.env`, because both are one deployment's decision:
 | Setting | What it does |
 | --- | --- |
 | `ASSESSMENT_ENABLED` | Whether the phase runs at all |
-| `ASSESSMENT_JUDGE_MODEL` | Who judges. **Not** `LLM_MODEL`: a model asked whether its own facts follow from its own evidence says yes, and the worker warns on every start when it is unset |
+| `ASSESSMENT_JUDGE_MODEL` | Who judges. **Not** `LLM_MODEL`: a model asked whether its own facts follow from its own evidence says yes. Unset, the worker judges nothing |
 
 From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 
@@ -284,8 +284,8 @@ poetry run pytest tests/unit/assessment
 - **A row judged under template version 1 carries three metrics fewer.**
   The version is on the row; `make assess-rerun` re-judges it.
 - **Enrolment ignores `--only`.** The requeue after it does not.
-- **A judge that is `LLM_MODEL` is marking its own work.** Warned, not
-  refused.
+- **A judge named as `LLM_MODEL` is marking its own work.** Warned, not
+  refused. A judge named as nothing is refused.
 - **Deleting a fact, topic or question deletes its assessment.** Three
   cascading foreign keys, so a verdict never outlives what it is about.
 - **A re-run overwrites.** A corpus never holds two opinions from two

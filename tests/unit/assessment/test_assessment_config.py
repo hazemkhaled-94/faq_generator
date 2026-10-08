@@ -68,12 +68,27 @@ def test_the_kinds_are_checked_against_the_templates() -> None:
 
 
 def test_the_judge_is_the_model_the_setting_names() -> None:
-    """And is the shared model when it names nothing, which is warned about."""
+    """And is refused when it names nothing, rather than being the writer."""
     assert judge_model(settings(), model()).model == "azure/gpt-5.4"
-    assert (
-        judge_model(settings(ASSESSMENT_JUDGE_MODEL=""), model()).model
-        == "ollama_chat/gemma4:31b"
+    with pytest.raises(ValueError, match="ASSESSMENT_JUDGE_MODEL"):
+        judge_model(settings(ASSESSMENT_JUDGE_MODEL=""), model())
+
+
+def test_with_no_judge_named_the_command_line_judges_nothing(monkeypatch) -> None:
+    """Refused before a claim, and not by `--status` or the queue verbs."""
+    monkeypatch.setattr(
+        "assessment.run.snapshot",
+        lambda: ({**VALUES, **_SHARED, "ASSESSMENT_JUDGE_MODEL": ""}, "environment"),
     )
+    monkeypatch.setattr(cli, "before_work", lambda asked: None)
+    handed: dict = {}
+    monkeypatch.setattr(cli, "queue_main", lambda **kwargs: handed.update(kwargs))
+
+    cli.main([])
+
+    assert handed["repository"]() is not None
+    with pytest.raises(ValueError, match="ASSESSMENT_JUDGE_MODEL"):
+        handed["preflight"]()
 
 
 def test_the_plan_names_the_writer_when_it_is_the_judge() -> None:
@@ -81,10 +96,7 @@ def test_the_plan_names_the_writer_when_it_is_the_judge() -> None:
     writer = {"LLM_MODEL": "ollama_chat/gemma4:31b"}
 
     assert judge_of(settings(), writer) == ("azure/gpt-5.4", False)
-    assert judge_of(settings(ASSESSMENT_JUDGE_MODEL=""), writer) == (
-        "ollama_chat/gemma4:31b",
-        True,
-    )
+    assert judge_of(settings(ASSESSMENT_JUDGE_MODEL=""), writer) == (None, False)
     named = settings(ASSESSMENT_JUDGE_MODEL="ollama_chat/gemma4:31b")
     assert judge_of(named, writer)[1] is True
 
