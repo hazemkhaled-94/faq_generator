@@ -313,6 +313,10 @@ a caller branches on the code rather than on English:
 | `unknown_scope` | 404 | A stage was narrowed to a scope it does not accept |
 | `unknown_setting` | 404 | A service has no setting by that name |
 
+A request whose `Host` is not in `API_ALLOWED_HOSTS` is answered 400 by
+Starlette's `TrustedHostMiddleware` before any route reads it, as plain text
+rather than a body with a code.
+
 FastAPI's 422 for a malformed query is left alone, and **a stage's own
 failures are not answered here at all** — they are recorded against the row
 and read back through `/{stage}/status`.
@@ -323,10 +327,11 @@ Each refusal is logged once, in the handler rather than at each `raise`, at
 ## Configuration
 
 The API reads the same
-[`configs/env/backend.env`](../../configs/env/backend.env) the workers do and
-holds no configuration of its own. Its address and pool sizes are the
-deployment's: `DATABASE_POOL_SIZE` and `DATABASE_POOL_OVERFLOW` are served
-read-only and marked `fixed`. See
+[`configs/env/backend.env`](../../configs/env/backend.env) the workers do.
+Its address and pool sizes are the deployment's: `DATABASE_POOL_SIZE` and
+`DATABASE_POOL_OVERFLOW` are served read-only and marked `fixed`. So is
+`API_ALLOWED_HOSTS`, the one setting only the API reads: the host names it
+answers to. See
 [docs/configuration.md](../../docs/configuration.md).
 
 ## Tests
@@ -340,6 +345,7 @@ poetry run pytest tests/unit/api tests/static/test_api_stays_light.py
 |---|---|
 | [`tests/contract/test_openapi.py`](../../tests/contract/test_openapi.py) | The published surface against [`openapi.json`](../../tests/contract/openapi.json) |
 | [`tests/unit/api/test_errors.py`](../../tests/unit/api/test_errors.py) | The shape every deliberate refusal takes |
+| [`tests/unit/api/test_request_guards.py`](../../tests/unit/api/test_request_guards.py) | What is answered before any route reads a request |
 | [`tests/integration/api/test_stages.py`](../../tests/integration/api/test_stages.py) | The queue surface every stage shares, over HTTP |
 | [`tests/integration/api/test_catalogue.py`](../../tests/integration/api/test_catalogue.py) | Reading back what the stages produced, and the platform's routes |
 | [`tests/integration/api/test_documents.py`](../../tests/integration/api/test_documents.py), [`test_facts.py`](../../tests/integration/api/test_facts.py), [`test_questions.py`](../../tests/integration/api/test_questions.py), [`test_topics.py`](../../tests/integration/api/test_topics.py) | Each noun's routes against the database that answers them |

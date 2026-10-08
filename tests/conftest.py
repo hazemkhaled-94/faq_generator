@@ -488,6 +488,8 @@ def application(postgres: str, s3: dict[str, str]):
     # does not carry: the settings routes serve these and refuse a bad value
     # for one, and both need the value the workers are reading.
     os.environ.setdefault("LLM_MODEL", "ollama_chat/test-model")
+    # The host name TestClient and schemathesis send.
+    os.environ["API_ALLOWED_HOSTS"] += ",testserver"
 
     for name in [one for one in sys.modules if _rebuilt(one)]:
         del sys.modules[name]

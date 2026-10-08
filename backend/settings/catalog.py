@@ -736,6 +736,14 @@ SETTINGS: tuple[Setting, ...] = (
         "listens on. A service left out gets no link and is still reported.",
     ),
     Setting(
+        name="API_ALLOWED_HOSTS",
+        service="platform",
+        kind="csv",
+        fixed=True,
+        help="The host names the api answers to. A request naming any other "
+        "is refused with 400 before a route reads it.",
+    ),
+    Setting(
         name="LLM_STRUCTURED_MODE",
         service="platform",
         kind="text",
