@@ -144,7 +144,7 @@ From [`configs/env/review.env`](../configs/env/review.env), in git:
 | Setting | What it does |
 | --- | --- |
 | `REVIEW_SAMPLE_SIZE` | How many records one push puts in front of a reviewer, split across the groups |
-| `REVIEW_REVIEWER` | What to call the reviewer in a row's provenance |
+| `REVIEW_REVIEWER` | Read and not used: no column records who reviewed a row |
 
 From `.env`, not in git:
 
@@ -175,6 +175,9 @@ Neither reaches a network.
 
 - **`ARGILLA_API_KEY` is not `ARGILLA_PASSWORD`.**
 - **A draft is not pulled.** Only a submitted answer comes home.
+- **Reviewers who disagree are not applied.** A pull logs the ids of the
+  records whose submitted answers to one question differ, and both answers
+  stay in Argilla for a person to settle.
 - **A push adds to a dataset and never empties it.** Every answer stays,
   so a pull applies one only where the row still reads as its record and
   the answer is newer than the row's own last decision: its creation, a

@@ -305,6 +305,56 @@ def test_an_answer_older_than_the_rows_last_decision_is_not_written(
     assert "1 answer(s) skipped because the row was decided" in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("name", "key", "question", "one", "other"),
+    [
+        (datasets.FACTS, "fact_id", "verdict", "accepted", "rejected"),
+        (datasets.QUESTIONS, "question_id", "verdict", "accepted", "rejected"),
+        (datasets.TOPIC_LABELS, "topic_id", "in_coverage", "yes", "no"),
+        (datasets.TOPIC_LABELS, "topic_id", "corrected_label", "Fees", "Charges"),
+    ],
+)
+def test_reviewers_who_disagree_are_left_for_a_person_to_settle(
+    monkeypatch, settings, caplog, name, key, question, one, other
+) -> None:
+    """Neither answer is written, and the record is named."""
+    catalogs = wired(
+        monkeypatch,
+        [Record({key: 7}, [submitted(question, one), submitted(question, other)])],
+    )
+
+    with caplog.at_level("WARNING", logger="review.service"):
+        assert pull(name, settings, catalogs) == 0
+
+    assert catalogs.facts.written == []
+    assert catalogs.questions.decided == []
+    assert catalogs.topics.described == []
+    assert "1 record(s) skipped because their reviewers disagree" in caplog.text
+    assert ": 7" in caplog.text
+
+
+def test_reviewers_who_agree_are_applied_and_a_draft_does_not_disagree(
+    monkeypatch, settings
+) -> None:
+    """Only submitted answers are compared."""
+    catalogs = wired(
+        monkeypatch,
+        [
+            Record(
+                {"fact_id": 41},
+                [
+                    submitted("verdict", "rejected"),
+                    submitted("verdict", "rejected"),
+                    Response("verdict", "accepted", "draft"),
+                ],
+            )
+        ],
+    )
+
+    assert pull(datasets.FACTS, settings, catalogs) == 1
+    assert catalogs.facts.written == [(41, "rejected", ANSWERED)]
+
+
 def test_a_question_verdict_is_dated_when_it_was_given(monkeypatch, settings) -> None:
     """Not when the pull ran."""
     catalogs = wired(

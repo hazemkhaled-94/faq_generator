@@ -252,7 +252,7 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
         if int(record.metadata[key]) in given
     ]
     rows = catalogs.facts.held(name, [int(one.metadata[key]) for one in submitted])
-    answered, moved, later = [], 0, 0
+    answered, moved, later, disputed = [], 0, 0, []
     for record in submitted:
         row_id = int(record.metadata[key])
         row, at = rows.get(row_id), given[row_id]
@@ -260,6 +260,8 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
             moved += 1
         elif row.decided is not None and row.decided >= at:
             later += 1
+        elif _disagreed(record):
+            disputed.append(row_id)
         else:
             answered.append((row_id, record, at))
     if moved:
@@ -275,6 +277,14 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
             "the answer was given: pulled already, or decided since",
             name,
             later,
+        )
+    if disputed:
+        log.warning(
+            "%s: %d record(s) skipped because their reviewers disagree; both "
+            "answers stay in Argilla for a person to settle: %s",
+            name,
+            len(disputed),
+            ", ".join(map(str, disputed)),
         )
 
     if name == datasets.FACTS:
@@ -332,11 +342,12 @@ def _given_at(client: rg.Argilla, dataset: rg.Dataset, key: str) -> dict[int, da
     """When each row's latest submitted answer was given, by the row's id.
 
     Read off Argilla's REST listing: the SDK drops a response's timestamps.
+    A pull applies an answer only where every submitted one agrees, so the
+    latest is when the applied answer was last given.
     """
-    # ponytail: a second read of the dataset beside the SDK's, and the
-    # latest submitted response stands for the record while `_answer` takes
-    # the first; exact for one reviewer. Upgrade: read answers and times
-    # from this one listing.
+    # ponytail: a second read of the dataset beside the SDK's, so a response
+    # submitted between the two reads can be applied with the time before
+    # it. Upgrade: read answers and times from this one listing.
     given: dict[int, datetime] = {}
     offset = 0
     while True:
@@ -369,6 +380,15 @@ def answered(dataset) -> set[str]:
         for record in dataset.records(with_responses=True)
         if any(str(one.status) in _SUBMITTED for one in record.responses)
     }
+
+
+def _disagreed(record) -> bool:
+    """Whether two submitted answers to one question differ."""
+    said: dict[str, set] = {}
+    for response in record.responses:
+        if str(response.status) in _SUBMITTED:
+            said.setdefault(response.question_name, set()).add(response.value)
+    return any(len(values) > 1 for values in said.values())
 
 
 def _answer(record, question: str) -> str | None:

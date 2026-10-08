@@ -25,8 +25,7 @@ class Settings:
     #: nobody is reading twenty thousand facts - and the sample is
     #: stratified over the verdicts, so this is split across them.
     sample: int
-    #: What to call the reviewer in the row's provenance. Optional: a
-    #: deployment with one annotator does not need to say who each time.
+    #: Read and not used: no column records who reviewed a row.
     reviewer: str | None
 
     @classmethod
