@@ -15,6 +15,7 @@ from database.qa_generator import (
     Difficulty,
     QuestionRejection,
     QuestionStatus,
+    ReviewVerdict,
 )
 from question_generation.balance import choose, composition, largest, quota_of
 from question_generation.catalog import QuestionCatalog
@@ -146,6 +147,9 @@ def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
 
     It only ever rejects. Accepting is a person's, and a re-check that
     un-rejected would quietly overturn somebody's decision on its next run.
+    A question a person accepted is rejected only when a fact it rests on no
+    longer holds; no other gate here overrules the person. A question a
+    person rejected stays rejected.
     """
     verdicts: list[tuple[int, str]] = []
     written = 0
@@ -183,6 +187,9 @@ def _recheck(
 
     `pending` is what this pass has already rejected and not yet written,
     which the duplicate probe must not offer back as an accepted twin.
+
+    A question a person accepted is judged on its facts alone: no rule gate
+    after that check overrules the person.
     """
     if not question.facts_validated:
         return (
@@ -192,6 +199,8 @@ def _recheck(
                 "or a person rejected it"
             ),
         )
+    if question.reviewed_verdict == ReviewVerdict.ACCEPTED:
+        return None
 
     # A cross-document question that lost a citation is still a question and
     # is not deleted: the trigger takes one only when its last fact goes. It
@@ -266,7 +275,8 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         settings: The shares the release is held to.
         within: A condition narrowing which questions may be drawn, or None.
 
-    Re-verifies first, so the draw reads rows that pass today's gates.
+    Re-verifies first, so the draw reads rows that pass today's gates, or
+    that a person accepted and whose facts still hold.
 
     Returns:
         How many questions were drawn into the release.

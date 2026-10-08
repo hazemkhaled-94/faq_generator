@@ -851,9 +851,10 @@ questions-rerun:
 # still pass their own checks and no person rejected one in review, its
 # evidence is still spread the way its difficulty says, it is still well
 # formed, and no earlier question already asks it. Rejects what no longer
-# holds and never un-rejects, because accepting is a person's. This is what
-# carries extract-revalidate, or a re-extraction of one document, through to
-# the questions resting on it.
+# holds and never un-rejects, because accepting is a person's. A question a
+# person accepted is rejected only when its facts no longer hold; no other
+# gate overrules the person. This is what carries extract-revalidate, or a
+# re-extraction of one document, through to the questions resting on it.
 questions-reverify:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --reverify $(ONLY)
 

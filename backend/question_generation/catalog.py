@@ -564,6 +564,7 @@ class QuestionCatalog(Repository):
                     Question.follows_id,
                     Question.language,
                     Question.status,
+                    Question.reviewed_verdict,
                     Question.embedding,
                     Question.question_type,
                     Question.answer_form,
@@ -606,6 +607,7 @@ class QuestionCatalog(Repository):
                     topics=row.topics,
                     question_type=row.question_type,
                     answer_form=row.answer_form,
+                    reviewed_verdict=row.reviewed_verdict,
                 )
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:

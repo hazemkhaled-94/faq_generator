@@ -548,6 +548,7 @@ class JudgedQuestion:
     follows_id: int | None
     question_type: str | None = None
     answer_form: str | None = None
+    reviewed_verdict: str | None = None
 
 
 @dataclass(frozen=True)

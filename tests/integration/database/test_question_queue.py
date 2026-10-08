@@ -800,6 +800,84 @@ def test_a_re_check_rejects_a_question_resting_on_a_fact_a_person_rejected(
     assert rows[on_approved] == ("accepted", None)
 
 
+def test_a_re_check_overrules_a_person_only_when_a_fact_falls(engine, database) -> None:
+    """A question a person accepted survives every rule gate, not its facts."""
+    from question_generation.service import reverify
+
+    vector = [1.0] + [0.0] * 1023
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        here = passage(digest("a"), ordinal=1, language="en")
+        session.add(here)
+        session.flush()
+        standing = fact(here.id, statement="The device weighs 4 kg.")
+        refused = fact(here.id, statement="The cable is 2 m long.")
+        session.add_all([standing, refused])
+        session.flush()
+        asked = [
+            question(
+                question_text="What does the device weigh?",
+                target_answer="4 kg",
+                status="accepted",
+                embedding=vector,
+            ),
+            # A near twin of the one before it.
+            question(
+                question_text="How heavy is the device?",
+                target_answer="4 kg",
+                status="accepted",
+                embedding=vector,
+            ),
+            # Ends in no question mark.
+            question(
+                question_text="What the device weighs",
+                target_answer="4 kg",
+                status="accepted",
+            ),
+            question(
+                question_text="How long is the cable?",
+                target_answer="2 m",
+                status="accepted",
+            ),
+        ]
+        session.add_all(asked)
+        session.flush()
+        session.add_all(
+            QuestionFact(
+                question_id=one.id,
+                fact_id=refused.id if one is asked[-1] else standing.id,
+            )
+            for one in asked
+        )
+        session.commit()
+        original, twin, malformed, on_refused = (one.id for one in asked)
+        refused_id = refused.id
+
+    _review(engine, refused_id, "rejected")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE questions SET reviewed_verdict = 'accepted', "
+                "reviewed_at = now() WHERE id = ANY(:ids)"
+            ),
+            {"ids": [twin, malformed, on_refused]},
+        )
+
+    assert reverify(QuestionCatalog(), _settings()) == 1
+    with engine.connect() as connection:
+        rows = {
+            row.id: (row.status, row.rejected_reason)
+            for row in connection.execute(
+                text("SELECT id, status, rejected_reason FROM questions")
+            )
+        }
+    assert rows[original] == ("accepted", None)
+    assert rows[twin] == ("accepted", None), "a duplicate gate overruled a person"
+    assert rows[malformed] == ("accepted", None), "a rule gate overruled a person"
+    assert rows[on_refused] == ("rejected", "source_changed")
+
+
 # ── The kind a question was asked to be ────────────────────────────────────
 
 

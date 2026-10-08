@@ -570,6 +570,7 @@ poetry run pytest tests/integration/database/test_release.py
 | [`test_balance.py`](../../tests/unit/questions/test_balance.py) | Choosing a balanced release |
 | [`test_models.py`](../../tests/unit/questions/test_models.py) | Which model writes a question, and which one checks it |
 | [`test_question_service.py`](../../tests/unit/questions/test_question_service.py) | What the service does with a topic |
+| [`test_reverify.py`](../../tests/unit/questions/test_reverify.py) | What a re-check does with a question a person accepted |
 | [`test_embedding.py`](../../tests/unit/nlp/test_embedding.py) | The embedding behind the dedup gate. Skips unless the model is cached |
 | [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py) | Two queues on one table |
 | [`test_release.py`](../../tests/integration/database/test_release.py) | Drawing a balanced release |
@@ -587,6 +588,9 @@ poetry run pytest tests/integration/database/test_release.py
   as `source_changed` rather than deleted, a person's acceptance included.
 - **`questions-reverify` only ever rejects.** Accepting is a person's
   decision.
+- **No rule gate overrules a person.** `questions-reverify` rejects a
+  question a person accepted only when a fact it rests on no longer holds,
+  which includes a fact a person rejected.
 - **A corpus of one document gets no boilerplate filtering.** There is no
   second document for a copyright notice to repeat into.
 - **`planned_difficulty` disagreeing with `difficulty` is not a fault.** The
