@@ -8,15 +8,10 @@ import pytest
 
 pytest.importorskip("dagster", reason="the pipeline group is not installed")
 
-from dagster import build_asset_context
+from dagster import AssetsDefinition, Output, materialize_to_memory
 
 from orchestration import stages
 from orchestration.client import Queue
-
-#: The assets read `context.run_id`, which Dagster 1.13 deprecates.
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:AssetExecutionContext.run_id is deprecated:DeprecationWarning"
-)
 
 #: The queue every drain and status read returns.
 ROWS = {"parsed": 5, "failed": 2, "new": 1}
@@ -57,6 +52,14 @@ class Stub:
         return {}
 
 
+def materialised(asset: AssetsDefinition) -> Output:
+    """The asset's output, from a run, which is what gives it a run id."""
+    name = asset.op.name
+    result = materialize_to_memory([asset])
+    [done] = result.asset_materializations_for_node(name)
+    return Output(result.output_for_node(name), metadata=done.metadata)
+
+
 @pytest.fixture(autouse=True)
 def backend(monkeypatch) -> type[Stub]:
     """The environment the assets read, and the stand-in they call."""
@@ -71,7 +74,7 @@ def backend(monkeypatch) -> type[Stub]:
 
 def test_a_row_stage_starts_and_reports_what_was_done(backend) -> None:
     """Done is everything but new and failed."""
-    out = stages.parsed_documents(build_asset_context())
+    out = materialised(stages.parsed_documents)
 
     assert backend.acted == [("parsing", "start")]
     assert out.value == 5
@@ -82,7 +85,7 @@ def test_assessment_switched_off_materialises_nothing(backend, monkeypatch) -> N
     """Off is not a failure, and nothing is started."""
     monkeypatch.setattr(backend, "plan_enabled", False)
 
-    out = stages.assessments(build_asset_context())
+    out = materialised(stages.assessments)
 
     assert out.value == 0
     assert backend.acted == []
@@ -90,7 +93,7 @@ def test_assessment_switched_off_materialises_nothing(backend, monkeypatch) -> N
 
 def test_assessment_switched_on_reports_what_was_judged(backend) -> None:
     """The count is what the queue says was produced."""
-    out = stages.assessments(build_asset_context())
+    out = materialised(stages.assessments)
 
     assert backend.acted == [("assessment", "start")]
     assert out.value == stages.produced(ROWS)

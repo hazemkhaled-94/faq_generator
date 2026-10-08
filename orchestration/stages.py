@@ -85,7 +85,7 @@ def _run(context: AssetExecutionContext, stage: str, unit: str) -> Output[int]:
     settings = Settings.load()
     backend = Backend(settings.backend_url)
 
-    queued = backend.act(stage, "start", context.run_id)
+    queued = backend.act(stage, "start", context.run.run_id)
     context.log.info("%s: %d %s(s) queued", stage, queued, unit)
 
     queue = backend.drain(
@@ -178,7 +178,7 @@ def topics(context: AssetExecutionContext) -> Output[int]:
     settings = Settings.load()
     backend = Backend(settings.backend_url)
 
-    fit = backend.discover(context.run_id)
+    fit = backend.discover(context.run.run_id)
     context.log.info("topics: fit %s asked for", fit)
 
     queue = backend.drain(
@@ -261,7 +261,7 @@ def assessments(context: AssetExecutionContext) -> Output[int]:
             },
         )
 
-    queued = backend.act("assessment", "start", context.run_id)
+    queued = backend.act("assessment", "start", context.run.run_id)
     context.log.info("assessment: %d artifact(s) queued", queued)
 
     queue = backend.drain(

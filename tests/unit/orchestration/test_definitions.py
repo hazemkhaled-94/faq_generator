@@ -110,8 +110,8 @@ def test_the_watcher_files_its_check_under_a_name_that_exists() -> None:
 def test_only_one_corpus_run_may_go_at_a_time() -> None:
     """Two runs racing through the same queues interleave.
 
-    One can ask for a topic fit while the other is still draining
-    extraction, and the fit then describes half a corpus. The API's 409
+    One can start writing questions while the other is still draining
+    extraction, and those questions then rest on half the facts. The API's 409
     reads the run list and then launches, and `make pipeline` and the
     Materialize button do not pass it at all - so the limit has to be
     here, where every launcher goes through.
