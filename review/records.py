@@ -23,8 +23,16 @@ from typing import Any
 
 from sqlalchemy import case, func, select, update
 
-from database.qa_generator import Fact, Question, ReviewVerdict
+from database.qa_generator import Fact, Question, ReviewVerdict, Topic
 from database.qa_generator.repository import Repository
+
+#: Each dataset's id column, and the text its record shows, keyed by the
+#: names in `review.datasets`.
+_TEXTS = {
+    "facts": (Fact.id, Fact.statement),
+    "questions": (Question.id, Question.question_text),
+    "topic-labels": (Topic.id, func.array_to_string(Topic.top_terms, ", ")),
+}
 
 
 @dataclass(frozen=True)
@@ -192,6 +200,15 @@ class ReviewRepository(Repository):
             answer_explanation=one.answer_explanation,
             confidence=one.confidence,
         )
+
+    def texts(self, name: str, ids: Sequence[int]) -> dict[int, str]:
+        """What each of these rows reads now, as its record shows it.
+
+        A row that is gone is missing.
+        """
+        key, text = _TEXTS[name]
+        with self._session() as session:
+            return dict(session.execute(select(key, text).where(key.in_(ids))).all())
 
     def review_facts(self, verdicts: list[tuple[int, str]]) -> int:
         """Records what a person decided about some facts.

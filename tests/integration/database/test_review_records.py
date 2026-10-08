@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from seed import digest, document, fact, link, passage, question
+from seed import digest, document, fact, fitted, link, passage, question
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -268,6 +268,23 @@ def test_a_verdict_on_a_row_that_is_gone_is_counted_as_nothing_written(
 ) -> None:
     """A dataset outlives the corpus it was pushed from."""
     assert ReviewRepository().review_facts([(999_999, "accepted")]) == 0
+
+
+def test_each_row_reads_as_its_record_shows_it(corpus, asked, engine) -> None:
+    """What a pull compares a record's text with, and nothing for a row gone."""
+    with Session(engine) as session:
+        held = fitted(top_terms=["fee", "charge"])
+        session.add(held)
+        session.commit()
+        topic_id = held.id
+    fee = corpus["facts"]["The fee is 120 EUR."]
+    repository = ReviewRepository()
+
+    assert repository.texts("facts", [fee, 999_999]) == {fee: "The fee is 120 EUR."}
+    assert repository.texts("questions", [asked[0]]) == {
+        asked[0]: "How long is allowed for a reply?"
+    }
+    assert repository.texts("topic-labels", [topic_id]) == {topic_id: "fee, charge"}
 
 
 # ── What the review found ─────────────────────────────────────────────────

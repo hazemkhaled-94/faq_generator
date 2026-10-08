@@ -8,7 +8,7 @@ a topic out of coverage.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 
@@ -27,6 +27,10 @@ class Response:
     status: str
 
 
+#: What every stub record showed a reviewer, in each kind's text field.
+SHOWN = "The fee is 120 EUR."
+
+
 @dataclass
 class Record:
     """One Argilla record as the pull reads it."""
@@ -34,6 +38,9 @@ class Record:
     metadata: dict
     responses: list[Response]
     id: str | None = None
+    fields: dict = field(
+        default_factory=lambda: dict.fromkeys(("statement", "question", "terms"), SHOWN)
+    )
 
 
 class Records:
@@ -79,8 +86,14 @@ class Facts:
     """Records what was written back."""
 
     def __init__(self) -> None:
-        """Initialises with nothing written."""
+        """Initialises with nothing written, and every row as it was shown."""
         self.written: list[tuple[int, str]] = []
+        self.rewritten: dict[int, str] = {}
+
+    def texts(self, name: str, ids) -> dict[int, str]:
+        """What each row reads now."""
+        del name
+        return {one: self.rewritten.get(one, SHOWN) for one in ids}
 
     def review_facts(self, verdicts) -> int:
         """Records the verdicts."""
@@ -226,6 +239,30 @@ def test_an_unanswered_coverage_question_leaves_the_topic_in_coverage(
     pull(datasets.TOPIC_LABELS, settings, catalogs)
 
     assert catalogs.topics.described == [(3, "Fees", True)]
+
+
+@pytest.mark.parametrize(
+    ("name", "key", "answers"),
+    [
+        (datasets.FACTS, "fact_id", [submitted("verdict", "accepted")]),
+        (datasets.QUESTIONS, "question_id", [submitted("verdict", "accepted")]),
+        (datasets.TOPIC_LABELS, "topic_id", [submitted("in_coverage", "no")]),
+    ],
+)
+def test_an_answer_about_text_the_row_no_longer_holds_is_not_written(
+    monkeypatch, settings, caplog, name, key, answers
+) -> None:
+    """A `schema-reset` restarts the ids, so record 7 can name another row."""
+    catalogs = wired(monkeypatch, [Record({key: 7}, answers)])
+    catalogs.facts.rewritten[7] = "The device weighs 4 kg."
+
+    with caplog.at_level("WARNING", logger="review.service"):
+        assert pull(name, settings, catalogs) == 0
+
+    assert catalogs.facts.written == []
+    assert catalogs.questions.decided == []
+    assert catalogs.topics.described == []
+    assert "1 answer(s)" in caplog.text
 
 
 def test_a_missing_dataset_is_not_an_error(monkeypatch, settings) -> None:

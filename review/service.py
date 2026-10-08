@@ -239,7 +239,23 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
         log.info("%s: no such dataset; nothing has been pushed yet", name)
         return 0
 
-    answered = list(dataset.records(with_responses=True))
+    key, text = _KEYS[name]
+    submitted = [
+        record
+        for record in dataset.records(with_responses=True)
+        if any(str(one.status) in _SUBMITTED for one in record.responses)
+    ]
+    now = catalogs.facts.texts(name, [int(one.metadata[key]) for one in submitted])
+    answered = [
+        one for one in submitted if now.get(int(one.metadata[key])) == one.fields[text]
+    ]
+    if moved := len(submitted) - len(answered):
+        log.warning(
+            "%s: %d answer(s) skipped because the row with that id no longer "
+            "reads as the record does, so the answer is about another row",
+            name,
+            moved,
+        )
 
     if name == datasets.FACTS:
         written = catalogs.facts.review_facts(
@@ -279,6 +295,13 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
 
 #: How Argilla spells a response somebody has finished giving.
 _SUBMITTED = ("submitted", "ResponseStatus.submitted")
+
+#: Each dataset's id metadata, and the field holding the text a reviewer read.
+_KEYS = {
+    datasets.FACTS: ("fact_id", "statement"),
+    datasets.QUESTIONS: ("question_id", "question"),
+    datasets.TOPIC_LABELS: ("topic_id", "terms"),
+}
 
 
 def answered(dataset) -> set[str]:
