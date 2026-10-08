@@ -1585,7 +1585,9 @@ phoenix-purge:
 REVIEW = $(call WITH,review.env) && \
          PYTHONPATH=backend poetry run python -m review.run
 
-# What is in Argilla now, and how much of it has been submitted.
+# How many rows in the database carry a person's verdict, and how often it
+# matched the model's. Reads the database only: an answer submitted in
+# Argilla and not yet pulled is not counted, so pull before deleting a dataset.
 review-status:
 	$(REVIEW) --status
 
