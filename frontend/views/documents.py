@@ -300,10 +300,16 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
         return
     removed = client.delete(sha, derived_only=chosen == "derived")
     page.acted()
-    st.toast(
-        f"Removed {removed['passages']} passage(s)"
-        + (", the file and its parsed form." if removed["document"] else ".")
-    )
+    said = [f"Removed {removed['passages']} passage(s)."]
+    if removed["document"]:
+        said += [
+            f"{name} {'was removed' if gone else 'was not there'}."
+            for name, gone in (
+                ("The file", removed["file"]),
+                ("The parsed form", removed["parsed"]),
+            )
+        ]
+    st.toast(" ".join(said))
     st.rerun()
 
 

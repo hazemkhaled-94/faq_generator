@@ -362,6 +362,23 @@ def test_deleting_the_derived_data_keeps_the_document(open_view) -> None:
     assert [one for one in client.calls("delete") if one[2].get("derived_only")]
 
 
+def test_the_deletion_says_only_what_the_api_removed(open_view, monkeypatch) -> None:
+    """A file that was not there is not reported as removed."""
+    import streamlit as st
+
+    said: list[str] = []
+    monkeypatch.setattr(st, "toast", lambda body, **_: said.append(str(body)))
+    removed = {"sha256": SHA, "document": True, "passages": 10, "file": False}
+    client = Answers(**answers(delete={**removed, "parsed": True}))
+
+    open_view("documents", client).select(0).press("Delete document").press(
+        "Yes, delete"
+    )
+
+    assert "The file was not there" in said[-1]
+    assert "The parsed form was removed" in said[-1]
+
+
 @pytest.mark.parametrize("label", ("Delete passages and facts", "Delete document"))
 def test_a_document_deletion_names_the_questions_and_bridges_it_takes(
     open_view, label
