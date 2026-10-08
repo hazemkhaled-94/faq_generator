@@ -140,6 +140,15 @@ _REDO = (
     "are archived; the verdicts themselves are blanked and not archived."
 )
 
+#: How a disagreeing fact or topic reaches a reviewer. Neither push takes
+#: ids; a question's does, and is named with its id.
+_PUSH = {
+    "fact": "`make review-push-facts` pushes a sample, and `ALL=1` every "
+    "fact; neither pushes one by its id.",
+    "topic": "`make review-push-topics` pushes every topic; it cannot push "
+    "one by its id.",
+}
+
 #: The tab strip, as (what a person picks, what /assessment takes). `None`
 #: is every kind, and it is first because arriving at a page that has
 #: silently narrowed to one third of the corpus is arriving at a lie.
@@ -507,7 +516,10 @@ def _detail(row: dict) -> None:
             st.warning(
                 "The pipeline kept this and the judge refused it. Neither "
                 "side is right by default - put it in front of somebody: "
-                f"`make review-push-{row['kind']}s IDS={row['artifact_id']}`"
+                + _PUSH.get(
+                    row["kind"],
+                    f"`make review-push-questions IDS={row['artifact_id']}`",
+                )
             )
 
 

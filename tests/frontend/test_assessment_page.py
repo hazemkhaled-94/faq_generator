@@ -114,6 +114,26 @@ def test_the_disagreements_are_counted_where_a_reader_looks_first(page) -> None:
     )
 
 
+@pytest.mark.parametrize(("kind", "target"), [("fact", "facts"), ("topic", "topics")])
+def test_a_disagreeing_fact_or_topic_is_offered_no_push_by_id(
+    page, kind, target
+) -> None:
+    """Their review pushes take no ids, so none is printed."""
+    row = changed(ASSESSMENT, kind=kind)
+    said = " ".join(page(assessments=page_of(row)).select(0).warnings())
+
+    assert f"make review-push-{target}" in said
+    assert "IDS=" not in said
+
+
+def test_a_disagreeing_question_is_offered_a_push_by_id(page) -> None:
+    """The one review push that takes ids."""
+    row = changed(ASSESSMENT, kind="question", artifact_id=9)
+    said = " ".join(page(assessments=page_of(row)).select(0).warnings())
+
+    assert "make review-push-questions IDS=9" in said
+
+
 def test_a_refused_row_names_the_judgement_that_refused_it(page) -> None:
     """`hallucinated` is not a word to leave a reader to infer."""
     shown = page().verdicts()
