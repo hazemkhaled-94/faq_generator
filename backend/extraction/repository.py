@@ -352,7 +352,7 @@ class PassageQueue(RowQueue):
         within: Sequence[int] = (),
         excluding: int | None = None,
     ) -> Twin | None:
-        """The validated fact closest to this vector, or None if there is none.
+        """The validated passage fact closest to this vector, or None.
 
         `within` narrows the search to a set of passages. Empty searches the
         whole corpus, which is what dedup wants: a duplicate written from
@@ -365,7 +365,11 @@ class PassageQueue(RowQueue):
         distance = Fact.embedding.cosine_distance(embedding)
         query = (
             select(Fact.id, Fact.statement, distance.label("far"))
-            .where(Fact.validated, Fact.embedding.is_not(None))
+            .where(
+                Fact.validated,
+                Fact.embedding.is_not(None),
+                Fact.kind != FactKind.BRIDGE,
+            )
             .order_by(distance)
             .limit(1)
         )

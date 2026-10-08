@@ -1181,3 +1181,17 @@ class TestTheEmbeddingBackfill:
         embed(store.catalog, embedder)
 
         assert store.queue.nearest_fact([1.0] + [0.0] * 1023, excluding=first) is None
+
+    def test_a_bridge_is_no_twin(self, store, corpus, embedder) -> None:
+        """A passage fact refused as its duplicate would cite into the bridge."""
+        from extraction.service import embed
+
+        anchor, other = corpus["a"][0], corpus["b"][0]
+        store.bridges(
+            checked(
+                anchor, "A bridge.", kind=FactKind.BRIDGE, passage_ids=[anchor, other]
+            )
+        )
+        embed(store.catalog, embedder)
+
+        assert store.queue.nearest_fact([1.0] + [0.0] * 1023) is None
