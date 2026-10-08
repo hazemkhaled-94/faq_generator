@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 pytest.importorskip("dagster", reason="the pipeline group is not installed")
@@ -24,7 +26,7 @@ class Stub:
     """Stands in for the backend client, recording each verb it is sent."""
 
     plan_enabled = True
-    acted: list[tuple[str, str]] = []
+    acted: ClassVar[list[tuple[str, str]]] = []
 
     def __init__(self, *args, **kwargs) -> None:
         """Accepts whatever the asset passes."""
