@@ -488,6 +488,26 @@ def test_the_upload_page_uploads_every_chosen_file_at_once(open_view) -> None:
     assert open_view("upload").uploader()[0].proto.multiple_files
 
 
+def test_the_upload_page_counts_what_it_just_uploaded(open_view) -> None:
+    """The figures are read after the uploads, not before them."""
+    held = {"documents": 3, "upload_attempts": 5}
+
+    def added(filename: str, data: bytes) -> dict:
+        """Stores the file, so the counts move."""
+        held.update(documents=4, upload_attempts=6)
+        return {"outcome": "stored"}
+
+    page = open_view(
+        "upload", upload_api=Answers(counts=lambda: dict(held), add_document=added)
+    )
+    page.uploader()[0].upload("report.pdf", b"%PDF-1.4", "application/pdf")
+
+    done = page.press("Upload all")
+
+    assert done.raised == []
+    assert done.stats()["Documents"] == "4"
+
+
 def test_the_health_page_lists_every_component_the_backend_reports(open_view) -> None:
     """A component appears without a change here."""
     page = open_view("health")

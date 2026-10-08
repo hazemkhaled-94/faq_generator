@@ -14,21 +14,8 @@ def view() -> None:
     page.header("Upload")
 
     client = backend.upload_api()
-    held = client.counts()
-
-    with page.panel("Overview"):
-        page.stats(
-            {
-                "Documents": (
-                    f"{held.get('documents', 0):,}",
-                    "PDFs held in the object store.",
-                ),
-                "Uploads": (
-                    f"{held.get('upload_attempts', 0):,}",
-                    "Uploads recorded, accepted and refused alike.",
-                ),
-            }
-        )
+    # Filled after the uploads below.
+    overview = st.container()
 
     with page.panel("Ingestion"):
         with st.form("upload", border=False):
@@ -43,15 +30,27 @@ def view() -> None:
         # Outside the upload form, inside the panel: a form holds no form.
         configure.panel("ingestion")
 
-    if not submitted:
-        return
-    if not files:
+    if submitted and files:
+        with st.spinner(f"Uploading {len(files)} file(s)…"):
+            for uploaded in files:
+                _report(uploaded.name, client, uploaded.getvalue())
+    elif submitted:
         st.warning("Select at least one PDF.")
-        return
 
-    with st.spinner(f"Uploading {len(files)} file(s)…"):
-        for uploaded in files:
-            _report(uploaded.name, client, uploaded.getvalue())
+    held = client.counts()
+    with overview, page.panel("Overview"):
+        page.stats(
+            {
+                "Documents": (
+                    f"{held.get('documents', 0):,}",
+                    "PDFs held in the object store.",
+                ),
+                "Uploads": (
+                    f"{held.get('upload_attempts', 0):,}",
+                    "Uploads recorded, accepted and refused alike.",
+                ),
+            }
+        )
 
 
 def _report(filename: str, client: UploadApi, data: bytes) -> None:
