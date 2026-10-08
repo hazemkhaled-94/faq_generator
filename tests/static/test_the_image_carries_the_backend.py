@@ -19,9 +19,11 @@ takes milliseconds, which is what makes it a gate.
 
 from __future__ import annotations
 
+import posixpath
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -113,3 +115,40 @@ def test_nothing_is_copied_that_is_not_there() -> None:
         f"the Dockerfile copies what backend/ no longer holds: "
         f"{sorted(_copied() - _first_party())}"
     )
+
+
+def _copied_to_run() -> set[tuple[str, str]]:
+    """Every source the runtime stage copies, and where it lands.
+
+    The two requirements files are left out: the install reads them, and no
+    process does.
+    """
+    workdir, copied = "/", set()
+    for line in DOCKERFILE.read_text().split("\nFROM ")[-1].splitlines():
+        parts = line.split()
+        if parts[:1] == ["WORKDIR"]:
+            workdir = parts[1]
+        if parts[:1] != ["COPY"]:
+            continue
+        *sources, target = parts[1:]
+        for source in sources:
+            if "requirements." in source:
+                continue
+            landing = posixpath.join(workdir, target)
+            if target.endswith("/") and not source.endswith("/"):
+                landing = posixpath.join(landing, posixpath.basename(source))
+            copied.add((source.rstrip("/"), posixpath.normpath(landing)))
+    return copied
+
+
+def test_the_api_mounts_everything_the_image_copies_for_it_to_read() -> None:
+    """A copy left unmounted is read as it was at the last build."""
+    api = yaml.safe_load(COMPOSE.read_text())["services"]["api"]
+    mounted = {
+        (source.removeprefix("./"), landing)
+        for source, landing, *_ in (one.split(":") for one in api["volumes"])
+        if source.startswith("./")
+    }
+
+    assert len(_copied_to_run()) > 10, sorted(_copied_to_run())
+    assert _copied_to_run() - mounted == set(), sorted(_copied_to_run() - mounted)

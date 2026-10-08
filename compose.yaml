@@ -542,6 +542,8 @@ services:
       - ./backend/llm:/app/llm:ro
       - ./backend/archive:/app/archive:ro
       - ./backend/confidence.py:/app/confidence.py:ro
+      # The version stamped on a stored object is read from it.
+      - ./pyproject.toml:/app/pyproject.toml:ro
       - ./telemetry:/shared/telemetry:ro
       - logs:/var/log/qa
     ports:
