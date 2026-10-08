@@ -390,32 +390,30 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             }
         )
 
-        name, coverage, apply, *_ = st.columns([3.2, 1.6, 1.2, 1.4])
-        label = name.text_input(
+        row = st.container(horizontal=True, vertical_alignment="bottom")
+        label = row.text_input(
             "Label",
             value=chosen["label"] or "",
             key=f"topics-label-{chosen['id']}",
             placeholder="a short name for this subject",
             help="Shown wherever the topic is, in place of its number.",
         )
-        included = coverage.checkbox(
+        included = row.checkbox(
             "In coverage",
             value=chosen["include_in_coverage"],
             key=f"topics-coverage-{chosen['id']}",
             help="Whether this topic counts as a subject to be covered.",
         )
-        apply.markdown("<div style='height:1.8rem'></div>", unsafe_allow_html=True)
         # ponytail: read when the page is drawn, and the API still takes the
         # PATCH during a fit, so a Save pressed as a fit starts is still lost.
         # The upgrade is `replace` re-reading the labels in its own locked
         # transaction.
         fitting = stage.busy(client.stage_status("topics")["rows"])
-        if apply.button(
+        if row.button(
             "Save",
             key="topics-save",
             type="primary",
             disabled=fitting,
-            width="stretch",
             help="A fit is queued or running and replaces every topic, so a "
             "label saved now would be lost. Save once it has finished."
             if fitting
