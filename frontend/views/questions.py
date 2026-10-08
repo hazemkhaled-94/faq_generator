@@ -887,7 +887,7 @@ def _verdict(client, question: dict) -> None:
         type="primary",
         disabled=accepted,
         width="stretch",
-        help="Puts this question in the benchmark and clears the gate that rejected it."
+        help="Marks this question accepted, so the next release can draw it."
         if not accepted
         else "Already accepted.",
     ):
@@ -901,7 +901,8 @@ def _verdict(client, question: dict) -> None:
         key=f"reject-{question['id']}",
         disabled=rejected,
         width="stretch",
-        help="Takes it out of the benchmark and keeps the row."
+        help="Marks this question rejected and takes it out of the release. "
+        "The row is kept."
         if not rejected
         else "Already rejected.",
     ):

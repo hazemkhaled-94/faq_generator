@@ -195,6 +195,16 @@ def test_a_verdict_does_not_slide_the_panel_onto_the_next_question(
     assert "accept-102" not in after.control_keys()
 
 
+def test_the_verdict_tooltips_say_what_a_verdict_does(page) -> None:
+    """Reject leaves the release; Accept only makes a question drawable."""
+    draft = changed(QUESTION, status="draft")
+    opened = page(question=_detail(draft), questions=_one(draft)).select()
+
+    assert "out of the release" in opened.button("Reject").help
+    assert "next release" in opened.button("Accept").help
+    assert "gate" not in opened.button("Accept").help
+
+
 def _one(question: dict) -> dict:
     """One page of questions holding exactly this one."""
     return {"total": 1, "questions": [question]}
