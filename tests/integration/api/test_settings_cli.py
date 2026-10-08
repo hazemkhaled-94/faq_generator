@@ -136,14 +136,14 @@ def test_the_platform_is_configurable_from_a_terminal(cli, store) -> None:
     """The one service with no stage, and so no command line of its own.
 
     Which is why there is one command for all seven rather than a flag on
-    each stage's own line: what every stage's model call shares has no
-    worker to hang a flag off.
+    each stage's own line: what the stages share has no worker to hang a
+    flag off.
     """
-    assert cli(["--service", "platform", "--set", "LLM_TEMPERATURE=0.7"]) == 0
+    assert cli(["--service", "platform", "--set", "QA_ANSWER_CONFIDENCE=0.5"]) == 0
 
-    from llm.config import Settings
+    from question_generation.config import Settings
 
-    assert Settings.load(store.resolved()).temperature == 0.7
+    assert Settings.load(store.resolved()).answer_confidence == 0.5
 
 
 def test_a_change_that_stales_something_says_so(cli, store) -> None:
