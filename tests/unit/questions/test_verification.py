@@ -173,6 +173,42 @@ def test_a_near_twin_of_an_accepted_question_is_a_duplicate() -> None:
     )
 
 
+def test_a_near_twin_asking_with_the_same_word_is_a_duplicate() -> None:
+    """The veto needs the question words to differ."""
+    near = Neighbour(
+        "Why must a request be confirmed in writing?", answerable=True, similarity=0.95
+    )
+
+    assert code(
+        near_verdict(
+            near,
+            answerable=True,
+            threshold=0.93,
+            question="Why does a request have to be confirmed in writing?",
+            language="en",
+        )
+    ) == (QuestionRejection.DUPLICATE)
+
+
+def test_a_twin_asking_another_thing_is_a_duplicate_above_the_higher_bar() -> None:
+    """Past halfway from the threshold to identical, the words do not matter."""
+    near = Neighbour(
+        "Which requests have to be confirmed in writing?",
+        answerable=True,
+        similarity=0.97,
+    )
+
+    assert code(
+        near_verdict(
+            near,
+            answerable=True,
+            threshold=0.93,
+            question="Why does a request have to be confirmed in writing?",
+            language="en",
+        )
+    ) == (QuestionRejection.DUPLICATE)
+
+
 def test_an_unanswerable_twin_of_an_answered_question_is_answerable_after_all() -> None:
     """One probe, two gates.
 

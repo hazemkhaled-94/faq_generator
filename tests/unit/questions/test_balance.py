@@ -27,6 +27,7 @@ from question_generation.balance import (
     quota_of,
     shares,
 )
+from question_generation.service import _supplied
 
 BANDS = {Difficulty.EASY: 1, Difficulty.MEDIUM: 1, Difficulty.HARD: 1}
 TYPES = {QuestionType.FACTOID: 1, QuestionType.REASON: 1}
@@ -231,6 +232,13 @@ def test_the_scarcest_band_is_what_caps_the_size() -> None:
     # Three hard questions, and one place of slack per bucket on top.
     assert close_enough(release)
     assert 9 <= release.size <= 13
+
+
+def test_a_kind_the_pool_has_none_of_is_dropped_from_the_quota() -> None:
+    """One empty bucket would otherwise refuse every size of release."""
+    supplied = _supplied([row(1)], TYPES, "kind", "question_type")
+
+    assert supplied == {QuestionType.FACTOID: 1}
 
 
 def test_an_empty_pool_releases_nothing() -> None:

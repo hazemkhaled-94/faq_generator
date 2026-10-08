@@ -114,6 +114,16 @@ def test_every_fact_of_a_group_reaches_the_model_numbered() -> None:
     assert "[2] The device runs for 12 hours." in model.user
 
 
+def test_an_outline_fact_keeps_its_lines_under_one_number() -> None:
+    """A later line is indented under the label, not numbered as a fact."""
+    model = StubModel(question="Q?", answer="A")
+    outline = source(1, statement="Chapters:\n- Basics\n- Testing")
+
+    QuestionWriter(model).write(group(outline), plan())
+
+    assert "[1] Chapters:\n    - Basics\n    - Testing" in model.user
+
+
 def test_the_model_is_shown_the_passage_each_fact_came_from() -> None:
     """Without it there is nothing to write a question out of but the fact.
 
