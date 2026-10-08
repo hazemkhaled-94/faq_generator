@@ -21,8 +21,8 @@ class Settings:
     #: directly, so there is no key to create and none to rotate.
     api_key: str
     #: What to name this run in Phoenix, so two are comparable by more than
-    #: their timestamps. Optional: unset, Phoenix names it itself, which is
-    #: fine for a run nobody is going to come back to.
+    #: their timestamps. Optional: unset, the run is named after its set and
+    #: model.
     run_name: str | None
 
     @classmethod
