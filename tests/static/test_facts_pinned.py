@@ -194,11 +194,6 @@ CHECKS = {
     "bridge": ("_asserts", "_atomic", "_supported", "_self_contained", "_bridging"),
 }
 
-#: The prompt version recorded on every fact each model-backed reader draws.
-#: Bumped whenever the prompt changes what counts as a fact: two prompts are
-#: two datasets, and a corpus read under both is neither.
-PROMPTS = {"llm": "9", "digest": "3", "bridge": "4"}
-
 
 def test_the_service_reads_exactly_the_settings_named_here() -> None:
     """A new setting is a new thing to configure, document and default."""
@@ -311,15 +306,6 @@ def test_a_statement_nobody_wrote_faces_one_check() -> None:
     from extraction.validation import _COMPOSED
 
     assert tuple(check.__name__ for check in _COMPOSED) == ("_copied",)
-
-
-@pytest.mark.parametrize(("reader", "version"), sorted(PROMPTS.items()))
-def test_each_prompt_version_is_the_one_recorded_on_its_facts(reader, version) -> None:
-    """Two prompts are two datasets; the version is what tells them apart."""
-    from importlib import import_module
-
-    module = import_module(f"extraction.extractors.{reader}")
-    assert module.PROMPT_VERSION == version
 
 
 def test_the_service_documents_itself() -> None:

@@ -4,6 +4,11 @@ Question generation and the judge. The two are held the same way and for
 the same reason, and they are here together because a reader looking for
 "what stops a prompt moving under a fixed version" should find one file.
 
+Every prompt each stage's `catalogue()` records - extraction's and the
+topic labeller's too - is also pinned over all three halves `_write` in
+`stages/prompts.py` calls drift: system prompt, user template and response
+schema.
+
 
 "Two prompts are two datasets" is what PROMPT_VERSION is for, and nothing
 checked it: a rule could be added to `types.py`, every question written
@@ -23,14 +28,20 @@ is what reads their content.
 from __future__ import annotations
 
 import hashlib
+import json
 
 import pytest
 
+from assessment import prompts as assessment
 from assessment.templates import PROMPT_VERSION as JUDGE_VERSION
 from assessment.templates import TEMPLATES
+from extraction import prompts as extraction
 from question_generation import phrasing, verifier
+from question_generation import prompts as questions
 from question_generation.generation import _FOLLOW, _PERTURB
 from question_generation.types import PROMPT_VERSION, SPECS
+from stages.prompts import Composed
+from topic_modelling import prompts as topics
 
 #: The version every digest below was taken under.
 VERSION = "11"
@@ -125,6 +136,80 @@ JUDGEMENTS = {
     "question: conciseness": "dbd2e6340ac0f180",
     "question: toxicity": "7416cf020159f9ec",
 }
+
+#: Every prompt a stage records, by service and name: its version, and the
+#: digest over its system prompt, user template and response schema.
+RECORDED = {
+    ("questions", "aggregation"): ("11", "05970b20ebc3eb32"),
+    ("questions", "application"): ("11", "de838bf56ffe48c3"),
+    ("questions", "application (spans)"): ("11", "ff2011a6799ef52b"),
+    ("questions", "comparison"): ("11", "118a27b27e54e3bb"),
+    ("questions", "condition"): ("11", "d9c1eff02c508bbb"),
+    ("questions", "condition (spans)"): ("11", "614e78fa87ce3ed7"),
+    ("questions", "consequence"): ("11", "f52d3250507bbf7b"),
+    ("questions", "consequence (spans)"): ("11", "a87744c064b750f2"),
+    ("questions", "definition"): ("11", "1cd1dc1ef6024051"),
+    ("questions", "definition (spans)"): ("11", "1deca374169f41ea"),
+    ("questions", "entity"): ("11", "51f242a8d6080e9c"),
+    ("questions", "entity (spans)"): ("11", "27f449c2ea4152ae"),
+    ("questions", "enumeration"): ("11", "acd1abeb5d2a6a2a"),
+    ("questions", "enumeration (spans)"): ("11", "2ecb00f7256dda47"),
+    ("questions", "factoid"): ("11", "6009903fc261a5f4"),
+    ("questions", "factoid (spans)"): ("11", "75cc36d1ddb6b854"),
+    ("questions", "implication"): ("11", "d7a8cd6ec96b040c"),
+    ("questions", "procedure"): ("11", "1bc9d1555c1185f2"),
+    ("questions", "procedure (spans)"): ("11", "64d3f6e02fe71e8f"),
+    ("questions", "reason"): ("11", "e80b0159ce9b2e70"),
+    ("questions", "reason (spans)"): ("11", "39909223579093fe"),
+    ("questions", "temporal"): ("11", "2bee1f3623741873"),
+    ("questions", "perturb"): ("11", "b2f73048094e4f8c"),
+    ("questions", "follow"): ("11", "71e82cb87e9cbabc"),
+    ("questions", "phrasing: source"): ("3", "8feff436a4b70d4d"),
+    ("questions", "phrasing: names something"): ("3", "f31be9753115f3c0"),
+    ("questions", "phrasing: self-contained"): ("3", "4929cdb590150f41"),
+    ("questions", "verifier: recover"): ("2", "3b55c01d7aa9e2b4"),
+    ("questions", "verifier: supported"): ("2", "c97daca1b67a1e12"),
+    ("questions", "verifier: computes"): ("2", "2667ae6169e5343e"),
+    ("questions", "verifier: follows"): ("2", "9941c681a2936bc1"),
+    ("extraction", "atomic"): ("9", "c25cb9725eac75db"),
+    ("extraction", "digest"): ("3", "f7003be75e42b82e"),
+    ("extraction", "bridge"): ("4", "d93f5daae44104bb"),
+    ("topics", "label"): ("1", "744885b5f08d5066"),
+    ("assessment", "fact: hallucination"): ("2", "ab72d40652bc51c4"),
+    ("assessment", "fact: relevance"): ("2", "3a8b74aeaeb83dc5"),
+    ("assessment", "fact: toxicity"): ("2", "dba712835cd5db91"),
+    ("assessment", "topic: summarization"): ("2", "79af66f22dc1d78a"),
+    ("assessment", "topic: relevance"): ("2", "99fb3238292b29f9"),
+    ("assessment", "question: hallucination"): ("2", "3e9a0ea18c9eb0b1"),
+    ("assessment", "question: qa_correctness"): ("2", "145aae25f81d7438"),
+    ("assessment", "question: relevance"): ("2", "7c844240bd726f6d"),
+    ("assessment", "question: refusal"): ("2", "f524884a160698d4"),
+    ("assessment", "question: conciseness"): ("2", "d5c82af666fa54e2"),
+    ("assessment", "question: toxicity"): ("2", "eb392c185d32eb90"),
+}
+
+
+def recorded() -> dict[tuple[str, str], Composed]:
+    """Every prompt each stage's catalogue records, by service and name.
+
+    Extraction's under a cap, so the paragraph a cap appends is pinned too.
+    """
+    return {
+        (service, one.name): one
+        for service, held in (
+            (questions.SERVICE, questions.catalogue()),
+            (extraction.SERVICE, extraction.catalogue(4)),
+            (topics.SERVICE, topics.catalogue()),
+            (assessment.SERVICE, assessment.catalogue()),
+        )
+        for one in held
+    }
+
+
+def halves(one: Composed) -> str:
+    """One digest over the three halves `_write` compares."""
+    schema = json.dumps(one.response_schema, sort_keys=True)
+    return digest(f"{one.text}\0{one.user_text}\0{schema}")
 
 
 def judgements() -> dict[str, str]:
@@ -238,6 +323,36 @@ def test_every_judgement_the_judge_can_ask_is_pinned() -> None:
     """
     assert set(judgements()) == set(JUDGEMENTS), (
         "a judging template was added or removed without pinning it"
+    )
+
+
+@pytest.mark.parametrize(("service", "name"), sorted(RECORDED))
+def test_a_recorded_prompt_is_the_one_pinned_under_its_version(
+    service: str, name: str
+) -> None:
+    """Any of the three halves moving under one version is drift."""
+    key = (service, name)
+    every = recorded()
+    assert key in every, f"{key} is pinned here and no stage records it"
+
+    version, pinned = RECORDED[key]
+    assert every[key].version == version, (
+        f"{key} is at version {every[key].version} and this file pins "
+        f"{version}. Write the new version and digest here."
+    )
+    assert halves(every[key]) == pinned, (
+        f"{key} changed under version {version}: its system prompt, user "
+        f"template or response schema. Bump its module's PROMPT_VERSION and "
+        f"write the new digest here."
+    )
+
+
+def test_every_prompt_a_stage_records_is_pinned() -> None:
+    """A prompt added to a catalogue with no digest is one nothing watches."""
+    found = set(recorded())
+
+    assert found == set(RECORDED), (
+        f"added: {sorted(found - set(RECORDED))}, gone: {sorted(set(RECORDED) - found)}"
     )
 
 

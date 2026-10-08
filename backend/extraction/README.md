@@ -244,7 +244,7 @@ and `FactStore` in `tests/integration/facts.py`.
 | Integration | The SQL against a real Postgres, what the database refuses, and the HTTP surface |
 | Property | A verdict and its code always agree; a span always resolves; a bridge never records a passage it was not offered |
 | Regression | A golden table of every candidate anybody has seen, in both languages, with the verdict it should get |
-| Static | `tests/static/test_facts_pinned.py` — settings, routes, dataclass fields, modules, kinds, rejection codes, the check matrix and the three prompt versions |
+| Static | `tests/static/test_facts_pinned.py` — settings, routes, dataclass fields, modules, kinds, rejection codes and the check matrix; `tests/static/test_prompts_pinned.py` — the three prompts, by version and digest |
 | Eval | A real served model against golden passages. Prints; never gates |
 
 ```bash
