@@ -85,6 +85,10 @@ class Project:
         So a project this cannot see the end of is kept. The cost is a
         leftover nobody sweeps; the cost the other way is somebody's data.
         """
+        # ponytail: spans are exported when they end, so a run still going,
+        # or one killed before its parent span ended, holds only completions
+        # and reads as spent. Upgrade: keep a project whose newest span is
+        # recent.
         return not self.work and self.whole
 
 
@@ -166,12 +170,22 @@ def held(client) -> list[Project]:
     """
     found = []
     for one in listed(client):
-        spans = (
-            client.get(f"/v1/projects/{one['id']}/spans", params={"limit": SAMPLE})
-            .json()
-            .get("data", [])
-            or []
+        answered = client.get(
+            f"/v1/projects/{one['id']}/spans", params={"limit": SAMPLE}
         )
+        if not answered.ok:
+            log.warning(
+                "could not read the spans of %s: %s, so it is kept",
+                one["name"],
+                answered.status_code,
+            )
+            found.append(
+                Project(
+                    id=one["id"], name=one["name"], spans=0, work=False, whole=False
+                )
+            )
+            continue
+        spans = answered.json().get("data", []) or []
         found.append(
             Project(
                 id=one["id"],

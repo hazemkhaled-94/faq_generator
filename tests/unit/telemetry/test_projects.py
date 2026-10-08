@@ -15,11 +15,13 @@ from telemetry import projects
 
 
 class Answer:
-    """One response, already a success."""
+    """One response, a success unless told otherwise."""
 
-    def __init__(self, body: dict) -> None:
+    def __init__(self, body: dict, ok: bool = True) -> None:
         """Holds the body it answers with."""
         self._body = body
+        self.ok = ok
+        self.status_code = 200 if ok else 500
 
     def raise_for_status(self) -> None:
         """Answers 200."""
@@ -32,22 +34,25 @@ class Answer:
 class Phoenix:
     """A Phoenix holding one project, its spans served a page at a time."""
 
-    def __init__(self, name: str, spans: list[str]) -> None:
+    def __init__(self, name: str, spans: list[str], readable: bool = True) -> None:
         """Holds the project and the names of its spans."""
         self._name = name
         self._spans = spans
+        self._readable = readable
 
     def get(self, path: str, params: dict) -> Answer:
         """The project listing, or the first page of the project's spans."""
         if path == "/v1/projects":
             return Answer({"data": [{"id": self._name, "name": self._name}]})
+        if not self._readable:
+            return Answer({"detail": "Internal Server Error"}, ok=False)
         page = self._spans[: params["limit"]]
         return Answer({"data": [{"name": one} for one in page]})
 
 
-def project(name: str, spans: list[str]) -> projects.Project:
+def project(name: str, spans: list[str], readable: bool = True) -> projects.Project:
     """One project holding spans with these names, as `held` reads it."""
-    (read,) = projects.held(Phoenix(name, spans))
+    (read,) = projects.held(Phoenix(name, spans, readable))
     return read
 
 
@@ -61,9 +66,14 @@ def test_a_project_holding_a_stage_span_is_not() -> None:
     assert not project("7-assessment-demo", [projects.CALL, "assess"]).spent
 
 
-def test_an_empty_project_is_spent() -> None:
-    """Nothing was ever filed under it."""
+def test_a_project_read_and_found_empty_is_spent() -> None:
+    """Phoenix answered, and nothing was ever filed under it."""
     assert project("stale", []).spent
+
+
+def test_a_project_whose_spans_could_not_be_read_is_kept() -> None:
+    """An error body holds no spans, and no spans is not what Phoenix said."""
+    assert not project("6-question_generation", [], readable=False).spent
 
 
 def test_a_project_too_big_to_read_in_one_page_is_left_alone() -> None:
@@ -284,6 +294,8 @@ class _Paged:
 
 class _Json:
     """A response carrying a decoded body."""
+
+    ok = True
 
     def __init__(self, body: dict) -> None:
         """Holds the body."""
