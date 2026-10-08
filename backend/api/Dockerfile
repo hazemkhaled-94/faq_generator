@@ -113,12 +113,13 @@ COPY telemetry/ /shared/telemetry/
 
 RUN useradd --create-home --uid 1000 app
 
-# Where the JSON log lines go, when LOG_DIR points here. Created before the
-# volume is mounted over it and owned by the user that writes: an empty
-# named volume takes the ownership of the image directory it covers, and a
-# directory that only exists at mount time arrives owned by root, which this
-# process is not.
-RUN mkdir -p /var/log/qa && chown app:app /var/log/qa
+# Where the JSON log lines go, when LOG_DIR points here, and the Hugging Face
+# cache the `models` volume covers. Created before the volumes are mounted
+# over them and owned by the user that writes: an empty named volume takes
+# the ownership of the image directory it covers, and a directory that only
+# exists at mount time arrives owned by root, which this process is not.
+RUN mkdir -p /var/log/qa /home/app/.cache/huggingface \
+    && chown -R app:app /var/log/qa /home/app/.cache
 
 USER app
 
