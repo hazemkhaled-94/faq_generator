@@ -8,7 +8,7 @@ rules it shares with every other page are in test_views.py.
 from __future__ import annotations
 
 import pytest
-from pages import QUESTION, QUESTION_SOURCE, changed
+from pages import QUESTION, QUESTION_SOURCE, Answers, answers, changed
 
 pytestmark = pytest.mark.frontend
 
@@ -159,6 +159,40 @@ def test_a_question_nothing_measured_says_so_rather_than_scoring_zero(page) -> N
 
     assert "no confidence" in said(opened)
     assert "not a low one" in said(opened)
+
+
+# ── A verdict ─────────────────────────────────────────────────────────────
+
+
+def test_a_verdict_does_not_slide_the_panel_onto_the_next_question(
+    open_view,
+) -> None:
+    """Accepting the first of two rejected rows takes it out of the filter.
+
+    The selection is a position, so without a reset the panel would open on
+    the second question with Accept live where the first one's was.
+    """
+    first = changed(QUESTION, id=101, status="rejected")
+    second = changed(QUESTION, id=102, status="rejected")
+    decided: list[tuple] = []
+    client = Answers(
+        **answers(
+            questions=lambda **_: {
+                "total": 2 - len(decided),
+                "questions": [second] if decided else [first, second],
+            },
+            question=lambda one: _detail(first if one == 101 else second),
+            decide_question=lambda *asked: decided.append(asked) or first,
+        )
+    )
+    opened = open_view("questions", client).select(0)
+    assert "Question 101" in opened.panels()
+
+    after = opened.press("Accept")
+
+    assert decided == [(101, "accepted")]
+    assert "Question 102" not in after.panels()
+    assert "accept-102" not in after.control_keys()
 
 
 def _one(question: dict) -> dict:

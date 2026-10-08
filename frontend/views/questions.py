@@ -454,6 +454,10 @@ def view() -> None:
             explain.panel(_SERVICE, "How question generation works")
             configure.panel("questions")
 
+    # A verdict unpicks the row, so the panel cannot slide onto the next one.
+    if st.session_state.pop("questions-decided", False):
+        st.session_state["questions-table"] = {"selection": {"rows": []}}
+
     with page.panel(f"Questions · {total:,}"):
         if not rows:
             st.caption("Nothing matches.")
@@ -885,6 +889,7 @@ def _verdict(client, question: dict) -> None:
         else "Already accepted.",
     ):
         client.decide_question(question["id"], "accepted")
+        st.session_state["questions-decided"] = True
         st.toast(f"Question {question['id']} accepted.")
         st.rerun()
 
@@ -898,6 +903,7 @@ def _verdict(client, question: dict) -> None:
         else "Already rejected.",
     ):
         client.decide_question(question["id"], "rejected")
+        st.session_state["questions-decided"] = True
         st.toast(f"Question {question['id']} rejected.")
         st.rerun()
 
