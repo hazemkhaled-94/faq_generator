@@ -4,3 +4,6 @@ streamlit[pdf]>=1.62.0,<2.0.0
 requests>=2.32.5,<3.0.0
 opentelemetry-sdk>=1.44.0,<2.0.0
 opentelemetry-exporter-otlp-proto-grpc>=1.44.0,<2.0.0
+# A floor, not an import: the first version free of the advisories against
+# the one the lock held.
+urllib3>=2.8.0

@@ -57,7 +57,7 @@ streamlit-pdf==2.0.1
 streamlit==1.63.0
 toml==0.10.2
 typing_extensions==4.16.0
-urllib3==2.7.0
+urllib3==2.8.0
 uvicorn==0.52.4
 watchdog==6.0.0
 websockets==16.1.1
