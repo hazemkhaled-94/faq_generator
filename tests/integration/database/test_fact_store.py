@@ -1098,6 +1098,28 @@ def test_no_cap_gives_back_every_fact_a_cap_refused(store, corpus) -> None:
     assert [row[0] for row in store.rows("validated")] == [True, True]
 
 
+def test_a_recap_records_the_settings_that_moved_each_verdict(store, corpus) -> None:
+    """Refused and given back alike, as a re-judgement records them."""
+    from extraction.repository import FactCatalog
+
+    first = corpus["a"][0]
+    store.store(
+        first,
+        checked(first, "One claim."),
+        checked(first, "Two claims."),
+        checked(first, "Three claims."),
+    )
+
+    FactCatalog(version="lower").recap(1, "over the cap")
+    FactCatalog(version="raised").recap(2, "over the cap")
+
+    assert store.rows("statement", "settings_version") == [
+        ("One claim.", None),
+        ("Two claims.", "raised"),
+        ("Three claims.", "lower"),
+    ]
+
+
 class TestTheEmbeddingBackfill:
     """`make extract-embed`, against the database it writes to.
 

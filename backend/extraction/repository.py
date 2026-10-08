@@ -663,6 +663,7 @@ class FactCatalog(Repository):
                     validated=False,
                     rejection_code=Rejection.OVER_CAP,
                     validation_error=reason,
+                    settings_version=self._version,
                 )
             ).rowcount
             returned = session.execute(
@@ -671,7 +672,12 @@ class FactCatalog(Repository):
                     Fact.rejection_code == Rejection.OVER_CAP,
                     Fact.id.in_(select(over.c.id).where(inside)),
                 )
-                .values(validated=True, rejection_code=None, validation_error=None)
+                .values(
+                    validated=True,
+                    rejection_code=None,
+                    validation_error=None,
+                    settings_version=self._version,
+                )
             ).rowcount
         return refused + returned
 
