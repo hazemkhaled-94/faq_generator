@@ -536,26 +536,10 @@ class AssessmentCatalog(Repository):
         with self._session() as session:
             total = session.execute(counting).scalar() or 0
             found = session.execute(paged).all()
-            metrics = self._metrics(session, [row[0] for row in found])
+            metrics = self._metrics(session, [row.id for row in found])
 
         return total, [
-            StoredAssessment(
-                id=row[0],
-                kind=row[1],
-                artifact_id=row[2],
-                status=row[3],
-                approved=row[4],
-                judge_model=row[5],
-                prompt_version=row[6],
-                run_id=row[7],
-                trace_id=row[8],
-                span_id=row[9],
-                assessed_at=row[10],
-                error=row[11],
-                verdict=row[12],
-                summary=row[13],
-                metrics=metrics.get(row[0], []),
-            )
+            StoredAssessment(**row._asdict(), metrics=metrics.get(row.id, []))
             for row in found
         ]
 
@@ -648,9 +632,9 @@ class AssessmentCatalog(Repository):
         return (
             select(
                 Assessment.id.label("id"),
-                Assessment.artifact_kind.label("artifact_kind"),
+                Assessment.artifact_kind.label("kind"),
                 link.label("artifact_id"),
-                Assessment.assess_status.label("assess_status"),
+                Assessment.assess_status.label("status"),
                 APPROVED.label("approved"),
                 Assessment.judge_model.label("judge_model"),
                 Assessment.prompt_version.label("prompt_version"),
@@ -658,7 +642,7 @@ class AssessmentCatalog(Repository):
                 Assessment.trace_id.label("trace_id"),
                 Assessment.span_id.label("span_id"),
                 Assessment.assessed_at.label("assessed_at"),
-                Assessment.assess_error.label("assess_error"),
+                Assessment.assess_error.label("error"),
                 _VERDICT[kind].label("verdict"),
                 _SUMMARY[kind].label("summary"),
             )
@@ -688,14 +672,9 @@ class AssessmentCatalog(Repository):
             .where(AssessmentMetric.assessment_id.in_(ids))
             .order_by(AssessmentMetric.assessment_id, AssessmentMetric.metric)
         ).all():
-            held.setdefault(row[0], []).append(
-                StoredMetric(
-                    metric=row[1],
-                    label=row[2],
-                    score=row[3],
-                    approved=row[4],
-                    explanation=row[5],
-                )
+            fields = row._asdict()
+            held.setdefault(fields.pop("assessment_id"), []).append(
+                StoredMetric(**fields)
             )
         return held
 
@@ -713,8 +692,8 @@ class AssessmentCatalog(Repository):
             disagreements = 0
             total = judged = approved = 0
             for one in kinds:
-                link, entity, key, _ = self._selected(one, None, None, False)
-                counts = session.execute(
+                link, entity, key = _LINK[one]
+                counted, judged_one, approved_one, disagreed = session.execute(
                     select(
                         func.count(),
                         func.count().filter(APPROVED.is_not(None)),
@@ -730,25 +709,22 @@ class AssessmentCatalog(Repository):
                     .join(entity, key == link)
                     .where(Assessment.artifact_kind == one)
                 ).one()
-                by_kind[one] = counts[0]
-                approved_by_kind[one] = counts[2]
-                total += counts[0]
-                judged += counts[1]
-                approved += counts[2]
-                disagreements += counts[3]
+                by_kind[one] = counted
+                approved_by_kind[one] = approved_one
+                total += counted
+                judged += judged_one
+                approved += approved_one
+                disagreements += disagreed
 
             metrics = [
-                MetricQuality(
-                    metric=row[0],
-                    judged=row[1],
-                    approved=row[2],
-                    direction=direction_of(row[0]),
-                )
+                MetricQuality(**row._asdict(), direction=direction_of(row.metric))
                 for row in session.execute(
                     select(
                         AssessmentMetric.metric,
-                        func.count(),
-                        func.count().filter(AssessmentMetric.approved.is_(True)),
+                        func.count().label("judged"),
+                        func.count()
+                        .filter(AssessmentMetric.approved.is_(True))
+                        .label("approved"),
                     )
                     .join(Assessment, Assessment.id == AssessmentMetric.assessment_id)
                     .where(Assessment.artifact_kind.in_(kinds))
@@ -756,9 +732,8 @@ class AssessmentCatalog(Repository):
                     .order_by(AssessmentMetric.metric)
                 ).all()
             ]
-            models = [
-                row[0]
-                for row in session.execute(
+            models = list(
+                session.scalars(
                     select(Assessment.judge_model)
                     .where(
                         Assessment.judge_model.is_not(None),
@@ -767,7 +742,7 @@ class AssessmentCatalog(Repository):
                     .distinct()
                     .order_by(Assessment.judge_model)
                 ).all()
-            ]
+            )
 
         return AssessmentQuality(
             total=total,
@@ -790,38 +765,32 @@ class AssessmentCatalog(Repository):
         """
         if not ids:
             return {}
-        link, entity, key, _ = self._selected(kind, None, None, False)
+        link, entity, key = _LINK[kind]
         with self._session() as session:
             found = session.execute(
                 select(
                     Assessment.id,
                     link.label("artifact_id"),
-                    APPROVED,
+                    APPROVED.label("approved"),
                     Assessment.judge_model,
                     Assessment.assessed_at,
                     _VERDICT[kind].label("verdict"),
-                    Assessment.assess_status,
+                    Assessment.assess_status.label("status"),
                 )
                 .join(entity, key == link)
                 .where(Assessment.artifact_kind == kind, link.in_(ids))
             ).all()
-            metrics = self._metrics(session, [row[0] for row in found])
+            metrics = self._metrics(session, [row.id for row in found])
         return {
-            row[1]: StoredAssessment(
-                id=row[0],
+            row.artifact_id: StoredAssessment(
+                **row._asdict(),
                 kind=kind,
-                artifact_id=row[1],
-                status=row[6],
-                approved=row[2],
-                judge_model=row[3],
                 prompt_version=None,
                 run_id=None,
                 trace_id=None,
                 span_id=None,
-                assessed_at=row[4],
                 error=None,
-                verdict=row[5],
-                metrics=metrics.get(row[0], []),
+                metrics=metrics.get(row.id, []),
             )
             for row in found
         }
