@@ -137,6 +137,11 @@ Each is the same operation as the route beside it.
 | return failures to the queue | `parse-retry` | `chunk-retry` | `extract-retry` | `questions-retry` | `assess-retry` |
 | queue everything again | `parse-rerun` | `chunk-rerun` | `extract-rerun` | `questions-rerun` | `assess-rerun` |
 
+A drain here — the bare target, every `-rerun` and `topics-discover` —
+**refuses while that stage's container worker is running**, and prints the
+`podman compose … stop <worker>` that stops it. With no container engine
+answering, or the stack down, it drains as before.
+
 `assess-start` also **enrols**: nothing upstream creates an assessment, so it
 creates the rows as well as queuing them.
 

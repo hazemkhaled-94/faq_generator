@@ -122,10 +122,10 @@ A hosted provider is faster per call but applies only to host-side commands —
 containerised workers always call Ollama. Credentials go in
 `configs/env/provider.env`.
 
-**Where the stages run.** The workers in their containers, `make extract` and
-friends on the host, or both at once: they drain the same queue through
-`SELECT … FOR UPDATE SKIP LOCKED`, so nothing is processed twice. The host
-path exists for credentials that only exist where a person is.
+**Where the stages run.** The workers in their containers, or `make extract`
+and friends on the host, never both for one stage: a host drain refuses while
+that stage's worker is running, and prints the command that stops it. The
+host path exists for credentials that only exist where a person is.
 
 **How the pipeline is driven.**
 
@@ -152,7 +152,9 @@ make questions-export OUT=exam.xlsx FILTER="--released"
 ```
 
 `corpus` runs the stages in order and waits for each to drain before starting
-the next. Stage by stage, which is what it runs:
+the next. It drains each on the host, so it stops at the first stage whose
+worker is running and prints the command that stops it. Stage by stage, which
+is what it runs:
 
 ```bash
 make parse-start     && make parse       # a stored file becomes a structured document

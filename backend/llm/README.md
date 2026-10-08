@@ -100,10 +100,9 @@ There is no `LLM_CONTAINER_URL`: a container's address is Ollama's, because
 there is nowhere else it may send a prompt. `make doctor` refuses a container
 model that is not an `ollama*` one.
 
-Both halves drain the **same queues at once**, because claiming is
-`FOR UPDATE SKIP LOCKED`. That is throughput, and it is **not an A/B**: the
-two cover different rows. Comparing two models is `RUN_ID` over the same
-rows — see [settings](../settings/README.md).
+The two halves **never drain one stage's queue at once**: a host drain
+refuses while that stage's worker is running. Comparing two models is
+`RUN_ID` over the same rows — see [settings](../settings/README.md).
 
 ### A worker proves the model before it claims anything
 

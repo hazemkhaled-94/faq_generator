@@ -243,7 +243,7 @@ model which will not answer claims nothing.
 
 A `make` target runs one drain on the host, in the foreground, against the
 same database the containers use. It is the same code; there is no second
-path.
+path. It refuses while that stage's worker container is running.
 
 ## Configuration
 
@@ -290,7 +290,7 @@ poetry run pytest tests/unit/stages tests/integration/database/test_queue.py
   that declares one, and a row already `pending` is worked whatever it says.
 - **A worker that cannot call its model does not start.** A watching worker
   backs off and waits.
-- **A `make` target and a worker container can drain the same queue at the
-  same time.** `SKIP LOCKED` makes that safe rather than forbidden.
+- **A `make` drain refuses only while compose reports the stage's worker
+  running.** With no engine answering it cannot tell, and drains.
 - **Scaling `topic-worker` past one achieves nothing.**
 - **A stage's failure never reaches the API as a 500.**

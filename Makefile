@@ -127,6 +127,15 @@ ONLY = $(if $(SHA),--only document=$(SHA),\
        $(if $(PASSAGE),--only passage=$(PASSAGE),\
        $(if $(TOPIC),--only topic=$(TOPIC))))
 
+# Refuses a host drain while $(1), the container worker draining the same
+# queue, is running, and prints the command that stops it. Passes when no
+# container engine answers or the stack is down.
+#
+#     @$(call IDLE,extract-worker)
+IDLE = ! $(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q . || \
+       { echo "$(1) is running and drains this queue. Stop it first:" >&2; \
+         echo "  $(COMPOSE_CMD) stop $(1)" >&2; exit 1; }
+
 # ── Help ───────────────────────────────────────────────────────────────────
 
 # Listed before anything runs, because `make` on its own used to install
@@ -541,7 +550,9 @@ schema-reset:
 #
 # The bare target runs one drain on the host, in the foreground, against the
 # same database the workers use - which is what you want while developing a
-# stage. Every other target is the same operation as the route beside it:
+# stage. It, every `-rerun` and `topics-discover` refuse while that stage's
+# container worker is running, and print the command that stops it. Every
+# other target is the same operation as the route beside it:
 #
 #   make parse-status      GET /parsing/status
 #   make parse-start      POST /parsing/start
@@ -567,8 +578,9 @@ schema-reset:
 #   make extract-retry PASSAGE=41   POST /extraction/passage/41/retry
 #   make extract-status SHA=abc…     GET /extraction/document/abc…/status
 #
-# None of them runs anything: they move rows between statuses, and whichever
-# worker is watching picks up what is claimable.
+# None of them but `-rerun` runs anything: they move rows between statuses,
+# and whichever worker is watching picks up what is claimable. `-rerun`
+# checks the model, queues every row again and drains here.
 #
 # No stage route runs anything either. The work happens in the workers, and
 # the api container is sized to serve JSON. `POST /pipeline/run` is not an
@@ -578,6 +590,7 @@ schema-reset:
 
 # Drain the parsing queue here. The first run downloads Docling's weights.
 parse:
+	@$(call IDLE,parse-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run
 
 # Report how many documents are in each parse state.
@@ -601,11 +614,13 @@ parse-retry:
 # Run this stage again over every document, finished ones included. For when
 # the code behind it changed and its output needs rebuilding.
 parse-rerun:
+	@$(call IDLE,parse-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run --rerun $(ONLY)
 
 # Split every parsed document into passages. Replaces the passages a document
 # already had, which cascades to the facts and questions drawn from them.
 chunk:
+	@$(call IDLE,chunk-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run
 
 # Report how many documents are in each chunking state.
@@ -632,6 +647,7 @@ chunk-retry:
 # resting on no fact, with its follow-ups and the assessments of each.
 # Without SHA that is the whole corpus, so it warns and waits first.
 chunk-rerun:
+	@$(call IDLE,chunk-worker)
 	@[ -n "$(SHA)" ] || { echo "WARNING: this replaces every passage, and the facts and questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --rerun $(ONLY)
 
@@ -645,6 +661,7 @@ chunk-revocabulary:
 # Drain the extraction queue here. Needs the model in LLM_MODEL to be
 # served at LLM_BASE_URL.
 extract:
+	@$(call IDLE,extract-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run
 
 # Report the extraction queue, and how many facts passed every check.
@@ -671,6 +688,7 @@ extract-retry:
 # follow-ups and the assessments of each. Without SHA or PASSAGE that is the
 # whole corpus, so it warns and waits first.
 extract-rerun:
+	@$(call IDLE,extract-worker)
 	@[ -n "$(SHA)$(PASSAGE)" ] || { echo "WARNING: this replaces every passage's facts, and the questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --rerun $(ONLY)
 
@@ -724,6 +742,7 @@ extract-embed:
 
 # Run any queued fit now, in the foreground.
 topics:
+	@$(call IDLE,topic-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run
 
 # Report the run queue, and how many topics and memberships are stored.
@@ -733,6 +752,7 @@ topics-status:
 # Queue a fit and run it. Replaces every existing topic and membership;
 # labels are carried over where the top terms still match.
 topics-discover:
+	@$(call IDLE,topic-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --discover
 
 # Write each language's pyLDAvis page to ./topics/<language>.html. Reads the
@@ -804,6 +824,7 @@ topics-retry:
 
 # Drain the question queue here, in the foreground.
 questions:
+	@$(call IDLE,question-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run
 
 # Report the queue by topic state, and how many questions are held.
@@ -845,6 +866,7 @@ questions-reclaim:
 # it looks: facts an accepted question already rests on are skipped, so this
 # writes about what the last run did not reach rather than starting over.
 questions-rerun:
+	@$(call IDLE,question-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --rerun $(ONLY)
 
 # Put every stored question through the gates that need no model: its facts
@@ -946,6 +968,7 @@ ASSESS = $(LOADENV) && PYTHONPATH=backend poetry run python -m assessment.run
 
 # Drain the judging queue here, in the foreground.
 assess:
+	@$(call IDLE,assess-worker)
 	$(ASSESS)
 
 # Report the queue by artefact state, and what the judge has said so far.
@@ -994,6 +1017,7 @@ assess-reclaim:
 # in scope is cleared, the sample is enrolled again, and each row is judged
 # again; a row whose judging fails holds no verdict rather than an old one.
 assess-rerun:
+	@$(call IDLE,assess-worker)
 	$(ASSESS) --rerun $(ONLY)
 
 # Which runs there are, newest first, and how many questions each wrote.
