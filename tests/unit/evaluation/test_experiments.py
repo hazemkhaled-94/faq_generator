@@ -137,9 +137,7 @@ def test_the_cases_are_data_and_cost_nothing_to_read() -> None:
 def test_the_constant_floor_is_what_ignoring_the_input_scores() -> None:
     """The number a phrasing score is only meaningful beside.
 
-    `self_contained` measured 84.2% against a constant-answer floor of
-    78.9% - one case in nineteen - which is the measured version of a
-    judgement that fired zero times in 3,131 questions.
+    What a judge scores that answers the majority label whatever it reads.
     """
     field = "self_contained"
     floor = experiments._constant(field)

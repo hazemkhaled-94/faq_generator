@@ -6,8 +6,6 @@ The golden cases, and scoring a served model against them in Phoenix.
 and **prints** the numbers. This package records each run in Phoenix instead,
 so two can be compared by more than their scrollback.
 
-The numbers themselves are in [docs/measurements.md](../docs/measurements.md).
-
 ## Using it
 
 ```bash

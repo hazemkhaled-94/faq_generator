@@ -195,11 +195,9 @@ def _constant(field: str):
     """An evaluator scoring what a judge that never reads its input gets.
 
     The number every phrasing score has to be read against, and the reason
-    it is here rather than in a README: `self_contained` measured 84.2%
-    against a constant-answer floor of 78.9%, which is one case in
-    nineteen, and that is the measured version of a judgement that fired
-    zero times in 3,131 questions. A score without this beside it looks
-    like competence.
+    it is here rather than in a README: a judge that answers the majority
+    label whatever it reads still scores that label's share of the cases.
+    A score without this beside it looks like competence.
 
     Phoenix averages an evaluator over the set, so returning 1 or 0 per
     case gives the floor as a percentage in the same column as the real
@@ -350,11 +348,8 @@ def _phrasing(settings: Settings) -> str:
     """Scores the two phrasing judgements, each against a constant floor.
 
     A measurement and not a gate, like extraction's and unlike the
-    questions set. The numbers it produces are the ones in
-    `evaluation/README.md`'s baseline table, which were read off a
-    terminal and typed in by hand: the split by language, the 15/19 and
-    the 16/19, and the constant-answer floor that showed `self_contained`
-    was not reading its input.
+    questions set: each judgement split by language, beside the
+    constant-answer floor it is read against.
 
     Scored against QUESTIONS_PHRASING_MODEL, which is the model the
     pipeline actually asks, so swapping a 31B for a 12B and re-running
