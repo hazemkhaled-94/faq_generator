@@ -278,7 +278,7 @@ services:
       - postgres_data:/var/lib/postgresql
       - ./configs/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d ${APP_DB_NAME}"]
       interval: 10s
@@ -336,7 +336,7 @@ services:
     volumes:
       - seaweedfs_volume:/data
     ports:
-      - "${SEAWEEDFS_VOLUME_PORT}:8080"
+      - "127.0.0.1:${SEAWEEDFS_VOLUME_PORT}:8080"
     depends_on:
       seaweedfs-master: { condition: service_healthy }
     healthcheck:
@@ -369,7 +369,7 @@ services:
     volumes:
       - seaweedfs_volume2:/data
     ports:
-      - "${SEAWEEDFS_VOLUME2_PORT}:8081"
+      - "127.0.0.1:${SEAWEEDFS_VOLUME2_PORT}:8081"
     depends_on:
       seaweedfs-master: { condition: service_healthy }
     healthcheck:
@@ -434,7 +434,7 @@ services:
       - ./configs/seaweedfs/entrypoint.sh:/entrypoint.sh:ro
       - ./configs/seaweedfs/bucket-init.sh:/bucket-init.sh:ro
     ports:
-      - "${S3_PORT}:8333"
+      - "127.0.0.1:${S3_PORT}:8333"
     depends_on:
       seaweedfs-filer: { condition: service_healthy }
     healthcheck:
@@ -458,8 +458,8 @@ services:
     volumes:
       - ./configs/seaweedfs/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
-      - "${SEAWEEDFS_MASTER_PORT}:9333"
-      - "${SEAWEEDFS_FILER_PORT}:8888"
+      - "127.0.0.1:${SEAWEEDFS_MASTER_PORT}:9333"
+      - "127.0.0.1:${SEAWEEDFS_FILER_PORT}:8888"
     depends_on:
       seaweedfs-master: { condition: service_healthy }
       seaweedfs-filer:  { condition: service_healthy }
@@ -535,7 +535,7 @@ services:
       - ./telemetry:/shared/telemetry:ro
       - logs:/var/log/qa
     ports:
-      - "${BACKEND_PORT}:8000"
+      - "127.0.0.1:${BACKEND_PORT}:8000"
     depends_on:
       postgres:     { condition: service_healthy }
       seaweedfs-s3: { condition: service_healthy }
@@ -704,7 +704,7 @@ services:
       - ./telemetry:/shared/telemetry:ro
       - logs:/var/log/qa
     ports:
-      - "${STREAMLIT_PORT}:8501"
+      - "127.0.0.1:${STREAMLIT_PORT}:8501"
     depends_on:
       api: { condition: service_healthy }
     healthcheck:
@@ -751,8 +751,8 @@ services:
     volumes:
       - phoenix_data:/mnt/data
     ports:
-      - "${PHOENIX_PORT}:6006"
-      - "${PHOENIX_GRPC_PORT}:4317"
+      - "127.0.0.1:${PHOENIX_PORT}:6006"
+      - "127.0.0.1:${PHOENIX_GRPC_PORT}:4317"
     # Without it host.docker.internal resolves to nothing here. The
     # workers already have it, for the same model.
     extra_hosts:
@@ -771,7 +771,7 @@ services:
     <<: *dagster
     command: dagster-webserver -h 0.0.0.0 -p 3000 -w /opt/dagster/dagster_home/workspace.yaml
     ports:
-      - "${DAGSTER_WEBSERVER_PORT}:3000"
+      - "127.0.0.1:${DAGSTER_WEBSERVER_PORT}:3000"
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request as u; u.urlopen(\"http://localhost:3000/server_info\", timeout=3)' || exit 1"]
       interval: 10s
@@ -838,7 +838,7 @@ services:
       - ./certs:/etc/argilla-certs:ro
       - argilla_data:/argilla
     ports:
-      - "${ARGILLA_PORT}:6900"
+      - "127.0.0.1:${ARGILLA_PORT}:6900"
     depends_on:
       postgres:      { condition: service_healthy }
       elasticsearch: { condition: service_healthy }
@@ -908,7 +908,7 @@ services:
       # the host because the engine's logging driver is the engine's, not a
       # container's: it resolves no compose service name and is not on this
       # network.
-      - "${SYSLOG_PORT:-9000}:9000/udp"
+      - "127.0.0.1:${SYSLOG_PORT:-9000}:9000/udp"
     depends_on:
       elasticsearch: { condition: service_healthy }
       # service_started, not service_healthy: an empty named volume takes its
@@ -944,7 +944,7 @@ services:
       - ./certs:/etc/grafana/certs:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "${GRAFANA_PORT}:3000"
+      - "127.0.0.1:${GRAFANA_PORT}:3000"
     depends_on:
       elasticsearch: { condition: service_healthy }
       postgres:      { condition: service_healthy }
@@ -967,7 +967,7 @@ services:
       ADMINER_DEFAULT_SERVER: postgres
       TZ: UTC
     ports:
-      - "${ADMINER_PORT}:8080"
+      - "127.0.0.1:${ADMINER_PORT}:8080"
     depends_on:
       postgres: { condition: service_healthy }
     networks: [global]

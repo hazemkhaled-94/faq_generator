@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -269,3 +270,19 @@ def test_the_frontend_rejects_an_upload_at_the_same_size_the_api_does() -> None:
         f"{found.group(1)}; the smaller one is the real limit and the other "
         f"is what the person is told"
     )
+
+
+def test_every_published_port_listens_on_the_loopback_only() -> None:
+    """A port published without a host address listens on every interface.
+
+    That makes the API, the stores and every UI reachable from the LAN.
+    """
+    services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    open_to_all = [
+        f"{name}: {port}"
+        for name, service in services.items()
+        for port in service.get("ports", [])
+        if not str(port).startswith("127.0.0.1:")
+    ]
+
+    assert not open_to_all, "\n".join(open_to_all)
