@@ -381,7 +381,7 @@ The services are `ingestion`, `parsing`, `chunking`, `extraction`, `topics`,
 | `make migration m="add the dropped counts"` | Write a revision from the models |
 | `make schema` | Apply everything outstanding |
 | `make schema-status` | Where the database is |
-| `make schema-down` | Take the newest revision back off |
+| `make schema-down` | Take the newest revision back off. From the first revision that drops every table, `archived_rows` included. Waits 5 seconds first |
 | `make schema-reset` | Drop every table and rebuild. **Irreversible** |
 | `make schema-stamp` | Adopt a database that already holds the tables |
 

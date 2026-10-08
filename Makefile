@@ -504,8 +504,14 @@ schema-status:
 	$(LOADENV) && poetry run alembic current
 	$(LOADENV) && poetry run alembic history --indicate-current
 
-# Take the newest revision back off.
+# Take the newest revision back off. From the first revision that drops
+# every table, archived_rows included, so it warns and waits as schema-reset
+# does.
 schema-down:
+	@echo "WARNING: at the first revision this drops every table in qa_generator,"
+	@echo "archived_rows included; make schema-status says which one it is at."
+	@echo "Ctrl-C within 5s to abort."
+	@sleep 5
 	$(LOADENV) && poetry run alembic downgrade -1
 
 # Adopt a database that already holds the tables, without running anything:
