@@ -70,12 +70,20 @@ def test_the_command_reads_both_floors_from_the_settings(monkeypatch) -> None:
 
     Stubbed at `main`, because what the command contributes is reading the
     right two settings and reporting what came back - the write itself is
-    `tests/integration/database/test_recalibration_store.py`'s.
+    `tests/integration/database/test_recalibration_store.py`'s. A stored
+    override wins over the environment, as it does for the workers.
     """
+    from settings import store
     from stages import recalibrate_run
 
     monkeypatch.setenv("QUESTIONS_DUPLICATE_FLOOR", "0.75")
     monkeypatch.setenv("EXTRACTION_DUPLICATE_FLOOR", "0.70")
+    monkeypatch.setattr(store, "sessions", lambda: None)
+    monkeypatch.setattr(
+        store.Settings,
+        "overrides",
+        lambda self: {"QUESTIONS_DUPLICATE_FLOOR": "0.81"},
+    )
     asked: dict[str, float] = {}
 
     def recorded(questions_floor: float, facts_floor: float) -> int:
@@ -86,4 +94,4 @@ def test_the_command_reads_both_floors_from_the_settings(monkeypatch) -> None:
     monkeypatch.setattr(recalibrate_run, "main", recorded)
 
     assert recalibrate_run.run() == 0
-    assert asked == {"questions": 0.75, "facts": 0.70}
+    assert asked == {"questions": 0.81, "facts": 0.70}
