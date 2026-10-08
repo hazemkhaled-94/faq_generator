@@ -408,7 +408,7 @@ services:
       seaweedfs-master: { condition: service_healthy }
       postgres:         { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8888/; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 8 ]"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8888/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
