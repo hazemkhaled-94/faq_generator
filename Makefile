@@ -848,11 +848,12 @@ questions-rerun:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --rerun $(ONLY)
 
 # Put every stored question through the gates that need no model: its facts
-# still pass their own checks, its evidence is still spread the way its
-# difficulty says, it is still well formed, and no earlier question already
-# asks it. Rejects what no longer holds and never un-rejects, because
-# accepting is a person's. This is what carries extract-revalidate, or a
-# re-extraction of one document, through to the questions resting on it.
+# still pass their own checks and no person rejected one in review, its
+# evidence is still spread the way its difficulty says, it is still well
+# formed, and no earlier question already asks it. Rejects what no longer
+# holds and never un-rejects, because accepting is a person's. This is what
+# carries extract-revalidate, or a re-extraction of one document, through to
+# the questions resting on it.
 questions-reverify:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --reverify $(ONLY)
 

@@ -524,7 +524,7 @@ class JudgedQuestion:
 
     `facts_validated` and the two spreads are read now rather than when the
     question was written: re-judging a fact can reject one a question rests
-    on, and re-extracting one document can take a cross-document question's
+    on, so can a person reviewing it, and re-extracting one document can take a cross-document question's
     second citation away without taking the question, which leaves a stored
     difficulty that is no longer true.
     """

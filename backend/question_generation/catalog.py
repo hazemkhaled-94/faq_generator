@@ -48,7 +48,7 @@ from question_generation.models import (
     QuestionSource,
     StoredQuestion,
 )
-from question_generation.queue import IS_TOPIC
+from question_generation.queue import HOLDS, IS_TOPIC
 from question_generation.types import CHECKED
 
 #: Which columns the search box looks in, by the name the API accepts.
@@ -567,7 +567,7 @@ class QuestionCatalog(Repository):
                     Question.embedding,
                     Question.question_type,
                     Question.answer_form,
-                    func.coalesce(func.bool_and(Fact.validated), False).label("holds"),
+                    func.coalesce(func.bool_and(HOLDS), False).label("holds"),
                     func.count(func.distinct(Passage.doc_sha256)).label("documents"),
                     func.count(func.distinct(Passage.id)).label("passages"),
                     func.count(func.distinct(DOMINANT.c.topic_id)).label("topics"),

@@ -24,6 +24,7 @@ from database.qa_generator import (
     Question,
     QuestionFact,
     QuestionStatus,
+    ReviewVerdict,
     Status,
     Topic,
 )
@@ -45,6 +46,10 @@ from stages import Columns, RowQueue
 #:
 #: Public because the catalogue counts coverage over the same rows.
 IS_TOPIC = Topic.topic_index.is_not(None)
+
+#: A fact a question may rest on: the checker validated it and no person
+#: rejected it. Public because the re-check reads the same predicate.
+HOLDS = Fact.validated & Fact.reviewed_verdict.is_distinct_from(ReviewVerdict.REJECTED)
 
 #: The next topic to write questions for. This stage's own column and the
 #: guard above. FOR UPDATE SKIP LOCKED lets a second worker take the next.
@@ -319,7 +324,7 @@ class QuestionQueue(RowQueue):
         )
 
     def facts(self, topic_id: int) -> list[SourceFact]:
-        """The validated facts this topic is the subject of.
+        """The validated facts this topic is the subject of, bar any a person rejected.
 
         A fact reaches its topic through its passage, and the passage's
         strongest topic is the one it counts towards: a passage belongs a
@@ -333,7 +338,7 @@ class QuestionQueue(RowQueue):
             rows = session.execute(
                 _SOURCE.where(
                     DOMINANT.c.topic_id == topic_id,
-                    Fact.validated,
+                    HOLDS,
                     # A fact of a kind this stage can use. Without it, the
                     # first re-extraction that writes outlines hands the
                     # writer a bulleted blob as though it were one claim.
@@ -414,7 +419,7 @@ class QuestionQueue(RowQueue):
                     # Carries this topic, but is not strongest in it.
                     PassageTopic.topic_id == topic_id,
                     DOMINANT.c.topic_id != topic_id,
-                    Fact.validated,
+                    HOLDS,
                     Fact.kind.in_(self._kinds),
                     Passage.language.is_not(None),
                     ~_ALREADY_ASKED,

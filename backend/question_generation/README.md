@@ -15,7 +15,8 @@ the document and the period all come from the passage and its heading trail.
 
 The unit of work is a **topic**. The facts a topic may be asked about are the
 facts of the passages that topic is strongest in. A topic with
-`include_in_coverage = false` is skipped.
+`include_in_coverage = false` is skipped, and so is a fact a person rejected
+in review.
 
 ## What it does
 
@@ -228,7 +229,7 @@ Applied cheapest first.
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
 | `answer_incomplete` | has a key naming far less than the verifier found | the same round trip |
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite answers it | a lemma probe and a second call |
-| `source_changed` | rests on a fact that no longer passes its own checks, or whose citations no longer match its stored passage or document scope | nothing |
+| `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
 
 `questions.rejected_reason` holds exactly these. `source_changed` is the one
 no run of the writer produces — it is `make questions-reverify` carrying a

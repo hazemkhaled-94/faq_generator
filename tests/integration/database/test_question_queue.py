@@ -232,6 +232,50 @@ def test_a_rejected_fact_is_never_written_about(corpus) -> None:
     assert QuestionQueue().facts(written["topics"][0]) == []
 
 
+def _review(engine, fact_id: int, verdict: str) -> None:
+    """Records what a person decided about one fact."""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE facts SET reviewed_verdict = :verdict, reviewed_at = now() "
+                "WHERE id = :id"
+            ),
+            {"verdict": verdict, "id": fact_id},
+        )
+
+
+def test_a_fact_a_person_rejected_is_never_written_about(corpus, engine) -> None:
+    """A person's rejection binds over the checker's validation."""
+    written = corpus(topics=1, facts_per_topic=3)
+    topic_id = written["topics"][0]
+    rejected, accepted, unreviewed = written["facts"][topic_id]
+    _review(engine, rejected, "rejected")
+    _review(engine, accepted, "accepted")
+
+    offered = {one.id for one in QuestionQueue().facts(topic_id)}
+
+    assert offered == {accepted, unreviewed}
+
+
+def test_a_fact_a_person_rejected_is_never_offered_as_a_bridge(corpus, engine) -> None:
+    """The same rejection, reached through another topic's weight."""
+    written = corpus(topics=2, facts_per_topic=2)
+    first, second = written["topics"]
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO passage_topics (passage_id, topic_id, weight) "
+                "SELECT passage_id, :second, 0.5 FROM passage_topics "
+                "WHERE topic_id = :first"
+            ),
+            {"first": first, "second": second},
+        )
+    rejected, kept = written["facts"][first]
+    _review(engine, rejected, "rejected")
+
+    assert [one.id for one in QuestionQueue().bridging(second)] == [kept]
+
+
 def test_a_passage_with_no_language_yields_no_facts(corpus, engine) -> None:
     """A question is written in one, and the column holding it is NOT NULL."""
     written = corpus(topics=1)
@@ -699,6 +743,61 @@ def test_a_re_check_does_not_call_a_question_a_twin_of_one_it_is_rejecting(
         )
     assert rows[twin] == "source_changed"
     assert rows[kept] is None, "rejected as a twin of a question being rejected"
+
+
+def test_a_re_check_rejects_a_question_resting_on_a_fact_a_person_rejected(
+    engine, database
+) -> None:
+    """The checker still validates the fact; the person's rejection binds."""
+    from question_generation.service import reverify
+
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        here = passage(digest("a"), ordinal=1, language="en")
+        session.add(here)
+        session.flush()
+        refused = fact(here.id, statement="The device weighs 4 kg.")
+        approved = fact(here.id, statement="The cable is 2 m long.")
+        session.add_all([refused, approved])
+        session.flush()
+        asked = [
+            question(
+                question_text="What does the device weigh?",
+                target_answer="4 kg",
+                status="accepted",
+            ),
+            question(
+                question_text="How long is the cable?",
+                target_answer="2 m",
+                status="accepted",
+            ),
+        ]
+        session.add_all(asked)
+        session.flush()
+        session.add_all(
+            [
+                QuestionFact(question_id=asked[0].id, fact_id=refused.id),
+                QuestionFact(question_id=asked[1].id, fact_id=approved.id),
+            ]
+        )
+        session.commit()
+        on_refused, on_approved = asked[0].id, asked[1].id
+        refused_id, approved_id = refused.id, approved.id
+
+    _review(engine, refused_id, "rejected")
+    _review(engine, approved_id, "accepted")
+
+    assert reverify(QuestionCatalog(), _settings()) == 1
+    with engine.connect() as connection:
+        rows = {
+            row.id: (row.status, row.rejected_reason)
+            for row in connection.execute(
+                text("SELECT id, status, rejected_reason FROM questions")
+            )
+        }
+    assert rows[on_refused] == ("rejected", "source_changed")
+    assert rows[on_approved] == ("accepted", None)
 
 
 # ── The kind a question was asked to be ────────────────────────────────────

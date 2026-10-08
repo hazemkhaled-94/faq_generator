@@ -139,7 +139,8 @@ def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     model wrote is the record of one generation and is kept, and only the
     verdict is replaced. The round trip is left out because it is the one
     gate that costs a call. What runs is what catches a change underneath a
-    stored question - a fact re-judged and now rejected, a citation deleted
+    stored question - a fact re-judged and now rejected, a fact a person
+    rejected in review, a citation deleted
     by a re-extraction, a duplicate written by a later run - and the type
     rules, so a rule added to them reaches the rows already stored.
 
@@ -186,7 +187,10 @@ def _recheck(
     if not question.facts_validated:
         return (
             QuestionRejection.SOURCE_CHANGED,
-            "a fact this question rests on no longer passes its own checks",
+            (
+                "a fact this question rests on no longer passes its own checks, "
+                "or a person rejected it"
+            ),
         )
 
     # A cross-document question that lost a citation is still a question and
