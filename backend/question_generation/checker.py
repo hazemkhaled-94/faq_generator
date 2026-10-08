@@ -856,7 +856,12 @@ class QuestionChecker:
     def _near(
         self, embedding: list[float], seen: Sequence[CheckedQuestion]
     ) -> Neighbour | None:
-        """The nearest accepted question, stored or written earlier in this run."""
+        """The nearest accepted question, stored or written earlier in this run.
+
+        ponytail: every candidate is scored against everything `seen`, so a
+        topic costs O(n^2) cosines. Upgrade: hold `seen` as one matrix and
+        score it in one product.
+        """
         near = self._nearest(embedding)
         for other in seen:
             if other.embedding is None:

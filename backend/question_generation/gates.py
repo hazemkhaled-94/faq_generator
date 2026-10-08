@@ -461,6 +461,10 @@ def subject(question: str, language: str | None) -> str:
     return " ".join(named)
 
 
+#: ponytail: this list, `_DOCUMENTS` and `_ATTRIBUTIONS` hold German and
+#: English words only; a third language names its source past them. Upgrade:
+#: a per-language list setting.
+#:
 #: Words that name a part of a document rather than a thing in the world, and
 #: so say WHERE an answer is once one is numbered. `Abschnitt 2.2` is a
 #: citation; `Abschnitt` alone is not, which is why every one of these is
@@ -1433,6 +1437,10 @@ _FIGURE = re.compile(
 #: from being exponential. Four covers every aggregation this corpus asked
 #: for; a total of five figures nobody wrote down is not a question anybody
 #: would type.
+#:
+#: ponytail: figures past `_FIGURE_CAP` are dropped unread, so a correct
+#: total resting on one is refused. Upgrade: a subset-sum over the figures
+#: scaled to integers.
 _FIGURE_CAP = 40
 _TERM_CAP = 4
 

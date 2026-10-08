@@ -156,6 +156,8 @@ def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         written += catalog.reject(verdicts)
         verdicts.clear()
 
+    # ponytail: one HNSW probe per question. Upgrade: one lateral-join probe
+    # per batch.
     for question in catalog.judged(within):
         if question.status == QuestionStatus.REJECTED:
             continue

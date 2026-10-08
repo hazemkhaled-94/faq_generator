@@ -589,7 +589,11 @@ class QuestionCatalog(Repository):
                 )
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:
-        """Records what a re-check found, one gate code per question."""
+        """Records what a re-check found, one gate code per question.
+
+        ponytail: one UPDATE per question. Upgrade: one executemany with
+        bindparam.
+        """
         if not verdicts:
             return 0
         with self._session.begin() as session:
@@ -701,6 +705,8 @@ class QuestionCatalog(Repository):
         constraint compares it to the parent's - so a cycle written by hand
         or by a bad backfill would have hung the request that read it, which
         is a page that never loads rather than a page that is wrong.
+
+        ponytail: two queries per turn. Upgrade: one recursive CTE.
         """
         root = question
         seen = {root.id}

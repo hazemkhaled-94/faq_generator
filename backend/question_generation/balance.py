@@ -176,6 +176,7 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
                 best = (score, key)
         if best is None:
             break
+        # ponytail: pop(0) shifts the cell each draw. Upgrade: deque.popleft().
         thread = [cells[best[1]].pop(0)]
         for turn in thread:
             thread.extend(turns.get(turn.id, ()))

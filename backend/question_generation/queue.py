@@ -442,6 +442,9 @@ class QuestionQueue(RowQueue):
         questions are append-only, a rejected one is the drop-rate evidence,
         and a second run over the same topic writes only what the facts it
         skipped did not already cover.
+
+        ponytail: one INSERT per question. Upgrade: one multi-row INSERT ...
+        RETURNING per thread depth.
         """
         written = 0
         with self._session.begin() as session:
