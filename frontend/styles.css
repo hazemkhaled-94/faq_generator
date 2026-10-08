@@ -85,6 +85,8 @@ footer { visibility: hidden; }
 /* A service's folds: one row while closed, stacked once one is opened. */
 .st-key-folds:has(details[open]) { flex-direction: column; align-items: stretch; }
 .st-key-folds:has(details[open]) > * { flex: none; }
+/* Anything in the row that is not a fold takes a line of its own. */
+.st-key-folds > :not(:has(details)) { flex-basis: 100%; }
 
 /* ── Figures: small, because only the important ones are here ───────── */
 

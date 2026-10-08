@@ -54,17 +54,17 @@ def panel(service: str) -> None:
         st.caption(f"Configuration unavailable: {refusal(error)}")
         return
 
-    # Outside the fold, so it is read without opening the panel again.
-    said = st.session_state.pop(_SAID.format(service=service), None)
-    if said:
-        st.warning(said)
-
     changed = sum(one["stored"] for one in held["settings"])
     label = "Configuration" + (f" · {changed} changed" if changed else "")
     with st.expander(label):
         _form(client, service, held)
         if changed:
             _reset(client, service, held)
+
+    # Outside the fold, so it is read without opening the panel again.
+    said = st.session_state.pop(_SAID.format(service=service), None)
+    if said:
+        st.warning(said)
 
 
 def _form(client, service: str, held: dict) -> None:
