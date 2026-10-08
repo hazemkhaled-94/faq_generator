@@ -559,11 +559,10 @@ def _export(client, where: dict, total: int, quality: dict) -> None:
             mime=_WORKBOOK,
             key="questions-download",
             type="primary",
-            width="stretch",
         )
         return
 
-    if st.button("Build a workbook", key="questions-build", width="stretch"):
+    if st.button("Build a workbook", key="questions-build"):
         with st.spinner(f"Writing {total:,} question(s)…"):
             st.session_state["questions-workbook"] = (
                 asked,
