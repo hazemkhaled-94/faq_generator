@@ -102,7 +102,7 @@ def test_a_purge_of_one_table_leaves_the_objects_alone(cli) -> None:
 
 
 def test_a_purge_by_age_is_measured_in_days(cli) -> None:
-    """Each half measures it by the clock that wrote it."""
+    """The store reads the cutoff off the database's clock."""
     assert cli.run("--purge", "--older-than", "30") == 0
     assert cli.store.purges == [{"table": None, "older_than_days": 30}]
 

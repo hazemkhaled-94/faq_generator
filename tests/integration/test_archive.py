@@ -13,7 +13,7 @@ from seed import digest, document, fact, link, membership, passage, question
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from archive.store import Archive
+from archive.store import Archive, Purged
 from database.qa_generator import Base
 from ingestion.factory import build_removal
 
@@ -205,6 +205,28 @@ def test_purging_by_age_keeps_what_is_newer(archive, held) -> None:
     assert archive.purge(older_than_days=0).rows == 6, (
         "measured by the clock that wrote the row, not the one asking"
     )
+
+
+def test_a_purge_by_age_cuts_rows_and_objects_at_one_moment(
+    archive, held, monkeypatch
+) -> None:
+    """The database's clock for both, so a host clock running slow keeps nothing."""
+    from datetime import datetime
+
+    from archive import store
+
+    class Behind(datetime):
+        """A host clock a quarter of a century slow."""
+
+        @classmethod
+        def now(cls, tz=None):
+            """Answers the first of January 2000."""
+            return cls(2000, 1, 1, tzinfo=tz)
+
+    monkeypatch.setattr(store, "datetime", Behind)
+    build_removal().delete(held)
+
+    assert archive.purge(older_than_days=0) == Purged(rows=6, objects=2)
 
 
 def test_purging_everything_takes_the_objects_with_it(archive, held) -> None:

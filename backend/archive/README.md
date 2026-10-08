@@ -86,10 +86,9 @@ function serves the four tables carrying a vector and the nine that do not.
 
 ## What a purge measures its age by
 
-Each half measures it **by the clock that wrote it**: `archived_at` against
-the database's `now()`, an object's age against its own `LastModified`. A
-host computing one cutoff for both would purge by however far its clock has
-drifted from theirs.
+**The database's clock, read once.** The purge reads `now()` less the age
+from the database and cuts both halves at that moment: `archived_at` and an
+object's `LastModified` alike. The host running the purge is not asked.
 
 `TABLE=` is about rows and leaves the bucket alone — an archived upload
 belongs to no table. `DAYS=` and `ALL=1` take the objects too.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete, func, select
 
@@ -82,10 +82,8 @@ class Archive:
         no table: naming `questions` is about rows, and naming nothing at
         all means the whole archive.
 
-        An age rather than a timestamp, because each half measures it by
-        the clock that wrote it - `archived_at` by the database's and an
-        object's age by its own. A host computing one cutoff for both purges
-        by however far its clock has drifted from theirs.
+        An age is cut at one moment read off the database's clock, for the
+        rows' `archived_at` and the objects' `LastModified` alike.
 
         Args:
             table: Only rows deleted from this table, or every table.
@@ -97,25 +95,19 @@ class Archive:
         statement = delete(ArchivedRow)
         if table is not None:
             statement = statement.where(ArchivedRow.table_name == table)
-        if older_than_days is not None:
-            statement = statement.where(
-                ArchivedRow.archived_at < func.now() - timedelta(days=older_than_days)
-            )
 
         with self._session.begin() as session:
+            cutoff = (
+                None
+                if older_than_days is None
+                else session.execute(
+                    select(func.now() - timedelta(days=older_than_days))
+                ).scalar_one()
+            )
+            if cutoff is not None:
+                statement = statement.where(ArchivedRow.archived_at < cutoff)
             rows = session.execute(statement).rowcount
 
-        objects = (
-            0
-            if table is not None
-            else self._bucket.purge(before=_cutoff(older_than_days))
-        )
+        objects = 0 if table is not None else self._bucket.purge(before=cutoff)
         log.info("purged %d archived row(s) and %d archived object(s)", rows, objects)
         return Purged(rows=rows, objects=objects)
-
-
-def _cutoff(older_than_days: int | None) -> datetime | None:
-    """When an object has been held long enough to purge."""
-    if older_than_days is None:
-        return None
-    return datetime.now(UTC) - timedelta(days=older_than_days)
