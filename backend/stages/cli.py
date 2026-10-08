@@ -84,7 +84,9 @@ def parser(module: str, actions: dict[str, str]) -> argparse.ArgumentParser:
 
 
 def reloading(
-    name: str, build_service: Callable[[], StageService]
+    name: str,
+    build_service: Callable[[], StageService],
+    preflight: Callable[[], None] | None = None,
 ) -> Callable[[Callable[[], bool]], int]:
     """Wraps a drain so it rebuilds the service when the settings change.
 
@@ -96,6 +98,13 @@ def reloading(
     reloads 2.2 GB of embedding weights in one stage; the upgrade is to
     check inside `StageService.drain`'s loop and rebuild only the
     collaborators whose settings differ.
+
+    A rebuild waits for `preflight` before it claims anything. The first
+    build does not: `queue_main` has already run it.
+
+    ponytail: the wait ignores a stop request. Nothing is claimed while it
+    waits, so the supervisor's kill loses nothing; the upgrade is giving
+    `_ready` the `stopping` callable and an interruptible sleep.
     """
     from settings.store import current
 
@@ -111,6 +120,8 @@ def reloading(
                     name,
                     version,
                 )
+                if preflight is not None:
+                    _ready(name, preflight, True)
             held["service"] = build_service()
             held["version"] = version
         return held["service"].drain(stopping)
@@ -245,7 +256,7 @@ def queue_main(
         build_service().drain()
         return 0
 
-    watch(reloading(name, build_service), decimal("WORKER_POLL_SECONDS"))
+    watch(reloading(name, build_service, preflight), decimal("WORKER_POLL_SECONDS"))
     return 0
 
 

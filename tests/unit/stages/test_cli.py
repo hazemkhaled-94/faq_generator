@@ -207,3 +207,69 @@ def test_coming_back_is_worth_a_line(monkeypatch) -> None:
 def test_a_model_that_answers_at_once_says_nothing(monkeypatch) -> None:
     """The common case stays silent."""
     assert _waiting(monkeypatch, failures=0) == []
+
+
+# ── A worker rebuilt after a settings change ───────────────────────────────
+
+
+def test_a_rebuilt_worker_claims_nothing_until_its_new_models_answer(
+    monkeypatch,
+) -> None:
+    """A watching worker whose new settings name a model that does not answer.
+
+    An unreachable phrasing judge abstains once per question, and the
+    checker accepts on the gates that did not run.
+    """
+    from settings import store
+    from stages import cli
+
+    settings = {"version": "before"}
+    monkeypatch.setattr(store, "current", lambda: settings["version"])
+    monkeypatch.setattr(cli.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(cli.telemetry, "configure", lambda *_, **__: None)
+    monkeypatch.setattr(cli.telemetry, "trace_engine", lambda engine: None)
+    monkeypatch.setattr(cli, "engine", lambda: None)
+    watched: list = []
+    monkeypatch.setattr(cli, "watch", lambda drain, seconds: watched.append(drain))
+
+    happened: list[str] = []
+    refusals = {"left": 0}
+
+    def preflight() -> None:
+        """Refuses while the test says to, then answers."""
+        if refusals["left"]:
+            refusals["left"] -= 1
+            happened.append("refused")
+            raise RuntimeError("phrasing judge unreachable")
+        happened.append("answered")
+
+    class _Service:
+        """A service that records each drain."""
+
+        def drain(self, stopping=None) -> int:
+            """Records one drain."""
+            happened.append("drained")
+            return 0
+
+    cli.queue_main(
+        name="questions",
+        module="question_generation.run",
+        repository=PassageQueue,
+        build_service=_Service,
+        argv=["--watch"],
+        preflight=preflight,
+    )
+    (drain,) = watched
+    drain(lambda: False)
+    settings["version"] = "after"
+    refusals["left"] = 2
+    drain(lambda: False)
+
+    assert happened == [
+        "answered",
+        "drained",
+        "refused",
+        "refused",
+        "answered",
+        "drained",
+    ]

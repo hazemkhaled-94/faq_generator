@@ -236,7 +236,9 @@ and then stops. The wait between polls is an `Event`, so a worker asleep
 wakes at once instead of serving out its interval.
 
 A watching worker rebuilds its service when the settings change. The check
-sits between drains, where nothing is claimed.
+sits between drains, where nothing is claimed. Before it builds again it runs
+its `preflight` and waits there as it does at start, so a setting that names a
+model which will not answer claims nothing.
 
 A `make` target runs one drain on the host, in the foreground, against the
 same database the containers use. It is the same code; there is no second
