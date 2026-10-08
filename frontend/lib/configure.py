@@ -69,7 +69,7 @@ def panel(service: str) -> None:
 
 def _form(client, service: str, held: dict) -> None:
     """Draws the settings as a form, and saves what it is submitted with."""
-    with st.form(f"settings-{service}"):
+    with st.form(f"settings-{service}", border=False):
         values: dict[str, str | None] = {}
         for setting in held["settings"]:
             drawn = _control(service, setting)
