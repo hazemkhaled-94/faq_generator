@@ -8,7 +8,7 @@ from typing import ClassVar
 
 from opentelemetry.trace import Span
 
-from blob_store.s3 import ExportBucket, ModelsBucket
+from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
 from stages import StageService
 from telemetry import tracer, working
 from telemetry.evaluations import current_ids
@@ -44,6 +44,7 @@ class TopicModellingService(StageService):
         fitter: TopicFitter,
         export: ExportBucket,
         models: ModelsBucket,
+        archive: ArchiveBucket,
         labeller: TopicLabeller | None = None,
         min_fact_share: float = 0.0,
     ) -> None:
@@ -57,6 +58,8 @@ class TopicModellingService(StageService):
                 stored. The figure is a view of this and can be redrawn
                 from it; this is what a re-fit would otherwise be needed
                 to get back.
+            archive: Where the previous fit's model and figure go before
+                this fit's replace them.
             labeller: Names the unnamed topics. Without one a topic keeps its
                 terms and no name.
             min_fact_share: The smallest share of a topic's passages that must
@@ -67,6 +70,7 @@ class TopicModellingService(StageService):
         self._fitter = fitter
         self._export = export
         self._models = models
+        self._archive = archive
         self._labeller = labeller
         self._min_fact_share = min_fact_share
 
@@ -194,9 +198,12 @@ class TopicModellingService(StageService):
         briefly unreachable.
         """
         for fitting in fittings:
+            key = self._models.topic_model_key(fitting.language)
             try:
+                # Archived first, so a failure leaves the previous model.
+                self._archive.take(self._models.name, key)
                 self._models.put(
-                    self._models.topic_model_key(fitting.language),
+                    key,
                     dump(fitting.space),
                     content_type=self._models.TOPIC_MODEL_TYPE,
                 )
@@ -217,14 +224,14 @@ class TopicModellingService(StageService):
             return
 
         for fitting in fittings:
-            # Taken away before the new one is drawn, so a language whose
+            # Archived before the new one is drawn, so a language whose
             # figure fails to render has none rather than a stale one. The
             # route answers 404 for that.
             key = self._export.topic_visualisation_key(fitting.language)
             try:
-                self._export.remove(key)
+                self._archive.take(self._export.name, key)
             except Exception:
-                log.exception("could not take away the old %s figure", fitting.language)
+                log.exception("could not archive the old %s figure", fitting.language)
                 continue
             try:
                 self._export.put(

@@ -268,15 +268,14 @@ class RecordingQueue:
 class RecordingExport:
     """The export bucket, held in memory."""
 
+    name = "export"
     TOPIC_VISUALISATION_TYPE = "text/html; charset=utf-8"
 
     def __init__(self) -> None:
         """Starts with no figure stored."""
         self.figures: dict[str, bytes] = {}
-        self.removed: list[str] = []
         self.types: dict[str, str] = {}
         self.refuses_put: Exception | None = None
-        self.refuses_remove: Exception | None = None
 
     @staticmethod
     def topic_visualisation_key(language: str) -> str:
@@ -291,13 +290,6 @@ class RecordingExport:
         if content_type:
             self.types[key] = content_type
 
-    def remove(self, key: str) -> None:
-        """Takes one figure away."""
-        if self.refuses_remove is not None:
-            raise self.refuses_remove
-        self.removed.append(key)
-        self.figures.pop(key, None)
-
 
 class RecordingModels:
     """The models bucket, held in memory.
@@ -307,6 +299,7 @@ class RecordingModels:
     kept should not pass because a figure was.
     """
 
+    name = "models"
     TOPIC_MODEL_TYPE = "application/octet-stream"
 
     def __init__(self) -> None:
@@ -327,6 +320,26 @@ class RecordingModels:
         self.models[key] = body
         if content_type:
             self.types[key] = content_type
+
+
+class RecordingArchive:
+    """The archive bucket, held in memory, over the buckets it takes from."""
+
+    def __init__(self, **origins: dict[str, bytes]) -> None:
+        """Starts empty, over each origin's objects by bucket name."""
+        self.origins = origins
+        self.objects: dict[str, bytes] = {}
+        self.refuses: Exception | None = None
+
+    def take(self, origin: str, key: str) -> bool:
+        """Moves one object out of `origin`, reporting whether one was there."""
+        if self.refuses is not None:
+            raise self.refuses
+        body = self.origins[origin].pop(key, None)
+        if body is None:
+            return False
+        self.objects[f"{origin}/{key}"] = body
+        return True
 
 
 class CommandDriver:
@@ -547,12 +560,16 @@ class ServiceDriver:
         self.queue = RecordingQueue(corpora or {}, texts)
         self.export = RecordingExport()
         self.models = RecordingModels()
+        self.archive = RecordingArchive(
+            export=self.export.figures, models=self.models.models
+        )
         self.labeller = labeller
         self.service = TopicModellingService(
             repository=self.queue,  # pyright: ignore[reportArgumentType]
             fitter=TopicFitter(**settings),
             export=self.export,  # pyright: ignore[reportArgumentType]
             models=self.models,  # pyright: ignore[reportArgumentType]
+            archive=self.archive,  # pyright: ignore[reportArgumentType]
             labeller=labeller.labeller if labeller else None,
         )
 

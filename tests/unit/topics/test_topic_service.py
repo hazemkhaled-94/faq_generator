@@ -184,14 +184,40 @@ def test_a_model_that_cannot_be_stored_does_not_fail_the_fit(service) -> None:
     assert not flow.models.models
 
 
-def test_the_old_figure_is_taken_away_before_the_new_one_is_drawn(service) -> None:
-    """A figure of topics that no longer exist is worse than none."""
+def test_a_refit_archives_the_previous_model_before_it_writes_its_own(
+    service,
+) -> None:
+    """The previous fit's rows are archived by the replace, and its model too."""
     flow = service()
+    flow.models.models["topics/de.npz"] = b"the previous fit"
 
     flow.request_and_run()
 
-    assert flow.export.removed == ["topics/de.html"], flow.export.removed
-    assert "de" in flow.figures
+    assert flow.archive.objects == {"models/topics/de.npz": b"the previous fit"}
+    assert flow.models.models["topics/de.npz"] != b"the previous fit"
+
+
+def test_a_model_that_cannot_be_archived_is_not_overwritten(service) -> None:
+    """The previous fit's model stays where it is rather than being lost."""
+    flow = service()
+    flow.models.models["topics/de.npz"] = b"the previous fit"
+    flow.archive.refuses = RuntimeError("no permission")
+
+    flow.request_and_run()
+
+    assert flow.failure is None, flow.failure
+    assert flow.models.models == {"topics/de.npz": b"the previous fit"}
+
+
+def test_the_old_figure_is_archived_before_the_new_one_is_drawn(service) -> None:
+    """A figure of topics that no longer exist is worse than none."""
+    flow = service()
+    flow.export.figures["topics/de.html"] = b"the previous fit"
+
+    flow.request_and_run()
+
+    assert flow.archive.objects == {"export/topics/de.html": b"the previous fit"}
+    assert flow.figures["de"] != b"the previous fit"
 
 
 def test_a_figure_that_cannot_be_stored_does_not_fail_the_fit(service) -> None:
@@ -206,10 +232,10 @@ def test_a_figure_that_cannot_be_stored_does_not_fail_the_fit(service) -> None:
     assert flow.figures == {}
 
 
-def test_a_figure_that_cannot_be_removed_is_not_replaced(service) -> None:
+def test_a_figure_that_cannot_be_archived_is_not_replaced(service) -> None:
     """Rather than draw a new page beside a stale one that would not go."""
     flow = service()
-    flow.export.refuses_remove = RuntimeError("no permission")
+    flow.archive.refuses = RuntimeError("no permission")
 
     flow.request_and_run()
 
