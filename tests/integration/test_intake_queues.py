@@ -552,6 +552,17 @@ def test_a_re_read_can_be_narrowed_to_one_document(corpus) -> None:
     assert [language for _, _, language in walked] == ["en"]
 
 
+def test_the_languages_a_re_read_compares_narrow_to_one_document(corpus) -> None:
+    """The narrowing names the document, and is joined to rather than crossed."""
+    from database.qa_generator import Document, Passage
+
+    narrowed = corpus.languages(Document.sha256 == B)
+
+    assert narrowed == {
+        one: "en" for one, _, _ in corpus.texts(Passage.doc_sha256 == B)
+    }
+
+
 def test_a_re_read_replaces_the_language_and_the_lemmas(corpus, engine) -> None:
     """Both, so a change to either reaches the topic model."""
     with engine.connect() as connection:

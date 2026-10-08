@@ -190,7 +190,9 @@ class PassageCatalog(Repository):
         Returns:
             One entry per passage, the language or None.
         """
-        query = select(Passage.id, Passage.language)
+        query = select(Passage.id, Passage.language).join(
+            Document, Document.sha256 == Passage.doc_sha256
+        )
         if within is not None:
             query = query.where(within)
         with self._session() as session:
