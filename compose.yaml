@@ -7,11 +7,13 @@ name: qa_generator
 #
 # Before deployment, replace it with three:
 #
-#   frontend: {}          api, streamlit, adminer, phoenix, argilla,
-#                         seaweedfs-s3
+#   frontend: {}          every service still publishing a port
 #   backend:              every service; no host access, no outbound
 #     internal: true
-#   egress: {}            the five workers only
+#   egress: {}            the four workers that call a model: extract-worker,
+#                         topic-worker, question-worker, assess-worker. And
+#                         parse-worker and chunk-worker, until the models
+#                         they fetch on first use are in the `models` volume.
 #
 # Then drop `ports:` from postgres, which is then reached through adminer.
 # The seaweedfs master, filer and volume servers publish no port; the host
