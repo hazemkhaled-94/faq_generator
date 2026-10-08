@@ -312,10 +312,16 @@ a caller branches on the code rather than on English:
 | `unknown_topic` | 404 | No topic with that id |
 | `unknown_scope` | 404 | A stage was narrowed to a scope it does not accept |
 | `unknown_setting` | 404 | A service has no setting by that name |
+| `cross_site_write` | 403 | A request other than GET, HEAD or OPTIONS carries `Sec-Fetch-Site: cross-site` or `same-site`, or an `Origin` that is not the API's own |
 
 A request whose `Host` is not in `API_ALLOWED_HOSTS` is answered 400 by
 Starlette's `TrustedHostMiddleware` before any route reads it, as plain text
 rather than a body with a code.
+
+`cross_site_write` is answered by the middleware in [`main.py`](main.py),
+also before any route. The frontend's server, the orchestrator, `curl` and
+the tests send neither header and pass; so does the `/docs` page, whose
+calls are same-origin.
 
 FastAPI's 422 for a malformed query is left alone, and **a stage's own
 failures are not answered here at all** — they are recorded against the row

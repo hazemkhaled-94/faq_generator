@@ -41,28 +41,29 @@ class ApiError(Exception):
         self.body = ErrorBody(code=code, detail=detail)
 
 
+async def refused(request: Request, exc: ApiError) -> JSONResponse:
+    """Renders one refusal, and records it.
+
+    One line here rather than one at each `raise`: every deliberate
+    refusal passes through, so the code a caller branched on is also
+    the code a dashboard can count. At warning, not error - a 404 for
+    an unknown id is the API working.
+    """
+    log.warning(
+        "%s %s refused: %s",
+        request.method,
+        request.url.path,
+        exc.body.code,
+        extra={
+            "http.request.method": request.method,
+            "url.path": request.url.path,
+            "http.response.status_code": exc.status,
+            "error.code": exc.body.code,
+        },
+    )
+    return JSONResponse(status_code=exc.status, content=asdict(exc.body))
+
+
 def install(app: FastAPI) -> None:
     """Teaches an application to answer :class:`ApiError` with its body."""
-
-    @app.exception_handler(ApiError)
-    async def _handle(request: Request, exc: ApiError) -> JSONResponse:
-        """Renders one refusal, and records it.
-
-        One line here rather than one at each `raise`: every deliberate
-        refusal passes through, so the code a caller branched on is also
-        the code a dashboard can count. At warning, not error - a 404 for
-        an unknown id is the API working.
-        """
-        log.warning(
-            "%s %s refused: %s",
-            request.method,
-            request.url.path,
-            exc.body.code,
-            extra={
-                "http.request.method": request.method,
-                "url.path": request.url.path,
-                "http.response.status_code": exc.status,
-                "error.code": exc.body.code,
-            },
-        )
-        return JSONResponse(status_code=exc.status, content=asdict(exc.body))
+    app.exception_handler(ApiError)(refused)
