@@ -39,10 +39,7 @@ def view() -> None:
                 help="Stored under the digest of its own bytes. A file the "
                 "corpus already holds is recorded and stores nothing.",
             )
-            submit, *_ = st.columns(4)
-            submitted = submit.form_submit_button(
-                "Upload all", type="primary", width="stretch"
-            )
+            submitted = st.form_submit_button("Upload all", type="primary")
         # Outside the upload form, inside the panel: a form holds no form.
         configure.panel("ingestion")
 
