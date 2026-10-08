@@ -65,17 +65,22 @@ x-service-env: &service-env
   LOG_DIR: /var/log/qa
   HF_HOME: /home/app/.cache/huggingface
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
-  OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET}
-  # Phoenix's HTTP API, as a CONTAINER reaches it. The two lines above are
-  # the gRPC collector that receives spans; this is the same service read
-  # the other way, and it is what a gate verdict is posted through.
+  # Phoenix's HTTP API, as a CONTAINER reaches it. The line above is the
+  # gRPC collector that receives spans; this is the same service read the
+  # other way, and it is what a gate verdict is posted through.
   #
   # The same name the host reads, overwritten here with the container's
-  # address - exactly what the OTLP endpoint two lines above does. The
+  # address - exactly what the OTLP endpoint above does. The
   # host's is derived from PHOENIX_PORT and resolves to nothing from
   # inside the network; a second name read as a fallback meant the
   # reverse, because the Makefile loads the same files for a host command.
   PHOENIX_BASE_URL: ${PHOENIX_CONTAINER_BASE_URL}
+
+# Phoenix's admin secret, as the bearer on an exported span and the key a
+# verdict is posted with. The workers only: the api exports no span and
+# posts no verdict.
+x-phoenix-env: &phoenix-env
+  OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET}
   PHOENIX_API_KEY: ${PHOENIX_ADMIN_SECRET}
 
 # Object store readers and writers.
@@ -547,7 +552,7 @@ services:
     <<: *worker
     command: ["python", "-m", "preprocessing.parsing.run", "--watch"]
     environment:
-      <<: [*service-env, *store-env]
+      <<: [*service-env, *phoenix-env, *store-env]
     deploy:
       resources:
         # Docling's layout models and no OCR. Measured at 888 MB idle and
@@ -561,7 +566,7 @@ services:
     <<: *worker
     command: ["python", "-m", "preprocessing.chunking.run", "--watch"]
     environment:
-      <<: [*service-env, *store-env]
+      <<: [*service-env, *phoenix-env, *store-env]
     deploy:
       resources:
         # EMBEDDING_MODEL's TOKENIZER, not its weights - which is why this
@@ -576,7 +581,7 @@ services:
     command: ["python", "-m", "extraction.run", "--watch"]
     env_file: *model-env-files
     environment:
-      <<: [*service-env, *model-env]
+      <<: [*service-env, *phoenix-env, *model-env]
     deploy:
       resources:
         # This one DOES load EMBEDDING_MODEL, and the note above
@@ -597,7 +602,7 @@ services:
     environment:
       # The model names each topic once the fit is done. The store holds the
       # figure each fit draws of itself.
-      <<: [*service-env, *model-env, *store-env]
+      <<: [*service-env, *phoenix-env, *model-env, *store-env]
     deploy:
       resources:
         # gensim's NMF over the corpus vocabulary, measured at 402 MB idle.
@@ -637,7 +642,7 @@ services:
     command: ["python", "-m", "question_generation.run", "--watch"]
     env_file: *model-env-files
     environment:
-      <<: [*service-env, *model-env]
+      <<: [*service-env, *phoenix-env, *model-env]
     deploy:
       resources:
         limits: { cpus: "2.0", memory: 6G }
@@ -662,7 +667,7 @@ services:
     command: ["python", "-m", "assessment.run", "--watch"]
     env_file: *model-env-files
     environment:
-      <<: [*service-env, *model-env]
+      <<: [*service-env, *phoenix-env, *model-env]
     deploy:
       resources:
         limits: { cpus: "1.0", memory: 1G }
@@ -679,7 +684,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_DIR: /var/log/qa
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
-      OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET}
       # The HOST's address, deliberately, and the one place in this file
       # where that is right: this is not called from the container, it is
       # written into a link a BROWSER follows.
