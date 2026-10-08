@@ -150,11 +150,9 @@ def view() -> None:
         if not components:
             st.caption("The backend is unreachable, so there is nothing to report.")
 
-    if picked is None:
+    if not picked:
         return
-    name = list(components)[picked - 1] if picked else None
-    if name is None:
-        return
+    name = list(components)[picked - 1]
 
     with page.panel(name.replace("_", " ").title()):
         figures = components[name]["metrics"]
