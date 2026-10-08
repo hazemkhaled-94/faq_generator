@@ -302,7 +302,7 @@ Documents are ingestion's, not a stage's. **All of these are irreversible.**
 | Target | Does |
 |---|---|
 | `make documents` | List every document with its parse state |
-| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document keeps its status with fewer citations |
+| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed` |
 | `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments |
 | `make wipe` | Every document, the topics, and the four services that describe them. Waits 5 seconds first |
 | `make wipe-all` | The same, then the archive. The one command for "leave nothing" |

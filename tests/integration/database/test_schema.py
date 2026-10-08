@@ -30,6 +30,29 @@ def test_the_delete_orphan_trigger_is_installed(engine) -> None:
     assert "question_facts_delete_orphan_question" in triggers, triggers
 
 
+@pytest.mark.parametrize(
+    ("module", "function"),
+    [
+        ("fact_passages", "delete_fact_without_passage"),
+        ("question_facts", "delete_question_without_facts"),
+    ],
+)
+def test_each_trigger_function_is_the_one_its_model_declares(
+    engine, module: str, function: str
+) -> None:
+    """The body the migrations installed, against the model's constant."""
+    from importlib import import_module
+
+    declared = import_module(f"database.qa_generator.{module}").DELETE_ORPHAN_FUNCTION
+    with engine.connect() as connection:
+        built = connection.scalar(
+            text("SELECT prosrc FROM pg_proc WHERE proname = :name"),
+            {"name": function},
+        )
+
+    assert built == declared.split("$$")[1]
+
+
 def test_every_check_constraint_the_models_declare_exists(engine) -> None:
     """Autogenerate does not compare CHECK constraints, so nothing else does.
 

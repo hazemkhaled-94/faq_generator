@@ -21,6 +21,53 @@ ROOT = Path(__file__).resolve().parents[3]
 #: The head the revisions below are applied on top of.
 PREVIOUS_HEAD = "5d1c7e2a9b40"
 RELEASED = "3fe4226da3b6"
+REJECTED = "04419594a51e"
+
+#: Three documents, four passages, nine facts and five questions on them.
+#: Question 1 rests on documents a and b, 3 is already rejected, and 5
+#: rests on two passages of document c.
+CORPUS = (
+    (
+        "INSERT INTO documents (sha256, mime_type) SELECT repeat(d, 64), "
+        "'application/pdf' FROM unnest(ARRAY['a', 'b', 'c']) d"
+    ),
+    (
+        "INSERT INTO passages (id, doc_sha256, ordinal, text, doc_item_refs) VALUES "
+        "(1, repeat('a', 64), 1, 'One.', '{}'), (2, repeat('b', 64), 1, 'Two.', '{}'), "
+        "(3, repeat('c', 64), 1, 'Three.', '{}'), (4, repeat('c', 64), 2, 'Four.', '{}')"
+    ),
+    (
+        "INSERT INTO facts (id, statement, evidence_text, extraction_method, "
+        "units_statement, units_added, unresolved_references, validated) "
+        "SELECT n, 'Claim.', 'Claim.', 'llm', '{}', '{}', '{}', true "
+        "FROM generate_series(1, 9) n"
+    ),
+    (
+        "INSERT INTO fact_passages (fact_id, passage_id, position) VALUES "
+        "(1, 1, 0), (2, 2, 0), (3, 1, 0), (4, 1, 0), (5, 2, 0), (6, 2, 0), "
+        "(7, 2, 0), (8, 3, 0), (9, 4, 0)"
+    ),
+    (
+        "INSERT INTO questions (id, question_text, answerable, language, status, "
+        "rejected_reason, release_id, reviewed_verdict, reviewed_at, "
+        "status_changed_at) VALUES "
+        "(1, 'One?', true, 'en', 'accepted', NULL, gen_random_uuid(), 'accepted', "
+        "now(), now() - interval '1 day'), "
+        "(2, 'Two?', true, 'en', 'accepted', NULL, NULL, NULL, NULL, NULL), "
+        "(3, 'Three?', true, 'en', 'rejected', 'duplicate', NULL, NULL, NULL, "
+        "'2026-01-01T00:00:00Z'), "
+        "(4, 'Four?', true, 'en', 'accepted', NULL, NULL, NULL, NULL, NULL), "
+        "(5, 'Five?', true, 'en', 'accepted', NULL, gen_random_uuid(), NULL, NULL, "
+        "NULL)"
+    ),
+    (
+        "INSERT INTO question_facts (question_id, fact_id) VALUES "
+        "(1, 1), (1, 2), (2, 3), (3, 4), (3, 5), (4, 6), (4, 7), (5, 8), (5, 9)"
+    ),
+)
+
+#: Every question, whole.
+QUESTIONS = "SELECT * FROM questions ORDER BY id"
 
 
 @pytest.fixture
@@ -59,12 +106,13 @@ def tables(url: str) -> set[str]:
         engine.dispose()
 
 
-def sql(url: str, statement: str, **params) -> list:
-    """Runs one statement in its own transaction, and returns its rows."""
+def sql(url: str, *statements: str, **params) -> list:
+    """Runs the statements in one transaction, and returns the last one's rows."""
     engine = create_engine(url)
     try:
         with engine.begin() as connection:
-            result = connection.execute(text(statement), params)
+            for statement in statements:
+                result = connection.execute(text(statement), params)
             return [tuple(row) for row in result] if result.returns_rows else []
     finally:
         engine.dispose()
@@ -185,3 +233,79 @@ def test_a_released_question_has_to_stay_accepted(spare: str) -> None:
     sql(spare, "UPDATE questions SET status = 'accepted' WHERE id = 1")
     command.upgrade(config, RELEASED)
     assert sql(spare, held) == [("accepted", True)]
+
+
+@pytest.fixture
+def corpus(spare: str):
+    """The corpus above, written before the rejection revision."""
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, RELEASED)
+    sql(spare, *CORPUS)
+    return config
+
+
+def test_a_question_that_loses_one_of_its_facts_is_rejected(spare: str, corpus) -> None:
+    """Rejected while a fact is left, deleted when none is, alone when gone."""
+    from alembic import command
+
+    command.upgrade(corpus, REJECTED)
+    asked = (
+        "SELECT status, rejected_reason, release_id IS NULL, "
+        "status_changed_at > now() - interval '1 hour', reviewed_verdict "
+        "FROM questions WHERE id = :id"
+    )
+    archived = (
+        "SELECT payload->>'status', payload->>'release_id' IS NOT NULL "
+        "FROM archived_rows WHERE table_name = 'questions' "
+        "AND payload->>'id' = :id"
+    )
+
+    sql(spare, "DELETE FROM facts WHERE id = 1")
+    assert sql(spare, asked, id=1) == [
+        ("rejected", "source_changed", True, True, "accepted")
+    ]
+    assert sql(spare, "SELECT fact_id FROM question_facts WHERE question_id = 1") == [
+        (2,)
+    ]
+
+    sql(spare, "DELETE FROM facts WHERE id = 3")
+    assert sql(spare, asked, id=2) == []
+    assert sql(spare, archived, id="2") == [("accepted", False)]
+
+    sql(spare, "DELETE FROM facts WHERE id = 4")
+    assert sql(
+        spare,
+        "SELECT status, rejected_reason, status_changed_at = '2026-01-01T00:00:00Z' "
+        "FROM questions WHERE id = 3",
+    ) == [("rejected", "duplicate", True)]
+
+    sql(spare, "DELETE FROM questions WHERE id = 4")
+    assert sql(spare, archived, id="4") == [("accepted", False)]
+    assert sql(spare, "SELECT count(*) FROM facts WHERE id IN (6, 7)") == [(2,)]
+
+    sql(spare, "DELETE FROM documents WHERE sha256 = repeat('c', 64)")
+    assert sql(spare, asked, id=5) == []
+    assert sql(spare, archived, id="5") == [("accepted", True)]
+
+
+def test_taking_the_rejection_back_out_keeps_every_question(spare: str, corpus) -> None:
+    """The old trigger is back and the rows are as they were, both ways."""
+    from alembic import command
+
+    command.upgrade(corpus, REJECTED)
+    sql(spare, "DELETE FROM facts WHERE id = 1")
+    held = sql(spare, QUESTIONS)
+
+    command.downgrade(corpus, RELEASED)
+    assert sql(spare, QUESTIONS) == held
+
+    sql(spare, "DELETE FROM facts WHERE id = 6")
+    assert sql(spare, "SELECT status FROM questions WHERE id = 4") == [("accepted",)]
+    sql(spare, "DELETE FROM facts WHERE id = 3")
+    assert sql(spare, "SELECT count(*) FROM questions WHERE id = 2") == [(0,)]
+
+    held = sql(spare, QUESTIONS)
+    command.upgrade(corpus, REJECTED)
+    assert sql(spare, QUESTIONS) == held

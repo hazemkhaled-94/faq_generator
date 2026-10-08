@@ -58,7 +58,9 @@ those facts.
 
 The trigger exists because a cascade cannot express it: a question rests on
 *several* facts, so `ON DELETE CASCADE` from `facts` would take the question
-when its **first** citation went rather than its last.
+when its **first** citation went rather than its last. A question that loses
+a fact and keeps another is rejected as `source_changed` instead, and its
+release cleared.
 
 `ingest_events.sha256` is `ON DELETE SET NULL`, so the record that
 an upload happened outlives the document.

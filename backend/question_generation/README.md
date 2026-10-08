@@ -581,10 +581,9 @@ poetry run pytest tests/integration/database/test_release.py
   to their facts, not to a topic. Selection skips the facts an accepted
   question already rests on, so a second run writes only about what the first
   did not reach.
-- **Re-extracting a single document is quieter and worse than re-extracting
-  the corpus.** A cross-document question that loses one of two citations is
-  not deleted, and its stored difficulty stops being true.
-  `questions-reverify` is what finds that.
+- **Re-extracting a single document rejects the cross-document questions
+  resting on it.** One that loses a citation and keeps another is rejected
+  as `source_changed` rather than deleted, a person's acceptance included.
 - **`questions-reverify` only ever rejects.** Accepting is a person's
   decision.
 - **A corpus of one document gets no boilerplate filtering.** There is no

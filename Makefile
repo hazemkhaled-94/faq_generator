@@ -1127,7 +1127,7 @@ documents:
 # so `make archive-purge` is what makes it final. The upload record in
 # ingest_events is kept. A fact another document's passage also cites
 # stays, and so does a question that also rests on another document's
-# facts, keeping its status with fewer citations.
+# facts, rejected as `source_changed`.
 #   make delete SHA=<sha256>
 delete:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete SHA=<sha256>"; exit 2; }
@@ -1209,9 +1209,9 @@ dagster-wipe:
 # them their topic memberships, any fact left citing no passage, any bridge
 # that cited one, and every question left resting on no fact, with its
 # follow-ups and the assessments of each. A question that also rests on
-# another document's facts stays, keeping its status. The document and its
-# file stay, and chunking goes back to `new`, so the next run rebuilds them
-# once somebody starts it.
+# another document's facts stays, rejected as `source_changed`. The document
+# and its file stay, and chunking goes back to `new`, so the next run
+# rebuilds them once somebody starts it.
 #   make delete-derived SHA=<sha256>
 delete-derived:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete-derived SHA=<sha256>"; exit 2; }
