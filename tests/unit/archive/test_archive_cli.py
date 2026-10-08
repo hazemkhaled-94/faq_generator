@@ -107,6 +107,19 @@ def test_a_purge_by_age_is_measured_in_days(cli) -> None:
     assert cli.store.purges == [{"table": None, "older_than_days": 30}]
 
 
+def test_a_purge_of_everything_held_since_now_is_an_age(cli) -> None:
+    """Zero days is a cutoff, not the absence of one."""
+    assert cli.run("--purge", "--older-than", "0") == 0
+    assert cli.store.purges == [{"table": None, "older_than_days": 0}]
+
+
+def test_a_negative_age_is_refused(cli) -> None:
+    """A cutoff in the future would take everything the archive holds."""
+    with pytest.raises(SystemExit):
+        cli.run("--purge", "--older-than", "-30")
+    assert cli.store.purges == []
+
+
 def test_a_purge_of_everything_names_neither(cli) -> None:
     """`--all` is what says the whole archive was meant."""
     assert cli.run("--purge", "--all") == 0

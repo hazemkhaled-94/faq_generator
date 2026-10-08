@@ -17,6 +17,14 @@ from database.qa_generator import engine
 log = logging.getLogger(__name__)
 
 
+def _days(value: str) -> int:
+    """Parses an age in whole days, refusing one below zero."""
+    days = int(value)
+    if days < 0:
+        raise argparse.ArgumentTypeError(f"{value} days is a cutoff in the future")
+    return days
+
+
 def _parser() -> argparse.ArgumentParser:
     """Builds the argument parser. The two actions are mutually exclusive."""
     built = argparse.ArgumentParser(prog="python -m archive.run")
@@ -35,7 +43,7 @@ def _parser() -> argparse.ArgumentParser:
     built.add_argument(
         "--older-than",
         metavar="DAYS",
-        type=int,
+        type=_days,
         help="purge only what was archived more than this many days ago",
     )
     built.add_argument(
@@ -105,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.status:
         return _status(archive)
 
-    if not (args.table or args.older_than or args.all):
+    if not (args.table or args.older_than is not None or args.all):
         log.error(
             "a purge names what it purges: --table, --older-than, or --all. "
             "This is the deletion the archive was protecting against"

@@ -1238,12 +1238,14 @@ archive:
 #   make archive-purge ALL=1              the whole thing, objects included
 #
 # TABLE is about rows, so it leaves the bucket alone: an archived upload
-# belongs to no table. DAYS and ALL take the objects too.
+# belongs to no table. DAYS and ALL take the objects too, and each warns
+# and pauses first. Only ALL=1 means everything.
 archive-purge:
-	@[ -n "$(TABLE)$(DAYS)$(ALL)" ] || { echo "usage: make archive-purge [TABLE=<table>] [DAYS=<n>] [ALL=1]"; exit 2; }
-	@[ -z "$(ALL)" ] || { echo "WARNING: this deletes the whole archive, rows and objects. Ctrl-C within 5s to abort."; sleep 5; }
+	@[ -n "$(TABLE)$(DAYS)$(filter 1,$(ALL))" ] || { echo "usage: make archive-purge [TABLE=<table>] [DAYS=<n>] [ALL=1]"; exit 2; }
+	@[ -z "$(filter 1,$(ALL))" ] || { echo "WARNING: this deletes the whole archive, rows and objects. Ctrl-C within 5s to abort."; sleep 5; }
+	@[ -z "$(DAYS)" ] || { echo "WARNING: this deletes what the archive has held for more than $(DAYS) day(s). Ctrl-C within 5s to abort."; sleep 5; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.run --purge \
-	   $(if $(TABLE),--table $(TABLE)) $(if $(DAYS),--older-than $(DAYS)) $(if $(ALL),--all)
+	   $(if $(TABLE),--table $(TABLE)) $(if $(DAYS),--older-than $(DAYS)) $(if $(filter 1,$(ALL)),--all)
 
 # Put back what a deletion archived, after an accidental wipe.
 #
