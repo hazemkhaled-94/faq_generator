@@ -16,7 +16,7 @@ from extraction.factory import build_bridge, build_service, models
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.service import CitedBridges, bridge, embed, recap, revalidate
 from extraction.validation import FactChecker
-from llm.check import before_work
+from llm.check import Unreachable, before_work
 from llm.config import Settings as ModelSettings
 from settings.store import snapshot
 from stages.cli import queue_main
@@ -73,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
     def run_bridge(within) -> int:
         """Reads every topic's passage groups for the claims they share."""
         model, settings, version = configured()
+        # Before the pass deletes the bridges it replaces.
+        try:
+            before_work(model.overridden(settings.model))
+        except Unreachable as refusal:
+            raise SystemExit(f"{refusal}; no bridge was deleted") from None
         try:
             return bridge(
                 FactCatalog(version=version),

@@ -181,6 +181,31 @@ class TestCommandLine:
             main(["--bridge", "--revalidate"])
         assert "not allowed with" in capsys.readouterr().err
 
+    def test_a_bridge_pass_whose_model_does_not_answer_deletes_nothing(
+        self, monkeypatch
+    ) -> None:
+        """The pass deletes every bridge in scope before its first call."""
+        import os
+
+        from extraction import run
+        from llm.check import Unreachable
+
+        bridged: list[object] = []
+
+        def refused(*_) -> None:
+            raise Unreachable("ollama/test-model did not answer")
+
+        monkeypatch.setattr(run, "snapshot", lambda: (dict(os.environ), "v1"))
+        monkeypatch.setattr(run, "before_work", refused)
+        monkeypatch.setattr(run, "bridge", lambda *args: bridged.append(args) or 0)
+        monkeypatch.setattr(run, "PassageQueue", lambda: None)
+        monkeypatch.setattr(run, "FactCatalog", lambda version: None)
+        monkeypatch.setattr("stages.cli.telemetry.configure", lambda *_, **__: None)
+
+        with pytest.raises(SystemExit, match="no bridge was deleted"):
+            run.main(["--bridge"])
+        assert bridged == []
+
 
 def test_the_digest_reader_shares_the_passage_reader_by_default() -> None:
     """One model for both, which is what it was before it could be two."""
