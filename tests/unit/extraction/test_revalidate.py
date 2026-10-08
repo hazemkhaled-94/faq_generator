@@ -90,6 +90,38 @@ def test_a_bridge_is_judged_against_its_whole_group() -> None:
     assert checked.validated, checked.validation_error
 
 
+def test_a_fact_citing_a_second_passage_keeps_that_passage_evidence() -> None:
+    """A refused duplicate's citation was added to it with its evidence."""
+    offered = group(
+        "The device weighs 4 kg. It ships in one box.",
+        "The device weighs 4 kg. That is the compact model.",
+        "Its mass is 4 kg, as stated above.",
+    )
+    catalog = Catalogue().holding(
+        (
+            7,
+            offered,
+            CandidateFact(
+                "The device weighs 4 kg.",
+                (0,),
+                passages=(
+                    Cited(position=0, sentences=(0,)),
+                    Cited(position=1, sentences=(0,)),
+                    Cited(position=2, sentences=(0,)),
+                ),
+            ),
+            "llm",
+        )
+    )
+    revalidate(catalog, FactChecker(DIGEST_SHARE))  # type: ignore[arg-type]
+
+    ((_, checked),) = catalog.verdicts
+    assert checked.validated, checked.validation_error
+    assert checked.evidence_text == (
+        "The device weighs 4 kg.\nIts mass is 4 kg, as stated above."
+    )
+
+
 def test_a_bridge_left_with_one_passage_is_refused_on_the_second_reading() -> None:
     """Re-chunking took the other side away."""
     offered = group("Standard requests are answered within 48 hours.")

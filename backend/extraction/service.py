@@ -19,7 +19,7 @@ from extraction.extractors import (
 )
 from extraction.models import CheckedFact, PassageToExtract, Twin
 from extraction.repository import FactCatalog, PassageQueue
-from extraction.validation import WRITTEN, FactChecker
+from extraction.validation import WRITTEN, FactChecker, _cited_text
 from nlp.analysis import claim, normalised
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
@@ -205,10 +205,25 @@ def _rejudge(
     candidate,
     method: str,
 ) -> CheckedFact:
-    """Judges one stored fact against the passages it was drawn from."""
+    """Judges one stored fact against the passages it was drawn from.
+
+    A non-bridge fact is judged on its first passage, and keeps the evidence
+    of every citation a refused duplicate added to it, as `_cite` added it.
+    """
     if candidate.kind == FactKind.BRIDGE:
         return checker.check_bridge(passages, candidate)
-    return checker.check(passages[0], candidate, method)
+    checked = checker.check(passages[0], candidate, method)
+    evidence = checked.evidence_text
+    for passage, cited in zip(passages[1:], candidate.passages[1:], strict=False):
+        sentences = [
+            passage.sentences[at]
+            for at in cited.sentences
+            if 0 <= at < len(passage.sentences)
+        ]
+        segment = _cited_text(passage, sentences) if sentences else ""
+        if segment and segment not in evidence:
+            evidence = f"{evidence}\n{segment}"
+    return replace(checked, evidence_text=evidence)
 
 
 def _partner(
