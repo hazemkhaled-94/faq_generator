@@ -39,6 +39,13 @@ POLL_SECONDS = 3
 #: through them.
 _ORDER = ("new", "pending", "in_progress", "failed")
 
+#: What Fit all asks before it queues the fit.
+_REFIT = (
+    "A fit replaces every topic. A name or a coverage choice a person gave "
+    "stays only where the new top terms carry it over, and the questions "
+    "written per topic follow the new topics."
+)
+
 
 class Queue:
     """One stage as a page refers to it: its name and how it reads."""
@@ -206,15 +213,23 @@ def _verbs(
 
     _state(row, queue, counts, failed)
 
-    if redo_warning and st.session_state.get(armed):
-        st.warning(redo_warning)
-        answer = st.container(horizontal=True)
-        if answer.button("Yes, redo", key=f"danger-confirm-{armed}", width="content"):
-            del st.session_state[armed]
-            act("rerun")
-        if answer.button("Cancel", key=f"cancel-{armed}", width="content"):
-            del st.session_state[armed]
-            st.rerun()
+    if redo_warning and _confirmed(armed, redo_warning, "Yes, redo"):
+        act("rerun")
+
+
+def _confirmed(armed: str, warning: str, label: str) -> bool:
+    """Draws an armed verb's warning, and reports whether it was confirmed."""
+    if not st.session_state.get(armed):
+        return False
+    st.warning(warning)
+    answer = st.container(horizontal=True)
+    if answer.button(label, key=f"danger-confirm-{armed}", width="content"):
+        del st.session_state[armed]
+        return True
+    if answer.button("Cancel", key=f"cancel-{armed}", width="content"):
+        del st.session_state[armed]
+        st.rerun()
+    return False
 
 
 def _fit_verbs(client, queue: Queue) -> None:
@@ -223,6 +238,7 @@ def _fit_verbs(client, queue: Queue) -> None:
     queued = counts.get("pending", 0)
     failed = counts.get("failed", 0)
     running = busy(counts)
+    armed = _key("fit", queue, None)
 
     row = st.container(horizontal=True, vertical_alignment="center")
 
@@ -237,7 +253,7 @@ def _fit_verbs(client, queue: Queue) -> None:
         if not running
         else "A fit is already queued or running.",
     ):
-        _act(client, queue.name, None, "discover")
+        st.session_state[armed] = True
 
     if row.button(
         "Stop",
@@ -260,6 +276,9 @@ def _fit_verbs(client, queue: Queue) -> None:
         _act(client, queue.name, None, "retry")
 
     _state(row, queue, counts, failed)
+
+    if _confirmed(armed, _REFIT, "Yes, fit"):
+        _act(client, queue.name, None, "discover")
 
 
 def _state(into, queue: Queue, counts: dict[str, int], failed: int) -> None:

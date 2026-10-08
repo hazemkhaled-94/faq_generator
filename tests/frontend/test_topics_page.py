@@ -254,13 +254,28 @@ def test_a_topic_cannot_be_saved_while_a_fit_is_queued_or_running(page, queued) 
 # ── Fitting ───────────────────────────────────────────────────────────────
 
 
-def test_fitting_the_corpus_queues_a_fit(open_view) -> None:
-    """The page asks; the worker does it."""
+def test_fitting_the_corpus_asks_before_it_queues_a_fit(open_view) -> None:
+    """The first press arms it and says every topic goes; the second queues."""
     client = Answers(**answers(stage_status=lambda *a, **k: status(new=2)))
 
-    open_view("topics", client).press("Fit all")
+    armed = open_view("topics", client).press("Fit all")
+
+    assert not client.calls("stage_action")
+    assert "every topic" in " ".join(armed.warnings())
+
+    armed.press("Yes, fit")
 
     assert ("stage_action", ("topics", "discover", None), {}) in client.asked
+
+
+def test_cancelling_a_fit_queues_nothing(open_view) -> None:
+    """Cancel disarms it."""
+    client = Answers(**answers(stage_status=lambda *a, **k: status(new=2)))
+
+    cancelled = open_view("topics", client).press("Fit all").press("Cancel")
+
+    assert not client.calls("stage_action")
+    assert cancelled.button("Yes, fit") is None
 
 
 def test_the_fit_control_is_dead_while_a_fit_is_queued(page) -> None:
