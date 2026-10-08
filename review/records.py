@@ -276,6 +276,19 @@ class ReviewRepository(Repository):
                     .values(reviewed_at=at)
                 )
 
+    def cover(self, topic_id: int, include: bool) -> int:
+        """Sets whether a topic counts toward coverage, and nothing else.
+
+        Returns:
+            How many rows were written.
+        """
+        with self._session.begin() as session:
+            return session.execute(
+                update(Topic)
+                .where(Topic.id == topic_id, Topic.topic_index.is_not(None))
+                .values(include_in_coverage=include)
+            ).rowcount
+
     def counts(self) -> dict[str, Any]:
         """How much of the corpus has been looked at, and who agreed.
 

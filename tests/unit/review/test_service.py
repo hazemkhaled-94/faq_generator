@@ -97,6 +97,7 @@ class Facts:
         self.dated: list[tuple[int, datetime]] = []
         self.rewritten: dict[int, str] = {}
         self.decided: dict[int, datetime] = {}
+        self.covered: list[tuple[int, bool]] = []
 
     def held(self, name: str, ids) -> dict[int, Held]:
         """What each row reads now, and when it was last decided."""
@@ -114,6 +115,11 @@ class Facts:
     def date_questions(self, dated) -> None:
         """Records when each question's verdict was given."""
         self.dated += dated
+
+    def cover(self, topic_id: int, include: bool) -> int:
+        """Records one topic's coverage."""
+        self.covered.append((topic_id, include))
+        return 1
 
 
 class Questions:
@@ -258,6 +264,24 @@ def test_an_unanswered_coverage_question_leaves_the_topic_in_coverage(
     pull(datasets.TOPIC_LABELS, settings, catalogs)
 
     assert catalogs.topics.described == [(3, "Fees", True)]
+
+
+@pytest.mark.parametrize(
+    "answers",
+    [
+        [submitted("in_coverage", "no")],
+        [submitted("corrected_label", "  "), submitted("in_coverage", "no")],
+    ],
+)
+def test_a_topic_answer_without_a_name_writes_only_its_coverage(
+    monkeypatch, settings, answers
+) -> None:
+    """`describe` with no label clears the label and who gave it."""
+    catalogs = wired(monkeypatch, [Record({"topic_id": 3}, answers)])
+
+    assert pull(datasets.TOPIC_LABELS, settings, catalogs) == 1
+    assert catalogs.topics.described == []
+    assert catalogs.facts.covered == [(3, False)]
 
 
 #: Each kind, its id metadata, and an answer a pull would write.

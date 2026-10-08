@@ -305,20 +305,22 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
         catalogs.facts.date_questions(dated)
         written = len(dated)
     else:
-        written = sum(
-            bool(
-                catalogs.topics.describe(
-                    row_id,
-                    label=_answer(record, "corrected_label"),
-                    # Absent means unanswered, and an unanswered coverage
-                    # question must not read as "take it out of coverage".
-                    include_in_coverage=_answer(record, "in_coverage") != "no",
+        written = 0
+        for row_id, record, _ in answered:
+            label = (_answer(record, "corrected_label") or "").strip()
+            coverage = _answer(record, "in_coverage")
+            # Absent means unanswered, and an unanswered coverage question
+            # must not read as "take it out of coverage".
+            include = coverage != "no"
+            if label:
+                written += bool(
+                    catalogs.topics.describe(
+                        row_id, label=label, include_in_coverage=include
+                    )
                 )
-            )
-            for row_id, record, _ in answered
-            if _answer(record, "corrected_label") is not None
-            or _answer(record, "in_coverage") is not None
-        )
+            elif coverage is not None:
+                # No name keeps the topic's label and its labelled_by.
+                written += catalogs.facts.cover(row_id, include)
 
     log.info("%s: %d verdict(s) written", name, written)
     return written

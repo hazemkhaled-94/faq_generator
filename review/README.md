@@ -182,6 +182,8 @@ Neither reaches a network.
   so a pull applies one only where the row still reads as its record and
   the answer is newer than the row's own last decision: its creation, a
   verdict, or a change of status.
+- **A topic answer without a name keeps the topic's name.** Only its
+  coverage is written, and `labelled_by` stays as it was.
 - **A topic records no decision time beyond its fit.** A rename or a
   coverage change on the Topics page is overwritten by an older answer at
   the next pull.

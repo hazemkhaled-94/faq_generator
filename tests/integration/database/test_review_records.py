@@ -28,7 +28,7 @@ from seed import digest, document, fact, fitted, link, passage, question
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from database.qa_generator import Fact, Question, QuestionStatus, ReviewVerdict
+from database.qa_generator import Fact, Question, QuestionStatus, ReviewVerdict, Topic
 from question_generation.catalog import QuestionCatalog
 from review.records import ReviewRepository
 
@@ -306,6 +306,27 @@ def test_a_fact_is_decided_when_it_was_made_or_judged_since(corpus) -> None:
 
     assert made is not None
     assert repository.held("facts", [fee])[fee].decided == judged
+
+
+def test_a_topics_coverage_is_written_and_its_name_and_namer_kept(
+    database, engine
+) -> None:
+    """What a topic answer without a name writes."""
+    with Session(engine) as session:
+        held = fitted(label="Fees", labelled_by="a-model")
+        session.add(held)
+        session.commit()
+        topic_id = held.id
+
+    assert ReviewRepository().cover(topic_id, False) == 1
+
+    with Session(engine) as session:
+        row = session.get(Topic, topic_id)
+        assert (row.label, row.labelled_by, row.include_in_coverage) == (
+            "Fees",
+            "a-model",
+            False,
+        )
 
 
 def test_a_question_verdict_keeps_the_time_it_was_given(asked, engine) -> None:
