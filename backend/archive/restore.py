@@ -35,6 +35,14 @@ TABLES = [
 
 #: One table's archived rows, newest copy first. A row whose primary or
 #: unique key a live row holds is skipped.
+#:
+#: ponytail: two ceilings. Passages restored after `make delete-derived` sit
+#: under a document still marked chunk_status `new`, an UPDATE the archive
+#: never recorded, so the next chunk-start re-chunks them; the upgrade is to
+#: set chunk_status from the restored passages. And jsonb_populate_record
+#: fills a key missing from an older payload with NULL, not the column's
+#: default, so a NOT NULL column added since the row was archived rolls the
+#: whole restore back; the upgrade is to coalesce missing keys to defaults.
 _RESTORE = """
 INSERT INTO {table}
 SELECT r.* FROM archived_rows a, jsonb_populate_record(NULL::{table}, a.payload) r
