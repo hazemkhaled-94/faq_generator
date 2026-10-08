@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import ClassVar
 
 from blob_store.s3.bucket import Bucket
@@ -18,14 +18,18 @@ class ArchiveBucket(Bucket):
     One bucket for all three rather than an archive beside each, because
     the retention is the same wherever the object came from: it is held
     until a person says otherwise. A key carries the bucket it came out of,
-    so the origin is not lost by being kept here.
+    so the origin is not lost by being kept here, and when it was taken, so
+    a second deletion of the same key keeps a second copy.
     """
 
     name: ClassVar[str] = "archive"
 
     @classmethod
     def key_for(cls, origin: str, key: str) -> str:
-        """Builds the key an object out of `origin` is archived under."""
+        """Builds the prefix every archived copy of an object out of `origin` has.
+
+        A copy taken before copies were stamped is keyed by the prefix alone.
+        """
         return f"{origin}/{key}"
 
     def take(self, origin: str, key: str) -> bool:
@@ -47,10 +51,11 @@ class ArchiveBucket(Bucket):
                 anything other than "no such key".
         """
         client = s3_client()
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         try:
             client.copy_object(
                 Bucket=self.name,
-                Key=self.key_for(origin, key),
+                Key=f"{self.key_for(origin, key)}@{stamp}",
                 CopySource={"Bucket": origin, "Key": key},
             )
         except client.exceptions.ClientError as exc:
@@ -63,7 +68,8 @@ class ArchiveBucket(Bucket):
     def give_back(self, origin: str, key: str) -> bool:
         """Copies an archived object back into `origin`, unless one is there.
 
-        The archived copy stays.
+        The newest copy, by when the store wrote it and then by its stamp.
+        The archived copies stay.
 
         Args:
             origin: The bucket the object was taken from.
@@ -83,11 +89,23 @@ class ArchiveBucket(Bucket):
         except client.exceptions.ClientError as exc:
             if not self._absent(exc):
                 raise
+        prefix = self.key_for(origin, key)
+        copies = [
+            entry
+            for page in client.get_paginator("list_objects_v2").paginate(
+                Bucket=self.name, Prefix=prefix
+            )
+            for entry in page.get("Contents", [])
+            if entry["Key"] == prefix or entry["Key"].startswith(f"{prefix}@")
+        ]
+        if not copies:
+            return False
+        newest = max(copies, key=lambda entry: (entry["LastModified"], entry["Key"]))
         try:
             client.copy_object(
                 Bucket=origin,
                 Key=key,
-                CopySource={"Bucket": self.name, "Key": self.key_for(origin, key)},
+                CopySource={"Bucket": self.name, "Key": newest["Key"]},
             )
         except client.exceptions.ClientError as exc:
             if self._absent(exc):

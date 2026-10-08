@@ -32,7 +32,9 @@ left with no fact, then the cascade on `follows_id` takes their follow-ups.
 One command, six tables, and only the first row passes through Python.
 
 The objects are the other half: the removal paths **move** them to the
-`archive` bucket, keyed `{origin}/{key}`.
+`archive` bucket, keyed `{origin}/{key}@{UTC time}`, so a second deletion of
+the same key keeps a second copy. A copy taken before the stamp is keyed
+`{origin}/{key}`.
 
 | Deletion | What it archives |
 |---|---|
@@ -66,8 +68,8 @@ what it held.
 
 - **A row whose key a live row holds is skipped**, and so is an object
   already in its bucket. A second run restores nothing.
-- **A row archived twice comes back as its newest copy.** An object has only
-  one: a second deletion of the same key overwrites it in the bucket.
+- **A row or an object archived twice comes back as its newest copy.** The
+  newest object is the one the store wrote last, whatever `SINCE` says.
 - **A row whose parent is gone restores nothing at all.** The rows go back
   in one transaction.
 - **`SINCE` is required.** The archive also holds every row a rerun

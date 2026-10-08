@@ -109,8 +109,44 @@ def test_the_objects_move_to_the_archive_bucket(archive, held) -> None:
     bucket, source = ArchiveBucket(), DocumentsBucket()
     uploaded = source.key_for(held, "application/pdf")
 
-    assert bucket.find(bucket.key_for(source.name, uploaded)) == PDF
+    (archived,) = [
+        key
+        for key, _ in bucket.held()
+        if key.startswith(bucket.key_for(source.name, uploaded))
+    ]
+    assert bucket.find(archived) == PDF
     assert source.find(uploaded) is None, "moved, not copied"
+
+
+def test_a_key_archived_twice_keeps_both_copies(buckets) -> None:
+    """A refit's model deleted after the first fit's was deleted."""
+    from blob_store.s3 import ArchiveBucket, ModelsBucket
+
+    bucket, models = ArchiveBucket(), ModelsBucket()
+    key = models.topic_model_key("en")
+    for fit in (b"first fit", b"second fit"):
+        models.put(key, fit, content_type=models.TOPIC_MODEL_TYPE)
+        assert bucket.take(models.name, key)
+
+    assert sorted(bucket.get(held) for held, _ in bucket.held()) == [
+        b"first fit",
+        b"second fit",
+    ]
+    assert bucket.give_back(models.name, key)
+    assert models.find(key) == b"second fit", "the newest copy"
+
+
+def test_a_copy_archived_under_the_old_layout_is_still_found(archive) -> None:
+    """Keyed `{origin}/{key}`, before each copy was stamped."""
+    from blob_store.s3 import ArchiveBucket, ModelsBucket
+
+    bucket, models = ArchiveBucket(), ModelsBucket()
+    key = models.topic_model_key("en")
+    bucket.put(f"{models.name}/{key}", b"old", content_type=models.TOPIC_MODEL_TYPE)
+
+    assert bucket.give_back(models.name, key)
+    assert models.find(key) == b"old"
+    assert archive.purge(older_than_days=0).objects == 1
 
 
 def test_a_statement_nothing_in_python_ran_is_archived_too(
