@@ -21,7 +21,6 @@ from database.qa_generator.base import Base
 from database.qa_generator.status import Status, check, queued
 
 if TYPE_CHECKING:
-    from database.qa_generator.ingest_events import IngestEvent
     from database.qa_generator.passages import Passage
 
 
@@ -173,9 +172,4 @@ class Document(Base):
     # passages.doc_sha256 is NOT NULL.
     passages: Mapped[list[Passage]] = relationship(
         back_populates="document", cascade="all, delete-orphan", passive_deletes=True
-    )
-    # No cascade: the foreign key is ON DELETE SET NULL, so the audit trail
-    # outlives the document it describes.
-    ingest_events: Mapped[list[IngestEvent]] = relationship(
-        back_populates="document", passive_deletes=True
     )

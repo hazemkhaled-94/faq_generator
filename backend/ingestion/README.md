@@ -69,7 +69,7 @@ metadata cannot change without rewriting the object.
 
 `delete` removes the object in `documents`, the object in `parsed`, and the
 row — which cascades to passages, and from those to facts, memberships and
-questions. Only the `ingest_events` rows survive, on `ON DELETE SET NULL`.
+questions. Only the `ingest_events` rows survive, digest and all.
 Nothing is atomic across two stores, so the order is fixed: objects first,
 row last.
 

@@ -79,7 +79,7 @@ class DocumentRepository(Repository):
     def forget_uploads(self) -> int:
         """Drops the upload history, which a document's deletion keeps.
 
-        `ingest_events` survives a deletion on ON DELETE SET NULL, because it
+        `ingest_events` survives a deletion, digest and all, because it
         records what was attempted rather than what is held. Emptying the
         corpus is the one time that is wrong: the status panel would report
         upload attempts for documents nothing has.
@@ -90,7 +90,7 @@ class DocumentRepository(Repository):
     def delete(self, sha256: str) -> int:
         """Removes a document row and everything derived from it.
 
-        Ingest events survive, on ON DELETE SET NULL.
+        Ingest events survive, keeping the digest.
 
         Args:
             sha256: The document's digest.
@@ -256,8 +256,7 @@ class DocumentRepository(Repository):
             size_bytes: Size of the submitted file.
             outcome: One of the `Outcome` values.
             detail: The refusal in words.
-            sha256: A digest a document row already exists for;
-                ingest_events.sha256 is a foreign key into documents.
+            sha256: A digest a document row already exists for.
         """
         with self._session.begin() as session:
             session.add(self._event(filename, size_bytes, outcome, detail, sha256))

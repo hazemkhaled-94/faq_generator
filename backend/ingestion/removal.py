@@ -94,8 +94,7 @@ class RemovalService:
         The upload history goes too. It survives a single deletion on purpose
         - it records what was attempted rather than what is held - but an
         empty corpus reporting nine upload attempts is a status panel
-        describing documents nothing has. It goes first, while each record
-        still names its document.
+        describing documents nothing has. It goes first.
 
         Returns:
             What was removed, one entry per document.

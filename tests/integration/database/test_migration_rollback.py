@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PREVIOUS_HEAD = "5d1c7e2a9b40"
 RELEASED = "3fe4226da3b6"
 REJECTED = "04419594a51e"
+DIGEST = "8213be66d5ba"
 
 #: Three documents, four passages, nine facts and five questions on them.
 #: Question 1 rests on documents a and b, 3 is already rejected, and 5
@@ -309,3 +310,40 @@ def test_taking_the_rejection_back_out_keeps_every_question(spare: str, corpus) 
     held = sql(spare, QUESTIONS)
     command.upgrade(corpus, REJECTED)
     assert sql(spare, QUESTIONS) == held
+
+
+def test_an_upload_record_keeps_its_digest_when_its_document_goes(spare: str) -> None:
+    """Kept after the revision; nulled, as the key did, when it is taken off."""
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+
+    config = alembic(spare)
+    command.upgrade(config, REJECTED)
+    sql(
+        spare,
+        "INSERT INTO documents (sha256, mime_type) SELECT repeat(d, 64), "
+        "'application/pdf' FROM unnest(ARRAY['a', 'b']) d",
+        "INSERT INTO ingest_events (id, submitted_filename, size_bytes, sha256, "
+        "outcome) VALUES (1, 'a.pdf', 1, repeat('a', 64), 'stored'), "
+        "(2, 'b.pdf', 1, repeat('b', 64), 'stored'), "
+        "(3, 'big.pdf', 9, NULL, 'too_large')",
+    )
+    events = "SELECT id, left(sha256, 1) FROM ingest_events ORDER BY id"
+    command.upgrade(config, DIGEST)
+
+    sql(spare, "DELETE FROM documents WHERE sha256 = repeat('a', 64)")
+    assert sql(spare, events) == [(1, "a"), (2, "b"), (3, None)]
+
+    command.downgrade(config, REJECTED)
+    assert sql(spare, events) == [(1, None), (2, "b"), (3, None)]
+    sql(spare, "DELETE FROM documents WHERE sha256 = repeat('b', 64)")
+    assert sql(spare, events) == [(1, None), (2, None), (3, None)]
+    with pytest.raises(IntegrityError):
+        sql(
+            spare,
+            "INSERT INTO ingest_events (submitted_filename, size_bytes, sha256, "
+            "outcome) VALUES ('c.pdf', 1, repeat('c', 64), 'stored')",
+        )
+
+    command.upgrade(config, DIGEST)
+    assert sql(spare, events) == [(1, None), (2, None), (3, None)]

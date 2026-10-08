@@ -3,24 +3,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CHAR,
     BigInteger,
     CheckConstraint,
     DateTime,
-    ForeignKey,
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from database.qa_generator.base import Base
 from database.qa_generator.outcomes import Outcome, one_of
-
-if TYPE_CHECKING:
-    from database.qa_generator.documents import Document
 
 
 class IngestEvent(Base):
@@ -58,10 +53,9 @@ class IngestEvent(Base):
     )
     sha256: Mapped[str | None] = mapped_column(
         CHAR(64),
-        ForeignKey("documents.sha256", ondelete="SET NULL"),
-        comment="SHA-256 of the submitted bytes, and the link to the document they "
-        "became. NULL for uploads refused before hashing, which is why the foreign "
-        "key tolerates NULL.",
+        comment="SHA-256 of the submitted bytes, which names the document they "
+        "became. NULL for uploads refused before hashing. Not a foreign key, so "
+        "the record keeps it after the document is deleted.",
     )
     outcome: Mapped[str] = mapped_column(
         Text,
@@ -72,5 +66,3 @@ class IngestEvent(Base):
         Text,
         comment="Human-readable reason, shown to the uploader when a file is refused.",
     )
-
-    document: Mapped[Document | None] = relationship(back_populates="ingest_events")

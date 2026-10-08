@@ -775,7 +775,14 @@ def test_deleting_a_document_takes_its_passages_and_keeps_its_events(
     assert one(engine, "SELECT count(*) AS held FROM documents").held == 1
     assert one(engine, "SELECT count(*) AS held FROM passages").held == 0
     assert one(engine, "SELECT count(*) AS held FROM ingest_events").held == 4
-    assert rows(engine, "SELECT sha256 FROM ingest_events WHERE sha256 IS NULL") != []
+    assert (
+        one(
+            engine, "SELECT count(*) AS held FROM ingest_events WHERE sha256 = :a", a=A
+        ).held
+        == 2
+    )
+    assert [row.sha256 for row in catalogue.page()[1]] == [B]
+    assert [row.sha256 for row in catalogue.names()] == [B]
 
 
 def test_dropping_the_derived_data_keeps_the_row_and_requeues_chunking(

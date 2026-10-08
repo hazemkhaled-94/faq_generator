@@ -62,8 +62,8 @@ when its **first** citation went rather than its last. A question that loses
 a fact and keeps another is rejected as `source_changed` instead, and its
 release cleared.
 
-`ingest_events.sha256` is `ON DELETE SET NULL`, so the record that
-an upload happened outlives the document.
+`ingest_events.sha256` is a plain column, not a foreign key, so the record
+that an upload happened outlives the document and keeps its digest.
 
 What a deletion does **not** take is `topics`, which has no foreign key to a
 document. Deleting every document leaves the topics standing, describing
