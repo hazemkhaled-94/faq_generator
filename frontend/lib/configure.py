@@ -75,7 +75,7 @@ def _form(client, service: str, held: dict) -> None:
             drawn = _control(service, setting)
             if drawn is not None:
                 values[setting["name"]] = drawn
-        submitted = st.form_submit_button("Save", type="primary", width="stretch")
+        submitted = st.form_submit_button("Save", type="primary")
 
     if submitted:
         _save(client, service, values, held["version"])
@@ -87,7 +87,6 @@ def _reset(client, service: str, held: dict) -> None:
     if st.button(
         "Return to the file",
         key=f"reset-{service}",
-        width="stretch",
         help=f"Deletes the {len(stored)} stored value(s), so "
         f"configs/env/backend.env and .env decide again.",
     ):

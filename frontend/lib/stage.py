@@ -331,26 +331,20 @@ def removal(
 
     with page.panel("Delete"):
         st.html(f"<div class='qa-danger-note'>{note}</div>")
-        columns = st.columns(max(len(buttons), 3))
-        for column, (name, (label, explanation, _)) in zip(
-            columns, buttons.items(), strict=False
-        ):
-            if column.button(
-                label, key=f"danger-{key}-{name}", width="stretch", help=explanation
-            ):
+        row = st.container(horizontal=True)
+        for name, (label, explanation, _) in buttons.items():
+            if row.button(label, key=f"danger-{key}-{name}", help=explanation):
                 # Remembered and acted on in this same run: the confirmation
                 # is drawn below, so arming needs no rerun to become visible.
                 st.session_state[slot] = armed = (name, subject)
 
         if armed and armed[1] == subject and armed[0] in buttons:
             st.warning(buttons[armed[0]][2])
-            confirm, cancel, *_ = st.columns(max(len(buttons), 3))
-            if confirm.button(
-                "Yes, delete", key=f"danger-confirm-{key}", width="stretch"
-            ):
+            answer = st.container(horizontal=True)
+            if answer.button("Yes, delete", key=f"danger-confirm-{key}"):
                 del st.session_state[slot]
                 chosen = armed[0]
-            if cancel.button("Cancel", key=f"cancel-{key}", width="stretch"):
+            if answer.button("Cancel", key=f"cancel-{key}"):
                 del st.session_state[slot]
                 st.rerun()
     return chosen
