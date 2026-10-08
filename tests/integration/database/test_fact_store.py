@@ -164,6 +164,59 @@ class TestStoring:
             (survivor, first)
         ]
 
+    def test_a_duplicate_adds_its_evidence_to_the_fact_it_repeats(
+        self, store, corpus
+    ) -> None:
+        """evidence_text is every cited span, the added citation's included."""
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(
+            first,
+            checked(first, "Requests are answered in 48 hours.", evidence_text="A."),
+        )
+        ((survivor,),) = store.rows("id")
+
+        store.store(
+            other,
+            checked(
+                other,
+                "Requests are answered in 48 hours.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                twin_id=survivor,
+                evidence_text="B.",
+            ),
+        )
+
+        assert store.rows("evidence_text", where="id = :id", id=survivor) == [
+            ("A.\nB.",)
+        ]
+
+    def test_reading_a_duplicate_again_does_not_repeat_its_evidence(
+        self, store, corpus
+    ) -> None:
+        """The citation comes back on a re-read; its text is already there."""
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(
+            first,
+            checked(first, "Requests are answered in 48 hours.", evidence_text="A."),
+        )
+        ((survivor,),) = store.rows("id")
+        duplicate = checked(
+            other,
+            "Requests are answered in 48 hours.",
+            validated=False,
+            rejection_code=Rejection.DUPLICATE,
+            twin_id=survivor,
+            evidence_text="B.",
+        )
+        store.store(other, duplicate)
+
+        store.store(other, duplicate)
+
+        assert store.rows("evidence_text", where="id = :id", id=survivor) == [
+            ("A.\nB.",)
+        ]
+
     def test_only_the_passage_read_is_replaced(self, store, corpus) -> None:
         """Two workers on one document do not delete each other's results."""
         first, second = corpus["a"]

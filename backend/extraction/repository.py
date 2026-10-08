@@ -425,18 +425,18 @@ def _write(session, facts: list[CheckedFact], version: str | None = None) -> int
     for fact in facts:
         if fact.twin_id is not None:
             for cited in fact.citations:
-                _cite(session, fact.twin_id, cited)
+                _cite(session, fact.twin_id, cited, fact.evidence_text)
     return len(facts)
 
 
-def _cite(session, fact_id: int, cited: Citation) -> None:
-    """Adds one citation to a stored fact, after its last one.
+def _cite(session, fact_id: int, cited: Citation, evidence: str) -> None:
+    """Adds one citation to a stored fact, after its last one, and its evidence.
 
     Nothing where the fact has no citation left, which is a fact this
     transaction deleted, or already cites the passage.
     """
     position = func.max(FactPassage.position) + 1
-    session.execute(
+    added = session.execute(
         pg_insert(FactPassage)
         .from_select(
             [
@@ -459,6 +459,16 @@ def _cite(session, fact_id: int, cited: Citation) -> None:
             .having(func.count() > 0),
         )
         .on_conflict_do_nothing()
+    )
+    if not added.rowcount:
+        return
+    # ponytail: a segment outlives a citation that re-reading removes, and the
+    # segments can drift from position order. Upgrade: rebuild evidence_text
+    # from fact_passages whenever a citation is added or removed.
+    session.execute(
+        update(Fact)
+        .where(Fact.id == fact_id, func.strpos(Fact.evidence_text, evidence) == 0)
+        .values(evidence_text=Fact.evidence_text + "\n" + evidence)
     )
 
 
