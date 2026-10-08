@@ -151,6 +151,30 @@ def test_drawing_nothing_clears_the_last_release(written, engine) -> None:
     assert released(engine) == 0
 
 
+def test_a_question_that_leaves_accepted_leaves_the_release(written, engine) -> None:
+    """Whether a person or a re-check moves it; an accepted row keeps its mark."""
+    ids = written([("easy", "factoid", True, "accepted")] * 5)
+    catalog = QuestionCatalog()
+    catalog.release(ids)
+
+    catalog.decide(ids[0], "rejected")
+    catalog.decide(ids[1], "draft")
+    catalog.reject([(ids[2], "malformed")])
+    catalog.decide(ids[3], "accepted")
+
+    with engine.connect() as connection:
+        held = (
+            connection.execute(
+                text(
+                    "SELECT id FROM questions WHERE release_id IS NOT NULL ORDER BY id"
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert held == ids[3:]
+
+
 def test_the_balance_command_holds_every_share(written, engine) -> None:
     """The whole round trip, over a pool that can fill the quota exactly."""
     from question_generation.service import balance

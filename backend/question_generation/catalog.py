@@ -621,6 +621,7 @@ class QuestionCatalog(Repository):
                         status=QuestionStatus.REJECTED,
                         rejected_reason=code,
                         status_changed_at=func.now(),
+                        release_id=None,
                     )
                 )
         return len(verdicts)
@@ -644,6 +645,8 @@ class QuestionCatalog(Repository):
         verdict - it says "I have not decided" - so it clears the verdict
         rather than recording itself as one, which the column could not hold
         anyway.
+
+        Any status but `accepted` clears `release_id`.
         """
         decided = status in (QuestionStatus.ACCEPTED, QuestionStatus.REJECTED)
         with self._session.begin() as session:
@@ -655,6 +658,9 @@ class QuestionCatalog(Repository):
                     reviewed_verdict=status if decided else None,
                     reviewed_at=func.now() if decided else None,
                     status_changed_at=func.now(),
+                    release_id=Question.release_id
+                    if status == QuestionStatus.ACCEPTED
+                    else None,
                 )
             ).rowcount
         if not changed:
