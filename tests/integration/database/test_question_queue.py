@@ -619,12 +619,13 @@ def test_deciding_a_question_that_does_not_exist_answers_nothing(
     assert QuestionCatalog().decide(999_999, "accepted") is None
 
 
-def test_a_re_check_rejects_a_question_whose_evidence_moved(engine, database) -> None:
-    """A cross-document question that lost a citation is not deleted.
+def test_a_question_whose_evidence_moved_is_rejected_when_it_moves(
+    engine, database
+) -> None:
+    """A cross-document question that loses a citation is rejected at once.
 
-    The trigger takes a question only when its last fact goes, so this one
-    survives with a difficulty that stopped being true - which is quieter
-    than a deletion and worse.
+    The trigger rejects it when the fact goes, so re-verify finds nothing
+    left to reject.
     """
     from question_generation.service import reverify
 
@@ -658,7 +659,7 @@ def test_a_re_check_rejects_a_question_whose_evidence_moved(engine, database) ->
     with engine.begin() as connection:
         connection.execute(text("DELETE FROM facts WHERE id = :id"), {"id": lost})
 
-    assert reverify(QuestionCatalog(), settings) == 1
+    assert reverify(QuestionCatalog(), settings) == 0
     with engine.connect() as connection:
         row = connection.execute(
             text("SELECT status, rejected_reason FROM questions WHERE id = :id"),
