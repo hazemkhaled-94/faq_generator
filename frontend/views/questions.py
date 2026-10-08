@@ -546,6 +546,9 @@ def _export(client, where: dict, total: int, quality: dict) -> None:
     # (an assessment verdict, a release drawn at the same totals) keeps the
     # old workbook. The upgrade is a version the API bumps on every write.
     asked = json.dumps([where, quality], sort_keys=True, default=str)
+    # ponytail: one workbook's bytes per browser session, kept until a rebuild
+    # or the session ends; the upgrade is building into the export bucket and
+    # offering a link.
     built = st.session_state.get("questions-workbook")
 
     if built and built[0] == asked:
