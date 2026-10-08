@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from settings import catalog, changes
@@ -17,6 +19,22 @@ class Untouched:
     def version(self) -> str:
         """The version of an empty store."""
         return "environment"
+
+
+class Environment(Untouched):
+    """A store holding no override, over the test environment."""
+
+    def resolved(self) -> dict[str, str]:
+        """The environment, as nothing stored leaves it."""
+        return dict(os.environ)
+
+
+def test_an_assessment_value_its_stage_cannot_read_is_refused() -> None:
+    """The phase's own parser is asked, as every other stage's is."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.apply("assessment", {"ASSESSMENT_SAMPLE": "abc"}, store=Environment())
+
+    assert refused.value.code == "would_not_load"
 
 
 @pytest.mark.parametrize("name", ["LLM_BASE_URL", "OLLAMA_BASE_URL"])

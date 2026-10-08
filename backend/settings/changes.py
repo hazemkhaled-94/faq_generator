@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+import assessment.config
 import extraction.config
 import ingestion.config
 import llm.config
@@ -37,6 +38,7 @@ PARSERS: dict[str, Any] = {
     "extraction": extraction.config.Settings.load,
     "topics": topic_modelling.config.Settings.load,
     "questions": question_generation.config.Settings.load,
+    "assessment": assessment.config.Settings.load,
     "platform": llm.config.Settings.load,
 }
 
