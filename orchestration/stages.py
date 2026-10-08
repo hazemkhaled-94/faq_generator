@@ -118,20 +118,24 @@ def _stage_asset(name: str, stage: str, unit: str, deps: list[str]):
         """Starts the stage and waits."""
         return _run(context, stage, unit)
 
-    @asset_check(
-        asset=name,
-        name=NOTHING_FAILED,
-        description=f"Whether {stage} left any row failed.",
+    return _materialise, _failed_check(
+        name, stage, f"Whether {stage} left any row failed."
     )
-    def _check() -> AssetCheckResult:
-        """Reports the stage's failed rows.
 
-        A check rather than an exception, because a failed row is not a
-        failed run: the rest of the corpus went through, the reason is
-        recorded against the row, and `retry` is what moves it. Raising
-        here would stop the stage after it from ever running because one
-        document of four hundred was a scanned image.
-        """
+
+def _failed_check(name: str, stage: str, description: str):
+    """Builds the check that reports one stage's failed rows.
+
+    A check rather than an exception, because a failed row is not a
+    failed run: the rest of the corpus went through, the reason is
+    recorded against the row, and `retry` is what moves it. Raising
+    here would stop the stage after it from ever running because one
+    document of four hundred was a scanned image.
+    """
+
+    @asset_check(asset=name, name=NOTHING_FAILED, description=description)
+    def _check() -> AssetCheckResult:
+        """Reports the stage's failed rows."""
         settings = Settings.load()
         queue = Backend(settings.backend_url).status(stage)
         return AssetCheckResult(
@@ -143,7 +147,7 @@ def _stage_asset(name: str, stage: str, unit: str, deps: list[str]):
             },
         )
 
-    return _materialise, _check
+    return _check
 
 
 _BUILT = [
@@ -190,20 +194,10 @@ def topics(context: AssetExecutionContext) -> Output[int]:
     )
 
 
-@asset_check(asset="topics", name=NOTHING_FAILED, description="Whether the fit failed.")
-def topics_check() -> AssetCheckResult:
-    """Reports whether the fit succeeded.
-
-    A fit that fails leaves the working topics in place with the reason
-    beside them, so this failing means the corpus is being described by
-    the topics from before rather than by none.
-    """
-    settings = Settings.load()
-    queue = Backend(settings.backend_url).status("topics")
-    return AssetCheckResult(
-        passed=queue.failed == 0,
-        metadata={"failed": queue.failed, "queue": MetadataValue.json(queue.rows)},
-    )
+#: A fit that fails leaves the working topics in place with the reason
+#: beside them, so this failing means the corpus is being described by the
+#: topics from before rather than by none.
+topics_check = _failed_check("topics", "topics", "Whether the fit failed.")
 
 
 #: `facts` as well, so a job without the fit still waits for extraction.
@@ -223,23 +217,9 @@ def questions(context: AssetExecutionContext) -> Output[int]:
     return _run(context, "questions", "topic")
 
 
-@asset_check(
-    asset="questions",
-    name=NOTHING_FAILED,
-    description="Whether question generation left any topic failed.",
+questions_check = _failed_check(
+    "questions", "questions", "Whether question generation left any topic failed."
 )
-def questions_check() -> AssetCheckResult:
-    """Reports the topics question generation could not write."""
-    settings = Settings.load()
-    queue = Backend(settings.backend_url).status("questions")
-    return AssetCheckResult(
-        passed=queue.failed == 0,
-        metadata={
-            "failed": queue.failed,
-            "retry with": "POST /questions/retry",
-            "queue": MetadataValue.json(queue.rows),
-        },
-    )
 
 
 @asset(
@@ -305,28 +285,14 @@ def assessments(context: AssetExecutionContext) -> Output[int]:
     )
 
 
-@asset_check(
-    asset="assessments",
-    name=NOTHING_FAILED,
-    description="Whether the judge could not be reached for any artefact.",
+#: A failure here is the model being unreachable, not an artefact being
+#: bad: a judgement that was refused is recorded as a refusal and is not a
+#: failed row.
+assessments_check = _failed_check(
+    "assessments",
+    "assessment",
+    "Whether the judge could not be reached for any artefact.",
 )
-def assessments_check() -> AssetCheckResult:
-    """Reports the artefacts the judge could not be asked about.
-
-    A failure here is the model being unreachable, not an artefact being
-    bad: a judgement that was refused is recorded as a refusal and is not
-    a failed row.
-    """
-    settings = Settings.load()
-    queue = Backend(settings.backend_url).status("assessment")
-    return AssetCheckResult(
-        passed=queue.failed == 0,
-        metadata={
-            "failed": queue.failed,
-            "retry with": "POST /assessment/retry",
-            "queue": MetadataValue.json(queue.rows),
-        },
-    )
 
 
 @asset_check(

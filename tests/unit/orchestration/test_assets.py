@@ -95,20 +95,21 @@ def test_assessment_switched_on_reports_what_was_judged(backend) -> None:
 
 
 @pytest.mark.parametrize(
-    "check",
+    ("check", "stage"),
     [
-        stages.parsed_documents_check,
-        stages.topics_check,
-        stages.questions_check,
-        stages.assessments_check,
+        (stages.parsed_documents_check, "parsing"),
+        (stages.topics_check, "topics"),
+        (stages.questions_check, "questions"),
+        (stages.assessments_check, "assessment"),
     ],
 )
-def test_a_failed_row_fails_the_stage_check(check) -> None:
-    """Reported with the count, never raised."""
+def test_a_failed_row_fails_the_stage_check(check, stage: str) -> None:
+    """Reported with the count and the route that retries it, never raised."""
     result = check()
 
     assert result.passed is False
     assert result.metadata["failed"].value == 2
+    assert result.metadata["retry with"].value == f"POST /{stage}/retry"
 
 
 def test_the_agreement_check_passes_with_nothing_judged() -> None:
