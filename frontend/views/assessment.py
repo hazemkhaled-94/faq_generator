@@ -217,16 +217,10 @@ def _judging(plan: dict) -> list[tuple[str, str]]:
 def _scopes(picked: list[tuple[str, str]]) -> list[tuple[str, str]] | None:
     """What the queue verbs should act on, given what is ticked.
 
-    None is the whole queue, and it is the right answer to two different
-    tickings: every kind, which is the same request said the long way and
-    is cheaper as one call than three, and none, which is somebody who has
-    not chosen and should not be given controls that do nothing.
-
-    The two read differently to a person, which is what the caption beside
-    this says, and identically to the queue - so they are one return value
-    here and two sentences there.
+    None is the whole queue, for every kind ticked: the same request said
+    the long way, and one call rather than three.
     """
-    return None if len(picked) in (0, len(_KINDS)) else picked
+    return None if len(picked) == len(_KINDS) else picked
 
 
 def view() -> None:
@@ -320,18 +314,18 @@ def view() -> None:
 
     with service, page.panel("Assessment — the evaluation phase"):
         judging = _judging(plan)
-        stage.service(client, _ASSESSMENT, scopes=_scopes(judging), redo_warning=_REDO)
         if not judging:
-            st.caption(
-                "Nothing is ticked, so the controls act on every artefact. "
-                "Tick one or more to judge those alone."
+            st.caption("Nothing is ticked. Tick a kind to act on it.")
+        else:
+            stage.service(
+                client, _ASSESSMENT, scopes=_scopes(judging), redo_warning=_REDO
             )
-        elif len(judging) < len(_KINDS):
-            st.caption(
-                "The controls act on "
-                + " and ".join(_KINDS[kind][0].lower() for _, kind in judging)
-                + " only."
-            )
+            if len(judging) < len(_KINDS):
+                st.caption(
+                    "The controls act on "
+                    + " and ".join(_KINDS[kind][0].lower() for _, kind in judging)
+                    + " only."
+                )
         with page.folds():
             with st.expander("Analysis"):
                 page.findings(_checks(quality, counts, plan, looking_at))

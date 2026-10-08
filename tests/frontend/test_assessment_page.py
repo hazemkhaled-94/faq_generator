@@ -74,6 +74,19 @@ def test_a_kind_the_deployment_does_not_judge_opens_unticked(page) -> None:
     assert ticked["fact"] is False
 
 
+def test_nothing_ticked_offers_no_verb(page) -> None:
+    """Unticking every kind says none, so nothing can be judged or redone."""
+    drawn = page()
+    for kind in ("fact", "topic", "question"):
+        drawn = drawn.uncheck(f"assessment-judge-{kind}")
+
+    assert not any(drawn.judging().values())
+    assert not {"Start", "Start all", "Stop", "Retry", "Redo", "Redo all"} & set(
+        drawn.buttons()
+    )
+    assert "Tick a kind" in drawn.text()
+
+
 def test_every_metric_is_offered_as_a_filter(page) -> None:
     """So a reader can ask what one named judgement caught."""
     offered = page().options("assessment-metric")
