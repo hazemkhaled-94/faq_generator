@@ -106,9 +106,8 @@ class QuestionPage:
 class QuestionVerdict(BaseModel):
     """What a person decided about one question.
 
-    Only the three states the column holds. A person accepting clears the
-    gate's reason, because the row is no longer rejected and a reason for a
-    rejection that was overturned is a stale one.
+    Only the three states the column holds. Accepting leaves the gate's
+    reason on the row, beside the person's verdict.
     """
 
     status: Decision
