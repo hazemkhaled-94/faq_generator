@@ -8,7 +8,9 @@ page — so it runs in a worker, one document at a time, off a queue.
 
 The converted document is written to its bucket **before** anything reads
 values out of it, so a bug in the reading does not mean paying for the
-conversion twice. Two refusals therefore fire after the object exists.
+conversion twice. Two refusals therefore fire after the object exists. A
+re-parse is written only after them, so a refused one leaves the earlier
+converted document, which the standing passages were cut from, in place.
 
 Nothing this stage does starts the next one. `complete` writes neither
 `page_count`, which is ingestion's, nor `chunk_status`, which is chunking's,
@@ -67,8 +69,9 @@ reproduce is one no quote of it can match.
 ### Step 5 — Store the converted document
 
 The converter's own exported dictionary, one JSON object in the `parsed`
-bucket keyed by the source digest. Re-parsing overwrites. This is what
-chunking reads, so re-chunking never re-parses.
+bucket keyed by the source digest. Re-parsing overwrites, but only once
+Step 7 has passed. This is what chunking reads, so re-chunking never
+re-parses.
 
 ### Step 6 — Read the values the row holds
 
@@ -89,9 +92,10 @@ released as a second PDF has different bytes and the same text.
 `content_sha256` is not written on the copy that fails, so every later copy
 fails against the one that parsed.
 
-Both run after Step 5, so a document failing either leaves a converted form
-in the `parsed` bucket with no row pointing at it. It is collected when the
-document is deleted.
+Both run after Step 5, so a new document failing either leaves a converted
+form in the `parsed` bucket with no row pointing at it. It is collected when
+the document is deleted. A re-parse failing either leaves the earlier
+converted form untouched.
 
 ## Inputs and outputs
 
@@ -158,7 +162,7 @@ the two buckets and Docling itself are stood in for.
 
 | File | Covers |
 |---|---|
-| [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the scanned decision at its boundaries, the store-before-read ordering, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
+| [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |

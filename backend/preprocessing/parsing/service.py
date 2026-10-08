@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from functools import partial
 from typing import ClassVar, Protocol
 
 from opentelemetry.trace import Span
@@ -51,6 +52,10 @@ class ParsedStore(Protocol):
         """Returns the key a converted document is stored under."""
         ...
 
+    def find(self, key: str) -> bytes | None:
+        """Reads an object, or None if it is not there."""
+        ...
+
     def put(
         self,
         key: str,
@@ -68,6 +73,8 @@ class ParsingService(StageService):
 
     The order is fixed: dispatch on the media type recorded at ingest,
     convert, store the converted document, and only then read out of it.
+    A re-parse stores only once the checks pass, so a refusal leaves the
+    earlier converted document in place.
 
     Work arrives through documents.parse_status.
     """
@@ -170,18 +177,27 @@ class ParsingService(StageService):
             SourceDocument(sha256=document.sha256, data=data, scanned=scanned)
         )
 
-        self._parsed.put(
-            self._parsed.key_for(document.sha256),
+        key = self._parsed.key_for(document.sha256)
+        store = partial(
+            self._parsed.put,
+            key,
             json.dumps(
                 converted.document.export_to_dict(), ensure_ascii=False
             ).encode(),
             content_type="application/json",
             metadata={"sha256": document.sha256},
         )
+        # ponytail: downloads the earlier object only to learn it exists; a
+        # head request on the bucket is the upgrade.
+        earlier = self._parsed.find(key) is not None
+        if not earlier:
+            store()
 
         parsed = self._analyser.analyse(converted)
         self._trustworthy(parsed)
         self._unheld(document.sha256, parsed)
+        if earlier:
+            store()
         self._repository.complete(document.sha256, parsed)
 
         self._done(current)

@@ -327,6 +327,60 @@ def test_a_failed_parse_leaves_its_converted_form_in_the_bucket() -> None:
     assert driver.parsed_keys == [driver.parsed.key_for(SHA)]
 
 
+EARLIER = b'{"name": "earlier"}'
+
+
+def _held_text() -> str:
+    """The content digest of the scripted pipeline's document."""
+    return (
+        DocumentAnalyser()
+        .analyse(
+            Conversion(
+                document=ScriptedPipeline().document,
+                confidence=None,
+                confidence_low=None,
+            )
+        )
+        .content_sha256
+    )
+
+
+@pytest.mark.parametrize(
+    ("confidence_low", "holders"),
+    [(0.1, None), (0.9, "duplicate")],
+    ids=["confidence floor", "duplicate"],
+)
+def test_a_refused_re_parse_leaves_the_earlier_converted_form(
+    confidence_low, holders
+) -> None:
+    """The passages standing were cut from it."""
+    driver = ParseDriver(
+        queued=(claimed(),),
+        pipeline=ScriptedPipeline(confidence_low=confidence_low),
+        holders={_held_text(): OTHER} if holders else None,
+        min_confidence=0.5,
+    )
+    key = driver.parsed.key_for(SHA)
+    driver.parsed.objects[key] = EARLIER
+
+    driver.run()
+
+    assert driver.failure is not None
+    assert driver.parsed.objects[key] == EARLIER
+
+
+def test_a_re_parse_that_passes_replaces_the_earlier_converted_form() -> None:
+    """Re-parsing overwrites."""
+    driver = ParseDriver(queued=(claimed(),))
+    key = driver.parsed.key_for(SHA)
+    driver.parsed.objects[key] = EARLIER
+
+    driver.run()
+
+    assert SHA in driver.completed
+    assert json.loads(driver.parsed.objects[key])["name"] == "t"
+
+
 def test_every_queued_document_is_worked_and_one_failure_stops_nothing() -> None:
     """Which is what makes a batch a batch."""
     driver = ParseDriver(

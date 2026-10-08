@@ -285,6 +285,10 @@ class MemoryParsed:
             raise self.refuses_get
         return self.objects[key]
 
+    def find(self, key: str) -> bytes | None:
+        """Reads an object, or None if it is not there."""
+        return self.objects.get(key)
+
     def put(
         self, key: str, data: bytes, *, content_type: str, metadata: dict[str, str]
     ) -> None:
