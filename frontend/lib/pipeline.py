@@ -146,8 +146,9 @@ def _run_help(available: bool, running: dict | None) -> str:
             "through. Stop it first, or wait for it."
         )
     return (
-        "Takes every document through every stage, in order, waiting for "
-        "each to finish. Only what has not been done already."
+        "Takes every document through every stage but the topic fit, in "
+        "order, waiting for each to finish. Only what has not been done "
+        "already."
     )
 
 
@@ -216,8 +217,8 @@ def _automation(client, automation: dict) -> None:
         clocked = st.toggle(
             "Every night at 02:00 UTC",
             key="pipeline-nightly",
-            help="A topic fit is corpus-wide and goes stale on every new "
-            "document, which is what makes a clock worth having.",
+            help="Runs every stage but the topic fit over whatever is "
+            "waiting. A refit is Fit all on the Topics page.",
         )
         if chosen != on_arrival or clocked != nightly:
             _report(client.automate(on_arrival=chosen, nightly=clocked))
