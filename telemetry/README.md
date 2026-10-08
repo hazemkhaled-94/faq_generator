@@ -245,9 +245,10 @@ here is one passage through a model. A queue that did fill would log
 `Queue full, dropping spans` per overflow, so that is a loud failure rather
 than a quiet one.
 
-**A span is dropped and an annotation is not, when Phoenix is down.** The
-exporter discards what it cannot send; `evaluations.py` warns once per run
-and stops trying, and the verdict is in Postgres either way.
+**A span and an annotation are both dropped when Phoenix is down.** The
+exporter discards what it cannot send; `evaluations.py` drops the batch it
+held, warns once and posts nothing more for the rest of the run. The verdict
+is in Postgres either way.
 
 ## Verdicts
 
