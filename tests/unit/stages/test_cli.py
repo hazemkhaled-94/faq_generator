@@ -122,6 +122,42 @@ def test_a_refused_preflight_installs_no_exporter(monkeypatch) -> None:
     )
 
 
+def test_a_rerun_whose_preflight_fails_resets_nothing(monkeypatch) -> None:
+    """For assessment a reset deletes every metric and blanks every verdict.
+
+    With an unreachable or unnamed judge, a rerun that reset first left
+    nothing judged and nothing stored.
+    """
+    from stages import cli
+
+    monkeypatch.setattr(cli.telemetry, "configure", lambda *_, **__: None)
+    reset: list = []
+
+    class _Queue:
+        """A queue that records each reset."""
+
+        def reset(self, within=None, *, trigger=None) -> int:
+            """Records one reset."""
+            reset.append(within)
+            return 1
+
+    def preflight() -> None:
+        """Refuses, as `judge_model` does with no judge named."""
+        raise ValueError("ASSESSMENT_JUDGE_MODEL names no model")
+
+    exit_code = cli.queue_main(
+        name="assessment",
+        module="assessment.run",
+        repository=_Queue,
+        build_service=object,
+        argv=["--rerun"],
+        preflight=preflight,
+    )
+
+    assert exit_code == 1
+    assert reset == [], "a refused preflight must leave every stored row as it was"
+
+
 def test_a_drain_that_starts_installs_the_exporter(monkeypatch) -> None:
     """A process past the preflight is one that claims rows.
 

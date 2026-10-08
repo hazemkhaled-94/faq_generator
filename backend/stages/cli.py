@@ -224,20 +224,21 @@ def queue_main(
             log.info("%s: %d row(s) %s", name, act(lambda q, w, do=run: do(w)), verb)
             return 0
 
+    # Here rather than inside the loop below, which logs an exception and
+    # polls again: that is right for a drain that failed and wrong for a
+    # deployment that can never work. A worker with no usable credential
+    # would otherwise claim a row every poll and fail it, and the queue
+    # would empty into `failed` while the container reported itself up.
+    # Before the rerun's reset, which can clear stored work.
+    if preflight is not None and not _ready(name, preflight, args.watch):
+        return 1
+
     if args.rerun:
         log.info(
             "%s: %d row(s) queued again",
             name,
             act(lambda q, w: q.reset(w, trigger=asking)),
         )
-
-    # Here rather than inside the loop below, which logs an exception and
-    # polls again: that is right for a drain that failed and wrong for a
-    # deployment that can never work. A worker with no usable credential
-    # would otherwise claim a row every poll and fail it, and the queue
-    # would empty into `failed` while the container reported itself up.
-    if preflight is not None and not _ready(name, preflight, args.watch):
-        return 1
 
     # Past here the process is going to claim rows, so its spans are worth
     # a project. Named with the run only when somebody named the run: an

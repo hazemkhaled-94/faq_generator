@@ -191,8 +191,9 @@ curl -X POST 'localhost:8000/questions/reclaim?confirm=true'
 
 ### Two things done once, before the first claim
 
-`queue_main` takes two optional callables, both run after the queue verbs and
-before anything is drained.
+`queue_main` takes two optional callables, both run before anything is
+drained. `preflight` also runs before `--rerun` queues a row again, so a model
+that will not answer leaves every stored row as it was.
 
 **`preflight`** is what a stage proves before it claims anything — for the
 three that call a model, that the model answers. It raises, and the process
