@@ -70,6 +70,7 @@ def _services(running: list[dict]) -> None:
         ],
         width="stretch",
         hide_index=True,
+        placeholder="—",
         column_config={
             "Open": st.column_config.LinkColumn("Open", display_text="open"),
             "What it does": st.column_config.TextColumn(width="large"),
