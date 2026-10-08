@@ -760,6 +760,33 @@ def test_a_corpus_with_no_passages_writes_nothing(caplog) -> None:
 
 
 @pytest.mark.nlp
+def test_a_table_passage_takes_its_documents_language() -> None:
+    """Its rendering is padding and terms, which reads as another language."""
+    rows = [
+        ("Rolle", "Verantwortung"),
+        ("Test Manager", "Planning, monitoring and control"),
+        ("Tester", "Test execution and reporting"),
+        ("Developer", "Component tests"),
+    ]
+    document = docling_document()
+    table = table_of(
+        document,
+        [
+            cell(value, row, col, column_header=row == 0)
+            for row, values in enumerate(rows)
+            for col, value in enumerate(values)
+        ],
+        num_rows=len(rows),
+        num_cols=2,
+    )
+    read = passage_of(document, chunk_of(rendered_by_docling(document), (table,)))
+
+    (surfaced,) = PassageBuilder._read([read], "de")
+
+    assert surfaced.language == "de"
+
+
+@pytest.mark.nlp
 def test_each_passage_is_written_with_the_language_of_its_own_text() -> None:
     """One file carries a German report and its English summary."""
     driver = RevocabularyDriver((1, GERMAN, "de"), (2, ENGLISH, "de"))

@@ -49,7 +49,9 @@ def revocabulary(catalog: PassageCatalog, within=None) -> int:
 
     before = catalog.languages(within)
     # Detected first, so each passage is read by the pipeline for the language
-    # it is in, and one batch is parsed per language.
+    # it is in, and one batch is parsed per language. A table passage is
+    # detected here too, unlike in a chunking run, so that this rewrites no
+    # stored passage's language.
     spoken = [
         (passage_id, text, detect(text) or fallback)
         for passage_id, text, fallback in passages

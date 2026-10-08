@@ -164,7 +164,8 @@ class PassageBuilder:
         """Adds each passage's language, numbered units and lemmas.
 
         The language is detected per passage; one too short to judge keeps
-        the document's. Every passage is read for vocabulary, a table
+        the document's, and so does a table, whose rendering is padding and
+        terms rather than prose. Every passage is read for vocabulary, a table
         included. Only the numbering differs: a table's rows are numbered
         rather than its sentences split. Passages are parsed in one batch per
         language.
@@ -177,7 +178,8 @@ class PassageBuilder:
             The same passages, each carrying its language, units and lemmas.
         """
         spoken = [
-            (index, detect(p.text) or language) for index, p in enumerate(passages)
+            (index, language if p.table_cells else detect(p.text) or language)
+            for index, p in enumerate(passages)
         ]
         parsed: dict[int, tuple] = {}
         for code in {found for _, found in spoken}:
