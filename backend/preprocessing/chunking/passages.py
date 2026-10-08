@@ -243,17 +243,23 @@ class PassageBuilder:
         )
 
 
+#: What extraction skips as navigation rather than content.
+_NAVIGATION = frozenset({DocItemLabel.CODE, DocItemLabel.DOCUMENT_INDEX})
+
+
 def _block_type(items: list[DocItem]) -> str | None:
     """Labels a passage for the extractor that will read it.
 
     A table anywhere in a merged passage wins; otherwise the first item's
-    label.
+    label, passing over code and index items unless every item is one.
     """
     if not items:
         return None
     if any(item.label == DocItemLabel.TABLE for item in items):
         return DocItemLabel.TABLE.value
-    return items[0].label.value
+    return next(
+        (item for item in items if item.label not in _NAVIGATION), items[0]
+    ).label.value
 
 
 def _tables_rendered(

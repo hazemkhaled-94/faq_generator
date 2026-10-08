@@ -159,6 +159,17 @@ def test_otherwise_a_passage_is_labelled_by_its_first_item() -> None:
     assert _block_type(list(document.texts)) == DocItemLabel.SECTION_HEADER.value
 
 
+def test_a_code_item_labels_a_passage_only_when_every_item_is_code() -> None:
+    """The prose merged in after it is read rather than skipped as navigation."""
+    document = docling_document()
+    document.add_code(text="for each test in suite: run(test)")
+    document.add_text(label=DocItemLabel.TEXT, text="The loop runs every test.")
+    document.add_text(label=DocItemLabel.TEXT, text="A failure stops nothing.")
+
+    assert _block_type(list(document.texts)) == DocItemLabel.TEXT.value
+    assert _block_type(list(document.texts)[:1]) == DocItemLabel.CODE.value
+
+
 # ── Pairing a table's rows with the lines that render them ─────────────────
 
 
