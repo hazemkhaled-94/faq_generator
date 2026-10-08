@@ -509,13 +509,10 @@ class QuestionQueue(RowQueue):
     def counts(self) -> dict[str, int]:
         """Reports what this service owns, for the status panel."""
         with self._session() as session:
-            total = session.scalar(select(func.count()).select_from(Question)) or 0
-            accepted = (
-                session.scalar(
-                    select(func.count())
-                    .select_from(Question)
-                    .where(Question.status == QuestionStatus.ACCEPTED)
-                )
-                or 0
-            )
+            total, accepted = session.execute(
+                select(
+                    func.count(),
+                    func.count().filter(Question.status == QuestionStatus.ACCEPTED),
+                ).select_from(Question)
+            ).one()
         return {**self.counts_by_status(), "questions": total, "accepted": accepted}

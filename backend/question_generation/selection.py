@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from enum import StrEnum
 from functools import lru_cache
-from itertools import zip_longest
+from itertools import groupby, zip_longest
 
 from database.qa_generator import FactKind
 from nlp.analysis import content
@@ -233,13 +233,12 @@ def ranked(facts: Iterable[SourceFact]) -> list[SourceFact]:
 
 def by_passage(facts: Iterable[SourceFact]) -> list[list[SourceFact]]:
     """Each passage's facts, ranked, the passages in corpus order."""
-    held: dict[int, list[SourceFact]] = {}
     ordered = sorted(
         facts, key=lambda one: (one.doc_sha256, one.ordinal, one.passage_id, one.id)
     )
-    for fact in ordered:
-        held.setdefault(fact.passage_id, []).append(fact)
-    return [ranked(group) for group in held.values()]
+    return [
+        ranked(group) for _, group in groupby(ordered, key=lambda one: one.passage_id)
+    ]
 
 
 def interleaved(passages: list[list[SourceFact]]) -> list[list[SourceFact]]:

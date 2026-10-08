@@ -55,11 +55,7 @@ _RECHECK_BATCH = 500
 
 #: The bands in order, for asking whether a question came out below the one
 #: its plan wanted.
-_RANK: dict[str, int] = {
-    Difficulty.EASY: 0,
-    Difficulty.MEDIUM: 1,
-    Difficulty.HARD: 2,
-}
+_RANK: dict[str, int] = {band: rank for rank, band in enumerate(Difficulty)}
 
 #: What to tell the writer about a draft a gate refused, by the gate that
 #: refused it. Only the gates a second attempt can do anything about are

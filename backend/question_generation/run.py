@@ -84,10 +84,6 @@ def main(argv: list[str] | None = None) -> int:
         settings, model, _ = configured()
         before_work(*models(settings, model))
 
-    def queue() -> QuestionQueue:
-        """The queue this stage claims from."""
-        return QuestionQueue()
-
     def record_prompts() -> int:
         """Records what this stage sends, each under the model it goes to.
 
@@ -100,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     return queue_main(
         name="questions",
         module="question_generation.run",
-        repository=queue,
+        repository=QuestionQueue,
         build_service=build,
         argv=sys.argv[1:] if argv is None else argv,
         extra=extra,
