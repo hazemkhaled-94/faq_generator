@@ -74,7 +74,7 @@ distance, and the one most likely to reach
 |---|---|
 | The `corpus` job | Every stage, end to end. Run it by hand from the UI, from `make pipeline`, from the Run button, or from `POST /pipeline/run` |
 | The `nightly_corpus` schedule | 02:00 UTC. A refit is corpus-wide and goes stale on every new document |
-| The `arrivals` sensor | Polls parsing every minute and requests a run when documents are sitting `new` |
+| The `arrivals` sensor | Polls parsing every minute and requests a run when documents are sitting `new` and `INGESTION_OPEN` is on |
 
 The schedule and the sensor both ship **stopped**. A stack that starts
 running the pipeline the moment it comes up is one nobody chose. Either can
@@ -200,8 +200,11 @@ From [`configs/env/orchestration.env`](../configs/env/orchestration.env):
 | `ORCHESTRATION_DRAIN_TIMEOUT_SECONDS` | How long an asset waits for a stage to drain. Giving up is not failing the rows |
 | `ORCHESTRATION_POLL_SECONDS` | How often it asks |
 
-Plus `BACKEND_URL`, the only address it holds. The instance and its one code
-location are configured in [`configs/dagster/`](../configs/dagster/).
+Plus `BACKEND_URL`, the only address it holds, and `INGESTION_OPEN` from
+[`configs/env/backend.env`](../configs/env/backend.env): whether `arrivals`
+may start a run at all. Off, it starts none, so it undoes no Stop. The instance
+and its one code location are configured in
+[`configs/dagster/`](../configs/dagster/).
 
 ## Tests
 

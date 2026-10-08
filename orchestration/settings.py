@@ -31,8 +31,9 @@ def required(name: str) -> str:
     if not value:
         raise KeyError(
             f"{name} must be set in the environment. The orchestrator's "
-            f"settings are in configs/env/orchestration.env; the address it "
-            f"calls and its credentials are in .env."
+            f"settings are in configs/env/orchestration.env, INGESTION_OPEN "
+            f"is in configs/env/backend.env; the address it calls and its "
+            f"credentials are in .env."
         )
     return value
 
@@ -50,6 +51,8 @@ class Settings:
     #: How often to ask. A stage whose unit costs a model call is not worth
     #: asking about every second.
     poll_seconds: float
+    #: Whether `arrivals` may start a run for documents sitting `new`.
+    ingestion_open: bool
 
     @classmethod
     def load(cls) -> Settings:
@@ -58,4 +61,6 @@ class Settings:
             backend_url=required("BACKEND_URL"),
             drain_timeout=float(required("ORCHESTRATION_DRAIN_TIMEOUT_SECONDS")),
             poll_seconds=float(required("ORCHESTRATION_POLL_SECONDS")),
+            ingestion_open=required("INGESTION_OPEN").lower()
+            in ("1", "true", "yes", "on"),
         )

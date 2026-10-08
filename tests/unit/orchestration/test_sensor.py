@@ -34,6 +34,7 @@ def settings(monkeypatch) -> None:
     monkeypatch.setenv("BACKEND_URL", "http://api:8000")
     monkeypatch.setenv("ORCHESTRATION_DRAIN_TIMEOUT_SECONDS", "60")
     monkeypatch.setenv("ORCHESTRATION_POLL_SECONDS", "1")
+    monkeypatch.setenv("INGESTION_OPEN", "true")
 
 
 @pytest.fixture
@@ -202,6 +203,17 @@ def test_a_stopped_run_is_not_started_again_by_the_sensor(
 
     assert isinstance(answer, SkipReason)
     assert "stopped" in str(answer.skip_message)
+
+
+def test_closed_ingestion_starts_nothing(monkeypatch, instance) -> None:
+    """A stage stopped on its own page puts its documents back to `new` too."""
+    monkeypatch.setenv("INGESTION_OPEN", "false")
+    answering(monkeypatch, new=3)
+
+    answer = evaluate(instance)
+
+    assert isinstance(answer, SkipReason)
+    assert "INGESTION_OPEN" in str(answer.skip_message)
 
 
 def test_a_key_whose_run_failed_is_not_asked_for_again(monkeypatch, instance) -> None:

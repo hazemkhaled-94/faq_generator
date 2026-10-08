@@ -105,6 +105,8 @@ def arrivals(context):
     graph, so a second sensor per stage would race the run already
     working through them.
 
+    Starts nothing while INGESTION_OPEN is off.
+
     The run key counts the decisions rather than the documents, and the
     cursor is what makes that possible. Dagster remembers a run key for as
     long as it keeps the run, so a key naming only the queue depth is a key
@@ -115,6 +117,8 @@ def arrivals(context):
     over an unchanged queue still share a key and still ask for one run.
     """
     settings = Settings.load()
+    if not settings.ingestion_open:
+        return SkipReason("INGESTION_OPEN is off; start the next run by hand")
     queue = Backend(settings.backend_url).status("parsing")
 
     asked = json.loads(context.cursor) if context.cursor else {}

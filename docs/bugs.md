@@ -109,13 +109,6 @@ self-contained judge, never by the fact checks. It does not reproduce on the
 pinned parser, which attaches `ein` to `paar` rather than to the noun. Fix:
 require `Definite` not to be `Ind`.
 
-**F74 — Arrivals sensor undoes Stop.** The `arrivals` sensor in the ingestion
-Dagster job treats any `new` row in the parsing table as an unrequested
-upload and re-runs the pipeline, overwriting a manual Stop. A deliberate stop
-after corpus ingestion is complete does not persist across a Dagster restart.
-Fix: gate the sensor on an explicit `INGESTION_OPEN` flag rather than on row
-presence.
-
 ## Reproducing this page
 
 The counts are queries over `questions`, `facts`, `question_facts` and

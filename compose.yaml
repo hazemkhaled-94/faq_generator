@@ -212,7 +212,8 @@ x-dagster: &dagster
     context: .
     dockerfile: orchestration/Dockerfile
   restart: unless-stopped
-  env_file: [configs/env/orchestration.env]
+  # backend.env for INGESTION_OPEN.
+  env_file: [configs/env/orchestration.env, configs/env/backend.env]
   environment:
     TZ: UTC
     DAGSTER_HOME: /opt/dagster/dagster_home
