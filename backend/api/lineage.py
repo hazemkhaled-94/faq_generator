@@ -394,6 +394,8 @@ def of(kind: str, row_id: str) -> Lineage | None:
         if not found[kind]:
             return None
         # Sorted before the page is cut, so it is the first twenty.
+        # ponytail: every id of each step is loaded to count it and cut the
+        # page; the upgrade is a COUNT plus ORDER BY and LIMIT per step.
         shown = {at: sorted(ids)[:_PER_STEP] for at, ids in found.items()}
         judged = _judgements(session, shown)
         held = {

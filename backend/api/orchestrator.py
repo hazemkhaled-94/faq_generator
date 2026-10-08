@@ -266,6 +266,9 @@ class Dagster:
         if one.get("__typename") == "TerminateRunSuccess":
             log.info("pipeline: run %s terminated", run_id)
             return True
+        # ponytail: "already finished" is read from the failure's message
+        # text, so a reworded Dagster message reads as a refusal; the upgrade
+        # is reading the run's status from Dagster.
         if one.get("__typename") == "TerminateRunFailure" and "finished" in (
             one.get("message") or ""
         ):

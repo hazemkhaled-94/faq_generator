@@ -250,6 +250,9 @@ def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
     # decided on, and the export quietly came up one row short of the
     # figure printed on its own Summary sheet.
     _, rows = question_catalog.page(limit=None, **where)
+    # ponytail: the whole workbook is built in memory before the first byte
+    # is sent; the upgrade is a StreamingResponse over openpyxl's write-only
+    # mode.
     drawn = workbook(
         rows,
         question_catalog.citations(**where) if chosen.citations else (),
