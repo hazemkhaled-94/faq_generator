@@ -255,17 +255,28 @@ def apply(
     stale = sorted(
         {stage for name in changed + cleared for stage in settings[name].invalidates}
     )
+    rebuilds = sorted(
+        {
+            settings[name].rebuild
+            for name in changed + cleared
+            if settings[name].invalidates
+        }
+    )
     return Outcome(
         version=store.version(),
         changed=changed,
         cleared=cleared,
         stale=stale,
-        detail=_detail(changed + cleared, stale),
+        detail=_detail(changed + cleared, stale, rebuilds),
     )
 
 
-def _detail(moved: list[str], stale: list[str]) -> str:
-    """Says what happened, and what is now worth rebuilding."""
+def _detail(moved: list[str], stale: list[str], rebuilds: list[str]) -> str:
+    """Says what happened, and what is now worth rebuilding.
+
+    Names the cheaper commands where every setting that stales something
+    has one, and the stage's rerun otherwise.
+    """
     if not moved:
         return "nothing changed; every value given is the one already set."
     written = (
@@ -274,6 +285,11 @@ def _detail(moved: list[str], stale: list[str]) -> str:
     )
     if not stale:
         return written
+    if "" not in rebuilds:
+        return (
+            f"{written} What {', '.join(stale)} already produced was made under "
+            f"the old values; run {' and '.join(rebuilds)} to rebuild it."
+        )
     return (
         f"{written} What {', '.join(stale)} already produced was made under "
         f"the old values; rerun that stage to rebuild it."

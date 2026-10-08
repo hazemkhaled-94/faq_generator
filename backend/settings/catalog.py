@@ -54,6 +54,8 @@ class Setting:
         choices: The only accepted values, where the set is closed.
         optional: Whether absence is itself meaningful.
         fixed: Whether the deployment owns it, so it is served but not written.
+        rebuild: The command that rebuilds what it stales without rerunning
+            the stage, where there is one.
     """
 
     name: str
@@ -66,6 +68,7 @@ class Setting:
     choices: tuple[str, ...] = ()
     optional: bool = False
     fixed: bool = False
+    rebuild: str = ""
 
 
 #: Every setting, by service, in the order backend.env declares them, which
@@ -168,6 +171,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="EXTRACTION_DIGEST_MAX_SHARE",
+        rebuild="make extract-revalidate",
         service="extraction",
         kind="decimal",
         low=0,
@@ -223,6 +227,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="EXTRACTION_DUPLICATE_FLOOR",
+        rebuild="make confidence-recalibrate",
         service="extraction",
         kind="decimal",
         low=0,
@@ -450,6 +455,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="QUESTIONS_ANSWER_CHARS",
+        rebuild="make questions-reverify",
         service="questions",
         kind="mapping",
         invalidates=("questions",),
@@ -519,6 +525,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="QUESTIONS_DUPLICATE_FLOOR",
+        rebuild="make confidence-recalibrate",
         service="questions",
         kind="decimal",
         low=0,
@@ -578,6 +585,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="QUESTIONS_RELEASE_SIZE",
+        rebuild="make questions-balance",
         service="questions",
         kind="integer",
         low=0,
@@ -588,6 +596,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="QUESTIONS_RELEASE_UNANSWERABLE",
+        rebuild="make questions-balance",
         service="questions",
         kind="decimal",
         low=0,
@@ -598,6 +607,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="QUESTIONS_RELEASE_DIFFICULTY",
+        rebuild="make questions-balance",
         service="questions",
         kind="mapping",
         invalidates=("questions",),
@@ -606,6 +616,7 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="QUESTIONS_RELEASE_TYPES",
+        rebuild="make questions-balance",
         service="questions",
         kind="mapping",
         optional=True,

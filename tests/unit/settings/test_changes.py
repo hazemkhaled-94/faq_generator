@@ -89,3 +89,26 @@ def test_a_setting_read_from_the_environment_alone_is_not_written(name: str) -> 
 def test_a_local_encoder_may_still_be_changed(name: str) -> None:
     """Run in the worker, the same on the host and in a container."""
     assert changes.owned("platform", [name])[name].fixed is False
+
+
+class Recording(Environment):
+    """A store over the test environment that keeps what it is asked to write."""
+
+    def __init__(self) -> None:
+        """Holds nothing yet."""
+        self.written: dict[str, str] = {}
+
+    def change(self, writes, clears, expected=None) -> list[str]:
+        """Keeps the writes; clears nothing."""
+        self.written.update(writes)
+        return []
+
+
+def test_a_change_with_a_cheaper_rebuild_names_it_instead_of_a_rerun() -> None:
+    """A new release size is a redraw, not a run of the whole stage."""
+    moved = changes.apply(
+        "questions", {"QUESTIONS_RELEASE_SIZE": "50"}, store=Recording()
+    )
+
+    assert "make questions-balance" in moved.detail, moved.detail
+    assert "rerun" not in moved.detail, moved.detail
