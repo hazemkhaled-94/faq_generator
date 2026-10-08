@@ -82,6 +82,7 @@ _COLUMNS = (
     ("follows_id", "Follows"),
     ("language", "Language"),
     ("status", "Status"),
+    ("released", "Released"),
     ("rejected_reason", "Gate"),
     # How close the weakest measuring gate came to refusing it. A margin
     # and not a probability - see `confidence.py` - and blank on a question
@@ -459,6 +460,11 @@ def parser() -> argparse.ArgumentParser:
         "--followups-only", action="store_true", help="only the follow-ups"
     )
     built.add_argument(
+        "--released",
+        action="store_true",
+        help="only the release the last questions-balance drew",
+    )
+    built.add_argument(
         "--no-citations",
         action="store_true",
         help="leave the Citations sheet empty, which is much faster on a "
@@ -493,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
         "status": args.status,
         "answerable": answerable,
         "follows": follows,
+        "released": True if args.released else None,
         "question_type": args.question_type,
         "difficulty": args.difficulty,
         "planned_difficulty": args.planned_difficulty,

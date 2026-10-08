@@ -400,6 +400,10 @@ Nothing is deleted and nothing is rewritten. A release is a column on rows
 already there, so questions left out stay queryable, and running it again
 with different shares replaces the first.
 
+`FILTER="--released"` exports the release, `released=true` narrows
+`GET /questions` to it, and **Released** does the same on the Questions page.
+Every workbook carries a Released column.
+
 ## Getting the dataset out
 
 [`export.py`](export.py).

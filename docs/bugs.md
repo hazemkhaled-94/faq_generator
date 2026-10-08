@@ -116,7 +116,7 @@ The counts are queries over `questions`, `facts`, `question_facts` and
 the workbook:
 
 ```bash
-make questions-export OUT=audit.xlsx FILTER="--status accepted"
+make questions-export OUT=audit.xlsx FILTER="--released"
 ```
 
 Re-measuring means taking a corpus through again and rewriting both this page

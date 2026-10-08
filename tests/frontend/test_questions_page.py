@@ -205,6 +205,31 @@ def test_the_verdict_tooltips_say_what_a_verdict_does(page) -> None:
     assert "gate" not in opened.button("Accept").help
 
 
+# ── The release ───────────────────────────────────────────────────────────
+
+
+def test_the_release_is_a_filter_the_rows_figures_and_workbook_share(
+    open_view,
+) -> None:
+    """Released narrows the table, the Overview and the workbook alike."""
+    client = Answers(**answers(question_workbook=b"PK\x03\x04 a workbook"))
+    opened = open_view("questions", client)
+    assert opened.options("questions-released") == ["All questions", "Released"]
+    assert client.calls("questions")[-1][2].get("released") is None
+
+    narrowed = (
+        opened.choose("questions-status", "accepted")
+        .choose("questions-released", "Released")
+        .press("Build a workbook")
+    )
+
+    assert narrowed.raised == []
+    for method in ("questions", "question_quality", "question_workbook"):
+        asked = client.calls(method)[-1][2]
+        assert asked["released"] is True, method
+        assert asked["status"] == "accepted", method
+
+
 def _one(question: dict) -> dict:
     """One page of questions holding exactly this one."""
     return {"total": 1, "questions": [question]}

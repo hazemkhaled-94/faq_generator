@@ -144,6 +144,12 @@ def _filtered(query, document, topic, search, status, answerable, field, **scope
             if scopes["follows"]
             else Question.follows_id.is_(None)
         )
+    if scopes.get("released") is not None:
+        query = query.where(
+            Question.release_id.is_not(None)
+            if scopes["released"]
+            else Question.release_id.is_(None)
+        )
     if search:
         query = query.where(
             matching(
@@ -219,6 +225,7 @@ def _listing() -> Select:
                 Question.confidence,
                 Question.gate_scores,
                 Question.attempt,
+                Question.release_id.is_not(None).label("released"),
                 func.count(func.distinct(QuestionFact.fact_id)).label("facts"),
                 func.array_agg(
                     func.distinct(func.coalesce(Document.title, Passage.doc_sha256))
@@ -279,6 +286,7 @@ def _stored(row: Any) -> StoredQuestion:
         confidence=row.confidence,
         gate_scores=list(row.gate_scores or ()),
         attempt=row.attempt,
+        released=row.released,
     )
 
 

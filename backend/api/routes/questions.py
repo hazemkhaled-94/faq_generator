@@ -131,6 +131,7 @@ def questions(
     cognitive_level: CognitiveLevel | None = None,
     answer_form: AnswerForm | None = None,
     follows: bool | None = None,
+    released: bool | None = None,
     limit: Limit = 50,
     offset: Offset = 0,
 ) -> QuestionPage:
@@ -138,6 +139,9 @@ def questions(
 
     `follows` narrows to the follow-ups or to the roots: true for questions
     asked after another, false for the ones that start a thread.
+
+    `released` narrows to the release the last balanced draw chose: true for
+    the questions in it, false for every other.
 
     `difficulty` is the band the question turned out to be and
     `planned_difficulty` is the one the plan asked for; the two disagreeing is
@@ -161,6 +165,7 @@ def questions(
         cognitive_level=cognitive_level,
         answer_form=answer_form,
         follows=follows,
+        released=released,
     )
     return QuestionPage(total=total, questions=rows)
 
@@ -205,6 +210,7 @@ def quality(
     cognitive_level: CognitiveLevel | None = None,
     answer_form: AnswerForm | None = None,
     follows: bool | None = None,
+    released: bool | None = None,
 ) -> QuestionQuality:
     """Reports how generation is doing, under the same filter.
 
@@ -229,6 +235,7 @@ def quality(
         cognitive_level=cognitive_level,
         answer_form=answer_form,
         follows=follows,
+        released=released,
     )
 
 
@@ -253,6 +260,7 @@ def export(
     cognitive_level: CognitiveLevel | None = None,
     answer_form: AnswerForm | None = None,
     follows: bool | None = None,
+    released: bool | None = None,
     citations: bool = True,
 ) -> Response:
     """Writes the questions this filter selects to an .xlsx workbook.
@@ -299,6 +307,7 @@ def export(
         "cognitive_level": cognitive_level,
         "answer_form": answer_form,
         "follows": follows,
+        "released": released,
     }
     # Unlimited, rather than counting and then asking for a window that
     # size. Those were two statements with a gap between them: a question

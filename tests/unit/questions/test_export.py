@@ -115,6 +115,16 @@ def test_a_question_row_carries_what_it_rests_on() -> None:
     assert row["Documents"] == "Service policy"
 
 
+def test_a_question_says_whether_it_is_in_the_release() -> None:
+    """The Released column, beside the status."""
+    read = sheets(workbook([stored(1, released=True), stored(2)]))["Questions"]
+
+    assert list(read["Released"]) == [True, False]
+    assert list(read.columns).index("Released") == (
+        list(read.columns).index("Status") + 1
+    )
+
+
 def test_sentences_are_one_per_line_rather_than_comma_joined() -> None:
     """A comma between two sentences reads as one sentence."""
     cited = ["The first holds.", "The second holds."]
@@ -260,22 +270,23 @@ class _Catalog:
         """Holds that many questions."""
         self._rows = rows
         self.limits: list[int | None] = []
+        self.asked: dict[str, dict] = {}
 
     def page(self, limit=50, **where):
         """Records the window asked for and answers within it."""
-        del where
+        self.asked["page"] = where
         self.limits.append(limit)
         taken = self._rows if limit is None else min(limit, self._rows)
         return self._rows, [stored(one) for one in range(1, taken + 1)]
 
     def citations(self, **where):
-        """No citations; the sheet is optional and off here."""
-        del where
+        """No citations."""
+        self.asked["citations"] = where
         return []
 
     def quality(self, **where):
         """No report, which the workbook takes as None."""
-        del where
+        self.asked["quality"] = where
 
 
 class _NoJudgements:
@@ -320,3 +331,30 @@ def test_the_export_asks_for_every_row_in_one_window(tmp_path, monkeypatch) -> N
 
     assert catalog.limits == [None], "one unlimited read, not a count and a window"
     assert written.exists()
+
+
+@pytest.mark.parametrize(
+    ("flags", "released"), [(["--released"], True), ([], None)], ids=["on", "off"]
+)
+def test_released_narrows_every_read_to_the_release(
+    tmp_path, monkeypatch, flags, released
+) -> None:
+    """The rows, their citations and the Summary, combined with the rest."""
+    from question_generation import export as module
+
+    catalog = _Catalog(rows=1)
+    monkeypatch.setattr("question_generation.catalog.QuestionCatalog", lambda: catalog)
+    monkeypatch.setattr("database.qa_generator.engine", lambda: None)
+    monkeypatch.setattr("telemetry.trace_engine", lambda engine: None)
+    monkeypatch.setattr(
+        "assessment.repository.AssessmentCatalog", lambda: _NoJudgements()
+    )
+
+    module.main(
+        ["--out", str(tmp_path / "release.xlsx"), "--status", "accepted", *flags]
+    )
+
+    assert set(catalog.asked) == {"page", "citations", "quality"}
+    for read, where in catalog.asked.items():
+        assert where["released"] is released, read
+        assert where["status"] == "accepted", read

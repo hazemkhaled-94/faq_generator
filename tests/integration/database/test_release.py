@@ -175,6 +175,23 @@ def test_a_question_that_leaves_accepted_leaves_the_release(written, engine) -> 
     assert held == ids[3:]
 
 
+def test_released_narrows_every_read_of_the_listing_to_the_draw(written) -> None:
+    """The rows, the figures and the citations, and false is the rest."""
+    ids = written([("easy", "factoid", True, "accepted")] * 3)
+    catalog = QuestionCatalog()
+    catalog.release(ids[:2])
+
+    total, inside = catalog.page(released=True)
+    outside = catalog.page(released=False)[1]
+
+    assert total == 2
+    assert [one.id for one in inside] == ids[:2]
+    assert all(one.released for one in inside)
+    assert [(one.id, one.released) for one in outside] == [(ids[2], False)]
+    assert catalog.quality(released=True).total == 2
+    assert {one.question_id for one in catalog.citations(released=True)} == set(ids[:2])
+
+
 def test_the_balance_command_holds_every_share(written, engine) -> None:
     """The whole round trip, over a pool that can fill the quota exactly."""
     from question_generation.service import balance

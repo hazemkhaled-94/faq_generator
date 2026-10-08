@@ -623,6 +623,8 @@ class StoredQuestion:
     #: Which attempt at its slot wrote it. 1 on every question written
     #: before the column existed, and on every first draft.
     attempt: int = 1
+    #: Whether the last balanced draw chose it: `release_id IS NOT NULL`.
+    released: bool = False
 
 
 @dataclass(frozen=True)

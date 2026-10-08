@@ -374,6 +374,11 @@ def view() -> None:
                 "The band the question turned out to be.",
             ),
             "follows": ("Turns", list(_TURNS), "Whether it follows another."),
+            "released": (
+                "Questions",
+                ["Released"],
+                "Released is the set the last balanced draw chose.",
+            ),
         },
         documents=client.document_names(),
     )
@@ -388,6 +393,7 @@ def view() -> None:
         "answer_form": chosen["answer_form"],
         "difficulty": chosen["difficulty"],
         "follows": _TURNS.get(chosen["follows"] or ""),
+        "released": True if chosen["released"] else None,
     }
     total, rows = catalog.paged(
         "questions",

@@ -12,6 +12,7 @@ stage does, so the verbs are exercised here beside the reads.
 from __future__ import annotations
 
 import io
+import uuid
 
 import pandas as pd
 import pytest
@@ -19,7 +20,7 @@ from seed import digest, document, fact, fitted, link, membership, passage, ques
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-from database.qa_generator import Document
+from database.qa_generator import Document, Question
 
 pytestmark = pytest.mark.integration
 
@@ -595,6 +596,83 @@ def test_a_filter_matching_nothing_still_exports(written) -> None:
 
     assert read["Questions"].empty
     assert "Question" in read["Questions"].columns
+
+
+# ── The release ────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def drawn(written, engine):
+    """The ordinary and the unanswered question drawn into the release."""
+    client, held = written
+    ids = sorted([held["ids"]["ordinary"], held["ids"]["unanswered"]])
+    with Session(engine) as session:
+        session.execute(
+            update(Question).where(Question.id.in_(ids)).values(release_id=uuid.uuid4())
+        )
+        session.commit()
+    return client, held, ids
+
+
+def test_released_narrows_the_listing_to_the_release(drawn) -> None:
+    """True is the release, false is every other question."""
+    client, _, ids = drawn
+
+    inside = client.get("/questions", params={"released": "true"}).json()
+    outside = client.get("/questions", params={"released": "false"}).json()
+
+    assert inside["total"] == 2
+    assert [one["id"] for one in inside["questions"]] == ids
+    assert all(one["released"] for one in inside["questions"])
+    assert outside["total"] == 2
+    assert not any(one["released"] for one in outside["questions"])
+
+
+def test_released_narrows_together_with_the_other_filters(drawn) -> None:
+    """An AND, like every other pair of filters."""
+    client, held, _ = drawn
+
+    both = client.get(
+        "/questions", params={"released": "true", "answerable": "false"}
+    ).json()
+
+    assert [one["id"] for one in both["questions"]] == [held["ids"]["unanswered"]]
+
+
+def test_quality_counts_the_release_the_listing_pages_through(drawn) -> None:
+    """The Overview above a table narrowed to the release describes it."""
+    client, _, _ = drawn
+
+    measured = client.get("/questions/quality", params={"released": "true"}).json()
+
+    assert measured["total"] == 2
+    assert measured["accepted"] == 2
+    assert measured["unanswerable"] == 1
+
+
+def test_the_export_narrowed_to_the_release_is_the_release(drawn) -> None:
+    """Its questions, their citations and its Summary, and nothing else."""
+    client, _, ids = drawn
+
+    read = workbook_from(client.get("/questions/export", params={"released": "true"}))
+    summary = dict(
+        zip(read["Summary"]["Measure"], read["Summary"]["Count"], strict=True)
+    )
+
+    assert sorted(read["Questions"]["ID"]) == ids
+    assert read["Questions"]["Released"].all()
+    assert sorted(read["Citations"]["Question ID"]) == ids
+    assert summary["Matching the filter"] == 2
+
+
+def test_the_released_column_marks_the_release_in_any_export(drawn) -> None:
+    """Without the filter every question is there, and the column says which."""
+    client, _, ids = drawn
+
+    questions = workbook_from(client.get("/questions/export"))["Questions"]
+
+    assert len(questions) == 4
+    assert sorted(questions.loc[questions["Released"], "ID"]) == ids
 
 
 # ── The queue under the same word ──────────────────────────────────────────

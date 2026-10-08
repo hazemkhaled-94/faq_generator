@@ -253,10 +253,10 @@ def test_searching_is_a_separate_control_from_filtering(open_view, name) -> None
 
 
 def test_the_search_and_filters_wrap_only_once_a_row_is_full() -> None:
-    """Questions' ten controls take two rows; Facts' six take one."""
+    """Questions' eleven controls take two rows; Facts' six take one."""
     from lib.catalog import _COLUMN, _FILTER, _PAGER, _WORDS, wrapped
 
-    assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 7, _PAGER])) == 2
+    assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 8, _PAGER])) == 2
     assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 3, _PAGER])) == 1
 
 

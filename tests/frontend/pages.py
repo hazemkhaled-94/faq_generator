@@ -184,6 +184,7 @@ QUESTION = {
     "trace_id": "0bdf4a87ef67fc94b435f23b2824b7e1",
     "span_id": "412b8f4d0b9073d3",
     "attempt": 1,
+    "released": False,
     "confidence": 0.24,
     "gate_scores": [
         {

@@ -222,6 +222,7 @@ and `GET /questions` do. **There is no default scope** — ask for nothing and
 you get everything, rejected rows included.
 
 ```bash
+make questions-export OUT=release.xlsx FILTER="--released"   # what questions-balance drew
 make questions-export OUT=exam.xlsx FILTER="--status accepted --cognitive-level analyse"
 make questions-export FILTER="--status accepted --unanswerable"
 make questions-export FILTER="--no-citations"   # much faster, questions only

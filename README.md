@@ -148,7 +148,7 @@ Upload a PDF on the Upload page, then take it through:
 ```bash
 make corpus                              # every stage in order, stopping at the first failure
 make questions-balance                   # draw an evenly composed release
-make questions-export OUT=exam.xlsx FILTER="--status accepted"
+make questions-export OUT=exam.xlsx FILTER="--released"
 ```
 
 `corpus` runs the stages in order and waits for each to drain before starting
