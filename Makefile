@@ -85,12 +85,18 @@ LOADENV = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.en
 #
 # Each is something a deployment may want back and nothing upstream
 # rebuilds: the golden cases come from evaluation/ and the run history is
-# the record of what ran. Everything else a wipe takes is derived from the
-# corpus and comes back with it.
+# the record of what ran. The rest of what a wipe takes outside the
+# database and the buckets is gone for good: every Phoenix project, every
+# Argilla dataset with any answer not yet pulled, and the logs. `wipe`
+# refuses any other name.
 KEEP ?=
 
+# KEEP's names, split on commas, so a space after one does not hide a name.
+comma := ,
+KEPT = $(subst $(comma), ,$(KEEP))
+
 # True, and says so, when KEEP names $(1). $(2) is what to call it.
-SPARED = case ",$(KEEP)," in *,$(1),*) echo "KEEP=$(1): leaving $(2)";; \
+SPARED = case " $(KEPT) " in *" $(1) "*) echo "KEEP=$(1): leaving $(2)";; \
          *) false;; esac
 
 # The same, for a tool with a tuning file of its own:
@@ -1131,16 +1137,25 @@ delete:
 # them is how a fresh run starts against four services still full of the
 # last one.
 #
-# **The archive is the exception, and deliberately.** Every deletion here
-# is the first of two: the triggers copy each row into `archived_rows` and
-# the removal paths move each object into the `archive` bucket. That is
-# what makes this recoverable at all, so a wipe that purged it would leave
-# nothing. `make archive-purge ALL=1` is the second decision, and stays
-# one.
+# Those four deletions are final; nothing archives them. Phoenix loses every
+# project and, unless KEEP spares them, its datasets and their experiments;
+# Argilla loses every dataset and any answer not yet pulled; the logs go;
+# and the Dagster run history goes unless KEEP spares it.
+#
+# **The archive is the exception, and deliberately.** The rows and objects
+# deleted here are the first of two deletions: the triggers copy each row
+# into `archived_rows` and the removal paths move each object into the
+# `archive` bucket. That is what makes the corpus recoverable at all, so a
+# wipe that purged it would leave nothing. `make archive-purge ALL=1` is
+# the second decision, and stays one.
 wipe:
-	@echo "WARNING: this deletes every document, topic, fact and question,"
-	@echo "and with them the Phoenix traces, the Argilla datasets and the logs."
-	@echo "The archive is kept; see make archive-purge. Ctrl-C within 5s to abort."
+	@[ -z "$(filter-out golden runs,$(KEPT))" ] || \
+	  { echo "KEEP names $(filter-out golden runs,$(KEPT)); it takes golden and runs."; exit 2; }
+	@echo "WARNING: this deletes every document, topic, fact and question; the"
+	@echo "archive keeps those, see make archive-purge. It deletes for good every"
+	@echo "Phoenix project, every Argilla dataset with any answer not yet pulled,"
+	@echo "and the logs; the Phoenix datasets and experiments unless KEEP=golden;"
+	@echo "the Dagster run history unless KEEP=runs. Ctrl-C within 5s to abort."
 	@sleep 5
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-all
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --delete
@@ -1183,12 +1198,13 @@ delete-derived:
 
 # ── Archive ────────────────────────────────────────────────────────────────
 #
-# Every deletion above is the first of two. An AFTER DELETE trigger on every
-# table copies the row into `archived_rows` as it goes - which catches the
-# cascades and the orphan triggers, where most of the deleting actually
-# happens - and the removal paths move the objects into the `archive` bucket
-# instead of dropping them. Nothing reads any of it; it is there so the
-# second deletion is a separate decision.
+# Every deletion of a row or an object above is the first of two; what
+# wipe takes from Phoenix, Argilla, the logs and Dagster is final. An AFTER
+# DELETE trigger on every table copies the row into `archived_rows` as it
+# goes - which catches the cascades and the orphan triggers, where most of
+# the deleting actually happens - and the removal paths move the objects
+# into the `archive` bucket instead of dropping them. Nothing reads any of
+# it; it is there so the second deletion is a separate decision.
 
 # What is held, by table, with its age and what it costs.
 archive:

@@ -310,19 +310,22 @@ Documents are ingestion's, not a stage's. **All of these are irreversible.**
 `wipe` runs both deletions because deleting every document leaves the topics
 standing. It also drops the upload history, which a single deletion keeps.
 
-It then takes the Phoenix projects, the Argilla datasets and the logs, for
-the reason the corpus went: a trace of a run over documents that are gone, a
-reviewer asked about facts that no longer exist and a log line about a
-passage nothing holds all describe a corpus nobody can open. Leaving them is
-how a fresh run starts against four services still full of the last one.
+It then takes the Phoenix projects and datasets, the Argilla datasets, the
+logs and the Dagster run history, for the reason the corpus went: a trace
+of a run over documents that are gone, a reviewer asked about facts that no
+longer exist and a log line about a passage nothing holds all describe a
+corpus nobody can open. Leaving them is how a fresh run starts against four
+services still full of the last one. Those four deletions are final:
+nothing archives them, and an Argilla answer not yet pulled goes with its
+dataset.
 
-**The archive is kept.** Every deletion here is the first of two - the
-triggers copy each row into `archived_rows` and the removal paths move each
-object into the `archive` bucket - so a wipe that purged it would leave
-nothing to recover from. [`make archive-purge`](#the-archive) is the second
-decision and stays one - or `make wipe-all`, which is both in the only
-order they work in: `wipe` fills the archive, so the purge has to come
-second or it takes nothing.
+**The archive is kept.** The rows and objects it deletes are the first of
+two deletions - the triggers copy each row into `archived_rows` and the
+removal paths move each object into the `archive` bucket - so a wipe that
+purged it would leave nothing to recover from.
+[`make archive-purge`](#the-archive) is the second decision and stays one -
+or `make wipe-all`, which is both in the only order they work in: `wipe`
+fills the archive, so the purge has to come second or it takes nothing.
 
 ### What a wipe leaves
 
@@ -341,12 +344,13 @@ start, so there is nothing there a wipe could take.
 | `runs` | The Dagster run history |
 | `golden,runs` | Both |
 
-Everything else a wipe takes is derived from the corpus and comes back with
-it, which is why none of it has a switch.
+The rest of what a wipe takes outside the database and the buckets is gone
+for good: every Phoenix project, every Argilla dataset with any answer not
+yet pulled, and the logs. Any other `KEEP` name is refused.
 
 ## The archive
 
-Every deletion above is the first of two.
+Every deletion of a row or an object above is the first of two.
 
 | Target | Does |
 |---|---|
