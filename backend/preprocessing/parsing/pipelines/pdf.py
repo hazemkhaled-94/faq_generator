@@ -40,9 +40,11 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 #: Zero-width marks.
 _INVISIBLE = re.compile(r"[\u200b-\u200d\u2060\ufeff]")
 
-#: The coordinating conjunctions that complete a hanging hyphen, as in
-#: "Zoll- und Steuerrecht".
-_JOINING = "und|oder|bzw|sowie|beziehungsweise|and|or"
+#: The words that complete a hanging hyphen, as in "Zoll- und Steuerrecht".
+_JOINING = (
+    "und|oder|bzw|sowie|beziehungsweise|als|noch|bis|u|resp|vs|versus|statt|wie"
+    "|and|or|nor|to"
+)
 
 #: A word the page broke across two lines with a real hyphen: a hyphen after
 #: a letter and before a lower-case continuation, unless a conjunction

@@ -51,6 +51,11 @@ def test_a_real_hyphen_at_a_line_break_joins(broken: str, whole: str) -> None:
         "Schaden- / Unfallversicherer",
         "Anlage- Verwalter",
         "Krypto-Transaktionen",
+        "sowohl Unit- als auch Systemtests",
+        "weder Komponenten- noch Systemtests",
+        "Komponenten- bis Systemtest",
+        "Fehler- u. Abweichungsbericht",
+        "high- vs. low-level",
     ],
 )
 def test_a_hyphen_the_author_typed_survives(kept: str) -> None:
