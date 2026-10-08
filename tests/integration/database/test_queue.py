@@ -7,6 +7,7 @@ workers never take the same one.
 
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
 from datetime import timedelta
@@ -208,35 +209,23 @@ def test_a_shorter_lease_sweeps_sooner(engine, database) -> None:
     assert ParseQueue(lease=timedelta(seconds=30)).abandon() == 1
 
 
-def test_a_beat_keeps_a_row_the_worker_still_holds(engine, database) -> None:
+def test_a_beat_keeps_a_row_the_worker_still_holds(documents, engine) -> None:
     """What makes the lease a liveness check rather than a time limit.
 
-    The row is older than any lease here. Beating is the only thing keeping
-    it, which is what lets one lease cover work of any length.
+    Both rows outlive the lease here. Beating is the only thing keeping one,
+    which is what lets one lease cover work of any length. Aged by waiting
+    rather than by rewriting the claim time, which is what says another
+    worker has claimed the row.
     """
-    with Session(engine) as session:
-        session.add(document(digest(), parse_status=Status.PENDING))
-        session.commit()
-    queue = ParseQueue(lease=timedelta(seconds=30))
-    assert queue.claim() is not None
-    # Aged past the lease, as an hour of honest work would age it.
-    with engine.begin() as connection:
-        connection.execute(
-            text("UPDATE documents SET parse_claimed_at = now() - interval '1 hour'")
-        )
-    assert ParseQueue(lease=timedelta(seconds=30)).abandon() == 1
+    documents(pending=2)
+    beating, silent = ParseQueue(), ParseQueue()
+    assert beating.claim() is not None
+    assert silent.claim() is not None
+    time.sleep(1.5)
 
-    # Claimed again, and this time the holder says it is still there.
-    with engine.begin() as connection:
-        connection.execute(
-            text(
-                "UPDATE documents SET parse_status = 'in_progress', "
-                "parse_error = NULL, "
-                "parse_claimed_at = now() - interval '1 hour'"
-            )
-        )
-    assert queue.touch() is True
-    assert ParseQueue(lease=timedelta(seconds=30)).abandon() == 0
+    assert beating.touch() is True
+    assert ParseQueue(lease=timedelta(seconds=1)).abandon() == 1
+    assert statuses(engine) == {Status.IN_PROGRESS: 1, Status.FAILED: 1}
 
 
 def test_a_beat_does_not_reclaim_a_row_taken_back_from_the_worker(

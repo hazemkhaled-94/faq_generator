@@ -8,6 +8,8 @@ reads back.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from seed import digest, document, event, fact, passage
 from sqlalchemy import text
@@ -20,6 +22,7 @@ from preprocessing.chunking.models import Chunk, Chunking
 from preprocessing.chunking.repository import ChunkQueue, PassageCatalog
 from preprocessing.parsing.models import ParsedDocument
 from preprocessing.parsing.repository import ParseQueue
+from stages.queue import Lost
 
 pytestmark = pytest.mark.integration
 
@@ -156,6 +159,37 @@ def test_completing_a_parse_does_not_set_chunking_going(parsable, engine) -> Non
     queue.complete(A, PARSED)
 
     assert one(engine, "SELECT chunk_status FROM documents").chunk_status == Status.NEW
+
+
+def test_a_worker_that_lost_its_row_leaves_the_next_claim_alone(
+    parsable, engine
+) -> None:
+    """A paused worker's row is swept, retried and taken by a second one.
+
+    The first coming back finishes, fails and refreshes nothing: the claim
+    time it last wrote is gone from the row.
+    """
+    first = ParseQueue()
+    first.claim()
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE documents SET parse_claimed_at = now() - interval '1 hour'")
+        )
+    assert ParseQueue(lease=timedelta(seconds=30)).abandon() == 1
+    ParseQueue().retry()
+    second = ParseQueue()
+    second.claim()
+    taken = "SELECT parse_status, parse_error, parse_claimed_at, title FROM documents"
+    before = one(engine, taken)
+
+    assert first.touch() is False
+    with pytest.raises(Lost):
+        first.complete(A, PARSED)
+    with pytest.raises(Lost):
+        first.fail(A, "came back")
+    assert one(engine, taken) == before
+    second.complete(A, PARSED)
+    assert one(engine, taken).parse_status == Status.PARSED
 
 
 def test_another_document_holding_the_same_text_is_found(engine, database) -> None:

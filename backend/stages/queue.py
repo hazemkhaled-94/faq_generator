@@ -18,6 +18,7 @@ column name.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, ClassVar
@@ -32,6 +33,13 @@ from settings.runs import triggered_by
 
 #: Recorded against a row whose worker never came back.
 ABANDONED = "the worker did not finish; the run was interrupted"
+
+
+class Lost(Exception):
+    """A row this worker claimed has been claimed by another one since.
+
+    Raised by a finish or a failure, which then writes nothing.
+    """
 
 
 class Unnarrowable(Exception):
@@ -130,10 +138,14 @@ class StageQueue(Repository):
         super().__init__()
         if lease is not None:
             self.lease = lease
-        #: The key of the row this instance holds, for `touch` to refresh.
-        #: Written by the thread that works the row and read by the one that
-        #: beats; a lone reference, so neither sees a half-written value.
-        self._held: Any = None
+        #: The key of the row this instance holds and the claim time it last
+        #: wrote, for `touch` to refresh and for a finish or a failure to
+        #: check. Written by the thread that works the row and read by the
+        #: one that beats; a lone reference, so neither sees half of it.
+        self._held: tuple[Any, Any] | None = None
+        #: Taken around every statement that reads or moves the claim time,
+        #: so a beat cannot move it between a finish reading it and writing.
+        self._lock = threading.Lock()
 
     def _where(self, *conditions: Any) -> tuple[Any, ...]:
         """This queue's own rows, narrowed by whatever the caller gave.
@@ -167,12 +179,19 @@ class StageQueue(Repository):
                         self.columns.claimed_at: func.now(),
                     }
                 )
-                .returning(*returning, *asked)
+                .returning(*returning, self.columns.claimed_at, *asked)
             ).one_or_none()
         # Every caller returns its key column first, which is what `touch`
         # refreshes. Read by name rather than by position, so a stage that
         # returns its columns in another order still beats.
-        self._held = None if claimed is None else getattr(claimed, self.columns.key.key)
+        self._held = (
+            None
+            if claimed is None
+            else (
+                getattr(claimed, self.columns.key.key),
+                getattr(claimed, self.columns.claimed_at.key),
+            )
+        )
         # Set on every claim, including to None: a row queued by nobody must
         # not inherit the trigger of the row this worker held before it.
         triggered_by(
@@ -182,42 +201,64 @@ class StageQueue(Repository):
         )
         return claimed
 
-    def _finish(self, key: Any, *, session: Any = None, **values: Any) -> None:
-        """Marks a row done for this stage, releasing the claim."""
-        statement = (
-            update(self.columns.entity)
-            .where(self.columns.key == key)
-            .values(
-                {
-                    self.columns.claimed_at: None,
-                    self.columns.status: self.done,
-                    self.columns.error: None,
-                    **values,
-                }
-            )
+    def _holding(self, key: Any) -> tuple[Any, ...]:
+        """What says the row is still the one this instance claimed.
+
+        Its claim time unmoved: a sweep clears it and another claim rewrites
+        it. Nothing for a key this instance did not claim, which is written
+        by key alone.
+        """
+        if self._held is None or self._held[0] != key:
+            return ()
+        return (
+            self.columns.status == Status.IN_PROGRESS,
+            self.columns.claimed_at == self._held[1],
         )
-        self._held = None
-        if session is not None:
-            session.execute(statement)
-            return
-        with self._session.begin() as opened:
-            opened.execute(statement)
+
+    def _release(self, key: Any, values: dict[Any, Any], session: Any = None) -> None:
+        """Writes a row's outcome and clears its claim.
+
+        Raises:
+            Lost: If this instance claimed the row and another worker has
+                claimed it since.
+        """
+        with self._lock:
+            holding = self._holding(key)
+            statement = (
+                update(self.columns.entity)
+                .where(self.columns.key == key, *holding)
+                .values({self.columns.claimed_at: None, **values})
+            )
+            if session is None:
+                with self._session.begin() as opened:
+                    written = opened.execute(statement).rowcount
+            else:
+                written = session.execute(statement).rowcount
+            if holding and not written:
+                raise Lost(f"{key} was claimed by another worker since this one")
+            self._held = None
+
+    def _finish(self, key: Any, *, session: Any = None, **values: Any) -> None:
+        """Marks a row done for this stage, releasing the claim.
+
+        Raises:
+            Lost: If another worker has claimed the row since this one did.
+        """
+        self._release(
+            key,
+            {self.columns.status: self.done, self.columns.error: None, **values},
+            session,
+        )
 
     def fail(self, key: Any, error: str) -> None:
-        """Records a row this stage could not process, releasing the claim."""
-        self._held = None
-        with self._session.begin() as session:
-            session.execute(
-                update(self.columns.entity)
-                .where(self.columns.key == key)
-                .values(
-                    {
-                        self.columns.claimed_at: None,
-                        self.columns.status: Status.FAILED,
-                        self.columns.error: error[:2000],
-                    }
-                )
-            )
+        """Records a row this stage could not process, releasing the claim.
+
+        Raises:
+            Lost: If another worker has claimed the row since this one did.
+        """
+        self._release(
+            key, {self.columns.status: Status.FAILED, self.columns.error: error[:2000]}
+        )
 
     def touch(self) -> bool:
         """Refreshes the claim on the row this instance is working.
@@ -230,25 +271,32 @@ class StageQueue(Repository):
         the lease can answer in minutes however long the work runs.
 
         Refuses to refresh a row this queue no longer holds: `reclaim` moves
-        an interrupted row back to pending, and a beat still in flight must
-        not drag it back to claimed.
+        an interrupted row back to pending, a sweep and another claim move
+        its claim time, and a beat still in flight must not drag it back.
+        Skips a row locked by the transaction finishing it, which would
+        otherwise wait on that transaction while holding `_lock` it needs.
         """
-        key = self._held
-        if key is None:
-            return False
-        with self._session.begin() as session:
-            return bool(
-                session.execute(
-                    update(self.columns.entity)
-                    .where(
-                        *self._where(
-                            self.columns.key == key,
-                            self.columns.status == Status.IN_PROGRESS,
-                        )
-                    )
-                    .values({self.columns.claimed_at: func.now()})
-                ).rowcount
+        with self._lock:
+            if self._held is None:
+                return False
+            key = self._held[0]
+            mine = (
+                select(self.columns.key)
+                .where(*self._where(self.columns.key == key, *self._holding(key)))
+                .with_for_update(skip_locked=True)
+                .scalar_subquery()
             )
+            with self._session.begin() as session:
+                refreshed = session.scalar(
+                    update(self.columns.entity)
+                    .where(self.columns.key == mine)
+                    .values({self.columns.claimed_at: func.now()})
+                    .returning(self.columns.claimed_at)
+                )
+            if refreshed is None:
+                return False
+            self._held = (key, refreshed)
+            return True
 
     def abandon(self) -> int:
         """Fails every row whose claim has outlived the lease."""
