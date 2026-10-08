@@ -373,3 +373,56 @@ def test_a_topic_decision_time_is_added_empty_and_taken_back_out(spare: str) -> 
 
     command.upgrade(config, DECIDED)
     assert sql(spare, "SELECT * FROM topics") == [(*held[0], None)]
+
+
+#: Every table the chain below compares, row for row.
+EVERY = (
+    "documents",
+    "passages",
+    "facts",
+    "fact_passages",
+    "questions",
+    "question_facts",
+    "topics",
+    "ingest_events",
+    "archived_rows",
+)
+
+
+def test_the_four_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> None:
+    """Head to the previous head one revision at a time, and back, losing nothing."""
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, PREVIOUS_HEAD)
+    sql(
+        spare,
+        *CORPUS,
+        "INSERT INTO ingest_events (submitted_filename, size_bytes, sha256, outcome) "
+        "VALUES ('a.pdf', 1, repeat('a', 64), 'stored'), "
+        "('big.pdf', 9, NULL, 'too_large')",
+        "INSERT INTO topics (language, topic_index, top_terms, label, labelled_by, "
+        "status, fitted_at) VALUES ('en', 0, '{fee}', 'Fees', 'person', "
+        "'modelled', now())",
+        "DELETE FROM facts WHERE id = 3",
+    )
+
+    def held() -> dict[str, list]:
+        return {
+            table: sql(spare, "SELECT * FROM " + table + " t ORDER BY t::text")
+            for table in EVERY
+        }
+
+    before = held()
+    command.upgrade(config, "head")
+    at_head = held()
+    assert at_head["questions"] == before["questions"]
+
+    for _ in (DECIDED, DIGEST, REJECTED, RELEASED):
+        command.downgrade(config, "-1")
+    assert version(spare) == PREVIOUS_HEAD
+    assert held() == before
+
+    command.upgrade(config, "head")
+    assert version(spare) == DECIDED
+    assert held() == at_head
