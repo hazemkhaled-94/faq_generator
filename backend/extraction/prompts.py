@@ -10,6 +10,7 @@ Read by `run.py` at start-up and by the api. Nothing here calls a model.
 
 from __future__ import annotations
 
+from extraction.config import Settings
 from extraction.extractors import bridge, digest, llm
 from stages.prompts import Composed
 
@@ -17,7 +18,9 @@ from stages.prompts import Composed
 SERVICE = "extraction"
 
 
-def catalogue(cap: int | None = None) -> list[Composed]:
+def catalogue(
+    cap: int | None = None, settings: Settings | None = None
+) -> list[Composed]:
     """Every prompt this stage can send, composed as it would be sent.
 
     Both halves and the shape: the system prompt, the user message as its
@@ -29,7 +32,12 @@ def catalogue(cap: int | None = None) -> list[Composed]:
     be a record of something the model was never given. Absent means the
     same thing it means there: no cap, and the paragraph is left off
     entirely rather than written as a limitless one.
+
+    `settings` names the model each is sent to: EXTRACTION_MODEL reads and
+    bridges, and EXTRACTION_DIGEST_MODEL condenses, the reader when absent.
     """
+    reads = settings.model if settings else None
+    condenses = (settings.digest_model or reads) if settings else None
     return [
         Composed(
             "atomic",
@@ -37,6 +45,7 @@ def catalogue(cap: int | None = None) -> list[Composed]:
             llm.composed(cap),
             llm._USER,
             llm._Facts.model_json_schema(),
+            reads,
         ),
         Composed(
             "digest",
@@ -44,6 +53,7 @@ def catalogue(cap: int | None = None) -> list[Composed]:
             digest._SYSTEM,
             digest._USER,
             digest._Digest.model_json_schema(),
+            condenses,
         ),
         Composed(
             "bridge",
@@ -51,5 +61,6 @@ def catalogue(cap: int | None = None) -> list[Composed]:
             bridge._SYSTEM,
             bridge._USER,
             bridge._Bridges.model_json_schema(),
+            reads,
         ),
     ]

@@ -126,7 +126,9 @@ def main(argv: list[str] | None = None) -> int:
         without it the recorded text is one no model was given.
         """
         model, settings, _ = configured()
-        return record(prompts.SERVICE, prompts.catalogue(settings.atomic_cap), model)
+        return record(
+            prompts.SERVICE, prompts.catalogue(settings.atomic_cap, settings), model
+        )
 
     #: This stage's own operations. `revalidate` calls no model: it re-reads
     #: what the checks read off facts already stored, which is how a change to

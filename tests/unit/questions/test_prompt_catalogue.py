@@ -147,3 +147,40 @@ def test_the_atomic_prompt_is_recorded_as_the_cap_makes_it() -> None:
 
     assert capped.text != uncapped.text
     assert "4" in capped.text.removeprefix(uncapped.text)
+
+
+def test_each_extraction_prompt_names_the_model_it_is_sent_to() -> None:
+    """The digest goes to its own model, and to the reader's when none is named."""
+    from dataclasses import replace
+
+    from extraction.config import Settings
+
+    named = replace(Settings.load(), model="ollama/reader", digest_model="ollama/small")
+
+    def models(settings: Settings) -> dict[str, str | None]:
+        return {one.name: one.model for one in extraction.catalogue(None, settings)}
+
+    assert models(named) == {
+        "atomic": "ollama/reader",
+        "digest": "ollama/small",
+        "bridge": "ollama/reader",
+    }
+    assert models(replace(named, digest_model=None))["digest"] == "ollama/reader"
+
+
+def test_the_phrasing_judgements_fall_back_to_the_verifiers_model() -> None:
+    """As the factory sends them when no phrasing model is named."""
+    from dataclasses import replace
+
+    from question_generation.config import Settings
+
+    settings = replace(
+        Settings.load(), verifier_model="ollama/verifier", phrasing_model=None
+    )
+
+    phrasing_models = {
+        one.model
+        for one in questions.catalogue(settings)
+        if one.name.startswith("phrasing: ")
+    }
+    assert phrasing_models == {"ollama/verifier"}

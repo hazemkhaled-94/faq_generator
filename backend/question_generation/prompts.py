@@ -124,7 +124,7 @@ def _judges(settings: Settings | None = None) -> Iterator[Composed]:
             text,
             user,
             shape.model_json_schema(),
-            settings.phrasing_model if settings else None,
+            (settings.phrasing_model or settings.verifier_model) if settings else None,
         )
     for name, text, user, shape in (
         (
