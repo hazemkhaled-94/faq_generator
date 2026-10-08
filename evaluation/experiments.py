@@ -283,10 +283,11 @@ def _phrasing_task(judge):
 def run(name: str, settings: Settings) -> str:
     """Runs one experiment and returns where to read it.
 
-    Only the extraction set is scored here, and that is a scope decision
-    rather than a gap. Its numbers are pure measurement - precision and
-    recall against a claim count, asserted against nothing - which is
-    exactly what is worth comparing between two prompts. The questions
+    The extraction and phrasing sets are scored here and the questions set
+    is not, which is a scope decision rather than a gap. Extraction's
+    numbers are pure measurement - precision and recall against a claim
+    count, asserted against nothing - which is exactly what is worth
+    comparing between two prompts. The questions
     set already asserts: `test_the_gate_splits_the_golden_cases` requires
     the recoverable cases to pass and the rest to be stopped, so it is a
     gate rather than a trend, and it fails a pull request instead of

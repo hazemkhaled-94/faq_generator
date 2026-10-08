@@ -2,7 +2,7 @@
 
 Held here rather than inside the eval tests because two things read them:
 `make test-eval`, which prints what a served model scored, and
-`make eval-experiment`, which puts the same cases in front of the same
+`make eval-score`, which puts the same cases in front of the same
 model and records the scores in Phoenix so two runs can be compared.
 
 One definition, so a case added for one is a case the other measures too.
