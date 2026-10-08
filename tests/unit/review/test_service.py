@@ -475,6 +475,38 @@ def test_a_named_queue_is_pushed_whatever_has_been_answered(
     assert [one.id for one in dataset.records.logged] == ["7"]
 
 
+def test_an_outdated_dataset_says_to_pull_first_and_what_a_delete_loses(
+    monkeypatch, caplog
+) -> None:
+    """`review-status` reads the database, so it cannot see an unpulled answer."""
+    from review.service import _warn_if_stale
+
+    def names(*held: str) -> list[SimpleNamespace]:
+        return [SimpleNamespace(name=one) for one in held]
+
+    monkeypatch.setitem(
+        datasets.SETTINGS,
+        datasets.QUESTIONS,
+        lambda: SimpleNamespace(fields=names("question", "judge"), metadata=[]),
+    )
+    found = Dataset(
+        [
+            Record({"question_id": 7}, [submitted("verdict", "accepted")], id="7"),
+            Record(
+                {"question_id": 8}, [Response("verdict", "accepted", "draft")], id="8"
+            ),
+        ]
+    )
+    found.name = "6-questions"
+    found.settings = SimpleNamespace(fields=names("question"), metadata=[])
+
+    with caplog.at_level("WARNING", logger="review.service"):
+        _warn_if_stale(found, datasets.QUESTIONS)
+
+    assert "1 submitted answer(s)" in caplog.text
+    assert "make review-pull-questions" in caplog.text
+
+
 def test_the_response_status_is_read_either_way_it_is_spelled() -> None:
     """A response status is read either way the SDK spells it.
 

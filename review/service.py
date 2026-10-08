@@ -77,9 +77,9 @@ def _warn_if_stale(found: rg.Dataset, name: str) -> None:
     pulled - and the push reported 38 records written with nothing on them.
 
     Warned rather than fixed automatically, for the same reason: what to do
-    about it depends on whether anybody has answered, and only a person
-    knows that. `make review-status` is the question, and deleting the
-    dataset in Argilla is the answer when nothing is waiting to be pulled.
+    about it depends on whether anybody has answered. The warning counts
+    the submitted answers the dataset holds and names the pull to run
+    before deleting it in Argilla.
     """
     try:
         declared = {one.name for one in found.settings.fields} | {
@@ -89,6 +89,7 @@ def _warn_if_stale(found: rg.Dataset, name: str) -> None:
             one.name for one in datasets.SETTINGS[name]().metadata
         }
         missing = sorted(wanted - declared)
+        waiting = len(answered(found)) if missing else 0
     except Exception as unreadable:  # noqa: BLE001 - any of them means quiet
         # Best-effort, like every other diagnostic in this repository: a
         # warning that cannot be worked out must not fail the push it was
@@ -99,12 +100,15 @@ def _warn_if_stale(found: rg.Dataset, name: str) -> None:
         return
     log.warning(
         "the Argilla dataset %s was created before %s existed, so Argilla "
-        "will DROP %s from every record this push writes. Check "
-        "`make review-status` for answers not yet pulled, then delete the "
-        "dataset in Argilla and push again.",
+        "will DROP %s from every record this push writes. It holds %d "
+        "submitted answer(s), and deleting it loses every one not yet "
+        "pulled: run `make review-pull-%s` first, then delete the dataset "
+        "in Argilla and push again.",
         found.name,
         ", ".join(missing),
         ", ".join(missing),
+        waiting,
+        "topics" if name == datasets.TOPIC_LABELS else name,
     )
 
 
