@@ -298,3 +298,20 @@ def test_the_object_store_is_published_through_its_s3_gateway_only() -> None:
     )
 
     assert published == ["seaweedfs-s3"]
+
+
+def test_no_container_is_given_the_ca_key() -> None:
+    """Whoever holds the CA's key can mint a certificate every client trusts.
+
+    So each container is given the certificate files it reads, one at a
+    time, and never the directory that holds the key beside them.
+    """
+    services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    given = [
+        f"{name}: {volume}"
+        for name, service in services.items()
+        for volume in service.get("volumes", [])
+        if str(volume).split(":")[0].rstrip("/") == "./certs" or "ca.key" in str(volume)
+    ]
+
+    assert not given, "\n".join(given)

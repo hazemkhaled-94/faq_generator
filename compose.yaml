@@ -799,7 +799,10 @@ services:
       TZ: UTC
       ELASTIC_PASSWORD: ${ELASTICSEARCH_PASSWORD}
     volumes:
-      - ./certs:/usr/share/elasticsearch/config/certs:ro
+      # One file at a time, so ca.key reaches no container.
+      - ./certs/ca.crt:/usr/share/elasticsearch/config/certs/ca.crt:ro
+      - ./certs/elasticsearch.crt:/usr/share/elasticsearch/config/certs/elasticsearch.crt:ro
+      - ./certs/elasticsearch.key:/usr/share/elasticsearch/config/certs/elasticsearch.key:ro
       - elasticsearch_data:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -sf --cacert /usr/share/elasticsearch/config/certs/ca.crt -u elastic:$$ELASTIC_PASSWORD https://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
@@ -826,7 +829,7 @@ services:
       USERNAME: ${ARGILLA_USERNAME}
       PASSWORD: ${ARGILLA_PASSWORD}
     volumes:
-      - ./certs:/etc/argilla-certs:ro
+      - ./certs/ca.crt:/etc/argilla-certs/ca.crt:ro
       - argilla_data:/argilla
     ports:
       - "127.0.0.1:${ARGILLA_PORT}:6900"
@@ -880,7 +883,7 @@ services:
       ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD}
     volumes:
       - ./configs/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - ./certs:/usr/share/filebeat/certs:ro
+      - ./certs/ca.crt:/usr/share/filebeat/certs/ca.crt:ro
       # Read-only, both of them: this reads the pipeline's logs and must not
       # be able to delete or rotate what the processes writing them are
       # managing. `make logs-prune` is what deletes one.
@@ -932,7 +935,7 @@ services:
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
     volumes:
       - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./certs:/etc/grafana/certs:ro
+      - ./certs/ca.crt:/etc/grafana/certs/ca.crt:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "127.0.0.1:${GRAFANA_PORT}:3000"
