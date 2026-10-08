@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterator
 
 import pytest
 
@@ -35,6 +36,13 @@ def settings(monkeypatch) -> None:
     monkeypatch.setenv("ORCHESTRATION_POLL_SECONDS", "1")
 
 
+@pytest.fixture
+def instance() -> Iterator[DagsterInstance]:
+    """An instance holding no run, disposed when the test ends."""
+    with DagsterInstance.ephemeral() as held:
+        yield held
+
+
 def answering(monkeypatch, **rows: int) -> None:
     """Makes /parsing/status report these counts."""
 
@@ -55,24 +63,21 @@ def answering(monkeypatch, **rows: int) -> None:
     monkeypatch.setattr(orchestration, "Backend", Stub)
 
 
-def evaluate(instance=None):
-    """Runs one sensor tick, against an instance holding no run unless given."""
-    return orchestration.arrivals(
-        build_sensor_context(instance=instance or DagsterInstance.ephemeral())
-    )
+def evaluate(instance: DagsterInstance):
+    """Runs one sensor tick against this instance."""
+    return orchestration.arrivals(build_sensor_context(instance=instance))
 
 
-def test_a_document_nobody_asked_for_starts_a_run(monkeypatch) -> None:
+def test_a_document_nobody_asked_for_starts_a_run(monkeypatch, instance) -> None:
     """Which is the whole reason the sensor exists."""
     answering(monkeypatch, new=3)
 
-    assert isinstance(evaluate(), RunRequest)
+    assert isinstance(evaluate(instance), RunRequest)
 
 
-def test_nothing_starts_while_a_corpus_run_is_going(monkeypatch) -> None:
+def test_nothing_starts_while_a_corpus_run_is_going(monkeypatch, instance) -> None:
     """An upload mid-run is read by the run already going through parsing."""
     answering(monkeypatch, new=3)
-    instance = DagsterInstance.ephemeral()
     instance.add_run(
         DagsterRun(job_name="corpus", run_id="going", status=DagsterRunStatus.STARTED)
     )
@@ -83,16 +88,16 @@ def test_nothing_starts_while_a_corpus_run_is_going(monkeypatch) -> None:
     assert "corpus run" in str(answer.skip_message)
 
 
-def test_an_empty_queue_starts_nothing(monkeypatch) -> None:
+def test_an_empty_queue_starts_nothing(monkeypatch, instance) -> None:
     """A tick a minute over an idle stack must not queue a run a minute."""
     answering(monkeypatch, parsed=8)
 
-    answer = evaluate()
+    answer = evaluate(instance)
     assert isinstance(answer, SkipReason)
     assert "waiting" in str(answer.skip_message)
 
 
-def test_nothing_starts_while_a_run_is_already_working(monkeypatch) -> None:
+def test_nothing_starts_while_a_run_is_already_working(monkeypatch, instance) -> None:
     """`new` beside `pending` is an upload that arrived mid-run.
 
     Starting a second run for it would have two runs driving one queue,
@@ -100,12 +105,14 @@ def test_nothing_starts_while_a_run_is_already_working(monkeypatch) -> None:
     """
     answering(monkeypatch, new=2, pending=5)
 
-    answer = evaluate()
+    answer = evaluate(instance)
     assert isinstance(answer, SkipReason)
     assert "already queued" in str(answer.skip_message)
 
 
-def test_two_ticks_over_an_unchanged_queue_ask_for_one_run(monkeypatch) -> None:
+def test_two_ticks_over_an_unchanged_queue_ask_for_one_run(
+    monkeypatch, instance
+) -> None:
     """The run key is what Dagster deduplicates on.
 
     Without it the sensor asks again every minute until a worker picks
@@ -113,23 +120,23 @@ def test_two_ticks_over_an_unchanged_queue_ask_for_one_run(monkeypatch) -> None:
     """
     answering(monkeypatch, new=3)
 
-    assert evaluate().run_key == evaluate().run_key
+    assert evaluate(instance).run_key == evaluate(instance).run_key
 
 
-def test_a_later_upload_asks_for_its_own_run(monkeypatch) -> None:
+def test_a_later_upload_asks_for_its_own_run(monkeypatch, instance) -> None:
     """An upload during a run gets a run of its own.
 
     A run that has already started will not pick up what arrived after
     it, so the key has to change when the queue does.
     """
     answering(monkeypatch, new=3)
-    first = evaluate().run_key
+    first = evaluate(instance).run_key
     answering(monkeypatch, new=4)
 
-    assert evaluate().run_key != first
+    assert evaluate(instance).run_key != first
 
 
-def test_the_same_number_arriving_twice_asks_twice(monkeypatch) -> None:
+def test_the_same_number_arriving_twice_asks_twice(monkeypatch, instance) -> None:
     """Dagster keeps a run key for as long as it keeps the run.
 
     Three documents uploaded, run, drained, three more uploaded was
@@ -138,7 +145,7 @@ def test_the_same_number_arriving_twice_asks_twice(monkeypatch) -> None:
     size of an earlier one.
     """
     answering(monkeypatch, new=3)
-    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+    context = build_sensor_context(instance=instance)
     first = orchestration.arrivals(context).run_key
 
     # Worked, and drained. The tick that finds nothing is what records
@@ -156,10 +163,11 @@ def test_the_same_number_arriving_twice_asks_twice(monkeypatch) -> None:
     assert again.run_key != first
 
 
-def test_a_stopped_run_is_not_started_again_by_the_sensor(monkeypatch) -> None:
+def test_a_stopped_run_is_not_started_again_by_the_sensor(
+    monkeypatch, instance
+) -> None:
     """Stop puts pending documents back to new, which reads as an arrival."""
     answering(monkeypatch, new=3)
-    instance = DagsterInstance.ephemeral()
     instance.add_run(
         DagsterRun(
             job_name="corpus", run_id="stopped", status=DagsterRunStatus.CANCELED
@@ -172,10 +180,9 @@ def test_a_stopped_run_is_not_started_again_by_the_sensor(monkeypatch) -> None:
     assert "stopped" in str(answer.skip_message)
 
 
-def test_a_key_whose_run_failed_is_not_asked_for_again(monkeypatch) -> None:
+def test_a_key_whose_run_failed_is_not_asked_for_again(monkeypatch, instance) -> None:
     """Dagster drops a run key it has seen, so the documents would wait."""
     answering(monkeypatch, new=3)
-    instance = DagsterInstance.ephemeral()
     context = build_sensor_context(instance=instance)
     first = orchestration.arrivals(context).run_key
     instance.add_run(
@@ -196,7 +203,7 @@ def test_a_key_whose_run_failed_is_not_asked_for_again(monkeypatch) -> None:
 
 
 def test_two_ticks_over_an_unchanged_queue_share_a_key_through_the_cursor(
-    monkeypatch,
+    monkeypatch, instance
 ) -> None:
     """The counter moves on a change, not on a tick.
 
@@ -204,7 +211,7 @@ def test_two_ticks_over_an_unchanged_queue_share_a_key_through_the_cursor(
     worker held the same three documents would queue a run a minute.
     """
     answering(monkeypatch, new=3)
-    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+    context = build_sensor_context(instance=instance)
     first = orchestration.arrivals(context).run_key
 
     again = orchestration.arrivals(
@@ -234,7 +241,9 @@ def _watching(monkeypatch, **per_stage: dict) -> None:
     monkeypatch.setattr(orchestration, "Backend", Stub)
 
 
-def test_work_nobody_asked_dagster_to_do_is_still_recorded(monkeypatch) -> None:
+def test_work_nobody_asked_dagster_to_do_is_still_recorded(
+    monkeypatch, instance
+) -> None:
     """The whole point.
 
     A stage drained by `make extract`, by the API, by the Start button or
@@ -243,19 +252,17 @@ def test_work_nobody_asked_dagster_to_do_is_still_recorded(monkeypatch) -> None:
     """
     _watching(monkeypatch, parsing={"parsed": 8, "new": 2})
 
-    result = orchestration.progress(
-        build_sensor_context(instance=DagsterInstance.ephemeral())
-    )
+    result = orchestration.progress(build_sensor_context(instance=instance))
 
     (event,) = result.asset_events
     assert event.asset_key.to_user_string() == "parsed_documents"
     assert "8 document(s) worked" == event.description
 
 
-def test_a_tick_that_finds_nothing_new_records_nothing(monkeypatch) -> None:
+def test_a_tick_that_finds_nothing_new_records_nothing(monkeypatch, instance) -> None:
     """The cursor is what keeps one finished run from being reported for ever."""
     _watching(monkeypatch, parsing={"parsed": 8})
-    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+    context = build_sensor_context(instance=instance)
     orchestration.progress(context)
 
     again = orchestration.progress(
@@ -265,10 +272,10 @@ def test_a_tick_that_finds_nothing_new_records_nothing(monkeypatch) -> None:
     assert isinstance(again, SkipReason)
 
 
-def test_only_the_stage_that_moved_is_reported(monkeypatch) -> None:
+def test_only_the_stage_that_moved_is_reported(monkeypatch, instance) -> None:
     """Five stages, one of which produced something since the last tick."""
     _watching(monkeypatch, parsing={"parsed": 8}, extraction={"extracted": 40})
-    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+    context = build_sensor_context(instance=instance)
     orchestration.progress(context)
 
     _watching(monkeypatch, parsing={"parsed": 8}, extraction={"extracted": 51})
@@ -281,7 +288,9 @@ def test_only_the_stage_that_moved_is_reported(monkeypatch) -> None:
     assert event.metadata["since the last tick"].value == 11
 
 
-def test_a_stage_that_cannot_be_reached_costs_only_itself(monkeypatch) -> None:
+def test_a_stage_that_cannot_be_reached_costs_only_itself(
+    monkeypatch, instance
+) -> None:
     """One unreachable route must not lose the other four."""
 
     class Stub:
@@ -298,9 +307,7 @@ def test_a_stage_that_cannot_be_reached_costs_only_itself(monkeypatch) -> None:
 
     monkeypatch.setattr(orchestration, "Backend", Stub)
 
-    result = orchestration.progress(
-        build_sensor_context(instance=DagsterInstance.ephemeral())
-    )
+    result = orchestration.progress(build_sensor_context(instance=instance))
 
     assert [one.asset_key.to_user_string() for one in result.asset_events] == [
         "parsed_documents"
@@ -318,7 +325,7 @@ def test_it_watches_without_being_switched_on(monkeypatch) -> None:
 # ── What the orchestrator did not start and could not do ───────────────────
 
 
-def test_a_stage_that_failed_everything_is_reported_red(monkeypatch) -> None:
+def test_a_stage_that_failed_everything_is_reported_red(monkeypatch, instance) -> None:
     """The state worth interrupting somebody over, and the one it missed.
 
     Counting only what was produced reported silence for a stage that
@@ -327,9 +334,7 @@ def test_a_stage_that_failed_everything_is_reported_red(monkeypatch) -> None:
     """
     _watching(monkeypatch, parsing={"failed": 3})
 
-    result = orchestration.progress(
-        build_sensor_context(instance=DagsterInstance.ephemeral())
-    )
+    result = orchestration.progress(build_sensor_context(instance=instance))
 
     (check,) = result.asset_events
     assert check.asset_key.to_user_string() == "parsed_documents"
@@ -337,7 +342,7 @@ def test_a_stage_that_failed_everything_is_reported_red(monkeypatch) -> None:
     assert not check.passed
 
 
-def test_clearing_the_failures_turns_it_green_again(monkeypatch) -> None:
+def test_clearing_the_failures_turns_it_green_again(monkeypatch, instance) -> None:
     """Filed on a move in either direction, not only upwards.
 
     A check filed only when failures appear leaves the asset red until
@@ -345,7 +350,7 @@ def test_clearing_the_failures_turns_it_green_again(monkeypatch) -> None:
     drives from Dagster is never.
     """
     _watching(monkeypatch, parsing={"failed": 3})
-    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+    context = build_sensor_context(instance=instance)
     orchestration.progress(context)
 
     _watching(monkeypatch, parsing={"parsed": 3})
@@ -358,10 +363,10 @@ def test_clearing_the_failures_turns_it_green_again(monkeypatch) -> None:
     assert check.passed
 
 
-def test_an_unchanged_failure_count_reports_nothing(monkeypatch) -> None:
+def test_an_unchanged_failure_count_reports_nothing(monkeypatch, instance) -> None:
     """The same three failures every 30 seconds is not three checks a minute."""
     _watching(monkeypatch, parsing={"parsed": 8, "failed": 3})
-    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+    context = build_sensor_context(instance=instance)
     orchestration.progress(context)
 
     again = orchestration.progress(
@@ -371,7 +376,9 @@ def test_an_unchanged_failure_count_reports_nothing(monkeypatch) -> None:
     assert isinstance(again, SkipReason)
 
 
-def test_a_cursor_written_before_failures_were_watched_is_read(monkeypatch) -> None:
+def test_a_cursor_written_before_failures_were_watched_is_read(
+    monkeypatch, instance
+) -> None:
     """A deployment upgrading into this must not re-report its whole corpus.
 
     The cursor used to hold one number per stage and now holds two. Read
@@ -381,15 +388,13 @@ def test_a_cursor_written_before_failures_were_watched_is_read(monkeypatch) -> N
     _watching(monkeypatch, parsing={"parsed": 8})
 
     answer = orchestration.progress(
-        build_sensor_context(
-            cursor=json.dumps({"parsing": 8}), instance=DagsterInstance.ephemeral()
-        )
+        build_sensor_context(cursor=json.dumps({"parsing": 8}), instance=instance)
     )
 
     assert isinstance(answer, SkipReason)
 
 
-def test_every_stage_is_asked_at_once(monkeypatch) -> None:
+def test_every_stage_is_asked_at_once(monkeypatch, instance) -> None:
     """Six stages at the client's 15s timeout is 90s, and a tick is given 60.
 
     Asked one after another, a backend answering slowly switches the
@@ -411,7 +416,7 @@ def test_every_stage_is_asked_at_once(monkeypatch) -> None:
     monkeypatch.setattr(orchestration, "Backend", Slow)
     stages = len(orchestration.stages.ALL_STAGES)
 
-    context = build_sensor_context(instance=DagsterInstance.ephemeral())
+    context = build_sensor_context(instance=instance)
 
     began = time.monotonic()
     orchestration.progress(context)
@@ -420,10 +425,9 @@ def test_every_stage_is_asked_at_once(monkeypatch) -> None:
     assert took < held * stages / 2
 
 
-def test_a_corpus_run_going_records_its_own_work(monkeypatch) -> None:
+def test_a_corpus_run_going_records_its_own_work(monkeypatch, instance) -> None:
     """Its assets materialise themselves; a second event would double them."""
     _watching(monkeypatch, parsing={"parsed": 8})
-    instance = DagsterInstance.ephemeral()
     instance.add_run(
         DagsterRun(job_name="corpus", run_id="going", status=DagsterRunStatus.STARTED)
     )
