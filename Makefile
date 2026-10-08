@@ -1198,10 +1198,14 @@ archive-purge:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.run --purge \
 	   $(if $(TABLE),--table $(TABLE)) $(if $(DAYS),--older-than $(DAYS)) $(if $(ALL),--all)
 
-# Put the archived documents back, after an accidental wipe.
+# Put back what a deletion archived, after an accidental wipe.
+#
+#   make restore-documents                         when each deletion happened
+#   make restore-documents SINCE=2026-10-07T09:14  everything archived from then on
 #
 # Run it before `archive-purge`, which is what makes the archive unreadable.
-# The pipeline is re-run from parsing afterwards, and the script says so.
+# Only what was archived at or after SINCE comes back: the archive also holds
+# every row a rerun replaced.
 restore-documents:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.restore
 

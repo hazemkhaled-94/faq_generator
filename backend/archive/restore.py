@@ -1,170 +1,153 @@
-"""Restore documents from the archive bucket and archived_rows table.
+"""Put back what the deletions archived from a given time on.
 
-Run after an accidental `make wipe`, before `make archive-purge`:
+Run after an accidental `make wipe`, before `make archive-purge`, naming
+when the wipe began:
 
-    make restore-documents
+    make restore-documents SINCE=2026-10-07T09:14
 
-Or load the environment the way the Makefile does and run it directly:
-
-    set -a && . ./configs/env/backend.env && \
-      { [ ! -f ./configs/env/provider.env ] || . ./configs/env/provider.env; } && \
-      . ./.env && set +a && \
-      PYTHONPATH=backend poetry run python -m archive.restore
+Without SINCE it lists the archived rows by the minute they were deleted and
+restores nothing.
 """
 
 from __future__ import annotations
 
-import mimetypes
 import os
-import sys
+from datetime import datetime
 
-import botocore.exceptions
-import psycopg
-from psycopg.rows import DictRow, dict_row
-from psycopg.types.json import Jsonb
+from sqlalchemy import Connection, text
+from sqlalchemy.exc import IntegrityError
 
-from blob_store.s3 import s3_client
-
-DATABASE_URL = os.environ["DATABASE_URL"].replace(
-    "postgresql+psycopg://", "postgresql://", 1
+from blob_store.s3 import (
+    ArchiveBucket,
+    DocumentsBucket,
+    ExportBucket,
+    ModelsBucket,
+    ParsedBucket,
 )
+from database.qa_generator import ArchivedRow, Base, engine
+
+#: Every table the triggers archive, each after the tables it refers to.
+TABLES = [
+    table.name
+    for table in Base.metadata.sorted_tables
+    if table.name != ArchivedRow.__tablename__
+]
+
+#: One table's archived rows, newest copy first. A row whose primary or
+#: unique key a live row holds is skipped.
+_RESTORE = """
+INSERT INTO {table}
+SELECT r.* FROM archived_rows a, jsonb_populate_record(NULL::{table}, a.payload) r
+WHERE a.table_name = :table AND a.archived_at >= :since
+ORDER BY a.archived_at DESC, a.id DESC
+ON CONFLICT DO NOTHING
+"""
 
 
-def fanout_key(sha256: str, ext: str) -> str:
-    """The key an object is stored under, fanned out by its first two bytes.
-
-    The same shape `blob_store` writes: a flat bucket of a hundred thousand
-    keys is one a listing cannot page through usefully.
-    """
-    return f"{sha256[:2]}/{sha256[2:4]}/{sha256}.{ext}"
-
-
-def doc_key(sha256: str, media_type: str) -> str:
-    """Where one document's own file lives.
-
-    Raises:
-        ValueError: If the media type names no extension, which is a row
-            the archive cannot be read back into.
-    """
-    ext = mimetypes.guess_extension(media_type)
-    if ext is None:
-        raise ValueError(f"unknown extension for {media_type!r}")
-    return fanout_key(sha256, ext.lstrip("."))
+def _deletions(connection: Connection) -> None:
+    """Lists the archived rows by the minute they were deleted, newest first."""
+    print("Name when the deletion began: make restore-documents SINCE=<time>\n")
+    # ponytail: the newest 20 minutes only; an older start is read off archived_rows.
+    for minute, rows in connection.execute(
+        text(
+            "SELECT date_trunc('minute', archived_at) AS minute, count(*) "
+            "FROM archived_rows GROUP BY minute ORDER BY minute DESC LIMIT 20"
+        )
+    ):
+        print(f"  {minute.isoformat()}  {rows:>8} row(s)")
 
 
-def copy_back(s3, src_bucket: str, src_key: str, dst_bucket: str, dst_key: str) -> bool:
-    """Copies one archived object back, and says whether it was there.
+def _objects(connection: Connection, since: datetime) -> list[tuple[str, str]]:
+    """Copies back the objects of the documents and topics archived since.
 
     Returns:
-        Whether the source existed. A miss is not an error here: the parsed
-        JSON is rebuildable and the caller decides which absences matter.
-
-    Raises:
-        botocore.exceptions.ClientError: On anything but a missing key.
+        The (bucket, key) of each object in neither its bucket nor the archive.
     """
-    try:
-        s3.copy_object(
-            Bucket=dst_bucket,
-            Key=dst_key,
-            CopySource={"Bucket": src_bucket, "Key": src_key},
-        )
-        return True
-    except botocore.exceptions.ClientError as exc:
-        code = exc.response.get("Error", {}).get("Code", "")
-        if code in ("404", "NoSuchKey", "NotFound"):
-            return False
-        raise
+    wanted = []
+    for sha256, mime_type in connection.execute(
+        text(
+            "SELECT DISTINCT payload->>'sha256', payload->>'mime_type' "
+            "FROM archived_rows WHERE table_name = 'documents' AND archived_at >= :since"
+        ),
+        {"since": since},
+    ):
+        wanted += [
+            (DocumentsBucket.name, DocumentsBucket.key_for(sha256, mime_type)),
+            (ParsedBucket.name, ParsedBucket.key_for(sha256)),
+        ]
+    for language in connection.execute(
+        text(
+            "SELECT DISTINCT payload->>'language' FROM archived_rows "
+            "WHERE table_name = 'topics' AND archived_at >= :since "
+            "AND payload->>'topic_index' IS NOT NULL"
+        ),
+        {"since": since},
+    ).scalars():
+        wanted += [
+            (ExportBucket.name, ExportBucket.topic_visualisation_key(language)),
+            (ModelsBucket.name, ModelsBucket.topic_model_key(language)),
+        ]
+    archive = ArchiveBucket()
+    return [
+        (bucket, key) for bucket, key in wanted if not archive.give_back(bucket, key)
+    ]
 
 
-def main() -> None:
-    """Puts every archived document back where the pipeline reads it."""
-    s3 = s3_client()
+def main() -> int:
+    """Puts back every row and object archived at or after SINCE.
 
-    with psycopg.Connection[DictRow].connect(
-        DATABASE_URL, row_factory=dict_row
-    ) as conn:
-        doc_rows = conn.execute(
-            "SELECT payload FROM archived_rows WHERE table_name = 'documents' ORDER BY archived_at"
-        ).fetchall()
+    The rows go back in one transaction, so a row whose parent is gone
+    restores nothing at all.
 
-        if not doc_rows:
-            print("No archived documents found. Nothing to restore.")
-            sys.exit(0)
+    Returns:
+        0, 1 when nothing was restored or an upload is in neither bucket,
+        or 2 when SINCE is unset.
+    """
+    named = os.environ.get("SINCE")
+    with engine().connect() as connection:
+        if not named:
+            _deletions(connection)
+            return 2
+        since = connection.execute(
+            text("SELECT CAST(:since AS timestamptz)"), {"since": named}
+        ).scalar_one()
+        print(f"Restoring what was archived at or after {since.isoformat()}.\n")
 
-        print(f"Found {len(doc_rows)} archived document(s).\n")
-        errors = 0
-
-        for r in doc_rows:
-            p = r["payload"]
-            sha256 = p["sha256"]
-            media_type = p["media_type"]
-            title = (p.get("title") or sha256)[:70]
-            print(f"  {title}")
-
-            # Restore raw file
-            dk = doc_key(sha256, media_type)
-            ok = copy_back(s3, "archive", f"documents/{dk}", "documents", dk)
-            print(f"    raw file  {'ok' if ok else 'NOT FOUND in archive'}")
-            if not ok:
-                errors += 1
-
-            # Restore parsed JSON (optional — missing means re-parse)
-            pk = fanout_key(sha256, "json")
-            parsed_ok = copy_back(s3, "archive", f"parsed/{pk}", "parsed", pk)
-            print(
-                f"    parsed    {'ok' if parsed_ok else 'not in archive (will re-parse)'}"
+        held = {
+            table: rows
+            for table, rows in connection.execute(
+                text(
+                    "SELECT table_name, count(*) FROM archived_rows "
+                    "WHERE archived_at >= :since GROUP BY table_name"
+                ),
+                {"since": since},
             )
+        }
+        try:
+            for table in (one for one in TABLES if one in held):
+                restored = connection.execute(
+                    text(_RESTORE.format(table=table)),
+                    {"table": table, "since": since},
+                ).rowcount
+                print(f"  {table:<20} {restored:>8} of {held[table]} row(s)")
+        except IntegrityError as exc:
+            connection.rollback()
+            print(f"\nNothing restored: {exc.orig}")
+            return 1
 
-            # Restore DB row
-            try:
-                conn.execute(
-                    """
-                    INSERT INTO documents
-                    SELECT * FROM jsonb_populate_record(null::documents, %s)
-                    ON CONFLICT (sha256) DO NOTHING
-                    """,
-                    (Jsonb(p),),
-                )
-                print("    db row    ok")
-            except Exception as exc:  # noqa: BLE001 - one bad row is not the rest
-                print(f"    db row    FAILED: {exc}")
-                errors += 1
+        missing = _objects(connection, since)
+        connection.commit()
 
-        # Restore ingest_events so upload history reappears in the UI
-        event_rows = conn.execute(
-            "SELECT payload FROM archived_rows WHERE table_name = 'ingest_events' ORDER BY archived_at"
-        ).fetchall()
-        if event_rows:
-            restored_events = 0
-            for r in event_rows:
-                try:
-                    conn.execute(
-                        """
-                        INSERT INTO ingest_events
-                        SELECT * FROM jsonb_populate_record(null::ingest_events, %s)
-                        ON CONFLICT DO NOTHING
-                        """,
-                        (Jsonb(r["payload"]),),
-                    )
-                    restored_events += 1
-                except Exception as exc:  # noqa: BLE001 - as above
-                    print(f"  ingest_events insert failed: {exc}")
-            conn.commit()
-            print(f"\n  {restored_events} upload event(s) restored.")
-        else:
-            conn.commit()
-
-    if errors:
-        print(f"\nFinished with {errors} error(s). Check output above.")
-        sys.exit(1)
-
-    print("\nAll documents restored. Now re-run the pipeline from parse:")
-    print("  make parse-start && make parse")
-    print("  make chunk-start && make chunk")
-    print("  make extract-start && make extract")
-    print("  make topics-discover && make topics")
-    print("  make questions-start && make questions")
+    for bucket, key in missing:
+        print(f"  {bucket}/{key} is in neither its bucket nor the archive")
+    print(
+        "\nVectors are not archived, so the restored rows carry none: "
+        "`make extract-embed` writes the passages' and the facts' again. "
+        "Nothing writes a question's, so re-verifying a restored question "
+        "skips the duplicate veto."
+    )
+    return 1 if any(bucket == DocumentsBucket.name for bucket, _ in missing) else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -51,20 +51,32 @@ indexes serving the queue columns would have to carry it too. The live tables
 still lose the row, so nothing that already works reads differently and the
 archive is a table nothing joins to.
 
-The cost is that there is no undo. Restoring is a person's job, and the
-payload is shaped for it: `jsonb_populate_record` takes a row back, in
-foreign-key order, primary keys included.
+The cost is that there is no undo, only a restore:
 
-```sql
-INSERT INTO questions
-SELECT * FROM jsonb_populate_record(NULL::questions, payload)
-FROM archived_rows WHERE table_name = 'questions' AND archived_at > now() - interval '1 day';
+```bash
+make restore-documents                         # the deletions held, by minute
+make restore-documents SINCE=2026-10-07T09:14  # everything archived from then on
 ```
+
+It puts every row archived at or after `SINCE` back with
+`jsonb_populate_record`, in foreign-key order, primary keys included, and
+copies the files, parsed forms, figures and models of the documents and
+topics among them back out of the bucket. It is a copy: the archive keeps
+what it held.
+
+- **A row whose key a live row holds is skipped**, and so is an object
+  already in its bucket. A second run restores nothing.
+- **A row archived twice comes back as its newest copy.** An object has only
+  one: a second deletion of the same key overwrites it in the bucket.
+- **A row whose parent is gone restores nothing at all.** The rows go back
+  in one transaction.
+- **`SINCE` is required.** The archive also holds every row a rerun
+  replaced, and restoring those would put them beside their replacements.
 
 The `embedding` comes back NULL. It is the one column not kept — a vector
 renders as about 13 kB of text a row, ten times everything else a fact holds
-— and it is recomputed from the text it belongs to. `extract-embed` and the
-question embedder put it back.
+— and it is recomputed from the text it belongs to. `extract-embed` puts the
+passages' and the facts' back; nothing writes a stored question's again.
 
 The key is dropped from the jsonb rather than the column named per table, and
 `jsonb - text` on a row without that key is the row unchanged, so one
@@ -93,7 +105,7 @@ retention**.
 |---|---|
 | [`store.py`](store.py) | Reading the archive and emptying it, over both the table and the bucket |
 | [`run.py`](run.py) | The command line |
-| [`restore.py`](restore.py) | Putting archived documents back, before a purge makes the archive unreadable |
+| [`restore.py`](restore.py) | Putting archived rows and objects back, before a purge makes the archive unreadable |
 
 The trigger and the table are in
 [`database/qa_generator/archived_rows.py`](../database/qa_generator/archived_rows.py),

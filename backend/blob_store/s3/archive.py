@@ -60,6 +60,41 @@ class ArchiveBucket(Bucket):
         client.delete_object(Bucket=origin, Key=key)
         return True
 
+    def give_back(self, origin: str, key: str) -> bool:
+        """Copies an archived object back into `origin`, unless one is there.
+
+        The archived copy stays.
+
+        Args:
+            origin: The bucket the object was taken from.
+            key: Its key there.
+
+        Returns:
+            Whether `origin` holds the object now.
+
+        Raises:
+            botocore.exceptions.ClientError: If the store answered with
+                anything other than "no such key".
+        """
+        client = s3_client()
+        try:
+            client.head_object(Bucket=origin, Key=key)
+            return True
+        except client.exceptions.ClientError as exc:
+            if not self._absent(exc):
+                raise
+        try:
+            client.copy_object(
+                Bucket=origin,
+                Key=key,
+                CopySource={"Bucket": self.name, "Key": self.key_for(origin, key)},
+            )
+        except client.exceptions.ClientError as exc:
+            if self._absent(exc):
+                return False
+            raise
+        return True
+
     def held(self, *, before: datetime | None = None) -> list[tuple[str, int]]:
         """Lists what the archive holds, as (key, bytes).
 

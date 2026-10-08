@@ -58,11 +58,11 @@ class ArchivedRow(Base):
 
 #: Copies a row into `archived_rows` as it is deleted.
 #:
-#: One function for all ten tables, because `to_jsonb(OLD)` names no column:
-#: a table gains one and this keeps working. `embedding` is dropped by key,
-#: and `jsonb - text` on a row without that key is the row unchanged, so the
-#: same function serves the four tables carrying a vector and the six that
-#: are not.
+#: One function for all thirteen tables, because `to_jsonb(OLD)` names no
+#: column: a table gains one and this keeps working. `embedding` is dropped by
+#: key, and `jsonb - text` on a row without that key is the row unchanged, so
+#: the same function serves the four tables carrying a vector and the nine
+#: that are not.
 #:
 #: Declared here, beside the table it fills, and executed by the migration
 #: that creates that table: autogenerate sees tables and columns, never a
