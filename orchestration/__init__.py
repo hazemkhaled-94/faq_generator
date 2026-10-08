@@ -52,8 +52,6 @@ telemetry.configure("orchestration")
 
 log = logging.getLogger(__name__)
 
-#: Everything, in order. Each asset waits for the stage before it to drain,
-#: so this is the corpus going end to end in one run.
 #: A run that has not finished.
 _GOING = [
     DagsterRunStatus.QUEUED,
@@ -65,23 +63,24 @@ _GOING = [
 #: A run that ended without finishing and that nobody stopped.
 _ENDED = [DagsterRunStatus.FAILURE]
 
+#: Every stage but the topic fit, which replaces every topic and is asked
+#: for on its own.
 corpus = define_asset_job(
     name="corpus",
-    selection=AssetSelection.all(),
-    description="Every stage, in the order a document moves through them.",
+    selection=AssetSelection.all() - AssetSelection.assets("topics"),
+    description="Every stage but the topic fit, in the order a document "
+    "moves through them.",
 )
 
-#: A refit is corpus-wide and goes stale on every new document, so it is
-#: the one thing worth a clock rather than a trigger. Off by default:
-#: a schedule that starts running the moment the stack comes up is a
-#: schedule nobody chose.
+#: The corpus job at 02:00 UTC. Off by default: a schedule that starts
+#: running the moment the stack comes up is a schedule nobody chose.
 nightly = ScheduleDefinition(
     name="nightly_corpus",
     job=corpus,
     cron_schedule="0 2 * * *",
     execution_timezone="UTC",
     default_status=DefaultScheduleStatus.STOPPED,
-    description="The whole pipeline at 02:00 UTC. Stopped until switched on.",
+    description="The corpus job at 02:00 UTC. Stopped until switched on.",
 )
 
 

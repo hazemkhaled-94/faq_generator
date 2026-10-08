@@ -61,9 +61,20 @@ def test_each_stage_waits_for_the_one_before_it(stage: str, waits_for: str) -> N
 
     The chain is the point: extraction before a fit, a fit before
     questions. Wired the other way round, a run would write questions
-    about the topics from last time.
+    about the topics from last time. Questions also wait for the facts,
+    because the corpus job leaves the fit out.
     """
-    assert {dep.asset_key for dep in SPECS[stage].deps} == {AssetKey(waits_for)}
+    expected = {AssetKey(waits_for)}
+    if stage == "questions":
+        expected.add(AssetKey("facts"))
+    assert {dep.asset_key for dep in SPECS[stage].deps} == expected
+
+
+def test_the_corpus_job_runs_every_stage_but_the_fit() -> None:
+    """A refit replaces every topic, so it is asked for on its own."""
+    selected = defs.resolve_job_def(corpus.name).asset_layer.selected_asset_keys
+
+    assert {key.to_user_string() for key in selected} == set(ORDER) - {"topics"}
 
 
 def test_the_first_stage_waits_for_nothing() -> None:
@@ -124,6 +135,6 @@ def test_the_schedule_and_the_sensor_ship_stopped() -> None:
 
 
 def test_the_nightly_job_is_the_whole_corpus() -> None:
-    """A refit is corpus-wide and goes stale on every new document."""
+    """The nightly schedule launches the corpus job."""
     assert nightly.job.name == corpus.name
     assert nightly.cron_schedule == "0 2 * * *"

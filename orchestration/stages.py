@@ -208,8 +208,9 @@ def topics_check() -> AssetCheckResult:
     )
 
 
+#: `facts` as well, so a job without the fit still waits for extraction.
 @asset(
-    deps=[AssetKey("topics")],
+    deps=[AssetKey("facts"), AssetKey("topics")],
     group_name=group("question_generation"),
     description="Writes the test questions, one topic at a time.",
     compute_kind="queue",
