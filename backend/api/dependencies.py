@@ -36,8 +36,8 @@ question_settings = QuestionSettings.load()
 # Before anything else: a line logged earlier carries no trace id.
 telemetry.configure("api")
 
-# Builds the engine as a side effect, so an unreachable database fails this
-# import rather than the first upload.
+# Builds the engine and traces its queries. Nothing connects until the
+# first query, so an unreachable database fails that request, not this import.
 telemetry.trace_engine(engine())
 
 #: One queue per stage, for the routes that move rows on and off it.
