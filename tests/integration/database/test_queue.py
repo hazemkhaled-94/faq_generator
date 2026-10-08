@@ -294,6 +294,19 @@ def test_the_queue_reports_its_depth_and_whether_anyone_is_on_it(
     assert state.rows == {Status.PENDING: 2, Status.IN_PROGRESS: 1}
 
 
+def test_equal_counts_of_other_rows_read_differently(documents, engine) -> None:
+    """A batch swapped, or rows reworked under another run, keep their count."""
+    documents(new=2)
+    before = ParseQueue().queue_state()
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE documents SET parse_trigger = 'again'"))
+
+    after = ParseQueue().queue_state()
+
+    assert after.rows == before.rows
+    assert after.digests[Status.NEW] != before.digests[Status.NEW]
+
+
 def test_a_stale_claim_does_not_count_as_a_worker(engine, database) -> None:
     """`working` means a worker is on it now, not that a row says so."""
     with Session(engine) as session:

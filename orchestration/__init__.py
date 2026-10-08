@@ -110,19 +110,20 @@ def arrivals(context):
     long as it keeps the run, so a key naming only the queue depth is a key
     that comes round again: three documents uploaded, run, drained, three
     more uploaded is `new-3` twice, and the second one launches nothing at
-    all. The counter moves when the queue this sensor is looking at differs
-    from the one it last asked about, so two polls over an unchanged queue
-    still share a key and still ask for one run.
+    all. The counter moves when the documents waiting differ, by digest
+    rather than by count, from the ones it last asked about, so two polls
+    over an unchanged queue still share a key and still ask for one run.
     """
     settings = Settings.load()
     queue = Backend(settings.backend_url).status("parsing")
 
     asked = json.loads(context.cursor) if context.cursor else {}
     waiting = queue.rows.get("new", 0)
+    batch = queue.digests.get("new")
     if not waiting:
         # Recorded, not just skipped: an emptied queue is what tells the
         # next arrival that it is a new one rather than the same one again.
-        context.update_cursor(json.dumps({"waiting": 0, "run": asked.get("run", 0)}))
+        context.update_cursor(json.dumps({"batch": None, "run": asked.get("run", 0)}))
         return SkipReason("no document is waiting to be asked for")
     if context.instance.get_runs(
         filters=RunsFilter(job_name=corpus.name, statuses=_GOING), limit=1
@@ -141,7 +142,7 @@ def arrivals(context):
             f"{queue.outstanding} document(s) already queued or in progress"
         )
 
-    run = asked.get("run", 0) + (waiting != asked.get("waiting"))
+    run = asked.get("run", 0) + (batch != asked.get("batch"))
     # A key whose run failed is one Dagster will not run again.
     if context.instance.get_runs(
         filters=RunsFilter(
@@ -150,7 +151,7 @@ def arrivals(context):
         limit=1,
     ):
         run += 1
-    context.update_cursor(json.dumps({"waiting": waiting, "run": run}))
+    context.update_cursor(json.dumps({"batch": batch, "run": run}))
     log.info("%d document(s) uploaded and never asked for; starting", waiting)
     return RunRequest(run_key=f"new-{run}-{waiting}")
 

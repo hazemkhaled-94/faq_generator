@@ -131,12 +131,16 @@ class StageStatus:
     `rows` is named for what it counts and not for what it counts of:
     extraction queues over passages and topic modelling over fits.
 
+    `digests` says, per status, which rows those are and which run asked
+    for each: equal counts with another digest are other rows.
+
     `scope` and `value` say what the counts are of: absent, the whole queue.
     """
 
     stage: str
     working: bool
     rows: dict[str, int] = field(default_factory=dict)
+    digests: dict[str, str] = field(default_factory=dict)
     scope: str | None = None
     value: str | None = None
 
@@ -182,7 +186,12 @@ def status_of(
     within = None if scope is None else _narrowed(repository, scope, value or "")
     state = repository.queue_state(within)
     return StageStatus(
-        stage=name, working=state.working, rows=state.rows, scope=scope, value=value
+        stage=name,
+        working=state.working,
+        rows=state.rows,
+        digests=state.digests,
+        scope=scope,
+        value=value,
     )
 
 

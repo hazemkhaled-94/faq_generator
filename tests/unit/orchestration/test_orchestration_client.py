@@ -54,7 +54,16 @@ class Reply:
 
 def queue(**rows: int) -> dict:
     """A /status body with these counts and nobody working."""
-    return {"stage": "parsing", "working": False, "rows": rows}
+    return {"stage": "parsing", "working": False, "rows": rows, "digests": {}}
+
+
+def test_a_status_says_which_rows_each_count_is() -> None:
+    """Equal counts of other rows are other work."""
+    session = Session(
+        {"/parsing/status": [{**queue(new=3), "digests": {"new": "4f1c"}}]}
+    )
+
+    assert Backend(BASE, session).status("parsing").digests == {"new": "4f1c"}
 
 
 def test_a_queue_with_nothing_claimable_is_idle() -> None:
@@ -177,7 +186,7 @@ def test_a_fit_carries_it_too() -> None:
 
 def test_nothing_is_sent_where_no_run_asked() -> None:
     """A query string naming nothing is a query string worth not sending."""
-    session = Session({"/parsing/status": [{"working": False, "rows": {}}]})
+    session = Session({"/parsing/status": [queue()]})
 
     Backend(BASE, session).status("parsing")
 

@@ -43,8 +43,8 @@ def instance() -> Iterator[DagsterInstance]:
         yield held
 
 
-def answering(monkeypatch, **rows: int) -> None:
-    """Makes /parsing/status report these counts."""
+def answering(monkeypatch, batch: str = "", **rows: int) -> None:
+    """Makes /parsing/status report these counts, of the rows `batch` names."""
 
     class Stub:
         """Stands in for the backend client."""
@@ -58,6 +58,11 @@ def answering(monkeypatch, **rows: int) -> None:
                 stage=stage,
                 working=rows.get("in_progress", 0) > 0,
                 rows={name: count for name, count in rows.items() if count},
+                digests={
+                    name: f"{batch}{name}{count}"
+                    for name, count in rows.items()
+                    if count
+                },
             )
 
     monkeypatch.setattr(orchestration, "Backend", Stub)
@@ -155,6 +160,25 @@ def test_the_same_number_arriving_twice_asks_twice(monkeypatch, instance) -> Non
     orchestration.arrivals(context)
 
     answering(monkeypatch, new=3, parsed=3)
+    again = orchestration.arrivals(
+        build_sensor_context(cursor=context.cursor, instance=context.instance)
+    )
+
+    assert isinstance(again, RunRequest)
+    assert again.run_key != first
+
+
+def test_a_batch_swapped_inside_one_tick_asks_again(monkeypatch, instance) -> None:
+    """Three documents worked and three others uploaded between two ticks.
+
+    No tick saw the queue empty or a different count, so a key counting
+    only the documents came round again and launched nothing.
+    """
+    answering(monkeypatch, new=3)
+    context = build_sensor_context(instance=instance)
+    first = orchestration.arrivals(context).run_key
+
+    answering(monkeypatch, batch="later", new=3, parsed=3)
     again = orchestration.arrivals(
         build_sensor_context(cursor=context.cursor, instance=context.instance)
     )

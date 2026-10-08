@@ -22,7 +22,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, ClassVar
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, literal_column, or_, select, update
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.orm import InstrumentedAttribute
 
 from database.qa_generator import Status
@@ -69,6 +70,9 @@ class QueueState:
 
     working: bool
     rows: dict[str, int]
+    #: Per status, a digest of which rows it holds and which run asked for
+    #: each. Equal counts with another digest are other rows.
+    digests: dict[str, str]
 
 
 class StageQueue(Repository):
@@ -369,6 +373,9 @@ class StageQueue(Repository):
     def queue_state(self, within: Any = None) -> QueueState:
         """Reports the queue depth and whether a worker is on it."""
         # One query for both: a page polls this every few seconds.
+        # ponytail: the digests hash every row of the queue on every poll,
+        # linear in its size. Upgrade: a column recording when each row last
+        # changed, which is a migration.
         with self._session() as session:
             rows = session.execute(
                 select(
@@ -376,6 +383,16 @@ class StageQueue(Repository):
                     func.count(),
                     func.count().filter(
                         self.columns.claimed_at >= func.now() - self.lease
+                    ),
+                    func.md5(
+                        func.string_agg(
+                            func.concat(
+                                self.columns.key,
+                                literal_column("':'"),
+                                self.columns.trigger,
+                            ),
+                            aggregate_order_by(literal_column("','"), self.columns.key),
+                        )
                     ),
                 )
                 .where(*self._where(within))
@@ -385,9 +402,10 @@ class StageQueue(Repository):
 
         return QueueState(
             working=any(
-                status == Status.IN_PROGRESS and live for status, _, live in rows
+                status == Status.IN_PROGRESS and live for status, _, live, _ in rows
             ),
-            rows={status: total for status, total, _ in rows},
+            rows={status: total for status, total, _, _ in rows},
+            digests={status: digest for status, _, _, digest in rows},
         )
 
     def counts_by_status(self, within: Any = None) -> dict[str, int]:

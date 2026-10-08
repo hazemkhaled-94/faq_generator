@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import requests
 
@@ -38,6 +38,9 @@ class Queue:
     stage: str
     working: bool
     rows: dict[str, int]
+    #: Per status, a digest of which rows it holds and which run asked for
+    #: each. Equal counts with another digest are other rows.
+    digests: dict[str, str] = field(default_factory=dict)
 
     @property
     def outstanding(self) -> int:
@@ -71,7 +74,12 @@ class Backend:
     def status(self, stage: str) -> Queue:
         """Reports how much work one stage has waiting."""
         body = self._call("GET", f"/{stage}/status")
-        return Queue(stage=stage, working=body["working"], rows=body["rows"])
+        return Queue(
+            stage=stage,
+            working=body["working"],
+            rows=body["rows"],
+            digests=body["digests"],
+        )
 
     def act(self, stage: str, action: str, run: str | None = None) -> int:
         """Runs one queue verb over everything a stage owns.
