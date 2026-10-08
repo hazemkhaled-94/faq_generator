@@ -40,6 +40,10 @@ STATUS_HELP = {
 }
 
 
+#: Left by an action, so the next table is drawn with nothing picked.
+_ACTED = "page-acted"
+
+
 def share(part: int, whole: int) -> str:
     """Renders a count as itself and its share of a whole, in one string."""
     if not whole:
@@ -120,6 +124,11 @@ def written(value: Any) -> str:
     return str(value)
 
 
+def acted() -> None:
+    """Unpicks the table's row on the next run, as an action moved the rows."""
+    st.session_state[_ACTED] = True
+
+
 def table(
     rows: list[dict],
     key: str,
@@ -131,8 +140,12 @@ def table(
     None on arrival and a position into `rows` afterwards.
 
     A position rather than an id: the selection Streamlit hands back is
-    positional, and the caller already holds the rows it passed in.
+    positional, and the caller already holds the rows it passed in. So
+    after `acted` the pick is cleared rather than left on whichever row now
+    holds that position.
     """
+    if st.session_state.pop(_ACTED, False):
+        st.session_state[key] = {"selection": {"rows": []}}
     picked = st.dataframe(
         rows,
         width="stretch",

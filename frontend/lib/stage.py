@@ -315,6 +315,7 @@ def _act(
     to one value. They are reported as one line: somebody who ticked two
     kinds asked for one thing.
     """
+    page.acted()
     if scopes is None:
         answer = client.stage_action(stage, action, scope)
         st.toast(answer.get("detail") or f"{stage}: {action}")

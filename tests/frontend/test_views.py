@@ -433,6 +433,31 @@ def test_cancelling_a_redo_sends_nothing(open_view) -> None:
     assert cancelled.button("Yes, redo") is None
 
 
+# ── After an action ───────────────────────────────────────────────────────
+
+#: One action per page, as the presses that send it with a row picked.
+ACTIONS = {
+    "documents": ("Delete passages and facts", "Yes, delete"),
+    "passages": ("Redo", "Yes, redo"),
+    "facts": ("Redo", "Yes, redo"),
+    "topics": ("Save",),
+    "assessment": ("Start all",),
+}
+
+
+@pytest.mark.parametrize("name", ACTIONS)
+def test_an_action_unpicks_the_row_so_the_detail_cannot_slide(open_view, name) -> None:
+    """A pick is a position, and the action may have moved the rows under it."""
+    page = open_view(name, stage_status=lambda *a, **k: status(new=2)).select(0)
+    assert "Field" in page.tables()
+
+    for label in ACTIONS[name]:
+        page = page.press(label)
+
+    assert page.raised == []
+    assert "Field" not in page.tables()
+
+
 # ── The pages outside the catalogue ───────────────────────────────────────
 
 

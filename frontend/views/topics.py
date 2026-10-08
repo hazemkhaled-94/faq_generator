@@ -422,6 +422,7 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             else "Records the label and the coverage choice.",
         ):
             client.describe_topic(chosen["id"], label.strip() or None, included)
+            page.acted()
             st.toast(f"Topic {chosen['language']} #{chosen['topic_index']} saved.")
             st.rerun()
 
@@ -452,6 +453,7 @@ def _removal(client, has_topics: bool) -> None:
     if chosen is None:
         return
     removed = client.delete_topics()
+    page.acted()
     st.toast(
         f"Removed {removed['topics']} topic(s), "
         f"{removed['memberships']} membership(s) and "

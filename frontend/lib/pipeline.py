@@ -227,6 +227,7 @@ def _report(outcome: tuple[bool, str]) -> None:
     """Shows what a verb did, and redraws the page under it."""
     done, said = outcome
     if done:
+        page.acted()
         st.toast(said)
         st.rerun()
     else:

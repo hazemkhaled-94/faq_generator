@@ -299,6 +299,7 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
     if chosen is None:
         return
     removed = client.delete(sha, derived_only=chosen == "derived")
+    page.acted()
     st.toast(
         f"Removed {removed['passages']} passage(s)"
         + (", the file and its parsed form." if removed["document"] else ".")
