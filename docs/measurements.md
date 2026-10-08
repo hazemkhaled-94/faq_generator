@@ -411,7 +411,7 @@ make assess RUN_ID=assess-stratified-2026-10-06
 ```
 
 `assess-start` enrols again before it queues, and a stratified enrolment
-draws a new random sample each time, so it ran without
+then drew a new random sample each time, so it ran without
 `ASSESSMENT_STRATIFY`. Newest-first, its enrolment found nothing new.
 
 Its figures count only complete verdicts:

@@ -886,7 +886,8 @@ SETTINGS: tuple[Setting, ...] = (
         service="assessment",
         kind="boolean",
         help="Whether the sample spans every language, and every type of "
-        "question, in random order, instead of taking the newest rows.",
+        "question, in an order fixed by a hash of the id, instead of taking "
+        "the newest rows. Drawn again, it is the same rows.",
     ),
     Setting(
         name="WORKER_POLL_SECONDS",

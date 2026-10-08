@@ -63,7 +63,7 @@ enrol_router = APIRouter(prefix="/assessment", tags=["assessment"])
 def enrol() -> StageAction:
     """Creates an assessment for every artefact that has none, queuing none.
 
-    The dry run: nothing upstream enrols these rows, so this is what turns
+    Nothing upstream enrols these rows, so this is what turns
     "judge the corpus" into a number before any of it is paid for. The rows
     land `new`, which no worker looks at, and `GET /assessment/status` then
     says how many model calls `start` would cost.

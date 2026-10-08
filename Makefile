@@ -934,9 +934,12 @@ assess-status:
 assess-start:
 	$(ASSESS) --start $(ONLY)
 
-# Enrol without queuing. The dry run: it reports how many artefacts this
-# phase would cost a model call each, before anybody commits to paying for
-# them. A question costs three calls, a fact and a topic two.
+# Enrol without queuing. Not a dry run: it writes a `new` assessment for
+# every artefact it draws, which no worker claims until `assess-start`
+# queues it, and reports how many there are before anybody pays for them.
+# A fact costs three model calls, a topic two and a question six.
+# `assess-start` enrols again first, and under the same settings draws the
+# same rows.
 assess-enrol:
 	$(ASSESS) --enrol
 

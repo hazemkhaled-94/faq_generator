@@ -540,6 +540,16 @@ def test_a_stratified_sample_spans_the_languages(two_languages, engine) -> None:
     assert len(chosen & set(two_languages["en"])) == 1
 
 
+def test_a_stratified_sample_is_drawn_once(two_languages, engine) -> None:
+    """`assess-enrol` then `assess-start` judge the one sample."""
+    queue = AssessmentQueue(kinds=("question",), sample=2, stratify=True)
+    queue.enrol()
+    chosen = _enrolled_questions(engine)
+
+    assert [queue.enrol() for _ in range(3)] == [0, 0, 0]
+    assert _enrolled_questions(engine) == chosen
+
+
 def test_a_question_is_judged_on_its_first_facts_in_order(engine, database) -> None:
     """At most _FACTS_SHOWN of them, by id, so two runs show the same list."""
     with Session(engine) as session:

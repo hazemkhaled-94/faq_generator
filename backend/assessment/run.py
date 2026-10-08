@@ -95,9 +95,9 @@ def main(argv: list[str] | None = None) -> int:
             sample=settings.sample,
         )
 
-    #: Enrolling without queuing, which is what makes a dry run possible:
-    #: it says how many artefacts this phase would cost a model call each
-    #: before anybody commits to paying for them.
+    #: Enrolling without queuing: it writes the `new` rows and says how many
+    #: artefacts this phase would judge before anybody commits to paying for
+    #: them.
     extra = {
         "enrol": (
             (

@@ -13,6 +13,7 @@ from typing import Any, ClassVar
 
 from sqlalchemy import (
     Select,
+    Text,
     and_,
     case,
     delete,
@@ -301,12 +302,18 @@ class AssessmentQueue(RowQueue):
         source, column, bands = enrolled[kind]
         # Newest first, so a sample of a corpus judged once already is the
         # part that arrived since rather than the part judged before.
-        # Stratified, the first of every band in random order, then the
-        # second, so a sample spans every band.
+        # Stratified, the first of every band in an order fixed by a hash of
+        # the id, then the second, so a sample spans every band and a second
+        # draw over the same corpus is the first.
+        # ponytail: an artefact arriving after a draw that hashes into its
+        # band's first places is enrolled by the next stratified start, so
+        # the sample grows with the corpus. The upgrade is recording which
+        # draw enrolled a row, which needs a column.
         if stratify:
+            shuffled = func.md5(source.selected_columns[0].cast(Text))
             source = source.order_by(None).order_by(
-                func.row_number().over(partition_by=bands, order_by=func.random()),
-                func.random(),
+                func.row_number().over(partition_by=bands, order_by=shuffled),
+                shuffled,
             )
         if sample > 0:
             source = source.limit(sample)

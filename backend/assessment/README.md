@@ -198,8 +198,8 @@ corpus costs one statement per kind rather than a model call per row. That
 is topic modelling's arrangement — asking is what creates the work — reached
 from the other direction.
 
-`--enrol` does the first half alone, which is the dry run: how many
-artefacts this would cost a model call each, before anybody pays for them.
+`--enrol` does the first half alone: it writes the `new` rows and says how
+many artefacts this would judge, before anybody pays for them.
 
 Enrolment ignores `--only`. A row sitting `new` costs nothing and no worker
 looks at one, so enrolling a kind nobody asked to judge yet is free; the
@@ -236,7 +236,7 @@ From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 | --- | --- |
 | `ASSESSMENT_KINDS` | Which artefacts are judged |
 | `ASSESSMENT_SAMPLE` | How many of each kind one `start` enrols, newest first. 0 is all of them |
-| `ASSESSMENT_STRATIFY` | Whether that sample spans every language, and every type of question, in random order, instead of taking the newest |
+| `ASSESSMENT_STRATIFY` | Whether that sample spans every language, and every type of question, in an order fixed by a hash of the id, instead of taking the newest. Drawn again, it is the same rows |
 
 ## Layout
 

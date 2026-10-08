@@ -271,7 +271,7 @@ be a gate.
 
 | Target | Does |
 |---|---|
-| `make assess-enrol` | Create the rows without queuing any. The dry run: how many model calls this would cost |
+| `make assess-enrol` | Create the rows without queuing any, and say how many there are |
 | `make assess-start` | Enrol and queue everything that has no verdict |
 | `make assess` | Drain the judging queue here, in the foreground |
 | `make assess-status` | The queue, and what the judge has said so far |

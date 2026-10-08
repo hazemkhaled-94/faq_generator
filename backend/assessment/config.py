@@ -34,7 +34,8 @@ class Settings:
     #: 0 is every one of them.
     sample: int
     #: Whether a sample is drawn evenly across language, and across type for
-    #: a question, in random order within each, instead of newest first.
+    #: a question, in an order fixed by a hash of the id within each, instead
+    #: of newest first. Drawn again over the same corpus, it is the same rows.
     stratify: bool = False
 
     @property
