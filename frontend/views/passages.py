@@ -87,6 +87,14 @@ _FIELDS = {"Text": "text", "Section": "section", "Text and section": "both"}
 #: The chunk states a document passes through.
 _STATES = ("new", "pending", "in_progress", "chunked", "failed")
 
+#: What Redo deletes, said before it acts.
+_REDO = (
+    "Chunking a document again replaces all of its passages. The facts drawn "
+    "from them go, with every bridge citing one of them and the questions "
+    "resting on those facts, person-reviewed and released questions "
+    "included. The rows are archived, and nothing here puts them back."
+)
+
 
 def view() -> None:
     """Renders the passages page."""
@@ -142,7 +150,7 @@ def view() -> None:
     )
 
     with service, page.panel("Chunking"):
-        stage.service(client, _CHUNKING)
+        stage.service(client, _CHUNKING, redo_warning=_REDO)
         with page.folds():
             with st.expander("Analysis"):
                 page.findings(_analysis(counts, rows))
@@ -286,7 +294,7 @@ def _detail(client, row: dict) -> None:
             "Chunking runs over a document and replaces all of its "
             "passages, this one included."
         )
-        stage.service(client, _CHUNKING, scope)
+        stage.service(client, _CHUNKING, scope, redo_warning=_REDO)
 
         with st.expander("How this was produced"):
             lineage.panel("passage", row["id"])

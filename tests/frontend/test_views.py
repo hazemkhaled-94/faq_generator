@@ -361,6 +361,64 @@ def test_deleting_the_derived_data_keeps_the_document(open_view) -> None:
     assert [one for one in client.calls("delete") if one[2].get("derived_only")]
 
 
+# ── Redo ──────────────────────────────────────────────────────────────────
+
+#: The pages whose Redo deletes what was built on the work, by what the
+#: confirmation has to name.
+REDO_WARNS = {
+    "passages": "person-reviewed and released",
+    "facts": "person-reviewed and released",
+    "assessment": "verdict",
+}
+
+
+def _reruns(client: Answers) -> list:
+    """Every rerun the page asked for."""
+    return [one for one in client.calls("stage_action") if one[1][1] == "rerun"]
+
+
+@pytest.mark.parametrize("name", REDO_WARNS)
+def test_redo_all_asks_before_it_sends_anything(open_view, name) -> None:
+    """The first press arms it and says what goes; the second sends it."""
+    client = Answers(**answers())
+
+    armed = open_view(name, client).press("Redo all")
+
+    assert not _reruns(client)
+    assert REDO_WARNS[name] in " ".join(armed.warnings())
+
+    armed.press("Yes, redo")
+
+    assert _reruns(client)
+
+
+@pytest.mark.parametrize(
+    ("name", "scope"),
+    (("passages", ("document", SHA)), ("facts", ("passage", "11"))),
+)
+def test_redo_on_one_item_asks_before_it_sends_anything(open_view, name, scope) -> None:
+    """The same two presses for the Redo drawn under a picked row."""
+    client = Answers(**answers())
+
+    armed = open_view(name, client).select(0).press("Redo")
+
+    assert not _reruns(client)
+
+    armed.press("Yes, redo")
+
+    assert ("stage_action", (OWNED[name], "rerun", scope), {}) in client.asked
+
+
+def test_cancelling_a_redo_sends_nothing(open_view) -> None:
+    """Cancel disarms it."""
+    client = Answers(**answers())
+
+    cancelled = open_view("facts", client).press("Redo all").press("Cancel")
+
+    assert not _reruns(client)
+    assert cancelled.button("Yes, redo") is None
+
+
 # ── The pages outside the catalogue ───────────────────────────────────────
 
 

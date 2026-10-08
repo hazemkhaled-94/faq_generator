@@ -194,6 +194,14 @@ _SERVICE = explain.Service(
 #: of a sentence that usually carries several.
 _DECOMPOSITION_FLOOR = 1.2
 
+#: What Redo deletes, said before it acts.
+_REDO = (
+    "Extracting a passage again replaces its facts. Every fact drawn from it "
+    "goes, bridges apart, and with them the questions resting on those "
+    "facts, person-reviewed and released questions included. The rows are "
+    "archived, and nothing here puts them back."
+)
+
 
 def view() -> None:
     """Renders the facts page."""
@@ -263,7 +271,7 @@ def view() -> None:
         )
 
     with service, page.panel("Extraction"):
-        stage.service(client, _EXTRACTION)
+        stage.service(client, _EXTRACTION, redo_warning=_REDO)
         with page.folds():
             with st.expander("Analysis"):
                 page.findings(_checks(quality, chosen["kind"], counts))
@@ -454,7 +462,7 @@ def _detail(client, fact: dict) -> None:
             "Extraction reads a passage and writes all of its facts "
             "together, this one included."
         )
-        stage.service(client, _EXTRACTION, scope)
+        stage.service(client, _EXTRACTION, scope, redo_warning=_REDO)
 
         with st.expander("How this was produced"):
             lineage.panel("fact", fact["id"])

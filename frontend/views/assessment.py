@@ -133,6 +133,13 @@ _METRICS = {
     ),
 }
 
+#: What Redo deletes, said before it acts.
+_REDO = (
+    "Redo clears every stored verdict on the artefacts it covers as soon as "
+    "it is confirmed, before anything is judged again. The judge's reasons "
+    "are archived; the verdicts themselves are blanked and not archived."
+)
+
 #: The tab strip, as (what a person picks, what /assessment takes). `None`
 #: is every kind, and it is first because arriving at a page that has
 #: silently narrowed to one third of the corpus is arriving at a lie.
@@ -313,7 +320,7 @@ def view() -> None:
 
     with service, page.panel("Assessment — the evaluation phase"):
         judging = _judging(plan)
-        stage.service(client, _ASSESSMENT, scopes=_scopes(judging))
+        stage.service(client, _ASSESSMENT, scopes=_scopes(judging), redo_warning=_REDO)
         if not judging:
             st.caption(
                 "Nothing is ticked, so the controls act on every artefact. "

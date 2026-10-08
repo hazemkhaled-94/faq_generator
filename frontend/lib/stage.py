@@ -69,6 +69,7 @@ def service(
     queue: Queue,
     scope: tuple[str, str] | None = None,
     scopes: Sequence[tuple[str, str]] | None = None,
+    redo_warning: str | None = None,
 ) -> None:
     """Draws one stage's four verbs, each live only when it would act.
 
@@ -88,8 +89,11 @@ def service(
     request as `scope` of None - the first names three things and the
     second names the queue - but they act identically, and the caller that
     can tell them apart is the one drawing the checkboxes.
+
+    `redo_warning` makes Redo arm rather than act: it is shown with a
+    separately labelled second button that sends the rerun.
     """
-    _polling(lambda: _verbs(client, queue, scope, scopes))
+    _polling(lambda: _verbs(client, queue, scope, scopes, redo_warning))
 
 
 def fit(client, queue: Queue) -> None:
@@ -133,6 +137,7 @@ def _verbs(
     queue: Queue,
     scope: tuple[str, str] | None,
     scopes: Sequence[tuple[str, str]] | None = None,
+    redo_warning: str | None = None,
 ) -> None:
     """Draws the four queue verbs once, for whatever scope was given."""
     counts = _counts(client, queue, scope, scopes)
@@ -142,6 +147,7 @@ def _verbs(
     failed = counts.get("failed", 0)
     everything = scope is None and scopes is None
     unit = queue.unit
+    armed = _key("redo", queue, scope)
 
     def act(action: str) -> None:
         """Runs one verb over whatever this control is pointed at."""
@@ -193,9 +199,22 @@ def _verbs(
         if total
         else f"There are no {unit} to redo.",
     ):
-        act("rerun")
+        if redo_warning:
+            st.session_state[armed] = True
+        else:
+            act("rerun")
 
     _state(row, queue, counts, failed)
+
+    if redo_warning and st.session_state.get(armed):
+        st.warning(redo_warning)
+        answer = st.container(horizontal=True)
+        if answer.button("Yes, redo", key=f"danger-confirm-{armed}", width="content"):
+            del st.session_state[armed]
+            act("rerun")
+        if answer.button("Cancel", key=f"cancel-{armed}", width="content"):
+            del st.session_state[armed]
+            st.rerun()
 
 
 def _fit_verbs(client, queue: Queue) -> None:

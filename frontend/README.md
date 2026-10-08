@@ -119,6 +119,10 @@ Two pages carry a delete box, because two things can be deleted: a document,
 with or without what was derived from it, and the topics, all at once. A
 passage, a fact and a question have no delete.
 
+Redo on Passages, Facts and Assessment asks first in the same two clicks,
+and says what goes: a re-chunk or a re-extraction deletes the questions
+resting on that work, and a re-judge blanks the stored verdicts.
+
 While a stage has anything queued or in hand, its panel carries a spinner and
 its counts and redraws every few seconds until the queue is empty. **No verb
 does the work**: they move rows between statuses, and a worker picks up what
