@@ -77,11 +77,17 @@ class Settings:
         self._session = sessions()
 
     def overrides(self) -> dict[str, str]:
-        """Every setting a deployment changed, by name."""
+        """Every setting a deployment changed, by name.
+
+        Only names the catalogue lets a deployment write: a row stored before
+        its setting was fixed, or for one since retired, is one `clear`
+        refuses and so must not apply.
+        """
         with self._session() as session:
             return {
                 row.name: row.value
                 for row in session.scalars(select(ServiceSetting)).all()
+                if row.name in catalog.BY_NAME and not catalog.BY_NAME[row.name].fixed
             }
 
     def changed_at(self) -> dict[str, datetime]:

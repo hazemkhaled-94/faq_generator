@@ -57,18 +57,18 @@ def test_a_stored_setting_reaches_the_stage_that_reads_it(store) -> None:
 def test_a_platform_setting_reaches_a_stage_that_is_not_the_platform(
     store,
 ) -> None:
-    """Resolution ignores the service column, or extraction misses the platform's.
+    """Resolution ignores the service column, or a stage misses the platform's.
 
-    The one bug a per-service overlay would have: extraction reads its own
-    settings and the platform's, and only the second is stored under
+    The one bug a per-service overlay would have: question generation reads
+    its own settings and the platform's, and only the second is stored under
     `platform`.
     """
-    from llm.config import Settings
+    from question_generation.config import Settings
 
-    store.write("LLM_TEMPERATURE", "0.7")
+    store.write("QA_ANSWER_CONFIDENCE", "0.5")
 
-    assert store.resolved()["LLM_TEMPERATURE"] == "0.7"
-    assert Settings.load(store.resolved()).temperature == 0.7
+    assert store.resolved()["QA_ANSWER_CONFIDENCE"] == "0.5"
+    assert Settings.load(store.resolved()).answer_confidence == 0.5
 
 
 def test_writing_a_setting_twice_leaves_one_row(store) -> None:
@@ -105,6 +105,28 @@ def test_a_setting_the_deployment_owns_is_refused(store) -> None:
     """A pool size is read when a process starts; storing one would do nothing."""
     with pytest.raises(ValueError, match="DATABASE_POOL_SIZE"):
         store.write("DATABASE_POOL_SIZE", "50")
+
+
+def test_a_row_for_a_setting_nobody_may_write_is_not_applied(store, engine) -> None:
+    """Stored before the setting was fixed, or retired since; clear refuses both."""
+    import os
+
+    from sqlalchemy.orm import Session
+
+    from database.qa_generator import ServiceSetting
+    from settings.store import snapshot
+
+    with Session(engine) as session:
+        session.add_all(
+            [
+                ServiceSetting(service="platform", name="LLM_BASE_URL", value="x"),
+                ServiceSetting(service="platform", name="RETIRED_SETTING", value="y"),
+            ]
+        )
+        session.commit()
+
+    assert store.overrides() == {}
+    assert snapshot()[0].get("LLM_BASE_URL") == os.environ.get("LLM_BASE_URL")
 
 
 def test_an_empty_value_is_refused_for_a_setting_that_needs_one(store) -> None:
