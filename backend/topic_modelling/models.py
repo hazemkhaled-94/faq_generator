@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,8 @@ class FittedTopic:
     #: What named it: "person", or the model identifier.
     labelled_by: str | None = None
     include_in_coverage: bool = True
+    #: When a person last named it or set its coverage.
+    decided_at: datetime | None = None
 
 
 @dataclass(frozen=True)

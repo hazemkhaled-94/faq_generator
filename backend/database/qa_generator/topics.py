@@ -124,6 +124,13 @@ class Topic(Base):
         comment="Whether this topic counts toward coverage reporting. Carried "
         "across a refit with the label.",
     )
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        comment="When a person last named this topic or set its coverage: "
+        "the time of the edit on the Topics page, or of the answer a review "
+        "pull applied. Carried across a refit with the label. NULL when "
+        "nobody has.",
+    )
     status: Mapped[str] = mapped_column(
         Text,
         server_default=Status.PENDING,

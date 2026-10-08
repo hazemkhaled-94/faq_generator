@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, insert, select, text, update
@@ -204,6 +204,7 @@ class TopicQueue(StageQueue):
                     label=row.label,
                     labelled_by=row.labelled_by,
                     include_in_coverage=row.include_in_coverage,
+                    decided_at=row.decided_at,
                 )
                 for row in session.execute(
                     select(
@@ -212,6 +213,7 @@ class TopicQueue(StageQueue):
                         Topic.label,
                         Topic.labelled_by,
                         Topic.include_in_coverage,
+                        Topic.decided_at,
                     ).where(
                         Topic.status == Status.MODELLED,
                         Topic.language == language,
@@ -275,6 +277,7 @@ class TopicQueue(StageQueue):
                     "label": topic.label,
                     "labelled_by": topic.labelled_by,
                     "include_in_coverage": topic.include_in_coverage,
+                    "decided_at": topic.decided_at,
                     "status": Status.MODELLED,
                     "requested_at": requested_at or fitted_at,
                     "fitted_at": fitted_at,
@@ -426,9 +429,14 @@ class TopicCatalog(Repository):
             ]
 
     def describe(
-        self, topic_id: int, *, label: str | None, include_in_coverage: bool | None
+        self,
+        topic_id: int,
+        *,
+        label: str | None,
+        include_in_coverage: bool | None,
+        at: datetime | None = None,
     ) -> StoredTopic | None:
-        """Records what a person decided about one topic.
+        """Records what a person decided about one topic, and when.
 
         A blank label clears the label and its provenance; a label present
         marks the topic `person`-named.
@@ -438,6 +446,7 @@ class TopicCatalog(Repository):
             label: The name to record, or None to clear it.
             include_in_coverage: Whether it counts toward coverage reporting,
                 or None to leave it as it is.
+            at: When the person decided, or None for now.
 
         Returns:
             The topic as it now reads, or None if no topic has that id.
@@ -452,6 +461,7 @@ class TopicCatalog(Repository):
                     include_in_coverage=Topic.include_in_coverage
                     if include_in_coverage is None
                     else include_in_coverage,
+                    decided_at=func.now() if at is None else at,
                 )
             ).rowcount
         if not changed:

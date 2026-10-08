@@ -318,15 +318,72 @@ def test_a_topics_coverage_is_written_and_its_name_and_namer_kept(
         session.commit()
         topic_id = held.id
 
-    assert ReviewRepository().cover(topic_id, False) == 1
+    assert ReviewRepository().cover(topic_id, False, GIVEN) == 1
 
     with Session(engine) as session:
         row = session.get(Topic, topic_id)
-        assert (row.label, row.labelled_by, row.include_in_coverage) == (
-            "Fees",
-            "a-model",
-            False,
-        )
+        assert (
+            row.label,
+            row.labelled_by,
+            row.include_in_coverage,
+            row.decided_at,
+        ) == ("Fees", "a-model", False, GIVEN)
+
+
+def test_the_later_topic_decision_wins_a_pull(database, engine, monkeypatch) -> None:
+    """A page rename after an answer survives the pull; a newer answer does not."""
+    pytest.importorskip("argilla", reason="the observability group is not installed")
+    from types import SimpleNamespace
+
+    from review import datasets
+    from review.config import Settings
+    from review.service import Catalogs, pull
+    from topic_modelling.repository import TopicCatalog
+
+    with Session(engine) as session:
+        held = fitted(top_terms=["fee", "charge"], fitted_at=GIVEN - timedelta(days=30))
+        session.add(held)
+        session.commit()
+        topic_id = held.id
+    record = SimpleNamespace(
+        metadata={"topic_id": topic_id},
+        fields={"terms": "fee, charge"},
+        responses=[
+            SimpleNamespace(
+                question_name="corrected_label", value="Charges", status="submitted"
+            )
+        ],
+    )
+    given = {topic_id: GIVEN}
+    dataset = SimpleNamespace(records=lambda with_responses=False: iter([record]))
+    monkeypatch.setattr(
+        "review.service.connect",
+        lambda settings: SimpleNamespace(datasets=lambda name, workspace: dataset),
+    )
+    monkeypatch.setattr("review.service._given_at", lambda *_: given)
+    settings = Settings(
+        api_url="http://argilla:6900",
+        api_key="key",
+        workspace="w",
+        sample=1,
+        reviewer=None,
+    )
+    catalogs = Catalogs(
+        facts=ReviewRepository(), questions=QuestionCatalog(), topics=TopicCatalog()
+    )
+
+    def named() -> tuple:
+        with Session(engine) as session:
+            row = session.get(Topic, topic_id)
+            return row.label, row.decided_at
+
+    TopicCatalog().describe(topic_id, label="Fees", include_in_coverage=None)
+    assert pull(datasets.TOPIC_LABELS, settings, catalogs) == 0
+    assert named()[0] == "Fees"
+
+    given[topic_id] = datetime.now(UTC) + timedelta(hours=1)
+    assert pull(datasets.TOPIC_LABELS, settings, catalogs) == 1
+    assert named() == ("Charges", given[topic_id])
 
 
 def test_a_question_verdict_keeps_the_time_it_was_given(asked, engine) -> None:

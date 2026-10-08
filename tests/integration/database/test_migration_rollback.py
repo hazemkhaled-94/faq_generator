@@ -23,6 +23,7 @@ PREVIOUS_HEAD = "5d1c7e2a9b40"
 RELEASED = "3fe4226da3b6"
 REJECTED = "04419594a51e"
 DIGEST = "8213be66d5ba"
+DECIDED = "1ff74784a860"
 
 #: Three documents, four passages, nine facts and five questions on them.
 #: Question 1 rests on documents a and b, 3 is already rejected, and 5
@@ -347,3 +348,28 @@ def test_an_upload_record_keeps_its_digest_when_its_document_goes(spare: str) ->
 
     command.upgrade(config, DIGEST)
     assert sql(spare, events) == [(1, None), (2, None), (3, None)]
+
+
+def test_a_topic_decision_time_is_added_empty_and_taken_back_out(spare: str) -> None:
+    """NULL on every topic already there, and the topic intact without it."""
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, DIGEST)
+    sql(
+        spare,
+        "INSERT INTO topics (id, language, topic_index, top_terms, label, "
+        "labelled_by, status, fitted_at) VALUES (1, 'en', 0, '{fee,charge}', "
+        "'Fees', 'person', 'modelled', '2026-09-01T00:00:00Z')",
+    )
+    held = sql(spare, "SELECT * FROM topics")
+
+    command.upgrade(config, DECIDED)
+    assert sql(spare, "SELECT * FROM topics") == [(*held[0], None)]
+    sql(spare, "UPDATE topics SET decided_at = '2026-10-01T09:00:00Z'")
+
+    command.downgrade(config, DIGEST)
+    assert sql(spare, "SELECT * FROM topics") == held
+
+    command.upgrade(config, DECIDED)
+    assert sql(spare, "SELECT * FROM topics") == [(*held[0], None)]

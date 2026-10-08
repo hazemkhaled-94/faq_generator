@@ -6,6 +6,8 @@ top terms.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from topic_drivers import LabellerDriver
 
@@ -16,13 +18,16 @@ from topic_modelling.topics import _LABEL_MATCH, carry_labels
 
 FIRST = ["lieferung", "versand", "transport", "paket", "monatlich"]
 SECOND = ["wartung", "reparatur", "instandhaltung", "ersatzteil", "pruefung"]
+DECIDED = datetime(2026, 10, 1, 9, tzinfo=UTC)
 
 
 def previous() -> list[FittedTopic]:
     """Two named topics, one of them taken out of coverage."""
     return [
         FittedTopic(0, FIRST, label="Shipping", include_in_coverage=False),
-        FittedTopic(1, SECOND, label="Maintenance", labelled_by="person"),
+        FittedTopic(
+            1, SECOND, label="Maintenance", labelled_by="person", decided_at=DECIDED
+        ),
     ]
 
 
@@ -158,10 +163,11 @@ def test_a_label_travels_to_the_topic_it_matches() -> None:
 
 
 def test_what_named_a_label_travels_with_it() -> None:
-    """A name a person typed must not come back as a model's."""
+    """A name a person typed must not come back as a model's, nor undated."""
     carried = carry_labels([FittedTopic(0, SECOND)], previous())
 
     assert carried[0].labelled_by == "person", carried[0]
+    assert carried[0].decided_at == DECIDED, carried[0]
 
 
 def test_the_coverage_choice_travels_with_the_label() -> None:

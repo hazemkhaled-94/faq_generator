@@ -306,7 +306,7 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
         written = len(dated)
     else:
         written = 0
-        for row_id, record, _ in answered:
+        for row_id, record, at in answered:
             label = (_answer(record, "corrected_label") or "").strip()
             coverage = _answer(record, "in_coverage")
             # Unanswered leaves the coverage as it is.
@@ -314,12 +314,12 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
             if label:
                 written += bool(
                     catalogs.topics.describe(
-                        row_id, label=label, include_in_coverage=include
+                        row_id, label=label, include_in_coverage=include, at=at
                     )
                 )
             elif include is not None:
                 # No name keeps the topic's label and its labelled_by.
-                written += catalogs.facts.cover(row_id, include)
+                written += catalogs.facts.cover(row_id, include, at)
 
     log.info("%s: %d verdict(s) written", name, written)
     return written

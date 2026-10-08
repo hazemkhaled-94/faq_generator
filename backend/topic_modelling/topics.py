@@ -318,7 +318,7 @@ def carry_labels(
 
     Matched on shared top terms, above a Jaccard overlap of `_LABEL_MATCH`.
     Each previous label is used at most once, on its best match. The coverage
-    flag travels with the label.
+    flag and the decision time travel with the label.
 
     Args:
         fitted: The topics this run produced.
@@ -351,6 +351,7 @@ def carry_labels(
                 label=best.label,
                 labelled_by=best.labelled_by,
                 include_in_coverage=best.include_in_coverage,
+                decided_at=best.decided_at,
             )
         )
     return carried

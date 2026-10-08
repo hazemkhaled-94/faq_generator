@@ -7,6 +7,8 @@ figures read back as.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from topics import TopicStore, fitting
 
@@ -317,13 +319,20 @@ def test_a_fit_that_produced_no_topic_writes_nothing(store) -> None:
 
 
 def test_a_label_is_read_back_for_the_next_fit_to_carry(store) -> None:
-    """Only the topics somebody said something about."""
+    """Only the topics somebody said something about, and when they did."""
+    decided = datetime(2026, 10, 1, 9, tzinfo=UTC)
     store.given_passages(de=1)
     store.store(
         fitting(
             "de",
             topics=[
-                FittedTopic(0, ["lieferung"], label="Shipping", labelled_by="person"),
+                FittedTopic(
+                    0,
+                    ["lieferung"],
+                    label="Shipping",
+                    labelled_by="person",
+                    decided_at=decided,
+                ),
                 FittedTopic(1, ["wartung"]),
                 FittedTopic(2, ["farbe"], include_in_coverage=False),
             ],
@@ -333,7 +342,8 @@ def test_a_label_is_read_back_for_the_next_fit_to_carry(store) -> None:
     held = store.queue.labelled_topics("de")
 
     assert {one.topic_index for one in held} == {0, 2}
-    assert next(one for one in held if one.topic_index == 0).labelled_by == "person"
+    named = next(one for one in held if one.topic_index == 0)
+    assert (named.labelled_by, named.decided_at) == ("person", decided)
 
 
 def test_a_label_is_not_read_back_for_another_language(store) -> None:
@@ -360,6 +370,7 @@ def test_naming_a_topic_records_that_a_person_did(store) -> None:
     assert described is not None
     assert described.label == "Shipping", described.label
     assert described.labelled_by == "person"
+    assert store.queue.labelled_topics("de")[0].decided_at is not None
 
 
 def test_clearing_a_label_clears_what_named_it(store) -> None:

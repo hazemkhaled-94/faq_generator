@@ -28,7 +28,7 @@ from database.qa_generator.repository import Repository
 
 #: Each dataset's id column, the text its record shows, and the row's own
 #: last decision: when it was made, or decided since. Keyed by the names in
-#: `review.datasets`. A topic records only when it was fitted.
+#: `review.datasets`.
 _HELD = {
     "facts": (
         Fact.id,
@@ -45,7 +45,7 @@ _HELD = {
     "topic-labels": (
         Topic.id,
         func.array_to_string(Topic.top_terms, ", "),
-        Topic.fitted_at,
+        func.greatest(Topic.fitted_at, Topic.decided_at),
     ),
 }
 
@@ -276,8 +276,8 @@ class ReviewRepository(Repository):
                     .values(reviewed_at=at)
                 )
 
-    def cover(self, topic_id: int, include: bool) -> int:
-        """Sets whether a topic counts toward coverage, and nothing else.
+    def cover(self, topic_id: int, include: bool, at: datetime) -> int:
+        """Sets whether a topic counts toward coverage, and when that was decided.
 
         Returns:
             How many rows were written.
@@ -286,7 +286,7 @@ class ReviewRepository(Repository):
             return session.execute(
                 update(Topic)
                 .where(Topic.id == topic_id, Topic.topic_index.is_not(None))
-                .values(include_in_coverage=include)
+                .values(include_in_coverage=include, decided_at=at)
             ).rowcount
 
     def counts(self) -> dict[str, Any]:
