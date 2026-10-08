@@ -46,3 +46,26 @@ def test_the_lock_pins_every_declared_requirement(service: Path) -> None:
         f"{service.name}/requirements.lock does not pin {', '.join(sorted(missing))}. "
         f"Run `make lock`."
     )
+
+
+def test_the_orchestrator_image_pins_the_dagster_the_host_is_locked_to() -> None:
+    """Both run against the one `dagster` database, and a version migrates it."""
+    import tomllib
+
+    locked = {
+        _folded(one["name"]): one["version"]
+        for one in tomllib.loads((ROOT / "poetry.lock").read_text())["package"]
+    }
+    declared = [
+        line.split("#")[0].strip()
+        for line in (ROOT / "orchestration/requirements.txt").read_text().splitlines()
+    ]
+    dagster = [line for line in declared if line.startswith("dagster")]
+    unpinned = [
+        line
+        for line in dagster
+        if line.partition("==")[2] != locked.get(_folded(line.partition("==")[0]))
+    ]
+
+    assert dagster, "orchestration/requirements.txt declares no dagster"
+    assert not unpinned, unpinned
