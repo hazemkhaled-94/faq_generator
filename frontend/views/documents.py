@@ -230,6 +230,9 @@ def view() -> None:
         _detail(client, rows[picked])
 
 
+# ponytail: up to four files of MAX_FILE_SIZE_MB each, held in the frontend
+# process and shared by every session; the upgrade is a presigned URL the
+# browser fetches itself.
 @st.cache_data(show_spinner=False, max_entries=4)
 def _file(_client, sha256: str) -> bytes:
     """Fetches one document, remembering the last few.
