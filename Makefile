@@ -626,8 +626,13 @@ chunk-retry:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --retry $(ONLY)
 
 # Run this stage again over every document, finished ones included. For when
-# the code behind it changed and its output needs rebuilding.
+# the code behind it changed and its output needs rebuilding. Each document's
+# passages are replaced, and with them go their topic memberships, any fact
+# left citing no passage, any bridge that cited one, and every question left
+# resting on no fact, with its follow-ups and the assessments of each.
+# Without SHA that is the whole corpus, so it warns and waits first.
 chunk-rerun:
+	@[ -n "$(SHA)" ] || { echo "WARNING: this replaces every passage, and the facts and questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --rerun $(ONLY)
 
 # Read every stored passage's language and vocabulary again, in place. Only
@@ -660,8 +665,13 @@ extract-retry:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --retry $(ONLY)
 
 # Run this stage again over every passage, finished ones included. For when
-# the code behind it changed and its output needs rebuilding.
+# the code behind it changed and its output needs rebuilding. Each passage's
+# citations, bridges' aside, are replaced, and with them go any fact left
+# citing no passage and every question left resting on no fact, with its
+# follow-ups and the assessments of each. Without SHA or PASSAGE that is the
+# whole corpus, so it warns and waits first.
 extract-rerun:
+	@[ -n "$(SHA)$(PASSAGE)" ] || { echo "WARNING: this replaces every passage's facts, and the questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --rerun $(ONLY)
 
 # Judge every stored fact again with today's checks. The model is not called
@@ -750,11 +760,13 @@ topics-visualise:
 topics-render:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --render $(if $(CODE),--language $(CODE))
 
-# Delete every topic and membership. Passages, facts and questions stay.
-# A label a person assigned is stored nowhere else, and the archived row is
-# now the only copy of one.
+# Delete every topic and membership, any fit queued or running, the judge's
+# verdicts on the topics and each topic's question-generation queue state.
+# Each language's figure and stored model go to the `archive` bucket.
+# Passages, facts and questions stay. A label a person assigned is stored
+# nowhere else, and the archived row is now the only copy of one.
 topics-delete:
-	@echo "WARNING: this deletes every topic, and any label on one. Ctrl-C within 5s to abort."
+	@echo "WARNING: this deletes every topic, any label on one and the judge's verdicts on them. Ctrl-C within 5s to abort."
 	@sleep 5
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --delete
 
@@ -1110,7 +1122,9 @@ documents:
 # Delete a document, its file, its converted form and everything derived from
 # it. The rows are archived and the objects are moved to the `archive` bucket,
 # so `make archive-purge` is what makes it final. The upload record in
-# ingest_events is kept.
+# ingest_events is kept. A fact another document's passage also cites
+# stays, and so does a question that also rests on another document's
+# facts, keeping its status with fewer citations.
 #   make delete SHA=<sha256>
 delete:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete SHA=<sha256>"; exit 2; }
@@ -1188,9 +1202,13 @@ dagster-wipe:
 	@$(call SPARED,runs,the Dagster run history) || \
 	  $(COMPOSE_CMD) exec -T dagster-webserver dagster run wipe --force
 
-# Delete only what the pipeline built: passages and facts. The document and
-# its file stay, and chunking goes back to `new`, so the next run rebuilds
-# them once somebody starts it.
+# Delete what the pipeline built from one document: its passages, and with
+# them their topic memberships, any fact left citing no passage, any bridge
+# that cited one, and every question left resting on no fact, with its
+# follow-ups and the assessments of each. A question that also rests on
+# another document's facts stays, keeping its status. The document and its
+# file stay, and chunking goes back to `new`, so the next run rebuilds them
+# once somebody starts it.
 #   make delete-derived SHA=<sha256>
 delete-derived:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete-derived SHA=<sha256>"; exit 2; }

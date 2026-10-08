@@ -159,7 +159,7 @@ one vocabulary.
 | `make topics-retry` | Return a failed fit to the queue |
 | `make topics-visualise` | Write each language's stored pyLDAvis page to `./topics/` |
 | `make topics-render` | Redraw those pages from the stored models, without re-fitting. `CODE=de` for one |
-| `make topics-delete` | Delete every topic and membership |
+| `make topics-delete` | Delete every topic and membership, any queued fit and the judge's verdicts on the topics. The figures and models go to the archive. Waits 5 seconds first |
 
 ### Narrowing to one item
 
@@ -196,7 +196,8 @@ expensive part:
 
 The alternative is destructive: `extract-rerun` calls the model again over
 the whole corpus, and `chunk-rerun` deletes every passage of a document along
-with the facts drawn from them.
+with the facts drawn from them. Without `SHA`, or `PASSAGE` for extraction,
+both warn and wait 5 seconds first.
 
 ## Questions
 
@@ -301,8 +302,8 @@ Documents are ingestion's, not a stage's. **All of these are irreversible.**
 | Target | Does |
 |---|---|
 | `make documents` | List every document with its parse state |
-| `make delete SHA=<sha256>` | Delete a document and everything derived from it |
-| `make delete-derived SHA=<sha256>` | Delete only its passages and facts |
+| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document keeps its status with fewer citations |
+| `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments |
 | `make wipe` | Every document, the topics, and the four services that describe them. Waits 5 seconds first |
 | `make wipe-all` | The same, then the archive. The one command for "leave nothing" |
 | `make wipe KEEP=golden,runs` | Spare the Phoenix datasets and the Dagster run history |
