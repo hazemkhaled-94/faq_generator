@@ -257,6 +257,14 @@ PHRASING = (
         "self_contained": True,
         "holds": "reply",
     },
+    {
+        "name": "names a standard as where its answer is, in German",
+        "question": "Welche Reviewverfahren beschreibt die Norm ISO/IEC 20246?",
+        "language": "de",
+        "names_its_source": True,
+        "self_contained": True,
+        "holds": "20246",
+    },
     # ── names a party, a period or a thing, which is NOT a source ─────
     {
         "name": "names the party a duty falls on, not a source",
@@ -265,14 +273,6 @@ PHRASING = (
         "names_its_source": False,
         "self_contained": True,
         "holds": "faults",
-    },
-    {
-        "name": "names a standard as the subject, not as a source",
-        "question": "Welche Reviewverfahren beschreibt die Norm ISO/IEC 20246?",
-        "language": "de",
-        "names_its_source": True,
-        "self_contained": True,
-        "holds": "20246",
     },
     {
         "name": "names a regulated thing, in German",
