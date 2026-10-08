@@ -263,3 +263,6 @@ figures/
 # its prefix rather than by extension: Office truncates the stem to fit, so
 # a rule naming the extension alone would miss it.
 ~$*
+
+# Local findings files
+/*-FINDINGS.md
