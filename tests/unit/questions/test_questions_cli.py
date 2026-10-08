@@ -278,6 +278,13 @@ def test_balance_draws_a_release_without_building_a_service(cli) -> None:
     assert cli.built == 0
 
 
+def test_a_narrowed_balance_is_refused_before_anything_is_drawn(cli) -> None:
+    """The draw clears every release first, so a narrowed one keeps one topic's."""
+    with pytest.raises(SystemExit, match="--only"):
+        cli.run("--balance", "--only", "topic=7")
+    assert cli.balanced == []
+
+
 def test_a_re_check_can_be_narrowed_to_one_topic(cli) -> None:
     """`--only` reaches this stage's own operations too."""
     assert cli.run("--reverify", "--only", "topic=3") == 0

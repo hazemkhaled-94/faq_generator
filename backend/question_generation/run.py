@@ -37,6 +37,12 @@ def main(argv: list[str] | None = None) -> int:
         source, version = snapshot()
         return Settings.load(source), ModelSettings.load(source), version
 
+    def balanced(within) -> int:
+        """Draws the release over every accepted question, refusing --only."""
+        if within is not None:
+            raise SystemExit("--balance draws the whole release and takes no --only")
+        return balance(QuestionCatalog(), configured()[0], within)
+
     #: This stage's own operation. No model is called: it puts the stored
     #: questions through the gates that need none, which is how a fact
     #: re-judged or a citation deleted reaches the questions resting on it.
@@ -52,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         "balance": (
             "draw a balanced release out of every accepted question",
             "released",
-            lambda within: balance(QuestionCatalog(), configured()[0], within),
+            balanced,
         ),
     }
 
