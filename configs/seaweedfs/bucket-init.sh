@@ -122,7 +122,11 @@ echo "buckets ready: ${S3_BUCKETS}"
 #
 # The fields below are chosen to satisfy one requirement: if the qa_generator
 # database is lost entirely, the documents bucket alone is sufficient to
-# rebuild it. Everything else is re-derivable by re-running the pipeline.
+# rebuild it, provided the seaweedfs database survives: the filer keeps the
+# bucket's index there. Both databases are on the postgres_data volume, so
+# losing that volume loses the index too, and the dumps of both databases
+# are the way back. Everything else is re-derivable by re-running the
+# pipeline.
 #
 # Written by the ingestion service, on every object in `documents`:
 #
