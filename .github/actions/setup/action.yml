@@ -21,13 +21,25 @@ runs:
       shell: bash
       run: echo "POETRY_VIRTUALENVS_IN_PROJECT=true" >> "$GITHUB_ENV"
 
-    # Keyed on the lock and on the Makefile, which is where the spaCy model
-    # names live. A miss costs the full install, torch included.
+    # The spaCy pipelines `make install` downloads, read as the Makefile reads
+    # them: the names from NLP_MODELS in backend.env, the version from the
+    # Dockerfile. The names rather than a hash of backend.env, which every
+    # tuning edit would turn into a full install.
+    - name: Read the model names
+      id: models
+      shell: bash
+      run: |
+        names=$(sed -n 's/^NLP_MODELS=//p' configs/env/backend.env | tr ',' '\n' | cut -d: -f2 | paste -sd+ -)
+        version=$(sed -n 's/^ARG SPACY_MODEL_VERSION=//p' backend/api/Dockerfile)
+        echo "spacy=$names-$version" >> "$GITHUB_OUTPUT"
+
+    # Keyed on the lock, the Makefile's install recipe and the pipelines
+    # above. A miss costs the full install, torch included.
     - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       id: cache
       with:
         path: .venv
-        key: venv-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('poetry.lock', 'Makefile') }}
+        key: venv-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ steps.models.outputs.spacy }}-${{ hashFiles('poetry.lock', 'Makefile') }}
 
     - name: Install dependencies
       if: steps.cache.outputs.cache-hit != 'true'
