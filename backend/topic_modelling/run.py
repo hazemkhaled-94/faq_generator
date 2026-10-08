@@ -80,7 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     telemetry.trace_engine(engine())
 
     if args.status:
-        log.info("topics and the fit queue: %s", TopicQueue().counts())
+        queue = TopicQueue()
+        log.info("topics and the fit queue: %s", queue.counts())
+        log.info("%d passage(s) are in no topic", queue.unplaced())
         return 0
 
     if args.visualise:

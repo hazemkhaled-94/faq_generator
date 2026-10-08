@@ -376,6 +376,18 @@ class TopicQueue(StageQueue):
             "passages_with_a_topic": covered,
         }
 
+    def unplaced(self) -> int:
+        """Counts the passages no topic holds."""
+        with self._session() as session:
+            return (
+                session.scalar(
+                    select(func.count())
+                    .select_from(Passage)
+                    .where(~Passage.id.in_(select(PassageTopic.passage_id)))
+                )
+                or 0
+            )
+
 
 class TopicCatalog(Repository):
     """Reads the fitted topics, and records what a person decided about one."""

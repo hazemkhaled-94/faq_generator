@@ -734,7 +734,8 @@ extract-embed:
 #
 # The one stage nothing triggers on its own. Every topic is fitted jointly
 # over one vocabulary, so a topic cannot be rediscovered by itself and a fit
-# is asked for: topics-discover queues a run and the worker picks it up.
+# is asked for: POST /topics/discover queues one for the worker, and
+# topics-discover queues one and runs it here.
 #
 #   make topics-status       GET /topics/status
 #   make topics-discover    POST /topics/discover
@@ -749,7 +750,8 @@ topics:
 	@$(call IDLE,topic-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run
 
-# Report the run queue, and how many topics and memberships are stored.
+# Report the run queue, how many topics and memberships are stored, and how
+# many passages are in no topic.
 topics-status:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --status
 
@@ -1691,15 +1693,21 @@ dagster-dev:
 # They exist because the common paths were six commands long and the order
 # mattered, which is a thing to get wrong rather than a thing to decide.
 
-# The whole of it: bring the stack up, then take the corpus end to end.
+# The whole of it: bring the stack up, then run `corpus`.
 all: up corpus
 
-# Every stage, in the order a document moves through them, stopping at the
-# first failure.
+# Every stage but the topic fit, in the order a document moves through them,
+# stopping at the first failure.
 #
-# Incremental, not a rebuild. Each `-start` queues only what has not been
-# asked for yet, so a corpus already through a stage costs one HTTP call
-# there and a run after one upload does that document alone.
+# Incremental, not a rebuild. Each `-start` queues only the rows never asked
+# for, so a stage the corpus is already through queues nothing and its drain
+# claims nothing. After one upload, parsing, chunking and extraction read
+# that document alone; questions are written only for topics never asked
+# for; the judge enrols only what has no assessment. `questions-balance`
+# draws the release again over every accepted question, with no model.
+#
+# It never fits the topics; `make topics-discover` does. In that step's place
+# it reports how many passages are in no topic.
 #
 # One `$(MAKE)` per line rather than a prerequisite list: prerequisites are
 # ordered only while nothing runs in parallel, and this order is the point.
@@ -1712,7 +1720,7 @@ corpus:
 	$(MAKE) parse-start     && $(MAKE) parse
 	$(MAKE) chunk-start     && $(MAKE) chunk
 	$(MAKE) extract-start   && $(MAKE) extract
-	$(MAKE) topics-discover && $(MAKE) topics
+	$(MAKE) topics-status
 	$(MAKE) questions-start && $(MAKE) questions
 	$(MAKE) questions-balance
 	$(MAKE) assess-start    && $(MAKE) assess
@@ -1790,7 +1798,8 @@ pipeline-retry:
 # ── Dagster, from here rather than from its own UI ─────────────────────────
 #
 # The asset graph already chains the stages: each waits for the one before
-# it to drain, which is the order `corpus` above runs them in. What these
+# it to drain, which is the order `corpus` above runs them in, with a topic
+# fit `corpus` leaves out between extraction and questions. What these
 # decide is WHEN, which is the only thing an orchestrator was ever for.
 #
 # Run inside the webserver container, which is where DAGSTER_HOME and the
@@ -1823,10 +1832,10 @@ runs:
 	-@$(COMPOSE_CMD) exec -T dagster-webserver dagster run list --limit 5 2>&1 \
 	  | grep -E "Run: |Job: |Status: "
 
-# Every stage once, through Dagster instead of in the foreground. The same
-# work `corpus` does; the difference is that it is recorded as a run, with
-# a materialisation and a check per stage, and it survives this terminal
-# closing.
+# Every stage once, through Dagster instead of in the foreground. The work
+# `corpus` does, with a topic fit and without the release draw; it is
+# recorded as a run, with a materialisation and a check per stage, and it
+# survives this terminal closing.
 pipeline:
 	@$(call DAGSTER,job launch -j corpus) | grep -E "Launched run|Error" 
 

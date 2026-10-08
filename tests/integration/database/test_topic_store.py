@@ -627,6 +627,14 @@ def test_the_counts_separate_the_topics_from_the_fits(store) -> None:
     assert counts["passages_with_a_topic"] == 1
 
 
+def test_a_passage_no_topic_holds_is_counted(store) -> None:
+    """Which is what a corpus that grew since its fit is short of."""
+    store.given_passages(de=2)
+    store.store(fitting("de", weights=store.weights_for("de", (0, 0, 0.9))))
+
+    assert store.queue.unplaced() == 1
+
+
 def test_a_passage_in_two_topics_is_counted_once_as_covered(store) -> None:
     """Memberships overlap; coverage does not."""
     store.given_passages(de=1)

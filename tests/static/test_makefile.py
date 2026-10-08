@@ -109,3 +109,11 @@ def test_the_bridge_pass_is_forced_only_when_asked(
     ]
 
     assert ("--force" in bridging) is forced, bridging
+
+
+def test_the_corpus_reports_the_topics_and_never_fits_them() -> None:
+    """`topics-discover` is the refit, asked for on its own."""
+    topics = [line for line in printed("corpus") if "topic_modelling.run" in line]
+
+    assert topics, "the corpus says nothing about the topics"
+    assert all(line.endswith("topic_modelling.run --status") for line in topics), topics

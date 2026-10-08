@@ -45,8 +45,8 @@ Asking <LLM_MODEL> one question...
 
 | Target | Does |
 |---|---|
-| `make all` | Bring the stack up, then take the corpus end to end |
-| `make corpus` | Every stage in order, the judge last, stopping at the first failure. Incremental |
+| `make all` | Bring the stack up, then run `make corpus` |
+| `make corpus` | Every stage but the topic fit in order, the judge last, stopping at the first failure. Incremental. Says how many passages are in no topic |
 | `make pipeline-status` | Where the corpus has got to, every stage in one call |
 | `make services` | Every container, whether it is listening, and where to open it |
 | `make open` | The same, and open the application |
@@ -157,9 +157,9 @@ one vocabulary.
 
 | Target | Does |
 |---|---|
-| `make topics-discover` | Ask for a fit over the whole corpus, and run it |
+| `make topics-discover` | Ask for a fit over the whole corpus, and run it. `make corpus` never does |
 | `make topics` | Run any queued fit here, in the foreground |
-| `make topics-status` | The topics held, and any queued fit |
+| `make topics-status` | The topics held, any queued fit, and how many passages are in no topic |
 | `make topics-stop` | Withdraw a queued fit |
 | `make topics-retry` | Return a failed fit to the queue |
 | `make topics-visualise` | Write each language's stored pyLDAvis page to `./topics/` |
@@ -505,9 +505,9 @@ The asset graph already chains the stages. These decide **when**.
 | `make manual` | Stop it again |
 | `make dagster-dev` | Run the code location on the host |
 
-`auto` is the unattended mode and ships stopped. `pipeline` and `make corpus`
-do the same work; the difference is that `pipeline` survives the terminal
-closing.
+`auto` is the unattended mode and ships stopped. `pipeline` does the work of
+`make corpus` with a topic fit and without the release draw, and survives the
+terminal closing.
 
 All four have an equivalent through the api, for a deployment nobody drives
 from a terminal: `POST /pipeline/run` is `make pipeline`, and

@@ -362,6 +362,11 @@ class CommandDriver:
                 driver.calls.append("counts")
                 return {"modelled": 12}
 
+            def unplaced(self) -> int:
+                """Counts the passages no topic holds."""
+                driver.calls.append("unplaced")
+                return 3
+
             def stop(self) -> int:
                 """Withdraws a queued fit."""
                 driver.calls.append("stop")

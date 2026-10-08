@@ -17,9 +17,9 @@ def cli(monkeypatch, tmp_path) -> CommandDriver:
 
 
 def test_status_reports_the_queue_and_runs_nothing(cli) -> None:
-    """The cheap flag: one query, no worker."""
+    """The cheap flag: the counts and the passages in no topic, no worker."""
     assert cli.run("--status") == 0
-    assert cli.calls == ["counts"], cli.calls
+    assert cli.calls == ["counts", "unplaced"], cli.calls
     assert cli.drains == 0
 
 

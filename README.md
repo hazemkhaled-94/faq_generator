@@ -146,21 +146,25 @@ incremental and skips what is already done.
 Upload a PDF on the Upload page, then take it through:
 
 ```bash
-make corpus                              # every stage in order, stopping at the first failure
+make corpus                              # every stage but the topic fit, stopping at the first failure
+make topics-discover                     # fit the topics, which corpus never does
+make corpus                              # now with questions about them
 make questions-balance                   # draw an evenly composed release
 make questions-export OUT=exam.xlsx FILTER="--released"
 ```
 
 `corpus` runs the stages in order and waits for each to drain before starting
 the next. It drains each on the host, so it stops at the first stage whose
-worker is running and prints the command that stops it. Stage by stage, which
-is what it runs:
+worker is running and prints the command that stops it. It never fits the
+topics: a fit replaces every topic, so it is asked for on its own, and
+`corpus` says how many passages are in no topic instead. Stage by stage,
+which is what it runs:
 
 ```bash
 make parse-start     && make parse       # a stored file becomes a structured document
 make chunk-start     && make chunk       # that document becomes passages
 make extract-start   && make extract     # those passages become facts citing a sentence
-make topics-discover                     # each language becomes topics
+make topics-status                       # how many passages are in no topic
 make questions-start && make questions   # each topic's facts become questions
 ```
 
