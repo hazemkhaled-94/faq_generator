@@ -311,7 +311,7 @@ dev: install certs logs-dir
 	$(COMPOSE_CMD) up -d
 	@echo "Waiting for PostgreSQL..."
 	@$(LOADENV) && \
-	  until $(COMPOSE_CMD) exec -T postgres pg_isready -U "$$POSTGRES_SUPERUSER" -q; \
+	  until $(COMPOSE_CMD) exec -T postgres pg_isready -h 127.0.0.1 -U "$$POSTGRES_SUPERUSER" -q; \
 	  do sleep 2; done
 	$(MAKE) schema
 
