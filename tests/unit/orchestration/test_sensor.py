@@ -248,8 +248,8 @@ def test_two_ticks_over_an_unchanged_queue_share_a_key_through_the_cursor(
 # ── What the orchestrator did not start ────────────────────────────────────
 
 
-def _watching(monkeypatch, **per_stage: dict) -> None:
-    """Makes every stage's /status report what the test says."""
+def _watching(monkeypatch, asked: str = "", **per_stage: dict) -> None:
+    """Makes every stage's /status report what the test says, as `asked` left it."""
 
     class Stub:
         """Stands in for the backend client."""
@@ -260,7 +260,12 @@ def _watching(monkeypatch, **per_stage: dict) -> None:
         def status(self, stage: str) -> Queue:
             """Reports one stage's queue."""
             rows = per_stage.get(stage, {})
-            return Queue(stage=stage, working=False, rows=rows)
+            return Queue(
+                stage=stage,
+                working=False,
+                rows=rows,
+                digests={name: f"{asked}{name}{count}" for name, count in rows.items()},
+            )
 
     monkeypatch.setattr(orchestration, "Backend", Stub)
 
@@ -310,6 +315,27 @@ def test_only_the_stage_that_moved_is_reported(monkeypatch, instance) -> None:
     (event,) = result.asset_events
     assert event.asset_key.to_user_string() == "facts"
     assert event.metadata["since the last tick"].value == 11
+
+
+def test_work_that_replaced_rows_between_two_ticks_is_recorded(
+    monkeypatch, instance
+) -> None:
+    """A rerun, or a refit, that left the count where it was.
+
+    Counting alone read eight documents parsed again inside one tick, and
+    twelve topics refitted as twelve, as nothing having happened.
+    """
+    _watching(monkeypatch, topics={"modelled": 12})
+    context = build_sensor_context(instance=instance)
+    orchestration.progress(context)
+
+    _watching(monkeypatch, asked="refit", topics={"modelled": 12})
+    result = orchestration.progress(
+        build_sensor_context(cursor=context.cursor, instance=context.instance)
+    )
+
+    (event,) = result.asset_events
+    assert event.asset_key.to_user_string() == "topics"
 
 
 def test_a_stage_that_cannot_be_reached_costs_only_itself(
@@ -418,6 +444,19 @@ def test_a_cursor_written_before_failures_were_watched_is_read(
     assert isinstance(answer, SkipReason)
 
 
+def test_a_cursor_written_before_the_worked_rows_were_watched_is_read(
+    monkeypatch, instance
+) -> None:
+    """A pair per stage, with no digest to compare, is not a replacement."""
+    _watching(monkeypatch, parsing={"parsed": 8})
+
+    answer = orchestration.progress(
+        build_sensor_context(cursor=json.dumps({"parsing": [8, 0]}), instance=instance)
+    )
+
+    assert isinstance(answer, SkipReason)
+
+
 def test_every_stage_is_asked_at_once(monkeypatch, instance) -> None:
     """Six stages at the client's 15s timeout is 90s, and a tick is given 60.
 
@@ -460,4 +499,4 @@ def test_a_corpus_run_going_records_its_own_work(monkeypatch, instance) -> None:
     answer = orchestration.progress(context)
 
     assert isinstance(answer, SkipReason)
-    assert json.loads(context.cursor)["parsing"] == [8, 0], "absorbed, not owed"
+    assert json.loads(context.cursor)["parsing"][:2] == [8, 0], "absorbed, not owed"

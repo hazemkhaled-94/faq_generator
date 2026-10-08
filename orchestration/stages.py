@@ -384,3 +384,10 @@ _UNDONE = ("new", "pending", "in_progress", "failed")
 def produced(rows: dict[str, int]) -> int:
     """How many rows of a stage's queue have been worked."""
     return sum(count for status, count in rows.items() if status not in _UNDONE)
+
+
+def worked(digests: dict[str, str]) -> list[str]:
+    """Which rows of a stage's queue have been worked, as their digests."""
+    return [
+        digest for status, digest in sorted(digests.items()) if status not in _UNDONE
+    ]

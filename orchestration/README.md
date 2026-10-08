@@ -86,7 +86,7 @@ deployment whose operators never open this UI at all.
 
 | | |
 |---|---|
-| The `progress` sensor | Polls every stage's `/status` every 30 seconds and files an `AssetMaterialization` when a stage's worked count has risen, and an `AssetCheckEvaluation` when its failed count has moved at all |
+| The `progress` sensor | Polls every stage's `/status` every 30 seconds and files an `AssetMaterialization` when a stage's worked count has risen or its worked rows are other rows at the same count, and an `AssetCheckEvaluation` when its failed count has moved at all |
 
 Without it Dagster saw only its **own** runs. Every other way of setting a
 stage going — `make extract`, `POST /extraction/start`, the Start button, a
@@ -107,11 +107,15 @@ until a Dagster run happens to evaluate it. It is filed under
 once in [`stages.py`](stages.py) so a rename cannot file an evaluation
 against a check Dagster has never heard of.
 
-Its cursor holds the last worked and failed counts per stage, so a tick that
-finds neither moved reports nothing. The first tick after an empty cursor
-records every stage that has produced or failed anything. A cursor written
-before failures were watched holds one number per stage and is read as the
-worked count, so an upgrade does not re-report the whole corpus.
+Its cursor holds the last worked and failed counts per stage and the
+`/status` digests of the worked rows, so a tick that finds none of them
+moved reports nothing. The digests are what show a rerun that finished
+between two ticks, or a refit that wrote as many topics as before. The
+first tick after an empty cursor records every stage that has produced or
+failed anything. A cursor written before failures were watched holds one
+number per stage and is read as the worked count, and one written before
+the digests holds two and is read without them, so an upgrade does not
+re-report the whole corpus.
 
 **The six `/status` reads go out at once.** Sequentially they are six GETs at
 the client's 15s timeout and Dagster gives a sensor tick 60, so a backend

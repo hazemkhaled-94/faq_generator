@@ -180,16 +180,17 @@ def _statuses(backend_url: str, queues: tuple[str, ...]) -> dict[str, Any]:
     return found
 
 
-def _last(recorded: Any) -> tuple[int, int]:
-    """What the cursor says a stage had worked and failed last tick.
+def _last(recorded: Any) -> tuple[int, int, list[str] | None]:
+    """What the cursor says a stage had worked and failed last tick, and which.
 
     A bare int is the shape the cursor held before failures were watched,
-    so a deployment upgrading into this reads its old cursor rather than
-    re-reporting every stage from zero.
+    and a pair the shape before the worked rows were, so a deployment
+    upgrading into this reads its old cursor rather than re-reporting every
+    stage from zero.
     """
     if isinstance(recorded, list):
-        return recorded[0], recorded[1]
-    return recorded or 0, 0
+        return recorded[0], recorded[1], recorded[2] if len(recorded) > 2 else None
+    return recorded or 0, 0, None
 
 
 @sensor(
@@ -210,7 +211,9 @@ def progress(context):
     So the asset is no longer only a trigger. This watches the queues the
     same way the assets do, through /status, and files:
 
-        an AssetMaterialization    when a stage's worked count has risen
+        an AssetMaterialization    when a stage's worked count has risen,
+                                   or its worked rows are other rows at
+                                   the same count
         an AssetCheckEvaluation    when its failed count has moved at all
 
     The check is what makes the graph go red for work Dagster did not run.
@@ -220,8 +223,9 @@ def progress(context):
     either direction, so a `retry` that clears the failures turns the
     asset green again rather than leaving it red until a run happens.
 
-    The cursor holds the last worked and failed counts per stage, so a
-    tick that finds neither moved reports nothing. First tick after an
+    The cursor holds the last worked and failed counts per stage and the
+    digests of the worked rows, so a tick that finds none of them moved
+    reports nothing. First tick after an
     empty cursor records every stage that has produced or failed anything,
     which is how a graph that has been running for weeks without this
     catches up in one poll.
@@ -239,17 +243,21 @@ def progress(context):
 
     events, counted = [], {}
     for name, stage, unit in stages.ALL_STAGES:
-        was_done, was_failed = _last(seen.get(stage))
+        was_done, was_failed, was_worked = _last(seen.get(stage))
         queue = queues.get(stage)
         if queue is None:
-            counted[stage] = [was_done, was_failed]
+            counted[stage] = [was_done, was_failed, was_worked]
             continue
         done, failed = stages.produced(queue.rows), queue.failed
-        counted[stage] = [done, failed]
+        worked = stages.worked(queue.digests)
+        counted[stage] = [done, failed, worked]
+        # ponytail: a rerun under the run name its rows already carry reads
+        # as no change. Upgrade: a finish time per row, which is a migration.
+        replaced = done == was_done and was_worked is not None and worked != was_worked
 
         # Nothing produced is nothing to materialise: a stage with an empty
         # queue has not materialised, it has not run.
-        if done > was_done:
+        if done > was_done or replaced:
             events.append(
                 AssetMaterialization(
                     asset_key=AssetKey(name),
