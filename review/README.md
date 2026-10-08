@@ -183,7 +183,8 @@ Neither reaches a network.
   the answer is newer than the row's own last decision: its creation, a
   verdict, or a change of status.
 - **A topic answer without a name keeps the topic's name.** Only its
-  coverage is written, and `labelled_by` stays as it was.
+  coverage is written, and `labelled_by` stays as it was. An answer without
+  a coverage answer keeps the topic's coverage.
 - **A topic records no decision time beyond its fit.** A rename or a
   coverage change on the Topics page is overwritten by an older answer at
   the next pull.

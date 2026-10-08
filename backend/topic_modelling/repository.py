@@ -426,7 +426,7 @@ class TopicCatalog(Repository):
             ]
 
     def describe(
-        self, topic_id: int, *, label: str | None, include_in_coverage: bool
+        self, topic_id: int, *, label: str | None, include_in_coverage: bool | None
     ) -> StoredTopic | None:
         """Records what a person decided about one topic.
 
@@ -436,7 +436,8 @@ class TopicCatalog(Repository):
         Args:
             topic_id: The topic. A fit request is not one and is not editable.
             label: The name to record, or None to clear it.
-            include_in_coverage: Whether it counts toward coverage reporting.
+            include_in_coverage: Whether it counts toward coverage reporting,
+                or None to leave it as it is.
 
         Returns:
             The topic as it now reads, or None if no topic has that id.
@@ -448,7 +449,9 @@ class TopicCatalog(Repository):
                 .values(
                     label=(label or "").strip() or None,
                     labelled_by="person" if (label or "").strip() else None,
-                    include_in_coverage=include_in_coverage,
+                    include_in_coverage=Topic.include_in_coverage
+                    if include_in_coverage is None
+                    else include_in_coverage,
                 )
             ).rowcount
         if not changed:

@@ -389,6 +389,22 @@ def test_taking_a_topic_out_of_coverage_leaves_its_passages(store) -> None:
     assert described.passages == 1, described.passages
 
 
+def test_naming_a_topic_with_no_coverage_answer_keeps_its_coverage(store) -> None:
+    """A topic taken out of coverage stays out when it is only renamed."""
+    store.given_passages(de=2)
+    store.store(fitting("de", weights=store.weights_for("de", (0, 0, 0.9))))
+    topic_id = store.topic_id("de", 0)
+    store.catalog.describe(topic_id, label=None, include_in_coverage=False)
+
+    described = store.catalog.describe(
+        topic_id, label="Lieferung", include_in_coverage=None
+    )
+
+    assert described is not None
+    assert described.label == "Lieferung"
+    assert described.include_in_coverage is False
+
+
 def test_a_fit_request_is_not_a_topic_and_cannot_be_named(store) -> None:
     """Both live in `topics`, and only one of them is a subject."""
     fit_id = store.request()

@@ -309,16 +309,15 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
         for row_id, record, _ in answered:
             label = (_answer(record, "corrected_label") or "").strip()
             coverage = _answer(record, "in_coverage")
-            # Absent means unanswered, and an unanswered coverage question
-            # must not read as "take it out of coverage".
-            include = coverage != "no"
+            # Unanswered leaves the coverage as it is.
+            include = None if coverage is None else coverage != "no"
             if label:
                 written += bool(
                     catalogs.topics.describe(
                         row_id, label=label, include_in_coverage=include
                     )
                 )
-            elif coverage is not None:
+            elif include is not None:
                 # No name keeps the topic's label and its labelled_by.
                 written += catalogs.facts.cover(row_id, include)
 

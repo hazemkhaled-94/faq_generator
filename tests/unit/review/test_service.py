@@ -248,13 +248,13 @@ def test_a_corrected_label_is_written_with_its_coverage(monkeypatch, settings) -
     assert catalogs.topics.described == [(3, "Fees and charges", False)]
 
 
-def test_an_unanswered_coverage_question_leaves_the_topic_in_coverage(
+def test_an_unanswered_coverage_question_leaves_the_coverage_as_it_was(
     monkeypatch, settings
 ) -> None:
-    """An unanswered coverage question leaves the topic in coverage.
+    """An unanswered coverage question leaves the topic's coverage alone.
 
-    Only `no` takes one out. A reviewer who fixed the name and did not
-    answer the second question has not voted to silence the topic.
+    A reviewer who fixed the name and did not answer the second question
+    has voted neither to silence the topic nor to bring it back.
     """
     catalogs = wired(
         monkeypatch,
@@ -263,7 +263,7 @@ def test_an_unanswered_coverage_question_leaves_the_topic_in_coverage(
 
     pull(datasets.TOPIC_LABELS, settings, catalogs)
 
-    assert catalogs.topics.described == [(3, "Fees", True)]
+    assert catalogs.topics.described == [(3, "Fees", None)]
 
 
 @pytest.mark.parametrize(
