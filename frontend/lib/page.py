@@ -69,7 +69,7 @@ def panel(title: str) -> Iterator[Any]:
 
 
 @contextmanager
-def folds() -> Iterator[Any]:
+def folds() -> Iterator[None]:
     """Opens one row for a service's folds, stacked once one is opened."""
     with st.container(horizontal=True, key="folds"):
         yield
