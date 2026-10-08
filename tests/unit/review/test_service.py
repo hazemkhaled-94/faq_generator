@@ -9,13 +9,19 @@ a topic out of coverage.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
 pytest.importorskip("argilla", reason="the observability group is not installed")
 
 from review import datasets
+from review.records import Held
 from review.service import Catalogs, _answer, pull
+
+#: When every stub record's answer was submitted.
+ANSWERED = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
 
 
 @dataclass
@@ -87,18 +93,27 @@ class Facts:
 
     def __init__(self) -> None:
         """Initialises with nothing written, and every row as it was shown."""
-        self.written: list[tuple[int, str]] = []
+        self.written: list[tuple] = []
+        self.dated: list[tuple[int, datetime]] = []
         self.rewritten: dict[int, str] = {}
+        self.decided: dict[int, datetime] = {}
 
-    def texts(self, name: str, ids) -> dict[int, str]:
-        """What each row reads now."""
+    def held(self, name: str, ids) -> dict[int, Held]:
+        """What each row reads now, and when it was last decided."""
         del name
-        return {one: self.rewritten.get(one, SHOWN) for one in ids}
+        return {
+            one: Held(self.rewritten.get(one, SHOWN), self.decided.get(one))
+            for one in ids
+        }
 
     def review_facts(self, verdicts) -> int:
         """Records the verdicts."""
         self.written += verdicts
         return len(verdicts)
+
+    def date_questions(self, dated) -> None:
+        """Records when each question's verdict was given."""
+        self.dated += dated
 
 
 class Questions:
@@ -146,6 +161,10 @@ def wired(monkeypatch, records: list[Record]) -> Catalogs:
     monkeypatch.setattr(
         "review.service.connect", lambda settings: Client(Dataset(records))
     )
+    monkeypatch.setattr(
+        "review.service._given_at",
+        lambda client, dataset, key: {one.metadata[key]: ANSWERED for one in records},
+    )
     return Catalogs(facts=Facts(), questions=Questions(), topics=Topics())
 
 
@@ -162,7 +181,7 @@ def test_a_submitted_fact_verdict_is_written(monkeypatch, settings) -> None:
     )
 
     assert pull(datasets.FACTS, settings, catalogs) == 1
-    assert catalogs.facts.written == [(41, "rejected")]
+    assert catalogs.facts.written == [(41, "rejected", ANSWERED)]
 
 
 def test_a_draft_is_not_written(monkeypatch, settings) -> None:
@@ -241,7 +260,8 @@ def test_an_unanswered_coverage_question_leaves_the_topic_in_coverage(
     assert catalogs.topics.described == [(3, "Fees", True)]
 
 
-@pytest.mark.parametrize(
+#: Each kind, its id metadata, and an answer a pull would write.
+KINDS = pytest.mark.parametrize(
     ("name", "key", "answers"),
     [
         (datasets.FACTS, "fact_id", [submitted("verdict", "accepted")]),
@@ -249,6 +269,9 @@ def test_an_unanswered_coverage_question_leaves_the_topic_in_coverage(
         (datasets.TOPIC_LABELS, "topic_id", [submitted("in_coverage", "no")]),
     ],
 )
+
+
+@KINDS
 def test_an_answer_about_text_the_row_no_longer_holds_is_not_written(
     monkeypatch, settings, caplog, name, key, answers
 ) -> None:
@@ -263,6 +286,93 @@ def test_an_answer_about_text_the_row_no_longer_holds_is_not_written(
     assert catalogs.questions.decided == []
     assert catalogs.topics.described == []
     assert "1 answer(s)" in caplog.text
+
+
+@KINDS
+def test_an_answer_older_than_the_rows_last_decision_is_not_written(
+    monkeypatch, settings, caplog, name, key, answers
+) -> None:
+    """The later decision wins, and an answer already pulled is not applied again."""
+    catalogs = wired(monkeypatch, [Record({key: 7}, answers)])
+    catalogs.facts.decided[7] = ANSWERED + timedelta(minutes=1)
+
+    with caplog.at_level("INFO", logger="review.service"):
+        assert pull(name, settings, catalogs) == 0
+
+    assert catalogs.facts.written == []
+    assert catalogs.questions.decided == []
+    assert catalogs.topics.described == []
+    assert "1 answer(s) skipped because the row was decided" in caplog.text
+
+
+def test_a_question_verdict_is_dated_when_it_was_given(monkeypatch, settings) -> None:
+    """Not when the pull ran."""
+    catalogs = wired(
+        monkeypatch,
+        [Record({"question_id": 7}, [submitted("verdict", "accepted")])],
+    )
+    catalogs.facts.decided[7] = ANSWERED - timedelta(days=1)
+
+    assert pull(datasets.QUESTIONS, settings, catalogs) == 1
+    assert catalogs.facts.dated == [(7, ANSWERED)]
+
+
+class Listing:
+    """Argilla's own record listing, one page per request."""
+
+    def __init__(self, pages: list[list[dict]]) -> None:
+        """Initialises with the pages to answer with."""
+        self.pages = pages
+        self.offsets: list[int] = []
+
+    def get(self, path: str, params: dict):
+        """The next page."""
+        del path
+        self.offsets.append(params["offset"])
+        body = {"items": self.pages[len(self.offsets) - 1]}
+        return SimpleNamespace(raise_for_status=lambda: None, json=lambda: body)
+
+
+def item(row_id: int, *responses: tuple[str, str]) -> dict:
+    """One record as the listing returns it, with each response's status and time."""
+    return {
+        "metadata": {"question_id": row_id},
+        "responses": [{"status": status, "updated_at": at} for status, at in responses],
+    }
+
+
+def test_when_an_answer_was_given_is_read_off_every_page(monkeypatch) -> None:
+    """The latest submitted response, in UTC; a draft or a record without one is absent."""
+    from review.service import _given_at
+
+    monkeypatch.setattr("review.service._PAGE", 2)
+    listing = Listing(
+        [
+            [
+                item(
+                    7,
+                    ("submitted", "2026-10-01T09:00:00"),
+                    ("draft", "2026-10-02T09:00:00"),
+                ),
+                item(
+                    8,
+                    ("submitted", "2026-10-01T09:00:00"),
+                    ("submitted", "2026-10-03T11:00:00+02:00"),
+                ),
+            ],
+            [item(9, ("draft", "2026-10-01T09:00:00"))],
+        ]
+    )
+
+    given = _given_at(
+        SimpleNamespace(http_client=listing), SimpleNamespace(id="d"), "question_id"
+    )
+
+    assert given == {
+        7: datetime(2026, 10, 1, 9, tzinfo=UTC),
+        8: datetime(2026, 10, 3, 9, tzinfo=UTC),
+    }
+    assert listing.offsets == [0, 2]
 
 
 def test_a_missing_dataset_is_not_an_error(monkeypatch, settings) -> None:

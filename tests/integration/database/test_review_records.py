@@ -21,7 +21,7 @@ right", and every way of getting that wrong is a query:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from seed import digest, document, fact, fitted, link, passage, question
@@ -29,9 +29,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database.qa_generator import Fact, Question, QuestionStatus, ReviewVerdict
+from question_generation.catalog import QuestionCatalog
 from review.records import ReviewRepository
 
 pytestmark = pytest.mark.integration
+
+#: When a person gave the verdicts these tests write.
+GIVEN = datetime(2026, 10, 1, 9, tzinfo=UTC)
 
 
 @pytest.fixture
@@ -143,7 +147,7 @@ def test_asking_for_everything_takes_every_unreviewed_fact(corpus) -> None:
 def test_a_fact_already_judged_is_never_drawn_again(corpus, engine) -> None:
     """A second push would otherwise ask for a verdict already given."""
     judged = corpus["facts"]["Everything is fine."]
-    ReviewRepository().review_facts([(judged, "rejected")])
+    ReviewRepository().review_facts([(judged, "rejected", GIVEN)])
 
     drawn = ReviewRepository().facts(sample=None)
 
@@ -228,12 +232,12 @@ def test_a_verdict_is_written_against_the_row_it_names(corpus, engine) -> None:
     """With the time it was given, which is what a second push reads."""
     judged = corpus["facts"]["The fee is 120 EUR."]
 
-    assert ReviewRepository().review_facts([(judged, "accepted")]) == 1
+    assert ReviewRepository().review_facts([(judged, "accepted", GIVEN)]) == 1
 
     with Session(engine) as session:
         row = session.get(Fact, judged)
         assert row.reviewed_verdict == ReviewVerdict.ACCEPTED
-        assert row.reviewed_at is not None
+        assert row.reviewed_at == GIVEN
 
 
 def test_a_verdict_never_touches_the_checkers_own_column(corpus, engine) -> None:
@@ -243,7 +247,7 @@ def test_a_verdict_never_touches_the_checkers_own_column(corpus, engine) -> None
     re-judgement and then vanish, which is the worst of both.
     """
     judged = corpus["facts"]["The device weighs 4 kg."]
-    ReviewRepository().review_facts([(judged, "accepted")])
+    ReviewRepository().review_facts([(judged, "accepted", GIVEN)])
 
     with Session(engine) as session:
         row = session.get(Fact, judged)
@@ -267,24 +271,54 @@ def test_a_verdict_on_a_row_that_is_gone_is_counted_as_nothing_written(
     corpus,
 ) -> None:
     """A dataset outlives the corpus it was pushed from."""
-    assert ReviewRepository().review_facts([(999_999, "accepted")]) == 0
+    assert ReviewRepository().review_facts([(999_999, "accepted", GIVEN)]) == 0
 
 
 def test_each_row_reads_as_its_record_shows_it(corpus, asked, engine) -> None:
     """What a pull compares a record's text with, and nothing for a row gone."""
+    fitted_at = datetime(2026, 9, 1, tzinfo=UTC)
     with Session(engine) as session:
-        held = fitted(top_terms=["fee", "charge"])
+        held = fitted(top_terms=["fee", "charge"], fitted_at=fitted_at)
         session.add(held)
         session.commit()
         topic_id = held.id
     fee = corpus["facts"]["The fee is 120 EUR."]
     repository = ReviewRepository()
 
-    assert repository.texts("facts", [fee, 999_999]) == {fee: "The fee is 120 EUR."}
-    assert repository.texts("questions", [asked[0]]) == {
-        asked[0]: "How long is allowed for a reply?"
+    facts = repository.held("facts", [fee, 999_999])
+    assert {one: row.text for one, row in facts.items()} == {fee: "The fee is 120 EUR."}
+    assert repository.held("questions", [asked[0]])[asked[0]].text == (
+        "How long is allowed for a reply?"
+    )
+    assert repository.held("topic-labels", [topic_id]) == {
+        topic_id: ("fee, charge", fitted_at)
     }
-    assert repository.texts("topic-labels", [topic_id]) == {topic_id: "fee, charge"}
+
+
+def test_a_fact_is_decided_when_it_was_made_or_judged_since(corpus) -> None:
+    """The later of its creation and its verdict."""
+    fee = corpus["facts"]["The fee is 120 EUR."]
+    repository = ReviewRepository()
+    made = repository.held("facts", [fee])[fee].decided
+    judged = made + timedelta(days=1)
+
+    repository.review_facts([(fee, "accepted", judged)])
+
+    assert made is not None
+    assert repository.held("facts", [fee])[fee].decided == judged
+
+
+def test_a_question_verdict_keeps_the_time_it_was_given(asked, engine) -> None:
+    """`decide` dates the change of status; the verdict keeps the person's time."""
+    QuestionCatalog().decide(asked[0], QuestionStatus.ACCEPTED)
+
+    ReviewRepository().date_questions([(asked[0], GIVEN)])
+
+    with Session(engine) as session:
+        row = session.get(Question, asked[0])
+        assert row.reviewed_at == GIVEN
+        changed = row.status_changed_at
+    assert ReviewRepository().held("questions", [asked[0]])[asked[0]].decided == changed
 
 
 # ── What the review found ─────────────────────────────────────────────────
@@ -310,9 +344,9 @@ def test_a_fact_is_agreed_with_when_the_person_matches_validated(corpus) -> None
     """
     ReviewRepository().review_facts(
         [
-            (corpus["facts"]["A reply is due in five days."], "accepted"),
-            (corpus["facts"]["The device weighs 4 kg."], "rejected"),
-            (corpus["facts"]["The fee is 120 EUR."], "rejected"),
+            (corpus["facts"]["A reply is due in five days."], "accepted", GIVEN),
+            (corpus["facts"]["The device weighs 4 kg."], "rejected", GIVEN),
+            (corpus["facts"]["The fee is 120 EUR."], "rejected", GIVEN),
         ]
     )
 
@@ -358,7 +392,7 @@ def test_both_datasets_are_counted_even_when_only_one_was_reviewed(
 ) -> None:
     """A report naming one dataset cannot say a review is half done."""
     ReviewRepository().review_facts(
-        [(corpus["facts"]["A reply is due in five days."], "accepted")]
+        [(corpus["facts"]["A reply is due in five days."], "accepted", GIVEN)]
     )
 
     counted = ReviewRepository().counts()

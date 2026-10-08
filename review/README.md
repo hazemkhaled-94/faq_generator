@@ -175,7 +175,12 @@ Neither reaches a network.
 
 - **`ARGILLA_API_KEY` is not `ARGILLA_PASSWORD`.**
 - **A draft is not pulled.** Only a submitted answer comes home.
-- **A push replaces what a previous push left.** The Argilla dataset is a
-  disposable copy, not an accumulating record.
+- **A push adds to a dataset and never empties it.** Every answer stays,
+  so a pull applies one only where the row still reads as its record and
+  the answer is newer than the row's own last decision: its creation, a
+  verdict, or a change of status.
+- **A topic records no decision time beyond its fit.** A rename or a
+  coverage change on the Topics page is overwritten by an older answer at
+  the next pull.
 - **`extract-revalidate` does not touch `reviewed_verdict`.**
 - **This never runs in a container.** No image carries the Argilla client.

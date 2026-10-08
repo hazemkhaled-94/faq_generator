@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import argilla as rg
@@ -240,51 +241,67 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
         return 0
 
     key, text = _KEYS[name]
+    given = _given_at(client, dataset, key)
     submitted = [
         record
         for record in dataset.records(with_responses=True)
-        if any(str(one.status) in _SUBMITTED for one in record.responses)
+        if int(record.metadata[key]) in given
     ]
-    now = catalogs.facts.texts(name, [int(one.metadata[key]) for one in submitted])
-    answered = [
-        one for one in submitted if now.get(int(one.metadata[key])) == one.fields[text]
-    ]
-    if moved := len(submitted) - len(answered):
+    rows = catalogs.facts.held(name, [int(one.metadata[key]) for one in submitted])
+    answered, moved, later = [], 0, 0
+    for record in submitted:
+        row_id = int(record.metadata[key])
+        row, at = rows.get(row_id), given[row_id]
+        if row is None or row.text != record.fields[text]:
+            moved += 1
+        elif row.decided is not None and row.decided >= at:
+            later += 1
+        else:
+            answered.append((row_id, record, at))
+    if moved:
         log.warning(
             "%s: %d answer(s) skipped because the row with that id no longer "
             "reads as the record does, so the answer is about another row",
             name,
             moved,
         )
+    if later:
+        log.info(
+            "%s: %d answer(s) skipped because the row was decided at or after "
+            "the answer was given: pulled already, or decided since",
+            name,
+            later,
+        )
 
     if name == datasets.FACTS:
         written = catalogs.facts.review_facts(
             [
-                (int(record.metadata["fact_id"]), verdict)
-                for record in answered
+                (row_id, verdict, at)
+                for row_id, record, at in answered
                 if (verdict := _answer(record, "verdict")) is not None
             ]
         )
     elif name == datasets.QUESTIONS:
-        written = sum(
-            bool(
-                catalogs.questions.decide(int(record.metadata["question_id"]), verdict)
-            )
-            for record in answered
+        dated = [
+            (row_id, at)
+            for row_id, record, at in answered
             if (verdict := _answer(record, "verdict")) is not None
-        )
+            and catalogs.questions.decide(row_id, verdict)
+        ]
+        catalogs.facts.date_questions(dated)
+        written = len(dated)
     else:
         written = sum(
             bool(
                 catalogs.topics.describe(
-                    int(record.metadata["topic_id"]),
+                    row_id,
                     label=_answer(record, "corrected_label"),
                     # Absent means unanswered, and an unanswered coverage
                     # question must not read as "take it out of coverage".
                     include_in_coverage=_answer(record, "in_coverage") != "no",
                 )
             )
-            for record in answered
+            for row_id, record, _ in answered
             if _answer(record, "corrected_label") is not None
             or _answer(record, "in_coverage") is not None
         )
@@ -302,6 +319,43 @@ _KEYS = {
     datasets.QUESTIONS: ("question_id", "question"),
     datasets.TOPIC_LABELS: ("topic_id", "terms"),
 }
+
+#: How many records one page of Argilla's listing asks for.
+_PAGE = 256
+
+
+def _given_at(client: rg.Argilla, dataset: rg.Dataset, key: str) -> dict[int, datetime]:
+    """When each row's latest submitted answer was given, by the row's id.
+
+    Read off Argilla's REST listing: the SDK drops a response's timestamps.
+    """
+    # ponytail: a second read of the dataset beside the SDK's, and the
+    # latest submitted response stands for the record while `_answer` takes
+    # the first; exact for one reviewer. Upgrade: read answers and times
+    # from this one listing.
+    given: dict[int, datetime] = {}
+    offset = 0
+    while True:
+        page = client.http_client.get(
+            f"/api/v1/datasets/{dataset.id}/records",
+            params={"offset": offset, "limit": _PAGE, "include": ["responses"]},
+        )
+        page.raise_for_status()
+        items = page.json()["items"]
+        for item in items:
+            times = [
+                datetime.fromisoformat(one["updated_at"])
+                for one in item.get("responses") or ()
+                if one["status"] == "submitted"
+            ]
+            if times:
+                # Argilla writes UTC without an offset.
+                given[int(item["metadata"][key])] = max(
+                    one if one.tzinfo else one.replace(tzinfo=UTC) for one in times
+                )
+        if len(items) < _PAGE:
+            return given
+        offset += len(items)
 
 
 def answered(dataset) -> set[str]:

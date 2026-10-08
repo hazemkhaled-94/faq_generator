@@ -18,21 +18,43 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from typing import Any
+from datetime import datetime
+from typing import Any, NamedTuple
 
 from sqlalchemy import case, func, select, update
 
 from database.qa_generator import Fact, Question, ReviewVerdict, Topic
 from database.qa_generator.repository import Repository
 
-#: Each dataset's id column, and the text its record shows, keyed by the
-#: names in `review.datasets`.
-_TEXTS = {
-    "facts": (Fact.id, Fact.statement),
-    "questions": (Question.id, Question.question_text),
-    "topic-labels": (Topic.id, func.array_to_string(Topic.top_terms, ", ")),
+#: Each dataset's id column, the text its record shows, and the row's own
+#: last decision: when it was made, or decided since. Keyed by the names in
+#: `review.datasets`. A topic records only when it was fitted.
+_HELD = {
+    "facts": (
+        Fact.id,
+        Fact.statement,
+        func.greatest(Fact.created_at, Fact.reviewed_at),
+    ),
+    "questions": (
+        Question.id,
+        Question.question_text,
+        func.greatest(
+            Question.created_at, Question.status_changed_at, Question.reviewed_at
+        ),
+    ),
+    "topic-labels": (
+        Topic.id,
+        func.array_to_string(Topic.top_terms, ", "),
+        Topic.fitted_at,
+    ),
 }
+
+
+class Held(NamedTuple):
+    """What a row reads now, and when it was last decided."""
+
+    text: str
+    decided: datetime | None
 
 
 @dataclass(frozen=True)
@@ -201,16 +223,21 @@ class ReviewRepository(Repository):
             confidence=one.confidence,
         )
 
-    def texts(self, name: str, ids: Sequence[int]) -> dict[int, str]:
-        """What each of these rows reads now, as its record shows it.
+    def held(self, name: str, ids: Sequence[int]) -> dict[int, Held]:
+        """What each of these rows reads now, and when it was last decided.
 
         A row that is gone is missing.
         """
-        key, text = _TEXTS[name]
+        key, text, decided = _HELD[name]
         with self._session() as session:
-            return dict(session.execute(select(key, text).where(key.in_(ids))).all())
+            return {
+                row_id: Held(said, at)
+                for row_id, said, at in session.execute(
+                    select(key, text, decided).where(key.in_(ids))
+                )
+            }
 
-    def review_facts(self, verdicts: list[tuple[int, str]]) -> int:
+    def review_facts(self, verdicts: list[tuple[int, str, datetime]]) -> int:
         """Records what a person decided about some facts.
 
         Writes `reviewed_verdict` and never `validated`: that one is the
@@ -218,26 +245,36 @@ class ReviewRepository(Repository):
         written there would last until the next re-judgement.
 
         Args:
-            verdicts: Each fact's id beside `accepted` or `rejected`.
+            verdicts: Each fact's id, `accepted` or `rejected`, and when the
+                person said so.
 
         Returns:
             How many rows were written.
         """
         if not verdicts:
             return 0
-        now = datetime.now(UTC)
         written = 0
         with self._session.begin() as session:
-            for fact_id, verdict in verdicts:
+            for fact_id, verdict, at in verdicts:
                 written += session.execute(
                     update(Fact)
                     .where(Fact.id == fact_id)
                     .values(
                         reviewed_verdict=ReviewVerdict(verdict),
-                        reviewed_at=now,
+                        reviewed_at=at,
                     )
                 ).rowcount
         return written
+
+    def date_questions(self, dated: list[tuple[int, datetime]]) -> None:
+        """Sets each question's `reviewed_at` to when the person decided."""
+        with self._session.begin() as session:
+            for question_id, at in dated:
+                session.execute(
+                    update(Question)
+                    .where(Question.id == question_id)
+                    .values(reviewed_at=at)
+                )
 
     def counts(self) -> dict[str, Any]:
         """How much of the corpus has been looked at, and who agreed.
