@@ -161,12 +161,14 @@ def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         verdicts.clear()
 
     for question in catalog.judged(within):
+        if question.status == QuestionStatus.REJECTED:
+            continue
         # What this pass has decided to reject and not yet written. Held out
         # of the duplicate probe, which reads the stored status and would
         # otherwise answer differently either side of a flush.
         pending = [question_id for question_id, _ in verdicts]
         failed = _recheck(catalog, settings, question, pending)
-        if failed and question.status != QuestionStatus.REJECTED:
+        if failed:
             code, reason = failed
             log.info("rejecting question %d: %s (%s)", question.id, reason, code)
             verdicts.append((question.id, code))

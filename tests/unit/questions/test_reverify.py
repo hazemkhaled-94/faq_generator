@@ -13,7 +13,7 @@ import pytest
 from database.qa_generator import QuestionRejection, ReviewVerdict
 from question_generation.config import Settings
 from question_generation.models import JudgedQuestion, Neighbour
-from question_generation.service import _recheck
+from question_generation.service import _recheck, reverify
 
 
 class _Twin:
@@ -107,3 +107,21 @@ def test_a_question_a_person_accepted_falls_with_its_facts() -> None:
     failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
 
     assert failed is not None and failed[0] == QuestionRejection.SOURCE_CHANGED
+
+
+class _Rejected:
+    """A catalogue holding one rejected question, whose probe must not run."""
+
+    def judged(self, within=None):
+        yield _stored(status="rejected", embedding=[1.0])
+
+    def nearest(self, embedding, before=None, excluding=()):
+        raise AssertionError("a rejected question was probed")
+
+    def reject(self, verdicts) -> int:
+        return len(verdicts)
+
+
+def test_a_rejected_question_is_not_checked_again() -> None:
+    """It can only be rejected, so the parse and the probe are skipped."""
+    assert reverify(_Rejected(), Settings.load()) == 0  # type: ignore[arg-type]
