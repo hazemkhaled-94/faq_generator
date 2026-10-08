@@ -59,6 +59,22 @@ def test_the_provenance_names_the_model_and_the_prompt() -> None:
     assert provenance.temperature == 0.0
 
 
+def test_a_capped_prompt_is_recorded_under_a_version_of_its_own() -> None:
+    """The cap paragraph is part of the text the model is sent."""
+    from extraction.prompts import catalogue
+
+    def recorded(cap: int | None) -> str:
+        return next(one for one in catalogue(cap) if one.name == "atomic").version
+
+    client = _Client(_Answer())
+    capped = LlmExtractor(client, cap=4)
+    capped.extract(passage())
+
+    assert capped.provenance.prompt_version == recorded(4)
+    assert client.asked["prompt_version"] == recorded(4)
+    assert recorded(4) != recorded(None) == PROMPT_VERSION
+
+
 def test_the_sentences_are_sent_numbered() -> None:
     """The number is what a citation resolves against."""
     client = _Client(_Answer())

@@ -387,3 +387,41 @@ def test_a_narrowed_rerun_refuses_while_other_rows_are_queued(monkeypatch) -> No
     queue = _narrowed_main(monkeypatch, ["--rerun", "--only", "topic=7"])
 
     assert queue.reset_within == [], "refused before the reset"
+
+
+def test_a_rebuilt_worker_records_its_prompts_again(monkeypatch) -> None:
+    """A setting that moved can move the text a stage sends."""
+    from settings import store
+    from stages import cli
+
+    settings = {"version": "before"}
+    monkeypatch.setattr(store, "current", lambda: settings["version"])
+    monkeypatch.setattr(cli.telemetry, "configure", lambda *_, **__: None)
+    monkeypatch.setattr(cli.telemetry, "trace_engine", lambda engine: None)
+    monkeypatch.setattr(cli, "engine", lambda: None)
+    watched: list = []
+    monkeypatch.setattr(cli, "watch", lambda drain, seconds: watched.append(drain))
+    recorded: list[str] = []
+
+    class _Service:
+        """A service that drains nothing."""
+
+        def drain(self, stopping=None) -> int:
+            """Drains nothing."""
+            return 0
+
+    cli.queue_main(
+        name="extraction",
+        module="extraction.run",
+        repository=PassageQueue,
+        build_service=_Service,
+        argv=["--watch"],
+        prompts=lambda: recorded.append(settings["version"]) or 0,
+    )
+    (drain,) = watched
+    drain(lambda: False)
+    drain(lambda: False)
+    settings["version"] = "after"
+    drain(lambda: False)
+
+    assert recorded == ["before", "after"]

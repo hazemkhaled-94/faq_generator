@@ -171,7 +171,7 @@ RECORDED = {
     ("questions", "verifier: supported"): ("2", "c97daca1b67a1e12"),
     ("questions", "verifier: computes"): ("2", "2667ae6169e5343e"),
     ("questions", "verifier: follows"): ("2", "9941c681a2936bc1"),
-    ("extraction", "atomic"): ("9", "c25cb9725eac75db"),
+    ("extraction", "atomic"): ("9+cap4", "c25cb9725eac75db"),
     ("extraction", "digest"): ("3", "f7003be75e42b82e"),
     ("extraction", "bridge"): ("4", "d93f5daae44104bb"),
     ("topics", "label"): ("1", "744885b5f08d5066"),

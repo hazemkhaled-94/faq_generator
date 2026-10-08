@@ -33,7 +33,7 @@ def catalogue(cap: int | None = None) -> list[Composed]:
     return [
         Composed(
             "atomic",
-            llm.PROMPT_VERSION,
+            llm.version(cap),
             llm.composed(cap),
             llm._USER,
             llm._Facts.model_json_schema(),

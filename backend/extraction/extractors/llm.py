@@ -163,6 +163,11 @@ def composed(cap: int | None = None) -> str:
     return _SYSTEM + _CAP.format(cap=cap) if cap else _SYSTEM
 
 
+def version(cap: int | None = None) -> str:
+    """The version this prompt is recorded under for one cap, as "9+cap4"."""
+    return f"{PROMPT_VERSION}+cap{cap}" if cap else PROMPT_VERSION
+
+
 class LlmExtractor(Extractor):
     """Reads a passage's claims one at a time with a local model.
 
@@ -185,13 +190,14 @@ class LlmExtractor(Extractor):
         """
         self._client = client
         self._system = composed(cap)
+        self._version = version(cap)
 
     @property
     def provenance(self) -> Provenance:
         """What produced these facts, recorded on each one."""
         return Provenance(
             model=self._client.model,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=self._version,
             temperature=self._client.temperature,
         )
 
@@ -213,7 +219,7 @@ class LlmExtractor(Extractor):
                 system=self._system,
                 user=self._prompt(passage),
                 shape=_Facts,
-                prompt_version=PROMPT_VERSION,
+                prompt_version=self._version,
             )
         except ModelUnavailable as exc:
             raise ExtractionFailed(str(exc)) from exc
