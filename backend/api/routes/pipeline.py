@@ -197,7 +197,7 @@ def state() -> Pipeline:
     },
 )
 def run() -> Run:
-    """Takes the whole corpus through every stage, in order.
+    """Takes the whole corpus through every stage but the topic fit, in order.
 
     Returns at once with the run that was started; it does not wait for it.
     The work happens where it always happens - in the stage workers, one row
@@ -364,10 +364,9 @@ def automate(change: AutomationChange) -> Automation:
     """Switches the two triggers on or off.
 
     `on_arrival` starts a run when documents are sitting unasked-for, which
-    is what makes the pipeline unattended. `nightly` runs the whole corpus at
-    02:00 UTC, which is worth having because a topic fit goes stale on every
-    new document. Both ship off: a stack that starts working the moment it
-    comes up is one nobody chose.
+    is what makes the pipeline unattended. `nightly` runs the corpus job, every
+    stage but the topic fit, at 02:00 UTC. Both ship off: a stack that starts
+    working the moment it comes up is one nobody chose.
 
     Omitting either, or sending null, leaves it as it is.
 

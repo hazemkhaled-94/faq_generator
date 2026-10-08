@@ -71,9 +71,10 @@ ingest_service = build_service(settings)
 removal_service = build_removal()
 
 #: The orchestrator, for the one control that is not about a single stage:
-#: running every stage in order. Built whether or not DAGSTER_URL is set -
-#: without it every call reports itself unavailable, which is a deployment
-#: that has no orchestrator rather than one that is broken.
+#: running every stage but the topic fit in order. Built whether or not
+#: DAGSTER_URL is set - without it every call reports itself unavailable,
+#: which is a deployment that has no orchestrator rather than one that is
+#: broken.
 orchestrator = Dagster()
 
 

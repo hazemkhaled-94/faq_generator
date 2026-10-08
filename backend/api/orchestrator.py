@@ -42,7 +42,8 @@ log = logging.getLogger(__name__)
 LOCATION = "qa_generator"
 REPOSITORY = "__repository__"
 
-#: The job that runs every stage in the order a document moves through them.
+#: The job that runs every stage but the topic fit, in the order a document
+#: moves through them.
 #: Defined in `orchestration/__init__.py`; named here and built nowhere.
 JOB = "corpus"
 
