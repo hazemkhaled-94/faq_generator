@@ -663,7 +663,15 @@ class Citation:
     document: str
     doc_sha256: str
     ordinal: int
-    page: int | None
+    #: The page the passage is on, or first–last where it runs over more.
+    page: int | str | None
+
+
+def pages(first: int | None, last: int | None) -> int | str | None:
+    """A passage's page, or its first and last page where they differ."""
+    if first is None or last in (None, first):
+        return first
+    return f"{first}–{last}"
 
 
 @dataclass(frozen=True)

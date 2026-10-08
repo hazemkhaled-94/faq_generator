@@ -16,7 +16,12 @@ import pandas as pd
 import pytest
 
 from question_generation.export import _CELL_LIMIT, _flatten, workbook
-from question_generation.models import Citation, QuestionQuality, StoredQuestion
+from question_generation.models import (
+    Citation,
+    QuestionQuality,
+    StoredQuestion,
+    pages,
+)
 
 
 def stored(id: int = 1, **overrides) -> StoredQuestion:
@@ -196,6 +201,15 @@ def test_nothing_selected_still_has_its_headings() -> None:
     assert list(read) == ["Questions", "Citations", "Assessment", "Summary"]
     assert read["Questions"].empty
     assert "Question" in read["Questions"].columns
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "page"),
+    [(3, 5, "3–5"), (2, 2, 2), (2, None, 2), (None, None, None)],
+)
+def test_a_citation_names_every_page_its_passage_runs_over(first, last, page) -> None:
+    """The start alone where the passage stays on one page."""
+    assert pages(first, last) == page
 
 
 def test_a_cell_too_long_for_excel_is_cut_and_marked() -> None:

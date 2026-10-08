@@ -47,6 +47,7 @@ from question_generation.models import (
     QuestionQuality,
     QuestionSource,
     StoredQuestion,
+    pages,
 )
 from question_generation.queue import HOLDS, IS_TOPIC
 from question_generation.types import CHECKED
@@ -845,6 +846,7 @@ class QuestionCatalog(Repository):
                     Passage.doc_sha256,
                     Passage.ordinal,
                     Passage.page_from,
+                    Passage.page_to,
                     Document.title,
                 )
                 .select_from(QuestionFact)
@@ -865,7 +867,7 @@ class QuestionCatalog(Repository):
                 document=row.title or row.doc_sha256[:12],
                 doc_sha256=row.doc_sha256,
                 ordinal=row.ordinal,
-                page=row.page_from,
+                page=pages(row.page_from, row.page_to),
             )
             for row in rows
         ]
