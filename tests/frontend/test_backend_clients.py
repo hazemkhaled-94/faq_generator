@@ -2,25 +2,34 @@
 
 from __future__ import annotations
 
+import pytest
+import requests
+
+from lib.backend.catalog import CatalogApi
+from lib.backend.health import HealthApi
 from lib.backend.pipeline import PipelineApi
+from lib.backend.settings import SettingsApi
+from lib.backend.upload import UploadApi
 
 
 class Session:
-    """Answers every request with 200 and records what was sent."""
+    """Answers every request with one status and records what was sent."""
 
-    def __init__(self) -> None:
+    def __init__(self, status: int = 200) -> None:
+        self.status = status
         self.sent: list[tuple[str, str, float]] = []
 
     def request(self, method: str, url: str, *, timeout: float, **kwargs):
         """Records one request and answers it."""
         self.sent.append((method, url, timeout))
+        status = self.status
 
         class Answered:
-            status_code = 200
+            status_code = status
 
-            @staticmethod
-            def raise_for_status() -> None:
-                return None
+            def raise_for_status(self) -> None:
+                if self.status_code >= 400:
+                    raise requests.exceptions.HTTPError(response=self)  # type: ignore[arg-type]
 
             @staticmethod
             def json() -> dict:
@@ -37,3 +46,48 @@ def test_the_automation_switches_are_saved_with_a_put() -> None:
 
     assert (saved, said) == (True, "Saved.")
     assert session.sent[0][:2] == ("PUT", "http://api/pipeline/automation")
+
+
+@pytest.mark.parametrize(
+    ("call", "sent"),
+    [
+        (
+            lambda session: HealthApi("http://api", session).components(),
+            ("GET", "http://api/status", 10.0),
+        ),
+        (
+            lambda session: SettingsApi("http://api", session).change_settings(
+                "questions", {"A_COUNT": "1"}, "v1"
+            ),
+            ("PATCH", "http://api/settings/questions", 30.0),
+        ),
+        (
+            lambda session: CatalogApi("http://api", session).delete("a" * 64),
+            ("DELETE", f"http://api/documents/{'a' * 64}", 60.0),
+        ),
+        (
+            lambda session: UploadApi("http://api", session).add_document(
+                "report.pdf", b"%PDF-1.4"
+            ),
+            ("POST", "http://api/documents", 60.0),
+        ),
+    ],
+    ids=["GET", "PATCH", "DELETE", "POST"],
+)
+def test_each_verb_is_sent_with_its_own_timeout(call, sent) -> None:
+    """A verb missing from the timeouts raised before anything was sent."""
+    session = Session()
+
+    call(session)
+
+    assert session.sent == [sent]
+
+
+def test_an_error_status_is_raised_rather_than_read() -> None:
+    """The page renders the refusal; the client never hands back its body."""
+    session = Session(status=500)
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        SettingsApi("http://api", session).settings("questions")  # type: ignore[arg-type]
+
+    assert session.sent == [("GET", "http://api/settings/questions", 10.0)]
