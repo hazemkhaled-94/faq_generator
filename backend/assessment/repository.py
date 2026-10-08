@@ -104,14 +104,18 @@ APPROVED = case((_THIN, None), else_=Assessment.approved)
 _FACTS_SHOWN = 8
 
 #: What the pipeline's own checker or gates decided about each artefact,
-#: as one word. `accepted` where nothing refused it, so it reads the same
-#: for all three kinds and the judge's verdict can be put beside it.
+#: as one word. `accepted` where nothing refused it or a person accepted a
+#: question over a gate, so it reads the same for all three kinds and the
+#: judge's verdict can be put beside it.
 _VERDICT: dict[str, Any] = {
     ArtifactKind.FACT: func.coalesce(Fact.rejection_code, "accepted"),
     ArtifactKind.TOPIC: case(
         (Topic.include_in_coverage.is_(True), "accepted"), else_="out_of_coverage"
     ),
-    ArtifactKind.QUESTION: func.coalesce(Question.rejected_reason, Question.status),
+    ArtifactKind.QUESTION: case(
+        (Question.status == QuestionStatus.ACCEPTED, "accepted"),
+        else_=func.coalesce(Question.rejected_reason, Question.status),
+    ),
 }
 
 #: The artefact in one line, for a table cell and a workbook row.

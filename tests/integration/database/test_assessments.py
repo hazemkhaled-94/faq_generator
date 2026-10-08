@@ -26,6 +26,7 @@ from database.qa_generator import (
     AssessmentMetric,
     Fact,
     JudgeMetric,
+    Question,
     QuestionStatus,
     Status,
 )
@@ -317,6 +318,28 @@ def test_the_report_counts_a_disagreement_only_one_way(corpus, engine) -> None:
     assert quality.judged == 1
     assert quality.approved == 0
     assert quality.disagreements == 1, "the seeded fact is validated"
+
+
+def test_a_question_a_person_accepted_over_a_gate_reads_accepted(
+    corpus, engine
+) -> None:
+    """Accepting keeps the gate's reason, and the status is what was decided."""
+    with Session(engine) as session:
+        session.get(Question, corpus["question"]).rejected_reason = "duplicate"
+        session.commit()
+    queue = AssessmentQueue(kinds=("question",))
+    queue.start()
+    claimed = queue.claim()
+    assert claimed is not None
+    queue.record(_judged(claimed.assessment_id, approved=False))
+    catalog = AssessmentCatalog()
+
+    _, rows = catalog.page(disagreements=True)
+
+    assert [(one.artifact_id, one.verdict) for one in rows] == [
+        (corpus["question"], "accepted")
+    ]
+    assert catalog.quality("question").disagreements == 1
 
 
 def test_a_thin_verdict_is_neither_approved_nor_refused(corpus) -> None:
