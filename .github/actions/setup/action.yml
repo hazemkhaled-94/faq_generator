@@ -4,7 +4,7 @@ description: Python, poetry, and the dependencies every job needs, from cache.
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
       id: python
       with:
         # Below 3.14: gensim builds against CPython internals removed there,
@@ -23,7 +23,7 @@ runs:
 
     # Keyed on the lock and on the Makefile, which is where the spaCy model
     # names live. A miss costs the full install, torch included.
-    - uses: actions/cache@v4
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       id: cache
       with:
         path: .venv

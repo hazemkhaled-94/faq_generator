@@ -51,6 +51,24 @@ def test_every_local_action_a_job_uses_exists(path: Path) -> None:
     assert not missing, sorted(missing)
 
 
+@pytest.mark.parametrize(
+    "path",
+    [*WORKFLOWS, *sorted((ROOT / ".github/actions").glob("*/action.yml"))],
+    ids=lambda p: p.relative_to(ROOT / ".github").as_posix(),
+)
+def test_every_action_from_elsewhere_is_pinned_to_a_commit(path: Path) -> None:
+    """A tag can be moved to other code; a commit cannot."""
+    used = re.findall(r"uses:\s*([^\s#]+)", path.read_text())
+    loose = [
+        one
+        for one in used
+        if not one.startswith("./") and not re.fullmatch(r"[^@]+@[0-9a-f]{40}", one)
+    ]
+
+    assert used, path.name
+    assert not loose, loose
+
+
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
 def test_every_marker_a_workflow_selects_on_is_registered(path: Path) -> None:
     """A renamed marker would deselect everything and pass."""
