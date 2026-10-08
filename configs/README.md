@@ -16,7 +16,7 @@ both are worth reviewing in a diff. See
 | [`filebeat/`](filebeat/) | What the log shipper reads, and where it puts it |
 | [`grafana/`](grafana/) | Three datasources and four dashboards, provisioned |
 | [`postgres/`](postgres/) | The init script: the databases, the roles and the two extensions |
-| [`seaweedfs/`](seaweedfs/) | The S3 gateway's Caddyfile, the bucket init and the entrypoint |
+| [`seaweedfs/`](seaweedfs/) | The UI proxy's Caddyfile, and the S3 gateway's bucket init and entrypoint |
 
 ## `env/`
 
@@ -111,8 +111,8 @@ file does nothing.
 ## `seaweedfs/`
 
 [`bucket-init.sh`](seaweedfs/bucket-init.sh) creates the buckets `S3_BUCKETS`
-names, at first boot. [`Caddyfile`](seaweedfs/Caddyfile) fronts the S3
-gateway.
+names, at first boot. [`Caddyfile`](seaweedfs/Caddyfile) fronts the master
+and filer UIs inside the network; it publishes no port.
 
 ## `dagster/`
 

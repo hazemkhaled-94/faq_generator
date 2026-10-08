@@ -8,14 +8,14 @@ name: qa_generator
 # Before deployment, replace it with three:
 #
 #   frontend: {}          api, streamlit, adminer, phoenix, argilla,
-#                         seaweedfs-s3, seaweedfs-ui
+#                         seaweedfs-s3
 #   backend:              every service; no host access, no outbound
 #     internal: true
 #   egress: {}            the five workers only
 #
-# Then drop `ports:` from postgres, seaweedfs-volume and seaweedfs-volume2.
-# Postgres is then reached through adminer, and the seaweedfs master and
-# filer UIs through seaweedfs-ui.
+# Then drop `ports:` from postgres, which is then reached through adminer.
+# The seaweedfs master, filer and volume servers publish no port; the host
+# reaches the object store through seaweedfs-s3.
 #
 # Two constraints:
 #   - Publish a port only from a non-internal network.
@@ -335,8 +335,6 @@ services:
       TZ: UTC
     volumes:
       - seaweedfs_volume:/data
-    ports:
-      - "127.0.0.1:${SEAWEEDFS_VOLUME_PORT}:8080"
     depends_on:
       seaweedfs-master: { condition: service_healthy }
     healthcheck:
@@ -368,8 +366,6 @@ services:
       TZ: UTC
     volumes:
       - seaweedfs_volume2:/data
-    ports:
-      - "127.0.0.1:${SEAWEEDFS_VOLUME2_PORT}:8081"
     depends_on:
       seaweedfs-master: { condition: service_healthy }
     healthcheck:
@@ -449,7 +445,7 @@ services:
       resources:
         limits: { cpus: "0.5", memory: 256M }
 
-  # Reverse proxy for the master and filer UIs.
+  # Reverse proxy for the master and filer UIs, inside the network only.
   seaweedfs-ui:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -457,9 +453,6 @@ services:
       TZ: UTC
     volumes:
       - ./configs/seaweedfs/Caddyfile:/etc/caddy/Caddyfile:ro
-    ports:
-      - "127.0.0.1:${SEAWEEDFS_MASTER_PORT}:9333"
-      - "127.0.0.1:${SEAWEEDFS_FILER_PORT}:8888"
     depends_on:
       seaweedfs-master: { condition: service_healthy }
       seaweedfs-filer:  { condition: service_healthy }
@@ -513,9 +506,7 @@ services:
         argilla=http://localhost:${ARGILLA_PORT},
         phoenix=http://localhost:${PHOENIX_PORT},
         grafana=http://localhost:${GRAFANA_PORT},
-        adminer=http://localhost:${ADMINER_PORT},
-        seaweedfs-ui=http://localhost:${SEAWEEDFS_MASTER_PORT},
-        seaweedfs-filer=http://localhost:${SEAWEEDFS_FILER_PORT}
+        adminer=http://localhost:${ADMINER_PORT}
     volumes:
       - ./backend/api:/app/api:ro
       - ./backend/database:/app/database:ro

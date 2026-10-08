@@ -286,3 +286,15 @@ def test_every_published_port_listens_on_the_loopback_only() -> None:
     ]
 
     assert not open_to_all, "\n".join(open_to_all)
+
+
+def test_the_object_store_is_published_through_its_s3_gateway_only() -> None:
+    """The master, filer and volume servers answer without credentials."""
+    services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    published = sorted(
+        name
+        for name, service in services.items()
+        if name.startswith("seaweedfs") and service.get("ports")
+    )
+
+    assert published == ["seaweedfs-s3"]
