@@ -126,6 +126,12 @@ _FIELDS = {"Document, title or digest": "any"}
 #: The parse states a document can be narrowed to.
 _STATES = ("new", "pending", "in_progress", "parsed", "failed")
 
+#: What either deletion takes beyond the document's own rows.
+_ALSO = (
+    "The questions resting on its facts go too, person-reviewed and released "
+    "ones included, and so does every bridge it shares with another document."
+)
+
 #: Everything a document row holds, by the heading the detail table gives it.
 _ATTRIBUTES = {
     "Document": "filename",
@@ -267,8 +273,8 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
     """Offers the two deletions, each behind its own confirmation."""
     chosen = stage.removal(
         "documents",
-        "Acts on this document only. The rows and the file are archived "
-        "rather than destroyed, and nothing here puts them back.",
+        "The rows and the file are archived rather than destroyed, and "
+        "nothing here puts them back.",
         {
             "derived": (
                 "Delete passages and facts",
@@ -277,7 +283,7 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
                     "document, its file and its parsed form stay, and "
                     "chunking returns to new."
                 ),
-                f"Delete every passage and fact drawn from {name}?",
+                f"Delete every passage and fact drawn from {name}? {_ALSO}",
             ),
             "whole": (
                 "Delete document",
@@ -285,7 +291,7 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
                     "Deletes the document row, the file, the parsed form and "
                     "everything drawn from it."
                 ),
-                f"Delete {name} and everything drawn from it?",
+                f"Delete {name} and everything drawn from it? {_ALSO}",
             ),
         },
         subject=sha,

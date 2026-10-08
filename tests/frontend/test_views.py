@@ -361,6 +361,19 @@ def test_deleting_the_derived_data_keeps_the_document(open_view) -> None:
     assert [one for one in client.calls("delete") if one[2].get("derived_only")]
 
 
+@pytest.mark.parametrize("label", ("Delete passages and facts", "Delete document"))
+def test_a_document_deletion_names_the_questions_and_bridges_it_takes(
+    open_view, label
+) -> None:
+    """They go with the facts, so the confirmation says so."""
+    armed = open_view("documents").select(0).press(label)
+    said = " ".join(armed.warnings())
+
+    assert "person-reviewed and released" in said
+    assert "bridge" in said
+    assert "this document only" not in armed.html()
+
+
 # ── Redo ──────────────────────────────────────────────────────────────────
 
 #: The pages whose Redo deletes what was built on the work, by what the
