@@ -109,5 +109,5 @@ def test_the_verdict_carries_what_abstained() -> None:
 
 
 def test_a_verdict_with_no_judge_records_none() -> None:
-    """The default, which the re-check in `service.py` relies on."""
+    """The default."""
     assert QuestionChecker._verdict(candidate(), None, None).gates_abstained == ()

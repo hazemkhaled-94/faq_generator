@@ -220,10 +220,24 @@ class QuestionChecker:
             bounds=self._bounds,
             titles=candidate.group.titles,
         )
-        if failed:
+
+        def done(
+            failed: tuple[str, str] | None, embedding: list[float] | None = None
+        ) -> CheckedQuestion:
+            """The verdict, with everything read so far."""
             return self._verdict(
-                candidate, failed, None, self._long_answer_chars, form, ran, readings
+                candidate,
+                failed,
+                embedding,
+                self._long_answer_chars,
+                form,
+                ran,
+                readings,
+                abstained,
             )
+
+        if failed:
+            return done(failed)
 
         # Free, and only an unanswerable question can fail it: an answerable
         # one is about its material by construction, because the answer came
@@ -245,8 +259,7 @@ class QuestionChecker:
                 candidate.group.lemmas,
                 self._off_topic_overlap,
             ):
-                return self._verdict(
-                    candidate,
+                return done(
                     (
                         QuestionRejection.OFF_TOPIC,
                         (
@@ -254,12 +267,7 @@ class QuestionChecker:
                             "name, so any chatbot declines it and declining it "
                             "proves nothing"
                         ),
-                    ),
-                    None,
-                    self._long_answer_chars,
-                    form,
-                    ran,
-                    readings,
+                    )
                 )
 
         # Free, and ahead of the embedding for that reason: each of these is
@@ -267,9 +275,7 @@ class QuestionChecker:
         ran.append("kind_and_thread")
         failed = self._kind(candidate) or self._thread(candidate)
         if failed:
-            return self._verdict(
-                candidate, failed, None, self._long_answer_chars, form, ran, readings
-            )
+            return done(failed)
 
         ran.append("near_duplicate")
         embedding = self._embedder.embed(candidate.question_text)
@@ -298,16 +304,7 @@ class QuestionChecker:
             language=candidate.group.language,
         )
         if failed:
-            return self._verdict(
-                candidate,
-                failed,
-                embedding,
-                self._long_answer_chars,
-                form,
-                ran,
-                readings,
-                abstained,
-            )
+            return done(failed, embedding)
 
         # Before the round trip, because none of it reads a passage: a
         # question naming its own source is refused without ever paying for
@@ -315,28 +312,10 @@ class QuestionChecker:
         ran.append("phrasing")
         failed = self._phrasing(candidate, abstained)
         if failed:
-            return self._verdict(
-                candidate,
-                failed,
-                embedding,
-                self._long_answer_chars,
-                form,
-                ran,
-                readings,
-                abstained,
-            )
+            return done(failed, embedding)
 
         ran.append("round_trip")
-        return self._verdict(
-            candidate,
-            self._round_trip(candidate, form, embedding, readings),
-            embedding,
-            self._long_answer_chars,
-            form,
-            ran,
-            readings,
-            abstained,
-        )
+        return done(self._round_trip(candidate, form, embedding, readings), embedding)
 
     def _kind(self, candidate: Candidate) -> tuple[str, str] | None:
         """What a rule can settle about the kind and the long answer.
@@ -906,8 +885,7 @@ class QuestionChecker:
         re-checked to the same verdict.
 
         `ran` is every gate that read it and `readings` is what the ones
-        that MEASURED something read. Both defaulted, because the re-check
-        in `service.py` builds a verdict without going through `check`.
+        that MEASURED something read.
         """
         code, reason = failed if failed else (None, "")
         if code:
