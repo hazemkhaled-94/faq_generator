@@ -15,6 +15,7 @@ from pages import (
     OWNED,
     PASSAGE_DETAIL,
     QUESTION,
+    QUESTION_QUALITY,
     QUESTION_SOURCE,
     SHA,
     Answers,
@@ -620,6 +621,28 @@ def test_a_workbook_is_dropped_when_the_filter_moves_under_it(open_view) -> None
 
     assert moved.button("Build a workbook") is not None
     assert not moved.downloads()
+
+
+def test_a_workbook_is_dropped_once_a_verdict_moves_the_counts(open_view) -> None:
+    """A question rejected a moment ago must not download as accepted."""
+    decided: list[tuple] = []
+    client = Answers(
+        **answers(
+            question_workbook=b"PK\x03\x04 a workbook",
+            decide_question=lambda *asked: decided.append(asked) or QUESTION,
+            question_quality=lambda **_: changed(
+                QUESTION_QUALITY, accepted=1 - len(decided)
+            ),
+        )
+    )
+    built = open_view("questions", client).press("Build a workbook").select(0)
+    assert built.downloads()
+
+    judged = built.press("Reject")
+
+    assert decided == [(QUESTION["id"], "rejected")]
+    assert not judged.downloads()
+    assert judged.button("Build a workbook") is not None
 
 
 def test_the_questions_page_says_when_a_cited_fact_no_longer_holds(open_view) -> None:

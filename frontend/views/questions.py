@@ -517,13 +517,13 @@ def view() -> None:
                 ),
             },
         )
-        _export(client, where, total)
+        _export(client, where, total, quality)
 
     if picked is not None:
         _detail(client, rows[picked])
 
 
-def _export(client, where: dict, total: int) -> None:
+def _export(client, where: dict, total: int, quality: dict) -> None:
     """Offers the filtered questions as a workbook, built when asked for.
 
     Two steps rather than one, and the reason is what `st.download_button`
@@ -532,11 +532,14 @@ def _export(client, where: dict, total: int) -> None:
     search box, for a set this page is usually showing all of. So the
     first press builds it and the second saves it.
 
-    Kept against the filter it was built from. A workbook offered after the
-    filter moved under it is the wrong set under a name that looks right,
-    which is worse than no button.
+    Kept against the filter it was built from and the counts it was built
+    under. A workbook offered after either moved under it is the wrong set
+    under a name that looks right, which is worse than no button.
     """
-    asked = json.dumps(where, sort_keys=True, default=str)
+    # ponytail: the counts are the data stamp, so a change they do not see
+    # (an assessment verdict, a release drawn at the same totals) keeps the
+    # old workbook. The upgrade is a version the API bumps on every write.
+    asked = json.dumps([where, quality], sort_keys=True, default=str)
     built = st.session_state.get("questions-workbook")
 
     if built and built[0] == asked:
