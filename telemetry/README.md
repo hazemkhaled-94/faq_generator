@@ -21,7 +21,7 @@ front of a name is the stage's place among them:
 
 | Stage | Phoenix project | Argilla dataset | Dagster group |
 |---|---|---|---|
-| 1 ingestion | — | — | — |
+| 1 ingestion | `1-ingestion` (the host commands; an upload sends nothing) | — | — |
 | 2 parsing | `2-parsing-<run>` | — | `stage_2_parsing` |
 | 3 chunking | `3-chunking-<run>` | — | `stage_3_chunking` |
 | 4 extraction | `4-extraction-<run>` | `4-facts` | `stage_4_extraction` |
