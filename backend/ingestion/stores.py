@@ -23,10 +23,6 @@ class DocumentStore(Protocol):
         """Reads an object."""
         ...
 
-    def remove(self, key: str) -> bool:
-        """Deletes an object, reporting whether one was there."""
-        ...
-
     def put(
         self,
         key: str,

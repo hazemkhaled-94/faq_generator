@@ -218,17 +218,17 @@ def test_a_pdf_nothing_can_read_is_refused_with_the_reason(monkeypatch) -> None:
     assert driver.objects == [], "an unreadable document left an object behind"
 
 
-def test_a_row_that_cannot_be_written_takes_its_object_back_out() -> None:
-    """Nothing would reference the object and nothing would collect it."""
+def test_a_row_that_cannot_be_written_leaves_its_object() -> None:
+    """The key is content-addressed, so another upload's row may need it."""
     driver = IngestDriver()
     driver.rows.refuses_store = RuntimeError("no room")
 
     with pytest.raises(RuntimeError, match="no room"):
         driver.upload()
 
-    assert driver.objects == []
+    assert driver.objects != []
     assert driver.stored == []
-    assert len(driver.store.removed) == 1
+    assert driver.store.removed == []
 
 
 def test_an_object_store_that_refuses_writes_no_row() -> None:

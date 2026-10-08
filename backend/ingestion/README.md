@@ -56,7 +56,7 @@ than an error.
 A fixed order, because the key is content-addressed: an object with no row
 holds exactly the bytes that key means and is harmless, where a row pointing
 at a missing object fails every later stage. If the row cannot be written,
-the object is taken back out.
+the object is left, harmless as above.
 
 The stored object carries four pieces of S3 user metadata — the digest, the
 original filename, the time and the pipeline version — which is enough for

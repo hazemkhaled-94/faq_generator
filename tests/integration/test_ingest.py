@@ -127,10 +127,10 @@ def test_the_metadata_is_enough_to_rebuild_the_row(service) -> None:
     assert written["ingested-at"]
 
 
-def test_a_row_that_cannot_be_written_takes_its_object_back_out(
+def test_a_row_that_cannot_be_written_leaves_its_object(
     database, buckets, engine, monkeypatch
 ) -> None:
-    """Nothing would reference the object and nothing would collect it."""
+    """The key is content-addressed, so another upload's row may need it."""
     from blob_store.s3 import DocumentsBucket
 
     bucket = DocumentsBucket()
@@ -151,7 +151,7 @@ def test_a_row_that_cannot_be_written_takes_its_object_back_out(
         built.ingest(UploadedFile("report.pdf", PDF))
 
     upload = UploadedFile("report.pdf", PDF)
-    assert bucket.find(bucket.key_for(upload.sha256, "application/pdf")) is None
+    assert bucket.find(bucket.key_for(upload.sha256, "application/pdf")) == PDF
     assert rows(engine, "documents") == 0
 
 

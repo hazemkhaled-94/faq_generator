@@ -190,16 +190,7 @@ class IngestService:
             metadata=self._metadata(upload),
         )
 
-        # An unwritable row takes its object back out.
-        try:
-            outcome = self._repository.store(upload, facts)
-        except Exception:
-            self._store.remove(self._store.key_for(upload.sha256, upload.media_type))
-            log.exception(
-                "removed the stored object for %s: its row could not be written",
-                upload.sha256,
-            )
-            raise
+        outcome = self._repository.store(upload, facts)
         log.info(
             "%s %s (%d bytes) -> %s",
             outcome,
