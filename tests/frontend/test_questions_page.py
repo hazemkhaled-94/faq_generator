@@ -230,6 +230,70 @@ def test_the_release_is_a_filter_the_rows_figures_and_workbook_share(
         assert asked["status"] == "accepted", method
 
 
+# ── The prompt that wrote it ──────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("fields", "name"),
+    [
+        ({"answerable": False}, "perturb"),
+        ({"follows_id": 7}, "follow"),
+        ({"planned_difficulty": "medium"}, "factoid (spans)"),
+        ({}, "factoid"),
+    ],
+)
+def test_the_prompt_is_read_under_the_name_it_was_sent_as(
+    open_view, fields, name
+) -> None:
+    """Unanswerable, follow-up and spanning questions each had their own."""
+    question = changed(QUESTION, **fields)
+    client = Answers(
+        **answers(
+            questions=_one(question),
+            question=_detail(question),
+            prompts=lambda **asked: [_recorded(asked["name"])],
+        )
+    )
+
+    opened = open_view("questions", client).select(0)
+
+    assert client.calls("prompts")[-1][2]["name"] == name
+    assert f"The prompt that wrote this · {name} v8" in opened.folds()
+
+
+def test_a_type_with_no_spanning_prompt_falls_back_to_its_own(open_view) -> None:
+    """Recorded once where the spanning text is the plain one."""
+    question = changed(QUESTION, planned_difficulty="medium")
+    client = Answers(
+        **answers(
+            questions=_one(question),
+            question=_detail(question),
+            prompts=lambda **asked: (
+                [] if asked["name"].endswith("(spans)") else [_recorded(asked["name"])]
+            ),
+        )
+    )
+
+    opened = open_view("questions", client).select(0)
+
+    assert [one[2]["name"] for one in client.calls("prompts")][-2:] == [
+        "factoid (spans)",
+        "factoid",
+    ]
+    assert "The prompt that wrote this · factoid v8" in opened.folds()
+
+
+def _recorded(name: str) -> dict:
+    """One prompt as /prompts answers it."""
+    return {
+        "name": name,
+        "digest": "0123456789abcdef",
+        "first_seen_at": "2026-09-14T10:00:00",
+        "text": f"The system prompt {name} was sent.",
+        "user_text": "{{sample}}",
+    }
+
+
 def _one(question: dict) -> dict:
     """One page of questions holding exactly this one."""
     return {"total": 1, "questions": [question]}

@@ -849,8 +849,13 @@ def _prompt(client, question: dict) -> None:
         )
         return
 
+    name = _sent_as(question)
     try:
-        found = client.prompts(service="questions", version=version, name=kind)
+        found = client.prompts(service="questions", version=version, name=name)
+        # A type whose spanning text is its plain one is recorded once.
+        if not found and name == f"{kind} (spans)":
+            name = kind
+            found = client.prompts(service="questions", version=version, name=name)
     except Exception:  # noqa: BLE001 - the page says so and renders the rest
         st.caption("The prompts could not be read.")
         return
@@ -864,7 +869,7 @@ def _prompt(client, question: dict) -> None:
         return
 
     written = found[0]
-    with st.expander(f"The prompt that wrote this · {kind} v{version}"):
+    with st.expander(f"The prompt that wrote this · {name} v{version}"):
         st.caption(
             f"`{written['digest']}`, first recorded "
             f"{written['first_seen_at'][:10]}. Read-only: a prompt is changed "
@@ -879,6 +884,18 @@ def _prompt(client, question: dict) -> None:
             st.code(written["user_text"], language="text", wrap_lines=True)
         else:
             st.caption("Not recorded under this version.")
+
+
+def _sent_as(question: dict) -> str | None:
+    """The name the prompt that wrote this question is recorded under."""
+    if question.get("answerable") is False:
+        return "perturb"
+    if question.get("follows_id"):
+        return "follow"
+    kind = question.get("question_type")
+    if question.get("planned_difficulty") in ("medium", "hard"):
+        return f"{kind} (spans)"
+    return kind
 
 
 def _verdict(client, question: dict) -> None:
