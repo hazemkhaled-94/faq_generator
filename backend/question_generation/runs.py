@@ -7,10 +7,10 @@ tell the two apart afterwards. `questions.run_id` is what makes this a
 query; see `settings/runs.py` for what names a run.
 
 **Live rows and archived ones together, and that is the point.** A rerun
-deletes the questions it replaces, and before the archive existed those rows
-were gone: run A could not be compared against run B because starting B was
-what destroyed A. `archived_rows` keeps the row as it was, `run_id` is in
-the payload with everything else, and a run deleted an hour ago still
+appends beside the questions already there, so both runs stay live; the
+archive is what keeps the rows a deletion or a re-chunk took.
+`archived_rows` keeps the row as it was, `run_id` is in the payload with
+everything else, and a run whose questions were deleted an hour ago still
 answers here.
 
 Reporting only. Nothing here writes, and nothing gates on what it prints:
