@@ -210,10 +210,9 @@ def _judging(plan: dict) -> list[tuple[str, str]]:
             picked.append(("kind", kind))
     judge = plan["judge_model"]
     row.caption(
-        ":orange[ASSESSMENT_JUDGE_MODEL names no model, so the next run judges "
-        "nothing.]"
+        "**ASSESSMENT_JUDGE_MODEL names no model, so the next run judges nothing.**"
         if not judge
-        else f":orange[Next run: {judge}, the writer, marking its own work.] "
+        else f"**Next run: {judge}, the writer, marking its own work.** "
         "`make assess-start` then `make assess` judges from the host with "
         "ASSESSMENT_JUDGE_MODEL"
         if plan["self_judging"]
