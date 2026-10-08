@@ -53,6 +53,20 @@ def test_a_change_naming_which_model_is_called_is_refused(name: str) -> None:
     assert refused.value.code == "fixed_setting"
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "NLP_MODELS",
+        "NLP_DEFAULT_LANGUAGE",
+        "NLP_CAPITALISED_NOUNS",
+        "WORKER_POLL_SECONDS",
+    ],
+)
+def test_a_setting_read_from_the_environment_alone_is_not_written(name: str) -> None:
+    """Read where it is used and never through the store, so a row would do nothing."""
+    assert catalog.BY_NAME[name].fixed is True
+
+
 @pytest.mark.parametrize("name", ["EMBEDDING_MODEL", "NLI_MODEL", "QA_MODEL"])
 def test_a_local_encoder_may_still_be_changed(name: str) -> None:
     """Run in the worker, the same on the host and in a container."""

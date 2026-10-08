@@ -834,6 +834,7 @@ SETTINGS: tuple[Setting, ...] = (
         name="NLP_MODELS",
         service="platform",
         kind="mapping",
+        fixed=True,
         invalidates=("chunking", "extraction"),
         help="The spaCy pipeline per language, as `language:model`, and the "
         "languages the detector may answer with. Each must be present in the "
@@ -843,6 +844,7 @@ SETTINGS: tuple[Setting, ...] = (
         name="NLP_DEFAULT_LANGUAGE",
         service="platform",
         kind="text",
+        fixed=True,
         invalidates=("chunking", "extraction"),
         help="Used for a passage too short for the detector to judge, and "
         "for any language NLP_MODELS does not name.",
@@ -852,6 +854,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="platform",
         kind="csv",
         optional=True,
+        fixed=True,
         invalidates=("extraction", "topics"),
         help="Languages that write every noun with a capital, where a "
         "lower-case word tagged as a noun is a word from another language. "
@@ -911,9 +914,9 @@ SETTINGS: tuple[Setting, ...] = (
         service="platform",
         kind="decimal",
         low=1,
+        fixed=True,
         help="How long a worker waits before looking at an empty queue "
-        "again. Read once when a worker starts, so a change reaches it on "
-        "its next restart.",
+        "again. Read once when a worker starts.",
     ),
     Setting(
         name="DATABASE_POOL_SIZE",
