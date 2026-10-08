@@ -207,6 +207,19 @@ def test_a_fact_resting_on_several_passages_names_them_all(page) -> None:
     assert "3, 9" in tables
 
 
+def test_a_bridge_offers_no_redo_and_names_the_bridge_pass(page) -> None:
+    """Extracting its first passage again would leave the bridge alone."""
+    bridge = changed(
+        FACT,
+        kind="bridge",
+        passages=[FACT["passages"][0], resting(12, 9, 1, page_from=4)],
+    )
+    drawn = page(facts=page_of(bridge)).select(0)
+
+    assert not [key for key in drawn.control_keys() if key and "-passage-" in key]
+    assert "make extract-bridge" in " ".join(drawn.captions())
+
+
 def test_the_listing_carries_the_passages_so_none_are_asked_for(open_view) -> None:
     """One request for the page, not one per row on it."""
     client = Answers(**answers())

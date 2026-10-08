@@ -458,11 +458,17 @@ def _detail(client, fact: dict) -> None:
 
         explain.confidence(fact, _READINGS)
 
-        st.caption(
-            "Extraction reads a passage and writes all of its facts "
-            "together, this one included."
-        )
-        stage.service(client, _EXTRACTION, scope, redo_warning=_REDO)
+        if fact["kind"] == "bridge":
+            st.caption(
+                "Extracting a passage again leaves the bridges resting on it "
+                "alone. `make extract-bridge` rebuilds bridges."
+            )
+        else:
+            st.caption(
+                "Extraction reads a passage and writes all of its facts "
+                "together, this one included."
+            )
+            stage.service(client, _EXTRACTION, scope, redo_warning=_REDO)
 
         with st.expander("How this was produced"):
             lineage.panel("fact", fact["id"])
