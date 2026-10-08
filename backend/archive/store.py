@@ -43,7 +43,7 @@ class Archive:
         self._bucket = ArchiveBucket()
 
     def rows(self) -> list[Held]:
-        """What is held, by table, heaviest first."""
+        """What is held, by table, most rows first."""
         with self._session() as session:
             return [
                 Held(
