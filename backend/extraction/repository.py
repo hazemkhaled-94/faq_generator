@@ -846,6 +846,9 @@ class FactCatalog(Repository):
                 ],
             )
             # Only the passages the verdict cites; None clears a span.
+            # ponytail: a bridge passage the checker no longer resolves is not
+            # among them, so its row keeps its old span. Upgrade: for a bridge,
+            # clear the spans of its rows whose passage the verdict omits.
             spans = [
                 {
                     "row": fact_id,
