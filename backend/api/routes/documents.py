@@ -86,14 +86,7 @@ def document_file(sha256: str) -> Response:
         ApiError: 400 `invalid_digest` if it is not a digest, 404
             `unknown_document` if no document has it.
     """
-    if not _DIGEST.fullmatch(sha256):
-        raise ApiError(400, "invalid_digest", "not a SHA-256 digest")
-
-    found = ingest_service.stored_file(sha256)
-    if found is None:
-        raise ApiError(404, "unknown_document", "no document with that digest")
-
-    data, media_type = found
+    data, media_type = _found(sha256, ingest_service.stored_file)
     return Response(
         content=data,
         media_type=media_type,
@@ -115,7 +108,7 @@ def delete_document(sha256: str) -> Removal:
         ApiError: 400 `invalid_digest` if it is not a digest, 404
             `unknown_document` if no document has it.
     """
-    return _removed(sha256, removal_service.delete)
+    return _found(sha256, removal_service.delete)
 
 
 @router.delete(
@@ -133,21 +126,21 @@ def delete_derived(sha256: str) -> Removal:
         ApiError: 400 `invalid_digest` if it is not a digest, 404
             `unknown_document` if no document has it.
     """
-    return _removed(sha256, removal_service.delete_derived)
+    return _found(sha256, removal_service.delete_derived)
 
 
-def _removed(sha256: str, remove: Callable[[str], Removal | None]) -> Removal:
-    """Validates a digest and reports what the given deletion removed.
+def _found[T](sha256: str, read: Callable[[str], T | None]) -> T:
+    """Validates a digest and answers what the given read found under it.
 
     Raises:
         ApiError: 400 if the digest is not one, 404 if nothing has it.
     """
     if not _DIGEST.fullmatch(sha256):
         raise ApiError(400, "invalid_digest", "not a SHA-256 digest")
-    removed = remove(sha256)
-    if removed is None:
+    found = read(sha256)
+    if found is None:
         raise ApiError(404, "unknown_document", "no document with that digest")
-    return removed
+    return found
 
 
 @router.post("/documents", responses={code: _REFUSALS[code] for code in (413, 415)})

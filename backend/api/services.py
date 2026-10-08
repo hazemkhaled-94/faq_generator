@@ -33,10 +33,6 @@ log = logging.getLogger(__name__)
 #: and the page is refreshed by hand rather than polled.
 _TIMEOUT = 2.0
 
-#: How many to probe at once. The whole catalogue, because the wait is the
-#: cost and it is the same wait whether one is down or nine are.
-_WORKERS = 12
-
 
 @dataclass(frozen=True)
 class Service:
@@ -140,7 +136,7 @@ def _listening(service: Service) -> tuple[bool | None, str]:
 def snapshot() -> list[ServiceState]:
     """Probes every service in the catalogue, all at once."""
     urls = addresses()
-    with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+    with ThreadPoolExecutor(max_workers=len(CATALOGUE)) as pool:
         answers = list(pool.map(_listening, CATALOGUE))
     return [
         ServiceState(

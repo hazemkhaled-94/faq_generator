@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Literal
 
@@ -208,11 +208,4 @@ def write(service: Service, change: Change) -> Changed:
     except changes.Refused as refusal:
         raise ApiError(_STATUS[refusal.code], refusal.code, refusal.detail) from None
 
-    return Changed(
-        service=service,
-        version=moved.version,
-        changed=moved.changed,
-        cleared=moved.cleared,
-        stale=moved.stale,
-        detail=moved.detail,
-    )
+    return Changed(service=service, **asdict(moved))

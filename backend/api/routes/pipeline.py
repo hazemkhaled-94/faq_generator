@@ -141,11 +141,6 @@ class AutomationChange:
     nightly: bool | None = None
 
 
-def _queues() -> list[StageStatus]:
-    """Every stage's queue depth, in pipeline order."""
-    return [status_of(name, queue) for name, queue in STAGES]
-
-
 def _fan(
     action: Fanned, names: tuple[str, ...], trigger: str | None = None
 ) -> tuple[list[StageMoved], int]:
@@ -181,7 +176,7 @@ def state() -> Pipeline:
     One call rather than six. Never fails because the orchestrator is
     absent: `orchestration.available` is false and the queues still answer.
     """
-    stages = _queues()
+    stages = [status_of(name, queue) for name, queue in STAGES]
     return Pipeline(
         stages=stages,
         orchestration=orchestrator.state(),

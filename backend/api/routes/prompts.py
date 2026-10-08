@@ -17,7 +17,7 @@ model client. See `tests/static/test_api_stays_light.py`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 
 from fastapi import APIRouter, Query
@@ -92,15 +92,6 @@ def read(
     trips to read one thing.
     """
     return [
-        Prompt(
-            service=row.service,
-            name=row.name,
-            version=row.version,
-            text=row.text,
-            user_text=row.user_text,
-            response_schema=row.response_schema,
-            digest=row.digest,
-            first_seen_at=row.first_seen_at,
-        )
+        Prompt(**{one.name: getattr(row, one.name) for one in fields(Prompt)})
         for row in stored(service=service, version=version, name=name)
     ]

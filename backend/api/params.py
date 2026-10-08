@@ -73,10 +73,7 @@ SearchText = Annotated[
 #: empty page, which is a working call; refusing it would be a second
 #: behaviour change riding along with a crash fix, and this one only has to
 #: stop the crash.
-DocumentFilter = Annotated[
-    str | None,
-    Query(max_length=SEARCH_MAX, pattern=NO_NUL),
-]
+DocumentFilter = SearchText
 
 #: One page of rows. The ceiling was already here; `offset` had a floor and
 #: no ceiling, so `?offset=9223372036854775808` went to the database as a
