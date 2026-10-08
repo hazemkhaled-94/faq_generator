@@ -407,7 +407,7 @@ a trigger, a data backfill, or anything ordered.
 | `make review-push-topics` / `review-pull-topics` | The same, for topic labels |
 | `make review-push-questions` / `review-pull-questions` | The same, for questions |
 | `make review-status` | How much has been looked at |
-| `make review-delete` | Delete every dataset in the workspace. **Irreversible** - pull first. What `make wipe` runs |
+| `make review-delete` | Delete the three review datasets: facts, topic labels and questions. A dataset under another name is left. **Irreversible** - pull first. What `make wipe` runs |
 | `make review-all` | Every artefact of every kind, not a sample |
 | `make eval-upload` | Put the golden cases in Phoenix |
 | `make eval-score` | Score the served model against them, and record it |

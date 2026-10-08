@@ -203,7 +203,10 @@ def push(
 
 
 def drop(settings: Settings) -> int:
-    """Deletes every dataset in the workspace, and says how many went.
+    """Deletes the three review datasets, and says how many went.
+
+    The facts, the topic labels and the questions, by their current names.
+    A dataset under any other name in the workspace is left.
 
     The opposite decision from :func:`_dataset`, which reuses what it finds
     precisely so a push never throws away an answer nobody has pulled. This

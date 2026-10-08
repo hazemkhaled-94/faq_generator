@@ -56,7 +56,8 @@ def parser() -> argparse.ArgumentParser:
     group.add_argument(
         "--delete",
         action="store_true",
-        help="delete every dataset in the workspace. What `make wipe` runs "
+        help="delete the three review datasets: facts, topic labels and "
+        "questions. A dataset under any other name is left. What `make wipe` runs "
         "once the corpus is gone. Irreversible: pull first if a verdict "
         "nobody has brought back still matters.",
     )
