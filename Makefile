@@ -984,9 +984,12 @@ assess-reclaim:
 	$(ASSESS) --reclaim $(ONLY)
 
 # Judge everything again, finished rows included. This is what a changed
-# template or a changed judge model calls for: the verdicts already stored
-# are overwritten as each row is judged again, so a corpus never holds two
+# template or a changed judge model calls for, so a corpus never holds two
 # opinions from two template versions with nothing saying which is current.
+# The judge is asked first: one that does not answer or is not named leaves
+# every stored verdict as it was. Once it answers, every verdict and metric
+# in scope is cleared, the sample is enrolled again, and each row is judged
+# again; a row whose judging fails holds no verdict rather than an old one.
 assess-rerun:
 	$(ASSESS) --rerun $(ONLY)
 
