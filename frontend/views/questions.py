@@ -906,14 +906,13 @@ def _verdict(client, question: dict) -> None:
     """Draws the two controls that decide one question's fate."""
     accepted = question["status"] == "accepted"
     rejected = question["status"] == "rejected"
-    accept, reject, *_ = st.columns([1.2, 1.2, 4.0], vertical_alignment="center")
+    row = st.container(horizontal=True, vertical_alignment="center")
 
-    if accept.button(
+    if row.button(
         "Accept",
         key=f"accept-{question['id']}",
         type="primary",
         disabled=accepted,
-        width="stretch",
         help="Marks this question accepted, so the next release can draw it."
         if not accepted
         else "Already accepted.",
@@ -923,11 +922,10 @@ def _verdict(client, question: dict) -> None:
         st.toast(f"Question {question['id']} accepted.")
         st.rerun()
 
-    if reject.button(
+    if row.button(
         "Reject",
         key=f"reject-{question['id']}",
         disabled=rejected,
-        width="stretch",
         help="Marks this question rejected and takes it out of the release. "
         "The row is kept."
         if not rejected
