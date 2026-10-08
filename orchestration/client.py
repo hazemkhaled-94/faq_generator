@@ -143,6 +143,11 @@ class Backend:
                 seconds. Never a reason to fail the rows - they are still
                 queued and a worker is still on them - so what this means
                 is that the run gave up watching, not that the work did.
+
+        ponytail: an asset holds a Dagster op for up to
+        ORCHESTRATION_DRAIN_TIMEOUT_SECONDS, and a stage that outlasts it
+        fails the asset and skips everything downstream. Upgrade: a sensor
+        that starts the next asset when a queue drains.
         """
         deadline = time.monotonic() + timeout
         while True:
