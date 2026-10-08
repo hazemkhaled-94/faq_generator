@@ -91,6 +91,38 @@ def test_with_no_judge_named_the_command_line_judges_nothing(monkeypatch) -> Non
         handed["preflight"]()
 
 
+def test_with_no_judge_named_the_status_says_nothing_is_judged(
+    monkeypatch, caplog
+) -> None:
+    """Beside the queue, naming the setting for the host and the containers."""
+    monkeypatch.setattr(
+        "assessment.run.snapshot",
+        lambda: ({**VALUES, **_SHARED, "ASSESSMENT_JUDGE_MODEL": ""}, "environment"),
+    )
+    monkeypatch.setattr("stages.cli.telemetry.configure", lambda *_, **__: None)
+
+    class _Queue:
+        """A queue that reports one waiting row."""
+
+        def __init__(self, **_) -> None:
+            """Takes the kinds and the sample, and keeps neither."""
+
+        def counts_by_status(self, within=None) -> dict[str, int]:
+            """One row waiting."""
+            return {"queued": 1}
+
+    monkeypatch.setattr(cli, "AssessmentQueue", _Queue)
+
+    with caplog.at_level("INFO"):
+        assert cli.main(["--status"]) == 0
+
+    assert "assessment queue: {'queued': 1}" in caplog.text
+    assert "nothing is judged" in caplog.text
+    assert "judging its own work is refused" in caplog.text
+    assert "Set ASSESSMENT_JUDGE_MODEL" in caplog.text
+    assert "ASSESSMENT_JUDGE_CONTAINER_MODEL" in caplog.text
+
+
 def test_the_plan_names_the_writer_when_it_is_the_judge() -> None:
     """The model the next run judges with, and whether that is the writer."""
     writer = {"LLM_MODEL": "ollama_chat/gemma4:31b"}

@@ -16,7 +16,7 @@ import sys
 
 from assessment import prompts
 from assessment.config import Settings, judged_kinds
-from assessment.factory import build_service, judge_model
+from assessment.factory import UNNAMED, build_service, judge_model
 from assessment.repository import AssessmentQueue
 from llm.check import before_work
 from llm.config import Settings as ModelSettings
@@ -110,16 +110,23 @@ def main(argv: list[str] | None = None) -> int:
         ),
     }
 
-    return queue_main(
+    argv = sys.argv[1:] if argv is None else argv
+    code = queue_main(
         name="assessment",
         module="assessment.run",
         repository=queue,
         build_service=build,
-        argv=sys.argv[1:] if argv is None else argv,
+        argv=argv,
         extra=extra,
         preflight=preflight,
         prompts=record_prompts,
     )
+    # Logged after queue_main, which configures the logs.
+    # ponytail: argv read by hand, so an abbreviated `--stat` skips this line;
+    # the upgrade is a status hook on queue_main.
+    if "--status" in argv and not Settings.load(snapshot()[0]).judge_model:
+        log.warning("%s", UNNAMED)
+    return code
 
 
 if __name__ == "__main__":

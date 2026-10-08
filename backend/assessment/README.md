@@ -223,12 +223,13 @@ horizontally.
 
 ## Configuration
 
-From `.env`, because both are one deployment's decision:
+From `.env`, because each is one deployment's decision:
 
 | Setting | What it does |
 | --- | --- |
 | `ASSESSMENT_ENABLED` | Whether the phase runs at all |
-| `ASSESSMENT_JUDGE_MODEL` | Who judges. **Not** `LLM_MODEL`: a model asked whether its own facts follow from its own evidence says yes. Unset, the worker judges nothing |
+| `ASSESSMENT_JUDGE_MODEL` | Who judges. **Not** `LLM_MODEL`: a model asked whether its own facts follow from its own evidence says yes. Unset, nothing is judged, and `make assess-status` says so |
+| `ASSESSMENT_JUDGE_CONTAINER_MODEL` | Who judges in the containers, which do not read `ASSESSMENT_JUDGE_MODEL` from `.env`. Unset, the worker judges nothing and its log says it refuses to claim work |
 
 From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 

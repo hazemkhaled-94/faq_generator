@@ -303,13 +303,19 @@ def _ready(name: str, preflight: Callable[[], None], watching: bool) -> bool:
             if not watching:
                 log.error("%s will not start: %s", name, refusal)
                 return False
+            # A setting refused, not a model that is down.
+            why = (
+                "refuses to claim work"
+                if isinstance(refusal, (KeyError, ValueError))
+                else "cannot reach its model"
+            )
             waited = time.monotonic() - began
             if not attempts:
                 log.error(
-                    "%s cannot reach its model and will keep trying every "
-                    "%.0fs, reporting again every %.0f minutes until it can: "
-                    "%s",
+                    "%s %s and will keep trying every %.0fs, reporting again "
+                    "every %.0f minutes until it can: %s",
                     name,
+                    why,
                     _RETRY_CEILING,
                     _RETRY_REPORT_SECONDS / 60,
                     refusal,
@@ -320,8 +326,9 @@ def _ready(name: str, preflight: Callable[[], None], watching: bool) -> bool:
                 # line; what a reader needs now is whether it is still
                 # happening and for how long.
                 log.warning(
-                    "%s still cannot reach its model: %d attempt(s) over %s",
+                    "%s still %s: %d attempt(s) over %s",
                     name,
+                    why,
                     attempts + 1,
                     _for(waited),
                 )

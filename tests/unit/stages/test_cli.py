@@ -173,7 +173,12 @@ def test_a_drain_that_starts_installs_the_exporter(monkeypatch) -> None:
 # ── What a worker says while its model is down ─────────────────────────────
 
 
-def _waiting(monkeypatch, *, failures: int):
+def _waiting(
+    monkeypatch,
+    *,
+    failures: int,
+    refusal: Exception | None = None,
+):
     """Runs `_ready` as a watching worker whose model is down for a while."""
     from stages import cli
 
@@ -197,10 +202,25 @@ def _waiting(monkeypatch, *, failures: int):
         """Refuses `failures` times, then answers."""
         tries["n"] += 1
         if tries["n"] <= failures:
-            raise RuntimeError("Connection refused")
+            raise refusal or RuntimeError("Connection refused")
 
     assert cli._ready("extraction", preflight, True) is True
     return said
+
+
+def test_a_refused_setting_is_not_called_an_unreachable_model(monkeypatch) -> None:
+    """An unnamed judge is a refusal, and the log reads as one."""
+    said = _waiting(
+        monkeypatch,
+        failures=40,
+        refusal=ValueError("ASSESSMENT_JUDGE_MODEL names no model"),
+    )
+
+    assert not [line for _, line in said if "cannot reach" in line]
+    assert said[0][1].startswith("extraction refuses to claim work")
+    assert "keep trying" in said[0][1]
+    assert "ASSESSMENT_JUDGE_MODEL names no model" in said[0][1]
+    assert "still refuses to claim work" in said[1][1]
 
 
 def test_a_model_that_is_down_is_reported_once_and_then_counted(monkeypatch) -> None:
