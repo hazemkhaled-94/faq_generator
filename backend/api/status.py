@@ -5,12 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from alembic.runtime.migration import MigrationContext
-from alembic.script import ScriptDirectory
-
-import database
 from blob_store.s3 import (
     ArchiveBucket,
     Bucket,
@@ -21,11 +16,9 @@ from blob_store.s3 import (
     bucket_names,
 )
 from database.qa_generator import sessions
+from database.qa_generator.revision import applied, heads
 
 log = logging.getLogger(__name__)
-
-#: The revisions the image carries, beside the models.
-_MIGRATIONS = Path(database.__file__).parent / "migrations"
 
 #: The buckets the application requires, as classes rather than names so the
 #: check runs against the objects the services actually write to.
@@ -66,7 +59,7 @@ class StatusService:
         """Initialises the service."""
         self._counters = counters
         self._session = sessions()
-        self._heads = set(ScriptDirectory(str(_MIGRATIONS)).get_heads())
+        self._heads = heads()
 
     def snapshot(self) -> dict[str, Component]:
         """Collects the current state of every component.
@@ -92,9 +85,7 @@ class StatusService:
         """
         try:
             with self._session() as session:
-                live = set(
-                    MigrationContext.configure(session.connection()).get_current_heads()
-                )
+                live = applied(session.connection())
         except Exception as exc:  # noqa: BLE001
             log.error("database unreachable: %s: %s", type(exc).__name__, exc)
             return Component(False, f"Unreachable: {type(exc).__name__}: {exc}")

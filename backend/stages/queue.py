@@ -18,6 +18,7 @@ column name.
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass
 from datetime import timedelta
@@ -29,7 +30,10 @@ from sqlalchemy.orm import InstrumentedAttribute
 
 from database.qa_generator import Status
 from database.qa_generator.repository import Repository
+from database.qa_generator.revision import applied, heads
 from settings.runs import triggered_by
+
+log = logging.getLogger(__name__)
 
 #: Recorded against a row whose worker never came back.
 ABANDONED = "the worker did not finish; the run was interrupted"
@@ -146,6 +150,8 @@ class StageQueue(Repository):
         #: Taken around every statement that reads or moves the claim time,
         #: so a beat cannot move it between a finish reading it and writing.
         self._lock = threading.Lock()
+        #: Whether this instance has said the schema is not the code's head.
+        self._behind = False
 
     def _where(self, *conditions: Any) -> tuple[Any, ...]:
         """This queue's own rows, narrowed by whatever the caller gave.
@@ -170,17 +176,21 @@ class StageQueue(Repository):
         # or minutes. The claim is timestamped so a later run can tell it from
         # a live one.
         with self._session.begin() as session:
-            claimed = session.execute(
-                update(self.columns.entity)
-                .where(self.columns.key == self.next_pending)
-                .values(
-                    {
-                        self.columns.status: Status.IN_PROGRESS,
-                        self.columns.claimed_at: func.now(),
-                    }
-                )
-                .returning(*returning, self.columns.claimed_at, *asked)
-            ).one_or_none()
+            claimed = (
+                session.execute(
+                    update(self.columns.entity)
+                    .where(self.columns.key == self.next_pending)
+                    .values(
+                        {
+                            self.columns.status: Status.IN_PROGRESS,
+                            self.columns.claimed_at: func.now(),
+                        }
+                    )
+                    .returning(*returning, self.columns.claimed_at, *asked)
+                ).one_or_none()
+                if self._at_head(session)
+                else None
+            )
         # Every caller returns its key column first, which is what `touch`
         # refreshes. Read by name rather than by position, so a stage that
         # returns its columns in another order still beats.
@@ -200,6 +210,27 @@ class StageQueue(Repository):
             else getattr(claimed, trigger.key)
         )
         return claimed
+
+    def _at_head(self, session: Any) -> bool:
+        """Whether the database is at the revision this code was written for.
+
+        Code ahead of its schema writes columns that are not there yet, and
+        fails every row it claims. Logged the first time only, because an
+        idle worker asks on every poll.
+        """
+        live = applied(session.connection())
+        if live == heads():
+            return True
+        if not self._behind:
+            self._behind = True
+            log.warning(
+                "%s claims nothing: the database is at %s and this code's head "
+                "is %s. `make schema` applies it.",
+                type(self).__name__,
+                ", ".join(sorted(live)) or "no revision",
+                ", ".join(sorted(heads())),
+            )
+        return False
 
     def _holding(self, key: Any) -> tuple[Any, ...]:
         """What says the row is still the one this instance claimed.

@@ -7,6 +7,7 @@ workers never take the same one.
 
 from __future__ import annotations
 
+import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
@@ -498,6 +499,36 @@ def test_a_row_another_worker_holds_is_skipped_rather_than_waited_for(
 
     assert claimed is not None, "the second row was never claimed"
     assert claimed.sha256 == second, "the locked row should have been skipped"
+
+
+def test_nothing_is_claimed_while_the_schema_is_not_the_codes_head(
+    documents, engine, caplog
+) -> None:
+    """Code ahead of its schema writes columns that are not there yet.
+
+    Said once rather than on every poll, and claimed from again once the
+    revision is the head.
+    """
+    documents(pending=1)
+    stamp = text("UPDATE alembic_version SET version_num = :revision")
+    with engine.begin() as connection:
+        head = connection.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one()
+        connection.execute(stamp, {"revision": "0123456789ab"})
+    queue = ParseQueue()
+    try:
+        with caplog.at_level(logging.WARNING):
+            assert queue.claim() is None
+            assert queue.claim() is None
+    finally:
+        with engine.begin() as connection:
+            connection.execute(stamp, {"revision": head})
+
+    assert statuses(engine) == {Status.PENDING: 1}
+    said = [one for one in caplog.records if "0123456789ab" in one.getMessage()]
+    assert len(said) == 1, said
+    assert queue.claim() is not None
 
 
 # ── The run that asked, carried from the queueing verb to the worker ───────
