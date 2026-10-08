@@ -275,10 +275,11 @@ def _tables_rendered(
         # Through the alias rather than the field name: it is the serialised
         # form and the only one a checker sees on the constructor.
         table = RefItem.model_validate({"$ref": reference.self_ref}).resolve(document)
-        tables[reference.self_ref] = (
-            table,
-            _rendered_rows(table, rendered, numbered),
-        )
+        rows = _rendered_rows(table, rendered, numbered)
+        tables[reference.self_ref] = (table, rows)
+        # A line one table took is no other table's.
+        taken = {line["i"] for _, line in rows if line is not None}
+        numbered = [line for line in numbered if line["i"] not in taken]
     return tables
 
 

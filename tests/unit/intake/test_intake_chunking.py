@@ -31,6 +31,7 @@ from preprocessing.chunking.passages import (
     _block_type,
     _boxes,
     _grids,
+    _Markdown,
     _rendered_rows,
     _tables_rendered,
     chunking_of,
@@ -53,6 +54,11 @@ RENDERED = (
 def passage_of(document, chunk) -> Chunk:
     """Reads one chunk the way the builder reads it."""
     return PassageBuilder._passage(document, 1, chunk)
+
+
+def rendered_by_docling(document) -> str:
+    """The whole document as the chunker's own serializer renders it."""
+    return _Markdown().get_serializer(document).serialize().text
 
 
 # ── Numbering and the token budget ─────────────────────────────────────────
@@ -331,6 +337,34 @@ def test_a_header_cell_cites_nothing_and_a_data_cell_cites_its_row() -> None:
 
     lines = {one["text"]: one["line"] for one in grid["cells"]}
     assert lines == {"Model": None, "Mass": None, "Compact": 3, "4": 3}
+
+
+def test_each_of_two_tables_in_one_passage_cites_its_own_rows() -> None:
+    """The second table's row is not paired with the first table's line."""
+    document = docling_document()
+    tables = [
+        table_of(
+            document,
+            [
+                cell("Kapitel", 0, 0, column_header=True),
+                cell(heading, 0, 1, column_header=True),
+                cell("1", 1, 0),
+                cell("30", 1, 1),
+            ],
+            num_rows=2,
+            num_cols=2,
+        )
+        for heading in ("Minuten", "Fragen")
+    ]
+    rendered = rendered_by_docling(document)
+
+    read = passage_of(document, chunk_of(rendered, tuple(tables)))
+
+    cited = [
+        {one["line"] for one in grid["cells"] if one["line"] is not None}
+        for grid in read.table_cells
+    ]
+    assert cited == [{2}, {5}], cited
 
 
 def test_a_passage_holding_no_table_has_no_grid() -> None:
