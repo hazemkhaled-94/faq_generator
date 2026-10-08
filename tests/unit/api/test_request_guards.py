@@ -42,6 +42,16 @@ def test_any_other_host_is_refused() -> None:
     assert called_as("evil.example").get("/health").status_code == 400
 
 
+def test_an_answer_is_not_shared_with_another_site() -> None:
+    """No CORS header, so a page elsewhere cannot read what it fetched."""
+    answered = called_as("localhost:8000").get(
+        "/health", headers={"origin": "https://evil.example"}
+    )
+
+    assert answered.status_code == 200
+    assert "access-control-allow-origin" not in answered.headers
+
+
 @pytest.mark.parametrize("method", WRITES)
 @pytest.mark.parametrize(
     "headers",
