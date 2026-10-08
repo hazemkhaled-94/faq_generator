@@ -367,6 +367,22 @@ def test_each_of_two_tables_in_one_passage_cites_its_own_rows() -> None:
     assert cited == [{2}, {5}], cited
 
 
+def test_a_row_holding_a_pipe_or_a_newline_still_cites_its_line() -> None:
+    """The serializer escapes the one and flattens the other."""
+    document = docling_document()
+    table = table_of(
+        document,
+        [*HEADERS, cell("A | Ja", 1, 0), cell("zwei\nZeilen", 1, 1)],
+        num_rows=2,
+        num_cols=2,
+    )
+
+    read = passage_of(document, chunk_of(rendered_by_docling(document), (table,)))
+
+    lines = {one["text"]: one["line"] for one in read.table_cells[0]["cells"]}
+    assert lines == {"Model": None, "Mass": None, "A | Ja": 2, "zwei\nZeilen": 2}
+
+
 def test_a_passage_holding_no_table_has_no_grid() -> None:
     """NULL rather than an empty list, which is what the column holds."""
     document = docling_document(paragraphs=("Text.",))

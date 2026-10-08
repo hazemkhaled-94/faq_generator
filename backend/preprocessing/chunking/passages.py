@@ -392,10 +392,11 @@ def _rendered_rows(
         if any(cell.column_header for cell in cells):
             kept.append((cells, None))
             continue
+        # As the Markdown serializer renders a cell.
         placed = [
-            (cell.start_col_offset_idx, cell.text.strip())
+            (cell.start_col_offset_idx, shown)
             for cell in cells
-            if cell.text.strip()
+            if (shown := cell.text.replace("\n", " ").replace("|", "&#124;").strip())
         ]
         if not placed:
             continue
