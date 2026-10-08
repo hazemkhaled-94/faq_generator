@@ -18,6 +18,10 @@ pytestmark = pytest.mark.integration
 
 ROOT = Path(__file__).resolve().parents[3]
 
+#: The head the revisions below are applied on top of.
+PREVIOUS_HEAD = "5d1c7e2a9b40"
+RELEASED = "3fe4226da3b6"
+
 
 @pytest.fixture
 def spare(postgres: str) -> Iterator[str]:
@@ -53,6 +57,22 @@ def tables(url: str) -> set[str]:
         return set(inspect(engine).get_table_names())
     finally:
         engine.dispose()
+
+
+def sql(url: str, statement: str, **params) -> list:
+    """Runs one statement in its own transaction, and returns its rows."""
+    engine = create_engine(url)
+    try:
+        with engine.begin() as connection:
+            result = connection.execute(text(statement), params)
+            return [tuple(row) for row in result] if result.returns_rows else []
+    finally:
+        engine.dispose()
+
+
+def version(url: str) -> str:
+    """The revision one database is at."""
+    return sql(url, "SELECT version_num FROM alembic_version")[0][0]
 
 
 def test_the_revisions_apply_to_an_empty_database(spare: str) -> None:
@@ -134,3 +154,34 @@ def test_stepping_down_one_revision_at_a_time_reaches_base(spare: str) -> None:
         command.downgrade(config, "-1")
 
     assert tables(spare) <= {"alembic_version"}
+
+
+def test_a_released_question_has_to_stay_accepted(spare: str) -> None:
+    """Refused once the revision is on, allowed again once it is taken off."""
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+
+    config = alembic(spare)
+    command.upgrade(config, PREVIOUS_HEAD)
+    sql(
+        spare,
+        "INSERT INTO questions (id, question_text, answerable, language, status, "
+        "release_id) VALUES (1, 'Q?', true, 'en', 'accepted', gen_random_uuid())",
+    )
+    command.upgrade(config, RELEASED)
+
+    with pytest.raises(IntegrityError, match="questions_released_is_accepted"):
+        sql(spare, "UPDATE questions SET status = 'rejected' WHERE id = 1")
+
+    command.downgrade(config, PREVIOUS_HEAD)
+    sql(spare, "UPDATE questions SET status = 'rejected' WHERE id = 1")
+    held = "SELECT status, release_id IS NOT NULL FROM questions"
+    assert sql(spare, held) == [("rejected", True)]
+
+    with pytest.raises(IntegrityError, match="questions_released_is_accepted"):
+        command.upgrade(config, RELEASED)
+    assert version(spare) == PREVIOUS_HEAD
+
+    sql(spare, "UPDATE questions SET status = 'accepted' WHERE id = 1")
+    command.upgrade(config, RELEASED)
+    assert sql(spare, held) == [("accepted", True)]

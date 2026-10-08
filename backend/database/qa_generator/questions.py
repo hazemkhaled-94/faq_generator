@@ -164,6 +164,10 @@ class Question(Base):
             "(reviewed_verdict IS NULL) = (reviewed_at IS NULL)",
             name="questions_reviewed_together",
         ),
+        CheckConstraint(
+            "release_id IS NULL OR status = 'accepted'",
+            name="questions_released_is_accepted",
+        ),
         # Partial: NULL for almost every row, and what anyone asks for is
         # the reviewed ones.
         Index(
