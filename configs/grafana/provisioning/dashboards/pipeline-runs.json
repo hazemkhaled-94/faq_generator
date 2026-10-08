@@ -1,7 +1,7 @@
 {
   "uid": "qa-pipeline-runs",
   "title": "3 · One run, end to end",
-  "description": "One run, from all three stores at once. A run is `RUN_ID`, and it is spelled the same in each: `questions.run_id` on the rows, a Phoenix project named `<stage>-<run id>` on the spans, `run.id` on every log line. The rows say what the run produced and which gate stopped the rest; the spans say what the logic did and what it cost; the logs say literally everything else. Pick a run at the top.",
+  "description": "One run, from all three stores at once. A run is `RUN_ID`, and it is spelled the same in each: `questions.run_id` on the rows, a Phoenix project named `<stage>-<run id>` on the spans, `run.id` on every log line. The rows say what the run produced and which gate stopped the rest; the spans say what the logic did and what it cost; the logs say literally everything else. Pick a run at the top. A run nobody named with RUN_ID, which is every container run and every Start button run, has no Phoenix project of its own: its spans are in its stage's shared project, and the four Phoenix panels show nothing for it.",
   "tags": ["qa_generator"],
   "editable": true,
   "schemaVersion": 39,
@@ -100,7 +100,7 @@
       "id": 2,
       "type": "stat",
       "title": "What the run cost",
-      "description": "The half SQL cannot answer. Every model call the run made, from its Phoenix projects. Spend is zero for a locally served model, which is the point of moving a judgement onto one.",
+      "description": "The half SQL cannot answer. Every model call the run made, from its Phoenix projects. Spend is zero for a locally served model, which is the point of moving a judgement onto one. Only a run named with RUN_ID has Phoenix projects of its own; an unnamed one, which is every container run and every Start button run, is filed under its stage's shared project and shows nothing here.",
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
       "gridPos": { "h": 5, "w": 12, "x": 12, "y": 4 },
       "fieldConfig": {
@@ -174,7 +174,7 @@
       "id": 4,
       "type": "table",
       "title": "What the calls were for",
-      "description": "The Pydantic shape each call asked for, which is what `tag.tags` carries. This is the query `make spend-by-shape` reads log prose to answer. Empty for a run made before the shape was put on the span.",
+      "description": "The Pydantic shape each call asked for, which is what `tag.tags` carries. This is the query `make spend-by-shape` reads log prose to answer. Empty for a run made before the shape was put on the span. Only a run named with RUN_ID has Phoenix projects of its own; an unnamed one, which is every container run and every Start button run, is filed under its stage's shared project and shows nothing here.",
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
       "gridPos": { "h": 12, "w": 12, "x": 12, "y": 9 },
       "fieldConfig": {
@@ -211,7 +211,7 @@
       "id": 5,
       "type": "table",
       "title": "Its Phoenix projects",
-      "description": "One per stage that ran under this id, with the span count and the window it covers. A run of the whole pipeline is several rows; one restarting worker used to be thousands.",
+      "description": "One per stage that ran under this id, with the span count and the window it covers. A run of the whole pipeline is several rows; one restarting worker used to be thousands. Only a run named with RUN_ID has Phoenix projects of its own; an unnamed one, which is every container run and every Start button run, is filed under its stage's shared project and shows nothing here.",
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
       "gridPos": { "h": 7, "w": 12, "x": 0, "y": 21 },
       "fieldConfig": {
@@ -233,7 +233,7 @@
       "id": 6,
       "type": "table",
       "title": "Gate verdicts recorded in Phoenix",
-      "description": "The annotations behind Phoenix's Evaluations view, which is the half that is easy to lose: they are best-effort, and one refusal disables them for the rest of the run. Empty here against a non-empty panel on the left means the run produced questions and recorded no verdicts.",
+      "description": "The annotations behind Phoenix's Evaluations view, which is the half that is easy to lose: they are best-effort, and one refusal disables them for the rest of the run. For a run named with RUN_ID, empty here against a non-empty panel on the left means the run produced questions and recorded no verdicts. An unnamed run is filed under its stage's shared project and shows nothing here.",
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
       "gridPos": { "h": 7, "w": 12, "x": 12, "y": 21 },
       "fieldConfig": {
