@@ -107,6 +107,26 @@ class DocumentRepository(Repository):
             session.execute(delete(Document).where(Document.sha256 == sha256))
         return passages or 0
 
+    def delete_all(self, digests: list[str]) -> dict[str, int]:
+        """Removes these document rows, and what is derived from them, at once.
+
+        Args:
+            digests: The documents' digests.
+
+        Returns:
+            Passages the cascade took with it, by digest.
+        """
+        with self._session.begin() as session:
+            passages = dict(
+                session.execute(
+                    select(Passage.doc_sha256, func.count())
+                    .where(Passage.doc_sha256.in_(digests))
+                    .group_by(Passage.doc_sha256)
+                ).all()
+            )
+            session.execute(delete(Document).where(Document.sha256.in_(digests)))
+        return passages
+
     def delete_derived(self, sha256: str) -> int:
         """Drops a document's passages and returns chunk_status to `new`.
 

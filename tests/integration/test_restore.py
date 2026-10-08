@@ -251,3 +251,48 @@ def test_without_a_time_nothing_is_restored(corpus, engine, monkeypatch) -> None
     assert restore.main() == 2
 
     assert not any(rows(engine).values())
+
+
+def test_a_question_resting_on_two_documents_comes_back_accepted(
+    engine, database, buckets, monkeypatch
+) -> None:
+    """A wipe takes every document at once, so no question is rejected on the way."""
+    from archive import restore
+    from blob_store.s3 import DocumentsBucket
+
+    source = DocumentsBucket()
+    with Session(engine) as session:
+        facts = []
+        for seed in ("one", "two"):
+            sha = digest(seed)
+            source.put(
+                source.key_for(sha, "application/pdf"),
+                PDF,
+                content_type="application/pdf",
+            )
+            session.add(document(sha, parse_status="parsed", chunk_status="chunked"))
+            session.flush()
+            cut = passage(sha, ordinal=1)
+            session.add(cut)
+            session.flush()
+            drawn = fact(cut.id)
+            session.add(drawn)
+            session.flush()
+            facts.append(drawn.id)
+        asked = question(status="accepted")
+        session.add(asked)
+        session.flush()
+        session.add_all([link(asked.id, one) for one in facts])
+        session.commit()
+        asked_id = asked.id
+    since = now(engine)
+
+    wipe()
+    monkeypatch.setenv("SINCE", since)
+    assert restore.main() == 0
+
+    with engine.connect() as connection:
+        status = connection.execute(
+            text("SELECT status::text FROM questions WHERE id = :id"), {"id": asked_id}
+        ).scalar_one()
+    assert status == "accepted"

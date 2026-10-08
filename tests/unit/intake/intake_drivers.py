@@ -388,6 +388,10 @@ class DocumentRows:
         self.chunk_status.pop(sha256, None)
         return self.passages.pop(sha256, 0)
 
+    def delete_all(self, digests: list[str]) -> dict[str, int]:
+        """Removes these document rows at once."""
+        return {sha256: self.delete(sha256) for sha256 in digests}
+
     def delete_derived(self, sha256: str) -> int:
         """Drops a document's passages and returns chunk_status to `new`."""
         self.chunk_status[sha256] = Status.NEW

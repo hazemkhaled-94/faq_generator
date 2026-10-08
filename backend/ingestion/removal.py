@@ -53,18 +53,31 @@ class RemovalService:
         Returns:
             What was removed, or None if no document has that digest.
         """
+        objects = self._take_objects(sha256)
+        if objects is None:
+            return None
+        return self._removed(sha256, self._repository.delete(sha256), *objects)
+
+    def _take_objects(self, sha256: str) -> tuple[bool, bool] | None:
+        """Moves a document's file and converted form to the archive.
+
+        Returns:
+            Whether each was there, or None if no document has that digest.
+        """
         media_type = self._repository.media_type(sha256)
         if media_type is None:
             return None
-
-        file_gone = self._archive.take(
-            self._store.name, self._store.key_for(sha256, media_type)
+        return (
+            self._archive.take(
+                self._store.name, self._store.key_for(sha256, media_type)
+            ),
+            self._archive.take(self._parsed.name, self._parsed.key_for(sha256)),
         )
-        parsed_gone = self._archive.take(
-            self._parsed.name, self._parsed.key_for(sha256)
-        )
-        passages = self._repository.delete(sha256)
 
+    def _removed(
+        self, sha256: str, passages: int, file_gone: bool, parsed_gone: bool
+    ) -> Removal:
+        """Logs and describes one document's removal."""
         log.info(
             "deleted %s: %d passage(s) archived, file=%s parsed=%s",
             sha256,
@@ -96,14 +109,23 @@ class RemovalService:
         empty corpus reporting nine upload attempts is a status panel
         describing documents nothing has. It goes first.
 
+        Every object is moved first and every row then goes in one
+        statement, so a question resting on two documents is deleted whole
+        rather than rejected when the first of them goes.
+
         Returns:
             What was removed, one entry per document.
         """
         events = self._repository.forget_uploads()
-        removed = [
-            gone
+        taken = {
+            digest: objects
             for digest in self._repository.digests()
-            if (gone := self.delete(digest)) is not None
+            if (objects := self._take_objects(digest)) is not None
+        }
+        passages = self._repository.delete_all(list(taken))
+        removed = [
+            self._removed(digest, passages.get(digest, 0), *objects)
+            for digest, objects in taken.items()
         ]
         log.info(
             "deleted %d document(s) and %d upload record(s); topics are not a "
