@@ -12,7 +12,8 @@ class ParsedBucket(Bucket):
 
     Keyed by the source document's digest, so re-parsing overwrites rather
     than accumulating versions. Regenerable from the documents bucket, so it
-    tolerates lower replication and a TTL.
+    tolerates lower replication. Nothing expires it: re-chunking reads it
+    rather than parsing again.
     """
 
     name: ClassVar[str] = "parsed"
