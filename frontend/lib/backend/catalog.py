@@ -154,7 +154,7 @@ class CatalogApi(Endpoint):
 
         Its own timeout, because the shared GET one is sized for a query.
         This reads every row the filter selects, joins the citations behind
-        them and writes three sheets, and over a corpus of a few thousand
+        them and writes four sheets, and over a corpus of a few thousand
         questions that is minutes rather than the ten seconds a listing is
         allowed - so the default turned a working export into a timeout in
         the browser while the API went on building it.

@@ -568,8 +568,9 @@ def _export(client, where: dict, total: int, quality: dict) -> None:
             )
         st.rerun()
     st.caption(
-        "One sheet of questions, one of the facts each cites, one of counts — "
-        "everything the filter above selects, not just this page."
+        "One sheet of questions, one of the facts each cites, one of the "
+        "judge's verdicts, one of counts — everything the filter above "
+        "selects, not just this page."
     )
 
 
