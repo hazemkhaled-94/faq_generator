@@ -92,7 +92,7 @@
           "format": "table",
           "rawQuery": true,
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-pipeline" },
-          "rawSql": "SELECT count(*) AS \"written\",\n       count(*) FILTER (WHERE status = 'accepted') AS \"accepted\",\n       round(100.0 * count(*) FILTER (WHERE status = 'accepted') / nullif(count(*), 0), 1) AS \"accepted %\",\n       count(DISTINCT topic_scope) AS \"topics\"\nFROM questions\nWHERE run_id = '$run'"
+          "rawSql": "SELECT count(*) AS \"written\",\n       count(*) FILTER (WHERE status = 'accepted') AS \"accepted\",\n       round(100.0 * count(*) FILTER (WHERE status = 'accepted') / nullif(count(*), 0), 1) AS \"accepted %\"\nFROM questions\nWHERE run_id = '$run'"
         }
       ]
     },
