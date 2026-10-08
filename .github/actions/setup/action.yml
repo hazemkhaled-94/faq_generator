@@ -1,6 +1,11 @@
 name: Set up the project
 description: Python, poetry, and the dependencies every job needs, from cache.
 
+outputs:
+  embedding:
+    description: EMBEDDING_MODEL from backend.env, for a Hugging Face cache key.
+    value: ${{ steps.models.outputs.embedding }}
+
 runs:
   using: composite
   steps:
@@ -24,7 +29,8 @@ runs:
     # The spaCy pipelines `make install` downloads, read as the Makefile reads
     # them: the names from NLP_MODELS in backend.env, the version from the
     # Dockerfile. The names rather than a hash of backend.env, which every
-    # tuning edit would turn into a full install.
+    # tuning edit would turn into a full install. And EMBEDDING_MODEL, which
+    # is what a job's Hugging Face cache holds.
     - name: Read the model names
       id: models
       shell: bash
@@ -32,6 +38,7 @@ runs:
         names=$(sed -n 's/^NLP_MODELS=//p' configs/env/backend.env | tr ',' '\n' | cut -d: -f2 | paste -sd+ -)
         version=$(sed -n 's/^ARG SPACY_MODEL_VERSION=//p' backend/api/Dockerfile)
         echo "spacy=$names-$version" >> "$GITHUB_OUTPUT"
+        echo "embedding=$(sed -n 's/^EMBEDDING_MODEL=//p' configs/env/backend.env | tr / -)" >> "$GITHUB_OUTPUT"
 
     # Keyed on the lock, the Makefile's install recipe and the pipelines
     # above. A miss costs the full install, torch included.
