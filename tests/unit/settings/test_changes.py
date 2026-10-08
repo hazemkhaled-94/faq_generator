@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from settings import changes
+from settings import catalog, changes
 
 
 class Untouched:
@@ -28,6 +28,32 @@ def test_a_change_naming_where_a_model_is_served_is_refused(name: str) -> None:
     assert refused.value.code == "fixed_setting"
 
 
-def test_which_model_is_called_may_still_be_changed() -> None:
-    """The name is the pipeline's."""
-    assert changes.owned("platform", ["LLM_MODEL"])["LLM_MODEL"].fixed is False
+@pytest.mark.parametrize(
+    "name",
+    [
+        "LLM_MODEL",
+        "EXTRACTION_MODEL",
+        "EXTRACTION_DIGEST_MODEL",
+        "TOPIC_MODEL",
+        "QUESTIONS_MODEL",
+        "QUESTIONS_VERIFIER_MODEL",
+        "QUESTIONS_PHRASING_MODEL",
+        "ASSESSMENT_JUDGE_MODEL",
+    ],
+)
+def test_a_change_naming_which_model_is_called_is_refused(name: str) -> None:
+    """The host reads its models from .env and a container from compose.
+
+    One table serves both, so no value stored there is right for both.
+    """
+    service = catalog.BY_NAME[name].service
+    with pytest.raises(changes.Refused) as refused:
+        changes.apply(service, {name: "ollama_chat/other"}, store=Untouched())
+
+    assert refused.value.code == "fixed_setting"
+
+
+@pytest.mark.parametrize("name", ["EMBEDDING_MODEL", "NLI_MODEL", "QA_MODEL"])
+def test_a_local_encoder_may_still_be_changed(name: str) -> None:
+    """Run in the worker, the same on the host and in a container."""
+    assert changes.owned("platform", [name])[name].fixed is False

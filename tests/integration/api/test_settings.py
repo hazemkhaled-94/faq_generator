@@ -351,47 +351,43 @@ def test_a_setting_whose_absence_means_something_can_be_turned_off(client) -> No
     """Empty is how a value the files name is overridden back to absent.
 
     Set first, because that is the only state there is anything to turn off
-    in: the test environment names no verifier, and writing empty over an
+    in: the test environment names no reader, and writing empty over an
     absence is the no-op below.
     """
     client.patch(
-        "/settings/questions",
-        json={"values": {"QUESTIONS_VERIFIER_MODEL": "ollama_chat/checker"}},
+        "/settings/platform",
+        json={"values": {"QA_MODEL": "deepset/reader"}},
     )
 
-    answered = client.patch(
-        "/settings/questions", json={"values": {"QUESTIONS_VERIFIER_MODEL": ""}}
-    )
+    answered = client.patch("/settings/platform", json={"values": {"QA_MODEL": ""}})
 
     assert answered.status_code == 200, answered.text
-    assert answered.json()["changed"] == ["QUESTIONS_VERIFIER_MODEL"]
+    assert answered.json()["changed"] == ["QA_MODEL"]
 
     found = {
-        one["name"]: one for one in client.get("/settings/questions").json()["settings"]
+        one["name"]: one for one in client.get("/settings/platform").json()["settings"]
     }
-    assert found["QUESTIONS_VERIFIER_MODEL"]["value"] is None
-    assert found["QUESTIONS_VERIFIER_MODEL"]["stored"] is True
+    assert found["QA_MODEL"]["value"] is None
+    assert found["QA_MODEL"]["stored"] is True
 
     from question_generation.config import Settings
     from settings.store import Settings as Store
 
-    assert Settings.load(Store().resolved()).verifier_model is None
+    assert Settings.load(Store().resolved()).answer_model is None
 
 
 def test_writing_empty_over_an_absence_changes_nothing(client, monkeypatch) -> None:
     """Absent already, so there is nothing to turn off and no row to write.
 
-    The absence is made rather than assumed. `.env` carries a verifier on a
-    developer's machine and not in CI, so a test that read whichever the
-    shell happened to export passed on one and failed on the other - and
-    the environment is half of what `resolved` compares a new value
-    against, which is the thing under test here.
+    The absence is made rather than assumed. A developer's shell may export
+    a value CI does not, so a test that read whichever the shell happened to
+    export passed on one and failed on the other - and the environment is
+    half of what `resolved` compares a new value against, which is the
+    thing under test here.
     """
-    monkeypatch.delenv("QUESTIONS_VERIFIER_MODEL", raising=False)
+    monkeypatch.delenv("QA_MODEL", raising=False)
 
-    answered = client.patch(
-        "/settings/questions", json={"values": {"QUESTIONS_VERIFIER_MODEL": ""}}
-    )
+    answered = client.patch("/settings/platform", json={"values": {"QA_MODEL": ""}})
 
     assert answered.status_code == 200, answered.text
     assert answered.json()["changed"] == []
@@ -447,20 +443,14 @@ def test_the_generation_plan_reports_a_changed_mix(client) -> None:
     assert client.get("/questions/plan").json()["per_topic"] == 3
 
 
-def test_the_model_litellm_calls_can_be_changed(client) -> None:
-    """The setting this was all for, and the one furthest from a database.
+def test_the_model_litellm_calls_is_the_deployments(client) -> None:
+    """The host reads it from .env and a container from compose.
 
-    The api calls no model and serves this anyway: which model the workers
-    call is a setting like any other, and the page that runs a stage is
-    where it is chosen.
+    One table serves both, so no value stored there is right for both.
     """
     answered = client.patch(
         "/settings/platform", json={"values": {"LLM_MODEL": "ollama_chat/other"}}
     )
 
-    assert answered.status_code == 200, answered.text
-
-    from llm.config import Settings
-    from settings.store import Settings as Store
-
-    assert Settings.load(Store().resolved()).model == "ollama_chat/other"
+    assert answered.status_code == 400
+    assert answered.json()["code"] == "fixed_setting"

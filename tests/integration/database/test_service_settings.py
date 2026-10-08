@@ -57,7 +57,7 @@ def test_a_stored_setting_reaches_the_stage_that_reads_it(store) -> None:
 def test_a_platform_setting_reaches_a_stage_that_is_not_the_platform(
     store,
 ) -> None:
-    """Resolution ignores the service column, or extraction misses LLM_MODEL.
+    """Resolution ignores the service column, or extraction misses the platform's.
 
     The one bug a per-service overlay would have: extraction reads its own
     settings and the platform's, and only the second is stored under
@@ -65,10 +65,10 @@ def test_a_platform_setting_reaches_a_stage_that_is_not_the_platform(
     """
     from llm.config import Settings
 
-    store.write("LLM_MODEL", "ollama_chat/stored")
+    store.write("LLM_TEMPERATURE", "0.7")
 
-    assert store.resolved()["LLM_MODEL"] == "ollama_chat/stored"
-    assert Settings.load(store.resolved()).model == "ollama_chat/stored"
+    assert store.resolved()["LLM_TEMPERATURE"] == "0.7"
+    assert Settings.load(store.resolved()).temperature == 0.7
 
 
 def test_writing_a_setting_twice_leaves_one_row(store) -> None:
@@ -116,17 +116,17 @@ def test_an_empty_value_is_refused_for_a_setting_that_needs_one(store) -> None:
 def test_an_empty_value_turns_off_a_setting_whose_absence_means_something(
     store,
 ) -> None:
-    """How a verifier model named in the file is overridden back to none.
+    """How an encoder named in the file is overridden back to none.
 
     Deleting the row would return it to the file, which names one. Absence
     has to be storable or the file's value could never be turned off.
     """
     from question_generation.config import Settings
 
-    store.write("QUESTIONS_VERIFIER_MODEL", "")
+    store.write("NLI_MODEL", "")
 
-    assert store.overrides() == {"QUESTIONS_VERIFIER_MODEL": ""}
-    assert Settings.load(store.resolved()).verifier_model is None
+    assert store.overrides() == {"NLI_MODEL": ""}
+    assert Settings.load(store.resolved()).entailment_model is None
 
 
 def test_a_value_is_trimmed_before_it_is_stored(store) -> None:

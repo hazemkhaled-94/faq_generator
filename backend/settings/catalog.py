@@ -205,6 +205,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="extraction",
         kind="text",
         optional=True,
+        fixed=True,
         help="The model that condenses a passage into a summary and an "
         "outline. Unset uses whichever model reads it. Condensing is the one "
         "thing extraction asks for that a small model is trained to do.",
@@ -253,6 +254,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="extraction",
         kind="text",
         optional=True,
+        fixed=True,
         help="The model that reads a passage for its facts. Absent calls the "
         "one LLM_MODEL names. Facts already extracted keep the model they "
         "were written by, which is recorded on each of them.",
@@ -351,6 +353,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="topics",
         kind="text",
         optional=True,
+        fixed=True,
         help="The model that names a topic from its terms. Absent calls the "
         "one LLM_MODEL names. Topics already fitted keep the label they were "
         "given, and what named them is recorded.",
@@ -614,6 +617,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="questions",
         kind="text",
         optional=True,
+        fixed=True,
         help="The model that writes a question. Absent calls the one LLM_MODEL names.",
     ),
     Setting(
@@ -621,6 +625,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="questions",
         kind="text",
         optional=True,
+        fixed=True,
         help="The second model, which checks that a question's answer is in "
         "the passages it cites. Naming the writer's own model, or none at "
         "all, turns off the two gates only an independent model may apply.",
@@ -692,6 +697,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="questions",
         kind="text",
         optional=True,
+        fixed=True,
         help="The model asked what a question's own wording amounts to, "
         "where a rule has not already settled it. Sees the question and "
         "never a passage, so it can be far smaller than the verifier. "
@@ -702,6 +708,7 @@ SETTINGS: tuple[Setting, ...] = (
         name="LLM_MODEL",
         service="platform",
         kind="text",
+        fixed=True,
         help="LiteLLM model id; the prefix picks the provider. The default "
         "for every stage that calls a model, and what a stage's own override "
         "replaces.",
@@ -869,6 +876,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="assessment",
         kind="text",
         optional=True,
+        fixed=True,
         help="The model that judges. Absent, nothing is judged. Name one "
         "that is not LLM_MODEL, for the reason QUESTIONS_VERIFIER_MODEL "
         "exists.",
@@ -949,6 +957,6 @@ def writable(name: str) -> Setting:
     if found.fixed:
         raise ValueError(
             f"{name} belongs to the deployment rather than to the pipeline. "
-            f"It is set in .env and read when a process starts."
+            f"It is set in .env or configs/env and read when a process starts."
         )
     return found
