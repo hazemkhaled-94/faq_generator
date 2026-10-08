@@ -87,6 +87,9 @@ footer { visibility: hidden; }
 .st-key-folds:has(details[open]) > * { flex: none; }
 /* Anything in the row that is not a fold takes a line of its own. */
 .st-key-folds > :not(:has(details)) { flex-basis: 100%; }
+/* The pipeline's automation fold: at the end of the verbs while closed, on a
+   line of its own once opened. */
+.st-key-pipeline-row > :has(details[open]) { flex-basis: 100%; }
 
 /* ── Figures: small, because only the important ones are here ───────── */
 

@@ -77,7 +77,7 @@ def _controls(client) -> None:
         if one.get("stage") != "assessment"
     )
 
-    row = st.container(horizontal=True, vertical_alignment="center")
+    row = st.container(horizontal=True, vertical_alignment="center", key="pipeline-row")
 
     if row.button(
         "Run the pipeline",
@@ -177,7 +177,7 @@ def _automation(client, automation: dict) -> None:
     """The two switches that start a run without being asked.
 
     Folded away, because turning one on is a decision made once and the
-    four buttons above are the ones pressed daily. Off is what ships: a
+    four buttons beside it are the ones pressed daily. Off is what ships: a
     stack that starts working the moment it comes up is one nobody chose.
     """
     available = bool(automation.get("available"))
