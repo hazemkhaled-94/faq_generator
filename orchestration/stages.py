@@ -91,9 +91,7 @@ def _run(context: AssetExecutionContext, stage: str, unit: str) -> Output[int]:
     queue = backend.drain(
         stage, timeout=settings.drain_timeout, poll=settings.poll_seconds
     )
-    done = sum(
-        count for status, count in queue.rows.items() if status not in ("new", "failed")
-    )
+    done = produced(queue.rows)
     return Output(
         done,
         metadata={
