@@ -26,6 +26,7 @@ import question_generation.config
 import topic_modelling.config
 from settings import catalog
 from settings.store import Settings as Store
+from settings.store import Stale
 
 #: What must still parse after a change. All of them on every write: a
 #: platform setting is read by stages a request never names. `platform` is
@@ -209,8 +210,8 @@ def apply(
         service: Which service is being configured.
         values: The settings to write, by name. A None returns one to
             whatever the files say.
-        version: The version the caller decided against, or None to write
-            whatever has happened since.
+        version: The version the caller decided against, or None to decide
+            against what is stored now.
         store: The store to write through, built when not given.
 
     Returns:
@@ -221,8 +222,9 @@ def apply(
             goes with it.
     """
     store = store or Store()
-    resolved = store.resolved()
+    # Before `resolved`: a write between the two then fails the locked check.
     at = store.version()
+    resolved = store.resolved()
     if version is not None and version != at:
         raise Moved(version, at)
 
@@ -237,14 +239,18 @@ def apply(
         candidate[name] = os.environ.get(name, "") if value is None else value.strip()
     still_parses(failing(resolved), candidate)
 
-    changed, cleared = [], []
-    for name, value in values.items():
-        if value is None:
-            if store.clear(name):
-                cleared.append(name)
-        elif value.strip() != (resolved.get(name) or ""):
-            store.write(name, value)
-            changed.append(name)
+    writes = {
+        name: value
+        for name, value in values.items()
+        if value is not None and value.strip() != (resolved.get(name) or "")
+    }
+    try:
+        cleared = store.change(
+            writes, [name for name, value in values.items() if value is None], at
+        )
+    except Stale as exc:
+        raise Moved(version or at, exc.current) from None
+    changed = list(writes)
 
     stale = sorted(
         {stage for name in changed + cleared for stage in settings[name].invalidates}

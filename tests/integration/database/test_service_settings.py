@@ -95,6 +95,27 @@ def test_clearing_a_setting_nobody_changed_says_so(store) -> None:
     assert store.clear("TOPIC_PASSES") is False
 
 
+def test_a_change_lands_whole_or_not_at_all(store) -> None:
+    """The second of two writes refused leaves the first unwritten too."""
+    with pytest.raises(ValueError, match="DATABASE_POOL_SIZE"):
+        store.change({"TOPIC_PASSES": "42", "DATABASE_POOL_SIZE": "9"}, [])
+
+    assert store.overrides() == {}
+
+
+def test_a_change_against_a_version_that_moved_writes_nothing(store) -> None:
+    """Checked under the table's lock, so nothing lands between check and write."""
+    from settings.store import Stale
+
+    before = store.version()
+    store.write("TOPIC_TOP_TERMS", "5")
+
+    with pytest.raises(Stale):
+        store.change({"TOPIC_PASSES": "42"}, ["TOPIC_TOP_TERMS"], expected=before)
+
+    assert store.overrides() == {"TOPIC_TOP_TERMS": "5"}
+
+
 def test_a_setting_nothing_configures_is_refused(store) -> None:
     """The catalogue is the list, so a typo cannot be stored and forgotten."""
     with pytest.raises(KeyError, match="TOPIC_PASSESS"):
