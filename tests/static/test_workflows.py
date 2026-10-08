@@ -115,6 +115,25 @@ def test_a_job_running_the_smoke_layer_writes_a_dot_env_first(path: Path) -> Non
         assert not smoke or (written and written[0] < smoke[0]), name
 
 
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+def test_no_step_sets_a_tuning_value_of_its_own(path: Path) -> None:
+    """The tests read backend.env, and a step's own value wins over it."""
+    tuning = {
+        line.partition("=")[0]
+        for line in (ROOT / "configs/env/backend.env").read_text().splitlines()
+        if "=" in line and not line.startswith("#")
+    }
+    copied = [
+        f"{name}: {setting}"
+        for name, job in loaded(path)["jobs"].items()
+        for step in job.get("steps", [])
+        for setting in step.get("env", {})
+        if setting in tuning
+    ]
+
+    assert not copied, copied
+
+
 def _selects_smoke(run: str) -> bool:
     """Whether one step runs the smoke layer, by target or by marker.
 

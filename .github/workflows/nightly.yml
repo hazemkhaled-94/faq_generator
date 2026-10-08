@@ -114,8 +114,4 @@ jobs:
         env:
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_STRUCTURED_MODE: JSON_SCHEMA
-          LLM_TEMPERATURE: "0"
-          LLM_TIMEOUT_SECONDS: "900"
-          LLM_MAX_ATTEMPTS: "3"
         run: poetry run pytest -m eval -s
