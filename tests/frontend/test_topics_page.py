@@ -212,7 +212,7 @@ def test_the_chosen_topic_reports_everything_held_about_it(page) -> None:
 
 def test_naming_a_topic_sends_the_label_and_the_coverage_choice(open_view) -> None:
     """Both, because one PATCH carries both."""
-    client = Answers(**answers())
+    client = Answers(**answers(stage_status=lambda *a, **k: status(modelled=1)))
     page = open_view("topics", client).select(0)
 
     page.type_in(f"topics-label-{TOPIC['id']}", "Shipping").press("Save")
@@ -222,7 +222,7 @@ def test_naming_a_topic_sends_the_label_and_the_coverage_choice(open_view) -> No
 
 def test_a_label_of_only_spaces_is_sent_as_no_label(open_view) -> None:
     """Rather than stored as a name made of whitespace."""
-    client = Answers(**answers())
+    client = Answers(**answers(stage_status=lambda *a, **k: status(modelled=1)))
     page = open_view("topics", client).select(0)
 
     page.type_in(f"topics-label-{TOPIC['id']}", "   ").press("Save")
@@ -232,12 +232,23 @@ def test_a_label_of_only_spaces_is_sent_as_no_label(open_view) -> None:
 
 def test_taking_a_topic_out_of_coverage_sends_the_choice(open_view) -> None:
     """A topic that is not a subject stops being counted as a gap."""
-    client = Answers(**answers())
+    client = Answers(**answers(stage_status=lambda *a, **k: status(modelled=1)))
     page = open_view("topics", client).select(0)
 
     page.uncheck(f"topics-coverage-{TOPIC['id']}").press("Save")
 
     assert ("describe_topic", (TOPIC["id"], None, False), {}) in client.asked
+
+
+@pytest.mark.parametrize("queued", ({"pending": 1}, {"in_progress": 1}))
+def test_a_topic_cannot_be_saved_while_a_fit_is_queued_or_running(page, queued) -> None:
+    """The fit replaces every topic row, so a label saved now would be lost."""
+    drawn = page(stage_status=lambda *a, **k: status(**queued)).select(0)
+    save = drawn.button("Save")
+
+    assert save.key == "topics-save"
+    assert save.disabled
+    assert "fit" in save.help
 
 
 # ── Fitting ───────────────────────────────────────────────────────────────

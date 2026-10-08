@@ -405,12 +405,21 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             help="Whether this topic counts as a subject to be covered.",
         )
         apply.markdown("<div style='height:1.8rem'></div>", unsafe_allow_html=True)
+        # ponytail: read when the page is drawn, and the API still takes the
+        # PATCH during a fit, so a Save pressed as a fit starts is still lost.
+        # The upgrade is `replace` re-reading the labels in its own locked
+        # transaction.
+        fitting = stage.busy(client.stage_status("topics")["rows"])
         if apply.button(
             "Save",
             key="topics-save",
             type="primary",
+            disabled=fitting,
             width="stretch",
-            help="Records the label and the coverage choice.",
+            help="A fit is queued or running and replaces every topic, so a "
+            "label saved now would be lost. Save once it has finished."
+            if fitting
+            else "Records the label and the coverage choice.",
         ):
             client.describe_topic(chosen["id"], label.strip() or None, included)
             st.toast(f"Topic {chosen['language']} #{chosen['topic_index']} saved.")
