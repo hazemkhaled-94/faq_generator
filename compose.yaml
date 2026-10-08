@@ -404,6 +404,9 @@ services:
       WEED_POSTGRES_PASSWORD: ${SEAWEEDFS_DB_PASSWORD}
       WEED_POSTGRES_DATABASE: ${SEAWEEDFS_DB_NAME}
       WEED_POSTGRES_SSLMODE: ${SEAWEEDFS_DB_SSLMODE}
+    # The image declares /data a volume; the metadata is in Postgres, so
+    # nothing there is read back, and a tmpfs leaves no anonymous volume.
+    tmpfs: [/data]
     depends_on:
       seaweedfs-master: { condition: service_healthy }
       postgres:         { condition: service_healthy }
@@ -438,6 +441,8 @@ services:
     volumes:
       - ./configs/seaweedfs/entrypoint.sh:/entrypoint.sh:ro
       - ./configs/seaweedfs/bucket-init.sh:/bucket-init.sh:ro
+    # As for the filer: an image-declared volume nothing here reads back.
+    tmpfs: [/data]
     ports:
       - "127.0.0.1:${S3_PORT}:8333"
     depends_on:
@@ -462,6 +467,9 @@ services:
       TZ: UTC
     volumes:
       - ./configs/seaweedfs/Caddyfile:/etc/caddy/Caddyfile:ro
+    # The image declares both volumes; a plain-HTTP proxy keeps nothing in
+    # either.
+    tmpfs: [/config, /data]
     depends_on:
       seaweedfs-master: { condition: service_healthy }
       seaweedfs-filer:  { condition: service_healthy }
