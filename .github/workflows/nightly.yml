@@ -51,6 +51,8 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}
+      # compose.yaml requires two variables only .env.example declares.
+      - run: cp .env.example .env
       # A thousand examples per property where CI runs 200 and a laptop
       # runs 25, which is the budget nothing else has time for.
       - run: poetry run pytest -m "not eval and not perf"

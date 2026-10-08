@@ -109,10 +109,23 @@ def test_a_job_running_the_smoke_layer_writes_a_dot_env_first(path: Path) -> Non
     """Without one, compose cannot resolve and every compose check skips."""
     for name, job in loaded(path)["jobs"].items():
         runs = [step.get("run", "") for step in job.get("steps", [])]
-        smoke = [at for at, run in enumerate(runs) if "test-smoke" in run]
+        smoke = [at for at, run in enumerate(runs) if _selects_smoke(run)]
         written = [at for at, run in enumerate(runs) if "cp .env.example .env" in run]
 
         assert not smoke or (written and written[0] < smoke[0]), name
+
+
+def _selects_smoke(run: str) -> bool:
+    """Whether one step runs the smoke layer, by target or by marker.
+
+    A bare `pytest` with no `-m` and no path is not seen.
+    """
+    from collections import defaultdict
+
+    return "test-smoke" in run or any(
+        eval(expression, {}, defaultdict(bool, {"smoke": True}))
+        for expression in _SELECTOR.findall(run)
+    )
 
 
 def test_every_property_test_runs_the_profiles_example_count() -> None:
