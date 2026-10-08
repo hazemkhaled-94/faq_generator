@@ -702,9 +702,13 @@ extract-revalidate:
 # them. A pass of its own rather than part of the queue: the unit is a group
 # of passages the topic model put together, so topics must be fitted first.
 # Re-running replaces the bridges it wrote last time instead of adding to
-# them.
+# them. It refuses, deleting nothing, while an accepted question cites one
+# of those bridges, and says how many; FORCE=1 replaces them anyway, and
+# those questions are rejected or deleted with them.
+#
+#   make extract-bridge FORCE=1
 extract-bridge:
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --bridge $(ONLY)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --bridge $(if $(filter 1,$(FORCE)),--force) $(ONLY)
 
 # Refuse the atomic facts a passage yielded above the cap
 # EXTRACTION_MIN_OTHER_SHARE works out to, keeping the ones that assert a

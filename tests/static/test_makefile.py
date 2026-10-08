@@ -97,3 +97,15 @@ def test_the_guard_refuses_only_while_the_worker_runs(
             f"{engine} --env-file configs/env/deployment.env --env-file .env "
             "stop extract-worker"
         ) in ran.stdout + ran.stderr
+
+
+@pytest.mark.parametrize(("given", "forced"), [((), False), (("FORCE=1",), True)])
+def test_the_bridge_pass_is_forced_only_when_asked(
+    given: tuple[str, ...], forced: bool
+) -> None:
+    """`FORCE=1` reaches it as `--force`."""
+    (bridging,) = [
+        line for line in printed("extract-bridge", *given) if "--bridge" in line
+    ]
+
+    assert ("--force" in bridging) is forced, bridging

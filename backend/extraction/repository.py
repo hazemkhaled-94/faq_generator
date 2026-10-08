@@ -32,6 +32,9 @@ from database.qa_generator import (
     FactKind,
     FactPassage,
     Passage,
+    Question,
+    QuestionFact,
+    QuestionStatus,
     Rejection,
     Status,
 )
@@ -171,6 +174,29 @@ def _resting(condition) -> ColumnElement[bool]:
         select(FactPassage.fact_id)
         .join(Passage, Passage.id == FactPassage.passage_id)
         .where(condition)
+    )
+
+
+def _bridges(within) -> Select:
+    """The bridge facts a pass narrowed by `within` replaces.
+
+    Every bridge of a topic holding a selected passage, as `by_topic` reads
+    those whole; every bridge when `within` is None.
+    """
+    chosen = select(Fact.id).where(Fact.kind == FactKind.BRIDGE)
+    if within is None:
+        return chosen
+    return chosen.where(
+        _resting(
+            or_(
+                within,
+                Passage.id.in_(
+                    select(DOMINANT.c.passage_id).where(
+                        DOMINANT.c.topic_id.in_(_topics(within))
+                    )
+                ),
+            )
+        )
     )
 
 
@@ -709,23 +735,32 @@ class FactCatalog(Repository):
         Returns:
             How many were deleted.
         """
-        chosen = select(Fact.id).where(Fact.kind == FactKind.BRIDGE)
-        if within is not None:
-            # And every passage of a topic `by_topic` reads whole.
-            chosen = chosen.where(
-                _resting(
-                    or_(
-                        within,
-                        Passage.id.in_(
-                            select(DOMINANT.c.passage_id).where(
-                                DOMINANT.c.topic_id.in_(_topics(within))
-                            )
-                        ),
+        with self._session.begin() as session:
+            return session.execute(
+                delete(Fact).where(Fact.id.in_(_bridges(within)))
+            ).rowcount
+
+    def accepted_on_bridges(self, within=None) -> int:
+        """Counts the accepted questions citing a bridge `clear_bridges` deletes.
+
+        Args:
+            within: The same narrowing `clear_bridges` takes.
+
+        Returns:
+            How many there are.
+        """
+        with self._session() as session:
+            return (
+                session.scalar(
+                    select(func.count(func.distinct(QuestionFact.question_id)))
+                    .join(Question, Question.id == QuestionFact.question_id)
+                    .where(
+                        QuestionFact.fact_id.in_(_bridges(within)),
+                        Question.status == QuestionStatus.ACCEPTED,
                     )
                 )
+                or 0
             )
-        with self._session.begin() as session:
-            return session.execute(delete(Fact).where(Fact.id.in_(chosen))).rowcount
 
     def add_bridges(self, facts: list[CheckedFact]) -> int:
         """Writes bridge facts and the passages each rests on.

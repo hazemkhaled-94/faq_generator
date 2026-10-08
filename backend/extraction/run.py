@@ -1,8 +1,8 @@
 """Command-line entry point for the extraction service.
 
 Every queue flag is the same operation as the route beside it under
-/extraction. `--revalidate` and `--bridge` are this stage's own. Run with
---help for the list.
+/extraction. `--revalidate` and `--bridge` are this stage's own, and
+`--force` is `--bridge`'s. Run with --help for the list.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from extraction import prompts
 from extraction.config import Settings
 from extraction.factory import build_bridge, build_service, models
 from extraction.repository import FactCatalog, PassageQueue
-from extraction.service import bridge, embed, recap, revalidate
+from extraction.service import CitedBridges, bridge, embed, recap, revalidate
 from extraction.validation import FactChecker
 from llm.check import before_work
 from llm.config import Settings as ModelSettings
@@ -34,6 +34,13 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         The process exit code.
     """
+    argv = sys.argv[1:] if argv is None else argv
+    # --bridge's own, read off before the parser every stage shares.
+    #
+    # ponytail: not declared to that parser, so --help does not list it and
+    # any action accepts it. Upgrade: let queue_main take a stage's own
+    # arguments beside its own actions.
+    force = "--force" in argv
 
     def configured() -> tuple[ModelSettings, Settings, str]:
         """Reads the settings as they stand, and what that configuration is.
@@ -66,14 +73,21 @@ def main(argv: list[str] | None = None) -> int:
     def run_bridge(within) -> int:
         """Reads every topic's passage groups for the claims they share."""
         model, settings, version = configured()
-        return bridge(
-            FactCatalog(version=version),
-            build_bridge(model, settings),
-            FactChecker(settings.digest_share),
-            settings.bridges_per_topic,
-            settings.bridge_passages,
-            within,
-        )
+        try:
+            return bridge(
+                FactCatalog(version=version),
+                build_bridge(model, settings),
+                FactChecker(settings.digest_share),
+                settings.bridges_per_topic,
+                settings.bridge_passages,
+                within,
+                force,
+            )
+        except CitedBridges as refusal:
+            raise SystemExit(
+                f"{refusal}. --force, or make extract-bridge FORCE=1, deletes "
+                "them anyway."
+            ) from None
 
     def run_revalidate(within) -> int:
         """Judges every stored fact again, under the settings as they stand."""
@@ -140,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         module="extraction.run",
         repository=PassageQueue,
         build_service=build,
-        argv=sys.argv[1:] if argv is None else argv,
+        argv=[one for one in argv if one != "--force"],
         extra=extra,
         preflight=preflight,
         prompts=record_prompts,

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from seed import digest, document, passage
+from seed import digest, document, link, passage, question
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -177,6 +177,15 @@ class FactStore:
     def bridges(self, *facts: CheckedFact) -> int:
         """Writes bridge facts, as the bridge pass does."""
         return self.catalog.add_bridges(list(facts))
+
+    def asked(self, fact_id: int, status: str) -> None:
+        """Writes a question of `status` resting on one fact."""
+        with Session(self.engine) as session:
+            row = question(status=status)
+            session.add(row)
+            session.flush()
+            session.add(link(row.id, fact_id))
+            session.commit()
 
     def rows(self, *columns: str, where: str = "TRUE", **values: Any) -> list[tuple]:
         """Reads columns out of the facts table."""

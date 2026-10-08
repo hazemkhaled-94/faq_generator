@@ -193,7 +193,7 @@ expensive part:
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
-| `make extract-bridge` | Read each topic's passage groups for claims spanning passages |
+| `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway |
 
 `chunk-revocabulary` and `extract-revalidate` take `SHA`;
 `extract-revalidate`, `extract-recap` and `extract-embed` take `PASSAGE`;

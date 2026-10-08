@@ -7,6 +7,8 @@ count when they are filtered the same way.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from facts import FactStore, checked
 from seed import digest
@@ -16,6 +18,10 @@ from database.qa_generator import FactKind, Passage, Rejection, Status
 from extraction.models import Citation
 
 pytestmark = pytest.mark.integration
+
+#: The bridge pass's extractor and checker, which a corpus with no topics
+#: never reaches.
+UNREAD: Any = None
 
 
 @pytest.fixture
@@ -471,6 +477,63 @@ class TestBridges:
     def test_writing_nothing_writes_nothing(self, store) -> None:
         """A topic that bridges nothing costs no statement."""
         assert store.bridges() == 0
+
+
+class TestReplacingCitedBridges:
+    """A second bridge pass, over bridges questions already cite."""
+
+    @pytest.fixture
+    def cited(self, store, corpus):
+        """Cites the one bridge across both documents with a question of a status."""
+
+        def cite(status: str) -> None:
+            """Writes the bridge and a question of `status` resting on it."""
+            anchor, other = corpus["a"][0], corpus["b"][0]
+            store.bridges(
+                checked(
+                    anchor,
+                    "A bridge.",
+                    kind=FactKind.BRIDGE,
+                    passage_ids=[anchor, other],
+                )
+            )
+            ((fact_id,),) = store.rows("id")
+            store.asked(fact_id, status)
+
+        return cite
+
+    def test_an_accepted_question_on_a_bridge_stops_the_pass(
+        self, store, cited
+    ) -> None:
+        """Before anything is deleted, naming how many questions."""
+        from extraction.service import CitedBridges, bridge
+
+        cited("accepted")
+
+        with pytest.raises(CitedBridges, match="1 accepted question"):
+            bridge(store.catalog, UNREAD, UNREAD, 5, 2)
+
+        assert store.count() == 1
+        assert store.count("questions") == 1
+
+    def test_forcing_it_replaces_the_bridge_anyway(self, store, cited) -> None:
+        """And the question resting on that bridge alone goes with it."""
+        from extraction.service import bridge
+
+        cited("accepted")
+
+        assert bridge(store.catalog, UNREAD, UNREAD, 5, 2, force=True) == 0
+        assert store.count() == 0
+        assert store.count("questions") == 0
+
+    def test_a_question_nobody_accepted_does_not_stop_it(self, store, cited) -> None:
+        """A draft is not the dataset."""
+        from extraction.service import bridge
+
+        cited("draft")
+
+        assert bridge(store.catalog, UNREAD, UNREAD, 5, 2) == 0
+        assert store.count() == 0
 
 
 class TestGroups:

@@ -314,6 +314,10 @@ def grouped(
     return [whole[round(at * step)] for at in range(chosen)]
 
 
+class CitedBridges(Exception):
+    """Accepted questions cite a bridge the pass would delete."""
+
+
 def bridge(
     catalog: FactCatalog,
     extractor: BridgeExtractor,
@@ -321,6 +325,7 @@ def bridge(
     groups_per_topic: int,
     size: int,
     within=None,
+    force: bool = False,
 ) -> int:
     """Writes the bridge facts a corpus's topics offer.
 
@@ -334,10 +339,24 @@ def bridge(
         groups_per_topic: How many groups one topic is worth.
         size: How many passages one group holds.
         within: A condition selecting the topics to read, or None.
+        force: Delete the bridges in scope even where an accepted question
+            cites one.
 
     Returns:
         How many bridge facts were stored, refused ones included.
+
+    Raises:
+        CitedBridges: If an accepted question cites a bridge in scope and
+            `force` is not set. Nothing is deleted.
     """
+    # ponytail: counted and deleted in two transactions, so a question
+    # accepted between them is not counted. Upgrade: count and delete in one
+    # transaction holding a lock on the bridges.
+    if not force and (cited := catalog.accepted_on_bridges(within)):
+        raise CitedBridges(
+            f"{cited} accepted question(s) cite a bridge this pass would delete, "
+            "and would be rejected or deleted with it"
+        )
     log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
     written = 0
     # Groups the model could not be asked about. Counted because skipping

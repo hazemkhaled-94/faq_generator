@@ -403,6 +403,10 @@ class Catalogue:
         self.narrowed.append(within)
         yield from enumerate(self._topics, start=1)
 
+    def accepted_on_bridges(self, within=None) -> int:
+        """No question cites a bridge here."""
+        return 0
+
     def clear_bridges(self, within=None) -> int:
         """Records that the previous pass's bridges were replaced."""
         self.cleared += 1

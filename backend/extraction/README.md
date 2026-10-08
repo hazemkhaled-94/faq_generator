@@ -26,7 +26,10 @@ transaction that also marks the passage done.
 
 The **bridge pass** is not a queue: its unit of work is a group of passages
 the topic model put together. `make extract-bridge` walks every topic, forms
-groups, and writes what they yield. Topics must be fitted first.
+groups, and writes what they yield. Topics must be fitted first. A second
+pass replaces the bridges in scope, so it refuses, deleting nothing, while an
+accepted question cites one of them; `FORCE=1` replaces them anyway, and
+those questions are rejected or deleted with them.
 
 `make extract-revalidate` re-judges every stored fact without calling a
 model, which is how a change to the checks reaches a corpus extracted before
@@ -218,6 +221,7 @@ make extract-retry                  # return every failed passage to the queue
 make extract-rerun                  # read every passage again
 make extract-revalidate             # re-judge stored facts; no model call
 make extract-bridge                 # read every topic's groups for bridges
+make extract-bridge FORCE=1         # even over bridges accepted questions cite
 make extract-recap                  # re-apply the atomic cap; no model call
 make extract-embed                  # write vectors onto rows already stored
 
