@@ -599,9 +599,9 @@ def _unread_prose(passage: PassageToExtract) -> bool:
 
     The chunker labels a merged passage `table` if ANY item in it is one,
     and numbers the whole of it by rendered line rather than by sentence -
-    `lines_of` records `predicates: 0` for every line, so `claims` is zero
-    for every table and the prose merged into one is invisible to each of
-    the signals above. The cell reader then walks the grid and nothing
+    a table passage chunked before its prose lines were counted carries
+    `predicates: 0` on every line, so `claims` is zero for it and the prose
+    merged into it is invisible to each of the signals above. The cell reader then walks the grid and nothing
     reads the rest.
 
     Measured over this corpus: 161 of 188 table passages carry lines

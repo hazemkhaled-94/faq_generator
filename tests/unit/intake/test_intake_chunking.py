@@ -798,6 +798,33 @@ def test_a_table_passage_takes_its_documents_language() -> None:
 
 
 @pytest.mark.nlp
+def test_prose_merged_into_a_table_passage_counts_its_finite_verbs() -> None:
+    """Its line is numbered as a table's are, and its claims still count."""
+    document = docling_document()
+    table = table_of(
+        document,
+        [*HEADERS, cell("Compact", 1, 0), cell("4", 1, 1)],
+        num_rows=2,
+        num_cols=2,
+    )
+    prose = document.add_text(
+        label=DocItemLabel.TEXT,
+        text="The compact model weighs 4 kg. The large model weighs 9 kg.",
+    )
+    rendered = rendered_by_docling(document)
+    read = passage_of(document, chunk_of(rendered, (table, prose)))
+
+    (surfaced,) = PassageBuilder._read([read], "en")
+
+    counted = {
+        rendered[one["start"] : one["end"]]: one["predicates"]
+        for one in surfaced.sentences
+    }
+    assert counted[prose.text] == 2, counted
+    assert all(n == 0 for line, n in counted.items() if line != prose.text), counted
+
+
+@pytest.mark.nlp
 def test_each_passage_is_written_with_the_language_of_its_own_text() -> None:
     """One file carries a German report and its English summary."""
     driver = RevocabularyDriver((1, GERMAN, "de"), (2, ENGLISH, "de"))

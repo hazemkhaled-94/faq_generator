@@ -22,6 +22,7 @@ from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import read
 from nlp.language import detect
+from nlp.models import Sentence
 from nlp.windows import reserved
 from preprocessing.chunking.models import Chunk, Chunking
 
@@ -104,6 +105,23 @@ def lines_of(text: str) -> list[dict]:
             )
         offset += len(line)
     return found
+
+
+def _prose_counted(text: str, sentences: list[Sentence]) -> list[dict]:
+    """Numbers a table passage's lines, counting the finite verbs of its prose.
+
+    A line that is not a Markdown table row carries the predicates of the
+    sentences overlapping it; a table row keeps 0.
+    """
+    numbered = lines_of(text)
+    for line in numbered:
+        if not text.startswith("|", line["start"]):
+            line["predicates"] = sum(
+                one.predicates
+                for one in sentences
+                if one.start < line["end"] and one.end > line["start"]
+            )
+    return numbered
 
 
 class PassageBuilder:
@@ -197,7 +215,7 @@ class PassageBuilder:
         for index, passage in enumerate(passages):
             sentences, lemmas = parsed[index]
             numbered = (
-                lines_of(passage.text)
+                _prose_counted(passage.text, sentences)
                 if passage.table_cells
                 else [
                     {
