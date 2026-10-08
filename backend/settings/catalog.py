@@ -711,6 +711,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="platform",
         kind="text",
         optional=True,
+        fixed=True,
         help="Where that model is served. Absent sends the call wherever the "
         "provider's own default is.",
     ),
