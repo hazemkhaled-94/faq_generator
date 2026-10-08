@@ -7,9 +7,16 @@
 # builds a month apart were two different images - poetry.lock pins the host
 # and nothing else, and the container never read it.
 #
-# Regenerate after changing requirements.txt:
-#   podman compose build --no-cache streamlit
-#   podman exec qa_generator-streamlit-1 python -m pip freeze | sort > frontend/requirements.lock
+# Regenerate after changing requirements.txt, by resolving it afresh in a
+# throwaway container of the image's base and keeping this header:
+#
+#   { awk '/^#/ {print; next} {exit}' frontend/requirements.lock; \
+#     podman run --rm -v ./frontend/requirements.txt:/r.txt:ro python:3.13-slim \
+#       sh -c 'pip install -q -r /r.txt && pip freeze' | sort; } > lock.tmp \
+#     && mv lock.tmp frontend/requirements.lock
+#
+# Rebuilding the image cannot do it: the image installs this file and never
+# reads requirements.txt, so a new dependency would never reach pip.
 #
 # Platform-specific: resolved for linux/aarch64, Python 3.13. A build for
 # another platform needs its own regeneration.
