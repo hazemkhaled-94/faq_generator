@@ -342,6 +342,27 @@ def test_a_question_a_person_accepted_over_a_gate_reads_accepted(
     assert catalog.quality("question").disagreements == 1
 
 
+def test_each_filter_finds_the_row_it_names(corpus) -> None:
+    """An approved fact and a refused question, each found by its own filter."""
+    queue = AssessmentQueue(kinds=("fact", "question"), sample=0, stratify=False)
+    queue.start()
+    for _ in range(2):
+        claimed = queue.claim()
+        assert claimed is not None
+        queue.record(_judged(claimed.assessment_id, approved=claimed.kind == "fact"))
+    catalog = AssessmentCatalog()
+
+    def found(**where) -> list[tuple[str, int]]:
+        return [(one.kind, one.artifact_id) for one in catalog.page(**where)[1]]
+
+    approved, refused = ("fact", corpus["fact"]), ("question", corpus["question"])
+    assert found(approved=True) == [approved]
+    assert found(approved=False) == [refused]
+    assert found(disagreements=True) == [refused]
+    assert found(metric=JudgeMetric.HALLUCINATION) == [refused]
+    assert found(metric=JudgeMetric.RELEVANCE) == []
+
+
 def test_a_thin_verdict_is_neither_approved_nor_refused(corpus) -> None:
     """Two of a fact's three metrics answered: stored unapproved, read as thin."""
     queue = AssessmentQueue(kinds=("fact",))
