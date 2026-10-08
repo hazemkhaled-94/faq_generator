@@ -44,8 +44,10 @@ reason is still known.
 
 Docling, with heading hierarchy and table structure on and OCR off. Any
 failure becomes a `ConversionFailed` carrying the exception's type and
-message, and the call is bounded by `PARSING_TIMEOUT_SECONDS` — Docling has
-no timeout of its own.
+message. `PARSING_TIMEOUT_SECONDS` is passed to Docling as its own document
+timeout. When it runs out, or a page cannot be parsed, Docling returns only
+the finished pages without raising; a conversion that did not end in success
+is failed with Docling's errors rather than stored as the whole document.
 
 ### Step 4 — Repair the text
 

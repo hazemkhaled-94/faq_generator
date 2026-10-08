@@ -10,7 +10,11 @@ import unicodedata
 from typing import ClassVar
 
 from docling.datamodel.backend_options import ThreadedDoclingParseBackendOptions
-from docling.datamodel.base_models import DocumentStream, InputFormat
+from docling.datamodel.base_models import (
+    ConversionStatus,
+    DocumentStream,
+    InputFormat,
+)
 from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import (
     HeadingHierarchyOptions,
@@ -107,7 +111,7 @@ class PdfPipeline(Pipeline):
 
         Raises:
             ConversionFailed: If the document needs OCR, or if Docling cannot
-                convert it.
+                convert all of it.
         """
         # OCR extension point. See this package's README for what enabling
         # it takes.
@@ -127,6 +131,12 @@ class PdfPipeline(Pipeline):
             )
         except Exception as exc:
             raise ConversionFailed(f"{type(exc).__name__}: {exc}") from exc
+        # A timeout or a failed page ends PARTIAL_SUCCESS without raising.
+        if result.status != ConversionStatus.SUCCESS:
+            errors = dict.fromkeys(error.error_message for error in result.errors)
+            raise ConversionFailed(
+                f"the conversion ended {result.status.value}: {'; '.join(errors)}"
+            )
         return Conversion(
             document=_repaired(result.document),
             confidence=_score(result, "mean_score"),

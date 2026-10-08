@@ -11,9 +11,19 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 import pytest
+from docling.datamodel.base_models import (
+    ConfidenceReport,
+    ConversionStatus,
+    DoclingComponentType,
+    ErrorItem,
+    FailureCategory,
+)
+from docling.datamodel.document import ConversionResult
 from docling_core.types.doc.document import DoclingDocument, TableCell, TableData
 from docling_core.types.doc.labels import DocItemLabel
 
+from preprocessing.parsing.models import SourceDocument
+from preprocessing.parsing.pipelines import ConversionFailed
 from preprocessing.parsing.pipelines import pdf as pdf_module
 from preprocessing.parsing.pipelines.pdf import PdfPipeline, _mend, _repaired
 
@@ -215,7 +225,7 @@ def test_ocr_is_off_in_the_converter_as_well_as_in_the_guard(options) -> None:
 
 
 def test_the_timeout_and_the_weights_path_are_passed_through(options) -> None:
-    """Docling has no timeout of its own, and an empty path is not a path."""
+    """Docling sets no timeout unless asked, and an empty path is not a path."""
     chosen, _ = options(
         document_timeout_seconds=42.0, artifacts_path="/opt/docling-models"
     )
@@ -232,3 +242,58 @@ def test_the_converter_is_built_once_and_reused(options) -> None:
     pipeline._converter()
 
     assert len(_Converter.built) == 1
+
+
+# ── What the converter returns ─────────────────────────────────────────────
+
+
+def _page_error(message: str, page_no: int | None = None) -> ErrorItem:
+    """One error as Docling's PDF pipeline records it."""
+    return ErrorItem(
+        component_type=DoclingComponentType.PIPELINE,
+        module_name="StandardPdfPipeline",
+        error_message=message,
+        category=FailureCategory.TIMEOUT,
+        page_no=page_no,
+    )
+
+
+class _TimedOut:
+    """Stands in for a converter whose document timeout fired after two pages."""
+
+    def convert(self, source: Any) -> ConversionResult:
+        """Returns what Docling returns then, without raising."""
+        return ConversionResult.model_construct(
+            status=ConversionStatus.PARTIAL_SUCCESS,
+            errors=[
+                *(_page_error("document timeout exceeded", n) for n in (3, 4, 5)),
+                _page_error(
+                    "Pipeline stage timeout: processed 2/300 pages successfully, "
+                    "298 pages failed or incomplete."
+                ),
+            ],
+            document=DoclingDocument(name="t"),
+            confidence=ConfidenceReport.model_validate(
+                {"mean_score": 0.94, "low_score": 0.88}
+            ),
+        )
+
+
+def test_a_conversion_that_kept_only_some_pages_is_refused() -> None:
+    """Docling returns the finished pages when its timeout fires or a page fails.
+
+    Stored, the missing pages would be missing from every later stage, with
+    the page count and the confidence still reading as whole.
+    """
+    pipeline = PdfPipeline(
+        table_mode="fast",
+        heading_hierarchy=False,
+        document_timeout_seconds=1.0,
+        artifacts_path=None,
+    )
+    pipeline._built = _TimedOut()
+
+    with pytest.raises(ConversionFailed, match="processed 2/300 pages") as raised:
+        pipeline.convert(SourceDocument(sha256="a" * 64, data=b"%PDF-", scanned=False))
+
+    assert str(raised.value).count("document timeout exceeded") == 1

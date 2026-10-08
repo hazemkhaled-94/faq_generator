@@ -206,6 +206,7 @@ def test_a_conversion_that_failed_is_recorded_with_its_reason() -> None:
 
     assert driver.failure == "the page tree is cyclic"
     assert driver.completed == {}
+    assert driver.parsed_keys == []
 
 
 def test_a_conversion_with_no_body_text_is_failed() -> None:
