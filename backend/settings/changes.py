@@ -120,7 +120,8 @@ def owned(service: str, names: list[str]) -> dict[str, catalog.Setting]:
 def offered(setting: catalog.Setting, value: str) -> list[str]:
     """What a value names, which is what `choices` is a list of.
 
-    One value for `text`, every entry for a list, every key for a mix.
+    One value for `text`, every entry for a list, every key for a mix. An
+    empty value names none, which is how an optional one is turned off.
     """
     if setting.kind == "csv":
         return [part.strip() for part in value.split(",") if part.strip()]
@@ -130,7 +131,7 @@ def offered(setting: catalog.Setting, value: str) -> list[str]:
             for entry in value.split(",")
             if entry.strip()
         ]
-    return [value]
+    return [value] if value.strip() else []
 
 
 def within_bounds(setting: catalog.Setting, value: str) -> None:

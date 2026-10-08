@@ -104,6 +104,19 @@ class Recording(Environment):
         return []
 
 
+def test_an_empty_reasoning_effort_is_stored_as_the_absence_it_means(
+    monkeypatch,
+) -> None:
+    """Empty names no choice, so it is not checked against the choices."""
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "off")
+    store = Recording()
+
+    moved = changes.apply("platform", {"LLM_REASONING_EFFORT": ""}, store=store)
+
+    assert moved.changed == ["LLM_REASONING_EFFORT"]
+    assert store.written == {"LLM_REASONING_EFFORT": ""}
+
+
 def test_a_change_with_a_cheaper_rebuild_names_it_instead_of_a_rerun() -> None:
     """A new release size is a redraw, not a run of the whole stage."""
     moved = changes.apply(
