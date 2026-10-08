@@ -11,9 +11,9 @@ after it, which is what keeps `/questions/status` from being read as
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import Response
+from fastapi import Query, Response
 from pydantic import BaseModel
 
 from api.dependencies import assessment_catalog, question_catalog, questions_queue
@@ -103,6 +103,47 @@ class QuestionPage:
     questions: list[StoredQuestion]
 
 
+class QuestionFilter(BaseModel):
+    """The listing's filter, which the quality report and the export share."""
+
+    document: DocumentFilter = None
+    topic: TopicId = None
+    q: SearchText = None
+    field: SearchField = "both"
+    status: Decision | None = None
+    answerable: bool | None = None
+    passage_scope: PassageScope | None = None
+    document_scope: DocumentScope | None = None
+    topic_scope: TopicScope | None = None
+    difficulty: Band | None = None
+    planned_difficulty: Band | None = None
+    question_type: QuestionType | None = None
+    cognitive_level: CognitiveLevel | None = None
+    answer_form: AnswerForm | None = None
+    follows: bool | None = None
+    released: bool | None = None
+
+
+class QuestionWindow(QuestionFilter):
+    """The filter, and the page of it the listing answers."""
+
+    limit: Limit = 50
+    offset: Offset = 0
+
+
+class QuestionExport(QuestionFilter):
+    """The filter, and whether the export names the facts behind each row."""
+
+    citations: bool = True
+
+
+def _where(chosen: QuestionFilter) -> dict[str, Any]:
+    """The filter as the catalogue takes it, `q` as its `search`."""
+    where = chosen.model_dump(include=set(QuestionFilter.model_fields))
+    where["search"] = where.pop("q")
+    return where
+
+
 class QuestionVerdict(BaseModel):
     """What a person decided about one question.
 
@@ -114,26 +155,7 @@ class QuestionVerdict(BaseModel):
 
 
 @router.get("")
-def questions(
-    document: DocumentFilter = None,
-    topic: TopicId = None,
-    q: SearchText = None,
-    field: SearchField = "both",
-    status: Decision | None = None,
-    answerable: bool | None = None,
-    passage_scope: PassageScope | None = None,
-    document_scope: DocumentScope | None = None,
-    topic_scope: TopicScope | None = None,
-    difficulty: Band | None = None,
-    planned_difficulty: Band | None = None,
-    question_type: QuestionType | None = None,
-    cognitive_level: CognitiveLevel | None = None,
-    answer_form: AnswerForm | None = None,
-    follows: bool | None = None,
-    released: bool | None = None,
-    limit: Limit = 50,
-    offset: Offset = 0,
-) -> QuestionPage:
+def questions(chosen: Annotated[QuestionWindow, Query()]) -> QuestionPage:
     """Lists generated questions, including those a gate rejected.
 
     `follows` narrows to the follow-ups or to the roots: true for questions
@@ -147,24 +169,7 @@ def questions(
     what says how often a wide sample produced a wide question.
     """
     total, rows = question_catalog.page(
-        document,
-        topic,
-        limit,
-        offset,
-        q,
-        status,
-        answerable,
-        field,
-        passage_scope=passage_scope,
-        document_scope=document_scope,
-        topic_scope=topic_scope,
-        difficulty=difficulty,
-        planned_difficulty=planned_difficulty,
-        question_type=question_type,
-        cognitive_level=cognitive_level,
-        answer_form=answer_form,
-        follows=follows,
-        released=released,
+        limit=chosen.limit, offset=chosen.offset, **_where(chosen)
     )
     return QuestionPage(total=total, questions=rows)
 
@@ -193,24 +198,7 @@ def plan() -> GenerationPlan:
 
 
 @router.get("/quality")
-def quality(
-    document: DocumentFilter = None,
-    topic: TopicId = None,
-    q: SearchText = None,
-    field: SearchField = "both",
-    status: Decision | None = None,
-    answerable: bool | None = None,
-    passage_scope: PassageScope | None = None,
-    document_scope: DocumentScope | None = None,
-    topic_scope: TopicScope | None = None,
-    difficulty: Band | None = None,
-    planned_difficulty: Band | None = None,
-    question_type: QuestionType | None = None,
-    cognitive_level: CognitiveLevel | None = None,
-    answer_form: AnswerForm | None = None,
-    follows: bool | None = None,
-    released: bool | None = None,
-) -> QuestionQuality:
+def quality(chosen: Annotated[QuestionFilter, Query()]) -> QuestionQuality:
     """Reports how generation is doing, under the same filter.
 
     The numbers that say whether the questions are questions: how many
@@ -218,24 +206,7 @@ def quality(
     how the three criteria are spread, and how much of the corpus's subject
     matter is covered at all.
     """
-    return question_catalog.quality(
-        document,
-        topic,
-        q,
-        status,
-        answerable,
-        field,
-        passage_scope=passage_scope,
-        document_scope=document_scope,
-        topic_scope=topic_scope,
-        difficulty=difficulty,
-        planned_difficulty=planned_difficulty,
-        question_type=question_type,
-        cognitive_level=cognitive_level,
-        answer_form=answer_form,
-        follows=follows,
-        released=released,
-    )
+    return question_catalog.quality(**_where(chosen))
 
 
 @router.get(
@@ -243,25 +214,7 @@ def quality(
     response_class=Response,
     responses={200: {"content": {WORKBOOK: {}}, "description": "An .xlsx workbook"}},
 )
-def export(
-    document: DocumentFilter = None,
-    topic: TopicId = None,
-    q: SearchText = None,
-    field: SearchField = "both",
-    status: Decision | None = None,
-    answerable: bool | None = None,
-    passage_scope: PassageScope | None = None,
-    document_scope: DocumentScope | None = None,
-    topic_scope: TopicScope | None = None,
-    difficulty: Band | None = None,
-    planned_difficulty: Band | None = None,
-    question_type: QuestionType | None = None,
-    cognitive_level: CognitiveLevel | None = None,
-    answer_form: AnswerForm | None = None,
-    follows: bool | None = None,
-    released: bool | None = None,
-    citations: bool = True,
-) -> Response:
+def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
     """Writes the questions this filter selects to an .xlsx workbook.
 
     Every filter is the listing's, so what downloads is what the page was
@@ -290,24 +243,7 @@ def export(
     # two agree.
     from question_generation.export import workbook
 
-    where = {
-        "document": document,
-        "topic": topic,
-        "search": q,
-        "field": field,
-        "status": status,
-        "answerable": answerable,
-        "passage_scope": passage_scope,
-        "document_scope": document_scope,
-        "topic_scope": topic_scope,
-        "difficulty": difficulty,
-        "planned_difficulty": planned_difficulty,
-        "question_type": question_type,
-        "cognitive_level": cognitive_level,
-        "answer_form": answer_form,
-        "follows": follows,
-        "released": released,
-    }
+    where = _where(chosen)
     # Unlimited, rather than counting and then asking for a window that
     # size. Those were two statements with a gap between them: a question
     # written into the gap did not fit the window the count had already
@@ -316,7 +252,7 @@ def export(
     _, rows = question_catalog.page(limit=None, **where)
     drawn = workbook(
         rows,
-        question_catalog.citations(**where) if citations else (),
+        question_catalog.citations(**where) if chosen.citations else (),
         question_catalog.quality(**where),
         assessment_catalog.verdicts_for("question", [one.id for one in rows]),
     )
