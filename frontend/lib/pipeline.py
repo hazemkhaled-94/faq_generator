@@ -50,6 +50,9 @@ def panel(client) -> None:
     would otherwise replace the panel with a stack trace.
     """
 
+    # ponytail: the timer never stops, so every open tab polls the pipeline
+    # whether or not anything runs; the upgrade is stopping run_every while
+    # nothing is queued or running.
     @st.fragment(run_every=POLL_SECONDS)
     def drawn() -> None:
         """Draws the controls, and keeps drawing them."""

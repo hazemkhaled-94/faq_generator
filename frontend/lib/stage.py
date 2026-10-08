@@ -113,13 +113,16 @@ def fit(client, queue: Queue) -> None:
 
 
 def _polling(draw: Callable[[], None]) -> None:
-    """Redraws one set of controls every few seconds, until the queue rests.
+    """Redraws one set of controls every few seconds, busy or not.
 
     Through page.render, because a fragment reruns on its own and so outside
     the guard the view was called under: an unreachable backend would replace
     the panel with a stack trace.
     """
 
+    # ponytail: the timer never stops, so every open tab polls every panel
+    # whether or not anything is queued; the upgrade is stopping run_every
+    # while the queue is not busy.
     @st.fragment(run_every=POLL_SECONDS)
     def drawn() -> None:
         """Draws the controls, and goes on drawing them."""

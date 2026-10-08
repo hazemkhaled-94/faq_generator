@@ -13,6 +13,9 @@ from lib.backend.base import Endpoint
 #: How long the workbook download may take. Sized for the work rather than
 #: for a request: an export reads every row a filter selects, so it is the
 #: one GET on this client that is not a query.
+#:
+#: ponytail: the browser's request is held for the whole build; the upgrade
+#: is a background export and a download link.
 _EXPORT_SECONDS = 600.0
 
 
