@@ -33,7 +33,7 @@ x-logging: &logging
 # ── Environment ────────────────────────────────────────────────────────────
 #
 # Every tuning value the backend reads is in configs/env/backend.env, which
-# the six backend services take with env_file and the Makefile sources for
+# the api and the six workers take with env_file and the Makefile sources for
 # the host commands, so one value reaches both.
 #
 # THIS FILE IS INTERPOLATED OUT OF TWO: configs/env/deployment.env for the
@@ -211,9 +211,9 @@ x-worker: &worker
 # tables cannot quietly grow a second way of moving a row.
 #
 # No profile: `compose up` starts these two like everything else. Starting
-# them costs nothing on its own - the schedule and the sensor both ship
-# STOPPED, so the webserver serves an asset graph and the daemon ticks
-# nothing until somebody switches one on in the UI.
+# them starts no run on its own - the schedule and the arrivals sensor ship
+# STOPPED, so the webserver serves an asset graph and the daemon ticks only
+# the progress sensor until somebody switches one on in the UI.
 x-dagster: &dagster
   # Its own image, not the backend one. That image carries torch, spaCy,
   # Docling and litellm because some process in it needs each; this one
@@ -681,7 +681,7 @@ services:
   # has nothing to do.
   #
   # 1 GB and no model weights. This is the one worker that loads NO encoder:
-  # it asks a served model three questions about text it already has and
+  # it asks a served model questions about text it already has and
   # writes the answers down. No spaCy pipeline, no embedder, no NLI model -
   # judging is a call, not a parse. That is also why it is the cheapest
   # stage to scale horizontally if a corpus makes it the bottleneck.
@@ -785,7 +785,7 @@ services:
         limits: { cpus: "0.5", memory: 1G }
 
   # The asset graph and the run history. Reading it changes nothing: the
-  # schedule and the sensor are both stopped until somebody switches them on.
+  # schedule and the arrivals sensor are stopped until somebody switches them on.
   dagster-webserver:
     <<: *dagster
     command: dagster-webserver -h 0.0.0.0 -p 3000 -w /opt/dagster/dagster_home/workspace.yaml
@@ -802,8 +802,8 @@ services:
       resources:
         limits: { cpus: "0.5", memory: 512M }
 
-  # What actually ticks the schedule and the sensor. Without it the UI
-  # shows both and neither ever fires.
+  # What actually ticks the schedule and the sensors. Without it the UI
+  # shows them and none ever fires.
   #
   # The workspace is named here as it is for the webserver, and for the
   # same reason: WORKDIR is /opt/dagster/app and the file is mounted into
@@ -916,7 +916,7 @@ services:
       - ./certs/ca.crt:/usr/share/filebeat/certs/ca.crt:ro
       # Read-only, both of them: this reads the pipeline's logs and must not
       # be able to delete or rotate what the processes writing them are
-      # managing. `make logs-prune` is what deletes one.
+      # managing. `make logs-prune` and `make logs-wipe` delete them.
       - logs:/var/log/qa:ro
       # The same lines from a process that ran on the HOST - a make target,
       # `dagster dev`, anything by hand. A bind mount rather than the volume
