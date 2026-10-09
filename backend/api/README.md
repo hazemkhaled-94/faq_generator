@@ -135,8 +135,8 @@ far as the corpus can go right now — and is what a deployment with no
 orchestrator uses. Calling it again after the workers drain moves it the
 next stretch. It leaves topic modelling and the assessment phase alone: a
 fit replaces the topics of every language it fits and the judge costs model
-calls `.env` opts into,
-so both are asked for rather than swept into a fan-out.
+calls `.env` opts into, so both are asked for rather than swept into a
+fan-out.
 
 **Everything degrades except `run`, the run list and the automation
 switch.** `DAGSTER_URL` unset, or a webserver that is down, answers
