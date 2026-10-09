@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from nlp.analysis import interrogatives, pointing
+from nlp.analysis import _counted, interrogatives, pointing
 
 pytestmark = pytest.mark.nlp
 
@@ -48,6 +48,24 @@ def test_a_definite_count_points_without_a_demonstrative(
     introduced points outward as surely as `diesen beiden` does.
     """
     assert pointing(text, language), "a definite count was read as pointing at nothing"
+
+
+def test_an_indefinite_article_does_not_make_a_count_definite() -> None:
+    """German `ein` carries `PronType=Art` as `den` does, with `Definite=Ind`."""
+    from types import SimpleNamespace
+
+    def child(pos: str, **features: str) -> SimpleNamespace:
+        morph = {name: [value] for name, value in features.items()}
+        return SimpleNamespace(pos_=pos, morph=SimpleNamespace(get=morph.get))
+
+    noun = SimpleNamespace(
+        children=[
+            child("DET", Definite="Ind", PronType="Art"),
+            child("DET", PronType="Ind"),
+        ]
+    )
+
+    assert _counted(noun) is None
 
 
 @pytest.mark.parametrize(

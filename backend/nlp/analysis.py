@@ -361,7 +361,10 @@ def _counted(token):
     quantified = None
     for child in token.children:
         morph = child.morph
-        if "Def" in morph.get("Definite", []) or "Art" in morph.get("PronType", []):
+        definiteness = morph.get("Definite", [])
+        if "Def" in definiteness or (
+            "Art" in morph.get("PronType", []) and "Ind" not in definiteness
+        ):
             definite = True
         if "Card" in morph.get("NumType", []) or (
             child.pos_ == "DET" and "Ind" in morph.get("PronType", [])
