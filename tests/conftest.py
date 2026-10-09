@@ -402,14 +402,37 @@ def _ensure(client, attempts: int = 10) -> None:
     """
     for name in BUCKETS:
         for attempt in range(attempts):
+            made = False
             with contextlib.suppress(Exception):
                 client.create_bucket(Bucket=name)
+                made = True
             with contextlib.suppress(Exception):
                 client.head_bucket(Bucket=name)
                 break
             time.sleep(0.2 * (attempt + 1))
         else:
             raise AssertionError(f"the {name} bucket could not be created")
+        if made:
+            _first_write(client, name, attempts)
+
+
+def _first_write(client, name: str, attempts: int) -> None:
+    """Writes and removes one object, so a new bucket has its volumes.
+
+    A new collection grows its volumes on its first write, and a PutObject
+    that arrives while they grow is refused with an InternalError.
+
+    Raises:
+        AssertionError: If no write lands, which is the object store being
+            broken rather than a bucket still growing.
+    """
+    for attempt in range(attempts):
+        with contextlib.suppress(Exception):
+            client.put_object(Bucket=name, Key="first-write", Body=b"")
+            client.delete_object(Bucket=name, Key="first-write")
+            return
+        time.sleep(0.2 * (attempt + 1))
+    raise AssertionError(f"nothing could be written to the {name} bucket")
 
 
 def _empty(client) -> None:
