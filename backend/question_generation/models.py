@@ -207,11 +207,6 @@ class SourceFact:
         return self.anchor.id
 
     @property
-    def passage_text(self) -> str:
-        """The anchor's text."""
-        return self.anchor.text
-
-    @property
     def doc_sha256(self) -> str:
         """The anchor's document."""
         return self.anchor.doc_sha256
@@ -220,21 +215,6 @@ class SourceFact:
     def language(self) -> str:
         """The anchor's language."""
         return self.anchor.language
-
-    @property
-    def section_path(self) -> str | None:
-        """The anchor's heading trail."""
-        return self.anchor.section_path
-
-    @property
-    def topic_id(self) -> int | None:
-        """The topic the anchor counts towards."""
-        return self.anchor.topic_id
-
-    @property
-    def document_title(self) -> str | None:
-        """The anchor's document title."""
-        return self.anchor.document_title
 
     @property
     def ordinal(self) -> int:
@@ -744,31 +724,3 @@ class QuestionQuality:
     passages_asked: int = 0
     facts_validated: int = 0
     facts_asked: int = 0
-
-    @property
-    def passage_coverage(self) -> float:
-        """The share of askable passages an accepted question rests on."""
-        return (
-            self.passages_asked / self.passages_with_facts
-            if (self.passages_with_facts)
-            else 0.0
-        )
-
-    @property
-    def fact_coverage(self) -> float:
-        """The share of validated facts an accepted question cites."""
-        return self.facts_asked / self.facts_validated if self.facts_validated else 0.0
-
-    @property
-    def questions_per_passage(self) -> float:
-        """Accepted questions per passage that has any."""
-        return self.accepted / self.passages_asked if self.passages_asked else 0.0
-
-    @property
-    def questions_per_fact(self) -> float:
-        """Accepted questions per fact that any of them cites.
-
-        Below 1 is ordinary rather than a fault: a question may cite
-        several facts, and every one of them counts as asked about.
-        """
-        return self.accepted / self.facts_asked if self.facts_asked else 0.0

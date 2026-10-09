@@ -322,11 +322,6 @@ class Deal:
         self._spent: set[int] = set()
         self._floor = floor
 
-    @property
-    def passages(self) -> int:
-        """How many passages are left to offer."""
-        return sum(1 for passage in self._order if not self._taken(passage))
-
     def sample(
         self, shape: str = Shape.SINGLE, condensed: bool = False
     ) -> FactGroup | None:

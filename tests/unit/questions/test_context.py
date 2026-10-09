@@ -78,4 +78,4 @@ def test_the_passage_text_is_carried_beside_its_heading() -> None:
 
     heading, text = facts.context[0]
     assert heading.endswith("\n")
-    assert text == facts.facts[0].passage_text
+    assert text == facts.facts[0].anchor.text
