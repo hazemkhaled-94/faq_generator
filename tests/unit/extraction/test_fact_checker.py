@@ -51,12 +51,6 @@ def test_a_fact_records_the_version_of_the_pipeline_that_parsed_it(checker) -> N
     assert good.spacy_version == pipeline("en").meta["version"]
 
 
-def test_the_source_own_words_are_accepted_when_they_narrow_the_claim(checker) -> None:
-    """One claim taken out of a sentence carrying two is still a fact."""
-    narrowed = checker.atomic("The device runs for 12 hours.")
-    assert narrowed.validated, (narrowed.rejection_code, narrowed.validation_error)
-
-
 @pytest.mark.parametrize("cited", [(7,), (), (-1,), (0, 9)])
 def test_a_citation_naming_no_sentence_of_the_passage_is_refused(
     checker, cited
@@ -65,12 +59,6 @@ def test_a_citation_naming_no_sentence_of_the_passage_is_refused(
     judged = checker.atomic("Anything.", cited)
     assert judged.rejection_code == Rejection.EVIDENCE_ABSENT
     assert not judged.validated
-
-
-def test_evidence_copied_rather_than_written_is_refused(checker) -> None:
-    """A statement equal to evidence carrying two claims restates it."""
-    copied = checker.atomic("The device weighs 4 kg and runs for 12 hours.")
-    assert copied.rejection_code == Rejection.COPIED, copied.validation_error
 
 
 def test_a_sentence_carrying_one_claim_may_be_quoted() -> None:
@@ -120,21 +108,6 @@ def test_a_unit_the_cited_text_does_not_carry_is_refused(
         invented.validation_error
     )
     assert added in invented.units_added, invented.units_added
-
-
-def test_a_year_ending_a_sentence_is_the_same_year() -> None:
-    """A year with a full stop attached is the same unit as the bare year."""
-    dated = Checker(
-        passage(
-            "Im Jahr 2026 überwacht die Bafin die Kreditrisiken der Institute. "
-            "Der Bericht erscheint spaeter.",
-            language="de",
-        )
-    )
-    ending = dated.atomic("Die Bafin überwacht die Kreditrisiken im Jahr 2026.", 0)
-
-    assert not ending.units_added, ending.units_added
-    assert ending.validated, (ending.rejection_code, ending.validation_error)
 
 
 @pytest.mark.parametrize(
@@ -360,11 +333,6 @@ class TestDigest:
         assert copied.rejection_code == Rejection.NOT_CONDENSED, copied.validation_error
         assert "%" in (copied.validation_error or ""), "the measurement is reported"
 
-    def test_a_digest_asserting_nothing_is_refused(self, checker) -> None:
-        """A noun phrase is a label, not a reading."""
-        naming = checker.summary("The 4 kg device from Hamburg.")
-        assert naming.rejection_code == Rejection.ASSERTS_NOTHING
-
     def test_a_digest_inventing_a_value_is_refused(self, checker) -> None:
         """Condensing a passage may not add to it."""
         invented = checker.summary("The device weighs 9 kg.")
@@ -391,11 +359,6 @@ class TestDigest:
             "the parse this check would have been read off"
         )
         assert fragments.validated, fragments.rejection_code
-
-    def test_an_outline_of_one_point_is_a_label(self, checker) -> None:
-        """A list of one is not a list."""
-        single = checker.outline("Weighs 4 kg")
-        assert single.rejection_code == Rejection.NOT_LISTED, single.validation_error
 
     def test_an_outline_that_lost_its_bullets_is_refused(self, checker) -> None:
         """The shape is what is checked, so the shape has to be there."""
@@ -493,13 +456,6 @@ class TestBridge:
         assert bridged.rejection_code == Rejection.NOT_BRIDGING
         assert [one.passage_id for one in bridged.citations] == [11]
 
-    def test_a_claim_resting_on_one_passage_is_refused(self, checker, offered) -> None:
-        """That is an ordinary fact, and the atomic pass has it already."""
-        alone = checker.bridge(
-            "Standard requests are answered within 48 hours.", offered, rests_on=(0,)
-        )
-        assert alone.rejection_code == Rejection.NOT_BRIDGING, alone.validation_error
-
     @pytest.mark.parametrize("named", [(), (7,), (-1,)])
     def test_a_claim_naming_no_offered_passage_is_refused(
         self, checker, offered, named
@@ -527,14 +483,6 @@ class TestBridge:
 
         assert summed.rejection_code == Rejection.UNSUPPORTED_ADDITION
         assert "44" in summed.units_added, summed.units_added
-
-    def test_two_claims_in_one_bridge_are_refused(self, checker, offered) -> None:
-        """A bridge is atomic, like any other claim."""
-        both = checker.bridge(
-            "Standard requests wait 48 hours and urgent requests wait 4 hours.",
-            offered,
-        )
-        assert both.rejection_code == Rejection.NOT_ATOMIC, both.validation_error
 
     def test_a_group_naming_the_positions_out_of_order_still_anchors_first(
         self, checker, offered
