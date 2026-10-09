@@ -90,8 +90,8 @@ class Assessed:
 
         All of them, not a majority. What this produces is a queue for a
         person, and a question whose answer is well-sourced but answers the
-        wrong question is worth somebody's time even though two of its
-        three metrics passed. And every one due: a metric that abstained has
+        wrong question is worth somebody's time even though five of its
+        six metrics passed. And every one due: a metric that abstained has
         backed nothing.
         """
         return not self.abstained and all(one.approved for one in self.judgements)
