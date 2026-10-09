@@ -80,7 +80,7 @@ class StageQueueState(Protocol):
     """What a stage's queue must be able to report.
 
     Separate from :class:`StageRepository` because topic modelling answers
-    /status without answering the four verbs: it has no row until a fit is
+    /status without answering the five verbs: it has no row until a fit is
     asked for, so it has nothing to start or to reset.
     """
 
