@@ -61,8 +61,9 @@ class QuestionFact(Base):
 #: two deletions at once the second waits for the first and sees its fact
 #: gone.
 #:
-#: Declared here, beside the table it belongs to, and executed by the
-#: migrations: autogenerate sees tables and columns, never a trigger.
+#: Declared here, beside the table it belongs to. The migrations carry
+#: their own copy, and tests/integration/database/test_schema.py checks the
+#: installed body against this one.
 #:
 #: ponytail: a bridge losing one of its passages still counts as left until
 #: its own trigger deletes it, so a question resting on it is rejected and
@@ -94,15 +95,4 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-"""
-
-DELETE_ORPHAN_TRIGGER = """
-CREATE TRIGGER question_facts_delete_orphan_question
-AFTER DELETE ON question_facts
-FOR EACH ROW EXECUTE FUNCTION delete_question_without_facts();
-"""
-
-DROP_DELETE_ORPHAN = """
-DROP TRIGGER IF EXISTS question_facts_delete_orphan_question ON question_facts;
-DROP FUNCTION IF EXISTS delete_question_without_facts();
 """
