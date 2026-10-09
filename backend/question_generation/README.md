@@ -617,7 +617,8 @@ poetry run pytest tests/integration/database/test_release.py
 
 ## Limits
 
-- **A refit rewrites every topic but keeps every question.** Questions belong
+- **A refit rewrites the topics of every language it fits but keeps every
+  question.** Questions belong
   to their facts, not to a topic. Selection skips the facts an accepted
   question already rests on, so a second run writes only about what the first
   did not reach.
