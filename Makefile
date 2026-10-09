@@ -727,7 +727,9 @@ extract-bridge:
 # number, a date or a name. No model is called, so a corpus extracted before
 # the cap existed is re-balanced in seconds rather than re-read over hours.
 # Only the verdict moves: nothing is deleted, and the facts refused carry
-# `over_cap` like any other refusal.
+# `over_cap` like any other refusal. It moves both ways: a fact an earlier,
+# lower cap refused is given back as it was judged when extracted, and
+# `make extract-revalidate` run afterwards judges it with today's checks.
 extract-recap:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --recap $(ONLY)
 
