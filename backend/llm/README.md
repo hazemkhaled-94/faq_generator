@@ -82,7 +82,7 @@ What does **not** move when you change providers are the local encoders:
 `EMBEDDING_MODEL`, `NLI_MODEL`, `QA_MODEL` and the spaCy pipelines
 `NLP_MODELS` names, which run in the worker.
 
-### The containers call Ollama, and only Ollama
+### The containers call Ollama
 
 Some credentials exist only where a person is — an interactive cloud login, a
 key in a login keychain — and a container has none of them.
@@ -101,8 +101,8 @@ credential for restarts on every failure, indefinitely. A compose variable is
 resolved when a container is *created*, so a `.env` edit reaches a running
 stack only through `up --force-recreate`.
 
-There is no `LLM_CONTAINER_URL`: a container's address is Ollama's, because
-there is nowhere else it may send a prompt. `make doctor` refuses a container
+There is no `LLM_CONTAINER_URL`: a container's address is Ollama's.
+`make doctor` refuses a container
 model that is not an `ollama*` one. The judge is set apart:
 `ASSESSMENT_JUDGE_CONTAINER_MODEL` may name a hosted model, which
 `provider.env` authenticates, and unset the worker judges nothing.
@@ -156,8 +156,8 @@ doing** dashboard and Phoenix are where the cost is.
 The model is the bottleneck, not the pipeline;
 [measurements.md](../../docs/measurements.md) carries the last run's
 per-stage latency and spend. The panel worth watching is model latency p99: a
-p99 climbing towards `LLM_TIMEOUT_SECONDS` is healthy workers about to look
-abandoned.
+p99 climbing towards `LLM_TIMEOUT_SECONDS` is calls about to time out, be
+tried again and fail their rows.
 
 ## Configuration
 
