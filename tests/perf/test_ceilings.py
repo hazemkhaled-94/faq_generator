@@ -6,9 +6,8 @@ walks the pool once per release, and `shares` and `choose` run the draw.
 Each is fine at the size this corpus is and each has a number in it that a
 later change could raise without anybody measuring what that costs.
 
-The budgets are wall clock and deliberately loose - several times the
-measured figure - so they fail on a change of order and not on a slow
-laptop. What they are protecting is the shape, not the constant.
+The budgets are wall clock: each test's slowest measured mean, times
+HEADROOM.
 
 Never on a pull request: `make test-perf` and the nightly run.
 """
@@ -22,8 +21,14 @@ from question_generation.gates import _FIGURE_CAP, _TERM_CAP, adds_up
 
 pytestmark = pytest.mark.perf
 
-#: Seconds one call may take. Measured at roughly a fiftieth of this.
-BUDGET = 2.0
+#: How many times its measured mean one call may take.
+HEADROOM = 5
+
+#: The slowest mean of three perf-layer runs, 2026-10-09, in seconds.
+SUM_SEARCH = 0.00813
+REPORT = 0.000194
+DRAW = 0.00617
+SPREAD = 0.0000093
 
 
 def mean(benchmark) -> float:
@@ -43,7 +48,7 @@ def test_the_arithmetic_search_stays_inside_its_cap(benchmark) -> None:
     answered = benchmark(adds_up, "999999", passages)
 
     assert answered is False
-    assert mean(benchmark) < BUDGET, (
+    assert mean(benchmark) < SUM_SEARCH * HEADROOM, (
         f"the sum search is over budget; _FIGURE_CAP is {_FIGURE_CAP} and "
         f"_TERM_CAP is {_TERM_CAP}, and the search is every combination of "
         f"up to the second from the first"
@@ -70,7 +75,7 @@ def test_reporting_a_release_walks_the_pool_once(benchmark) -> None:
     counted = benchmark(composition, pool, ids)
 
     assert sum(counted["difficulty"].values()) == len(ids)
-    assert mean(benchmark) < BUDGET
+    assert mean(benchmark) < REPORT * HEADROOM
 
 
 def test_the_draw_scales_to_a_release_worth_having(benchmark) -> None:
@@ -92,7 +97,7 @@ def test_the_draw_scales_to_a_release_worth_having(benchmark) -> None:
     drawn = benchmark(choose, pool, quota_of(900, bands, types, 0.2))
 
     assert drawn.size > 0
-    assert mean(benchmark) < BUDGET
+    assert mean(benchmark) < DRAW * HEADROOM
 
 
 def test_spreading_a_size_over_its_weights_is_cheap(benchmark) -> None:
@@ -102,4 +107,4 @@ def test_spreading_a_size_over_its_weights_is_cheap(benchmark) -> None:
     spread = benchmark(shares, weights, 5000)
 
     assert sum(spread.values()) == 5000
-    assert mean(benchmark) < BUDGET
+    assert mean(benchmark) < SPREAD * HEADROOM
