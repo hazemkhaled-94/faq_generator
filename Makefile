@@ -68,7 +68,7 @@ DERIVED = DATABASE_URL=postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@loca
 # no such file.
 #
 # Here rather than beside each model-calling target because compose hands
-# this file to the three services that call a model and the host was given
+# this file to the four services that call a model and the host was given
 # it nowhere: `make extract` against a hosted provider read backend.env and
 # .env, found no key in either, and failed to authenticate.
 PROVIDER = { [ ! -f ./configs/env/provider.env ] || . ./configs/env/provider.env; }
@@ -477,10 +477,10 @@ logs-retention:
 # age its REGISTRY and not the disk. The volume had reached 78 files and
 # 110 MB before this target existed.
 #
-# Both places a line is written: the volume, through the api, which is the
-# one container that mounts it writable, and ./logs on the host, which make
-# can delete from itself. Deletes by mtime, so a file a live process is
-# still appending to is never old enough to take.
+# Both places a line is written: the volume, through the api, which mounts
+# it writable, and ./logs on the host, which make can delete from itself.
+# Deletes by mtime, so a file a live process is still appending to is never
+# old enough to take.
 #
 #     make logs-prune LOGS_KEEP_DAYS=7
 LOGS_KEEP_DAYS ?= 30
@@ -779,8 +779,8 @@ topics:
 topics-status:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --status
 
-# Queue a fit and run it. Replaces every existing topic and membership;
-# labels are carried over where the top terms still match.
+# Queue a fit and run it. Replaces the topics and memberships of each
+# language it fits; labels are carried over where the top terms still match.
 topics-discover:
 	@$(call IDLE,topic-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --discover
@@ -797,9 +797,9 @@ topics-visualise:
 #
 # The page it writes REPLACES the one already there. One model is kept per
 # language - the next fit replaces it, as the database holds one fit's
-# topics - so this picks which language to redraw and not which fit to
-# redraw from. A figure drawn from an older model would number its topics
-# off rows that no longer exist.
+# topics per language - so this picks which language to redraw and not which
+# fit to redraw from. A figure drawn from an older model would number its
+# topics off rows that no longer exist.
 #
 # CODE and not LANG: make imports the environment, LANG is the POSIX locale
 # and is always set, so `make topics-render` quietly ran with
@@ -845,12 +845,13 @@ topics-retry:
 #
 # What is written is QUESTIONS_TYPE_MIX and QUESTIONS_DIFFICULTY_MIX, both in
 # configs/env/backend.env, and both proportions rather than counts. A kind
-# with a weight of 0 is never written. The Questions page puts the mix that
+# with a weight of 0 is never planned; a follow-up takes its kind from
+# QUESTIONS_FOLLOWUP_TYPES. The Questions page puts the mix that
 # was asked for beside the mix that came out.
 #
-# Both models are served locally here, so LLM_NUM_CTX and
-# LLM_REASONING_EFFORT matter: a thinking model asked for a structured answer
-# spends its window reasoning and returns an empty string.
+# LLM_NUM_CTX and LLM_REASONING_EFFORT apply to every model it calls: a
+# thinking model asked for a structured answer spends its window reasoning
+# and returns an empty string.
 
 # Drain the question queue here, in the foreground.
 questions:
@@ -1787,9 +1788,9 @@ pull: review-pull-facts review-pull-topics review-pull-questions
 # spread over five queues, and visiting five of them is five chances to miss
 # one.
 #
-# There is no `pipeline-start` here. `make corpus` above is the better one
-# for a terminal: it starts each stage AND waits for it to drain before the
-# next, which is the whole difficulty, and the shell is what holds that wait.
+# There is no `pipeline-start` here. `make corpus` above is the host's: it
+# starts each stage AND waits for it to drain before the next, which is the
+# whole difficulty, and the shell is what holds that wait.
 # The Run button and `make pipeline` ask Dagster to hold it instead.
 #
 # BACKEND_URL like `services` above, which is the host's own address.
