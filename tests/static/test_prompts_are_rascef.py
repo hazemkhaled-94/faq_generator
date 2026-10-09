@@ -25,6 +25,7 @@ from extraction.extractors import bridge, digest, llm
 from question_generation import phrasing, verifier
 from question_generation.generation import _FOLLOW, _PERTURB, _typed
 from question_generation.types import SPECS
+from tests.static.prompt_catalogues import recorded
 from topic_modelling import labels
 
 #: The six sections, each its own line, in the order RASCEF names them.
@@ -61,11 +62,23 @@ def _prompts() -> dict[str, str]:
 
 PROMPTS = _prompts()
 
+#: Every system prompt each stage's catalogue records, with one type in
+#: `follow`'s `{{type}}` as above.
+CATALOGUED = {
+    f"catalogue/{service}/{name}": one.text.replace(
+        "{{type}}", _typed(SPECS["condition"])
+    )
+    for (service, name), one in recorded().items()
+}
 
-@pytest.mark.parametrize("name", sorted(PROMPTS))
+#: The hand-kept list and the catalogues', each checked.
+SENT = PROMPTS | CATALOGUED
+
+
+@pytest.mark.parametrize("name", sorted(SENT))
 def test_a_prompt_carries_every_rascef_section(name: str) -> None:
     """A section missing is a section the model was never given."""
-    text = f"\n{PROMPTS[name]}"
+    text = f"\n{SENT[name]}"
     missing = [one for one in SECTIONS if f"\n{one}\n" not in text]
 
     assert not missing, (
@@ -74,10 +87,10 @@ def test_a_prompt_carries_every_rascef_section(name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("name", sorted(PROMPTS))
+@pytest.mark.parametrize("name", sorted(SENT))
 def test_the_sections_come_in_the_order_rascef_names_them(name: str) -> None:
     """A FORMAT above its STEPS reads as two prompts spliced together."""
-    text = f"\n{PROMPTS[name]}"
+    text = f"\n{SENT[name]}"
     at = [text.index(f"\n{one}\n") for one in SECTIONS]
 
     assert at == sorted(at), (

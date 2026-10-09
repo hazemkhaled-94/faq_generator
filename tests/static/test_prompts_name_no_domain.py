@@ -22,16 +22,20 @@ its keep by failing when the next person debugging a gate reaches for the
 nearest real example.
 
 Read without importing, so the test needs no NLP_MODELS and no model, and a
-failure names the prompt and the word.
+failure names the prompt and the word. Each stage's catalogue is read too,
+as it composes what it sends.
 """
 
 from __future__ import annotations
 
 import ast
+import json
 import re
 from pathlib import Path
 
 import pytest
+
+from tests.static.prompt_catalogues import recorded
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -182,6 +186,27 @@ def test_no_prompt_names_what_a_corpus_is_about(module: str) -> None:
         "to do. Recast it into the neutral domain the other examples use - a "
         "support request, a shift plan, a site manager, an edition - and bump "
         "that module's PROMPT_VERSION."
+    )
+
+
+#: Every prompt each stage's catalogue records, by service and name.
+CATALOGUED = recorded()
+
+
+@pytest.mark.parametrize(("service", "name"), sorted(CATALOGUED))
+def test_no_catalogued_prompt_names_what_a_corpus_is_about(
+    service: str, name: str
+) -> None:
+    """Its system prompt, user template and response schema, as sent."""
+    one = CATALOGUED[(service, name)]
+    sent = "\n".join(
+        (one.text, one.user_text, json.dumps(one.response_schema, ensure_ascii=False))
+    ).casefold()
+    guilty = [subject for subject in SUBJECTS if subject in sent]
+
+    assert not guilty, (
+        f"{service}/{name} names {guilty}. Recast it into the neutral domain "
+        f"the other examples use and bump its module's PROMPT_VERSION."
     )
 
 

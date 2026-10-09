@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from assessment import prompts as assessment
 from extraction import prompts as extraction
 from extraction.extractors import bridge, digest, llm
 from question_generation import phrasing, verifier
@@ -90,8 +91,8 @@ def test_a_declared_prompt_is_never_empty(catalogue) -> None:
 
 @pytest.mark.parametrize(
     "declared",
-    [questions.catalogue, extraction.catalogue, topics.catalogue],
-    ids=["questions", "extraction", "topics"],
+    [questions.catalogue, extraction.catalogue, topics.catalogue, assessment.catalogue],
+    ids=["questions", "extraction", "topics", "assessment"],
 )
 def test_every_declared_prompt_carries_its_user_half(declared) -> None:
     """A call sends two messages and the row carried one of them.
@@ -110,8 +111,8 @@ def test_every_declared_prompt_carries_its_user_half(declared) -> None:
 
 @pytest.mark.parametrize(
     "declared",
-    [questions.catalogue, extraction.catalogue, topics.catalogue],
-    ids=["questions", "extraction", "topics"],
+    [questions.catalogue, extraction.catalogue, topics.catalogue, assessment.catalogue],
+    ids=["questions", "extraction", "topics", "assessment"],
 )
 def test_every_declared_prompt_carries_the_shape_it_asks_for(declared) -> None:
     """Every call asks for a Pydantic shape, and no row said which."""

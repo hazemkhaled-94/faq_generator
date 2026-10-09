@@ -32,16 +32,13 @@ import json
 
 import pytest
 
-from assessment import prompts as assessment
 from assessment.templates import PROMPT_VERSION as JUDGE_VERSION
 from assessment.templates import TEMPLATES
-from extraction import prompts as extraction
 from question_generation import phrasing, verifier
-from question_generation import prompts as questions
 from question_generation.generation import _FOLLOW, _PERTURB
 from question_generation.types import PROMPT_VERSION, SPECS
 from stages.prompts import Composed
-from topic_modelling import prompts as topics
+from tests.static.prompt_catalogues import recorded
 
 #: The version every digest below was taken under.
 VERSION = "11"
@@ -187,23 +184,6 @@ RECORDED = {
     ("assessment", "question: conciseness"): ("2", "d5c82af666fa54e2"),
     ("assessment", "question: toxicity"): ("2", "eb392c185d32eb90"),
 }
-
-
-def recorded() -> dict[tuple[str, str], Composed]:
-    """Every prompt each stage's catalogue records, by service and name.
-
-    Extraction's under a cap, so the paragraph a cap appends is pinned too.
-    """
-    return {
-        (service, one.name): one
-        for service, held in (
-            (questions.SERVICE, questions.catalogue()),
-            (extraction.SERVICE, extraction.catalogue(4)),
-            (topics.SERVICE, topics.catalogue()),
-            (assessment.SERVICE, assessment.catalogue()),
-        )
-        for one in held
-    }
 
 
 def halves(one: Composed) -> str:
