@@ -17,7 +17,7 @@ class Prompt(Base):
     `facts.prompt_version` and `questions.prompt_version` name a version and
     nothing resolved it. A row lives for ever - `questions` is append-only
     and never hard-deleted - and the span carrying the prompt that wrote it
-    does not: a Phoenix project is one run and has a retention of its own.
+    does not: a Phoenix project has a retention of its own.
     So a question written under version 5 pointed at a prompt that existed
     only in a git commit, and an exported dataset could not say what wrote
     it without the repository beside it.
