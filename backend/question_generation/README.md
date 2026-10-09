@@ -35,8 +35,11 @@ Weights are spread over the slots by **highest averages**, so the counts are
 exact over a run and interleaved along it. That matters because the
 unanswerable share and the follow-up share are both taken by position.
 
-A weight of `0`, or a name left out, is never written.
-`GET /questions/plan` reads a topic's plan back.
+A kind with a weight of `0`, or left out, is never planned; a follow-up takes
+its kind from `QUESTIONS_FOLLOWUP_TYPES` instead. A band can be moved off its
+weight: an `easy` slot is raised to its kind's floor, and an unanswerable one
+is planned `easy`. `GET /questions/plan` reports the configured mixes, shares
+and answer bounds the next run will read.
 
 ### Step 2 — Deal the facts
 
@@ -47,7 +50,7 @@ the shape of the sample:
 | Band | Shape | What the deal offers | Worth |
 |---|---|---|---|
 | `easy` | `single` | one passage | 0 |
-| `medium` | `cross` | a passage in another document, ranked by shared vocabulary | 2 |
+| `medium` | `cross` | a passage in another document, ranked by likeness | 2 |
 | `hard` | `bridge` | a bridging passage in another document — another file *and* another subject | 3 |
 
 Passages are dealt strided over the whole topic, each offered
@@ -134,10 +137,13 @@ case it puts the rule to is not in the material.
 
 ### The answer form
 
-`answer_form` is `value`, `list` or `explanation`, declared by the kind.
-Every gate that reads an answer reads it against that form: the verb rule
-applies to a `value` alone, an `explanation` is refused for carrying *no*
-verb, and each form has its own bounds in `QUESTIONS_ANSWER_CHARS`.
+`answer_form` is `value`, `list` or `explanation`. The kind declares the form
+it asks for and the others it will take, and the form stored is the one of
+those the answer turns out to fit, so a `factoid` answered with three things
+is stored as a `list`. Every gate that reads an answer reads it against that
+form: the verb rule applies to a `value` alone, an `explanation` is refused
+for carrying *no* verb, and each form has its own bounds in
+`QUESTIONS_ANSWER_CHARS`.
 
 ### The two answers
 
@@ -178,14 +184,17 @@ NULL on every unanswerable question by CHECK.
 | `analyse` | reason, consequence, comparison, aggregation, temporal, **implication** |
 
 The two in bold are **derived**: the premises are in the material and the
-conclusion is not, so answering means reasoning. Because their answers are
-absent by construction, recoverability asks them the wrong question and they
-face one of their own — `arithmetic` asks whether the figures come to the
-total, `entailment` whether the conclusion follows from the premises.
+conclusion is not, so answering means reasoning. `aggregation` is derived
+too: its total is not in the material. Because their answers are absent by
+construction, recoverability asks them the wrong question and they face one
+of their own — `arithmetic`, for `aggregation`, asks whether the figures
+come to the total, and `entailment`, for the two in bold, whether the
+conclusion follows from the premises.
 
-`GET /questions/quality` also reports `cognitive_level_checked`, the share of
-the column a rule settles. Only six of the thirteen types have one, so the
-honest thing is to say how much of the column is measured.
+`GET /questions/quality` also reports `cognitive_level_checked`, how many
+accepted questions are of a type a rule settles. Only six of the thirteen
+types have one, so the honest thing is to say how much of the column is
+measured.
 
 ### The three criteria, and the band
 
@@ -207,28 +216,30 @@ two disagree when the writer cited fewer facts than it was offered.
 
 ## The gates
 
-Applied cheapest first.
+Applied cheapest first, in this order. The first five are one structural
+step, and the free half of `leaks_source`, a question quoting the title of
+its own document, runs in it too.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|
 | `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or asks how many and answers with the number of facts it cites | nothing |
+| `compound` | asks two things | nothing |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |
 | `wrong_form` | answers in the wrong shape | nothing |
+| `off_topic` | was written to have no answer and is about nothing the material mentions | nothing |
 | `wrong_type` | is not the kind it was planned as, where a rule can say so | nothing |
-| `restates_question` | is answered with nothing the question did not already carry | nothing |
+| `restates_question` | is answered with almost no content word the question did not already carry. An answer with a number, and a `comparison`, are not read | nothing |
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure the passages do not, or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
-| `leaks_source` | names the material its answer is in | nothing, or one question-only call |
-| `off_topic` | was written to have no answer and is about nothing the material mentions | nothing |
-| `duplicate` | is a near twin of one already accepted | one index probe |
+| `duplicate` | is a near twin of one already accepted, or is an accepted draft a retry replaced | one index probe |
 | `answerable_after_all` | was written to have no answer and turns out to have one | the same probe, or the round trip |
-| `compound` | asks two things | nothing |
-| `unanchored` | nobody could have asked without the passage in front of them | nothing, or one question-only call |
+| `leaks_source` | names the material its answer is in | nothing, or one question-only call |
+| `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
 | `answer_incomplete` | has a key naming far less than the verifier found | the same round trip |
-| `answerable_elsewhere` | was written to have no answer and a passage it does not cite answers it | a lemma probe and a second call |
+| `answerable_elsewhere` | was written to have no answer and a passage it does not cite answers it | a passage probe and a second call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
 
 `questions.rejected_reason` holds exactly these. `source_changed` is the one
@@ -253,18 +264,20 @@ and enough of what it is about. A `value` is compared whole; a `list` or an
 `explanation` by overlap — `QUESTIONS_ANSWER_OVERLAP`. Numbers are always
 exact, so `4 hours` never passes for `48 hours`.
 
-Three things about it are load-bearing. The verifier is a **different** model,
-because a model marking its own work recovers what it just wrote. The escape
-hatch is explicit — the verifier answers whether the passage states it at
-all. And it sees only the cited passages, never the corpus: what is being
-measured is the dataset, not a retriever.
+Three things about it are load-bearing. The verifier is meant to be a
+**different** model, because a model marking its own work recovers what it
+just wrote; the stage warns when it is the writer's. The escape hatch is
+explicit — the verifier answers whether the passage states it at all. And it
+sees only the cited passages, never the corpus: what is being measured is
+the dataset, not a retriever.
 
-`unanchored` and `leaks_source` ride on the same call. Each is a judgement
-rather than a measurement, and they are the only gates here that are
-**opinions** — so the factory turns them off when no second model is named,
-and then they are not asked for at all: a verdict that may not reject is a
-call per question buying a log line. The rule half of `leaks_source` still
-fires, because a pattern is a measurement. Recoverability stays on regardless.
+`unanchored` and `leaks_source` are asked of `QUESTIONS_PHRASING_MODEL`, one
+judgement per call. Each is a judgement rather than a measurement, and they
+are the only gates here that are **opinions** — so the factory turns them off
+when the phrasing model is the writer's own, and then they are not asked for
+at all: a verdict that may not reject is a call per question buying a log
+line. The rule half of `leaks_source` still fires, because a pattern is a
+measurement. Recoverability stays on regardless.
 
 `unanchored` covers two ways of failing to stand alone: naming too little,
 which `anchored()` counts, and naming plenty while **pointing outward**. The
@@ -276,8 +289,8 @@ second reads three things:
 | a noun made definite and counted | `den beiden Lehrplänen`, `the two editions` |
 | the anaphoric adjectives | `aforementioned`, `latter`, `besagt` |
 
-It over-fires on purpose, so it may only **veto** the verifier's verdict,
-never make one.
+It over-fires on purpose, so it only decides whether the phrasing model is
+asked; the verdict is the model's.
 
 ### Where the phrasing judgements are answered
 
@@ -337,15 +350,16 @@ the first kind, so a list longer than the depth is a rotation and not a
 prefix with a dead tail.
 
 A follow-up **may lean on the conversation** — *"And for an urgent one?"* —
-which is the point. Two consequences: the phrasing gate is not applied to
-one, and the verifier is shown the conversation when it judges
-recoverability.
+which is the point. Two consequences: the `unanchored` half of the phrasing
+gate is not applied to one, though `leaks_source` is, and the verifier is
+shown the conversation when it judges recoverability.
 
-`Deal.widen` adds unspent facts **of the same passages** before the turn is
-written, and two gates hold the thread together: `asks_nothing_new` refuses
-one citing nothing outside its root, and `off_thread` refuses one resting on
-no passage the turn before it used. `off_thread` is read on **passages and
-not on words**, because a good follow-up may name nothing at all.
+`Deal.widen` adds unspent facts **of the same passages** once, before the
+thread's first turn is written, and two gates hold the thread together:
+`asks_nothing_new` refuses one citing nothing outside its root, and
+`off_thread` refuses one resting on no passage the turn before it used.
+`off_thread` is read on **passages and not on words**, because a good
+follow-up may name nothing at all.
 
 Only an accepted, **answerable** root is followed. A thread stops at the
 first follow-up a gate refuses; a thread that widens to nothing stops at
@@ -356,16 +370,17 @@ Each follow-up is another writer call and another verifier call.
 
 ## Coverage
 
-`topics_covered` reads full whenever every topic produced one accepted
-question, which is a low bar, so `/questions/quality` also reports how much
-of the **material** the accepted questions reach.
+`topics_covered` counts every topic in coverage the stage has finished,
+whether or not it produced an accepted question, which is a low bar, so
+`/questions/quality` also reports how much of the **material** the accepted
+questions reach.
 
 Passages are counted against those a validated fact rests on, not against
 every passage: a passage no fact rests on cannot be asked about, so counting
 it would report extraction's refusals as this stage's gap.
 
 A sample **burns** `QUESTIONS_FACT_SAMPLE` facts whether or not the question
-cites them, and no fact is offered twice in one run, so past a point
+cites them, and no fact is offered twice within one topic, so past a point
 `QUESTIONS_PER_TOPIC` is inert. What raises coverage instead is running
 again, lowering `QUESTIONS_FACT_SAMPLE`, and — marginally —
 `QUESTIONS_FOLLOWUP_SHARE`. Figures in
@@ -396,13 +411,19 @@ and a short answer cannot earn the length point a `hard` question needs.
 within `TOLERANCE` of every quota. The command reports what it drew, the yield, and any
 quota the pool came up short on.
 
-Nothing is deleted and nothing is rewritten. A release is a column on rows
-already there, so questions left out stay queryable, and running it again
-with different shares replaces the first.
+Nothing is deleted. The draw re-checks first, as `questions-reverify` does,
+so a question that no longer passes the free gates is rejected before it can
+be drawn. Beyond that, a release is a column on rows already there, so
+questions left out stay queryable, and running it again with different
+shares replaces the first. It always draws over every accepted question:
+`--only` is refused, and `make questions-balance` takes no `TOPIC=`.
 
 `FILTER="--released"` exports the release, `released=true` narrows
 `GET /questions` to it, and **Released** does the same on the Questions page.
 Every workbook carries a Released column.
+
+A released question is always accepted: one that a person or a re-check
+moves off `accepted`, or that loses one of its facts, leaves the release.
 
 ## Getting the dataset out
 
@@ -437,7 +458,7 @@ The Citations sheet is the expensive half; `--no-citations` leaves it empty.
 
 Every question carries `prompt_version`, and three modules declare one:
 `types.PROMPT_VERSION` for the thirteen writers, `phrasing.PROMPT_VERSION`
-for the two wording judgements and `verifier.PROMPT_VERSION` for the round
+for the three wording judgements and `verifier.PROMPT_VERSION` for the round
 trip's four. They are bumped separately.
 
 The stage records what it sends at start-up — [`prompts.py`](prompts.py)
@@ -466,19 +487,21 @@ A text that moves under an unchanged version is logged at WARNING and fails
 ## The embedding model
 
 `EMBEDDING_MODEL` runs locally in the worker whatever `LLM_MODEL` names. It
-does two jobs, and they are one setting because they must agree:
+does three jobs, and they are one setting because they must agree:
 
 | | |
 |---|---|
 | Chunking | Counts a passage's tokens. `EMBEDDING_MAX_TOKENS` is the model's window and so the longest passage |
+| Extraction | Embeds every passage and fact into `passages.embedding` and `facts.embedding`, which this stage reads to pair passages, to find the corpus's furniture and to probe for `answerable_elsewhere` |
 | The `duplicate` gate | Embeds each question into `questions.embedding`, which the HNSW index serves |
 
 A passage sized by one tokenizer and embedded by another is silently
 truncated at embed time.
 
-**Changing it is a migration.** `questions.embedding` is `vector(1024)`, and
-the worker refuses a model of another width at start-up. A different model
-means altering that column, re-embedding every stored question, and
+**Changing it is a migration.** `passages.embedding`, `facts.embedding`,
+`questions.embedding` and `topics.embedding` are `vector(1024)`, and the
+worker refuses a model of another width at start-up. A different model
+means altering those columns, re-embedding every stored row, and
 re-chunking if its window differs.
 
 The cost is the first start: 2.2 GB of weights into the `models` volume
@@ -494,8 +517,8 @@ passages it is strongest in, and those passages.
 
 | Table | Holds |
 |---|---|
-| `questions` | the question, its two answers, its type, form and cognitive level, the three scopes and the band derived from them, the planned band, the thread columns, the embedding, the release id, the gate that stopped it, and the verdict a person reached |
-| `question_facts` | which facts each question cites. A trigger deletes a question once its last citation is gone |
+| `questions` | the question, its two answers, its type, form and cognitive level, the three scopes and the band derived from them, the planned band, the thread columns, the embedding, the release id, the gate that stopped it, the models that wrote it, verified it and judged its phrasing, and the verdict a person reached |
+| `question_facts` | which facts each question cites. A trigger deletes a question once its last citation is gone, and rejects one that loses a citation and keeps another |
 
 **Serves:** `/questions`, `/questions/{id}`, `/questions/plan`,
 `/questions/quality`, `/questions/export`, `PATCH /questions/{id}`, and the
@@ -517,7 +540,9 @@ make questions-export           # write what a filter selects to an .xlsx
 ## Configuration
 
 The values are in [`configs/env/backend.env`](../../configs/env/backend.env),
-each one exactly once.
+each one exactly once, except `QUESTIONS_VERIFIER_MODEL`'s, which is in
+`.env`. The three model settings are fixed: served read-only and never
+stored, so changing one needs a restart.
 
 | Setting | What it does |
 | --- | --- |
@@ -541,16 +566,17 @@ each one exactly once.
 | `QUESTIONS_FOLLOWUP_SHARE` | What share of accepted answerable roots get a thread |
 | `QUESTIONS_MAX_FOLLOWUPS` | How far a thread may run past its root |
 | `QUESTIONS_FOLLOWUP_TYPES` | The kinds the turns of a thread take, cycled |
-| `QUESTIONS_RETRIES` | How many further attempts a refused candidate gets. Every attempt is stored |
+| `QUESTIONS_RETRIES` | How many further attempts a root question gets when a gate a rewrite can answer refuses it, or it comes out below its planned band. Every attempt is stored |
 | `QUESTIONS_LONG_ANSWER_CHARS` | Where an answer starts counting towards the band. Not a gate |
 | `QUESTIONS_DUPLICATE_COSINE` | How alike two questions must be before the later one is dropped |
+| `QUESTIONS_DUPLICATE_FLOOR` | The cosine two unrelated questions score, which a question's stored confidence is measured from. Moves no verdict |
 | `QUESTIONS_RELEASE_SIZE` | How many to draw. `0` is the largest the pool can fill |
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How a release spreads over the bands |
 | `QUESTIONS_RELEASE_TYPES` | How a release spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 | `QUESTIONS_MODEL` | A different writer. Unset means `LLM_MODEL` |
-| `QUESTIONS_VERIFIER_MODEL` | The second model. Naming the writer's own, or none, turns off the opinion gates |
-| `QUESTIONS_PHRASING_MODEL` | The model asked what a question's wording amounts to. Never sees a passage |
+| `QUESTIONS_VERIFIER_MODEL` | The second model. Unset means `LLM_MODEL`. Where it comes out the writer's own, the entailment pass is off, and so are the opinion gates while `QUESTIONS_PHRASING_MODEL` is unset |
+| `QUESTIONS_PHRASING_MODEL` | The model asked what a question's wording amounts to. Never sees a passage. Unset means the verifier's. Where it comes out the writer's own, the opinion gates are off |
 
 Seven more are the platform's: `EMBEDDING_MODEL`, `EMBEDDING_MAX_TOKENS`,
 `NLI_MODEL`, `NLI_ENTAILMENT_THRESHOLD`, `QA_MODEL`, `QA_ANSWER_CONFIDENCE`
@@ -575,6 +601,13 @@ poetry run pytest tests/integration/database/test_release.py
 | [`test_models.py`](../../tests/unit/questions/test_models.py) | Which model writes a question, and which one checks it |
 | [`test_question_service.py`](../../tests/unit/questions/test_question_service.py) | What the service does with a topic |
 | [`test_reverify.py`](../../tests/unit/questions/test_reverify.py) | What a re-check does with a question a person accepted |
+| [`test_phrasing.py`](../../tests/unit/questions/test_phrasing.py) | What a question's own wording says, read without a model |
+| [`test_abstention.py`](../../tests/unit/questions/test_abstention.py) | A judgement that could not be had is recorded, not read as a pass |
+| [`test_context.py`](../../tests/unit/questions/test_context.py) | What the writer is told about where each fact came from |
+| [`test_thread_cycle.py`](../../tests/unit/questions/test_thread_cycle.py) | A thread that closes into a loop is read once |
+| [`test_export.py`](../../tests/unit/questions/test_export.py) | The workbook |
+| [`test_prompt_catalogue.py`](../../tests/unit/questions/test_prompt_catalogue.py) | That every prompt the stage sends is in the catalogue a version resolves against |
+| [`test_questions_cli.py`](../../tests/unit/questions/test_questions_cli.py) | The re-check and the release draw on the command line |
 | [`test_embedding.py`](../../tests/unit/nlp/test_embedding.py) | The embedding behind the dedup gate. Skips unless the model is cached |
 | [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py) | Two queues on one table |
 | [`test_release.py`](../../tests/integration/database/test_release.py) | Drawing a balanced release |
