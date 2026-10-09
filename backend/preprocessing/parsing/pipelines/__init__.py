@@ -59,8 +59,3 @@ class PipelineRegistry:
                 f"known: {', '.join(sorted(self._by_media_type))}"
             )
         return pipeline
-
-    @property
-    def media_types(self) -> tuple[str, ...]:
-        """Every media type the registry can dispatch, sorted."""
-        return tuple(sorted(self._by_media_type))

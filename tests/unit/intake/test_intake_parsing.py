@@ -77,11 +77,6 @@ def test_a_type_no_pipeline_handles_names_the_ones_that_are() -> None:
         registry.for_media_type("image/tiff")
 
 
-def test_the_registry_publishes_what_it_can_dispatch() -> None:
-    """Sorted, so the message above reads the same every time."""
-    assert PipelineRegistry((ScriptedPipeline(),)).media_types == ("application/pdf",)
-
-
 # ── The scanned decision ───────────────────────────────────────────────────
 
 
