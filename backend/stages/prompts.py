@@ -269,7 +269,7 @@ def _write(service: str, held: Sequence[Composed]) -> list[Composed]:
                     ", ".join(
                         half
                         for half, before, now in zip(
-                            _HALVES, was, sending, strict=False
+                            _HALVES, was or (), sending, strict=False
                         )
                         if before != now
                     ),
