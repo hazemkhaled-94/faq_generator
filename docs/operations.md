@@ -19,6 +19,12 @@ Once `make dev` reports ready:
 Behind them: PostgreSQL, SeaweedFS, Elasticsearch, Redis, Filebeat, the
 Dagster daemon and the six stage workers — twenty-four containers in all.
 
+Every published port binds to 127.0.0.1, so each URL above answers on this
+machine only. PostgreSQL and SeaweedFS's S3 gateway publish a port for the
+host commands; SeaweedFS's master, filer and volume servers publish none.
+The api answers only the host names in `API_ALLOWED_HOSTS`, and refuses with
+403 a write a browser sends from another site.
+
 `make services` and the System health page both ask `GET /services`, which
 probes the catalogue in
 [`backend/api/services.py`](../backend/api/services.py) live. Use that for
@@ -34,6 +40,7 @@ as `admin@localhost`), `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`, and
 claims one row at a time with `FOR UPDATE SKIP LOCKED`:
 
 ```bash
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 podman compose up -d --scale extract-worker=4
 ```
 
@@ -47,8 +54,8 @@ finishes and `make logs` says so. The container is given 6 GB because of it,
 and the weights are per container, not per lane.
 
 `assess-worker` is the cheapest of the six to scale and the only one that
-loads **no** weights at all: it asks a served model three questions about
-text it already has. 1 GB and one CPU. It also does nothing until
+loads **no** weights at all: it asks a served model two to six questions
+about text it already has. 1 GB and one CPU. It also does nothing until
 `ASSESSMENT_ENABLED` is true, so a deployment that never turns the
 evaluation phase on pays for one container polling an empty queue.
 
@@ -103,27 +110,53 @@ is now**.
 
 **3 · One run, end to end** crosses that split, which is why there is a
 third datasource: a run is `questions.run_id` on one side and a Phoenix
-project named `<position>-<stage>-<run id>` on the other. The `Phoenix`
-datasource is the same PostgreSQL server, a different database, read by the
-same `grafana_reader`.
+project named `<position>-<stage>-<RUN_ID>` on the other. Only a run named
+with `RUN_ID` gets a project of its own; an unnamed run's spans sit in its
+stage's shared project, and the Phoenix panels show nothing for it. The
+`Phoenix` datasource is the same PostgreSQL server, a different database,
+read by the same `grafana_reader`.
 
 Grafana holds state and logs and nothing else. For how one artefact was
 produced, open it on its own page in the application and read the **How
 this was produced** fold; for the calls behind a step, Phoenix; for which
 run produced it, Dagster.
 
-The panel worth watching during a long run is **model latency p99**. The
-extraction lease derives from `LLM_TIMEOUT_SECONDS` and `LLM_MAX_ATTEMPTS`,
-so a p99 climbing towards the timeout is healthy workers about to look
-abandoned.
+The panel worth watching during a long run is **model latency p99**. A call
+that runs past `LLM_TIMEOUT_SECONDS` is tried again, up to
+`LLM_MAX_ATTEMPTS` times, and then fails its row, so a p99 climbing towards
+the timeout is a stage about to fail rows.
 
 `grafana_reader` holds `SELECT` and nothing else. It is created by
 `configs/postgres/init.sh`, which only runs on the first boot of an empty
 volume. On a stack that already has one:
 
 ```bash
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 podman compose exec postgres bash /docker-entrypoint-initdb.d/init.sh
 ```
+
+Its `SELECT` on the five Phoenix tables the run dashboard queries is granted
+by `make up`, once Phoenix has made them. `make grafana-grants` grants them
+on its own, for a stack started some other way.
+
+### Rotating `GRAFANA_SECRET_KEY`
+
+Grafana encrypts the secrets it stores in its database with
+`GRAFANA_SECRET_KEY`, so a new key has to reach them in order:
+
+1. Snapshot the `grafana_data` volume.
+2. With Grafana still running under the old key, rotate its data keys:
+   `POST /api/admin/encryption/rotate-data-keys` as `GRAFANA_ADMIN_USER`.
+   It answers 204.
+3. Remove the signing keys Grafana stored encrypted under the old key, so
+   it mints its own. Left in place, `/api/signing-keys/keys` answers 500.
+   The repository has no command for this step.
+4. Put the new `GRAFANA_SECRET_KEY` in `.env` and recreate the `grafana`
+   container, which `make up` does once the value has changed. compose
+   hands it over as `GF_SECURITY_SECRET_KEY` and refuses to start Grafana
+   without it.
+5. Check that the three provisioned datasources report healthy, and that
+   alerting, the dashboards and search load.
 
 ## Logs
 
@@ -133,6 +166,7 @@ make logs-api
 make logs-shipper        # why nothing is arriving
 make logs-retention      # how long Elasticsearch keeps them. Run once
 make logs-prune          # delete the files on the volume
+make logs-wipe           # every line and every file. What make wipe runs
 ```
 
 Only this project's processes are shipped to Elasticsearch, but all of them
@@ -171,10 +205,11 @@ read back through `/{stage}/status`.
 | A panel that groups by `stage` finds nothing | A field missing from `append_fields` in `filebeat.yml` |
 | An edit to `filebeat.yml` changed nothing | `setup.template.overwrite` is false |
 | Grafana cannot read the database | `init.sh` has not run on this volume |
+| The run dashboard's Phoenix panels cannot read their tables | The grants `make up` makes have not run. `make grafana-grants` |
 | Streamlit refuses a file the API would accept | `server.maxUploadSize` is below `MAX_FILE_SIZE_MB` |
 | The frontend will not start, naming a variable | It is in `.env` but not in the `streamlit` service's `environment` |
 | Argilla refuses the key | `ARGILLA_API_KEY` is under "My settings". It is not `ARGILLA_PASSWORD` |
-| A p99 climbing towards `LLM_TIMEOUT_SECONDS` | Healthy workers about to look abandoned. Raise the timeout |
+| A p99 climbing towards `LLM_TIMEOUT_SECONDS` | Calls about to time out, be tried again and fail their rows. Raise the timeout |
 | A scanned PDF is refused rather than parsed | OCR is not enabled |
 
 ## Deleting things
@@ -192,6 +227,7 @@ bucket:
 
 ```bash
 make archive                      # what is held, by table, with its age
+make restore-documents SINCE=<time>  # put back what was archived from then on
 make archive-purge DAYS=30        # the second deletion. This one is final
 ```
 
