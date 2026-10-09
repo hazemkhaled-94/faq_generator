@@ -642,8 +642,9 @@ SETTINGS: tuple[Setting, ...] = (
         optional=True,
         fixed=True,
         help="The second model, which checks that a question's answer is in "
-        "the passages it cites. Naming the writer's own model, or none at "
-        "all, turns off the two gates only an independent model may apply.",
+        "the passages it cites. Absent calls the one LLM_MODEL names. Where it "
+        "is the writer's own, the entailment pass is off, and so are the "
+        "phrasing judgements while QUESTIONS_PHRASING_MODEL is unset.",
     ),
     Setting(
         name="QA_MODEL",
@@ -716,7 +717,8 @@ SETTINGS: tuple[Setting, ...] = (
         help="The model asked what a question's own wording amounts to, "
         "where a rule has not already settled it. Sees the question and "
         "never a passage, so it can be far smaller than the verifier. "
-        "Absent calls QUESTIONS_VERIFIER_MODEL.",
+        "Absent means the verifier's. Where it is the writer's own, it is "
+        "not asked.",
     ),
     # ── The platform the stages share ─────────────────────────────────────
     Setting(

@@ -202,7 +202,8 @@ model is asked anything — see [`evaluation/`](../../evaluation/README.md).
   answers still move between versions and quantisations, which is why
   `tests/eval/` never gates.
 - **`QUESTIONS_VERIFIER_MODEL` unset makes the writer check its own
-  questions rather than failing.** The worker warns on every start.
+  questions while `QUESTIONS_MODEL` is unset too, rather than failing.** The
+  worker warns on every start.
 - **An unknown model id is found by asking it one question.** A drain asks
   every model it calls before it claims anything; `make doctor` asks the
   host's.
