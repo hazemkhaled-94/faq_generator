@@ -21,7 +21,7 @@ make mutation       # change a gate and ask whether a test notices. Hours
 
 | Directory | What it covers | Needs |
 |---|---|---|
-| [`static/`](static/) | The repository against itself: settings declared where they are read, the migration chain, the schema extensions, the locks, the workflows, the env files and the compose file, the Makefile's recipes, the dashboards, the pinned surface of three services, every prompt pinned by digest, the frontend's gate list, the two import contracts, every relative link and heading a README names, and pyright at zero | nothing |
+| [`static/`](static/) | The repository against itself: settings declared where they are read, the migration chain, the schema extensions, the locks, the workflows, the env files and the compose file, the Makefile's recipes, the dashboards, the pinned surface of five services, every prompt pinned by digest, the frontend's gate list, the two import contracts, every relative link and heading a README names, and pyright at zero | nothing |
 | [`unit/`](unit/) | One module at a time, no I/O. Includes the Dagster code location, the review round trip and the experiment evaluators | spaCy, for some |
 | [`property/`](property/) | Invariants over generated input, with hypothesis | spaCy, for some |
 | [`regression/`](regression/) | The verdicts the checks have always reached, pinned as a table | spaCy |
