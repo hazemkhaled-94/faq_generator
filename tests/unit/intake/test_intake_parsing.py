@@ -12,6 +12,7 @@ from importlib.metadata import version
 from types import SimpleNamespace
 
 import pytest
+from docling.datamodel.base_models import InputFormat
 from docling_core.types.doc.labels import DocItemLabel
 from intake_drivers import (
     ParseDriver,
@@ -120,6 +121,18 @@ def test_a_scanned_pdf_is_refused_before_the_converter_is_built() -> None:
 
     with pytest.raises(ConversionFailed, match="without OCR"):
         pipeline.convert(SourceDocument(sha256=SHA, data=b"%PDF-", scanned=True))
+
+
+def test_the_pdf_converter_takes_no_format_but_pdf() -> None:
+    """Uploads are PDF only, so the converter is too."""
+    pipeline = PdfPipeline(
+        table_mode="fast",
+        heading_hierarchy=False,
+        document_timeout_seconds=None,
+        artifacts_path=None,
+    )
+
+    assert pipeline._converter().allowed_formats == [InputFormat.PDF]
 
 
 # ── The flow ───────────────────────────────────────────────────────────────

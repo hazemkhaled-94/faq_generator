@@ -162,6 +162,7 @@ class PdfPipeline(Pipeline):
                 artifacts_path=self._artifacts_path,
             )
             self._built = DocumentConverter(
+                allowed_formats=[InputFormat.PDF],
                 format_options={
                     InputFormat.PDF: PdfFormatOption(
                         pipeline_options=options,
@@ -172,7 +173,7 @@ class PdfPipeline(Pipeline):
                             enforce_same_font=False
                         ),
                     )
-                }
+                },
             )
             log.info("built the PDF converter")
         return self._built
