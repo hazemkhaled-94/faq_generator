@@ -55,8 +55,7 @@ def languages() -> tuple[str, ...]:
 
 def pipeline(language: str | None) -> Language:
     """Returns the pipeline for a language, falling back to the default."""
-    models, default = _configured()
-    return _loaded(models.get((language or "").strip().lower(), models[default]))
+    return _loaded(name(language))
 
 
 def name(language: str | None) -> str:
