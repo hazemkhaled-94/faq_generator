@@ -1013,9 +1013,9 @@ volumes:
   #: virtual machine.
   logs:
   #: The Hugging Face cache, holding EMBEDDING_MODEL: its tokenizer, which
-  #: chunking sizes a passage with, and its weights, which question
-  #: generation embeds with. A volume rather than a layer of the image,
-  #: because one image serves the api and all six workers and 2.2 GB of
-  #: weights would ship into the four processes that never load them - and
+  #: chunking sizes a passage with, and its weights, which extraction and
+  #: question generation embed with. A volume rather than a layer of the
+  #: image, because one image serves the api and all six workers and 2.2 GB of
+  #: weights would ship into the five processes that never load them - and
   #: into every CI build of that image. Fetched once, on first use.
   models:
