@@ -3,11 +3,13 @@
 #
 # What it serves is the half `Pipeline` cannot: the call count, the tokens,
 # the latency and the spend are in the spans, and the gate counts are rows.
-# A run is `questions.run_id` on one side and a project named
-# `<stage>-<run id>` on the other, which is what the run page joins on.
+# A run named with RUN_ID is `questions.run_id` on one side and a project
+# named `<position>-<stage>-<RUN_ID>` on the other, which is what the run page
+# joins on.
 #
 # Read-only, as the same role that reads the application database.
-# configs/postgres/init.sh is what grants it.
+# configs/postgres/init.sh grants it the database and `make up` the five
+# tables the run page reads.
 
 apiVersion: 1
 
