@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, func, insert, select, text, update
+from sqlalchemy import case, delete, func, insert, select, text, update
 from sqlalchemy.orm import aliased
 
 from database.qa_generator import (
@@ -451,7 +451,7 @@ class TopicCatalog(Repository):
         """Records what a person decided about one topic, and when.
 
         A blank label clears the label and its provenance; a label present
-        marks the topic `person`-named.
+        marks the topic `person`-named, unless it is the label it already has.
 
         Args:
             topic_id: The topic. A fit request is not one and is not editable.
@@ -463,13 +463,18 @@ class TopicCatalog(Repository):
         Returns:
             The topic as it now reads, or None if no topic has that id.
         """
+        named = (label or "").strip() or None
         with self._session.begin() as session:
             changed = session.execute(
                 update(Topic)
                 .where(Topic.id == topic_id, ~_OUTSTANDING)
                 .values(
-                    label=(label or "").strip() or None,
-                    labelled_by="person" if (label or "").strip() else None,
+                    label=named,
+                    labelled_by=None
+                    if named is None
+                    else case(
+                        (Topic.label == named, Topic.labelled_by), else_="person"
+                    ),
                     include_in_coverage=Topic.include_in_coverage
                     if include_in_coverage is None
                     else include_in_coverage,

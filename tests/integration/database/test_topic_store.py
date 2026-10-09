@@ -387,6 +387,26 @@ def test_clearing_a_label_clears_what_named_it(store) -> None:
     assert (described.label, described.labelled_by) == (None, None)
 
 
+def test_keeping_a_models_name_leaves_it_the_models(store) -> None:
+    """Only the coverage tick moved, and the page sends the label as it stands."""
+    store.given_passages(de=1)
+    store.store(
+        fitting(
+            "de",
+            topics=[FittedTopic(0, ["a"], label="Versand", labelled_by="azure/gpt")],
+        )
+    )
+    topic_id = store.topic_id("de", 0)
+
+    described = store.catalog.describe(
+        topic_id, label="Versand", include_in_coverage=False
+    )
+
+    assert described is not None
+    assert (described.label, described.labelled_by) == ("Versand", "azure/gpt")
+    assert described.include_in_coverage is False
+
+
 def test_taking_a_topic_out_of_coverage_leaves_its_passages(store) -> None:
     """It is a reporting decision, not a deletion."""
     store.given_passages(de=2)
