@@ -1051,10 +1051,10 @@ questions-runs:
 #
 #   make questions-diff RUNS="a-gpt-4.1 b-gemma4-12b"
 #
-# Reads the live questions AND the archived ones, which is what makes an A/B
-# possible at all: `questions-rerun` deletes what it replaces, so before the
-# archive existed, producing run B destroyed run A. Nothing here gates - a
-# model's answers move between two runs at the same temperature.
+# Reads the live questions AND the archived ones. A rerun appends, so two
+# runs' questions stand side by side; the archive is what keeps the rows a
+# deletion or a re-chunk took since. Nothing here gates - a model's answers
+# move between two runs at the same temperature.
 questions-diff:
 	@test -n "$(RUNS)" || { echo 'usage: make questions-diff RUNS="<older> <newer>"'; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.runs $(RUNS)

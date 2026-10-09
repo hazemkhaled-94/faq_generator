@@ -59,7 +59,7 @@
       "id": 1,
       "type": "stat",
       "title": "What the run produced",
-      "description": "Counted off the rows, which is where the truth about them is. Only live rows: a rerun deletes what it replaces, and a deleted run answers `make questions-diff` and not this.",
+      "description": "Counted off the rows, which is where the truth about them is. Only live rows: a run whose questions a deletion or a re-chunk took answers `make questions-diff` and not this.",
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-pipeline" },
       "gridPos": { "h": 5, "w": 12, "x": 0, "y": 4 },
       "fieldConfig": {
