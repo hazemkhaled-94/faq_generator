@@ -22,8 +22,7 @@ class Settings:
     #: The Argilla workspace the datasets live in. One per deployment, so
     #: two people reviewing two corpora do not annotate each other's rows.
     workspace: str
-    #: How many records one push puts in a dataset. A review is a sample -
-    #: nobody is reading twenty thousand facts - and the sample is
+    #: How many records one push puts in a dataset. A review is a sample,
     #: stratified over the verdicts, so this is split across them.
     sample: int
     #: Read and not used: no column records who reviewed a row.

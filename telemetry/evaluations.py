@@ -54,8 +54,7 @@ ENDPOINT = "PHOENIX_BASE_URL"
 API_KEY = ("PHOENIX_API_KEY", "PHOENIX_ADMIN_SECRET")
 
 #: How many annotations are held before they are posted. One HTTP call per
-#: question would cost more than the gate it is recording; a topic writes
-#: about ten.
+#: question would cost more than the gate it is recording.
 BATCH = 100
 
 

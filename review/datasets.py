@@ -103,9 +103,9 @@ _JUDGE_GUIDELINE = (
     "`judge_verdict` metadata is its verdict in one word. It is NOT the "
     "answer. It "
     "is a second machine opinion recorded beside the checker's, and it "
-    "gates nothing - one was measured at chance on German text. Where it "
-    "says it disagrees with the pipeline, that pair is the reason this row "
-    "is in front of you: one of the two is wrong and only you can say which."
+    "gates nothing. Where it says it disagrees with the pipeline, that pair "
+    "is the reason this row is in front of you: one of the two is wrong and "
+    "only you can say which."
 )
 
 #: Added after it. Argilla's job is the artefacts a person judges, and a

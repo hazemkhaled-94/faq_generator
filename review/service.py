@@ -74,7 +74,7 @@ def _warn_if_stale(found: rg.Dataset, name: str) -> None:
     pushed. The datasets had been created before the evaluation phase
     existed, `_dataset` reuses what it finds rather than recreating it -
     deliberately, because recreating throws away every answer not yet
-    pulled - and the push reported 38 records written with nothing on them.
+    pulled - and the push reported its records written with nothing on them.
 
     Warned rather than fixed automatically, for the same reason: what to do
     about it depends on whether anybody has answered. The warning counts

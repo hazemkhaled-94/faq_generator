@@ -104,10 +104,9 @@ def project(service: str, run: str | None = None) -> str:
 
     Filing every run under a project of its own was the original design and
     it does not survive contact with a worker: `run_id` mints a uuid per
-    PROCESS, `restart: unless-stopped` makes a process per restart, and one
-    deployment reached five hundred projects, almost all of them holding a
-    handful of spans nobody could find again. The comparison that design
-    existed for is still there and is now the thing you ask for by name:
+    PROCESS, and `restart: unless-stopped` makes a process per restart. The
+    comparison that design existed for is still there and is now the thing
+    you ask for by name:
 
         make questions RUN_ID=a-gpt-4.1     ->  6-question_generation-a-gpt-4.1
         make questions                      ->  6-question_generation

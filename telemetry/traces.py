@@ -45,7 +45,7 @@ _llm_instrumented = False
 #: Set to put a span on every SQL statement and every pool connect. Off by
 #: default, and the one exception to the rule above: a statement is the
 #: system, not the logic, and belongs in Phoenix only while somebody is
-#: reading it. They were 2.8M of 3.9M spans.
+#: reading it.
 TRACE_DATABASE = "TRACE_DATABASE"
 
 #: Accepted spellings of true, as `settings/env.py` spells them.
@@ -54,8 +54,7 @@ _TRUE = frozenset({"1", "true", "yes", "on"})
 
 #: What Phoenix reads a span's project off. An OpenInference resource
 #: attribute rather than an OTel one - Phoenix files a span under this and
-#: falls back to `default` when it is absent, which is where every span in
-#: this deployment has gone so far.
+#: falls back to `default` when it is absent.
 #:
 #: Read off the package rather than written as a string, because it is
 #: their name for their own concept; the fallback is the literal, for a
@@ -89,8 +88,7 @@ def configure(
     below.
 
     The two used to be one argument, and a project per unnamed run does not
-    survive a worker: a uuid per process, a process per restart, and one
-    deployment reached five hundred projects nobody could find anything in.
+    survive a worker: a uuid per process, and a process per restart.
 
     Exports to OTEL_EXPORTER_OTLP_ENDPOINT. Credentials come from
     OTEL_EXPORTER_OTLP_HEADERS and are read by the exporter itself.
@@ -122,14 +120,6 @@ def configure(
                 # here would OVERRIDE them - turning the one escape hatch a
                 # deployment has into a value nobody can change without a
                 # rebuild.
-                #
-                # The defaults suit this pipeline by a wide margin. A queue
-                # of 2,048 drained every 5 s is sized for a service
-                # answering requests; the unit of work here is a passage at
-                # a median 473 s, so a worker produces a span every few
-                # minutes and the queue never approaches full. Measured
-                # against a real judging run: 5 artefacts, 5 `assess` spans
-                # and 18 `completion` spans in Phoenix, nothing lost.
                 #
                 # A queue that did fill would say so - the SDK logs
                 # "Queue full, dropping spans" per overflow - so this is a
@@ -186,10 +176,10 @@ def instrument_llm() -> None:
 def asking(shape: str, version: str | None = None) -> Iterator[None]:
     """Labels the model-call spans opened inside with what was asked of it.
 
-    The instrumentor names every call `completion`, so a run is two
-    hundred identical spans and nothing on one says whether it wrote a
-    question, judged its phrasing or read the answer back out. That is in
-    the log as `llm.shape` and was in no trace, which is the reason
+    The instrumentor names every call `completion`, so a run's spans are
+    identical and nothing on one says whether it wrote a question, judged
+    its phrasing or read the answer back out. That is in the log as
+    `llm.shape` and was in no trace, which is the reason
     `make spend-by-shape` reads log prose to answer what a judgement
     costs.
 

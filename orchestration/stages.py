@@ -10,8 +10,8 @@ already had three, and the one the README reserved a slot for: "a stage
 never sets another stage going - somebody decides it should run". The
 orchestrator is a somebody. It is not a new execution engine, and moving
 the stages into ops would have thrown away the lease sweep, the horizontal
-scaling and a claim protocol that works, in exchange for putting a
-473-second model call inside a Dagster op.
+scaling and a claim protocol that works, in exchange for putting a model
+call inside a Dagster op.
 
 So an asset is cheap and the pipeline is unchanged by its absence. Nothing
 here is required for the pipeline to run; it is required for it to run
@@ -129,7 +129,7 @@ def _failed_check(name: str, stage: str, description: str):
     failed run: the rest of the corpus went through, the reason is
     recorded against the row, and `retry` is what moves it. Raising
     here would stop the stage after it from ever running because one
-    document of four hundred was a scanned image.
+    document was a scanned image.
     """
 
     @asset_check(asset=name, name=NOTHING_FAILED, description=description)
@@ -304,10 +304,9 @@ def assessments_agreement() -> AssetCheckResult:
 
     A disagreement is not a defect. It is either a check that let something
     through or a judge that is wrong, and which of those it is cannot be
-    decided here - `evaluation/README.md` records an LLM judge measured at
-    chance on the German half of this corpus. So this check passes whatever
-    it finds and carries the count, which is a number worth watching on the
-    asset page and never a reason to fail a run.
+    decided here. So this check passes whatever it finds and carries the
+    count, which is a number worth watching on the asset page and never a
+    reason to fail a run.
 
     What acts on it is a person: `make review-push-questions`.
     """

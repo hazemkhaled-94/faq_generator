@@ -7,8 +7,8 @@ Runs on the host against the same database the workers use, like `make
 schema` and the bare stage targets. It is not in the backend image on
 purpose: nothing in the pipeline calls it, it runs when a person decides
 to review something, and adding the Argilla client to an image that
-already carries torch and spaCy would be three more megabytes in six
-containers for a tool none of them runs.
+already carries torch and spaCy would ship it in six containers for a
+tool none of them runs.
 """
 
 from __future__ import annotations

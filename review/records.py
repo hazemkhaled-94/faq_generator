@@ -5,9 +5,8 @@ a person to disagree: a fact's verdict, a topic's name, and whether a
 question is any good. Those are the three datasets, and this is the half of
 them that touches the database.
 
-Stratified samples, not the first N. A review is a sample - nobody reads
-twenty thousand facts - and a sample taken in id order is a sample of
-whatever was extracted first, which for this corpus is one document. Drawn
+Stratified samples, not the first N. A review is a sample, and a sample
+taken in id order is a sample of whatever was extracted first. Drawn
 evenly across the verdicts instead, because the question a review answers
 is "is the checker right", and a sample of only what it accepted cannot
 answer it. That the bands and the rejection codes exist to be sampled on

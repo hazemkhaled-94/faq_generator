@@ -4,11 +4,8 @@ A project is created by the first span filed under it and never by
 anything else, so one appears whenever a process exports and disappears
 never. That was survivable while a project meant a run somebody asked
 for. It stopped being survivable when `run_id` minted a uuid per PROCESS:
-a `--watch` worker is a process per restart, a credential that has expired
-restarts it every minute, and the deployment this was written against
-reached **five hundred projects**. Sampling a hundred and twenty of them
-found a hundred and nineteen holding exactly one span - the `completion`
-of a single failed preflight call.
+a `--watch` worker is a process per restart, and a credential that has
+expired restarts it every minute.
 
 Two things came out of that, and this is the second:
 
@@ -17,12 +14,11 @@ Two things came out of that, and this is the second:
   preflight has passed. Together those stop the count growing.
 - This takes back what the old arrangement left behind.
 
-**What counts as holding no work.** Not "empty" - none of those five
-hundred was empty, which is why the first version of this found nothing
-to do. A project holds work when something other than a model call
-happened in it: an `assess`, an `extract`, a `parse`. A project whose
-every span is a `completion` is a process that proved the model answers
-and then died, and the call it proved it with is in the logs.
+**What counts as holding no work.** Not "empty". A project holds work
+when something other than a model call happened in it: an `assess`, an
+`extract`, a `parse`. A project whose every span is a `completion` is a
+process that proved the model answers and then died, and the call it
+proved it with is in the logs.
 
 Runs on the host, like `evaluation/` and `review/`: no image carries a
 reason to delete a project.
@@ -78,9 +74,8 @@ class Project:
 
         Nothing but model calls, AND few enough of them that every span was
         actually read. A project that filled the sample is one this has
-        only seen the start of, and the first fifty spans of a real run
-        are model calls too - `5-topic_modelling` reads exactly that way
-        and holds a corpus of labelling.
+        only seen the start of, and the first fifty spans of a run can be
+        model calls too.
 
         So a project this cannot see the end of is kept. The cost is a
         leftover nobody sweeps; the cost the other way is somebody's data.
@@ -144,9 +139,7 @@ def listed(client, path: str = "/v1/projects") -> Iterator[dict]:
     **Paginated, and the first version of this was not.** Phoenix answers
     with a page and a `next_cursor`, and a tool that reads one page reports
     a number that is really "the page size" and prunes a slice of the
-    backlog. Against a deployment holding more than five hundred, that read
-    as 500 projects, pruned 497, and then reported 500 again from the next
-    page - which looks exactly like a delete that silently failed.
+    backlog.
     """
     cursor = None
     while True:
