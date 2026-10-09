@@ -14,14 +14,12 @@ how, procedure and consequence question ever written.
 The gate for "it is not the kind of question it was asked to be" is
 structural, and only ever structural. The verifier was once asked the
 judgement, as `matches_intent`, and answered `true` for a bare `Wie viele
-Anlassprüfungen wurden 2025 durchgeführt?` written into a `reason` slot - it
-fired zero times over 71 questions while the kind was plainly wrong on six of
-27, which is the same failure the phrasing judgement had when it was a yes or
-no. So a model is not asked again. What a rule can settle is settled: a kind
-declares an answer form and `wrong_form` reads the answer against it, an
-`entity` question has to ask after a party, and an `enumeration` has to answer
-with more than one thing. Every other kind records what was ASKED for, as
-`planned_difficulty` does.
+Anlassprüfungen wurden 2025 durchgeführt?` written into a `reason` slot, so a
+model is not asked again. What a rule can settle is settled: a kind declares an
+answer form and `wrong_form` reads the answer against it, an `entity` question
+has to ask after a party, and an `enumeration` has to answer with more than one
+thing. Every other kind records what was ASKED for, as `planned_difficulty`
+does.
 """
 
 from __future__ import annotations
@@ -310,9 +308,7 @@ def structural(
     # `Welche Vorschriften gelten für X und wie hoch ist die Gebühr für Y?`.
     # A chatbot answering half of it is neither right nor wrong, and nobody
     # types it. This is what a writer told to use both passages of a wide
-    # sample does when the two have no single question between them - 17 of
-    # the first 19 multi-passage questions were this shape, and every one was
-    # rejected downstream for an answer the verifier could only half recover.
+    # sample does when the two have no single question between them.
     asked_about = interrogatives(asked, language)
     if len(asked_about) > 1:
         return (
@@ -382,9 +378,9 @@ def structural(
 
     # There is no gate here for "the question is its own fact rearranged",
     # and that is a finding rather than an omission. One was written, in two
-    # formulations, and measured against 61 real rows: both refused questions
-    # like `Wie hoch war die Arbeitslosenquote im August 2025?` -> `6,4
-    # Prozent`, which is as good as a benchmark question gets.
+    # formulations, and both refused questions like `Wie hoch war die
+    # Arbeitslosenquote im August 2025?` -> `6,4 Prozent`, which is as good
+    # as a benchmark question gets.
     #
     # The reason no such gate can work: for a single atomic fact, a good
     # question IS the fact minus its answer, put as a question. That is what
@@ -392,7 +388,7 @@ def structural(
     # 2025?` and `Was schüren geopolitische Konflikte?` have the same shape and
     # the same overlap with their facts; what separates them is whether the
     # answer is determinate, and that is not lexical either - a units rule
-    # refused 7 of 15 accepted answers, `knapp ein Fünftel` among them.
+    # refused `knapp ein Fünftel`.
     #
     # Whether a question is worth asking is a judgement, so the verifier makes
     # it. `not_recoverable` already carries it: it cannot get a determinate
@@ -415,10 +411,7 @@ def structural(
 
 
 #: How many things a question has to be about before it is taken to name
-#: something, when it names no name and no number. Measured over twelve
-#: questions: the ones nobody could have asked cold carry one or two content
-#: words - `What specific components are included?`, `Which criteria are
-#: used?` - and the ones a person would type carry four or five.
+#: something, when it names no name and no number.
 #:
 #: Public because the reason the checker logs beside the verdict names it.
 NAMES_SOMETHING = 3
@@ -429,10 +422,7 @@ def subject(question: str, language: str | None) -> str:
 
     The reading that used to be a field on the verifier's answer, where it
     was asked for as "copy the thing the question is about, word for word".
-    Copying a span out of a question is a parse, and asking a model to do it
-    inside a call about the passages cost it three of nineteen labelled
-    cases - twice by naming something for a question that names nothing, and
-    once by finding nothing in a question that does.
+    Copying a span out of a question is a parse.
 
     Every content-bearing noun phrase rather than the best one: a question is
     allowed to be about more than one thing, `Wie unterscheiden sich in
@@ -562,10 +552,9 @@ def cites_source(question: str, language: str | None) -> bool | None:
     differ by which of the standard and the answer the question is about.
     That is a reading, so it is left to whatever holds an opinion.
 
-    What the patterns settle is the half a model was measurably bad at. Over
-    the nineteen labelled cases gpt-4.1 missed four, and three of them are
-    `Kapitel 5`, `[R22]` and `Beck 2003` - a numbered division, a bracketed
-    reference and an author with a year. None of those needs a reading.
+    What the patterns settle is a numbered division, a bracketed reference
+    and an author with a year - `Kapitel 5`, `[R22]` and `Beck 2003`. None of
+    those needs a reading.
     """
     document = pipeline(language)(question)
     if _BRACKETED.search(question):
@@ -616,16 +605,10 @@ def anchored(question: str, language: str | None) -> bool:
     """Whether a question names anything on its own, read off its parse.
 
     The measurement behind an opinion. `unanchored` is the verifier's
-    judgement and the verifier is wrong about it often enough to matter: over
-    one topic it rejected six questions naming a party, a period and a duty
-    apiece, four of them unanswerable ones where a model that could not find
-    the answer reports that the question named nothing. Asking it to copy the
-    subject out instead fixed most of that and not all.
-
-    So the judgement may only reject a question this also calls thin. A
-    question naming a name or a number names something specific; so does one
-    about three or more things. `What specific components are included?` is
-    about two and names neither.
+    judgement, and the judgement may only reject a question this also calls
+    thin. A question naming a name or a number names something specific; so
+    does one about three or more things. `What specific components are
+    included?` is about two and names neither.
     """
     return bool(claim(question, language).units) or (
         len(content(question, language)) >= NAMES_SOMETHING
@@ -668,8 +651,7 @@ def on_topic(
     The gate the unanswerable questions did not have. Everything else here
     reads a question against an answer, and an unanswerable one has none, so
     the only thing that could refuse one was the verifier finding an answer
-    after all - which passed 87% of them against 30% of the rest. They were
-    not better; they were less tested.
+    after all.
 
     What makes one worthless is being easy to decline. `What is the top speed
     of a swallow?` asked of a testing syllabus is declined by any chatbot and
@@ -705,11 +687,8 @@ def asks_the_same(first: str, second: str, language: str | None) -> bool:
     den Lehrplan verwenden?` are about one subject and want different
     answers.
 
-    That is not a hypothetical. Over the 454 duplicates one corpus refused,
-    **318 - 70% - share no question word with the twin they were refused
-    against**: `warum` against `welche`, `wie` against `warum`. A sentence
-    embedding encodes what a question is ABOUT, and two questions about one
-    subject sit on top of each other whatever they ask for.
+    A sentence embedding encodes what a question is ABOUT, and two questions
+    about one subject sit on top of each other whatever they ask for.
 
     Abstains where either question uses no question word at all, which
     leaves those to the threshold as before: a measurement with nothing to
@@ -766,8 +745,7 @@ def near_verdict(
     # Asking something else is not refused outright, it is held to a higher
     # bar. Two question words can want the same answer - `How heavy is the
     # device?` against `What is the weight?` - so a different one is
-    # evidence and not proof. The false positives measured over one corpus
-    # sat at 0.937 to 0.948, and a real paraphrase sits above this.
+    # evidence and not proof.
     if (
         question
         and near.similarity < _unalike(threshold)
@@ -853,10 +831,7 @@ def explains(
     the TARGET against what a verifier independently wrote back, and its
     denominator is the target's own content lemmas - so every lemma an
     answer gains is another one the verifier has to reproduce, and an answer
-    written to teach somebody is an answer it refuses. Measured before this
-    column existed: explanations sat at a median of 157 characters against a
-    ceiling of 600, because the prompt asked for one or two sentences and
-    every worked example answered in a fragment.
+    written to teach somebody is an answer it refuses.
 
     So the explanation is held to what it is actually for:
 
@@ -897,7 +872,7 @@ def explains(
 
 #: The question words that ask for a party rather than a thing. An `entity`
 #: question asks who, and a language marks that in one word - the same
-#: reading `compound` makes of interrogatives, which measured 16 of 17.
+#: reading `compound` makes of interrogatives.
 #:
 #: A list per language and not a feature, because no Universal Dependencies
 #: tagset marks animacy on an interrogative: German `wer` and English `who`
@@ -910,10 +885,8 @@ def asks_for_an_agent(question: str, answer: str, language: str | None) -> bool:
     """Whether an `entity` question asks after a party at all.
 
     The type is defined as "who does, decides, owns or must be told
-    something", and over one measured run 208 of 244 accepted `entity`
-    questions - 85% - answered with no party in sight: `Womit können
-    Test-Chartas erstellt werden?` answered `mit Flipcharts und
-    Tabellenkalkulationen` is a factoid wearing the label.
+    something", and `Womit können Test-Chartas erstellt werden?` answered
+    `mit Flipcharts und Tabellenkalkulationen` is a factoid wearing the label.
 
     That matters beyond the label, because `cognitive_level` is derived from
     the type and inherits whatever the type got wrong.
@@ -925,11 +898,8 @@ def asks_for_an_agent(question: str, answer: str, language: str | None) -> bool:
     manager`, is caught by the first reading, because a question whose
     answer is a role asks `who`.
 
-    This is the structural half of the gate that was deleted. The verifier
-    was once asked whether a question was the kind it had been planned as
-    and fired zero times over 71 questions while the kind was plainly wrong
-    on six of 27; a rule reads what a rule can settle, and nothing here is
-    a matter of taste.
+    This is the structural half of the gate that was deleted: a rule reads
+    what a rule can settle, and nothing here is a matter of taste.
     """
     if any(word.casefold() in _AGENTS for word in interrogatives(question, language)):
         return True
@@ -1000,15 +970,14 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     `Wofür sind statische Analysen bei statischen Wartbarkeitstests
     geeignet?` answered `für statische Wartbarkeitstests` has asked nothing:
     every word of the answer was in the question, so a chatbot that echoes
-    the question back scores full marks. Measured over 3,535 accepted
-    answers, 3.3% read like that.
+    the question back scores full marks.
 
     Fewer than `_NEW` of the answer's content lemmas new to the question:
     `accurate test metrics for exploratory testing sessions can be
     challenging to determine` adds one in six. There IS no gate here for
     "the question is its own fact rearranged" and that is deliberate - it
-    was written twice, measured against 61 rows, and both formulations
-    refused `Wie hoch war die Arbeitslosenquote im August 2025?` answered
+    was written twice, and both formulations refused `Wie hoch war die
+    Arbeitslosenquote im August 2025?` answered
     `6,4 Prozent`, which is as good as a benchmark question gets. For a
     single atomic fact a good question IS the fact minus its answer. This is
     the narrower thing: not that the answer came from the question's
@@ -1019,9 +988,7 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     werden Schlüsselwörter eingeteilt?` answered `zwei Kategorien` scores as
     fully contained - the answer is `zwei` and the measure cannot see it.
     Those are the most unambiguously scoreable answers there are, which is
-    the same finding the value floor in QUESTIONS_ANSWER_CHARS rests on. The
-    exemption took the catch from 167 answers to 121 and every one it
-    dropped was a number.
+    the same finding the value floor in QUESTIONS_ANSWER_CHARS rests on.
 
     Read off the `NUM` part of speech and not off `claim().units`, because
     the units reading rests on `like_num` and that is not the same feature
@@ -1224,14 +1191,10 @@ def moves_on(cited: Sequence[int], root: Sequence[int]) -> bool:
     """Whether a follow-up reaches a fact the question before it did not.
 
     A thread is supposed to walk through the material, and this is the
-    reading of whether it did. Over one measured run 739 of 1,047 accepted
-    follow-ups - 70.6% - cited nothing new, because `_followups` was handed
-    the root's own sample and the type cycle then asked for the same fact in
-    another shape. That is what produced threads like `Warum erstellt ein
-    Team ein Teamvokabular?` / `Was können die Teammitglieder vermeiden?` /
-    `Unter welchen Umständen können die Teammitglieder Missverständnisse
-    vermeiden?` - one fact, three interrogatives, and nothing learned after
-    the first.
+    reading of whether it did. `Warum erstellt ein Team ein Teamvokabular?`
+    / `Was können die Teammitglieder vermeiden?` / `Unter welchen Umständen
+    können die Teammitglieder Missverständnisse vermeiden?` is one fact,
+    three interrogatives, and nothing learned after the first.
 
     Read on facts and not on wording, because wording is what a type cycle
     changes and the defect is that the material underneath did not.
@@ -1245,8 +1208,7 @@ def same_material(cited: Sequence[int], parent: Sequence[int]) -> bool:
     The other way a thread fails: not asking the same thing again, but
     changing the subject. `Warum sollen beim Mehrfachbedingungstest
     Testfälle entworfen werden?` followed by `Warum wurde TTA-2.6.1
-    entfernt?` is not a conversation, and 147 accepted follow-ups shared no
-    passage with their parent.
+    entfernt?` is not a conversation.
 
     Read on passages rather than on shared words. A follow-up MAY lean on
     the conversation - `Und bei einem dringenden?` is a good one and carries
@@ -1369,21 +1331,15 @@ def agrees(
     answers the verifier had found: `geopolitische Umbrüchen und
     fortschreitender Digitalisierung` is the same answer as `geopolitische
     Umbrüche und fortschreitende Digitalisierung` and shares not one inflected
-    form with it. Measured over the twelve pairs one run produced, containment
-    agreed with a person on 8 and lemmas on 11, with nothing newly accepted
-    that a person called different.
+    form with it.
 
     What it still misses is German inflection the pipeline gets wrong:
     `de_core_news_md` lemmatises `Umbrüche` to `Umbruch` and leaves
     `Umbrüchen` alone, so those two do not meet, and the same happens to
     `einfache` against `einfacheren`.
 
-    Embedding the two answers and comparing them closes both, and was
-    measured rather than assumed: over fourteen pairs, lemmas got 12 right
-    with two such refusals, and the numbers check plus a cosine of 0.92 got
-    13 with one wrong acceptance. The ranges overlap - the same answers bottom
-    out at 0.920 and different ones reach 0.942 - so no threshold separates
-    them, and `4 hours` against `48 hours` is 0.942.
+    Embedding the two answers and comparing them closes both, and no
+    threshold on the cosine separates the same answers from different ones.
 
     Lemmas are kept because the errors are not equal. A refusal loses a good
     question, which is costly and safe. An acceptance puts a question in the
@@ -1434,9 +1390,8 @@ _FIGURE = re.compile(
 
 #: The most figures a sum is searched over, and the most terms in one. The
 #: search is every combination of up to this many, so both are what keeps it
-#: from being exponential. Four covers every aggregation this corpus asked
-#: for; a total of five figures nobody wrote down is not a question anybody
-#: would type.
+#: from being exponential. A total of five figures nobody wrote down is not a
+#: question anybody would type.
 #:
 #: ponytail: figures past `_FIGURE_CAP` are dropped unread, so a correct
 #: total resting on one is refused. Upgrade: a subset-sum over the figures

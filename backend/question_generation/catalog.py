@@ -793,8 +793,7 @@ class QuestionCatalog(Repository):
         `IN`, and `correlate(None)` is why the difference matters. `_ids`
         is joined over the same four tables this query selects from, so as
         a WHERE subquery SQLAlchemy correlated those tables to the outer
-        query, emptied the subquery's own FROM and turned a filter on
-        1,229 rows into six million.
+        query and emptied the subquery's own FROM.
         """
         chosen = _ids(**where).correlate(None).subquery()
         with self._session() as session:

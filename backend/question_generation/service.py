@@ -319,9 +319,7 @@ def _supplied(pool, weights, what: str, attribute: str) -> dict[str, int]:
 
     A quota nothing can fill makes the whole draw empty rather than smaller:
     the choosing needs every bucket at zero together, so one bucket with no
-    questions in it refuses every size, down to one. Over 29 accepted
-    questions spread across eleven kinds that is exactly what happened -
-    most kinds had nothing, and the release came out empty.
+    questions in it refuses every size, down to one.
 
     Dropping the bucket is the lesser wrong, and it is said out loud. What
     the release then holds is reported off the rows either way, so a missing
@@ -384,17 +382,11 @@ def again(checked: CheckedQuestion, plan: Plan, sample: FactGroup) -> str | None
     reason.
 
     A gate refused it, and it is a gate the writer could have satisfied.
-    Those are most of the rejections that are not about the material: over
-    one corpus, 21 compound questions, 11 malformed ones and 43 in all were
-    thrown away for how the question was written rather than for what it
-    was about.
 
     Or it was accepted and came out below the band its slot asked for. That
     is the other half of the difficulty problem: the writer is offered two
     passages, takes the escape hatch its own rules give it, cites one fact,
-    and the question bands easy. Planned-medium collapsed to easy 83 times
-    and planned-hard 30 times, which is why the accepted set came out 96.5%
-    easy however the mix was set. This one only ever asks - the accepted
+    and the question bands easy. This one only ever asks - the accepted
     draft stands if the second attempt turns out worse. And only where the
     sample dealt, cited whole, reaches the band: a deal that fell back to one
     passage has nothing to widen to.
@@ -570,10 +562,9 @@ class QuestionGenerationService(StageService):
                 # Spread over the accepted roots rather than over the plan's
                 # slots. Over the slots the share was picked before the
                 # question was written, so what landed was this share TIMES
-                # the acceptance rate: 0.5 gave 448 threads from 1,209
-                # accepted roots, which is 37%. A setting whose value moves
-                # with an unrelated rate cannot be reasoned about, and both
-                # the catalogue and the README already said it meant this.
+                # the acceptance rate. A setting whose value moves with an
+                # unrelated rate cannot be reasoned about, and both the
+                # catalogue and the README already said it meant this.
                 # Answerable roots only: an unanswerable one has no thread.
                 if checked.answerable:
                     if spread(roots, self._settings.followup_share):
@@ -600,9 +591,8 @@ class QuestionGenerationService(StageService):
 
         Here and not in the queue, because it needs a tagger and a
         catalogue the api holds must not import the module that loads one.
-        Read once per distinct passage rather than once per fact: a passage
-        carries five or six facts and the reading is the same for all of
-        them.
+        Read once per distinct passage rather than once per fact: the
+        reading is the same for all of a passage's facts.
         """
         if self._settings.party_density <= 0:
             return facts
@@ -870,9 +860,7 @@ class QuestionGenerationService(StageService):
 
         The cycle starts where this thread sits among the followed ones, not
         at zero. Starting every thread at the first type means a run never
-        reaches past QUESTIONS_MAX_FOLLOWUPS of them: two turns over three
-        configured types left `comparison` unwritten across 3,119 questions,
-        and every follow-up in the set came out `condition` or `reason`.
+        reaches past QUESTIONS_MAX_FOLLOWUPS of them.
 
         Counted over the threads that were followed rather than over the plan,
         because QUESTIONS_FOLLOWUP_SHARE picks by position too: a share of 0.5

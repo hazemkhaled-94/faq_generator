@@ -157,8 +157,8 @@ _WIDTHS = {
 _WRAPPED = frozenset(_WIDTHS)
 
 #: Beyond this, a cell is truncated. Excel refuses a cell over 32,767
-#: characters outright, and a workbook that raises at the last row after
-#: two minutes of work is worse than one that marks the row.
+#: characters outright, and a workbook that raises at the last row is worse
+#: than one that marks the row.
 _CELL_LIMIT = 32_000
 
 
@@ -327,10 +327,9 @@ def _summary(
 def _dress(sheet: Any, frame: pd.DataFrame) -> None:
     """Freezes the headings, filters them, and sizes the columns.
 
-    Not decoration. A sheet of three thousand rows whose headings scroll
-    away is one nobody can read past the first screen, and the four long
-    columns run to sixty characters and hide every column after them until
-    they are wrapped.
+    Not decoration. A sheet whose headings scroll away is one nobody can
+    read past the first screen, and the four long columns run to sixty
+    characters and hide every column after them until they are wrapped.
     """
     sheet.freeze_panes = "A2"
     if len(frame):

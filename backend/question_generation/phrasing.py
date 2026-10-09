@@ -1,22 +1,11 @@
 """The judgements about a question alone, asked one at a time.
 
-Three of these used to ride along in the verifier's reading call, and the
-measurement that split them out is in `evaluation/README.md`: over nineteen
-labelled cases gpt-4.1 answered them perfectly in English and at chance in
-German - 7/7 against 6/12 - while answering the other half of the same call,
-recovering an answer out of the passages, well in both. A judgement sharing a
-call with a harder task is answered in the language the harder task is
-thinking in.
+Three of these used to ride along in the verifier's reading call. Two of the
+three no longer need a model at all. `subject` is a span copied out of the
+question, which `gates.subject` reads off the parse. `names_its_source` is
+settled by `gates.cites_source` wherever a pattern settles it.
 
-Two of the three no longer need a model at all. `subject` is a span copied
-out of the question, which `gates.subject` reads off the parse and gets right
-on 19 of 19 where the model got 16. `names_its_source` is settled by
-`gates.cites_source` wherever a pattern settles it, which is every case the
-model got wrong.
-
-What is left is the residue, and it is asked here. One question per call,
-because the interference this module exists to undo is what happens when that
-is not true.
+What is left is the residue, and it is asked here, one question per call.
 
 Each call is also **gated by a measurement**, so the common question costs
 nothing: a question carrying no pointing word is not asked whether its

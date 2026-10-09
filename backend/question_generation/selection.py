@@ -10,11 +10,9 @@ question needed, and the difficulty is read off those.
 
 Three things decide what is offered. The plan asks for a shape - one passage,
 a neighbouring one, or one in another document. `size` caps the facts, and it
-caps them per passage rather than by dropping a passage whole: the cap used to
-flush a group and then add the next passage entire, so a corpus whose median
-passage carries ten facts never produced a sample of two passages at all.
-Passages are dealt strided over the whole topic rather than from its start, so
-a topic of eighty passages is asked about across all of it.
+caps them per passage rather than by dropping a passage whole. Passages are
+dealt strided over the whole topic rather than from its start, so a topic is
+asked about across all of it.
 """
 
 from __future__ import annotations
@@ -183,27 +181,19 @@ def condensed_first(facts: Sequence[SourceFact]) -> list[SourceFact]:
     """The same facts with the ones standing in for a whole passage first.
 
     What a sample is reordered by when the answer is not a bare value. A
-    condensed fact is 5 to 6 times longer than an atomic claim and carries
-    four predicates where one carries a single predicate, so a type whose
-    answer is a reading of a passage is offered those before the single
-    sentences. A `value` is not: a factoid, an entity and an aggregation
+    condensed fact is longer than an atomic claim and carries several
+    predicates where one carries a single predicate, so a type whose answer
+    is a reading of a passage is offered those before the single sentences.
+    A `value` is not: a factoid, an entity and an aggregation
     want the fact carrying a number, which is what `ranked` already puts
     first within a kind.
 
     Stable within each half, so `ranked`'s orderings survive: units first
     inside a kind, and the kinds interleaved.
 
-    This was written to reduce the weld and it does not, which is worth
-    knowing before it is reached for again. Questions citing a condensed
-    fact weld far less - 19.7% against 35.8% for an `explanation` - but the
-    correlation runs the other way: a condensed fact often answers the
-    question from ONE passage, so the writer narrows and cites one side,
-    and the low rate is what narrowing looks like afterwards. And the
-    ordering cannot change the supply anyway: a passage is dealt `rounds`
+    The ordering does not change the supply: a passage is dealt `rounds`
     times and never with a fact twice, so every fact it holds is offered
-    either way. Measured over this corpus the condensed share of offered
-    facts moves 25.6% to 27.8%. See the README for the floor on `meets`
-    that would reach it.
+    either way.
     """
     return sorted(facts, key=lambda one: one.kind not in CONDENSED)
 
@@ -282,8 +272,7 @@ class Deal:
     fact: what must not repeat is the material a question is written from,
     not the passage it sits in. A passage carrying a dozen facts holds a
     dozen questions, and offering it once was the ceiling on the whole
-    stage - 18.9% of one corpus's passages were ever read, and 1.8% of its
-    facts, because each of 12 topics stopped after 20 passages.
+    stage.
 
     Rounds are a ceiling and the facts are the real limit: a passage runs
     out when nothing unspent is left in it, so a thin passage yields one
@@ -304,9 +293,7 @@ class Deal:
 
         `floor` is QUESTIONS_MEETS_FLOOR: how much the second passage's best
         fact must have in common with the head before a second passage is
-        offered at all. 0 offers one whatever it holds, which is what every
-        run so far has done - see the sweep beside the setting for why the
-        default is not a number.
+        offered at all. 0 offers one whatever it holds.
         """
         self._order = strided(interleaved(by_passage(facts)), wanted)
         self._bridges = interleaved(by_passage(bridges))
@@ -351,9 +338,8 @@ class Deal:
         if partner and not self._clears(head, partner):
             # Nothing in the second passage meets the first well enough to
             # be worth offering. The span rules already tell the writer to
-            # narrow in this case and 34% of the time it does not; this
-            # narrows for it, and the question bands as the single-passage
-            # question it actually is.
+            # narrow in this case; this narrows for it, and the question
+            # bands as the single-passage question it actually is.
             partner = None
         return self._group([head, partner] if partner else [head], condensed=condensed)
 
@@ -381,12 +367,7 @@ class Deal:
 
         What a follow-up is written from. Handed the root's own sample it
         has nothing to ask that the root did not already answer, and the
-        type cycle then asks for the same fact in another shape: over one
-        measured run 739 of 1,047 accepted follow-ups - 70.6% - cited
-        nothing new, which is how a thread comes to read `Warum erstellt
-        ein Team ein Teamvokabular?` / `Was können die Teammitglieder
-        vermeiden?` / `Unter welchen Umständen können die Teammitglieder
-        Missverständnisse vermeiden?`.
+        type cycle then asks for the same fact in another shape.
 
         The SAME passages, because a thread that changes material is not a
         conversation - that is what `same_material` refuses at the other
@@ -496,11 +477,7 @@ class Deal:
         The measure embeds the two passages apart and compares directions,
         which is what an index can serve and is what narrows thousands of
         passages to a handful. A cross-encoder reading the pair together is
-        the better judgement and used to reorder the shortlist here; it was
-        measured at 6.92 s a candidate on CPU, which is about 44 hours over
-        a run, and it moves no model call at all. See `evaluation/README.md`.
-        38 of 120 cross-document pairs still have nothing in common after
-        the vectors replaced the lemmas, and that is the open problem.
+        the better judgement and used to reorder the shortlist here.
         """
         if not candidates:
             return None

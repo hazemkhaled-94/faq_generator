@@ -156,15 +156,10 @@ class Settings:
     party_density: float
     #: How much a candidate fact must have in common with the head of its
     #: sample before a second passage is offered at all. 0 offers one
-    #: whatever it holds, which is what every run so far has done.
+    #: whatever it holds.
     #:
-    #: Off by default, and the sweep is why. Over 1,853 accepted
-    #: multi-passage questions, a floor of 0.84 would have narrowed 37% of
-    #: them while only 46% of those read as welded, and the weld rate fell
-    #: from 34.8% to 24.3%. There is no knee: the score of the pair a writer
-    #: actually used barely separates the welds from the sound questions.
-    #: The mechanism is here to be tuned against a corpus, not because a
-    #: threshold is known.
+    #: Off by default: the mechanism is here to be tuned against a corpus,
+    #: not because a threshold is known.
     meets_floor: float
     #: How much of what an unanswerable question is about has to occur in the
     #: material it was drawn from. Below it the question is off topic: any

@@ -174,11 +174,8 @@ class QuestionChecker:
         """The phrasing judge, or None when its answer could not be used.
 
         The three judgements are opinions, so `judge_phrasing` decides
-        whether one may reject a question - and when it may not, what comes
-        back can only be written to the log. That was the intent, and it
-        costs a call per question to keep: measured over one corpus, 1.18
-        calls for every candidate reaching this stage, none of which could
-        change a verdict.
+        whether one may reject a question - and when it may not, none is
+        asked for.
 
         A rule is unaffected. `cites_source` settles what a pattern can
         settle and still rejects on its own, because a measurement is not an
@@ -409,9 +406,8 @@ class QuestionChecker:
 
         Ahead of the round trip because none of it needs the passages, so a
         question that carries its own source no longer pays for a call that
-        reads them. The three judgements here were one field each on that
-        call until the harness measured what sharing it cost: 7/7 in English
-        against 6/12 in German. See `phrasing.py`.
+        reads them. The three judgements here used to be one field each on
+        that call. See `phrasing.py`.
 
         Two of the three now need no model. `cites_source` settles the
         patterns and only the residue is asked; `anchored` is the whole of
@@ -459,8 +455,7 @@ class QuestionChecker:
         #
         # What changed is which measurement: the parse reads what a question
         # names, where the model used to be asked to copy it out inside a
-        # call about the passages. Over the labelled cases the parse is
-        # right 19 times out of 19 and that field managed 16.
+        # call about the passages.
         judge = self._opinion
         names = (
             judge.names_something(question)
@@ -559,14 +554,10 @@ class QuestionChecker:
         # A derived answer is not in the passages and is not meant to be.
         # Asking recall for it is asking the verifier to contradict the
         # type's own directive - `aggregation` says the total must be
-        # something the material does not write down - and it did: 7 of its
-        # 12 questions went as not_recoverable, and the type accepted at 8%
-        # where the rest of them averaged 40%.
+        # something the material does not write down.
         #
         # Ahead of the recall call and not behind it, because `_computable`
-        # does not read what that call returns. Measured over one corpus,
-        # 582 derived candidates reached this and each paid a full verifier
-        # read whose answer was then thrown away.
+        # does not read what that call returns.
         if candidate.answerable and candidate.spec.derived:
             return self._computable(candidate, candidate.target_answer or "")
 
@@ -828,13 +819,11 @@ class QuestionChecker:
         This is where an extractive reader belongs, and the recall half is
         not. There the span had to be compared against a target the writer
         had composed, and a literal substring loses that comparison by
-        construction - 28% agreement, measured. Here **there is no target**:
-        the only question is whether some passage answers this at all, which
-        is SQuAD 2.0's own task, no-answer head and all.
+        construction. Here **there is no target**: the only question is
+        whether some passage answers this at all, which is SQuAD 2.0's own
+        task, no-answer head and all.
 
-        It decides only the common answer. The gate fired 8 times in 3,131
-        questions, so nearly every call it makes is spent confirming that
-        nothing answers the question - and a confident nothing is what a
+        It decides only that nothing answers the question, which is what a
         SQuAD 2.0 head was trained to say. A span found is not a rejection:
         the verifier is still asked, because rejecting here marks a correct
         chatbot wrong and that verdict is not one an extractor should make

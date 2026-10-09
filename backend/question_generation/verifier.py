@@ -1,11 +1,10 @@
 """The second model, asked to get the answer back out of the passages.
 
 Recoverability comes out of one call here, and may cost a second: recalling
-an answer cold and checking one put in front of you are different tasks, and
-conflating them was rejecting four good questions for every real
-disagreement. `read` asks for the answer; when that comes back
-empty or different, `supports` shows the model the answer and asks only
-whether the passages back it.
+an answer cold and checking one put in front of you are different tasks.
+`read` asks for the answer; when that comes back empty or different,
+`supports` shows the model the answer and asks only whether the passages
+back it.
 
 Two things are load-bearing. The verifier is meant to be a different model
 from the writer, because a model marking its own work agrees with itself. And
@@ -330,11 +329,7 @@ class Verifier:
 
         The second half of the recoverability gate, and the reason that gate
         is two calls. Recalling an answer out of a passage cold is a harder
-        task than checking one that is put in front of you, and the two were
-        being conflated: over one corpus the verifier failed to recall an
-        answer 76 times against 19 real disagreements about what the answer
-        was, so four in five of the biggest rejection class were the task
-        rather than the question.
+        task than checking one that is put in front of you.
 
         Only ever asked after `read` has failed, and only ever able to
         rescue: a question this refuses was already being refused.

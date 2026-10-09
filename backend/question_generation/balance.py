@@ -1,10 +1,8 @@
 """Choosing a balanced release out of everything a run accepted.
 
 The gates decide whether a question is sound. Nothing before this decides
-what the SET looks like, and the two are different problems: over one corpus
-every gate did its job and the accepted set still came out 45% unanswerable
-and 96.5% easy, because what survives a filter is whatever the material
-happened to offer.
+what the SET looks like, and the two are different problems: what survives a
+filter is whatever the material happened to offer.
 
 So the composition is chosen here instead, out of a pool deliberately larger
 than the release. Three marginals are held at once - how many questions have
@@ -131,11 +129,9 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
     band term decided every step and the kinds ran out underneath it.
 
     That keeps the marginals in step for almost all of the draw and not for
-    the end of it. The last two percent is where three marginals over
-    eleven kinds cannot all reach zero together, and a pool filling 98% of
-    a release of 900 is not a pool that should be refused - which is what
-    `TOLERANCE` is for, in `largest` above. This reports what it could not
-    fill and leaves that judgement there.
+    the end of it, where three marginals cannot all reach zero together -
+    which is what `TOLERANCE` is for, in `largest` above. This reports what
+    it could not fill and leaves that judgement there.
 
     Ties go to the lowest question id, so the draw is reproducible.
 
@@ -164,9 +160,8 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
             if bands.get(band, 0) <= 0 or types.get(kind, 0) <= 0:
                 continue
             # The SHARE of each bucket still to be filled, not the count.
-            # Compared raw, a band's quota is three times a kind's and
-            # eleven times nothing, so the band term decided every step
-            # and the kinds ran out under it.
+            # Compared raw, a band's quota is three times a kind's, so the
+            # band term decided every step and the kinds ran out under it.
             score = (
                 bands[band] / max(quota.difficulty.get(band, 1), 1)
                 + types[kind] / max(quota.types.get(kind, 1), 1),
@@ -194,36 +189,15 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
 
 #: How far short of its own quota one bucket may come and still be taken,
 #: as a share of that quota. The target is "about a third each", not exactly
-#: a third: three marginals over eleven kinds cannot all land on zero
-#: together out of a finite pool, and the last few places are where it
-#: always fails.
-#:
-#: The size of that endgame is what this has to be set against, and it does
-#: not shrink as the pool grows - the draw runs about 5% short on the bands
-#: at every size measured, 2 of 33 at one hundred and 17 of 333 at a
-#: thousand. Calibrated at 3% against a pool of 235, it then refused a pool
-#: of 2,259: the largest release it would take was 58, where 8% took 1,145
-#: of the same questions with the bands closer to even and the kinds inside
-#: 0.6 of a point. A tolerance below the endgame does not buy a tighter
-#: release, it buys almost no release.
-#:
-#: Still far below what a real skew looks like. The draw this exists to
-#: refuse was six aggregations short of fourteen - 43% of that bucket, and
-#: that kind at 5.6% where an even mix wanted 9.1%.
+#: a third: three marginals cannot all land on zero together out of a finite
+#: pool, and the last few places are where it always fails.
 TOLERANCE = 0.10
 
 
 def close_enough(release: Release, tolerance: float = TOLERANCE) -> bool:
     """Whether every bucket came within its slack of what was asked for.
 
-    Measured per bucket, not on the total, because the two say opposite
-    things about the same draw. Over 727 accepted questions a release of
-    143 was six aggregations short - that kind at 5.6% where the quota
-    wanted 9.1%, which is the one thing this whole stage exists to prevent -
-    and a release of 88 was short by exactly one in five buckets, which is
-    the balanced set the pool can supply. Judged on the total the first
-    looks like the better draw, and the bisection took neither: held to 3%
-    of the total it refused 85 out of 88 and collapsed to 4.
+    Measured per bucket, not on the total.
 
     One place is always allowed. A quota of eight cannot absorb a
     proportional tolerance, and being one short of eight is where the
@@ -250,11 +224,9 @@ def largest(
     """The biggest release this pool fills, near enough, found by bisection.
 
     The size a balanced set can reach is set by whichever bucket is furthest
-    from being able to supply its share: a pool that is 12% hard fills no
-    release that wants a third hard beyond 12/33 of its own size. Rather
-    than working that bound out for three interacting marginals, the
-    choosing itself is the test, and the largest size it fills to within
-    `tolerance` is bisected for.
+    from being able to supply its share. Rather than working that bound out
+    for three interacting marginals, the choosing itself is the test, and
+    the largest size it fills to within `tolerance` is bisected for.
 
     What the release actually came out as is reported rather than assumed -
     `composition` reads it off the rows - so the few places a bucket ends
@@ -264,9 +236,7 @@ def largest(
     shortfall rather than nothing at all. A thin pool has an empty cell
     somewhere, one empty cell refuses every size down to one, and returning
     nothing for that reason tells a reader less than returning the best set
-    available beside a note of what is missing from it: 29 accepted
-    questions over eleven kinds drew zero, which is true to the quota and
-    useless to anybody.
+    available beside a note of what is missing from it.
     """
     low, high = 1, len(pool)
     empty = Release(ids=[], quota=quota_of(0, bands, types, unanswerable), short={})

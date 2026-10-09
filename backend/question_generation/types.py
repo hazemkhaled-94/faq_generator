@@ -861,10 +861,9 @@ SPECS: dict[str, TypeSpec] = {spec.name: spec for spec in _SPECS}
 #: measurement rather than a name somebody wrote down.
 #:
 #: `cognitive_level` is derived from the type, and the type was unchecked
-#: when the column was added: 208 of 244 accepted `entity` questions named
-#: no party, which is the definition of the type. So the level inherited
-#: whatever the label got wrong, and an exam blueprint reading the column
-#: could not tell which rows to trust.
+#: when the column was added, so the level inherited whatever the label got
+#: wrong and an exam blueprint reading the column could not tell which rows
+#: to trust.
 #:
 #: Six of them now. `entity`, `enumeration`, `comparison` and `temporal`
 #: face a structural gate each; `implication` and `application` are derived
