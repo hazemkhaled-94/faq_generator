@@ -21,16 +21,16 @@ over it.
 | Facts | facts | extraction | a passage | extraction |
 | Topics | topics | topic modelling | the whole corpus | topics |
 | Questions | questions | question generation | a topic | questions |
-| Assessment | what an LLM judge said about each artefact | the evaluation phase | one kind of artefact | assessment |
-| System health | components, and every container with a link to it | nothing | — | the platform all seven share |
+| Assessment | what an LLM judge said about each artefact | the evaluation phase | the kinds of artefact ticked | assessment |
+| System health | components, and every container, with a link to each that serves a page | nothing | — | the platform all seven share |
 
 **Nothing on a page can reach another page's stage.**
 
 Documents carries one control that is not a stage's: the **Pipeline** panel,
-which takes the corpus through every stage in order. It is not an exception
-to the rule above, because it reaches no stage — it asks the orchestrator to
-decide that the pipeline should run, and the orchestrator is what then starts
-each in turn. It is on Documents because that is where somebody lands after
+which takes the corpus through every stage but the topic fit, in order. It
+is not an exception to the rule above, because it reaches no stage — it asks
+the orchestrator to decide that the pipeline should run, and the orchestrator
+is what then starts each in turn. It is on Documents because that is where somebody lands after
 an upload, with "now take it through" to ask. See
 [`lib/pipeline.py`](lib/pipeline.py).
 
@@ -94,14 +94,15 @@ arrival.
 
 ## The shape of every page
 
-The same sequence of panels, on all seven stage pages:
+The same sequence of panels, on the six stage pages that list something
+(Upload draws its figures and the upload form, with `Configuration` under
+it):
 
 ```
 the few figures worth seeing on arrival
-an `Analysis` fold nobody has to open
-the stage's controls, with a `Configuration` fold beside them
-the search box
-the filters
+the stage's controls, then one row of folds: `Analysis`, how the stage
+  works, and `Configuration`
+the search box, the filters and the pager, in one panel
 the table
 — only once a row is picked —
 everything held about that row, as one table of every field it has
@@ -121,12 +122,13 @@ passage, a fact and a question have no delete.
 
 Redo on Passages, Facts and Assessment asks first in the same two clicks,
 and says what goes: a re-chunk or a re-extraction deletes the questions
-resting on that work, and a re-judge blanks the stored verdicts.
+resting on that work, and a re-judge blanks the stored verdicts. A picked
+bridge fact offers no Redo and names `make extract-bridge` instead.
 
-While a stage has anything queued or in hand, its panel carries a spinner and
-its counts and redraws every few seconds until the queue is empty. **No verb
-does the work**: they move rows between statuses, and a worker picks up what
-became claimable. The page stays usable throughout, and Stop stays live.
+A stage's controls and counts redraw every few seconds for as long as the
+page is open, and while the stage has anything queued or in hand its panel
+carries a spinner. **No verb does the work**: they move rows between
+statuses, and a worker picks up what became claimable. The page stays usable throughout, and Stop stays live.
 
 ## Layout
 
@@ -136,7 +138,7 @@ became claimable. The page stays usable throughout, and Stop stays live.
 | [`views/`](views/) | One module per page, run top to bottom on every interaction |
 | [`lib/page.py`](lib/page.py) | The shared layout every view calls |
 | [`lib/stage.py`](lib/stage.py) | The one service a page runs, and the controls that move its queue |
-| [`lib/catalog.py`](lib/catalog.py) | The search panel, the filter panel and the pager |
+| [`lib/catalog.py`](lib/catalog.py) | The one panel holding the search box, the filters and the pager |
 | [`lib/configure.py`](lib/configure.py) | The configuration panel |
 | [`lib/lineage.py`](lib/lineage.py) | The "How this was produced" panel |
 | [`lib/backend/`](lib/backend/) | The API clients, one module per group of calls |
@@ -174,12 +176,13 @@ Type is Graphik. It is licensed and not shipped, so the stack falls through
 to Arial and picks up a locally installed Graphik ahead of it.
 
 [`styles.css`](styles.css) holds what the theme config cannot express: the
-masthead, the section headings, the queue state line and the delete box. It
-reads its own palette off `light-dark()`, which resolves against the
+one-line header, the section headings, the queue state line and the delete
+box. It reads its own palette off `light-dark()`, which resolves against the
 `color-scheme` Streamlit sets from the theme it settled on — so the custom
-styling follows the chrome whichever way the chrome was decided. Two hues are
-written twice, the purple and the red that only deletion uses; the neutrals
-are mixed from `currentColor`.
+styling follows the chrome whichever way the chrome was decided. The purple
+and the red that only deletion uses are written twice, and so are
+`--qa-disabled`, `--qa-on-accent`, `--qa-shade` and `--qa-title`; the other
+neutrals are mixed from `currentColor`.
 
 **Colour carries one meaning.** Purple fills the one control that commits
 something in a group — Start, Fit, Save, Accept — and red is spent only on
@@ -216,14 +219,15 @@ versions. `footer` no longer matches anything.
 
 | Setting | Where | What it does |
 |---|---|---|
-| `BACKEND_URL` | `.env` | The one address. `http://api:8000` from a container |
-| `PAGE_SIZE` | `.env` | Rows per page in the listings |
-| `PHOENIX_BASE_URL` | `.env` | Where a **browser** reaches Phoenix. Optional: unset shows the ids as text |
-| `LOG_LEVEL` | `.env` | The frontend logs through the same telemetry configuration as every other process |
+| `BACKEND_URL` | compose, from `BACKEND_CONTAINER_URL` in `configs/env/deployment.env`; the Makefile derives the host's | The one address. `http://api:8000` from a container |
+| `PAGE_SIZE` | `configs/env/deployment.env` | Rows per page in the listings |
+| `PHOENIX_BASE_URL` | compose and the Makefile, from `PHOENIX_PORT` | Where a **browser** reaches Phoenix. Optional: unset shows the ids as text |
+| `LOG_LEVEL` | `configs/env/deployment.env` | The frontend logs through the same telemetry configuration as every other process |
 
-The first two are **required**, and the error names the trap: being in `.env`
-alone is not enough — the variable also has to be listed in the `streamlit`
-service's `environment` in `compose.yaml`.
+The first two are **required**. Being in an env file alone is not enough —
+the variable also has to be listed in the `streamlit` service's
+`environment` in `compose.yaml`. A missing `PAGE_SIZE` raises an error that
+says so; a missing `BACKEND_URL` raises a bare `KeyError`.
 
 `server.maxUploadSize` in [`.streamlit/config.toml`](.streamlit/config.toml)
 must be kept in step with `MAX_FILE_SIZE_MB`.
@@ -241,7 +245,9 @@ does with an answer, including the answers that are refusals.
 | File | Covers |
 |---|---|
 | [`test_views.py`](../tests/frontend/test_views.py) | The rules every page keeps, checked on every page |
-| [`test_facts_page.py`](../tests/frontend/test_facts_page.py), [`test_topics_page.py`](../tests/frontend/test_topics_page.py) | Two pages in depth, against a scripted backend |
+| [`test_assessment_page.py`](../tests/frontend/test_assessment_page.py), [`test_facts_page.py`](../tests/frontend/test_facts_page.py), [`test_questions_page.py`](../tests/frontend/test_questions_page.py), [`test_topics_page.py`](../tests/frontend/test_topics_page.py) | Four pages in depth, against a scripted backend |
+| [`test_pipeline_panel.py`](../tests/frontend/test_pipeline_panel.py) | The Pipeline panel on Documents, with and without an orchestrator |
+| [`test_backend_clients.py`](../tests/frontend/test_backend_clients.py) | The HTTP mechanics every backend client shares |
 | [`test_configuration_panel.py`](../tests/frontend/test_configuration_panel.py) | The configuration panel |
 | [`test_lineage_panel.py`](../tests/frontend/test_lineage_panel.py) | The links the lineage panel offers into the other four tools |
 | [`pages.py`](../tests/frontend/pages.py) | One page object over every view, and the answers each view needs |
@@ -251,8 +257,9 @@ These need no container and no spaCy. `make test-fast` runs them.
 
 ## Limits
 
-- **A variable in `.env` that is not in `compose.yaml` does not reach the
-  frontend.** The error says so by name.
+- **A variable that is not in the `streamlit` service's `environment` in
+  `compose.yaml` does not reach the frontend.** For `PAGE_SIZE` the error
+  says so by name.
 - **`MAX_FILE_SIZE_MB` and `server.maxUploadSize` are two numbers for one
   limit.** Streamlit enforces its own first.
 - **A page that shows a spinner is not doing the work.** Closing the tab does
