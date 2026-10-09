@@ -15,6 +15,7 @@ import litellm
 from instructor.core import InstructorRetryException
 from pydantic import BaseModel
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -31,22 +32,39 @@ log = logging.getLogger(__name__)
 #: thousand tokens of room - one more passage, or a longer thread.
 _NEAR_WINDOW = 0.8
 
-#: Failures worth another attempt here. An authentication failure, an unknown
-#: model or a malformed schema is none of these and is raised at once.
-#:
-#: A rate limit is deliberately absent, and is handled a layer down instead. A
-#: hosted provider answers 429 with a Retry-After of twenty to sixty seconds;
-#: tenacity cannot see that header, so the backoff below would retry twice
-#: inside three seconds and fail the row for a condition that clears itself.
-#: `num_retries` on the call becomes litellm's `max_retries`, which becomes
-#: `max_retries` on the provider's own SDK client, and that one does read it.
+#: Failures worth another attempt here, and the only retries there are: the
+#: call asks litellm and the provider's SDK for none. An authentication
+#: failure, an unknown model or a malformed schema is none of these and is
+#: raised at once. A rate limit waits as long as its Retry-After asks; see
+#: `_waited`.
 _TRANSIENT = (
     litellm.exceptions.APIConnectionError,
     litellm.exceptions.Timeout,
     litellm.exceptions.InternalServerError,
     litellm.exceptions.ServiceUnavailableError,
+    litellm.exceptions.RateLimitError,
     InstructorRetryException,
 )
+
+#: The wait between attempts when the failure says nothing of its own.
+_BACKOFF = wait_exponential(multiplier=1, min=1, max=10)
+
+
+def _waited(state: RetryCallState) -> float:
+    """How long to wait before the next attempt.
+
+    What a 429's Retry-After asks, in seconds, where it carries one: a hosted
+    provider asks for twenty to sixty, and the backoff would spend every
+    attempt inside three. The backoff otherwise, an HTTP-date included.
+    """
+    failed = state.outcome.exception() if state.outcome else None
+    if isinstance(failed, litellm.exceptions.RateLimitError):
+        try:
+            return float(failed.response.headers.get("retry-after", ""))
+        except ValueError:
+            pass
+    return _BACKOFF(state)
+
 
 #: Reasoning a model wrote into the answer instead of into a field of its
 #: own. A well-behaved runtime keeps the two apart - Ollama returns
@@ -206,7 +224,7 @@ class Client:
         self._attempt = retry(
             retry=retry_if_exception_type(_TRANSIENT),
             stop=stop_after_attempt(settings.max_attempts),
-            wait=wait_exponential(multiplier=1, min=1, max=10),
+            wait=_waited,
             reraise=True,
         )(self._ask)
 
@@ -342,17 +360,10 @@ class Client:
         """
         return self._client.chat.completions.create_with_completion(
             model=self._settings.model,
-            # Rate limits are retried below this call rather than by the
-            # policy around it, because the provider's SDK reads Retry-After
-            # and tenacity cannot see it. litellm documents this keyword as
-            # the way to pass retries through instructor, which is what is
-            # between us and it.
-            #
-            # One budget for both paths, so a call refused for a rate limit
-            # gets the same number of tries as one that could not connect.
-            # The lease absorbs it: a 429 comes back at once, so what this
-            # adds is the waiting and not another timeout.
-            num_retries=max(self._settings.max_attempts - 1, 0),
+            # None below the policy around this call: litellm turns this
+            # keyword into the SDK's max_retries, and 0 also skips its own
+            # retry wrapper, each of which retried a timeout in full.
+            num_retries=0,
             # Omitted when unset: a provider with its own address would be
             # sent to the wrong one by a base URL meant for Ollama.
             **(

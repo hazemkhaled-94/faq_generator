@@ -3,13 +3,14 @@
 Only a transient failure is worth another attempt: retrying a bad model name
 or a malformed schema costs the backoff on every call and buries the error.
 
-A rate limit is transient and is still not retried here. It is retried by
-litellm, which reads the provider's Retry-After; the policy in this module
-cannot see that header and would give up inside three seconds.
+A rate limit is retried here too, waiting as long as its Retry-After asks.
+litellm and the provider's SDK are asked for no retries of their own, so
+LLM_MAX_ATTEMPTS is the whole budget.
 """
 
 from __future__ import annotations
 
+import httpx
 import instructor
 import litellm
 import pytest
@@ -56,10 +57,17 @@ def transient() -> Exception:
     )
 
 
-def rate_limited() -> Exception:
-    """A failure worth another attempt, but not one this module makes."""
+def rate_limited(after: str | None = None) -> Exception:
+    """A 429, carrying the Retry-After a hosted provider sends."""
     return litellm.exceptions.RateLimitError(
-        message="slow down", llm_provider="ollama", model="test-model"
+        message="slow down",
+        llm_provider="azure",
+        model="test-model",
+        response=httpx.Response(
+            429,
+            headers={"retry-after": after} if after else {},
+            request=httpx.Request("POST", "https://provider.invalid"),
+        ),
     )
 
 
@@ -144,18 +152,11 @@ def test_a_transient_failure_that_never_clears_gives_up(monkeypatch) -> None:
     assert len(attempts) == 3, attempts
 
 
-@pytest.mark.parametrize(
-    "failure", [permanent, rate_limited, lambda: ValueError("bad schema")]
-)
+@pytest.mark.parametrize("failure", [permanent, lambda: ValueError("bad schema")])
 def test_a_failure_this_module_does_not_retry_is_raised_at_once(
     monkeypatch, failure
 ) -> None:
-    """One attempt, not three.
-
-    For a bad key or a bad schema the backoff would only bury the reason. For
-    a rate limit litellm has already spent the retries, each of them waiting
-    as long as the provider asked, so trying again here adds nothing.
-    """
+    """One attempt, not three: the backoff would only bury the reason."""
     attempts = []
 
     def refuses(self, system, user, shape):
@@ -269,19 +270,49 @@ def test_a_self_hosted_model_is_left_its_own_default_too() -> None:
     )
 
 
-def test_the_rate_limit_retries_are_handed_to_the_runtime() -> None:
-    """One budget covers both paths, so a 429 gets the tries a timeout does.
+def test_a_timeout_is_tried_as_often_as_the_setting_says_and_no_more(
+    monkeypatch,
+) -> None:
+    """Neither litellm nor the SDK below it is asked for retries of its own.
 
-    litellm reads the provider's Retry-After and waits that long; a hosted
-    provider asks for twenty to sixty seconds, which is why this is not the
-    exponential backoff around `_ask`.
+    Each of them retried a timeout too, so one stuck call cost the setting's
+    attempts times theirs, each a full timeout long.
     """
-    assert sent(max_attempts=3)["num_retries"] == 2
+    client = Client(settings(max_attempts=3))
+    asked: list[int] = []
+
+    def timing_out(**kwargs):
+        """Never answers in time."""
+        asked.append(kwargs["num_retries"])
+        raise transient()
+
+    client._client.chat.completions.create_with_completion = timing_out
+    monkeypatch.setattr("tenacity.nap.time.sleep", lambda _: None)
+    with pytest.raises(ModelUnavailable, match="Timeout"):
+        client.answer(system="s", user="u", shape=Shape)
+
+    assert asked == [0, 0, 0]
 
 
-def test_a_single_attempt_asks_the_runtime_for_no_retries() -> None:
-    """Nothing to spend, rather than one retry nobody asked for."""
-    assert sent(max_attempts=1)["num_retries"] == 0
+def test_a_rate_limit_waits_as_long_as_the_provider_asks(monkeypatch) -> None:
+    """Retry-After, read off the 429, rather than the backoff."""
+    waited: list[float] = []
+    attempts = []
+
+    def limited(self, system, user, shape):
+        """Refused for a rate limit once, then answers."""
+        attempts.append(user)
+        if len(attempts) == 1:
+            raise rate_limited(after="7")
+        return answered(shape)
+
+    monkeypatch.setattr(Client, "_ask", limited)
+    monkeypatch.setattr("tenacity.nap.time.sleep", waited.append)
+
+    assert Client(settings()).answer(system="s", user="u", shape=Shape).value == (
+        "answered"
+    )
+    assert waited == [7.0]
 
 
 # ── What a call is recorded as having cost ────────────────────────────────
