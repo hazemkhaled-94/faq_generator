@@ -1,8 +1,9 @@
 """What the review tool reads from the environment.
 
 Runs on the host, like `make schema` and the bare stage targets, so it
-reads the same two files the Makefile sources: configs/env/review.env for
-how a sample is drawn, and .env for where Argilla is and how to sign in.
+reads what the Makefile sources: configs/env/review.env for how a sample is
+drawn, configs/env/deployment.env for the workspace, .env for how to sign
+in, and ARGILLA_API_URL, which the Makefile derives from ARGILLA_PORT.
 """
 
 from __future__ import annotations
