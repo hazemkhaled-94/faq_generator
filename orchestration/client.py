@@ -13,7 +13,6 @@ whether this stays an orchestrator rather than becoming a second backend.
 from __future__ import annotations
 
 import logging
-import os
 import time
 from dataclasses import dataclass, field
 
@@ -27,15 +26,10 @@ log = logging.getLogger(__name__)
 _TIMEOUTS = {"GET": 15.0, "POST": 120.0}
 
 
-class StageFailed(Exception):
-    """A stage finished its queue with rows left failed."""
-
-
 @dataclass(frozen=True)
 class Queue:
     """How much work one stage has, as /status reports it."""
 
-    stage: str
     working: bool
     rows: dict[str, int]
     #: Per status, a digest of which rows it holds and which run asked for
@@ -66,16 +60,15 @@ class Queue:
 class Backend:
     """The backend's stage surface."""
 
-    def __init__(self, base_url: str | None = None, session=None) -> None:
-        """Initialises the client against BACKEND_URL."""
-        self._base_url = (base_url or os.environ["BACKEND_URL"]).rstrip("/")
+    def __init__(self, base_url: str, session=None) -> None:
+        """Initialises the client against the backend at `base_url`."""
+        self._base_url = base_url.rstrip("/")
         self._session = session or requests.Session()
 
     def status(self, stage: str) -> Queue:
         """Reports how much work one stage has waiting."""
         body = self._call("GET", f"/{stage}/status")
         return Queue(
-            stage=stage,
             working=body["working"],
             rows=body["rows"],
             digests=body["digests"],

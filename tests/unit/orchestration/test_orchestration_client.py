@@ -68,7 +68,7 @@ def test_a_status_says_which_rows_each_count_is() -> None:
 
 def test_a_queue_with_nothing_claimable_is_idle() -> None:
     """Which is what an asset waits for."""
-    assert Queue("parsing", working=False, rows={"parsed": 8}).idle
+    assert Queue(working=False, rows={"parsed": 8}).idle
 
 
 def test_rows_nobody_asked_for_do_not_make_a_queue_busy() -> None:
@@ -77,12 +77,12 @@ def test_rows_nobody_asked_for_do_not_make_a_queue_busy() -> None:
     An asset that treated `new` as outstanding would wait out its whole
     timeout on a corpus nobody had started.
     """
-    assert Queue("parsing", working=False, rows={"new": 400}).idle
+    assert Queue(working=False, rows={"new": 400}).idle
 
 
 def test_a_worker_holding_a_row_makes_a_queue_busy() -> None:
     """Even with nothing pending: the row it holds is not done."""
-    state = Queue("parsing", working=True, rows={"in_progress": 1})
+    state = Queue(working=True, rows={"in_progress": 1})
 
     assert not state.idle
     assert state.outstanding == 1
@@ -94,7 +94,7 @@ def test_failed_rows_do_not_hold_a_queue_open() -> None:
     Waiting for them would mean every run after a single bad document
     sitting until its timeout.
     """
-    state = Queue("parsing", working=False, rows={"failed": 3, "parsed": 5})
+    state = Queue(working=False, rows={"failed": 3, "parsed": 5})
 
     assert state.idle
     assert state.failed == 3
@@ -191,14 +191,6 @@ def test_nothing_is_sent_where_no_run_asked() -> None:
     Backend(BASE, session).status("parsing")
 
     assert session.sent == [{}]
-
-
-def test_the_backend_url_comes_from_the_environment(monkeypatch) -> None:
-    """One address, given by compose, and no default anywhere."""
-    monkeypatch.setenv("BACKEND_URL", "http://api:8000/")
-
-    # Trailing slash stripped, or every path would carry a double slash.
-    assert Backend(session=Session({})).status.__self__._base_url == "http://api:8000"
 
 
 def test_an_error_status_is_raised_rather_than_read(monkeypatch) -> None:

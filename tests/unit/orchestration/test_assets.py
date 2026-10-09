@@ -37,7 +37,7 @@ class Stub:
 
     def drain(self, stage: str, *, timeout: float, poll: float) -> Queue:
         """The drained queue."""
-        return Queue(stage=stage, working=False, rows=ROWS)
+        return Queue(working=False, rows=ROWS)
 
     def status(self, stage: str) -> Queue:
         """The same queue."""

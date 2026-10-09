@@ -59,8 +59,7 @@ def group(stage: str) -> str:
     front because a Dagster group name must be a valid Python identifier
     and an identifier may not begin with a digit.
     """
-    at = pipeline.POSITION.get(stage)
-    return f"stage_{at}_{stage}" if at else stage
+    return f"stage_{pipeline.POSITION[stage]}_{stage}"
 
 
 #: The stages, in the order a document moves through them, as

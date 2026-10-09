@@ -56,7 +56,6 @@ def answering(monkeypatch, batch: str = "", **rows: int) -> None:
         def status(self, stage: str) -> Queue:
             """Reports the queue the test asked for."""
             return Queue(
-                stage=stage,
                 working=rows.get("in_progress", 0) > 0,
                 rows={name: count for name, count in rows.items() if count},
                 digests={
@@ -273,7 +272,6 @@ def _watching(monkeypatch, asked: str = "", **per_stage: dict) -> None:
             """Reports one stage's queue."""
             rows = per_stage.get(stage, {})
             return Queue(
-                stage=stage,
                 working=False,
                 rows=rows,
                 digests={name: f"{asked}{name}{count}" for name, count in rows.items()},
@@ -365,7 +363,7 @@ def test_a_stage_that_cannot_be_reached_costs_only_itself(
             """Reports parsing and refuses everything else."""
             if stage != "parsing":
                 raise ConnectionError("no route to the api")
-            return Queue(stage=stage, working=False, rows={"parsed": 3})
+            return Queue(working=False, rows={"parsed": 3})
 
     monkeypatch.setattr(orchestration, "Backend", Stub)
 
@@ -486,7 +484,7 @@ def test_every_stage_is_asked_at_once(monkeypatch, instance) -> None:
         def status(self, stage: str) -> Queue:
             """Answers after a wait, as a loaded backend would."""
             time.sleep(held)
-            return Queue(stage=stage, working=False, rows={})
+            return Queue(working=False, rows={})
 
     monkeypatch.setattr(orchestration, "Backend", Slow)
     stages = len(orchestration.stages.ALL_STAGES)
