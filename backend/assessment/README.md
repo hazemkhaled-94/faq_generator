@@ -1,8 +1,9 @@
 # Assessment — the evaluation phase
 
-An LLM judge over every fact, topic and question, run **after** the whole
-pipeline and never during it. It records an opinion beside the checker's
-verdict and **decides nothing**.
+An LLM judge over the facts, topics and answerable questions (a sample of
+each kind, or all of them), run **after** the whole pipeline and never
+during it. It records an opinion beside the checker's verdict and **decides
+nothing**.
 
 ```bash
 make assess-enrol            # what it would cost, before paying for it
@@ -32,9 +33,11 @@ this corpus is German: a phase that could reject rows would have thrown away
 good German questions on the strength of a coin. `make eval-phrasing` scores
 a judge against the floor an uninformed one reaches.
 
-What a judge is good for is the **disagreement** — and that is what this
-produces, at corpus scale, where `make second-opinion` produced it for one
-run into a terminal.
+What a judge is good for is the **disagreement** — an artefact the pipeline
+kept and the judge refused — and that is what this produces, at corpus
+scale. A question a person accepted over a gate counts as kept. The
+Assessment page marks the disagreements, and `make review-push-questions
+IDS=` takes them to a reviewer.
 
 ## What is judged, and how
 
@@ -90,14 +93,13 @@ phoenix-evals ships 26 evaluators. The seven above are the ones that apply.
 
 **An artefact is approved only when every one of its metrics approves.** Not
 a majority: an answer that is well-sourced and answers the wrong question is
-worth somebody's time even though two of its three passed.
+worth somebody's time even though five of its six passed.
 
 ### Unanswerable questions are not judged
 
-Two of the three question metrics ask whether the facts support the answer,
+Two of the six question metrics ask whether the facts support the answer,
 and a deliberately unanswerable question has none. Scoring it anyway would
-report the pipeline's most careful output as its worst. `second_opinion.py`
-samples the same way for the same reason.
+report the pipeline's most careful output as its worst.
 
 ## The names are phoenix-evals'. The prompts are not.
 
@@ -111,9 +113,10 @@ anything else built on that package, and a reader sorts and charts them
 together. Renaming it, or scoring it the other way round, would produce a
 column that looks like the one they know and behaves differently.
 
-> `hallucination` is the confusable one. Its direction is **minimise**, so
-> `hallucinated` scores 1.0 and `factual` scores 0.0 — the opposite of the
-> other three. That is why `assessment_metrics.approved` is a stored column
+> Three metrics score their good label 0.0: `hallucination` (`factual`),
+> `toxicity` (`non-toxic`) and `refusal` (`answered`). The first two are
+> **minimised**; phoenix-evals calls `refusal` neutral. That is why
+> `assessment_metrics.approved` is a stored column
 > rather than derived from the score: a reader summing scores across
 > metrics would be adding a hallucination rate to a relevance rate.
 
@@ -146,17 +149,17 @@ to undo.
 
 ## Where a verdict shows up
 
-Six places, which is the point of it being a phase rather than a script.
+Seven places, which is the point of it being a phase rather than a script.
 
 | Where | What it shows |
 |---|---|
 | **Postgres** | `assessments` and `assessment_metrics`. The truth. |
 | **Phoenix** | One annotation per metric, named as above, plus an `assessment` summary. `annotator_kind` is **LLM**, against **CODE** for the gates. |
-| **The API** | `/assessment`, `/assessment/quality`, `/assessment/plan`, and the five queue verbs. |
+| **The API** | `/assessment`, `/assessment/quality`, `/assessment/plan`, `POST /assessment/enrol`, and the five queue verbs. |
 | **The UI** | The Assessment page — a tab per artefact kind, a search over the judge's own reasoning, and a checkbox per kind deciding what the queue verbs act on. |
 | **Dagster** | The `assessments` asset, last in the graph, with a `judge_agrees_with_the_checker` check that never fails. |
 | **Argilla** | A `judge` field and two metadata terms on all three datasets. |
-| **The export** | Two columns on the Questions sheet and an Assessment sheet of its own. |
+| **The export** | Three columns on the Questions sheet (`Judge`, `Judge refused by`, `Why the judge said so`) and an Assessment sheet of its own. |
 
 ### In Phoenix
 
@@ -180,8 +183,8 @@ annotation and not the run.
 
 The judge's verdict and its reasoning ride along on the records
 [`review/`](../../review/README.md) already pushes — `judge` as a field, and
-`judge` and `judge_disagrees` as metadata a reviewer can filter on. The
-guidelines say in as many words that it is not an answer key.
+`judge_verdict` and `judge_disagrees` as metadata a reviewer can filter on.
+The guidelines say in as many words that it is not an answer key.
 
 Anchoring is the risk and it is the lesser one, for the reason that package
 already gives: a sample nobody can interpret gets abandoned.
@@ -210,8 +213,8 @@ this codebase does nowhere else.
 
 A model call per metric: **three per fact, two per topic, six per question.**
 A corpus of twenty thousand facts is sixty thousand calls, which is why the
-default is a **sample of 200 per kind, newest first** and why the phase ships
-off.
+default is a **sample per kind (`ASSESSMENT_SAMPLE`), newest first** and why
+the phase ships off.
 
 `ASSESSMENT_KINDS=question` is the setting that buys the most: the questions
 are the deliverable, and they are the artefact whose `qa_correctness`
@@ -243,7 +246,7 @@ From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 
 | File | Holds |
 |---|---|
-| [`templates.py`](templates.py) | The seven judging templates, and the names, labels and scores borrowed from phoenix-evals |
+| [`templates.py`](templates.py) | The eleven judging templates (three fact, two topic, six question) over seven metric names, and the names, labels and scores borrowed from phoenix-evals |
 | [`judge.py`](judge.py) | Asking one model one judgement, and abstaining when it will not answer |
 | [`repository.py`](repository.py) | The queue, the enrolment, and reading the verdicts back |
 | [`service.py`](service.py) | The drain loop, and the annotations it posts |
@@ -266,7 +269,8 @@ poetry run pytest tests/unit/assessment
 | [`test_templates.py`](../../tests/unit/assessment/test_templates.py) | The metric names and scores against phoenix-evals' own, and every placeholder against the fields that fill it |
 | [`test_judge.py`](../../tests/unit/assessment/test_judge.py) | One call per metric, and an abstention against a refusal |
 | [`test_assessment_service.py`](../../tests/unit/assessment/test_assessment_service.py) | The row, the annotations, and the columns this phase does not write |
-| [`test_assessment_config.py`](../../tests/unit/assessment/test_assessment_config.py) | The flag, the lease and the judge |
+| [`test_assessment_config.py`](../../tests/unit/assessment/test_assessment_config.py) | The flag, the judge and the two cost dials |
+| [`test_assessment_prompts.py`](../../tests/unit/assessment/test_assessment_prompts.py) | Every template recorded under a name of its own, with both halves and its version |
 
 ## Limits
 
@@ -274,10 +278,11 @@ poetry run pytest tests/unit/assessment
 - **A judge that cannot be reached fails a row; it does not refuse an
   artefact.** `assess-retry` is what moves it.
 - **One metric abstaining leaves a partial verdict.** The artefact is still
-  `assessed`, judged on the metrics that answered, and every reader counts it
-  as thin: neither approved nor refused.
+  `assessed`, its stored `approved` is false, and every reader counts it as
+  thin: neither approved nor refused.
 - **Unanswerable questions are not enrolled.** They have no answer to judge.
-- **`hallucination` scores 1.0 for the bad label.** Read the direction.
+- **`hallucination`, `toxicity` and `refusal` score 1.0 for the bad label.**
+  Read the direction.
 - **A sample is the default.** `ASSESSMENT_SAMPLE=0` judges the corpus, and
   on a large one that is tens of thousands of model calls.
 - **A question costs six calls and a fact three.** Judging questions alone
