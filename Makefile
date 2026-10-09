@@ -40,8 +40,9 @@ SOURCES := backend frontend telemetry orchestration review evaluation tests
 # OVERRIDE re-applies whatever was given on the command line, because sourcing
 # the files above would otherwise overwrite it - which is why
 # `make topics TOPIC_PASSES=20` used to run with the file's value and say
-# nothing.
-OVERRIDE = $(if $(MAKEOVERRIDES),&& export $(MAKEOVERRIDES),)
+# nothing. QA_COMMAND_LINE names them, so a stored row for one gives way too.
+GIVEN = $(foreach given,$(MAKEOVERRIDES),$(firstword $(subst =, ,$(given))))
+OVERRIDE = $(if $(MAKEOVERRIDES),&& export $(MAKEOVERRIDES) QA_COMMAND_LINE="$(GIVEN)",)
 
 # The values that are never written down, because they are built out of ones
 # that are. A copy of a port inside an address is a copy free to disagree

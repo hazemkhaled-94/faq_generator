@@ -117,3 +117,10 @@ def test_the_corpus_reports_the_topics_and_never_fits_them() -> None:
 
     assert topics, "the corpus says nothing about the topics"
     assert all(line.endswith("topic_modelling.run --status") for line in topics), topics
+
+
+def test_a_command_line_value_is_named_for_the_store_to_give_way_to() -> None:
+    """A stored row for a name given on the command line is not applied."""
+    lines = printed("topics-discover", "TOPIC_PASSES=20")
+
+    assert any('QA_COMMAND_LINE="TOPIC_PASSES"' in line for line in lines), lines

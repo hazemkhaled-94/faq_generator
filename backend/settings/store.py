@@ -1,11 +1,13 @@
 """The settings a deployment changed, and the source a stage reads.
 
-`resolved` is the environment overlaid with every stored row. Resolution
-ignores the service column: names are unique across the table, and a stage
-reads its own settings and the platform's.
+`resolved` is the environment overlaid with every stored row, bar a row for
+a name given on a `make` command line, which beats it. Resolution ignores
+the service column: names are unique across the table, and a stage reads
+its own settings and the platform's.
 
-`version` names a configuration by its content, as a digest of the
-overrides. It changes when anything changes, deletions included.
+`version` names a configuration by its content, as a digest of every
+catalogued setting's resolved value. It changes when anything changes: an
+env file, a command line, a stored row, deletions included.
 
 Importing this reaches the database.
 """
@@ -31,19 +33,28 @@ log = logging.getLogger(__name__)
 #: How much of the digest is kept.
 _VERSION_CHARS = 12
 
-#: What `version` answers when nothing is stored.
-UNCHANGED = "environment"
+#: The names a `make` command line gave, space-separated. Written by the
+#: Makefile's OVERRIDE beside the values themselves.
+COMMAND_LINE = "QA_COMMAND_LINE"
 
 
-def version(overrides: Mapping[str, str]) -> str:
-    """Names one configuration by its content.
+def version(source: Mapping[str, str]) -> str:
+    """Names one configuration by its content: each catalogued setting in it.
 
     Sorted before hashing, so the name does not depend on row order.
     """
-    if not overrides:
-        return UNCHANGED
-    written = json.dumps(dict(sorted(overrides.items())), separators=(",", ":"))
+    named = {name: source[name] for name in sorted(catalog.BY_NAME) if name in source}
+    written = json.dumps(named, separators=(",", ":"))
     return hashlib.sha256(written.encode()).hexdigest()[:_VERSION_CHARS]
+
+
+def _source(overrides: Mapping[str, str]) -> dict[str, str]:
+    """The environment overlaid with the stored rows, bar the command line's."""
+    given = set(os.environ.get(COMMAND_LINE, "").split())
+    return {
+        **os.environ,
+        **{name: value for name, value in overrides.items() if name not in given},
+    }
 
 
 def resolved() -> dict[str, str]:
@@ -66,8 +77,8 @@ def snapshot() -> tuple[dict[str, str], str]:
     Both from one read of the table, so a row cannot be stamped with a
     configuration it was not produced under.
     """
-    overrides = Settings().overrides()
-    return {**os.environ, **overrides}, version(overrides)
+    source = _source(Settings().overrides())
+    return source, version(source)
 
 
 class Stale(Exception):
@@ -147,11 +158,11 @@ class Settings:
 
         A copy, not a view: it must not change while a row is worked.
         """
-        return {**os.environ, **self.overrides()}
+        return _source(self.overrides())
 
     def version(self) -> str:
         """Names the configuration running now."""
-        return version(self.overrides())
+        return version(self.resolved())
 
     def change(
         self,
@@ -180,7 +191,7 @@ class Settings:
                 text("LOCK TABLE service_settings IN SHARE ROW EXCLUSIVE MODE")
             )
             if expected is not None:
-                at = version(_overrides(session))
+                at = version(_source(_overrides(session)))
                 if at != expected:
                     raise Stale(at)
             for name, value in writes.items():

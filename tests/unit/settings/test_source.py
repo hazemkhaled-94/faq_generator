@@ -207,3 +207,22 @@ def test_extraction_still_insists_on_the_atomic_kind_from_a_source() -> None:
 
     with pytest.raises(ValueError, match="EXTRACTION_KINDS"):
         Settings.load(_overridden(EXTRACTION_KINDS="summary,outline"))
+
+
+def test_a_command_line_value_beats_a_stored_one(monkeypatch) -> None:
+    """`make topics-discover TOPIC_PASSES=20` runs with 20, whatever is stored."""
+    from settings import store
+
+    monkeypatch.setattr(
+        store.Settings,
+        "overrides",
+        lambda self: {"TOPIC_PASSES": "42", "TOPIC_TOP_TERMS": "5"},
+    )
+    monkeypatch.setenv("TOPIC_PASSES", "20")
+    monkeypatch.setenv(store.COMMAND_LINE, "TOPIC_PASSES")
+
+    source, _ = store.snapshot()
+
+    assert source["TOPIC_PASSES"] == "20"
+    assert source["TOPIC_TOP_TERMS"] == "5"
+    assert store.resolved()["TOPIC_PASSES"] == "20"

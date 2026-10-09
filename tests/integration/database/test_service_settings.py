@@ -195,13 +195,12 @@ def test_a_setting_is_stored_under_the_service_that_configures_it(
     assert rows == [("topics", "TOPIC_PASSES")]
 
 
-def test_the_version_of_an_unconfigured_deployment_names_the_environment(
-    store,
-) -> None:
-    """A row produced under no overrides still records what produced it."""
-    from settings.store import UNCHANGED
+def test_the_version_moves_when_the_environment_does(store, monkeypatch) -> None:
+    """An env file edited, or a host run beside a container, is another configuration."""
+    before = store.version()
+    monkeypatch.setenv("TOPIC_PASSES", "77")
 
-    assert store.version() == UNCHANGED
+    assert store.version() != before
 
 
 def test_the_version_changes_when_a_setting_changes(store) -> None:
@@ -272,7 +271,7 @@ def test_the_source_and_the_version_come_from_one_read(store) -> None:
     source, named = snapshot()
 
     assert source["TOPIC_PASSES"] == "42"
-    assert named == version({"TOPIC_PASSES": "42"})
+    assert named == version(source)
     assert named == store.version()
 
 
