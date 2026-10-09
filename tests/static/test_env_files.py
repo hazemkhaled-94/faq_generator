@@ -243,6 +243,21 @@ def test_the_image_bakes_the_pipelines_the_workers_load() -> None:
         )
 
 
+def test_the_checks_of_the_baked_pipelines_name_the_ones_the_workers_load() -> None:
+    """CI's environment check and the smoke test each name them by hand."""
+    wanted = _spacy_pipelines()
+    action = (ROOT / ".github/actions/setup/action.yml").read_text()
+    smoke = (ROOT / "tests/smoke/test_images.py").read_text()
+
+    imported = re.search(r'python -c "import (\w+_core_[\w, ]+)"', action)
+    loaded = re.search(r"for m in \(([^)]*)\)", smoke)
+
+    assert imported, "action.yml imports no spaCy pipeline"
+    assert loaded, "test_images.py loads no spaCy pipeline"
+    assert imported[1].split(", ") == wanted, imported[1]
+    assert re.findall(r"'(\w+)'", loaded[1]) == wanted, loaded[1]
+
+
 def test_the_frontend_rejects_an_upload_at_the_same_size_the_api_does() -> None:
     """One limit, written in two files, because Streamlit reads no env var.
 
