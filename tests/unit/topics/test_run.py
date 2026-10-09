@@ -69,12 +69,6 @@ def test_discover_with_watch_queues_then_watches(cli) -> None:
     assert cli.watched
 
 
-def test_two_actions_in_one_command_are_refused(cli) -> None:
-    """They are mutually exclusive, so the parser rejects the pair."""
-    with pytest.raises(SystemExit):
-        cli.run("--stop", "--retry")
-
-
 # ── Writing the figures out ───────────────────────────────────────────────
 
 

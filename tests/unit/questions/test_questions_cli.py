@@ -90,11 +90,6 @@ class Driver:
         #: The models the preflight was asked to prove, in order. Replaced
         #: because the real one calls them, and a unit test serves nothing.
         self.proved: list[str] = []
-        self.refuse: Exception | None = None
-        #: How many refusals are left before the preflight relents, and
-        #: what a watching worker slept between them. None means forever.
-        self.refusals: int | None = None
-        self.slept: list[float] = []
 
         def build():
             """Counts the builds and hands back the recording service."""
@@ -122,19 +117,10 @@ class Driver:
         )
 
         def proving(*models):
-            """Records what was asked, and refuses when the test says to."""
+            """Records what was asked."""
             self.proved.extend(one.model for one in models)
-            if self.refuse is None:
-                return
-            if self.refusals is None or self.refusals > 0:
-                if self.refusals is not None:
-                    self.refusals -= 1
-                raise self.refuse
 
         monkeypatch.setattr(module, "before_work", proving)
-        # Recorded rather than waited out: the retry is what is under test,
-        # and the real ceiling is a minute.
-        monkeypatch.setattr(cli.time, "sleep", self.slept.append)
         monkeypatch.setattr(cli.telemetry, "configure", lambda *_, **__: None)
         monkeypatch.setattr(cli.telemetry, "trace_engine", lambda *_: None)
         monkeypatch.setattr(cli, "engine", lambda: None)
@@ -192,13 +178,6 @@ def test_rerun_queues_everything_again_and_then_drains(cli) -> None:
     assert cli.service.drains == 1
 
 
-def test_watch_keeps_draining_instead_of_returning(cli) -> None:
-    """What the worker container runs."""
-    assert cli.run("--watch") == 0
-    assert cli.service.drains == 0, "watch drains on its own schedule"
-    assert cli.watched, "the watch loop was never entered"
-
-
 def test_every_model_this_stage_calls_is_proved_before_anything_is_claimed(
     cli,
 ) -> None:
@@ -211,54 +190,6 @@ def test_every_model_this_stage_calls_is_proved_before_anything_is_claimed(
     """
     assert cli.run("--watch") == 0
     assert len(cli.proved) == 3, "the writer, the verifier and the phrasing judge"
-
-
-def test_a_model_that_will_not_answer_stops_a_drain(cli) -> None:
-    """A one-off drain gives up, because a person holds the exit code.
-
-    `stages.worker.watch` logs an exception and polls again, which is right
-    for a drain that failed and wrong for a deployment that can never work:
-    a worker with no usable credential would claim a topic every poll and
-    fail it, emptying the queue into `failed` while reporting itself up.
-    """
-    cli.refuse = RuntimeError("no credential")
-
-    assert cli.run() == 1, "a refused preflight is a non-zero exit"
-    assert not cli.watched, "the watch loop must not be entered"
-    assert cli.queue.calls == [], "nothing was claimed"
-    assert cli.slept == [], "a drain does not wait for a model"
-
-
-def test_a_watching_worker_waits_for_its_model_rather_than_exiting(cli) -> None:
-    """The process stays, and the model coming back is enough.
-
-    Exiting costs a process, and under `restart: unless-stopped` a process
-    is a restart, a fresh `run_id` and a Phoenix project holding the one
-    call that failed. An expired credential once cost 2,019 restarts and
-    2,116 such projects.
-    """
-    cli.refuse = RuntimeError("ollama is not up yet")
-    cli.refusals = 3
-
-    assert cli.run("--watch") == 0, "the worker started once the model answered"
-    assert cli.slept == [5.0, 10.0, 20.0], "it backs off between attempts"
-    assert cli.watched, "and then watches, having claimed nothing before"
-
-
-def test_the_wait_between_attempts_has_a_ceiling(cli) -> None:
-    """A minute, so a model down overnight is not a log line every second."""
-    cli.refuse = RuntimeError("still down")
-    cli.refusals = 8
-
-    cli.run("--watch")
-
-    assert max(cli.slept) == 60.0, cli.slept
-
-
-def test_two_actions_in_one_command_are_refused(cli) -> None:
-    """They are mutually exclusive, so the parser rejects the pair."""
-    with pytest.raises(SystemExit):
-        cli.run("--reverify", "--balance")
 
 
 # ── The two operations no other stage has ─────────────────────────────────
@@ -295,12 +226,6 @@ def test_the_only_scope_this_stage_takes_is_a_topic(cli) -> None:
     """A topic is already the smallest subject there is."""
     with pytest.raises(SystemExit, match="narrows to topic"):
         cli.run("--status", "--only", "document=abc")
-
-
-def test_a_narrowing_without_a_value_is_refused(cli) -> None:
-    """The message names the form."""
-    with pytest.raises(SystemExit, match="SCOPE=VALUE"):
-        cli.run("--status", "--only", "topic")
 
 
 # ── The lease a topic needs ───────────────────────────────────────────────

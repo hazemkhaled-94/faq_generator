@@ -178,14 +178,20 @@ def _waiting(
     *,
     failures: int,
     refusal: Exception | None = None,
+    slept: list[float] | None = None,
 ):
     """Runs `_ready` as a watching worker whose model is down for a while."""
     from stages import cli
 
     clock = {"now": 0.0}
-    monkeypatch.setattr(
-        cli.time, "sleep", lambda s: clock.__setitem__("now", clock["now"] + s)
-    )
+
+    def sleep(seconds: float) -> None:
+        """Moves the clock on, and records the wait in `slept`."""
+        clock["now"] += seconds
+        if slept is not None:
+            slept.append(seconds)
+
+    monkeypatch.setattr(cli.time, "sleep", sleep)
     monkeypatch.setattr(cli.time, "monotonic", lambda: clock["now"])
 
     said: list[tuple[str, str]] = []
@@ -263,6 +269,53 @@ def test_coming_back_is_worth_a_line(monkeypatch) -> None:
 def test_a_model_that_answers_at_once_says_nothing(monkeypatch) -> None:
     """The common case stays silent."""
     assert _waiting(monkeypatch, failures=0) == []
+
+
+def test_a_model_that_will_not_answer_stops_a_drain(monkeypatch) -> None:
+    """A one-off drain gives up, because a person holds the exit code.
+
+    `stages.worker.watch` logs an exception and polls again, which is right
+    for a drain that failed and wrong for a deployment that can never work:
+    a worker with no usable credential would claim a topic every poll and
+    fail it, emptying the queue into `failed` while reporting itself up.
+    """
+    from stages import cli
+
+    slept: list[float] = []
+    monkeypatch.setattr(cli.time, "sleep", slept.append)
+
+    def refusing() -> None:
+        """Refuses, as a model with no usable credential does."""
+        raise RuntimeError("no credential")
+
+    assert cli._ready("questions", refusing, False) is False
+    assert slept == [], "a drain does not wait for a model"
+
+
+def test_a_watching_worker_waits_for_its_model_rather_than_exiting(
+    monkeypatch,
+) -> None:
+    """The process stays, and the model coming back is enough.
+
+    Exiting costs a process, and under `restart: unless-stopped` a process
+    is a restart, a fresh `run_id` and a Phoenix project holding the one
+    call that failed. An expired credential once cost 2,019 restarts and
+    2,116 such projects.
+    """
+    slept: list[float] = []
+
+    _waiting(monkeypatch, failures=3, slept=slept)
+
+    assert slept == [5.0, 10.0, 20.0], "it backs off between attempts"
+
+
+def test_the_wait_between_attempts_has_a_ceiling(monkeypatch) -> None:
+    """A minute, so a model down overnight is not a log line every second."""
+    slept: list[float] = []
+
+    _waiting(monkeypatch, failures=8, slept=slept)
+
+    assert max(slept) == 60.0, slept
 
 
 # ── A worker rebuilt after a settings change ───────────────────────────────
