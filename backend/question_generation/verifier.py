@@ -1,16 +1,16 @@
 """The second model, asked to get the answer back out of the passages.
 
-Three of the gates come out of one call here, and recoverability may cost a
-second: recalling an answer cold and checking one put in front of you are
-different tasks, and conflating them was rejecting four good questions for
-every real disagreement. `read` asks for the answer; when that comes back
+Recoverability comes out of one call here, and may cost a second: recalling
+an answer cold and checking one put in front of you are different tasks, and
+conflating them was rejecting four good questions for every real
+disagreement. `read` asks for the answer; when that comes back
 empty or different, `supports` shows the model the answer and asks only
 whether the passages back it.
 
-Two things are load-bearing. The verifier is a different model from the
-writer, because a model marking its own work agrees with itself. And it sees
-only the cited passages, never the corpus: what is being measured is the
-dataset, not a retriever.
+Two things are load-bearing. The verifier is meant to be a different model
+from the writer, because a model marking its own work agrees with itself. And
+it sees only the cited passages, never the corpus: what is being measured is
+the dataset, not a retriever.
 """
 
 from __future__ import annotations
@@ -387,12 +387,7 @@ class Verifier:
         passages: Sequence[str],
         thread: Sequence[tuple[str, str | None]] = (),
     ) -> Reading:
-        """Answers one question from these passages, and judges the question.
-
-        Two verdicts out of one call. The phrasing judgement is a model's to
-        make and a structural check cannot make it, and asking for it here
-        costs nothing: the call is happening anyway and the model is already
-        looking at both the question and the material.
+        """Answers one question from these passages.
 
         Raises:
             ModelUnavailable: If the model could not be reached or would not
