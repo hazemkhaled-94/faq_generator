@@ -440,8 +440,8 @@ class Deal:
     def _cross(self, head: list[SourceFact]) -> list[SourceFact] | None:
         """A passage in another document, or the nearest one in this document.
 
-        Ranked by shared vocabulary, so the pair is two passages the corpus
-        itself says are about related things. Pairing two passages because
+        Ranked by `overlap`, so the pair is two passages the corpus itself
+        says are about related things. Pairing two passages because
         they came from different files produced questions about the first
         carrying a spread earned by the second.
 
