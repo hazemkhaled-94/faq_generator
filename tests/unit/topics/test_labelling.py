@@ -1,7 +1,7 @@
 """Naming a topic, and carrying a name across a refit.
 
-A refit deletes every topic, so a label survives only by being matched on
-top terms.
+A refit deletes the topics of each language it fits, so a label survives
+only by being matched on top terms.
 """
 
 from __future__ import annotations
