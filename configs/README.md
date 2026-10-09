@@ -73,7 +73,8 @@ declared for the Phoenix role rather than the superuser.
 ## `grafana/`
 
 Four dashboards over three datasources, all provisioned. A dashboard edited
-in the UI is lost on the next restart. What each one shows is in
+in the UI keeps the edit until its JSON changes, which overwrites it; write a
+kept edit back to the JSON. What each one shows is in
 [docs/operations.md](../docs/operations.md); here is which file is which.
 
 | File | Dashboard | Reads |
@@ -129,7 +130,8 @@ names the one code location, [`orchestration/`](../orchestration/README.md).
 
 - **`init.sh` runs once, on an empty volume.** Every change to it needs
   re-running by hand on a stack that already exists.
-- **A Grafana dashboard edited in the UI is lost on restart.** Edit the JSON.
+- **A Grafana dashboard edited in the UI keeps the edit until its JSON
+  changes, which overwrites it.** Write a kept edit back to the JSON.
 - **`provider.env` is optional and absent by default.** Its absence is not an
   error.
 - **An edit to `filebeat.yml` does nothing without
