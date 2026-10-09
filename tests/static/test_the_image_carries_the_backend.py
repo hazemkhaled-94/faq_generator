@@ -12,9 +12,8 @@ not carry it and neither list gained one. The api and all five workers
 died on `No module named 'confidence'` and the UI went blank.
 
 `tests/smoke/test_images.py` would have caught it - it imports every entry
-point inside the built image - but smoke builds two images and runs
-nightly, never on a pull request. This reads the two files instead and
-takes milliseconds, which is what makes it a gate.
+point inside the built image - but smoke builds two images and takes
+minutes. This reads the two files instead and takes milliseconds.
 """
 
 from __future__ import annotations
