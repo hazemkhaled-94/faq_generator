@@ -122,8 +122,8 @@ def discover(run: RunName = None) -> TopicDiscovery:
     """Queues a fit over the whole corpus.
 
     Returns at once. The topics and memberships of each language it fits are
-    replaced when the fit succeeds, and left alone when it does not. Asking twice queues one
-    fit; asking while a fit runs queues one behind it.
+    replaced when the fit succeeds, and left alone when it does not. Asking
+    twice queues one fit; asking while a fit runs queues one behind it.
 
     This stage's `start`: asking is what creates the work, so this is where
     the run that asked is recorded. Left out, one is minted and answered
