@@ -1,7 +1,8 @@
 #!/bin/bash
 # Runs once on first boot of an empty postgres_data volume.
 # Idempotent — safe to re-run manually if first boot fails partway:
-#     podman exec postgres bash /docker-entrypoint-initdb.d/init.sh
+#     podman compose --env-file configs/env/deployment.env --env-file .env \
+#       exec postgres bash /docker-entrypoint-initdb.d/init.sh
 set -euo pipefail
 
 # ── Roles ──────────────────────────────────────────────────────────────────

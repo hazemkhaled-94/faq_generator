@@ -22,7 +22,8 @@ shell() { printf '%s\n' "$@" | weed shell -master="$MASTER"; }
 #   archive     Deleted objects.   Never expires: a TTL here would finish the
 #               deletion the archive exists to postpone.
 #
-# Adding a bucket: append its name to S3_BUCKETS in .env and restart.
+# Adding a bucket: append its name to S3_BUCKETS in configs/env/deployment.env
+# and restart.
 
 for b in $(echo "${S3_BUCKETS}" | tr ',' ' '); do
     shell "s3.bucket.create -name ${b}"
