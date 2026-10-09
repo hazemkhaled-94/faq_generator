@@ -207,6 +207,76 @@ def test_handing_over_fails_unless_dagster_switched_the_sensor(
     assert (ran.returncode != 0) is refused, ran
 
 
+def test_all_brings_the_stack_up_waits_for_dagster_then_launches_the_corpus() -> None:
+    """No host drain and no schema step: the container workers drain."""
+    lines = printed("all")
+    up = [at for at, line in enumerate(lines) if line.endswith(" up -d")]
+    wait = [at for at, line in enumerate(lines) if "job list" in line]
+    launch = [at for at, line in enumerate(lines) if "job launch -j corpus" in line]
+
+    assert up and wait and launch, lines
+    assert up[0] < wait[0] < launch[0], lines
+    assert not [line for line in lines if "python -m" in line or "alembic" in line]
+
+
+@pytest.mark.parametrize(
+    ("answer", "refused"),
+    [
+        ("echo 'Job: corpus'", False),
+        ("echo 'Job: other'", True),
+        ("echo 'Error: no container with name dagster-webserver' >&2; exit 125", True),
+    ],
+    ids=["listed", "not-listed", "stack-down"],
+)
+def test_all_waits_a_bounded_time_for_the_corpus_job(
+    tmp_path: Path, answer: str, refused: bool
+) -> None:
+    """With `sleep` a no-op the wait ends at once, listed or not."""
+    engine = stand_in(tmp_path, answer)
+    (tmp_path / "sleep").write_text("#!/bin/sh\n")
+    (tmp_path / "sleep").chmod(0o755)
+    wait = command("all", "job list", COMPOSE=str(engine))
+
+    ran = subprocess.run(
+        ["bash", "-c", wait],
+        cwd=tmp_path,
+        env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert (ran.returncode != 0) is refused, ran
+
+
+@pytest.mark.parametrize(
+    ("answer", "refused"),
+    [
+        ("echo 'code server started'", False),
+        ("echo 'DagsterInvariantViolationError: no job corpus'; exit 1", True),
+        ("echo 'Error: no container with name dagster-webserver' >&2; exit 125", True),
+    ],
+    ids=["launched", "dagster-refused", "stack-down"],
+)
+def test_the_pipeline_fails_exactly_when_the_launch_fails(
+    tmp_path: Path, answer: str, refused: bool
+) -> None:
+    """`dagster job launch` prints nothing on success; its exit status is the answer."""
+    engine = stand_in(tmp_path, answer)
+    launch = command("pipeline", "job launch", COMPOSE=str(engine))
+
+    ran = subprocess.run(
+        ["bash", "-c", launch],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (ran.returncode != 0) is refused, ran
+
+
 def test_every_target_is_declared_phony() -> None:
     """A file of a target's name would otherwise make make skip it quietly."""
     import re

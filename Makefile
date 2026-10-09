@@ -1712,8 +1712,16 @@ dagster-dev:
 # They exist because the common paths were six commands long and the order
 # mattered, which is a thing to get wrong rather than a thing to decide.
 
-# The whole of it: bring the stack up, then run `corpus`.
-all: up corpus
+# The whole of it: bring the stack up, wait until Dagster lists the corpus
+# job, giving up after 30 tries, then run `pipeline`. The container workers
+# drain each stage; `corpus` is the host drain.
+all: up
+	@for attempt in $$(seq 30); do \
+	  $(call DAGSTER,job list) | grep -q "Job: corpus" && break; \
+	  if [ $$attempt -eq 30 ]; then echo "Dagster did not list the corpus job" >&2; exit 1; fi; \
+	  sleep 5; \
+	done
+	$(MAKE) pipeline
 
 # Every stage but the topic fit, in the order a document moves through them,
 # stopping at the first failure.
@@ -1855,7 +1863,8 @@ runs:
 # materialisation and a check per stage, and it survives this terminal
 # closing.
 pipeline:
-	@$(call DAGSTER,job launch -j corpus) | grep -E "Launched run|Error" 
+	@out=$$($(call DAGSTER,job launch -j corpus)) || { printf '%s\n' "$$out" >&2; exit 1; }
+	@$(LOADENV) && echo "Launched. Follow it at http://localhost:$$DAGSTER_WEBSERVER_PORT or with make runs and make pipeline-status; make questions-balance draws the release once it ends."
 
 # Hand it over: an upload starts a run on its own from now on.
 #
