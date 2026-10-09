@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         argv: Arguments to parse, defaulting to the process's own.
 
     Returns:
-        0, or 2 when a purge named nothing to purge.
+        0, or 2 when a purge named nothing to purge, or --all beside a narrowing.
     """
     args = _parser().parse_args(sys.argv[1:] if argv is None else argv)
 
@@ -117,6 +117,11 @@ def main(argv: list[str] | None = None) -> int:
         log.error(
             "a purge names what it purges: --table, --older-than, or --all. "
             "This is the deletion the archive was protecting against"
+        )
+        return 2
+    if args.all and (args.table or args.older_than is not None):
+        log.error(
+            "--all purges everything, so it takes neither --table nor --older-than"
         )
         return 2
 

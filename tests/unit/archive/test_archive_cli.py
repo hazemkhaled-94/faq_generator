@@ -126,6 +126,13 @@ def test_a_purge_of_everything_names_neither(cli) -> None:
     assert cli.store.purges == [{"table": None, "older_than_days": None}]
 
 
+@pytest.mark.parametrize("narrowed", [("--table", "questions"), ("--older-than", "30")])
+def test_everything_and_a_narrowing_together_are_refused(cli, narrowed) -> None:
+    """The make target has just warned that the whole archive is going."""
+    assert cli.run("--purge", "--all", *narrowed) == 2
+    assert cli.store.purges == []
+
+
 def test_an_action_is_required(cli) -> None:
     """A bare run would otherwise do nothing and exit 0."""
     with pytest.raises(SystemExit):
