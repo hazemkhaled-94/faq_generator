@@ -136,7 +136,7 @@ The actions are **mutually exclusive**.
 | `--retry` | Return failed rows to the queue | yes |
 | `--rerun` | Queue every row again, finished ones included, after the preflight, then drain | yes |
 | `--reclaim` | Return a row a dead worker still holds, without waiting out its lease | yes |
-| `--only SCOPE=VALUE` | Narrow the action to one item. Refused on a bare drain, on a stage that takes no scope, and on a `--rerun` while rows outside it are queued | — |
+| `--only SCOPE=VALUE` | Narrow the action to one item. Refused on a bare drain and on a `--rerun` while rows outside it are queued. Topic modelling takes no scope and ignores it | — |
 | `--watch` | Drain, and keep draining | — |
 | no flag | Drain the queue once, in the foreground, and stop | — |
 

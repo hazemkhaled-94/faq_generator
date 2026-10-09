@@ -77,7 +77,7 @@ def parser(module: str, actions: dict[str, str]) -> argparse.ArgumentParser:
         metavar="SCOPE=VALUE",
         help="narrow the action to one item, as document=<sha256> or "
         "passage=<id>. Which scopes a stage takes is its own; --only on a "
-        "stage that takes none is refused.",
+        "stage that takes none is ignored.",
     )
     built.add_argument("--watch", action="store_true", help="drain and keep draining")
     return built
