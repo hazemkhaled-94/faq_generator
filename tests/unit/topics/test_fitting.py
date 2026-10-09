@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from math import isnan
+
 import pytest
 from topic_drivers import FitterDriver, corpus
 
@@ -10,7 +12,10 @@ from topic_modelling.topics import NoVocabulary
 
 
 def test_every_weight_is_storable(fitter) -> None:
-    """A membership weight stays inside (0, 1], as the column's CHECK needs."""
+    """A membership weight stays inside (0, 1], as the column's CHECK needs.
+
+    And no topic's term weight is NaN, which compares false against the floor.
+    """
     fitting = fitter.fit("de")
 
     assert fitting.fitting.weights, "two clear subjects produced no membership"
@@ -18,6 +23,8 @@ def test_every_weight_is_storable(fitter) -> None:
         assert 0 < weight.weight <= 1, (
             f"weight {weight.weight!r} breaches the CHECK on passage_topics"
         )
+    for row in fitting.space.topic_term:
+        assert not any(isnan(value) for value in row), row
 
 
 def test_the_fit_reports_what_it_was_over(fitter, passages) -> None:
@@ -123,10 +130,14 @@ def test_a_passage_holding_none_of_the_vocabulary_is_counted(fitter) -> None:
 
 
 def test_a_passage_with_no_lemmas_at_all_is_counted(fitter) -> None:
-    """A passage chunking stored no lemmas for is the same case."""
+    """A passage chunking stored no lemmas for is the same case.
+
+    Skipped rather than normalised, which would divide by its zero sum.
+    """
     empty = fitter.holding(PassageVocabulary(id=98)).fit("de")
 
     assert empty.unplaced == 1, empty.unplaced
+    assert all(abs(sum(row) - 1) < 1e-6 for row in empty.space.doc_topic)
 
 
 def test_a_weight_floor_emptying_a_passage_leaves_it_unplaced(
