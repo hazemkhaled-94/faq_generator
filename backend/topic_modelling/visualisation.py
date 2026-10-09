@@ -62,6 +62,9 @@ def render(space: TopicSpace, language: str) -> bytes:
 
     # The relevance ranking takes a log of a term weight, and the
     # factorisation leaves that at exactly zero for a term absent from a topic.
+    #
+    # ponytail: hides every divide-by-zero inside prepare, not only that one.
+    # Upgrade: floor topic_term at an epsilon before the call.
     with np.errstate(divide="ignore"):
         prepared = pyLDAvis.prepare(
             topic_term_dists=space.topic_term,
