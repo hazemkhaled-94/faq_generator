@@ -55,7 +55,7 @@ class Verdict:
         neutral: Probability it neither supports nor contradicts it.
         contradiction: Probability it says the opposite. Always 0.0 from a
             two-way head, which cannot tell this from neutral. Nothing here
-            reads it - `supports` is the whole of what a gate asks - and it
+            reads it - `entailment` is the whole of what a gate asks - and it
             is kept because a three-way model knows it and a reader
             debugging a refusal wants to see it.
     """
@@ -63,27 +63,6 @@ class Verdict:
     entailment: float
     neutral: float
     contradiction: float
-
-    @property
-    def label(self) -> str:
-        """Whichever of the three is likeliest."""
-        return max(
-            (
-                (self.entailment, ENTAILMENT),
-                (self.neutral, NEUTRAL),
-                (self.contradiction, CONTRADICTION),
-            )
-        )[1]
-
-    def supports(self, threshold: float) -> bool:
-        """Whether the premise backs the hypothesis at this confidence.
-
-        A threshold rather than the likeliest label, which is the reason to
-        prefer this to a model answering true or false: a boolean from a
-        served model carries no confidence, so a deployment cannot decide how
-        sure it wants a gate to be.
-        """
-        return self.entailment >= threshold
 
 
 def verdict(scores: Mapping[str, float], model_name: str) -> Verdict:
@@ -159,23 +138,6 @@ class Entailment:
         )
         self._max_tokens = window(built.tokenizer, self._max_tokens)
         return built
-
-    @property
-    def model(self) -> str:
-        """The model doing the judging, recorded on what it judges."""
-        return self._model_name
-
-    def judge(self, premise: str, hypothesis: str) -> Verdict:
-        """What one premise says about one hypothesis.
-
-        Args:
-            premise: The text taken as given - a passage, or several joined.
-            hypothesis: The single proposition being judged against it.
-
-        Returns:
-            The three probabilities, which sum to 1.
-        """
-        return self.judge_all([(premise, hypothesis)])[0]
 
     def judge_all(self, pairs: list[tuple[str, str]]) -> list[Verdict]:
         """The same, over several pairs in one forward pass.

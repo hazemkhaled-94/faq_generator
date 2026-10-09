@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from nlp.qa import Extractive, Span, _best_of
+from nlp.qa import Extractive, _best_of
 
 
 @dataclass
@@ -247,11 +247,6 @@ def test_a_token_covering_no_characters_is_not_a_span() -> None:
     assert found.text == "The compact"
 
 
-def test_the_model_names_itself_for_the_row_it_read() -> None:
-    """Recorded beside what it read."""
-    assert Extractive("a/checkpoint").model == "a/checkpoint"
-
-
 def test_a_window_carrying_none_of_the_passage_is_skipped() -> None:
     """A window that is all question and padding has nothing to offer."""
     built = Extractive("a/checkpoint")
@@ -297,7 +292,6 @@ def test_the_best_passage_wins_rather_than_the_first() -> None:
     found = built.answer(QUESTION, ["a", "b", "c"], confidence=0.5)
 
     assert found is not None
-    assert found.passage == 1
     assert found.score == pytest.approx(0.95)
 
 
@@ -341,8 +335,3 @@ def test_the_shortlist_is_capped() -> None:
     logits = list(range(100))
 
     assert len(_best_of(logits, inside=list(range(100)))) == _TOP_K
-
-
-def test_a_span_carries_where_it_was_found() -> None:
-    """The passage's position, so a caller knows which one answered."""
-    assert Span(text="4 kg", score=0.9, passage=2).passage == 2

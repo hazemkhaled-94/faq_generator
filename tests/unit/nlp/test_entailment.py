@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from nlp.entailment import Entailment, Verdict, verdict
+from nlp.entailment import Entailment, verdict
 
 pytestmark = pytest.mark.nlp
 
@@ -45,7 +45,8 @@ def test_a_label_is_read_whatever_case_the_checkpoint_wrote_it_in() -> None:
     )
 
     assert answered.entailment == pytest.approx(0.6)
-    assert answered.label == "entailment"
+    assert answered.neutral == pytest.approx(0.3)
+    assert answered.contradiction == pytest.approx(0.1)
 
 
 def test_a_two_way_head_reports_what_it_did_not_split() -> None:
@@ -80,20 +81,6 @@ def test_the_refusal_names_what_the_checkpoint_did_say() -> None:
     """A deployment that named the wrong model has to be told which one."""
     with pytest.raises(ValueError, match="negative.*positive"):
         verdict({"positive": 0.9, "negative": 0.1}, "a/sentiment-model")
-
-
-def test_a_threshold_decides_support_rather_than_the_likeliest_label() -> None:
-    """The reason to prefer an encoder to a model answering true or false.
-
-    A boolean carries no confidence, so a deployment cannot decide how sure
-    it wants a gate to be. Here the likeliest label is `neutral` and the
-    caller still gets to choose.
-    """
-    answered = Verdict(entailment=0.45, neutral=0.5, contradiction=0.05)
-
-    assert answered.label == "neutral"
-    assert answered.supports(0.4)
-    assert not answered.supports(0.5)
 
 
 def test_nothing_to_judge_costs_no_forward_pass() -> None:

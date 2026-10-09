@@ -1677,7 +1677,7 @@ class Reader:
             self.only_in in passage for passage in passages
         ):
             return None
-        return Span(self.text, 0.95, 0)
+        return Span(self.text, 0.95)
 
 
 def _with_reader(recording: Recording, reader: Reader) -> QuestionChecker:

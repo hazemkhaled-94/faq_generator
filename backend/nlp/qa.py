@@ -65,12 +65,10 @@ class Span:
     Attributes:
         text: The span, exactly as the passage writes it.
         score: How sure the model is against answering nothing, in [0, 1].
-        passage: Which passage it was found in, by position.
     """
 
     text: str
     score: float
-    passage: int
 
 
 class Extractive:
@@ -95,11 +93,6 @@ class Extractive:
         self._max_tokens = window(tokenizer, self._max_tokens)
         return tokenizer, model
 
-    @property
-    def model(self) -> str:
-        """The model doing the reading, recorded beside what it read."""
-        return self._model_name
-
     def answer(
         self, question: str, passages: Sequence[str], confidence: float
     ) -> Span | None:
@@ -120,7 +113,7 @@ class Extractive:
             The best span at or above `confidence`, or None.
         """
         best: Span | None = None
-        for position, passage in enumerate(passages):
+        for passage in passages:
             if not passage.strip():
                 continue
             found = self._span(question, passage)
@@ -130,7 +123,7 @@ class Extractive:
             if score < confidence:
                 continue
             if best is None or score > best.score:
-                best = Span(text=text, score=score, passage=position)
+                best = Span(text=text, score=score)
         return best
 
     def _span(self, question: str, context: str) -> tuple[str, float] | None:
