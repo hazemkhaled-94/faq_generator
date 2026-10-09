@@ -70,7 +70,7 @@ def test_a_setting_written_between_drains_is_picked_up(store) -> None:
     drain = reloading("topics", _building(store, drained))
 
     drain(_never)
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
     drain(_never)
 
     assert drained[-1] == "42"
@@ -109,7 +109,7 @@ def test_a_setting_returned_to_the_files_is_picked_up_too(store) -> None:
     import os
 
     drained: list[str] = []
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
     drain = reloading("topics", _building(store, drained))
 
     drain(_never)
