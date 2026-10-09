@@ -51,3 +51,13 @@ def test_too_short_to_judge_is_not_guessed(text: str) -> None:
     from nlp.language import detect
 
     assert detect(text) is None
+
+
+@pytest.mark.parametrize(
+    ("code", "name"), [("de", "German"), ("EN", "English"), ("fr", "fr"), (None, "")]
+)
+def test_a_language_is_named_as_a_prompt_says_it(code: str | None, name: str) -> None:
+    """A code it has no name for stays a code; no language is no sentence."""
+    from nlp.models import named
+
+    assert named(code) == name
