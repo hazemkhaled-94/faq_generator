@@ -177,7 +177,7 @@ def test_a_claim_reads_the_topic_it_will_write_about(corpus) -> None:
 
 
 def test_a_claim_that_outlived_its_lease_is_failed(corpus, engine) -> None:
-    """A topic costs many model calls, so its lease is long and still finite."""
+    """A topic holds the lease every stage shares; a claim unrefreshed past it fails."""
     corpus(topics=1)
     QuestionQueue().start()
     QuestionQueue().claim()
@@ -1584,8 +1584,8 @@ def test_neither_retry_nor_rerun_moves_a_row_a_worker_holds(corpus, engine) -> N
 
     `retry` takes the FAILED and `rerun` skips `in_progress` on purpose -
     a live worker's row must not be handed to a second one. Between them
-    an interrupted topic was reachable only by its lease, which question
-    generation derives from what a topic costs.
+    an interrupted topic was reachable only by its lease, the one every
+    stage shares, which a live worker's heartbeat keeps refreshing.
     """
     corpus(topics=1)
     QuestionQueue().start()
