@@ -736,7 +736,7 @@ def test_deleting_leaves_the_passages_alone(store) -> None:
 
 
 class TestATopicSitsWhereItsPassagesDo:
-    """The centroid, and what it is for.
+    """The centroid.
 
     Computed in SQL out of `passages.embedding` rather than asked of a model:
     it is an average of a column, so nothing loads two gigabytes to write it
@@ -811,43 +811,3 @@ class TestATopicSitsWhereItsPassagesDo:
         )
 
         assert store.topic_vectors() == {0: None, 1: None}
-
-    def test_two_topics_on_one_subject_are_reported(self, store) -> None:
-        """The pair a factorisation split down the middle.
-
-        This corpus had two topics named `Testverfahren` and two named
-        `Testen KI-basierter Systeme`, which is what this exists to say.
-        """
-        self.placed(store, first=0, second=0)
-
-        crowded = store.catalog.crowded(0.95)
-
-        assert [(one.one, one.other) for one in crowded] == [(0, 1)]
-        assert crowded[0].similarity == pytest.approx(1.0)
-
-    def test_two_topics_on_different_subjects_are_not(self, store) -> None:
-        """Orthogonal centroids are as far apart as this space goes."""
-        self.placed(store, first=0, second=7)
-
-        assert store.catalog.crowded(0.95) == []
-
-    def test_placing_again_is_how_an_embedded_corpus_catches_up(self, store) -> None:
-        """A fit run before the passages were embedded wrote no centroid."""
-        store.given_passages(de=2)
-        one, two = store.passages["de"]
-        store.queue.replace(
-            store.request(),
-            [
-                fitting(
-                    "de",
-                    weights=[PassageWeight(one, 0, 0.9), PassageWeight(two, 1, 0.9)],
-                )
-            ],
-        )
-        assert store.topic_vectors() == {0: None, 1: None}
-
-        store.given_passage_vectors(**{str(one): 0, str(two): 7})
-        placed = store.queue.place()
-
-        assert placed == 2
-        assert store.topic_vectors()[0] is not None

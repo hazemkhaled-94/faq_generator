@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import case, delete, func, insert, select, text, update
-from sqlalchemy.orm import aliased
 
 from database.qa_generator import (
     Fact,
@@ -28,7 +27,6 @@ from topic_modelling.models import (
     PassageVocabulary,
     StoredTopic,
     TopicFit,
-    TopicPair,
     TopicRemoval,
 )
 
@@ -321,19 +319,6 @@ class TopicQueue(StageQueue):
                 _place(session)
         return len(memberships)
 
-    def place(self) -> int:
-        """Writes each topic's centroid from the passages it holds.
-
-        Run by `replace` as part of a fit, and on its own after the passages
-        have been embedded for the first time - a fit that ran before there
-        were any vectors wrote none.
-
-        Returns:
-            How many topics were placed.
-        """
-        with self._session.begin() as session:
-            return _place(session)
-
     def bearing_facts(self, passage_ids: list[int]) -> set[int]:
         """Which of these passages carry a validated fact.
 
@@ -391,54 +376,6 @@ class TopicQueue(StageQueue):
 
 class TopicCatalog(Repository):
     """Reads the fitted topics, and records what a person decided about one."""
-
-    def crowded(self, threshold: float) -> list[TopicPair]:
-        """Pairs of topics whose centroids sit closer together than `threshold`.
-
-        A factorisation asked for twelve topics returns twelve whether the
-        corpus holds twelve subjects or nine, so two of them are sometimes
-        one subject split down the middle. Nothing here fixes that - it says
-        so, which is what a coverage report read by its names needs.
-
-        Args:
-            threshold: Cosine likeness above which two are reported.
-
-        Returns:
-            Each pair once, closest first.
-        """
-        left, right = aliased(Topic), aliased(Topic)
-        distance = left.embedding.cosine_distance(right.embedding)
-        query = (
-            select(
-                left.language,
-                left.topic_index.label("one"),
-                left.label.label("one_label"),
-                right.topic_index.label("other"),
-                right.label.label("other_label"),
-                distance.label("far"),
-            )
-            .where(
-                left.language == right.language,
-                # Each pair once, and never a topic against itself.
-                left.topic_index < right.topic_index,
-                left.embedding.is_not(None),
-                right.embedding.is_not(None),
-                distance < (1.0 - threshold),
-            )
-            .order_by(distance)
-        )
-        with self._session() as session:
-            return [
-                TopicPair(
-                    language=row.language,
-                    one=row.one,
-                    one_label=row.one_label,
-                    other=row.other,
-                    other_label=row.other_label,
-                    similarity=1.0 - float(row.far),
-                )
-                for row in session.execute(query)
-            ]
 
     def describe(
         self,

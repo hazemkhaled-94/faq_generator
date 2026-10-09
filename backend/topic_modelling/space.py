@@ -18,13 +18,10 @@ puts a term in few of its topics - and deflate is very good at that.
 from __future__ import annotations
 
 import io
-import logging
 
 import numpy as np
 
 from topic_modelling.models import TopicSpace
-
-log = logging.getLogger(__name__)
 
 #: What the arrays in one file mean. Bumped when their shape or meaning
 #: changes, and refused rather than guessed on the way back in: an older

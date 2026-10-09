@@ -95,9 +95,6 @@ one question before claiming the request. See
 
 `topics.embedding` is the mean of the vectors of the passages a topic holds,
 normalised to length 1, written in SQL out of `passages.embedding`.
-`TopicCatalog.crowded(threshold)` returns the pairs of one language's topics
-whose centroids sit closer than that. Nothing merges them — a coverage report
-read by its names needs to be told, and what to do is a person's.
 
 No HNSW index on that column: a fit is tens of rows.
 
