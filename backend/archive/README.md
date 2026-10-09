@@ -19,17 +19,21 @@ DELETE on any table  ──▶  archive_deleted_row()  ──▶  archived_rows
                                                        (table_name, payload, archived_at)
 ```
 
-An `AFTER DELETE ... FOR EACH ROW` trigger on all thirteen tables, one shared
-function, declared beside the table it fills in
+An `AFTER DELETE ... FOR EACH ROW` trigger on all thirteen tables and one
+shared function, both created by the first migration,
+[`20260927_1913_initial_schema.py`](../database/migrations/versions/20260927_1913_initial_schema.py).
+The table it fills is declared in
 [`archived_rows.py`](../database/qa_generator/archived_rows.py).
 
 A trigger because the services are not where most of the deleting happens.
 `make delete SHA=...` removes one row; the foreign keys take its passages,
 their memberships and their citations, then
-`fact_passages_delete_orphan_fact` takes every fact resting on a passage that
-is gone, then `question_facts_delete_orphan_question` takes every question
-left with no fact, then the cascade on `follows_id` takes their follow-ups.
-One command, six tables, and only the first row passes through Python.
+`fact_passages_delete_orphan_fact` takes every bridge resting on a passage
+that is gone and every other fact left resting on none, then
+`question_facts_delete_orphan_question` takes every question left with no
+fact, then the cascade on `follows_id` takes their follow-ups and the
+cascades on `assessments` their judgements. One command, up to nine tables,
+and only the first row passes through Python.
 
 The objects are the other half: the removal paths **move** them to the
 `archive` bucket, keyed `{origin}/{key}@{UTC time}`, so a second deletion of
@@ -93,6 +97,10 @@ object's `LastModified` alike. The host running the purge is not asked.
 `TABLE=` is about rows and leaves the bucket alone — an archived upload
 belongs to no table. `DAYS=` and `ALL=1` take the objects too.
 
+`DAYS=` refuses an age below zero, and `DAYS=0` is everything held until
+now. `DAYS=` and `ALL=1` each warn and pause first, and `ALL=1` beside
+`TABLE=` or `DAYS=` is refused.
+
 ## It grows on ordinary runs
 
 A re-extraction deletes the facts it replaces, a re-chunk deletes the
@@ -108,16 +116,17 @@ retention**.
 | [`run.py`](run.py) | The command line |
 | [`restore.py`](restore.py) | Putting archived rows and objects back, before a purge makes the archive unreadable |
 
-The trigger and the table are in
+The table is in
 [`database/qa_generator/archived_rows.py`](../database/qa_generator/archived_rows.py),
-and the bucket is
+the trigger in the first migration, and the bucket is
 [`blob_store/s3/archive.py`](../blob_store/s3/archive.py).
 Neither imports this package.
 
 ## Tests
 
 ```sh
-poetry run pytest tests/integration/test_archive.py
+poetry run pytest tests/integration/test_archive.py tests/integration/test_restore.py
+poetry run pytest tests/unit/archive
 ```
 
 [`test_archive.py`](../../tests/integration/test_archive.py) covers the rows
@@ -130,13 +139,24 @@ all.
 `Base.metadata`, so a table added without one fails rather than deleting for
 good.
 
+[`test_restore.py`](../../tests/integration/test_restore.py) restores a
+wipe and its edge cases, and
+[`test_archive_cli.py`](../../tests/unit/archive/test_archive_cli.py) covers
+which purges the command line refuses.
+
 ## Limits
 
 - **Nothing is ever purged automatically.**
 - **`TRUNCATE` fires no row trigger and archives nothing.**
   `make schema-reset` and the test fixtures empty tables without a copy.
-- **The embedding does not come back.** Restored rows carry NULL until the
-  stage that writes it runs again.
+- **The embedding does not come back.** Restored passages and facts carry
+  NULL until `make extract-embed`; a restored question keeps NULL.
+- **A restore after `make delete-derived` leaves the document marked `new`
+  for chunking.** That was an update, which nothing archives, so the next
+  `chunk-start` re-chunks the restored passages.
+- **A column added `NOT NULL` since a row was archived rolls the whole
+  restore back.** The older payload has no value for it, and it is filled
+  with NULL rather than the column's default.
 - **A purge is not archived.** Otherwise it would write one row for every row
   it took.
 - **`make delete` twice is not a way to purge.** `make archive-purge` is the
