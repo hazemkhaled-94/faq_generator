@@ -1,12 +1,12 @@
 # Database
 
-One PostgreSQL schema, one module per table, and the engine every process
-opens its own pool against.
+One PostgreSQL schema, one module per table (`assessments.py` holds both
+`assessments` and `assessment_metrics`), and the engine every process opens
+its own pool against.
 
-This package builds connections — one of only three that do, with
-[`blob_store/`](../blob_store/README.md) and [`nlp/`](../nlp/README.md). It
-holds **no business logic**: a stage owns a repository over these models, and
-this package owns the tables, the enums, the connection and the migrations.
+This package builds the connection to PostgreSQL. It holds **no business
+logic**: a stage owns a repository over these models, and this package owns
+the tables, the enums, the connection and the migrations.
 
 ## The tables
 
@@ -19,7 +19,7 @@ this package owns the tables, the enums, the connection and the migrations.
 | `fact_passages` | Which passages a fact rests on, and the span it cited in each | extraction |
 | `topics` | Both a fitted topic and a request to refit | [topic modelling](../topic_modelling/README.md), [question generation](../question_generation/README.md) |
 | `passage_topics` | How much of each topic a passage holds | topic modelling |
-| `questions` | The question, its answer, its derived difficulty, its thread, its embedding and its release | question generation |
+| `questions` | The question, its answer, its derived difficulty, its thread, its embedding, its release and the models that wrote and checked it | question generation |
 | `question_facts` | Which facts each question cites | question generation |
 | `service_settings` | The settings a deployment changed | the API, the CLI, the UI |
 | `assessments` | What an independent judge made of one artefact, and the queue the phase claims over | [the assessment phase](../assessment/README.md) |
@@ -63,6 +63,10 @@ take the question when its **first** citation went rather than its last. A
 question that loses a fact and keeps another is rejected as `source_changed`
 instead, and its release cleared.
 
+Both triggers lock the fact or the question before deciding, so two
+deletions at once leave neither a fact with no citation nor a question with
+no fact. The assessments of whatever goes cascade with it.
+
 `ingest_events.sha256` is a plain column, not a foreign key, so the record
 that an upload happened outlives the document and keeps its digest.
 
@@ -78,8 +82,8 @@ the row into [`archived_rows`](qa_generator/archived_rows.py) as
 `to_jsonb(OLD) - 'embedding'`. One shared function, because `to_jsonb` names
 no column.
 
-A trigger and not the services: one `make delete` reaches six tables and only
-the first row of it passes through any Python. A re-chunk, a re-extraction
+A trigger and not the services: one `make delete` reaches up to nine tables
+and only the first row of it passes through any Python. A re-chunk, a re-extraction
 and a statement typed into Adminer are archived the same way.
 
 It is not a soft delete. There is no `deleted_at` on any table and the live
@@ -94,7 +98,7 @@ Installed by the initial revision and by
 | Extension | For |
 |---|---|
 | `vector` | The embedding column on `passages`, `facts`, `topics` and `questions`, and the HNSW indexes the dedup gates probe |
-| `pg_trgm` | The substring search behind every page's `q` box |
+| `pg_trgm` | The trigram indexes behind the substring search on `passages.text`, `facts.statement` and `facts.evidence_text`; every other `q` box matches with no trigram index |
 
 `tests/static/test_schema_extensions.py` checks that both routes build the
 same database.
@@ -132,6 +136,29 @@ back out every one of them on a real PostgreSQL.
 
 A revision's docstring says **why**; the diff says what.
 
+`/status` and every queue compare the revision the database records with the
+head these carry ([`revision.py`](qa_generator/revision.py)): until
+`make schema` has applied it, `/status` is not green and a queue claims
+nothing.
+
+The thirteen revisions, oldest first:
+
+| File | Changes |
+|---|---|
+| `20260927_1913_initial_schema.py` | Every table, index, constraint and column comment, the two extensions, the three trigger functions and the fifteen triggers |
+| `20261001_1730_fact_keeps_its_other_citations.py` | A bridge goes with any citation it loses; any other fact only with its last |
+| `20261008_1700_released_question_is_accepted.py` | A CHECK: a question in the release is `accepted` |
+| `20261008_1710_question_losing_a_fact_is_rejected.py` | A question that loses one of its facts is rejected as `source_changed` and leaves the release; one left with none is deleted |
+| `20261008_1720_upload_keeps_its_digest.py` | `ingest_events.sha256` is a plain column, no longer a foreign key to `documents` |
+| `20261008_1730_topic_records_its_decision.py` | Adds `topics.decided_at`, when a person last named a topic or set its coverage |
+| `20261008_1800_question_names_its_models.py` | Adds `questions.writer_model`, `verifier_model` and `phrasing_model` |
+| `20261008_1810_orphan_triggers_lock_the_parent.py` | Both orphan triggers lock the fact or the question before deciding |
+| `20261008_1820_citation_carries_both_bounds.py` | A citation that names its sentences must carry both evidence bounds |
+| `20261008_1830_column_comments_say_what_is_there.py` | Comments only: `fact_passages.passage_id`, `assessment_metrics.metric`, `questions.question_type`, `questions.settings_version` |
+| `20261008_1840_oversized_names_the_real_budget.py` | Comment only: `documents.oversized` names the budget the chunker cuts to |
+| `20261009_1000_settings_version_comments.py` | Comments only: `settings_version` on `facts`, `topics` and `assessments`, and `questions.prompt_version` |
+| `20261009_1200_column_comments_after_the_fixes.py` | Comments only: `prompts.version`, `prompts.digest`, `facts.prompt_version`, `topics.embedding` |
+
 ## Column comments
 
 Column comments live on the models and are carried into the database by the
@@ -153,8 +180,9 @@ is never a setting.
 
 `grafana_reader` holds `SELECT` and nothing else. It is granted on **two**
 databases, the application's and Phoenix's, which the Run dashboard reads
-together. Phoenix owns its own schema, so the default privilege there is
-declared for the Phoenix role rather than the superuser.
+together. On Phoenix's it reads only the five tables that dashboard queries,
+granted by `make up` through `make grafana-grants` once Phoenix has made
+them.
 
 The role is created by
 [`configs/postgres/init.sh`](../../configs/postgres/init.sh), which only runs
@@ -176,7 +204,7 @@ poetry run pytest tests/integration/database
 | [`test_migration_rollback.py`](../../tests/integration/database/test_migration_rollback.py) | Every revision, applied and taken back out |
 | [`test_constraints.py`](../../tests/integration/database/test_constraints.py), [`test_fact_constraints.py`](../../tests/integration/database/test_fact_constraints.py) | What the database refuses to hold |
 | [`test_indexes.py`](../../tests/integration/database/test_indexes.py) | The indexes and column types the queries are written against |
-| [`test_trigger.py`](../../tests/integration/database/test_trigger.py) | The trigger that deletes a question once its last fact is gone |
+| [`test_trigger.py`](../../tests/integration/database/test_trigger.py) | The triggers that delete a fact or a question once its last source is gone, two deletions at once included |
 | [`test_queue.py`](../../tests/integration/database/test_queue.py), [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py) | Claiming, the lease sweep, and two queues on one table |
 | [`test_orphans.py`](../../tests/integration/test_orphans.py) | What survives deleting every document |
 | [`tests/static/test_migrations.py`](../../tests/static/test_migrations.py) | The revision chain: one head, no gaps |
@@ -194,6 +222,7 @@ reason, where no container engine answers.
   the buckets are not.
 - **Autogenerate will not notice a trigger.**
 - **`documents` is the one row two stages both write.** Parsing owns
-  `parse_status`, chunking owns `chunk_status`, and neither reads the
-  other's.
+  `parse_status` and chunking owns `chunk_status`. Chunking reads
+  `parse_status` to know which documents may be queued; parsing never reads
+  `chunk_status`.
 - **Deleting every document does not empty the corpus.** The topics survive.
