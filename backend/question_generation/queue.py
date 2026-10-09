@@ -63,7 +63,7 @@ _NEXT_PENDING = (
 )
 
 #: A fact some accepted question already rests on. Skipping these is what
-#: makes a second run cheap: a refit returns every topic to `new`, and
+#: makes a second run cheap: a refit returns every topic it fits to `new`, and
 #: without it the writer would be paid for once per duplicate before the
 #: dedup gate could throw the duplicate away.
 _ALREADY_ASKED = (
@@ -291,8 +291,7 @@ class QuestionQueue(RowQueue):
     ) -> None:
         """Binds to the session factory, with the kinds of fact it may offer.
 
-        `kinds` is QUESTIONS_FACT_KINDS. `atomic` alone by default, which is
-        the only shape every prompt and gate here was written for.
+        `kinds` is QUESTIONS_FACT_KINDS. `ASKABLE` by default.
 
         `version` is the configuration every question it writes was written
         under, and the three models are the ones that wrote and checked it.
