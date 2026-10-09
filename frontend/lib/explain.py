@@ -111,13 +111,7 @@ def direction(reading: Mapping[str, object]) -> str:
     return _DIRECTION[high_is_safe(reading)]
 
 
-def reachable(threshold: float, safe_end: float) -> str:
-    """The stretch of a scale a reading can actually land in."""
-    low, high = sorted((float(threshold), float(safe_end)))
-    return f"{low:.2f}–{high:.2f}"
-
-
-def panel(service: Service, label: str = "How this works") -> None:
+def panel(service: Service, label: str) -> None:
     """Draws one service's workings, in a single fold.
 
     One fold and not three, split into tabs inside it. A page that opens

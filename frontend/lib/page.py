@@ -60,16 +60,15 @@ def header(title: str) -> None:
 
 
 @contextmanager
-def panel(title: str) -> Iterator[Any]:
+def panel(title: str) -> Iterator[None]:
     """Opens one bordered section, labelled.
 
     The label is drawn inside the border rather than above it, so a section
     and its heading cannot drift apart.
     """
-    box = st.container(border=True)
-    with box:
+    with st.container(border=True):
         st.html(f"<div class='qa-panel-label'>{title}</div>")
-        yield box
+        yield
 
 
 @contextmanager
