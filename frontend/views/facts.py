@@ -402,19 +402,11 @@ def _decomposition_row(quality: dict, kind: str | None) -> dict[str, str]:
     ratio = quality["mean_evidence_predicates"] / statement if statement else 0
     return {
         "Check": "Decomposition",
-        "Value": _decomposition(quality),
+        "Value": f"{ratio:.1f}×" if statement else "—",
         "Should be": f"above {_DECOMPOSITION_FLOOR}×",
         "State": "OK" if ratio >= _DECOMPOSITION_FLOOR else "Attention",
         "What it means": "Claims the cited sentences carried, per claim kept.",
     }
-
-
-def _decomposition(quality: dict) -> str:
-    """How many claims the cited text carried for each one kept."""
-    statement = quality["mean_statement_predicates"]
-    if not statement:
-        return "—"
-    return f"{quality['mean_evidence_predicates'] / statement:.1f}×"
 
 
 def _detail(client, fact: dict) -> None:
