@@ -289,7 +289,7 @@ def test_a_fit_carries_the_time_it_was_asked_for(store) -> None:
 
 
 def test_a_fitted_topic_arrives_new_to_question_generation(store) -> None:
-    """A refit returns every topic to that queue."""
+    """A refit returns every topic it fits to that queue."""
     store.given_passages(de=1)
 
     store.store(fitting("de"))
