@@ -22,21 +22,41 @@ def unserved(monkeypatch):
 # ── Reading the environment ───────────────────────────────────────────────
 
 
-def test_the_fitter_settings_are_read_from_the_environment(unserved) -> None:
-    """The values in configs/env/backend.env, which the tests load."""
-    assert unserved.num_topics == 40
-    assert unserved.passages_per_topic == 40
-    assert unserved.passes == 10
-    assert unserved.random_state == 42
-    assert unserved.top_terms == 12
-    assert unserved.min_weight == 0.05
-    assert unserved.no_below == 3
-    assert unserved.no_above == 0.5
+def _sentinels(**values: str) -> Settings:
+    """The settings, read with distinct values over the environment."""
+    import os
+
+    return Settings.load({**os.environ, **values})
 
 
-def test_the_language_names_are_read_as_pairs(unserved) -> None:
+def test_the_fitter_settings_are_read_from_the_environment() -> None:
+    """Each into its own field, so two read into each other's fail."""
+    loaded = _sentinels(
+        TOPIC_NUM_TOPICS="7",
+        TOPIC_PASSAGES_PER_TOPIC="11",
+        TOPIC_PASSES="13",
+        TOPIC_RANDOM_STATE="17",
+        TOPIC_TOP_TERMS="19",
+        TOPIC_MIN_WEIGHT="0.23",
+        TOPIC_NO_BELOW="29",
+        TOPIC_NO_ABOVE="0.31",
+    )
+
+    assert loaded.num_topics == 7
+    assert loaded.passages_per_topic == 11
+    assert loaded.passes == 13
+    assert loaded.random_state == 17
+    assert loaded.top_terms == 19
+    assert loaded.min_weight == 0.23
+    assert loaded.no_below == 29
+    assert loaded.no_above == 0.31
+
+
+def test_the_language_names_are_read_as_pairs() -> None:
     """The naming prompt says which language to answer in by name."""
-    assert unserved.languages == {"de": "German", "en": "English"}
+    loaded = _sentinels(TOPIC_LANGUAGE_NAMES="aa:Afar,zu:Zulu")
+
+    assert loaded.languages == {"aa": "Afar", "zu": "Zulu"}
 
 
 def test_no_model_configured_is_a_valid_deployment(unserved) -> None:

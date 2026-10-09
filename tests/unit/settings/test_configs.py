@@ -4,8 +4,9 @@ One `load` per stage, each a trust boundary: the values arrive as strings
 from a file nobody type-checks, and a stage that starts with the wrong one
 fails a corpus rather than a request.
 
-The values here are the ones in configs/env/backend.env, which
-tests/conftest.py has already put in the environment.
+A test of what a setting is read as lays a distinct sentinel over the
+environment tests/conftest.py loaded, so two settings read into each other's
+field fail.
 """
 
 from __future__ import annotations
@@ -13,15 +14,25 @@ from __future__ import annotations
 import pytest
 
 
+def _loaded(module: str, **sentinels: str):
+    """One stage's settings, read with `sentinels` over the environment."""
+    import importlib
+    import os
+
+    return importlib.import_module(module).Settings.load({**os.environ, **sentinels})
+
+
 def test_ingestion_reads_its_limit_and_its_allowlist() -> None:
     """What an upload is measured and typed against."""
-    from ingestion.config import Settings
-
-    loaded = Settings.load()
+    loaded = _loaded(
+        "ingestion.config",
+        MAX_FILE_SIZE_MB="7",
+        ALLOWED_MIME_TYPES="application/pdf,text/plain",
+    )
 
     assert loaded.pipeline_version
-    assert loaded.max_file_size_mb == 100
-    assert loaded.allowed_mime_types == ("application/pdf",)
+    assert loaded.max_file_size_mb == 7
+    assert loaded.allowed_mime_types == ("application/pdf", "text/plain")
 
 
 def test_the_upload_limit_is_offered_in_bytes() -> None:
@@ -50,26 +61,36 @@ def test_an_allowlist_naming_an_undetectable_type_is_refused(monkeypatch) -> Non
 
 def test_chunking_reads_the_model_it_sizes_passages_against() -> None:
     """One name for the tokenizer and the embedder, so they cannot differ."""
-    from preprocessing.chunking.config import Settings
+    loaded = _loaded(
+        "preprocessing.chunking.config",
+        EMBEDDING_MODEL="sentinel/embedder",
+        EMBEDDING_MAX_TOKENS="11",
+        CHUNKING_MERGE_PEERS="false",
+    )
 
-    loaded = Settings.load()
-
-    assert loaded.embedding_model
-    assert loaded.max_tokens == 512
-    assert loaded.merge_peers is True
+    assert loaded.embedding_model == "sentinel/embedder"
+    assert loaded.max_tokens == 11
+    assert loaded.merge_peers is False
 
 
 def test_parsing_reads_its_thresholds_and_its_timeout() -> None:
     """What decides an OCR fallback and what stops a runaway conversion."""
-    from preprocessing.parsing.config import Settings
+    loaded = _loaded(
+        "preprocessing.parsing.config",
+        PARSING_OCR_CHAR_THRESHOLD="13",
+        PARSING_MIN_CONFIDENCE="0.17",
+        PARSING_TABLE_MODE="sentinel-mode",
+        PARSING_HEADING_HIERARCHY="false",
+        PARSING_TIMEOUT_SECONDS="19.5",
+        DOCLING_ARTIFACTS_PATH="/sentinel/artifacts",
+    )
 
-    loaded = Settings.load()
-
-    assert loaded.ocr_char_threshold == 100
-    assert loaded.min_confidence == 0.5
-    assert loaded.table_mode == "accurate"
-    assert loaded.heading_hierarchy is True
-    assert loaded.document_timeout_seconds == 1800
+    assert loaded.ocr_char_threshold == 13
+    assert loaded.min_confidence == 0.17
+    assert loaded.table_mode == "sentinel-mode"
+    assert loaded.heading_hierarchy is False
+    assert loaded.document_timeout_seconds == 19.5
+    assert loaded.artifacts_path == "/sentinel/artifacts"
 
 
 def test_parsing_treats_an_unset_artifacts_path_as_absent(monkeypatch) -> None:
@@ -83,19 +104,30 @@ def test_parsing_treats_an_unset_artifacts_path_as_absent(monkeypatch) -> None:
 
 def test_topic_modelling_reads_the_fitter_and_the_language_names() -> None:
     """The names are what a report is read by."""
-    from topic_modelling.config import Settings
+    loaded = _loaded(
+        "topic_modelling.config",
+        TOPIC_LANGUAGE_NAMES="aa:Afar,zu:Zulu",
+        TOPIC_NUM_TOPICS="7",
+        TOPIC_PASSAGES_PER_TOPIC="11",
+        TOPIC_PASSES="13",
+        TOPIC_RANDOM_STATE="17",
+        TOPIC_TOP_TERMS="19",
+        TOPIC_MIN_WEIGHT="0.23",
+        TOPIC_NO_BELOW="29",
+        TOPIC_NO_ABOVE="0.31",
+        TOPIC_LABEL_MIN_FACT_SHARE="0.37",
+    )
 
-    loaded = Settings.load()
-
-    assert loaded.languages == {"de": "German", "en": "English"}
-    assert loaded.num_topics == 40
-    assert loaded.passages_per_topic == 40
-    assert loaded.passes == 10
-    assert loaded.random_state == 42
-    assert loaded.top_terms == 12
-    assert loaded.min_weight == 0.05
-    assert loaded.no_below == 3
-    assert loaded.no_above == 0.5
+    assert loaded.languages == {"aa": "Afar", "zu": "Zulu"}
+    assert loaded.num_topics == 7
+    assert loaded.passages_per_topic == 11
+    assert loaded.passes == 13
+    assert loaded.random_state == 17
+    assert loaded.top_terms == 19
+    assert loaded.min_weight == 0.23
+    assert loaded.no_below == 29
+    assert loaded.no_above == 0.31
+    assert loaded.label_min_fact_share == 0.37
 
 
 def test_topic_modelling_names_no_model_when_none_is_served(monkeypatch) -> None:
