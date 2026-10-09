@@ -6,11 +6,11 @@ Every flag is the same operation as the route beside it under /settings:
   python -m settings.run --service topics --set K=V      PATCH
   python -m settings.run --service topics --unset K      PATCH, with a null
 
-One command for all seven services, `platform` included. The Makefile wraps
+One command for all eight services, `platform` included. The Makefile wraps
 it per service.
 
-Nothing here runs a stage. A setting written reaches a worker when that
-worker next claims a row, and what a change staled is printed.
+Nothing here runs a stage. A setting written reaches a worker at that
+worker's next drain, and what a change staled is printed.
 """
 
 from __future__ import annotations
