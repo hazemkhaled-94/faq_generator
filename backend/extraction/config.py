@@ -107,11 +107,6 @@ class Settings:
         """The most atomic facts one passage keeps, or None for no cap."""
         return atomic_cap(len(self.digests), self.min_other_share)
 
-    @property
-    def bridging(self) -> bool:
-        """Whether a run writes bridge facts at all."""
-        return FactKind.BRIDGE in self.kinds
-
     @classmethod
     def load(cls, source: Source = None) -> Settings:
         """Reads settings from the environment, or from an override.

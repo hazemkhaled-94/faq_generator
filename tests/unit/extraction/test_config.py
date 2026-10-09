@@ -43,7 +43,6 @@ def test_every_kind_may_be_asked_for(monkeypatch) -> None:
 
     assert read.kinds == frozenset(FactKind)
     assert read.digests == (FactKind.SUMMARY, FactKind.OUTLINE)
-    assert read.bridging
 
 
 def test_the_digests_come_back_in_storage_order(monkeypatch) -> None:
@@ -55,11 +54,10 @@ def test_the_digests_come_back_in_storage_order(monkeypatch) -> None:
 def test_a_deployment_writing_only_atomic_facts_asks_for_nothing_else(
     monkeypatch,
 ) -> None:
-    """Neither the digest call nor the bridge pass costs anything."""
+    """The digest call costs nothing."""
     read = settings(monkeypatch, EXTRACTION_KINDS="atomic")
 
     assert read.digests == ()
-    assert not read.bridging
 
 
 def test_spacing_and_case_are_forgiven(monkeypatch) -> None:

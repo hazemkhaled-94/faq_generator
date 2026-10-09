@@ -160,8 +160,6 @@ class BridgeExtractor:
     and is not in the registry.
     """
 
-    method = "llm"
-
     def __init__(self, client: Client) -> None:
         """Initialises the extractor with the model it asks."""
         self._client = client

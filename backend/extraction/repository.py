@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
-from datetime import timedelta
 from itertools import groupby
 from typing import ClassVar, cast
 
@@ -276,11 +275,9 @@ class PassageQueue(RowQueue):
     done = Status.EXTRACTED
     next_pending = _NEXT_PENDING
 
-    def __init__(
-        self, lease: timedelta | None = None, version: str | None = None
-    ) -> None:
-        """Binds to the session factory, with a lease and a settings version."""
-        super().__init__(lease)
+    def __init__(self, version: str | None = None) -> None:
+        """Binds to the session factory, with a settings version."""
+        super().__init__()
         self._version = version
 
     def claim(self) -> PassageToExtract | None:
