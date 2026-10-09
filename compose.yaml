@@ -860,6 +860,8 @@ services:
     volumes:
       - ./certs/ca.crt:/etc/argilla-certs/ca.crt:ro
       - argilla_data:/argilla
+    # The image's own volume, unused: ARGILLA_HOME_PATH is /argilla above.
+    tmpfs: [/var/lib/argilla]
     ports:
       - "127.0.0.1:${ARGILLA_PORT}:6900"
     depends_on:
