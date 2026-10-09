@@ -6,7 +6,7 @@ one call against one sample with one shape back.
 
 What each asks for comes from the plan's type, in `types.py`. Nothing about a
 domain is written here: a type says what kind of thing to ask for, and the
-same eleven types are askable of a manual, a contract or a report.
+same thirteen types are askable of a manual, a contract or a report.
 
 The writer is shown the passage each fact came from, and says which facts its
 question needs. Neither was true of the first version of this module, and both
