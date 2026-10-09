@@ -108,13 +108,11 @@ x-store-env: &store-env
 # Read by the stages that call one, and by the api, which calls no model and
 # serves these as settings.
 x-model-env: &model-env
-  # The containers' model. Ollama, always: a container holds no cloud
-  # credential and must never reach a hosted provider. The host's
-  # LLM_MODEL is deliberately not a fallback - inheriting it is how a
-  # stale container spent 2,019 restarts failing to authenticate to Azure.
+  # The containers' model, an Ollama one. The host's LLM_MODEL is not a
+  # fallback.
   LLM_MODEL: ${LLM_CONTAINER_MODEL:?containers run Ollama; name the model}
   # Ollama's address, as a container sees it. Not the host's, and not
-  # overridable: there is nowhere else a container may send a prompt.
+  # overridable.
   LLM_BASE_URL: ${OLLAMA_CONTAINER_URL:?containers need Ollama's address}
   OLLAMA_BASE_URL: ${OLLAMA_CONTAINER_URL}
   # The second model, which checks what the first wrote. Optional, and its
