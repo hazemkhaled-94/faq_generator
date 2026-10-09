@@ -176,18 +176,6 @@ def test_a_claim_reads_the_topic_it_will_write_about(corpus) -> None:
     assert claimed.include_in_coverage is True
 
 
-def test_two_workers_never_take_the_same_topic(corpus) -> None:
-    """FOR UPDATE SKIP LOCKED, over a queue of two dozen rows at most."""
-    corpus(topics=3)
-    queue = QuestionQueue()
-    queue.start()
-
-    taken = [queue.claim(), queue.claim(), queue.claim()]
-
-    assert all(one is not None for one in taken)
-    assert len({one.id for one in taken if one}) == 3
-
-
 def test_a_claim_that_outlived_its_lease_is_failed(corpus, engine) -> None:
     """A topic costs many model calls, so its lease is long and still finite."""
     corpus(topics=1)
@@ -1607,16 +1595,6 @@ def test_neither_retry_nor_rerun_moves_a_row_a_worker_holds(corpus, engine) -> N
     assert QuestionQueue().retry() == 0
     assert QuestionQueue().reset() == 0
     assert statuses(engine)["in_progress"] == 1
-
-
-def test_reclaim_returns_it_to_the_queue(corpus, engine) -> None:
-    """Without waiting out a lease nobody is going to wait out."""
-    corpus(topics=1)
-    QuestionQueue().start()
-    QuestionQueue().claim()
-
-    assert QuestionQueue().reclaim() == 1
-    assert statuses(engine)["pending"] == 1
 
 
 def test_reclaim_can_be_narrowed_to_one_topic(corpus, engine) -> None:

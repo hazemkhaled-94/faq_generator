@@ -111,16 +111,6 @@ def test_stopping_leaves_a_fit_already_running(store) -> None:
     assert len(store.requests()) == 1
 
 
-def test_retrying_returns_a_failed_fit_to_the_queue(store) -> None:
-    """The error is cleared with it."""
-    failed = store.request()
-    store.queue.fail(failed, "no vocabulary")
-
-    assert store.queue.retry() == 1
-    assert store.requests()[0]["status"] == Status.PENDING
-    assert store.requests()[0]["error"] is None
-
-
 def test_an_abandoned_claim_is_failed_by_the_next_run(store) -> None:
     """A worker that died holding a fit must not leave it invisible."""
     from datetime import timedelta

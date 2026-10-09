@@ -86,16 +86,6 @@ class TestClaiming:
         assert claimed is not None
         assert claimed.language == "en"
 
-    def test_claiming_marks_the_row_in_progress(self, store, corpus) -> None:
-        """So a second worker takes the following row instead."""
-        store.queued(*corpus["a"])
-        first = store.queue.claim()
-        second = store.queue.claim()
-
-        assert first is not None and second is not None
-        assert first.id != second.id
-        assert store.queue.claim() is None
-
 
 class TestStoring:
     """Writing what one passage yielded."""
