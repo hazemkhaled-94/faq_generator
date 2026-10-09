@@ -36,7 +36,7 @@ class DocumentStore(Protocol):
 
 
 class ParsedStore(Protocol):
-    """The store holding converted documents. Read and delete only."""
+    """The store holding converted documents, by name and key."""
 
     name: ClassVar[str]
     """What the store is called, which the archive keys an object by.
@@ -47,10 +47,6 @@ class ParsedStore(Protocol):
 
     def key_for(self, sha256: str) -> str:
         """Returns the key a converted document is stored under."""
-        ...
-
-    def remove(self, key: str) -> bool:
-        """Deletes an object, reporting whether one was there."""
         ...
 
 
