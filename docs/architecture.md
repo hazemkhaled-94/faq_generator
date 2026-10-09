@@ -53,8 +53,9 @@ no answer for the facts to support. It is also the one stage that can be switche
 entirely, with `ASSESSMENT_ENABLED`, because it is the one stage the dataset
 does not depend on.
 
-A stage selects on its own status column and on nothing else. Chunking never
-reads `parse_status`, which is how parsing and chunking own different columns
+A stage claims on its own status column and on nothing else. Chunking reads
+`parse_status` only in `start` and `rerun`, to queue just the documents
+parsing has finished, which is how parsing and chunking own different columns
 of the same `documents` row.
 
 The five buckets are `documents`, `parsed`, `models`, `export` and `archive` —
@@ -89,6 +90,7 @@ nothing starts by itself — the Start button, a route, a `make …-start` or th
 Claiming is `SELECT … FOR UPDATE SKIP LOCKED`, one row at a time:
 
 ```bash
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 podman compose up -d --scale extract-worker=4
 ```
 
@@ -188,7 +190,6 @@ flowchart LR
     logs --> filebeat --> elasticsearch --> grafana
     host -.spans.-> phoenix
     workers -.spans.-> phoenix
-    api -.spans.-> phoenix
     elasticsearch --> argilla
 ```
 
@@ -202,15 +203,17 @@ the application.
 
 `make extract`, `make topics` and `make questions` run the identical code in
 a host process against the same database, and the Makefile sources the same
-files compose hands the containers.
+files compose hands the containers. Each refuses while that stage's container
+worker is running, and prints the command that stops it, so the host and the
+containers never drain one queue at once.
 
 Some credentials exist only where a person is — an interactive cloud login, a
 key in a login keychain — and a container holds none of them.
 `LLM_CONTAINER_MODEL` is the split: the containers call a model they can
-authenticate to, the host calls the one it can, and both drain the same
-queues because claiming is `FOR UPDATE SKIP LOCKED`. That is two halves of
-one corpus, not an A/B — comparing two models means running them over the
-same rows under two `RUN_ID`s.
+authenticate to, and the host calls the one it can. The container workers
+build the dataset; a host drain is for developing a stage, and host parse,
+chunk and extract runs are kept off the dataset. Comparing two models means
+running them over the same rows under two `RUN_ID`s.
 
 `LOG_DIR` names `./logs` on the host and the `logs` volume in a container,
 and filebeat reads both into the same data stream. `host.name` tells a
@@ -221,7 +224,7 @@ machine from a container id.
 | Signal | Path | Read with |
 |---|---|---|
 | Logs | process → `logs` volume or `./logs` (JSON, ECS fields) → Filebeat → Elasticsearch | Grafana, `make logs` |
-| Traces | process → OTLP → Phoenix, one project per `<position>-<stage>-<run id>` | Phoenix |
+| Traces | a stage's process → OTLP → Phoenix, one project per `<position>-<stage>`, and its own `<position>-<stage>-<RUN_ID>` for a run named with `RUN_ID` | Phoenix |
 | Cost and tokens | on the span, and on the log line beside it | Phoenix, Grafana, `make spend LOG=` |
 | Gate verdicts | the row in Postgres, an attribute on the span, one annotation per gate | the Questions page, Phoenix's Evaluations view |
 | Which gates ran | `questions.gates_ran`, in the order they read it | the Questions page, `GET /lineage/question/<id>` |
@@ -260,7 +263,8 @@ run. The first ages the Elasticsearch index, the second the files.
 |---|---|
 | Any behaviour setting | [`backend/settings/catalog.py`](../backend/settings/catalog.py) |
 | Which model, or which provider | `LLM_MODEL` in `.env`; credentials in `configs/env/provider.env` |
-| Credentials, ports, addresses | `.env` |
+| Secrets | `.env` |
+| Ports, addresses, role names | `configs/env/deployment.env` |
 | How the pipeline behaves, by default | `configs/env/backend.env` |
 | What a stage does | that stage's package, and nothing else |
 
