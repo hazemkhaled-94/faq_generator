@@ -30,8 +30,25 @@ def test_the_fit_reports_what_it_was_over(fitter, passages) -> None:
 
 
 def test_the_fit_produces_the_number_of_topics_it_was_asked_for(fitter) -> None:
-    """TOPIC_NUM_TOPICS is a count, not a ceiling."""
+    """TOPIC_NUM_TOPICS is a ceiling, fitted as written with no passages per topic."""
     assert fitter.fit("de").topic_count == 2
+
+
+@pytest.mark.parametrize(
+    ("per_topic", "passages", "count"),
+    [(0, 15, 7), (10, 15, 2), (10, 45, 4), (10, 1000, 7)],
+)
+def test_the_topic_count_follows_the_corpus_under_its_ceiling(
+    settings, per_topic: int, passages: int, count: int
+) -> None:
+    """One topic per TOPIC_PASSAGES_PER_TOPIC passages, from two to the ceiling."""
+    from topic_modelling.topics import TopicFitter
+
+    fitter = TopicFitter(
+        **settings | {"num_topics": 7, "passages_per_topic": per_topic}
+    )
+
+    assert fitter._count(passages) == count
 
 
 def test_every_topic_carries_a_signature_no_longer_than_asked_for(
