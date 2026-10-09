@@ -589,7 +589,7 @@ def test_every_question_is_written_to_a_plan() -> None:
 
 
 def test_the_kinds_written_are_the_kinds_that_were_asked_for() -> None:
-    """A type with no weight is never written, which is the switch."""
+    """A type with no weight is never planned, which is the switch."""
     facts = [source(n, document="ab"[n % 2], passage_id=n) for n in range(20)]
     service, queue = build(topic(), facts)
 
