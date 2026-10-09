@@ -1,10 +1,10 @@
 """How well whatever answers the three phrasing judgements answers them.
 
 `names_its_source`, `self_contained` and `subject` are judgements about a
-question alone - no passage decides any of them. They ride along in the
-verifier's reading call today, and until this module existed nothing measured
-them: the only ground truth was the model that answered, so a change to the
-prompt or to the model moved the numbers with nothing to say which way.
+question alone - no passage decides any of them. Until this module existed
+nothing measured them: the only ground truth was the model that answered, so
+a change to the prompt or to the model moved the numbers with nothing to say
+which way.
 
 That is the point of this file, and it is deliberately here before anything
 is swapped. A judgement with no ground truth cannot be moved off a model
@@ -75,9 +75,9 @@ class Score:
 def majority(judgement: str) -> float:
     """What answering every case the same way would score.
 
-    The floor a judgement has to clear to be doing anything. Four of nineteen
-    cases are not self-contained, so a judge that says True every time scores
-    0.79 on that one and has measured nothing.
+    The floor a judgement has to clear to be doing anything. Seven of
+    twenty-five cases are not self-contained, so a judge that says True every
+    time scores 0.72 on that one and has measured nothing.
     """
     counts = Counter(case[judgement] for case in PHRASING)
     return max(counts.values()) / len(PHRASING)
@@ -188,7 +188,7 @@ def test_every_judgement_is_scored_on_its_own(scored) -> None:
 def test_the_german_cases_are_judged_as_well_as_the_english(scored) -> None:
     """A judge that reads German worse is the risk a swap carries.
 
-    Printed rather than asserted: twelve cases against seven is not a
+    Printed rather than asserted: sixteen cases against nine is not a
     difference anybody should gate on. It is here because the corpus is
     German and an English-first judge would pass every test above - which
     is not hypothetical. Asked inside the verifier's reading call these
