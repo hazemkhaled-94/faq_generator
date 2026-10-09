@@ -162,7 +162,7 @@ def add_document(request: Request, file: UploadFile) -> IngestResult:
     # Per upload: ingestion has no worker to pick a changed limit up.
     service = ingesting()
 
-    # Checked before the body is touched. Content-Length covers the whole
+    # Checked before the file is read. Content-Length covers the whole
     # multipart body, so it is an upper bound rather than the file's size:
     # past the limit by more than the framing, and `ingest` holds the file
     # itself to the limit exactly.
