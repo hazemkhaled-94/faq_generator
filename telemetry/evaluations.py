@@ -14,9 +14,10 @@ attribute cannot do that, because Phoenix does not know an arbitrary
 attribute is a judgement.
 
 `annotator_kind` is **CODE** and not LLM, and that distinction is the one
-this repository cares about most. A gate is a rule reading a parse; the
-three phrasing judgements that are a model's opinion are posted as LLM,
-so the two can be told apart in the one place they are shown together.
+this repository cares about most. Every question gate is posted as CODE,
+the phrasing judgements included; the assessment judge's verdicts are a
+model's opinion and are posted as LLM, so the two can be told apart in the
+one place they are shown together.
 
 Best-effort throughout. Phoenix being unreachable must not fail a run that
 is otherwise producing questions: everything here is caught and logged,
