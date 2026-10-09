@@ -194,7 +194,7 @@ def test_start_queues_what_is_ready_and_skips_what_is_not(corpus, orchestrator):
 
 
 def test_start_leaves_the_fit_and_the_judge_alone(corpus, orchestrator):
-    """A refit replaces every topic and the judge costs model calls.
+    """A refit replaces each fitted language's topics and the judge costs model calls.
 
     Both are asked for rather than swept into a fan-out, so neither is in
     the breakdown at all.
