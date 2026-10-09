@@ -4,7 +4,7 @@ Role, Action, Steps, Context, Examples, Format. Twenty-five prompts across
 five services were written to that shape and nothing held them to it: a
 prompt is a string, and a rule added to one in a hurry goes wherever the
 cursor was. A missing FORMAT is the one that bites - a model given no
-answer shape invents one, and instructor retries it into a
+answer shape invents one, and the client retries it into a
 `ModelUnavailable` that reads as the model being down.
 
 The headings are checked, not the content. What a prompt SAYS is
