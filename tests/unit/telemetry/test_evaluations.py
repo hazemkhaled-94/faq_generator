@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from telemetry.evaluations import Evaluations, Verdict, current_span_id
+from telemetry.evaluations import Evaluations, Verdict
 
 BASE = "http://phoenix.invalid:6006"
 
@@ -155,11 +155,6 @@ def test_a_batch_is_held_until_it_is_full(monkeypatch) -> None:
 
     assert not posted, "nothing should have been posted yet"
     assert len(held._held) == 99
-
-
-def test_no_span_is_recording_here() -> None:
-    """Which is what every process without an exporter looks like."""
-    assert current_span_id() is None
 
 
 @pytest.mark.parametrize("field", ["run_id", "language", "answerable"])

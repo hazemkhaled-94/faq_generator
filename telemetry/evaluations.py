@@ -102,16 +102,6 @@ class Verdict:
         return annotation
 
 
-def current_span_id() -> str | None:
-    """The span being recorded into, as Phoenix names it.
-
-    None when nothing is recording, which is every process that configured
-    telemetry without an exporter and every test that did not open a span.
-    A verdict with no span to attach to is dropped rather than invented.
-    """
-    return current_ids()[1] or None
-
-
 def current_ids() -> tuple[str, str]:
     """The trace and the span being recorded into, as Phoenix names them.
 
