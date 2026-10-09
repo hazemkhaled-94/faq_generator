@@ -115,9 +115,9 @@ Write every statement in {{language}}."""
 #: Appended when EXTRACTION_MIN_OTHER_SHARE caps how many atomic facts a
 #: passage keeps. Asked for here as well as enforced on what comes back,
 #: because the facts over the cap are thrown away and a model told to write
-#: four instead of nineteen spends a fifth of the tokens reaching the same
-#: set. Left off entirely when there is no cap, rather than written as a
-#: large number: a ceiling nothing is near still changes what a model writes.
+#: fewer spends fewer tokens reaching the same set. Left off entirely when
+#: there is no cap, rather than written as a large number: a ceiling nothing
+#: is near still changes what a model writes.
 _CAP = """
 MOST IMPORTANT RULE, ABOVE ALL THE OTHERS:
 

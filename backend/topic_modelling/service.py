@@ -131,8 +131,8 @@ class TopicModellingService(StageService):
         for language in languages:
             # A span per language, not one for the lot: each is a separate
             # factorisation over its own vocabulary and then one model call
-            # per topic to name it, which is minutes. Under one span a fit
-            # that was slow in German reads as a fit that was slow.
+            # per topic to name it. Under one span a fit that was slow in
+            # German reads as a fit that was slow.
             with working(span, "fit_language", {"topic_fit.language": language}):
                 trace_id, span_id = current_ids()
                 try:
@@ -252,12 +252,8 @@ class TopicModellingService(StageService):
     def _barren(self, fitting: Fitting) -> frozenset[int]:
         """Which topics hold almost no facts, and so name no subject.
 
-        The deterministic half of "Mixed". Asking the model was answered
-        `Mixed` for none of 38 topics, including one whose terms were
-        `inhaltsverzeichnis, einführung, urheberschutzvermerk,
-        änderungsübersicht, danksagung` and which it named `Testverfahren`
-        off the one subject word among them. A model reliably names
-        whatever it is shown, so what it is shown is decided here.
+        The deterministic half of "Mixed". A model reliably names whatever
+        it is shown, so what it is shown is decided here.
 
         Read off the facts rather than off the terms, which is what makes it
         language-neutral: a passage extraction found nothing in says nothing,

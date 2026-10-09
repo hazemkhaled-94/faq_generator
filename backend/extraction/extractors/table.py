@@ -123,7 +123,7 @@ def _nearest(passage: PassageToExtract) -> str | None:
     """Names a table by the heading directly above it.
 
     The last segment only: the whole trail would repeat the document title in
-    every one of a table's sixty facts.
+    every one of a table's facts.
     """
     if not passage.section_path:
         return None

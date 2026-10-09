@@ -229,7 +229,7 @@ class JudgeMetric(StrEnum):
     a `hallucination` annotation posted by anything else means. The
     templates behind them are this repository's - see
     `assessment/templates.py` - because the shipped ones are written in
-    English about a retrieval answer, and half of this corpus is German.
+    English about a retrieval answer, and part of this corpus is German.
 
     HALLUCINATION  does the evidence support every part of the statement?
     RELEVANCE      is the evidence about what the artefact claims it is?

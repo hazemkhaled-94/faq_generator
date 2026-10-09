@@ -6,10 +6,10 @@ neither is about one stage:
 
 * **Run it end to end.** Stages have to be sequenced - chunking needs a
   parsed document - and sequencing means waiting for one to drain before
-  starting the next. A request cannot hold that wait: extraction over this
-  corpus was measured in hours. So `run` asks the orchestrator, which is the
-  component whose whole job is deciding when a stage should run, and returns
-  the run it started. See `api/orchestrator.py`.
+  starting the next. A request cannot hold that wait. So `run` asks the
+  orchestrator, which is the component whose whole job is deciding when a
+  stage should run, and returns the run it started. See
+  `api/orchestrator.py`.
 
 * **Act on all of them at once.** After a model outage the failures are
   spread over five queues, and visiting five routes to retry them is five
@@ -65,11 +65,11 @@ STAGES = (
 )
 
 #: Which of them `start` queues. Topic modelling is absent because a fit is
-#: asked for rather than started, and asking replaces every topic there is -
-#: which is a decision, not a fan-out. Assessment is absent because the phase
-#: is off unless `.env` turns it on, and starting it here would be this route
-#: overruling that. Both are reachable on their own: POST /topics/discover
-#: and POST /assessment/start.
+#: asked for rather than started, and asking replaces the topics of every
+#: language it fits - which is a decision, not a fan-out. Assessment is absent
+#: because the phase is off unless `.env` turns it on, and starting it here
+#: would be this route overruling that. Both are reachable on their own:
+#: POST /topics/discover and POST /assessment/start.
 STARTABLE = ("parsing", "chunking", "extraction", "questions")
 
 #: The verbs that mean something over the whole corpus, and the three the

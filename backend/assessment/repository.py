@@ -188,7 +188,7 @@ class AssessmentQueue(RowQueue):
         trigger=Assessment.assess_trigger,
     )
     #: Narrowed to one kind, which is how `--only kind=question` judges the
-    #: questions without paying for twenty thousand facts.
+    #: questions without paying for the facts.
     scopes: ClassVar[dict[str, InstrumentedAttribute]] = {
         "kind": Assessment.artifact_kind
     }
@@ -210,12 +210,6 @@ class AssessmentQueue(RowQueue):
         passes both, because it has already resolved them to stamp the
         version beside them; the api passes neither, and a default of
         "every kind, every row" is what that turned into.
-
-        That default enrolled 11,392 artefacts the first time
-        `POST /assessment/enrol` was called against a deployment whose
-        ASSESSMENT_SAMPLE was 200 - and `start`, which enrols and then
-        queues, would have put all of them in front of the judge at three
-        to six model calls each.
         """
         super().__init__()
         self._kinds = tuple(kinds) if kinds else None

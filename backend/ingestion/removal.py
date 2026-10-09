@@ -106,8 +106,8 @@ class RemovalService:
 
         The upload history goes too. It survives a single deletion on purpose
         - it records what was attempted rather than what is held - but an
-        empty corpus reporting nine upload attempts is a status panel
-        describing documents nothing has. It goes first.
+        empty corpus reporting upload attempts is a status panel describing
+        documents nothing has. It goes first.
 
         Every object is moved first and every row then goes in one
         statement, so a question resting on two documents is deleted whole

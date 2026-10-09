@@ -67,8 +67,7 @@ def build_service(
         checker=FactChecker(settings.digest_share),
         digest=DigestExtractor(condensing, digests) if digests else None,
         # Asked for in the prompt and enforced again on what comes back: a
-        # model told to write four still writes nine, and a cap nothing
-        # checks is a suggestion.
+        # cap nothing checks is a suggestion.
         atomic_cap=cap,
         digest_min_chars=settings.digest_min_chars,
         # Imported here rather than at the top of the module: loading it

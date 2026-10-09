@@ -162,10 +162,10 @@ def delete() -> TopicRemoval:
     topics. Any queued fit goes too.
 
     The rows land in `archived_rows` and both halves of each fit in the
-    archive bucket, so a fit that took an hour is recoverable until it is
-    purged. The model goes with the figure rather than outliving it: a
-    factorisation of topics that no longer exist describes nothing, and
-    leaving it behind is the orphan the figures used to be.
+    archive bucket, so a fit is recoverable until it is purged. The model
+    goes with the figure rather than outliving it: a factorisation of
+    topics that no longer exist describes nothing, and leaving it behind is
+    the orphan the figures used to be.
     """
     removed = topic_catalog.delete_all()
     for language in removed.languages:

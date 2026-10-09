@@ -329,9 +329,8 @@ def _cell_box(table, rows: list[tuple[list, dict | None]]) -> tuple[int, list] |
         if cell.bbox is not None
     ]
     page = next((prov.page_no for prov in table.prov or []), None)
-    # ponytail: one page per table, which holds for every table in this
-    # corpus. A table broken across a page boundary would need its cells
-    # grouped by which page each one falls on.
+    # ponytail: one page per table. A table broken across a page boundary
+    # would need its cells grouped by which page each one falls on.
     return (page, boxes) if page is not None and boxes else None
 
 

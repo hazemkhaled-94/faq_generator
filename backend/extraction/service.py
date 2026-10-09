@@ -262,8 +262,8 @@ def _paired(
     passages with nothing between them have no such claim: the prompt says
     returning none is correct, and a group of strangers is a call spent
     being told so. Sharing a topic is the corpus's own statement that two
-    passages are related, and it is a weak one - a topic holds eighty
-    passages and a subject is narrower than that.
+    passages are related, and it is a weak one - a subject is narrower than
+    a topic.
 
     So the topic narrows and the vectors pair, which is the same two-stage
     shape question generation uses to pair passages for a wide sample.
@@ -322,10 +322,9 @@ def grouped(
     whole = _paired(interleaved, size)
     # Evenly spaced from the first group to the last, rather than a stride.
     # A stride of len(whole) // wanted floors to 1 for any topic holding
-    # fewer than twice as many groups as were asked for, which is the
-    # ordinary case at twelve a topic - it then takes the first twelve of
-    # twenty-three and the back half of the topic is never read. Ceiling
-    # instead returns ten groups where twelve were wanted.
+    # fewer than twice as many groups as were asked for - it then takes the
+    # first `wanted` and the rest of the topic is never read. Ceiling
+    # instead returns fewer groups than were wanted.
     chosen = min(wanted, len(whole))
     step = (len(whole) - 1) / (chosen - 1) if chosen > 1 else 0
     return [whole[round(at * step)] for at in range(chosen)]
@@ -377,7 +376,7 @@ def bridge(
     log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
     written = 0
     # Groups the model could not be asked about. Counted because skipping
-    # one and carrying on is right - a batch over hundreds of groups must
+    # one and carrying on is right - a batch over many groups must
     # not end because one call failed - but a pass that quietly wrote fewer
     # facts than it could have is a pass whose result cannot be read. The
     # same ExtractionFailed fails a PASSAGE outright, and the difference
@@ -386,9 +385,7 @@ def bridge(
     for topic_id, passages in catalog.by_topic(within):
         # The same gate the per-passage stage applies, so the two cannot
         # drift. Without it a group is spent on a table of contents or a
-        # heading: `by_topic` asks only that a passage was segmented, and
-        # the index this corpus renders as a code block yielded 95 facts
-        # from four passages before the gate existed.
+        # heading: `by_topic` asks only that a passage was segmented.
         readable = [one for one in passages if skipped(one) is None]
         for offered in grouped(readable, groups_per_topic, size):
             try:
@@ -427,10 +424,10 @@ def _is_heading(passage: PassageToExtract) -> bool:
 
 
 #: Block types that say where something is rather than what it says. A table
-#: of contents yields "Das Team managen beginnt auf Seite 69"; the index this
-#: corpus renders as a code block yielded 95 facts of the form "Der Lehrplan
-#: umfasst das Thema X" from four passages. Both are navigation, and a
-#: question asked of either measures a reader's page-turning.
+#: of contents yields "Das Team managen beginnt auf Seite 69"; an index
+#: rendered as a code block yields facts of the form "Der Lehrplan umfasst
+#: das Thema X". Both are navigation, and a question asked of either
+#: measures a reader's page-turning.
 _NAVIGATION = frozenset({"document_index", "code"})
 
 # ponytail: the skip heuristics below - _CHARS_PER_CLAIM, _NUMERIC_WORDS,
@@ -439,25 +436,16 @@ _NAVIGATION = frozenset({"document_index", "code"})
 
 #: How many characters a passage may carry per claim before it stops
 #: reading as prose. The parser labels what it recognises, and an index it
-#: does not recognise arrives as `text`: one did, at 1,568 characters
-#: carrying a single finite verb, and became questions asking which pages a
-#: term appears on. Prose in this corpus runs 166 characters per claim at
-#: the median and 357 at the 95th percentile.
+#: does not recognise arrives as `text`.
 #:
 #: Why not `claims` alone: that check already exists and refuses only a
-#: passage with none. A thousand characters of index with one stray verb in
-#: it passes, which is what happened.
+#: passage with none, and an index with one stray verb in it passes.
 _CHARS_PER_CLAIM = 500
 
 #: The share of a passage's words that may carry a digit before it reads as
 #: a list of references. Sparseness alone is not enough to judge on: a
 #: German bullet list is sparse because its points are infinitives rather
-#: than sentences, and those are content. Measured over the passages this
-#: pair of rules selects:
-#:
-#:     content bullets      0.0%      bibliography    9-16%
-#:     content prose        1.0%      contents page    25%
-#:                                    index          41-56%
+#: than sentences, and those are content.
 #:
 #: So both must hold. Digits rather than any word, so this says nothing
 #: about a language or a subject; a passage genuinely about numbers is a
@@ -487,11 +475,7 @@ _CODE_CELL = re.compile(
 
 #: The share of a table's filled cells that may be identifiers before the grid
 #: stops being a statement of anything. A traceability matrix, a release-note
-#: table and an abbreviation list are all mostly codes; measured over this
-#: corpus, no table carrying prose reaches half.
-#:
-#:     content tables    0.155 mean, none above 0.5
-#:     matrices etc.     0.424 mean, 28 of 68 above it
+#: table and an abbreviation list are all mostly codes.
 #:
 #: Set where nothing good is refused rather than where everything bad is
 #: caught: a table wrongly read yields a fact per cell, and a table wrongly
@@ -540,11 +524,9 @@ def _nothing_found(passage: PassageToExtract, current) -> None:
     went to `extracted` with nothing under it and the run looked clean.
 
     **The whole corpus can be lost this way without one error.** A model
-    answering every call with an empty list marks all 1,495 passages read
-    and writes no fact; the first thing to notice is a topic fit with
-    nothing to fit. Measured: muse-glimmer:30b-mlx sent `reasoning_effort
-    =off` returns 6 output tokens and zero facts on every call, and 2 of 2
-    the moment it is allowed to think.
+    answering every call with an empty list marks every passage read and
+    writes no fact; the first thing to notice is a topic fit with nothing
+    to fit.
 
     A warning rather than a raise, because one such passage is ordinary -
     a page of prose that asserts nothing does exist - and failing the row
@@ -610,12 +592,11 @@ def _unread_prose(passage: PassageToExtract) -> bool:
     merged into it is invisible to each of the signals above. The cell reader then walks the grid and nothing
     reads the rest.
 
-    Measured over this corpus: 161 of 188 table passages carry lines
-    outside their grids, about 145,000 characters. Most of it is rendered
-    rows and `|---|` separators, and the rest is ordinary German prose -
-    "In diesem Abschnitt werden die geschäftlichen Nutzen aufgeführt...".
-    A finite verb is what tells the two apart, so it is asked here rather
-    than read off a column that was written as zero.
+    Lines outside a table's grids are rendered rows and `|---|`
+    separators, or ordinary prose - "In diesem Abschnitt werden die
+    geschäftlichen Nutzen aufgeführt...". A finite verb is what tells the
+    two apart, so it is asked here rather than read off a column that was
+    written as zero.
     """
     return bool(passage.table_cells and _prose(passage))
 
@@ -654,8 +635,8 @@ def over_cap(facts: Sequence[CheckedFact], cap: int | None) -> set[int]:
     number of digests beside them. A table yields none: its rendered rows
     carry no finite verb, so `_DIGESTIBLE` is never met and there is no
     other kind for the share to be. Applying the cap there is arithmetic
-    about a quantity that is zero, and it threw away 56 of a 60-cell grid -
-    the cheapest and most checkable facts in the corpus - by grid position.
+    about a quantity that is zero, and it threw away table facts - the
+    cheapest and most checkable facts in the corpus - by grid position.
     """
     if cap is None:
         return set()
@@ -1009,11 +990,7 @@ class ExtractionService(StageService):
         Two floors, and the second is the one that costs money. A digest is
         a FIXED size - the prompt asks for two or three sentences, or two to
         six points - so how much it condenses is decided by the passage
-        rather than by the model. Measured over this corpus: against a
-        passage under 400 characters the median summary was 99% of it and
-        92% were refused as `not_condensed`; from 1,200 characters up, none
-        were. The check was measuring passage length and calling it digest
-        quality, and every one of those refusals had been paid for.
+        rather than by the model.
         """
         if self._digest is None or passage.claims < _DIGESTIBLE:
             return []

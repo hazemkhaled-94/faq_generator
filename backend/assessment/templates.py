@@ -14,12 +14,10 @@ pinned in `_CHOICES` below.
 The prompts behind them are this repository's, for three reasons the
 shipped ones cannot meet:
 
-- **Half of this corpus is German.** The shipped templates instruct in
-  English about an English answer, and `evaluation/README.md` records what
-  a judgement that is thinking in the wrong language does: gpt-4.1
-  answered a phrasing judgement 7/7 in English and 6/12 in German. Every
-  template here says the artefact may be in any language and that the
-  judgement is about what it does, not what it is written in.
+- **Part of this corpus is German.** The shipped templates instruct in
+  English about an English answer. Every template here says the artefact
+  may be in any language and that the judgement is about what it does, not
+  what it is written in.
 - **The artefacts are not a RAG answer.** phoenix-evals asks about a
   query, a context and a response. A fact has a statement and the sentences
   it cites; a topic has terms and a name. Substituting those into a

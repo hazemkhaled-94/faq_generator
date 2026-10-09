@@ -224,11 +224,9 @@ class TopicFitter:
 
         TOPIC_NUM_TOPICS is the ceiling and TOPIC_PASSAGES_PER_TOPIC turns
         it into a count that follows the corpus. One fit runs per language
-        and two languages are rarely the same size: this corpus carries 1434
-        passages in one and 51 in the other, and fitting twelve topics over
-        each gave twelve subjects on one side and twelve slivers of four
-        passages on the other. The slivers are what a question is written
-        about, so they are worth not making.
+        and two languages are rarely the same size: the same count over each
+        gives subjects on one side and slivers on the other. The slivers are
+        what a question is written about, so they are worth not making.
 
         0 turns it off and the ceiling is taken as written.
         """

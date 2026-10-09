@@ -42,9 +42,6 @@ def atomic_cap(digests: int, share: float) -> int | None:
     floor on the other kinds a cap on this one: keeping `n` atomic beside
     `d` others puts the others at d/(n+d), so the largest `n` holding them at
     `share` is d(1-share)/share.
-
-    Measured over this corpus: atomic came back at 18.4 a passage against 2
-    digests, which is a 10% share of everything extracted. A third wants 4.
     """
     if digests <= 0 or not 0 < share < 1:
         return None

@@ -51,10 +51,8 @@ _JOINING = (
 #: `_JOINING` follows it.
 #:
 #: ponytail: punctuation alone cannot separate a broken word from two ratings
-#: written side by side in one cell ("Mittel- niedrig"). Measured over this
-#: corpus, 127 of 131 joins are right and all 222 hanging hyphens are left
-#: alone. Telling the remaining four apart needs a character language model
-#: or the geometry of the cells either side.
+#: written side by side in one cell ("Mittel- niedrig"). Telling those apart
+#: needs a character language model or the geometry of the cells either side.
 _BROKEN_WORD = re.compile(
     rf"(?<=[A-Za-z\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df])-\s+(?!(?:{_JOINING})\b)(?=[a-z\u00e4\u00f6\u00fc\u00df])"
 )

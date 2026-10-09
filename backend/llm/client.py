@@ -28,8 +28,7 @@ from llm.config import Settings
 log = logging.getLogger(__name__)
 
 #: How much of the context window a prompt may use before the call is
-#: worth a warning. Four fifths, which on the default window is a
-#: thousand tokens of room - one more passage, or a longer thread.
+#: worth a warning. Four fifths.
 _NEAR_WINDOW = 0.8
 
 #: Failures worth another attempt here, and the only retries there are: the
@@ -53,9 +52,8 @@ _BACKOFF = wait_exponential(multiplier=1, min=1, max=10)
 def _waited(state: RetryCallState) -> float:
     """How long to wait before the next attempt.
 
-    What a 429's Retry-After asks, in seconds, where it carries one: a hosted
-    provider asks for twenty to sixty, and the backoff would spend every
-    attempt inside three. The backoff otherwise, an HTTP-date included.
+    What a 429's Retry-After asks, in seconds, where it carries one. The
+    backoff otherwise, an HTTP-date included.
     """
     failed = state.outcome.exception() if state.outcome else None
     if isinstance(failed, litellm.exceptions.RateLimitError):
@@ -249,11 +247,10 @@ class Client:
         """Asks the model one question and parses the answer into `shape`.
 
         Timed, counted and logged either way. The model is the pipeline's
-        bottleneck - a median passage measured at 473 s - so how long a call
-        took is the one number worth having per call, and against a hosted
-        provider what it cost is the second. Both are in the logs as well as
-        in the traces, which is what makes them readable when the collector
-        is down or was never configured.
+        bottleneck, so how long a call took is the one number worth having
+        per call, and against a hosted provider what it cost is the second.
+        Both are in the logs as well as in the traces, which is what makes
+        them readable when the collector is down or was never configured.
 
         `prompt_version` is the caller's own PROMPT_VERSION, and it goes on
         the log line and the span alike. Two prompts are two datasets, and
@@ -316,13 +313,8 @@ class Client:
         response, not the gates, not the row.
 
         **Prompt AND completion, because the window holds both.** This read
-        the prompt alone, which was the whole story while nothing thought:
-        the longest prompt a stage sends measured 1,441 tokens against a
-        6,144 window, so it never fired and never needed to. A reasoning
-        model moved the overflow to the other end - one extraction call
-        measured 1,252 tokens in and 4,702 out, which is 97% of that window
-        reached almost entirely by the answer. Watching the prompt alone
-        would have called that 20%.
+        the prompt alone, which was the whole story while nothing thought.
+        A reasoning model moved the overflow to the other end.
 
         Only where a window was asked for, which is a self-hosted model:
         a hosted provider sizes its own and refuses the parameter.

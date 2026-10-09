@@ -2,7 +2,7 @@
 
 Reads and writes the queue and never works it. The work happens in the
 stage's worker, which claims rows on its own, and never in the process
-serving JSON - a conversion running here held it for sixteen minutes.
+serving JSON.
 
 Nothing here runs because something else finished: `start` is what makes a
 row claimable and `stop` is what makes it `new` again.

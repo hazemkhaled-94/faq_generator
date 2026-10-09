@@ -38,11 +38,10 @@ class Claim:
 #: What each configured language is called, for a prompt that has to name it.
 #:
 #: A prompt telling a model to write "in the language of the excerpt" asks it
-#: to infer the answer from the material, and on a corpus that is 1,444
-#: German passages against 51 English it infers German: every validated fact
-#: drawn from an English passage in one run came back in German, and nothing
-#: in extraction checks a language, so the drift reached question generation
-#: as a German question labelled English and was thrown out as `malformed`.
+#: to infer the answer from the material, and on a corpus that is mostly one
+#: language it infers that language. Nothing in extraction checks a language,
+#: so the drift reached question generation as a German question labelled
+#: English and was thrown out as `malformed`.
 #:
 #: Named rather than left as a code because that is what the instruction
 #: says: "Write in English" is an instruction, "write in en" is a riddle.

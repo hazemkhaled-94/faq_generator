@@ -10,9 +10,9 @@ job that already exists, by name, and reads back what Dagster says about it.
 **Why it has to be asked rather than done here.** Starting a corpus means
 starting a stage, waiting for the workers to drain it, and starting the next -
 and something has to hold that wait. The shell holds it for `make corpus` and
-a Dagster run holds it for everything else. A request cannot: the first stage
-alone was measured in hours, and `api/routes/stage.py` refuses to do a stage's
-work in the process serving JSON for the same reason.
+a Dagster run holds it for everything else. A request cannot, and
+`api/routes/stage.py` refuses to do a stage's work in the process serving JSON
+for the same reason.
 
 **It is optional, and says so.** `DAGSTER_URL` unset, or a webserver that is
 not up, answers `available: false` rather than raising. Deleting

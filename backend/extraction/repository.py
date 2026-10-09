@@ -351,8 +351,7 @@ class PassageQueue(RowQueue):
         """The validated passage fact closest to this vector, or None.
 
         Over the whole corpus, which is what dedup wants: a duplicate written
-        from another document is still a duplicate, and at this corpus's size
-        the HNSW index answers in single-digit milliseconds.
+        from another document is still a duplicate.
 
         `excluding` is a passage being read again: a fact citing it and no
         other passage is one its `store` replaces, so it is no twin.
@@ -586,8 +585,7 @@ class FactCatalog(Repository):
         The counterpart of `extract-revalidate` and the same bargain: what
         the model wrote is the record of one extraction and is kept; only
         the verdict moves, stamped with the settings it moved under. No model is called, so a corpus extracted before
-        EXTRACTION_MIN_OTHER_SHARE existed is re-balanced in seconds rather
-        than re-read over hours.
+        EXTRACTION_MIN_OTHER_SHARE existed is re-balanced rather than re-read.
 
         Ranked exactly as `over_cap` ranks a passage in flight - the facts
         a model wrote, asserting a number, a date or a name first, ties by

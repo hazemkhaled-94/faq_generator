@@ -44,8 +44,7 @@ def dump(space: TopicSpace) -> bytes:
         doc_topic=np.asarray(space.doc_topic, dtype=np.float64),
         doc_lengths=np.asarray(space.doc_lengths, dtype=np.int64),
         # Unicode, and the width is the longest term rather than a guess:
-        # a fixed one silently truncates a compound noun, and this corpus
-        # is half German.
+        # a fixed one silently truncates a compound noun.
         vocabulary=np.asarray(space.vocabulary, dtype=np.str_),
         term_frequency=np.asarray(space.term_frequency, dtype=np.int64),
     )

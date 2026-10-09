@@ -309,10 +309,9 @@ def publish(service: str, composed: Iterable[Composed], model: ModelSettings) ->
             )
         except Exception as exc:  # noqa: BLE001 - one bad prompt is not the rest
             # The first in full and the rest counted. A Phoenix that is down
-            # refuses every prompt, and a stage recording thirty-one of them
-            # would otherwise open its log with thirty-one copies of one
-            # sentence - the failure `stages/cli.py` already quietens for an
-            # unreachable model.
+            # refuses every prompt, and a stage would otherwise open its log
+            # with a copy of one sentence per prompt - the failure
+            # `stages/cli.py` already quietens for an unreachable model.
             if not refused:
                 log.warning(
                     "could not publish %s's %r, so it is in the table and not "

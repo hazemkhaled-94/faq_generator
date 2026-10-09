@@ -18,10 +18,7 @@ it that produces LLM annotations in bulk.
 are what decide whether an artefact is kept, and this phase does not write
 either. It writes a column beside them, so the two can be compared and the
 disagreements can be put in front of a person. That is the position
-`evaluation/README.md` argues for and the measurement behind it has not
-changed: an LLM judge was at chance on the German half of this corpus, and
-a phase that could reject rows would have thrown away good German
-questions on the strength of it.
+`evaluation/README.md` argues for.
 """
 
 from __future__ import annotations
@@ -231,8 +228,7 @@ class AssessmentService(StageService):
     def drain(self, stopping=None) -> int:
         """Works the queue, then posts whatever annotations are still held.
 
-        The flush is the reason this is overridden. A corpus of eighty
-        artefacts never reaches the batch size, and without it the last
+        The flush is the reason this is overridden. Without it the last
         batch of every run is the one missing from Phoenix.
         """
         try:

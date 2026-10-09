@@ -102,7 +102,7 @@ def named_run() -> str | None:
     not anybody named it.
 
     A project per unnamed run was the original arrangement and it does not
-    survive a worker: one uuid per process, one process per restart, and
-    five hundred projects holding a handful of spans each.
+    survive a worker: one uuid per process, one process per restart, and a
+    project per restart.
     """
     return (os.environ.get(VARIABLE) or "").strip() or None

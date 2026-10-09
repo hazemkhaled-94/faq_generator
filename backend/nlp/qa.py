@@ -15,8 +15,8 @@ answer the passages spread over two sentences, or state in one place and
 qualify in another, and an extractive model cannot: every answer it gives is
 one contiguous span of one passage. So a confident span is taken and the
 served model is not called, and everything else falls through to it. What that
-buys is the easy majority answered locally in milliseconds, with the hard
-minority still answered by something that can read.
+buys is the easy majority answered locally, with the hard minority still
+answered by something that can read.
 
 The span decode is written out here rather than left to
 `pipeline("question-answering")`, which **transformers 5 removed**: the task

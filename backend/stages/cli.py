@@ -52,8 +52,7 @@ _RETRY_CEILING = 60.0
 #: How often it SHOUTS is a different question from how often it tries, and
 #: they used to be the same one. A worker polling every 60s wrote a line
 #: every 60s, and around it the client wrote a traceback, instructor wrote
-#: its attempts and a credential library listed every identity it had: 836
-#: lines in four minutes, from one worker, about one unreachable address.
+#: its attempts and a credential library listed every identity it had.
 #:
 #: So the first refusal is reported in full and the repeats are counted.
 #: Ten minutes is long enough that an overnight outage is a handful of
@@ -295,9 +294,6 @@ def _ready(name: str, preflight: Callable[[], None], watching: bool) -> bool:
     A **watching worker waits in place** instead, and that is the whole
     point of this function: exiting costs a process, and under
     `restart: unless-stopped` a process is a restart and a new `run_id`.
-    An expired credential once cost 2,019 restarts and 2,116 Phoenix
-    projects, which is how a pipeline that was down for a day looked like a
-    pipeline that had run two thousand times.
 
     Waiting also recovers by itself. A model that is down at boot and up
     ten minutes later is the ordinary case for one served off a laptop,

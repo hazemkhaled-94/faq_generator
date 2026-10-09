@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         removed = TopicCatalog().delete_all()
         # The figures go with the topics, as they do on the route. `delete_all`
         # reports the languages whose figure is now orphaned and this read that
-        # list and dropped it, so the command left two pyLDAvis pages in the
+        # list and dropped it, so the command left the pyLDAvis pages in the
         # export bucket describing topics that no longer existed.
         bucket, archive = ExportBucket(), ArchiveBucket()
         models = ModelsBucket()

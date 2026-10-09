@@ -37,8 +37,7 @@ _TRAILING = ".,;:"
 #: already parsed the string: putting one candidate through
 #: `QuestionChecker.check` parsed its question six times, its target answer
 #: seven, and - in `asserted`, `explains` and `about` - the cited passages
-#: joined together up to three times, which is the expensive one at a couple
-#: of thousand characters a go.
+#: joined together up to three times, which is the expensive one.
 #:
 #: ponytail: sized for one candidate's worth of strings, not for a corpus.
 #: A Doc holds its own tokens and vectors, so a large cache is real memory in
@@ -175,8 +174,7 @@ def interrogatives(text: str, language: str | None) -> tuple[str, ...]:
     chatbot can answer half of, and which nobody types.
 
     A finite-verb count does not separate those: `Welche Arten von Kryptowerten
-    gelten als reguliert?` carries two and is one question. Measured over 17
-    real questions, the question words separated 16.
+    gelten als reguliert?` carries two and is one question.
     """
     return tuple(
         token.text
@@ -300,9 +298,7 @@ def _references(span: Doc | Span) -> tuple[str, ...]:
 #: Bare `genannt` was here and is deliberately gone. It points at an earlier
 #: mention in `die genannten Anforderungen` and at nothing in `die im
 #: Korrekturverzeichnis genannten Abschnitte`, which says inside the question
-#: where to look - and that second shape is ordinary in this corpus. It cost
-#: a real question: over one topic the only `unanchored` rejection was that
-#: phrasing. The compounds that carry the pointing in the word itself stay.
+#: where to look. The compounds that carry the pointing in the word itself stay.
 #:
 #: ponytail: German and English only, here and in `_ASKING`, so a third
 #: language loses recall on this measurement. Upgrade: a list per language,
@@ -384,14 +380,13 @@ def pointing(text: str, language: str | None) -> tuple[str, ...]:
       harmless.
     - a noun made definite AND counted - `den beiden Lehrplänen`, `the two
       editions` - which names a set of a known size the text never
-      introduced. This is the reading the first one misses, and missing it is
-      why the gate this feeds fired zero times over 3,131 questions: the
-      question that prompted the gate was `zwischen den beiden Lehrplänen`,
-      where `den` is an article and `beiden` is `PronType=Ind`.
+      introduced. This is the reading the first one misses: the question
+      that prompted the gate was `zwischen den beiden Lehrplänen`, where
+      `den` is an article and `beiden` is `PronType=Ind`.
     - the anaphoric adjectives, which carry no feature at all.
 
     A measurement and not a verdict. Pointing is only a fault when there is
-    nothing in the text to point AT, and half the questions carrying one set
+    nothing in the text to point AT, and a question carrying one can set
     a case up first and then refer back to it - `Wenn ein KI-System ...,
     wie wird dieses Problem eingeordnet?` is self-contained. Deciding which
     is which is a reading, so this only says a pointer is present and the
@@ -453,8 +448,6 @@ def _foreign(token, language: str) -> bool:
     puts them in the German vocabulary as subjects.
 
     A lower-case German adjective the tagger reads as a noun goes with them.
-    Measured over 200 German passages: 7,807 lemmas fell to 7,782, of which
-    ten were German.
     """
     return (
         language in _capitalises_nouns()

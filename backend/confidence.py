@@ -18,10 +18,7 @@ can - what is the weakest thing about this row.
 The room is measured to where the scale actually ends, which is what
 `safe_end` carries. A cosine is the case that forces it: nothing an
 embedder compares sits at 0, so a margin measured to 0 is a share of room
-that was never there. Over one corpus of 3,781 scored questions that put
-96% of them in the bottom tenth and left tenths three through ten empty -
-a column that cannot order a review queue, which is the one thing it is
-for.
+that was never there.
 
 A gate that is a judgement rather than a measurement contributes nothing
 here, and that is the point. `leaks_source` answered by a model is a yes or
@@ -48,12 +45,9 @@ class Measurement:
             The entailment rescue needs one; `near_duplicate` refuses one.
         safe_end: The reading a scale takes when it is as safe as it ever
             gets, or None for the end of the unit interval. A cosine from a
-            trained embedder does not reach 0: multilingual-e5 puts
-            unrelated questions near 0.75, so the room a `near_duplicate`
-            reading has is the distance from its threshold to there and not
-            to zero. Measured over one corpus, normalising to zero put 96%
-            of the questions in the bottom tenth of the scale and left
-            eight tenths of it empty.
+            trained embedder does not reach 0, so the room a
+            `near_duplicate` reading has is the distance from its threshold
+            to where unrelated questions sit and not to zero.
     """
 
     gate: str

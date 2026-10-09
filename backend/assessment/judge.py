@@ -57,10 +57,7 @@ class Judge:
         """Asks every metric this artefact's kind declares.
 
         One call per metric, deliberately. Three judgements in one call is
-        what `question_generation/phrasing.py` exists to undo: over nineteen
-        labelled cases a judgement sharing a call with a harder task was
-        answered at chance in German while the harder task was answered
-        well in both languages.
+        what `question_generation/phrasing.py` exists to undo.
 
         Returns:
             One judgement per metric that answered, in template order. Short

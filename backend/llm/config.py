@@ -9,14 +9,7 @@ from settings import Source, decimal, integer, optional, required
 #: The context window a self-hosted model is asked for when the deployment
 #: names none.
 #:
-#: Measured over 9,334 priced calls: the widest was 4,308 tokens of prompt
-#: and answer together, p99 was 3,716, and the median 1,132. Those were
-#: calls by models that do not think, and 6,144 covered them.
-#:
-#: **A reasoning model spends the window on reasoning.** One extraction
-#: call against muse-glimmer:30b-mlx measured 1,252 tokens of prompt and
-#: 4,702 of answer - 5,954 together, 97% of that 6,144, and the passage was
-#: the median one. A p90 passage would have gone over. Thinking is left on
+#: **A reasoning model spends the window on reasoning.** Thinking is left on
 #: by default now (see `Settings.thinking`), so the window has to hold a
 #: prompt, however long the model reasons, and the answer after it.
 #:
@@ -28,13 +21,9 @@ from settings import Source, decimal, integer, optional, required
 #: `_NEAR_WINDOW` of it, on prompt AND completion, which is what makes the
 #: first half of that sentence survivable.
 #:
-#: Larger costs nothing measurable here. Timed on the same prompt, same
-#: passage, with the model unloaded between runs: 225s at 6,144 against
-#: 224s at the model's full 131,072, and the MLX runner allocated LESS
-#: memory at the larger window because it grows the cache as it fills it.
-#: What a huge window does cost is parallelism - the runtime sizes its
-#: concurrent slots from it, and at 131,072 it served one request at a
-#: time - which is why this is a bounded number and not the advertised one.
+#: A huge window costs parallelism - the runtime sizes its concurrent slots
+#: from it - which is why this is a bounded number and not the advertised
+#: one.
 WINDOW = 16384
 
 
@@ -80,8 +69,7 @@ class Settings:
     max_attempts: int
     #: The context window to ask the runtime for, or None to take its default.
     #: A self-hosted runtime reserves the whole window as key-value cache
-    #: before it reads anything, so a model advertising 131,072 tokens holds
-    #: gigabytes for a prompt of two thousand.
+    #: before it reads anything.
     num_ctx: int | None
     #: How much a thinking model may think before answering, or None to leave
     #: it to the model. `low`, `medium` and `high` let it think; anything else
@@ -147,16 +135,12 @@ class Settings:
         """The context window to ask for, or None to let the provider size it.
 
         A self-hosted runtime reserves the whole window as key-value cache
-        before it reads anything, so a model advertising 131,072 tokens
-        holds several gigabytes for a prompt of two thousand. It also sizes
-        its parallelism from that window: at the advertised one this
-        machine's Ollama served a single request at a time, so a worker
-        holding a call blocked every other process for the length of it.
+        before it reads anything. It also sizes its parallelism from that
+        window.
 
         Sized from the longest prompt a stage sends. Extraction sends one
         passage, capped at EMBEDDING_MAX_TOKENS; question generation sends
-        up to QUESTIONS_FACT_SAMPLE facts and two passages plus the prompt,
-        measured at 1,441 tokens. `WINDOW` covers both several times over.
+        up to QUESTIONS_FACT_SAMPLE facts and two passages plus the prompt.
 
         Derived per model for the reason `thinking` is: a hosted provider
         has no such parameter and refuses a request carrying it, so there
@@ -175,20 +159,12 @@ class Settings:
         its own default, which for a reasoning model means it thinks and for
         every other model means there is nothing to turn off.
 
-        This used to send `off` to a self-hosted model, and the measurement
-        behind that is still true: on this corpus's writer prompt gemma4:12b
-        took 414.7 seconds and 8,555 output tokens - 32,436 characters of
-        reasoning against 283 of answer - where thinking off took 12.6
-        seconds and wrote a better question. A single boolean measured the
-        same way was a median 19.5s against 3.2s.
-
-        What that measurement could not see is the other half. `off` is a
-        real instruction, not the absence of one, and a model built to think
-        answers an instruction not to with **nothing at all**: muse-glimmer
-        :30b-mlx returned 0 facts on every golden case and 6 output tokens
-        per call, and proposed 2 of 2 correctly the moment it was allowed to
-        think. Both pathologies end in an empty answer, so a default can
-        only choose which family of open models is broken out of the box.
+        This used to send `off` to a self-hosted model. `off` is a real
+        instruction, not the absence of one, and a model built to think
+        answers an instruction not to with **nothing at all**. A model left
+        to think and a model told not to can both end in an empty answer, so
+        a default can only choose which family of open models is broken out
+        of the box.
 
         It now chooses neither. An open model that thinks works on a clone,
         and one that should not think is one setting away. The cost of the

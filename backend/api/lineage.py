@@ -54,7 +54,7 @@ KINDS: tuple[tuple[str, str, int], ...] = (
 _LABEL = 240
 
 #: How many artefacts one step lists. A topic holds every passage that
-#: scored above the weight floor, which for this corpus is hundreds.
+#: scored above the weight floor.
 _PER_STEP = 20
 
 

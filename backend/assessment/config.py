@@ -28,7 +28,7 @@ class Settings:
     #: would be the writer marking its own work.
     judge_model: str | None
     #: Which artefacts are judged. Narrowing it is how a deployment pays for
-    #: the questions and not for twenty thousand facts.
+    #: the questions and not for the facts.
     kinds: tuple[str, ...]
     #: How many artefacts of each kind one `start` enrols, newest first.
     #: 0 is every one of them.

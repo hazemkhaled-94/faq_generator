@@ -236,11 +236,10 @@ def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
     """
     # Imported here rather than at the top of the module: `export` loads
     # pandas and openpyxl, this process serves JSON, and one route that is
-    # called by hand should not be sixty megabytes every other route pays
-    # for at start-up. The same deferral `topic_modelling` uses for
-    # pyLDAvis. `tests/static/test_api_stays_light.py` reads imports as
-    # syntax and skips the ones inside a function, which is what makes the
-    # two agree.
+    # called by hand should not be a cost every other route pays for at
+    # start-up. The same deferral `topic_modelling` uses for pyLDAvis.
+    # `tests/static/test_api_stays_light.py` reads imports as syntax and
+    # skips the ones inside a function, which is what makes the two agree.
     from question_generation.export import workbook
 
     where = _where(chosen)

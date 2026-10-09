@@ -86,9 +86,8 @@ def read(
     than the 422 the document already promises.
 
     The text comes with it rather than behind a second call. It is what
-    the caller wanted, a prompt is a few kilobytes, and a listing that
-    made you ask twice for the only interesting column would be two round
-    trips to read one thing.
+    the caller wanted, and a listing that made you ask twice for the only
+    interesting column would be two round trips to read one thing.
     """
     return [
         Prompt(**{one.name: getattr(row, one.name) for one in fields(Prompt)})

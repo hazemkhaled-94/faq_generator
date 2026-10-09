@@ -2,8 +2,7 @@
 
 An unknown model id, an unreachable address, a missing credential and a
 structured mode the provider will not accept all fail the same way: at the
-first call. On a real run that is hours in, with a queue of failed rows
-behind it. This is that first call, made once and on purpose.
+first call. This is that first call, made once and on purpose.
 
     python -m llm.check        # which is what `make doctor` runs
 
@@ -47,10 +46,9 @@ def quiet() -> Iterator[None]:
 
     Applied around the CHECK rather than only around `make doctor`, which
     is where it used to be. A worker asks this same question before every
-    poll, and a worker whose Ollama is down produced 836 log lines in four
-    minutes - 20 tracebacks, 96 litellm lines and every identity
-    DefaultAzureCredential tried - for a fact that fits in one sentence
-    and that `stages.cli` was already writing.
+    poll, and a worker whose Ollama is down produced tracebacks, litellm
+    lines and every identity DefaultAzureCredential tried for a fact that
+    fits in one sentence and that `stages.cli` was already writing.
 
     Restored afterwards, so the narration a real call needs survives: this
     is about the health check, not about the pipeline.
@@ -70,7 +68,7 @@ def quiet() -> Iterator[None]:
 
 #: Long enough for a cold local model to load, short enough that a wrong
 #: address is a failure rather than a wait. LLM_TIMEOUT_SECONDS is the
-#: pipeline's patience with a 473 s passage and is not this.
+#: pipeline's patience with a slow passage and is not this.
 TIMEOUT_SECONDS = 90.0
 
 

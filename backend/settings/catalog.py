@@ -192,9 +192,7 @@ SETTINGS: tuple[Setting, ...] = (
         invalidates=("extraction",),
         help="The shortest passage worth digesting, in characters. A digest "
         "is a fixed size whatever it is given, so how much it condenses is "
-        "decided by the passage: under 400 characters the median summary "
-        "came to 99% of its passage and 92% were refused as not_condensed. "
-        "0 digests every passage carrying enough claims.",
+        "decided by the passage. 0 digests every passage carrying enough claims.",
     ),
     Setting(
         name="EXTRACTION_MIN_OTHER_SHARE",
@@ -572,8 +570,7 @@ SETTINGS: tuple[Setting, ...] = (
         invalidates=("questions",),
         help="How much a candidate fact must have in common with the head of "
         "its sample before a second passage is offered at all. 0 offers one "
-        "whatever it holds. Off by default: the sweep found no threshold "
-        "that removes the welds without throwing away sound questions.",
+        "whatever it holds. Off by default.",
     ),
     Setting(
         name="QUESTIONS_BOILERPLATE_COSINE",
@@ -949,7 +946,7 @@ SETTINGS: tuple[Setting, ...] = (
         kind="csv",
         choices=("fact", "topic", "question"),
         help="Which artefacts are judged. Narrowing this is how a deployment "
-        "pays for the questions and not for twenty thousand facts.",
+        "pays for the questions and not for the facts.",
     ),
     Setting(
         name="ASSESSMENT_SAMPLE",
