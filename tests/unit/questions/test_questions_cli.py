@@ -3,7 +3,7 @@
 Every flag is the same operation as a route under /questions. Most of them
 are `stages.cli.queue_main`'s and are covered there; what is this stage's
 own is the two operations no other stage has - the re-check and the release
-draw - and that its queue is built without a lease of its own.
+draw.
 """
 
 from __future__ import annotations
@@ -19,10 +19,8 @@ class Queue:
 
     scopes: ClassVar[dict[str, None]] = {"topic": None}
 
-    def __init__(self, lease=None, **ignored) -> None:
-        """Records the lease it was built with."""
-        del ignored
-        self.lease = lease
+    def __init__(self) -> None:
+        """Starts with nothing asked of it."""
         self.calls: list[str] = []
 
     def counts_by_status(self, within=None) -> dict[str, int]:
@@ -226,36 +224,3 @@ def test_the_only_scope_this_stage_takes_is_a_topic(cli) -> None:
     """A topic is already the smallest subject there is."""
     with pytest.raises(SystemExit, match="narrows to topic"):
         cli.run("--status", "--only", "document=abc")
-
-
-# ── The lease a topic needs ───────────────────────────────────────────────
-
-
-def test_the_queue_is_built_without_a_lease_of_its_own(monkeypatch) -> None:
-    """A topic is held by the beat, not by a lease sized for the work.
-
-    This stage used to derive one from what a topic costs, which made a
-    killed worker's topic unreachable for as long as the work might have
-    taken. The queue takes the shared default now.
-    """
-    from question_generation import run as module
-    from stages import cli as shared
-
-    held = {}
-
-    def queue(**kwargs):
-        """Records what the run asked the queue for."""
-        held.update(kwargs)
-        return Queue(**kwargs)
-
-    monkeypatch.setenv("LLM_MODEL", "ollama_chat/test-model")
-    monkeypatch.setattr(module, "snapshot", lambda: (dict(os.environ), "test-settings"))
-    monkeypatch.setattr(module, "QuestionQueue", queue)
-    monkeypatch.setattr(module, "build_service", lambda *_: Service())
-    monkeypatch.setattr(shared.telemetry, "configure", lambda *_, **__: None)
-    monkeypatch.setattr(shared.telemetry, "trace_engine", lambda *_: None)
-    monkeypatch.setattr(shared, "engine", lambda: None)
-
-    module.main(["--status"])
-
-    assert "lease" not in held, held
