@@ -7,8 +7,7 @@ and the spend are recorded. A judge built on a second client would be a
 second set of all of those, disagreeing with the first the day one moved.
 
 `arize-phoenix-evals` is the obvious alternative and is already a
-dependency, but only on the host - `evaluation/second_opinion.py` uses it,
-and no image carries it. Reaching for it here would put a second LLM
+dependency, but only on the host - no image carries it. Reaching for it here would put a second LLM
 client, a second rate limiter and a pandas dependency into a worker
 container to ask a question the client already in that container can ask.
 What is borrowed from that package instead is the part worth borrowing:

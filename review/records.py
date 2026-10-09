@@ -167,9 +167,8 @@ class ReviewRepository(Repository):
 
         `ids` replaces the sampling with exactly those rows, in id order.
         That is how a queue somebody else built gets reviewed - the
-        disagreements `evaluation.second_opinion` found, where the gates
-        kept a question and an independent judge says the passages do not
-        support its answer. A stratified sample cannot find those: they are
+        disagreements the Assessment page marks, where the gates kept a
+        question and the judge refused it. A stratified sample cannot find those: they are
         spread over every band and every verdict and are rare in all of
         them, which is exactly the shape a proportional draw misses.
         """

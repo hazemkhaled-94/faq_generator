@@ -60,9 +60,8 @@ from stages import Columns, RowQueue
 #: about.
 _IS_TOPIC = Topic.topic_index.is_not(None)
 
-#: The questions this stage judges. Answerable and answered, for the reason
-#: `evaluation/second_opinion.py` gives: two of the three metrics ask
-#: whether the facts support the answer, and an unanswerable question has
+#: The questions this stage judges. Answerable and answered: two of the
+#: three metrics ask whether the facts support the answer, and an unanswerable question has
 #: no answer for them to support. Those are written deliberately, to test
 #: whether a chatbot admits it does not know, and scoring them here would
 #: report the pipeline's most careful output as its worst.
@@ -512,8 +511,7 @@ class AssessmentCatalog(Repository):
 
         `disagreements` narrows to the rows worth a person's time: the
         artefacts the pipeline KEPT and the judge refused. One direction
-        only, as `evaluation/second_opinion.py` argues - the other is
-        usually a rejection for something the judge was never asked about.
+        only - the other is usually a rejection for something the judge was never asked about.
         """
         kinds = self._kinds(kind)
         # UNION ALL of the three per-kind selects, windowed once over the

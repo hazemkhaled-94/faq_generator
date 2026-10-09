@@ -144,7 +144,7 @@ def push(
     """Puts one kind of row in front of a reviewer.
 
     `ids` names exactly which questions to push instead of sampling, which
-    is how a queue built elsewhere - `evaluation.second_opinion`'s
+    is how a queue built elsewhere - the Assessment page's
     disagreements - reaches a reviewer. Questions only; the other two sets
     have no such queue behind them.
 

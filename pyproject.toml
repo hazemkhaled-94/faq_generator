@@ -57,11 +57,8 @@ nlp = [
 
 data = [
     "numpy>=2.5.2,<3.0.0",
-    # The frame two first-party modules build directly:
-    # `evaluation.second_opinion` hands one to `evaluate_dataframe`, and
-    # `question_generation.export` writes the workbook out of one. It was
-    # declared under `observability` when only the first of those existed.
-    # Transitive through the evals package and through pyLDAvis; named for
+    # The frame `question_generation.export` builds directly and writes the
+    # workbook out of. Transitive through the evals package and through pyLDAvis; named for
     # the reason transformers is - a package somebody else pins is one they
     # may drop.
     "pandas>=2.0.0,<4.0.0",
@@ -135,10 +132,8 @@ observability = [
     "openinference-instrumentation-litellm (>=0.1.45,<0.2.0)",
     "argilla>=2.8.0,<3.0.0",
     "arize-phoenix-client (>=3.5.0,<4.0.0)",
-    # The judge scaffolding `phrasing.py` writes out per judgement: a prompt,
-    # a classification, retries and concurrency. Used in evaluation/ only, as
-    # a SECOND opinion recorded beside the checker's verdict and never as a
-    # gate - see evaluation/README.md on why a model's answers cannot gate.
+    # Read only by tests/unit/assessment/test_templates.py, which pins the
+    # assessment metric names, labels and scores against its own configs.
     "arize-phoenix-evals (>=2.0.0,<3.0.0)",
 ]
 

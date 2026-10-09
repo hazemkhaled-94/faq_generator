@@ -155,12 +155,11 @@ class StoredAssessment:
     def disagrees(self) -> bool:
         """Whether the judge and the pipeline point opposite ways.
 
-        One direction only, as `evaluation/second_opinion.py` argues: an
-        artefact the pipeline KEPT and the judge refused is either a check
-        that let something through or a judge that is wrong, and only a
-        person settles which. The other direction is usually neither,
-        because most rejections are for something the judge is not asked
-        about at all.
+        One direction only: an artefact the pipeline KEPT and the judge
+        refused is either a check that let something through or a judge
+        that is wrong, and only a person settles which. The other direction
+        is usually neither, because most rejections are for something the
+        judge is not asked about at all.
         """
         return self.approved is False and self.verdict == "accepted"
 

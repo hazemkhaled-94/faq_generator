@@ -198,9 +198,8 @@ def test_questions_are_spread_over_the_band_and_the_verdict_together(
 def test_naming_the_rows_replaces_the_sampling_entirely(asked) -> None:
     """How a queue somebody else built gets reviewed.
 
-    `evaluation.second_opinion` finds disagreements spread thinly over
-    every band and every verdict, which is the shape a proportional draw
-    misses.
+    The Assessment page's disagreements are spread thinly over every band
+    and every verdict, which is the shape a proportional draw misses.
     """
     wanted = [asked[3], asked[1]]
 

@@ -13,7 +13,6 @@ make eval-upload                                 # the cases become a Phoenix da
 make eval-score                                  # score the model, and record it
 make eval-score EVAL_RUN_NAME=extraction-prompt-v7
 make eval-phrasing                               # the two phrasing judgements, against their floor
-make second-opinion RUN=<run id>                 # an independent judge, and where it disagrees
 make prompts-publish                             # the recorded prompts
 ```
 
@@ -22,11 +21,10 @@ Underneath:
 ```bash
 python -m evaluation.run --upload extraction-golden
 python -m evaluation.run --score extraction-golden
-python -m evaluation.run --second-opinion <run id> --limit 50
 python -m evaluation.run --publish-prompts
 ```
 
-The four are mutually exclusive and one is required. Results are at
+The three are mutually exclusive and one is required. Results are at
 <http://localhost:6006>.
 
 ## Publishing the prompts
@@ -98,29 +96,6 @@ Each run's spans also go to a Phoenix project of its own,
 `<stage>-<run id>`, which is the half SQL cannot answer: the gate counts are
 columns, and the calls, tokens, latency and spend are in the spans.
 
-## A second opinion, which is a queue and not a verdict
-
-`make second-opinion RUN=<id>` puts a run's **accepted** answers to an
-independent judge — `phoenix.evals`' hallucination classifier, through
-litellm, against `QUESTIONS_VERIFIER_MODEL` — and prints where it disagrees
-with the gates.
-
-It settles nothing. What it produces is a list of ids worth a person's time,
-which [`review/`](../review/README.md) takes directly:
-
-```bash
-make review-push-questions IDS=12,34,56
-```
-
-Only one direction is reported. A question the gates kept and the judge calls
-unsupported is either a gate that let something through or a judge that is
-wrong; a question the gates *rejected* and the judge calls factual is usually
-neither, because `leaks_source` and `compound` say nothing about whether the
-answer is in the passages.
-
-This is the one place in the repository where an LLM judge is the right tool,
-because its output is a queue rather than a column.
-
 ## What makes two runs comparable
 
 Phoenix **versions the dataset**, so a case added today does not invalidate
@@ -170,7 +145,6 @@ golden questions the right way round — whether the gate is wired up at all.
 |---|---|
 | [`cases.py`](cases.py) | The golden cases, and nothing that runs them. Read by this package **and** by `tests/eval/` |
 | [`experiments.py`](experiments.py) | Scoring the cases into Phoenix, and the floor each score is read against |
-| [`second_opinion.py`](second_opinion.py) | An independent judge over one run |
 | [`config.py`](config.py) | Where Phoenix is |
 | [`run.py`](run.py) | The command line |
 
@@ -220,8 +194,5 @@ skips itself unless `LLM_MODEL` and `LLM_BASE_URL` are repository variables.
 - **Changing `PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD` after first boot does
   nothing.**
 - **A phrasing score without its floor means nothing.**
-- **`make second-opinion` cannot read a deleted run.** The gate counts can —
-  `make questions-diff` reads the archive — but the judge needs the text the
-  answer rests on.
 - **Rows written before `run_id` existed carry NULL** and cannot be told
   apart. Nothing is backfilled.

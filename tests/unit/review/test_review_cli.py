@@ -104,7 +104,7 @@ def test_each_dataset_can_be_pulled(cli, name: str) -> None:
 
 
 def test_a_named_queue_of_ids_replaces_the_sample(cli) -> None:
-    """What `make second-opinion` prints reaches somebody who can settle it."""
+    """What the Assessment page names reaches somebody who can settle it."""
     assert cli.run("--push", "questions", "--ids", "4,9,11") == 0
     assert cli.pushed == [("questions", [4, 9, 11], False)]
 

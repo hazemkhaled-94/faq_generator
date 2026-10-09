@@ -118,10 +118,10 @@ rejection code that fired twice in a whole corpus is the interesting one.
 make review-push-questions IDS=12,34,56
 ```
 
-Exactly those rows instead of a sample. What produces the list is
-`make second-opinion RUN=<id>`: the questions the gates **kept** and an
-independent judge calls unsupported. A stratified sample cannot find them —
-they are rare in every band and every verdict.
+Exactly those rows instead of a sample. What produces the list is the
+Assessment page's disagreements: the questions the gates **kept** and the
+judge refused, each shown with this command. A stratified sample cannot
+find them — they are rare in every band and every verdict.
 
 ## Where each verdict lands
 

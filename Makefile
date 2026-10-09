@@ -208,7 +208,7 @@ help:
         test test-fast test-unit test-integration test-e2e test-smoke \
         test-eval test-coverage test-perf mutation \
         check typecheck audit lint lint-imports deps \
-        eval-phrasing second-opinion \
+        eval-phrasing \
         format lock \
         certs dagster-dev \
         review-status review-push-facts review-pull-facts \
@@ -1573,22 +1573,6 @@ eval-phrasing:
 	$(EVAL) --upload phrasing-golden
 	$(EVAL) --score phrasing-golden
 
-# An independent judge over one run's ACCEPTED answers, and the
-# disagreements it found. Never a verdict - the checker decides what is
-# kept, and this is measured at chance on German in evaluation/README.md.
-# What it produces is a queue: a question the gates kept and a judge calls
-# unsupported is either a gate that let something through or a judge that
-# is wrong, and only a person settles which.
-#
-#     make second-opinion RUN=<run id>          # 200 answers
-#     make second-opinion RUN=<run id> LIMIT=50
-#
-# It prints the ids. Push them with:
-#     make review-push-questions IDS=12,34,56
-second-opinion:
-	@test -n "$(RUN)" || { echo 'usage: make second-opinion RUN=<run id>  (make questions-runs lists them)'; exit 2; }
-	$(EVAL) --second-opinion $(RUN) $(if $(LIMIT),--limit $(LIMIT))
-
 # ── Phoenix projects ───────────────────────────────────────────────────────
 #
 # A Phoenix project is created by the first span filed under it and
@@ -1676,7 +1660,7 @@ review-pull-topics:
 	$(REVIEW) --pull topic-labels
 
 # A stratified sample, or exactly the ids IDS names - which is how the
-# disagreements `make second-opinion` found reach a reviewer. A sample
+# disagreements the Assessment page marks reach a reviewer. A sample
 # cannot find those: they are rare in every band and every verdict, which
 # is the shape a proportional draw misses.
 review-push-questions:

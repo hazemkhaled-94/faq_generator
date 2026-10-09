@@ -73,8 +73,8 @@ def parser() -> argparse.ArgumentParser:
         "--ids",
         metavar="ID,ID",
         help="push exactly these question ids instead of a sample. What "
-        "`make second-opinion` prints, so a disagreement between the gates "
-        "and an independent judge reaches somebody who can settle it.",
+        "the Assessment page names, so a disagreement between the gates "
+        "and the judge reaches somebody who can settle it.",
     )
     return built
 

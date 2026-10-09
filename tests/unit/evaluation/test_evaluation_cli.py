@@ -1,8 +1,8 @@
 """The golden-set command line.
 
 It calls a real model, so nothing here does. What is covered is which
-operation each flag selects and the two exit codes that are not failures:
-a set with no task, and a run with nothing accepted in it.
+operation each flag selects and the exit code that is not a failure: a set
+with no task.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ class Driver:
 
         self.uploaded: list[str] = []
         self.scored: list[str] = []
-        self.judged: list[tuple[str, int | None]] = []
         self.refuse: Exception | None = None
 
         monkeypatch.setattr(module.telemetry, "configure", lambda *_, **__: None)
@@ -33,7 +32,6 @@ class Driver:
         monkeypatch.setattr(
             module.experiments, "run", lambda name, settings: self._score(name)
         )
-        monkeypatch.setattr(module, "_second_opinion", self._opinion)
         self._main = module.main
 
     def _upload(self, name: str) -> str:
@@ -47,11 +45,6 @@ class Driver:
             raise self.refuse
         self.scored.append(name)
         return "http://phoenix/experiment"
-
-    def _opinion(self, run: str, limit: int | None) -> int:
-        """Records one second opinion."""
-        self.judged.append((run, limit))
-        return 0
 
     def run(self, *argv: str) -> int:
         """Runs the command line."""
@@ -84,18 +77,6 @@ def test_a_set_with_no_task_exits_two_rather_than_crashing(cli) -> None:
     assert cli.run("--score", experiments.QUESTIONS) == 2
 
 
-def test_a_second_opinion_is_asked_over_one_run(cli) -> None:
-    """Never a verdict: the output is a queue for review."""
-    assert cli.run("--second-opinion", "run-7") == 0
-    assert cli.judged == [("run-7", None)]
-
-
-def test_a_second_opinion_takes_a_limit(cli) -> None:
-    """One model call each, so a person decides how many."""
-    assert cli.run("--second-opinion", "run-7", "--limit", "25") == 0
-    assert cli.judged == [("run-7", 25)]
-
-
 def test_an_action_is_required(cli) -> None:
     """A bare run would otherwise read the settings and stop."""
     with pytest.raises(SystemExit):
@@ -118,62 +99,3 @@ def test_every_set_the_module_names_is_offered_by_the_parser() -> None:
     """A set the tool cannot name is a set nobody scores."""
     for name in experiments.NAMES:
         assert parser().parse_args(["--score", name]).score == name
-
-
-# ── The second opinion, which asks the verifier's model ───────────────────
-
-
-@pytest.fixture
-def opinion(monkeypatch):
-    """The real `_second_opinion`, over a judge that answers from a script."""
-    from evaluation import run as module
-    from evaluation import second_opinion
-
-    monkeypatch.setattr(module.telemetry, "configure", lambda *_, **__: None)
-    monkeypatch.setattr(module.Settings, "load", staticmethod(lambda: object()))
-    # Model identity, which compose gives a worker and backend.env does not.
-    monkeypatch.setenv("LLM_MODEL", "ollama_chat/test-model")
-    asked: list[tuple] = []
-
-    def judging(answer):
-        """Points `judge` at whatever a test wants it to do."""
-
-        def judge(run: str, model: str, limit: int):
-            asked.append((run, model, limit))
-            if isinstance(answer, Exception):
-                raise answer
-            return answer
-
-        monkeypatch.setattr(second_opinion, "judge", judge)
-        monkeypatch.setattr(second_opinion, "report", lambda judged: ["a line"])
-        return asked
-
-    return module.main, judging
-
-
-def test_a_second_opinion_asks_the_verifier_s_model(opinion) -> None:
-    """A model marking its own work agrees with itself."""
-    main, judging = opinion
-    asked = judging([])
-
-    assert main(["--second-opinion", "run-7"]) == 0
-    run, model, limit = asked[0]
-    assert (run, limit) == ("run-7", 200)
-    assert model, "no model was named"
-
-
-def test_a_limit_reaches_the_judge(opinion) -> None:
-    """One model call each."""
-    main, judging = opinion
-    asked = judging([])
-
-    assert main(["--second-opinion", "run-7", "--limit", "5"]) == 0
-    assert asked[0][2] == 5
-
-
-def test_a_run_with_nothing_accepted_exits_two(opinion) -> None:
-    """Not a crash: there is nothing to have a second opinion about."""
-    main, judging = opinion
-    judging(RuntimeError("no such run"))
-
-    assert main(["--second-opinion", "run-nothing"]) == 2

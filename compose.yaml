@@ -753,8 +753,7 @@ services:
       # What the PLAYGROUND calls. Phoenix replays a span there - the
       # prompt as it was sent, against a model of your choosing - which is
       # what turns a refused question into "what would another model have
-      # said", one click from the trace instead of a run of
-      # `make second-opinion`.
+      # said", one click from the trace.
       #
       # Ollama and not the hosted model, and that is a constraint rather
       # than a preference: this deployment authenticates to Azure with an
