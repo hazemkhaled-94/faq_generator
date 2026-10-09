@@ -53,7 +53,7 @@ rows may enter the queue, not which a worker may take** — a row already
 swept exactly as before whatever `ready` says.
 
 ```
-new  ──start──▶  pending  ──claimed──▶  running  ──▶  done
+new  ──start──▶  pending  ──claimed──▶  in_progress  ──▶  done
  ▲                   ▲                   │  ▲│
  └──────stop─────────┤                   │  └┘ heartbeat, every 30s
                      │                   ├──▶  failed  ──retry──▶  pending
@@ -75,6 +75,9 @@ take the same row:
 podman compose up -d --scale extract-worker=4
 ```
 
+A queue claims nothing while the database is not at the code's migration
+head, and says so once.
+
 ### Leases and the heartbeat
 
 Every claim is timestamped, and a worker refreshes that timestamp every
@@ -82,7 +85,9 @@ Every claim is timestamped, and a worker refreshes that timestamp every
 beats may be missed before another run sweeps the claim — five minutes, or
 ten of them. A row a worker died holding is failed by the next drain of that
 stage with `the worker did not finish; the run was interrupted` recorded
-against it, and `retry` returns it to the queue.
+against it, and `retry` returns it to the queue. A worker whose row was
+swept and claimed again cannot finish, fail or refresh it: each checks the
+claim time it wrote.
 
 **One lease for every stage, because it no longer measures the work.**
 `claimed_at` used to record only when work started, so a sweep could ask
@@ -129,9 +134,9 @@ The actions are **mutually exclusive**.
 | `--start` | Queue the rows never asked for | yes |
 | `--stop` | Take back what has not begun | yes |
 | `--retry` | Return failed rows to the queue | yes |
-| `--rerun` | Queue every row again, finished ones included | yes |
+| `--rerun` | Queue every row again, finished ones included, after the preflight, then drain | yes |
 | `--reclaim` | Return a row a dead worker still holds, without waiting out its lease | yes |
-| `--only SCOPE=VALUE` | Narrow the action to one item | — |
+| `--only SCOPE=VALUE` | Narrow the action to one item. Refused on a bare drain, on a stage that takes no scope, and on a `--rerun` while rows outside it are queued | — |
 | `--watch` | Drain, and keep draining | — |
 | no flag | Drain the queue once, in the foreground, and stop | — |
 
@@ -140,13 +145,13 @@ python -m preprocessing.parsing.run --status
 python -m preprocessing.chunking.run --start --only document=<sha256>
 python -m extraction.run --retry --only passage=42
 python -m topic_modelling.run --status
-python -m question_generation.run --only topic=7
+python -m question_generation.run --rerun --only topic=7
 ```
 
 A stage with an operation nobody else has declares it as one `Extra` and the
 parser grows a flag for it — `--revocabulary` on chunking, `--revalidate`,
 `--bridge`, `--recap` and `--embed` on extraction, `--reverify` and
-`--balance` on question generation.
+`--balance` on question generation, `--enrol` on assessment.
 
 Topic modelling builds its parser from actions of its own rather than the
 shared ones plus extras, because it has no `start` and no `rerun` to extend.
@@ -196,7 +201,7 @@ drained. `preflight` also runs before `--rerun` queues a row again, so a model
 that will not answer leaves every stored row as it was.
 
 **`preflight`** is what a stage proves before it claims anything — for the
-three that call a model, that the model answers. It raises, and the process
+stages that call a model, that the model answers. It raises, and the process
 stops with nothing taken. A watching worker retries instead of dying, backing
 off from 5 seconds towards 60.
 
@@ -214,7 +219,10 @@ is a different question from how loud it is while it waits.
 
 **`prompts`** records what this stage sends, so the version stamped on each
 row can be resolved to the text that produced it. It runs after preflight and
-never fails a start. See [`prompts.py`](prompts.py) and
+never fails a start. A text rewritten under an unchanged version is warned
+about, stored, and moves the row's `updated_at`; a changed model alone
+rewrites the row and is not warned about. The recorded prompts list newest
+version first, by number. See [`prompts.py`](prompts.py) and
 [`backend/database/`](../database/README.md).
 
 What it writes it also **publishes to Phoenix**, so a span's
@@ -239,17 +247,20 @@ wakes at once instead of serving out its interval.
 A watching worker rebuilds its service when the settings change. The check
 sits between drains, where nothing is claimed. Before it builds again it runs
 its `preflight` and waits there as it does at start, so a setting that names a
-model which will not answer claims nothing.
+model which will not answer claims nothing, and then records its prompts
+again.
 
 A `make` target runs one drain on the host, in the foreground, against the
 same database the containers use. It is the same code; there is no second
-path. It refuses while that stage's worker container is running.
+path. It refuses while that stage's worker container is running. The
+container workers build the dataset; a host drain is for developing a stage,
+and host parse, chunk and extract runs are kept off the dataset.
 
 ## Configuration
 
 | Setting | What it does |
 |---|---|
-| `WORKER_POLL_SECONDS` | How long a watching worker sleeps between drains |
+| `WORKER_POLL_SECONDS` | How long a watching worker sleeps between drains. Fixed: served read-only, never stored |
 
 Everything else a stage needs is the stage's own. The lease is neither
 configured nor derived: it counts missed heartbeats, and a worker that is
@@ -263,9 +274,10 @@ poetry run pytest tests/unit/stages tests/integration/database/test_queue.py
 
 | File | Covers |
 |---|---|
-| [`test_cli.py`](../../tests/unit/stages/test_cli.py) | Which flag combinations are refused, and that no service is built until a flag needs one |
+| [`test_cli.py`](../../tests/unit/stages/test_cli.py) | Narrowing and the flag combinations refused, the preflight and how a waiting worker reports, and a rebuilt worker waiting for its models |
 | [`test_queue_narrowing.py`](../../tests/unit/stages/test_queue_narrowing.py) | Narrowing to one item, and both refusals |
 | [`test_worker.py`](../../tests/unit/stages/test_worker.py) | Ending a worker's loop |
+| [`test_recalibrate.py`](../../tests/unit/stages/test_recalibrate.py) | Rebuilding a stored gate reading, and the two floors `make confidence-recalibrate` reads |
 | [`test_prompt_recording.py`](../../tests/unit/stages/test_prompt_recording.py) | That what reaches Phoenix is what the write moved, and nothing on a start-up that changed nothing |
 | [`test_prompt_publishing.py`](../../tests/unit/stages/test_prompt_publishing.py) | What a published version carries beside its text |
 | [`test_queue.py`](../../tests/integration/database/test_queue.py) | Claiming, the lease sweep and the queue verbs against a real PostgreSQL |
