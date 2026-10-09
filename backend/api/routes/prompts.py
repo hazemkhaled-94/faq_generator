@@ -49,9 +49,7 @@ class Prompt:
     #: The JSON schema the answer had to come back in. Null on a row
     #: recorded before the column existed.
     response_schema: dict | None
-    #: The first sixteen hex characters of the text's SHA-256, spelled as
-    #: `tests/static/test_prompts_pinned.py` spells it, so a row and that
-    #: file's pin can be compared without converting either.
+    #: The first sixteen hex characters of the system text's SHA-256.
     digest: str
     #: When this version of this prompt was first recorded.
     first_seen_at: datetime

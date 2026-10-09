@@ -584,8 +584,8 @@ class FactCatalog(Repository):
         this one. None caps nothing and gives back every one.
 
         The counterpart of `extract-revalidate` and the same bargain: what
-        the model wrote is the record of one extraction and is kept, only
-        the verdict moves. No model is called, so a corpus extracted before
+        the model wrote is the record of one extraction and is kept; only
+        the verdict moves, stamped with the settings it moved under. No model is called, so a corpus extracted before
         EXTRACTION_MIN_OTHER_SHARE existed is re-balanced in seconds rather
         than re-read over hours.
 

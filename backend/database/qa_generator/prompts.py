@@ -80,8 +80,9 @@ class Prompt(Base):
     version: Mapped[str] = mapped_column(
         Text,
         index=True,
-        comment="The PROMPT_VERSION its module declared when this text was "
-        "written. Indexed: resolving a question's prompt_version is the query "
+        comment="The PROMPT_VERSION its module declared when this text was written, "
+        "with the cap appended for a capped atomic extraction prompt, as "
+        "9+cap4. Indexed: resolving a question's prompt_version is the query "
         "this table is for.",
     )
     text: Mapped[str] = mapped_column(
@@ -117,10 +118,8 @@ class Prompt(Base):
     )
     digest: Mapped[str] = mapped_column(
         Text,
-        comment="The first sixteen hex characters of the text's SHA-256, spelled "
-        "as tests/static/test_prompts_pinned.py spells it, so a row and that "
-        "file's pin can be compared by eye. What a changed prompt under an "
-        "unchanged version is noticed by at run time.",
+        comment="The first sixteen hex characters of the system text's SHA-256. What a "
+        "changed prompt under an unchanged version is noticed by at run time.",
     )
     first_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

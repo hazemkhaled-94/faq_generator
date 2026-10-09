@@ -34,11 +34,7 @@ log = logging.getLogger(__name__)
 
 
 def digest(text: str) -> str:
-    """The first sixteen hex characters of one prompt's SHA-256.
-
-    Spelled as `tests/static/test_prompts_pinned.py` spells it, so a stored
-    row and that file's pin can be compared without converting either.
-    """
+    """The first sixteen hex characters of one prompt's SHA-256."""
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
@@ -85,12 +81,7 @@ class Composed:
 
     @property
     def digest(self) -> str:
-        """This text's digest.
-
-        Over the SYSTEM half only, as `tests/static/test_prompts_pinned.py`
-        takes it, so a stored row and that file's pin can still be compared
-        without converting either.
-        """
+        """This text's digest, over the SYSTEM half only."""
         return digest(self.text)
 
 

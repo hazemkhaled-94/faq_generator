@@ -165,7 +165,8 @@ class Fact(Base):
     )
     prompt_version: Mapped[str | None] = mapped_column(
         Text,
-        comment="Version of the extraction prompt. The prompt decides what counts "
+        comment="Version of the extraction prompt, with the cap appended when the "
+        "atomic prompt carried one, as 9+cap4. The prompt decides what counts "
         "as a fact, so two prompts are two datasets.",
     )
     extraction_temperature: Mapped[float | None] = mapped_column(
