@@ -48,9 +48,9 @@ podman compose up -d --scale extract-worker=4
 one row per topic. `topic-worker` can be scaled and there is no point — a fit
 is one request row.
 
-`question-worker`'s first start downloads `EMBEDDING_MODEL`, 2.2 GB into the
-`models` volume, before it claims anything. The topics sit `pending` until it
-finishes and `make logs` says so. The container is given 6 GB for it and
+`question-worker` loads `EMBEDDING_MODEL`, 2.2 GB, before it claims anything,
+and downloads it into the `models` volume if extract-worker has not. The
+topics sit `pending` until it finishes and `make logs` says so. The container is given 6 GB for it and
 `NLI_MODEL`'s weights, and the weights are per container, not per lane.
 
 `assess-worker` is the cheapest of the six to scale and the only one that
@@ -200,7 +200,7 @@ read back through `/{stage}/status`.
 |---|---|
 | Topics sit `pending`, nothing in the logs | `question-worker` is downloading 2.2 GB of embedding weights |
 | `make assess` prints one line and stops | `ASSESSMENT_ENABLED` is not true in `.env` |
-| Every artefact is `failed` after `make assess` | `ASSESSMENT_JUDGE_MODEL` names a model that is not served. The verdicts are unaffected; `make assess-retry` |
+| `make assess` refuses before it claims anything | `ASSESSMENT_JUDGE_MODEL` names a model that is not served |
 | A queue fills and nothing drains it | That stage has no container. `make up` |
 | Grafana panels are empty | The shipper. `make logs-shipper` |
 | A panel that groups by `stage` finds nothing | A field missing from `append_fields` in `filebeat.yml` |
@@ -208,7 +208,7 @@ read back through `/{stage}/status`.
 | Grafana cannot read the database | `init.sh` has not run on this volume |
 | The run dashboard's Phoenix panels cannot read their tables | The grants `make up` makes have not run. `make grafana-grants` |
 | Streamlit refuses a file the API would accept | `server.maxUploadSize` is below `MAX_FILE_SIZE_MB` |
-| The frontend will not start, naming a variable | It is in `.env` but not in the `streamlit` service's `environment` |
+| The frontend will not start, naming a variable | It is declared but not in the `streamlit` service's `environment` |
 | Argilla refuses the key | `ARGILLA_API_KEY` is under "My settings". It is not `ARGILLA_PASSWORD` |
 | A p99 climbing towards `LLM_TIMEOUT_SECONDS` | Calls about to time out, be tried again and fail their rows. Raise the timeout |
 | A scanned PDF is refused rather than parsed | OCR is not enabled |
