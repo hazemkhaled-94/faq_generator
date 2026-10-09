@@ -237,13 +237,13 @@ class TopicQueue(StageQueue):
         Returns:
             How many memberships were written.
         """
-        with self._session.begin() as session:
-            # The request gone is a delete that came after the claim, and the
-            # fit answering it writes nothing. Locked so none comes between.
+        with self._lock, self._session.begin() as session:
+            # The request gone, or claimed again since this fit claimed it,
+            # and the fit writes nothing. Locked so neither comes between.
             if (
                 session.scalar(
                     select(Topic.id)
-                    .where(Topic.id == fit_id, _OUTSTANDING)
+                    .where(Topic.id == fit_id, _OUTSTANDING, *self._holding(fit_id))
                     .with_for_update()
                 )
                 is None

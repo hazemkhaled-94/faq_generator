@@ -134,6 +134,29 @@ def test_an_abandoned_claim_is_failed_by_the_next_run(store) -> None:
     assert store.requests()[0]["status"] == Status.FAILED
 
 
+def test_a_fit_that_lost_its_claim_writes_nothing_over_the_next(store) -> None:
+    """Swept, retried and claimed by a second worker before the first returns."""
+    from datetime import timedelta
+
+    from topic_modelling.repository import TopicQueue
+
+    store.given_passages(de=1)
+    fit = store.request()
+    first = TopicQueue()
+    first.claim()
+    assert TopicQueue(lease=timedelta(seconds=-1)).abandon() == 1
+    store.queue.retry()
+    second = TopicQueue()
+    assert second.claim() == fit
+
+    first.replace(fit, [fitting("de")])
+
+    assert store.stored_topics() == []
+    assert store.requests()[0]["status"] == Status.IN_PROGRESS
+    second.replace(fit, [fitting("de")])
+    assert len(store.stored_topics()) == 2
+
+
 def test_the_languages_the_corpus_holds_come_back_commonest_first(store) -> None:
     """A fit walks them in that order."""
     store.given_passages(de=3, en=1, none=2)
