@@ -1551,9 +1551,8 @@ prompts-publish:
 	$(EVAL) --publish-prompts
 
 # The two phrasing judgements, each against the floor a judge that ignores
-# its input reaches. That floor is the point: `self_contained` scored 84.2%
-# against a constant-answer 78.9% - one case in nineteen - which is the
-# measured version of a judgement that fired zero times in 3,131 questions.
+# its input reaches. That floor is the point: a judgement scoring barely
+# above a constant answer is one that hardly ever fires.
 #
 #     make eval-phrasing                       # upload, then score
 #     make eval-phrasing EVAL_RUN_NAME=gemma4-12b
