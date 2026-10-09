@@ -15,6 +15,6 @@ def test_the_version_handed_out_predates_the_values_beside_it(monkeypatch) -> No
     monkeypatch.setattr(route.store, "overrides", dict)
     monkeypatch.setattr(route.store, "changed_at", dict)
 
-    described, _ = route._described("questions")
+    described = route._described("questions")
 
     assert described.version == "before"

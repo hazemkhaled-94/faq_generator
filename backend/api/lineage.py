@@ -50,9 +50,6 @@ KINDS: tuple[tuple[str, str, int], ...] = (
     ("question", "question_generation", 6),
 )
 
-#: The stage and the position, by kind.
-WHERE_FROM = {kind: (stage, position) for kind, stage, position in KINDS}
-
 #: How much of a passage or a statement one artefact carries.
 _LABEL = 240
 
@@ -375,8 +372,6 @@ def of(kind: str, row_id: str) -> Lineage | None:
     Returns:
         The chain, or None when nothing holds that id.
     """
-    if kind not in WHERE_FROM:
-        return None
     # A document is keyed by its digest; everything else by a row id, and a
     # row id that is not a number names nothing rather than raising.
     key: int | None = None
@@ -391,8 +386,6 @@ def of(kind: str, row_id: str) -> Lineage | None:
         key = int(row_id)
     with sessions()() as session:
         found = _ancestors(session, kind, row_id, key)
-        if not found[kind]:
-            return None
         # Sorted before the page is cut, so it is the first twenty.
         # ponytail: every id of each step is loaded to count it and cut the
         # page; the upgrade is a COUNT plus ORDER BY and LIMIT per step.

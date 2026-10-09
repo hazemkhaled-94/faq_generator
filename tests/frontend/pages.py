@@ -443,7 +443,6 @@ PIPELINE: dict[str, Any] = {
             "available": True,
             "on_arrival": False,
             "nightly": False,
-            "detail": None,
         },
         "detail": None,
     },
@@ -470,7 +469,6 @@ def orchestration(**replaced: Any) -> dict:
             "available": False,
             "on_arrival": False,
             "nightly": False,
-            "detail": None,
         }
     return built
 

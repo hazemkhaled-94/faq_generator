@@ -114,7 +114,6 @@ def test_no_url_is_a_deployment_without_an_orchestrator() -> None:
     """Not an error: every queue verb still works, and this says so."""
     client = Dagster("", session=FakeSession())
 
-    assert client.configured is False
     state = client.state()
     assert state.available is False
     assert state.running is None

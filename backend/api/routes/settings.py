@@ -134,8 +134,8 @@ class Changed:
     detail: str
 
 
-def _described(service: str) -> tuple[ServiceSettings, dict[str, str]]:
-    """Reads one service's settings, and the source they resolved from.
+def _described(service: str) -> ServiceSettings:
+    """Reads one service's settings.
 
     The version first: a write landing during the reads then leaves the
     page holding an older version than its values, and its PATCH conflicts
@@ -146,30 +146,27 @@ def _described(service: str) -> tuple[ServiceSettings, dict[str, str]]:
     overrides = store.overrides()
     changed_at = store.changed_at()
 
-    return (
-        ServiceSettings(
-            service=service,
-            version=version,
-            settings=[
-                SettingState(
-                    name=one.name,
-                    kind=one.kind,
-                    help=one.help,
-                    value=resolved.get(one.name) or None,
-                    default=os.environ.get(one.name) or None,
-                    stored=one.name in overrides,
-                    optional=one.optional,
-                    fixed=one.fixed,
-                    invalidates=list(one.invalidates),
-                    changed_at=changed_at.get(one.name),
-                    low=one.low,
-                    high=one.high,
-                    choices=list(one.choices),
-                )
-                for one in catalog.of(service)
-            ],
-        ),
-        resolved,
+    return ServiceSettings(
+        service=service,
+        version=version,
+        settings=[
+            SettingState(
+                name=one.name,
+                kind=one.kind,
+                help=one.help,
+                value=resolved.get(one.name) or None,
+                default=os.environ.get(one.name) or None,
+                stored=one.name in overrides,
+                optional=one.optional,
+                fixed=one.fixed,
+                invalidates=list(one.invalidates),
+                changed_at=changed_at.get(one.name),
+                low=one.low,
+                high=one.high,
+                choices=list(one.choices),
+            )
+            for one in catalog.of(service)
+        ],
     )
 
 
@@ -181,8 +178,7 @@ def read(service: Service) -> ServiceSettings:
     say it would be, and whether somebody has changed it. A page draws its
     controls from this and holds no list of its own.
     """
-    described, _ = _described(service)
-    return described
+    return _described(service)
 
 
 @router.patch(

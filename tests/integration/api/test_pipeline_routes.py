@@ -399,7 +399,6 @@ def test_automation_reads_as_off_when_there_is_nothing_watching(client, orchestr
         "available": False,
         "on_arrival": False,
         "nightly": False,
-        "detail": None,
     }
 
 

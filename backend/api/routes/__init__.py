@@ -51,22 +51,3 @@ ROUTERS = (
     prompts_router,
     lineage_router,
 )
-
-__all__ = [
-    "ROUTERS",
-    "assessment_enrol_router",
-    "assessment_router",
-    "chunking_router",
-    "documents_router",
-    "extraction_router",
-    "facts_router",
-    "lineage_router",
-    "parsing_router",
-    "passages_router",
-    "pipeline_router",
-    "prompts_router",
-    "questions_router",
-    "settings_router",
-    "system_router",
-    "topics_router",
-]

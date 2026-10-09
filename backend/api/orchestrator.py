@@ -98,7 +98,6 @@ class Automation:
     available: bool = False
     on_arrival: bool = False
     nightly: bool = False
-    detail: str | None = None
 
 
 @dataclass(frozen=True)
@@ -134,11 +133,6 @@ class Dagster:
         """
         self._url = (url or optional("DAGSTER_URL") or "").rstrip("/")
         self._session = session or requests.Session()
-
-    @property
-    def configured(self) -> bool:
-        """Whether this deployment named an orchestrator at all."""
-        return bool(self._url)
 
     def _query(self, document: str, **variables: Any) -> dict:
         """Sends one GraphQL document and returns its `data`.
@@ -189,7 +183,7 @@ class Dagster:
 
     # ── Reading ────────────────────────────────────────────────────────────
 
-    def state(self, *, recent: int = 5) -> Orchestration:
+    def state(self) -> Orchestration:
         """Everything the orchestrator has to say, in one round trip.
 
         Never raises. A deployment without an orchestrator and one whose
@@ -198,7 +192,7 @@ class Dagster:
         before deciding whether to offer a Run button at all.
         """
         try:
-            data = self._query(_STATE, limit=recent, **_selector())
+            data = self._query(_STATE, limit=5, **_selector())
         except (Unavailable, Refused) as missing:
             return Orchestration(detail=str(missing))
 
