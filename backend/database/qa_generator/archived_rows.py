@@ -1,4 +1,8 @@
-"""The archived_rows table, and the trigger that fills it."""
+"""The archived_rows table.
+
+The trigger function that fills it, `archive_deleted_row()`, and the AFTER
+DELETE trigger on each table that calls it are created by the migrations.
+"""
 
 from __future__ import annotations
 
@@ -54,42 +58,3 @@ class ArchivedRow(Base):
         server_default=func.now(),
         comment="When the deletion happened.",
     )
-
-
-#: Copies a row into `archived_rows` as it is deleted.
-#:
-#: One function for all thirteen tables, because `to_jsonb(OLD)` names no
-#: column: a table gains one and this keeps working. `embedding` is dropped by
-#: key, and `jsonb - text` on a row without that key is the row unchanged, so
-#: the same function serves the four tables carrying a vector and the nine
-#: that are not.
-#:
-#: Declared here, beside the table it fills, and executed by the migration
-#: that creates that table: autogenerate sees tables and columns, never a
-#: trigger.
-ARCHIVE_FUNCTION = """
-CREATE OR REPLACE FUNCTION archive_deleted_row() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-    INSERT INTO archived_rows (table_name, payload)
-    VALUES (TG_TABLE_NAME, to_jsonb(OLD) - 'embedding');
-    RETURN NULL;
-END;
-$$;
-"""
-
-DROP_ARCHIVE_FUNCTION = "DROP FUNCTION IF EXISTS archive_deleted_row();"
-
-
-def archive_trigger(table: str) -> str:
-    """Builds the AFTER DELETE trigger that archives one table's rows."""
-    return f"""
-CREATE TRIGGER {table}_archive_deleted_row
-AFTER DELETE ON {table}
-FOR EACH ROW EXECUTE FUNCTION archive_deleted_row();
-"""
-
-
-def drop_archive_trigger(table: str) -> str:
-    """Builds the statement that takes it back off."""
-    return f"DROP TRIGGER IF EXISTS {table}_archive_deleted_row ON {table};"
