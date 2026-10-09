@@ -38,7 +38,7 @@ dataframeHeaderBackgroundColor = "#E6DCFF"
 dataframeBorderColor = "#E4E1EA"
 
 # The deep end of the purple ramp, which is the colour the rule under the
-# masthead starts from. Holds the navigation and nothing else.
+# page title starts from. Holds the navigation and nothing else.
 [theme.light.sidebar]
 backgroundColor = "#460073"
 secondaryBackgroundColor = "#5B1094"
