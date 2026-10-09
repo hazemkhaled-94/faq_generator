@@ -416,23 +416,28 @@ def _ensure(client, attempts: int = 10) -> None:
             _first_write(client, name, attempts)
 
 
-def _first_write(client, name: str, attempts: int) -> None:
-    """Writes and removes one object, so a new bucket has its volumes.
+def _first_write(client, name: str, attempts: int, writes: int = 12) -> None:
+    """Writes and removes a dozen objects, so a new bucket has its volumes.
 
-    A new collection grows its volumes on its first write, and a PutObject
-    that arrives while they grow is refused with an InternalError.
+    A new collection grows several volumes on its first write, and a
+    PutObject assigned to one still growing is refused with an InternalError.
+    Each write lands on a volume the master picks, so a dozen reach them all;
+    an empty body would stay in the filer and reach none.
 
     Raises:
-        AssertionError: If no write lands, which is the object store being
-            broken rather than a bucket still growing.
+        AssertionError: If a write never lands, which is the object store
+            being broken rather than a bucket still growing.
     """
-    for attempt in range(attempts):
-        with contextlib.suppress(Exception):
-            client.put_object(Bucket=name, Key="first-write", Body=b"")
-            client.delete_object(Bucket=name, Key="first-write")
-            return
-        time.sleep(0.2 * (attempt + 1))
-    raise AssertionError(f"nothing could be written to the {name} bucket")
+    for one in range(writes):
+        key = f"first-write-{one}"
+        for attempt in range(attempts):
+            with contextlib.suppress(Exception):
+                client.put_object(Bucket=name, Key=key, Body=b"first write")
+                client.delete_object(Bucket=name, Key=key)
+                break
+            time.sleep(0.2 * (attempt + 1))
+        else:
+            raise AssertionError(f"nothing could be written to the {name} bucket")
 
 
 def _empty(client) -> None:
