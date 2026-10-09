@@ -182,7 +182,7 @@ help:
 	' $(MAKEFILE_LIST)
 
 .PHONY: help setup doctor \
-        dev install up down down-volumes logs logs-frontend logs-api \
+        dev install up grafana-grants down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
         logs-wipe \
         prune spend spend-by-shape \
@@ -362,6 +362,16 @@ logs-dir:
 # Start every service, generating the certificates first if they are missing.
 up: certs logs-dir
 	$(COMPOSE_CMD) up -d
+	@$(MAKE) --no-print-directory grafana-grants
+
+# Grafana's reader gets SELECT on the Phoenix tables the run dashboard queries,
+# once Phoenix has made them. Run by `up`; safe to run again.
+grafana-grants:
+	@for i in $$(seq 1 30); do \
+	  $(COMPOSE_CMD) exec -T postgres sh -c 'psql -q -U "$$POSTGRES_USER" -d "$$PHOENIX_DB_NAME" -c "TABLE span_annotations LIMIT 0"' >/dev/null 2>&1 && break; \
+	  sleep 5; \
+	done
+	$(COMPOSE_CMD) exec -T postgres sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$PHOENIX_DB_NAME" -c "GRANT SELECT ON projects, traces, spans, span_costs, span_annotations TO $$GRAFANA_DB_USER"'
 
 # Stop every service. The volumes are kept.
 down:

@@ -297,3 +297,25 @@ def test_the_balance_is_drawn_over_every_topic_whatever_narrows_it() -> None:
     ]
 
     assert "--only" not in drawing, drawing
+
+
+#: The Phoenix tables the run dashboard queries.
+DASHBOARD_TABLES = ("projects", "traces", "spans", "span_costs", "span_annotations")
+
+
+def test_bringing_the_stack_up_grants_grafana_the_dashboards_phoenix_tables() -> None:
+    """Phoenix makes its tables after the database's first boot."""
+    granted = " ".join(printed("up"))
+
+    assert "GRANT SELECT ON " + ", ".join(DASHBOARD_TABLES) in granted, granted
+
+
+def test_the_first_boot_grants_grafana_no_phoenix_table() -> None:
+    """Everything it may read is granted by name, once the tables exist."""
+    phoenix = (
+        (ROOT / "configs/postgres/init.sh").read_text().split("Phoenix database")[1]
+    )
+    phoenix = phoenix.split("Dagster database")[0]
+
+    assert "ON ALL TABLES" not in phoenix
+    assert "DEFAULT PRIVILEGES" not in phoenix
