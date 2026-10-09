@@ -43,7 +43,7 @@ header[data-testid="stHeader"] { background: transparent; }
 /* The toolbar menu stays: it is where the light/dark toggle lives. */
 footer { visibility: hidden; }
 
-/* ── Masthead ───────────────────────────────────────────────────────── */
+/* ── Page header ────────────────────────────────────────────────────── */
 
 /* The page title and the name, on one line over the purple rule. */
 .qa-header {
