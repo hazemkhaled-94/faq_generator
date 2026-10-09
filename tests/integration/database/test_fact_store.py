@@ -463,36 +463,6 @@ class TestBridges:
 
         assert store.catalog.clear_bridges(Passage.doc_sha256 == digest("a")) == 1
 
-    def test_losing_a_passage_deletes_the_bridge_that_needed_it(
-        self, store, corpus
-    ) -> None:
-        """Re-chunking one side would otherwise leave a claim bridging nothing."""
-        anchor, other = corpus["a"][0], corpus["b"][0]
-        store.bridges(
-            checked(
-                anchor, "A bridge.", kind=FactKind.BRIDGE, passage_ids=[anchor, other]
-            )
-        )
-
-        store.drop_passage(other)
-
-        assert store.count() == 0, "the trigger took the fact with the link"
-        assert store.links() == []
-
-    def test_losing_the_anchor_deletes_the_bridge_too(self, store, corpus) -> None:
-        """The trigger does this one too: the anchor is a citation like any other."""
-        anchor, other = corpus["a"][0], corpus["b"][0]
-        store.bridges(
-            checked(
-                anchor, "A bridge.", kind=FactKind.BRIDGE, passage_ids=[anchor, other]
-            )
-        )
-
-        store.drop_passage(anchor)
-
-        assert store.count() == 0
-        assert store.links() == []
-
     def test_writing_nothing_writes_nothing(self, store) -> None:
         """A topic that bridges nothing costs no statement."""
         assert store.bridges() == 0

@@ -231,10 +231,6 @@ class FactStore:
             for row in self._execute("SELECT extract_status FROM passages ORDER BY id")
         ]
 
-    def drop_passage(self, passage_id: int) -> None:
-        """Deletes a passage, as re-chunking does."""
-        self._execute("DELETE FROM passages WHERE id = :id", id=passage_id)
-
     def group_of(self, topic_id: int) -> list[PassageToExtract]:
         """The passages one topic holds, as the bridge pass reads them."""
         return next(

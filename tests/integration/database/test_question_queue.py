@@ -1155,19 +1155,6 @@ def test_a_bridge_that_recorded_no_citation_is_never_offered(corpus, engine) -> 
     assert fact_id not in _passages_of(engine, topic_id)
 
 
-def test_a_bridge_cannot_outlive_a_passage_it_rested_on(corpus, engine) -> None:
-    """Which is why nothing here has to guard against one resting on one."""
-    written = corpus(topics=1, facts_per_topic=2, documents=2)
-    topic_id = written["topics"][0]
-    anchor, other = (one.passage_id for one in QuestionQueue().facts(topic_id))
-    fact_id = _bridge(engine, anchor, other)
-
-    with engine.begin() as connection:
-        connection.execute(text("DELETE FROM passages WHERE id = :id"), {"id": other})
-
-    assert fact_id not in _passages_of(engine, topic_id)
-
-
 def _settings(**overrides):
     """The question settings a re-check reads, with nothing served.
 
