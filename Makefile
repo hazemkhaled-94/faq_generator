@@ -929,8 +929,9 @@ confidence-recalibrate:
 questions-balance:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --balance
 
-# The questions as a spreadsheet: one sheet of questions, one of the facts
-# each cites, one of counts. A question's own row carries what it rests on
+# The questions as a spreadsheet: four sheets - Questions, Citations (the
+# facts each cites), Assessment (what the judge said of each) and Summary
+# (counts). A question's own row carries what it rests on
 # too - the facts, the evidence under them, its subjects, its documents by
 # title, the answer at length and the judge's reasoning - so a row reads
 # without joining the citations by id. This is the way the dataset leaves
