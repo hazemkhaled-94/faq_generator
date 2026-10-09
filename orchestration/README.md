@@ -157,7 +157,8 @@ button and `make extract` all produced rows stamped with the same
 container, and nothing in the data said which of them had asked.
 
 The edge is the one already there — a `?run=` on the stage routes — so this
-package still holds no credential and still reaches nothing but HTTP.
+package still holds no credential for the application database or the
+object store, and still reaches nothing but HTTP.
 Surfaces that are not Dagster get the same treatment: the API mints an id
 when a caller names none and answers with it, so pressing Start is also
 followable. `RUN_ID` overrides both, which is what keeps the A/B in
@@ -218,7 +219,7 @@ poetry run pytest tests/unit/orchestration
 | [`test_assets.py`](../tests/unit/orchestration/test_assets.py) | What the asset and check bodies report, against a stand-in backend |
 | [`test_orchestration_client.py`](../tests/unit/orchestration/test_orchestration_client.py) | The stage routes as the orchestrator reads them, and the run it carries into them |
 | [`test_sensor.py`](../tests/unit/orchestration/test_sensor.py) | When the orchestrator decides the pipeline should start, and what it records for the work it did not |
-| [`tests/smoke/test_compose.py`](../tests/smoke/test_compose.py) | That the orchestrator holds no database credential |
+| [`tests/smoke/test_compose.py`](../tests/smoke/test_compose.py) | That the orchestrator holds no credential for the application tables |
 
 None of these reaches a network.
 
