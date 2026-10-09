@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from itertools import groupby
 from typing import ClassVar, cast
 
@@ -346,15 +346,13 @@ class PassageQueue(RowQueue):
     def nearest_fact(
         self,
         embedding: list[float],
-        within: Sequence[int] = (),
         excluding: int | None = None,
     ) -> Twin | None:
         """The validated passage fact closest to this vector, or None.
 
-        `within` narrows the search to a set of passages. Empty searches the
-        whole corpus, which is what dedup wants: a duplicate written from
-        another document is still a duplicate, and at this corpus's size the
-        HNSW index answers either in single-digit milliseconds.
+        Over the whole corpus, which is what dedup wants: a duplicate written
+        from another document is still a duplicate, and at this corpus's size
+        the HNSW index answers in single-digit milliseconds.
 
         `excluding` is a passage being read again: a fact citing it and no
         other passage is one its `store` replaces, so it is no twin.
@@ -370,14 +368,6 @@ class PassageQueue(RowQueue):
             .order_by(distance)
             .limit(1)
         )
-        if within:
-            query = query.where(
-                Fact.id.in_(
-                    select(FactPassage.fact_id).where(
-                        FactPassage.passage_id.in_(within)
-                    )
-                )
-            )
         if excluding is not None:
             query = query.where(
                 Fact.id.not_in(
