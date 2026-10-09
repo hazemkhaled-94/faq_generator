@@ -82,6 +82,45 @@ def test_a_file_just_under_the_limit_is_accepted(client, pdf, monkeypatch) -> No
     assert upload(client, pdf).status_code == 200
 
 
+def test_an_upload_declaring_no_length_is_read_one_byte_past_the_limit(
+    client, pdf, monkeypatch
+) -> None:
+    """Sent chunked, so only the read itself can bound it."""
+    from api.routes import documents
+
+    made = documents.ingesting
+    read: list[int] = []
+
+    def limited():
+        service = made()
+        service._max_file_size_bytes = 10
+        ingest = service.ingest
+
+        def measured(upload):
+            read.append(upload.size_bytes)
+            return ingest(upload)
+
+        service.ingest = measured
+        return service
+
+    monkeypatch.setattr(documents, "ingesting", limited)
+    body = (
+        b"--b\r\n"
+        b'Content-Disposition: form-data; name="file"; filename="big.pdf"\r\n'
+        b"Content-Type: application/pdf\r\n\r\n" + pdf + b"\r\n--b--\r\n"
+    )
+
+    answered = client.post(
+        "/documents",
+        content=iter([body]),
+        headers={"content-type": "multipart/form-data; boundary=b"},
+    )
+
+    assert answered.status_code == 413
+    assert answered.json()["code"] == "too_large"
+    assert read == [11]
+
+
 def test_the_same_file_twice_is_answered_not_refused(client, pdf) -> None:
     """A duplicate is an answer; the caller is told which document it is."""
     first = upload(client, pdf).json()

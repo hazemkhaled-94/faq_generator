@@ -33,6 +33,8 @@ def read_pdf(data: bytes) -> PdfFacts:
             if document.needs_pass:
                 raise UnreadablePdf("the PDF is password protected")
             # Summed page by page, so no document's text is held all at once.
+            # ponytail: every page is read, with no page or time cap; the
+            # upgrade is a page cap at ingest.
             return PdfFacts(
                 page_count=document.page_count,
                 char_count=sum(len(page.get_text()) for page in document),

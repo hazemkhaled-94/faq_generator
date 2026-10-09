@@ -170,12 +170,9 @@ def add_document(request: Request, file: UploadFile) -> IngestResult:
     if declared is not None and declared > service.max_file_size_bytes + _FRAMING:
         return _respond(service.refuse_oversized(filename, declared))
 
-    # ponytail: a request declaring no length is still read in full and
-    # measured afterwards. Every client that posts a file sets Content-Length;
-    # the upgrade path for one that does not is a bounded chunked read, or a
-    # body limit on a reverse proxy in front of this.
-    upload = UploadedFile(filename=filename, data=file.file.read())
-    return _respond(service.ingest(upload))
+    # One byte past the limit at most, which `ingest` refuses as too large.
+    read = file.file.read(service.max_file_size_bytes + 1)
+    return _respond(service.ingest(UploadedFile(filename=filename, data=read)))
 
 
 #: The most a multipart body adds around the file: boundaries and the part's
