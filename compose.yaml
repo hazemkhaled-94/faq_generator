@@ -3,17 +3,19 @@ name: qa_generator
 # ── Networks: development vs deployment ────────────────────────────────────
 #
 # Development uses one network, `global`, so every service is reachable from
-# the host.
+# the host. parse-worker, which reads untrusted uploads, is the exception: its
+# one network is `parsing`, internal, holding postgres, seaweedfs-s3 and
+# phoenix beside it.
 #
-# Before deployment, replace it with three:
+# Before deployment, replace `global` with three:
 #
 #   frontend: {}          every service still publishing a port
 #   backend:              every service; no host access, no outbound
 #     internal: true
 #   egress: {}            the four workers that call a model: extract-worker,
 #                         topic-worker, question-worker, assess-worker. And
-#                         parse-worker and chunk-worker, until the models
-#                         they fetch on first use are in the `models` volume.
+#                         chunk-worker, until the tokenizer it fetches on
+#                         first use is in the `models` volume.
 #
 # Then drop `ports:` from postgres, which is then reached through adminer.
 # The seaweedfs master, filer and volume servers publish no port; the host
@@ -296,7 +298,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    networks: [global]
+    networks: [global, parsing]
     logging: *logging
     deploy:
       resources:
@@ -454,7 +456,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
-    networks: [global]
+    networks: [global, parsing]
     logging: *logging
     deploy:
       resources:
@@ -570,6 +572,10 @@ services:
     command: ["python", "-m", "preprocessing.parsing.run", "--watch"]
     environment:
       <<: [*service-env, *phoenix-env, *store-env]
+      # Docling's weights are read from the `models` volume, never fetched.
+      HF_HUB_OFFLINE: "1"
+    extra_hosts: []
+    networks: [parsing]
     deploy:
       resources:
         # Docling's layout models and no OCR. Measured at 888 MB idle and
@@ -773,7 +779,7 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       postgres: { condition: service_healthy }
-    networks: [global]
+    networks: [global, parsing]
     logging: *logging
     deploy:
       resources:
@@ -992,6 +998,8 @@ services:
 
 networks:
   global: {}
+  parsing:
+    internal: true
 
 volumes:
   postgres_data:

@@ -379,3 +379,37 @@ def test_every_image_built_here_runs_with_no_capability_and_no_way_to_gain_one()
 
     assert len(built) == 10, sorted(built)
     assert not loose, sorted(loose)
+
+
+def test_the_parser_reaches_only_the_services_it_writes_to() -> None:
+    """It reads untrusted uploads, so its one network is internal."""
+    declared = yaml.safe_load((ROOT / "compose.yaml").read_text())
+    services = declared["services"]
+    (network,) = services["parse-worker"]["networks"]
+    beside = sorted(
+        name
+        for name, service in services.items()
+        if network in service.get("networks", []) and name != "parse-worker"
+    )
+
+    assert declared["networks"][network].get("internal") is True, network
+    assert beside == ["phoenix", "postgres", "seaweedfs-s3"], beside
+    assert services["parse-worker"]["environment"]["HF_HUB_OFFLINE"] == "1"
+
+
+def test_every_service_has_exactly_one_network_with_a_way_out() -> None:
+    """A second one gives it two default routes, and it loses outbound."""
+    declared = yaml.safe_load((ROOT / "compose.yaml").read_text())
+    internal = {
+        name
+        for name, one in declared["networks"].items()
+        if (one or {}).get("internal")
+    }
+    wrong = sorted(
+        name
+        for name, service in declared["services"].items()
+        if len(set(service.get("networks", [])) - internal) > 1
+        or (service.get("ports") and not set(service.get("networks", [])) - internal)
+    )
+
+    assert not wrong, wrong
