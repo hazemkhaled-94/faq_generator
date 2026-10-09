@@ -1,10 +1,10 @@
 # LLM
 
-The served model, shared by the three stages that call one: extraction reads
-passages with it, topic modelling names topics with it, and question
-generation writes and verifies with it.
+The served model, shared by the four stages that call one: extraction reads
+passages with it, topic modelling names topics with it, question generation
+writes and verifies with it, and the assessment phase judges with it.
 
-**One set of values for all three.** Importing [`client.py`](client.py) loads
+**One set of values for all four.** Importing [`client.py`](client.py) loads
 litellm, and nothing outside a worker should name it —
 `tests/static/test_api_stays_light.py` pins that the API loads none of it.
 
@@ -16,22 +16,21 @@ Every call asks for a **typed object**. instructor wraps litellm and validates
 the answer against a Pydantic model, so a stage receives a structure or an
 exception.
 
-`LLM_STRUCTURED_MODE` is how that shape is asked for. `JSON_SCHEMA` is the
-default and is what a local runtime supports; a hosted provider may want
-`TOOLS`. Getting it wrong is an error at the first call.
+`LLM_STRUCTURED_MODE` is how that shape is asked for. `JSON_SCHEMA` is what
+a local runtime supports; a hosted provider may want `TOOLS`. Getting it wrong is an error at the first call.
 
 ### Retries
 
-Retried here with exponential backoff, up to `LLM_MAX_ATTEMPTS`: a connection
-error, a timeout, an internal server error, a service-unavailable, and an
-answer that would not validate. An authentication failure, an unknown model
-or a malformed schema is raised at once.
+Retried here and nowhere else, up to `LLM_MAX_ATTEMPTS` attempts: a
+connection error, a timeout, an internal server error, a
+service-unavailable, a rate limit, and an answer that would not validate.
+litellm and the provider's SDK are asked for no retries of their own. An
+authentication failure, an unknown model or a malformed schema is raised at
+once.
 
-**A rate limit is deliberately not in that list.** A hosted provider answers
-429 with a `Retry-After` of twenty to sixty seconds, and tenacity cannot see
-that header. It is handled a layer down: `num_retries` becomes litellm's
-`max_retries`, which becomes `max_retries` on the provider's own SDK client,
-and that one does read the header.
+**A rate limit waits as long as its `Retry-After` asks.** A hosted provider
+answers 429 with a `Retry-After` of twenty to sixty seconds; every other
+failure, and a 429 that names no seconds, backs off exponentially.
 
 ### What a stage may override
 
@@ -48,12 +47,17 @@ Each means `LLM_MODEL` when absent. Three more name a model for one
 `QUESTIONS_PHRASING_MODEL` and `QUESTIONS_VERIFIER_MODEL` — and
 `make spend-by-shape` is what each of them costs.
 
-The address, the mode and the patience stay `LLM_*`, one value for every
-stage.
+The mode and the patience stay `LLM_*`, one value for every stage. So does
+the address, unless the model named is on another provider: an `ollama*`
+model is sent to `OLLAMA_BASE_URL`, and a hosted one named while
+`LLM_BASE_URL` is that Ollama address goes to the provider's own.
 
 `QUESTIONS_VERIFIER_MODEL` is a different thing: a **second** model that
 checks the first one's work. See
 [question generation](../question_generation/README.md).
+
+`ASSESSMENT_JUDGE_MODEL` names the judge, and never means `LLM_MODEL`:
+unset, nothing is judged. See [assessment](../assessment/README.md).
 
 ### Changing provider
 
@@ -68,14 +72,15 @@ LLM_MODEL=bedrock/anthropic.claude-... # AWS_ACCESS_KEY_ID and friends
 
 `provider.env` is written by `make setup` from
 [`provider.env.example`](../../configs/env/provider.env.example). It is
-optional and absent for a plain Ollama. Compose hands it to the three
-services that call a model and to nothing else, and the Makefile sources it
+optional and absent for a plain Ollama. Compose hands it to the four
+workers that call a model and to nothing else, and the Makefile sources it
 for a host command.
 
 `make doctor` asks the configured model one question.
 
-The one thing that does **not** move when you change providers is
-`EMBEDDING_MODEL`, which runs locally in the worker.
+What does **not** move when you change providers are the local encoders:
+`EMBEDDING_MODEL`, `NLI_MODEL`, `QA_MODEL` and the spaCy pipelines
+`NLP_MODELS` names, which run in the worker.
 
 ### The containers call Ollama, and only Ollama
 
@@ -98,11 +103,15 @@ stack only through `up --force-recreate`.
 
 There is no `LLM_CONTAINER_URL`: a container's address is Ollama's, because
 there is nowhere else it may send a prompt. `make doctor` refuses a container
-model that is not an `ollama*` one.
+model that is not an `ollama*` one. The judge is set apart:
+`ASSESSMENT_JUDGE_CONTAINER_MODEL` may name a hosted model, which
+`provider.env` authenticates, and unset the worker judges nothing.
 
 The two halves **never drain one stage's queue at once**: a host drain
-refuses while that stage's worker is running. Comparing two models is
-`RUN_ID` over the same rows — see [settings](../settings/README.md).
+refuses while that stage's worker is running. The container workers build
+the dataset; a host drain is for developing a stage, and host parse, chunk
+and extract runs are kept off the dataset. Comparing two models is `RUN_ID`
+over the same rows — see [settings](../settings/README.md).
 
 ### A worker proves the model before it claims anything
 
@@ -130,8 +139,9 @@ the check.
 
 ## Cost and latency
 
-Every call is logged with its duration, its token counts and, where the
-provider prices it, what it cost:
+Every call is logged with its duration, its token counts and, where
+litellm has a price for the model, what it cost. A model missing from its
+price list is logged with no cost, and the answer is kept:
 
 ```bash
 make spend LOG=run.log                    # totals from a captured log
@@ -158,7 +168,7 @@ The values are in the file named beside each, once.
 | `LLM_MODEL` | `.env` | LiteLLM model id; the prefix picks the provider |
 | `LLM_BASE_URL` | `.env` | Where that model is served |
 | `LLM_STRUCTURED_MODE` | `backend.env` | How a typed answer is asked for |
-| `LLM_TEMPERATURE` | `backend.env` | Zero, so a re-run is comparable to the last one |
+| `LLM_TEMPERATURE` | `backend.env` | How far a re-run's answers may move from the last one's |
 | `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |
 | `LLM_MAX_ATTEMPTS` | `backend.env` | Attempts per call |
 | `LLM_NUM_CTX` | `backend.env` | The context window to ask the runtime for |
@@ -178,19 +188,20 @@ poetry run pytest tests/unit/llm
 | File | Covers |
 |---|---|
 | [`test_client.py`](../../tests/unit/llm/test_client.py) | Asking a served model, and what happens when it will not answer: which failures are retried, which are raised, and what the span carries |
-| [`test_overridden.py`](../../tests/unit/llm/test_overridden.py) | One stage calling a different model, and that only the model moves |
+| [`test_overridden.py`](../../tests/unit/llm/test_overridden.py) | One stage calling a different model, and that only the model moves, bar the address on a change of provider |
+| [`test_prompt_fill.py`](../../tests/unit/llm/test_prompt_fill.py) | Filling a prompt template, where a value may carry a placeholder too |
 
 No test here reaches a network. The evaluation layer is where a real served
 model is asked anything — see [`evaluation/`](../../evaluation/README.md).
 
 ## Limits
 
-- **A rate limit is not retried by this package.** Raising
-  `LLM_MAX_ATTEMPTS` does not help a 429.
-- **`LLM_TEMPERATURE=0` is not a guarantee of determinism.** A model's
+- **A rate limit spends an attempt.** It waits as long as its `Retry-After`
+  asks and counts against `LLM_MAX_ATTEMPTS` like any other failure.
+- **The lowest `LLM_TEMPERATURE` is not a guarantee of determinism.** A model's
   answers still move between versions and quantisations, which is why
   `tests/eval/` never gates.
-- **`QUESTIONS_VERIFIER_MODEL` unset turns gates off rather than failing.**
-  The worker warns on every start.
+- **`QUESTIONS_VERIFIER_MODEL` unset makes the writer check its own
+  questions rather than failing.** The worker warns on every start.
 - **An unknown model id fails at the first call, not at start-up.** The only
   way to validate one is to call it; `make doctor` is that call.
