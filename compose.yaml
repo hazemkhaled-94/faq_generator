@@ -136,9 +136,7 @@ x-model-env: &model-env
   # ASSESSMENT_JUDGE_CONTAINER_MODEL to point the worker at a model,
   # including at a hosted provider - provider.env is already given to the
   # processes that call a model, so it will authenticate. That is a
-  # deliberate decision to make, not a default to inherit: inheriting a
-  # hosted model is how a stale container spent 2,019 restarts failing to
-  # authenticate to Azure.
+  # deliberate decision to make, not a default to inherit.
   ASSESSMENT_JUDGE_MODEL: ${ASSESSMENT_JUDGE_CONTAINER_MODEL-}
 
 # Whatever env vars the configured provider needs, credentials included:
@@ -576,9 +574,7 @@ services:
     networks: [parsing]
     deploy:
       resources:
-        # Docling's layout models and no OCR. Measured at 888 MB idle and
-        # under 2 GB converting; 8 GB was the largest cap in the file for
-        # the stage that needs the third-largest.
+        # Docling's layout models and no OCR.
         limits: { cpus: "3.0", memory: 4G }
 
   # Splits a converted document into passages, and reads their sentences
@@ -591,9 +587,7 @@ services:
     deploy:
       resources:
         # EMBEDDING_MODEL's TOKENIZER, not its weights - which is why this
-        # is the one model-adjacent worker that stays small. Raised from 2
-        # because it measured 969 MB idle, and 45% of a cap at rest is the
-        # margin a long document eats.
+        # is the one model-adjacent worker that stays small.
         limits: { cpus: "2.0", memory: 3G }
 
   # Draws facts out of passages. Scalable.
@@ -626,15 +620,14 @@ services:
       <<: [*service-env, *phoenix-env, *model-env, *store-env]
     deploy:
       resources:
-        # gensim's NMF over the corpus vocabulary, measured at 402 MB idle.
-        # The factorisation grows with the corpus rather than with a model,
-        # so this is the one to raise when the corpus does.
+        # gensim's NMF over the corpus vocabulary. The factorisation grows
+        # with the corpus rather than with a model, so this is the one to
+        # raise when the corpus does.
         limits: { cpus: "2.0", memory: 3G }
 
   # Writes the test questions, one topic at a time. Scalable, though there is
-  # far less to divide than in the stages before it: the queue is one row per
-  # topic, so a corpus with twelve topics per language has two dozen rows and
-  # a thirteenth worker would have nothing to claim.
+  # far less to divide than in the stages before it: the queue is one row
+  # per topic.
   #
   # The memory limit is what the ENCODERS need, and it is the sum of them
   # rather than the largest: they are loaded lazily but a real run reaches
@@ -643,14 +636,14 @@ services:
   #
   #   EMBEDDING_MODEL   always            ~2.2 GB   ON
   #   NLI_MODEL         entailment pass   ~2.2 GB   ON
-  #   QA_MODEL          the recall half   ~2.2 GB   OFF, and measured off
+  #   QA_MODEL          the recall half   ~2.2 GB   OFF
   #   RERANKER_MODEL    -                 ~1.2 GB   gone with its module
   #
   # 12 GB was the sum of all four. Two of them are no longer loaded - QA_MODEL
   # is empty because the span it finds is not the answer, and the reranker was
-  # deleted for costing 6.92 s a candidate to move no call - so what a run
-  # actually holds is 4.4 GB of weights and torch's allocator over them. 6 GB
-  # is that with room; raise it again the moment QA_MODEL is set.
+  # deleted - so what a run actually holds is 4.4 GB of weights and torch's
+  # allocator over them. 6 GB is that with room; raise it again the moment
+  # QA_MODEL is set.
   #
   # `extract-worker` loads EMBEDDING_MODEL too. This comment used to say the
   # other workers load no weights at all, and that has not been true since
@@ -808,8 +801,7 @@ services:
   # DAGSTER_HOME, so a daemon left to find its own looks in the wrong
   # directory, finds no `[tool.dagster]` in a pyproject.toml that is not
   # in the image either, prints its usage and exits 0. With
-  # `restart: unless-stopped` above that is not a crash but a spin: this
-  # container had restarted 68,028 times.
+  # `restart: unless-stopped` above that is not a crash but a spin.
   dagster-daemon:
     <<: *dagster
     command: dagster-daemon run -w /opt/dagster/dagster_home/workspace.yaml

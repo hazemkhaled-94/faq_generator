@@ -4,7 +4,7 @@
 # An image of its own rather than the backend one, which serves the api and
 # all six workers. That image carries torch, spaCy, Docling and litellm
 # because some process in it needs each; this process makes HTTP calls and
-# needs none of them. Sharing it would have put three gigabytes behind two
+# needs none of them. Sharing it would have put all of that behind two
 # containers whose whole job is to POST /parsing/start and poll a status
 # route, and would have coupled the orchestrator's rebuilds to the
 # pipeline's.

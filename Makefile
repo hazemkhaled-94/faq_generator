@@ -383,9 +383,7 @@ down:
 # Reclaim the images a rebuild orphaned. Neither podman nor docker collects
 # them: an untagged layer may still be the cache the next build reuses, so
 # the engine keeps it until asked. A tag rebuilt six times leaves five
-# untagged copies of itself, and this project's backend image is 3 GB - one
-# run of this recovered 30 GB, after a build had already failed with `no
-# space left on device` inside the podman VM.
+# untagged copies of itself.
 #
 # Dangling only. `-a` would take images no container is running right now,
 # which on a stopped stack is all of them.
@@ -476,8 +474,7 @@ logs-retention:
 # host run, and nothing else deletes one. `RotatingFileHandler` only rotates
 # the file its own live process owns, filebeat mounts both directories
 # read-only on purpose, and filebeat's `ignore_older` and `clean_inactive`
-# age its REGISTRY and not the disk. The volume had reached 78 files and
-# 110 MB before this target existed.
+# age its REGISTRY and not the disk.
 #
 # Both places a line is written: the volume, through the api, which mounts
 # it writable, and ./logs on the host, which make can delete from itself.
@@ -950,8 +947,8 @@ questions-balance:
 # the database - everything else that reads these rows is a service, and
 # Argilla is NOT
 # this: it holds a disposable copy of a stratified SAMPLE pushed for review,
-# so exporting from there gives back the hundred rows somebody was asked to
-# look at rather than the set.
+# so exporting from there gives back the rows somebody was asked to look at
+# rather than the set.
 #
 # OUT names the file. FILTER is passed through to the exporter, and takes
 # the same narrowing the Questions page and the API do - so what lands in
@@ -1090,8 +1087,7 @@ questions-diff:
 # For the LIVE numbers, neither of these: Grafana's Pipeline throughput
 # dashboard sums llm.cost_usd off Elasticsearch, and Phoenix has the same
 # figures per span, per run. What these two have that neither does is a log
-# from a run that is over, on a machine with no stack up - which is what the
-# measurements in evaluation/README.md were taken from.
+# from a run that is over, on a machine with no stack up.
 #
 #   make spend LOG=run.log
 #   make spend LOG=run.log SINCE=2026-09-18
@@ -1206,7 +1202,7 @@ delete:
 # gone. Deleting the topics takes their figures out of the export bucket too.
 #
 # The upload history goes with the documents here, though a single deletion
-# keeps it: an empty corpus reporting nine upload attempts is a status panel
+# keeps it: an empty corpus reporting upload attempts is a status panel
 # describing documents nothing has.
 # Everything the corpus left behind goes with it, and that is the point:
 # once the documents are gone, a trace of the run that read them, a review
@@ -1581,19 +1577,18 @@ eval-phrasing:
 # removed by nothing. While a project meant a run somebody asked for that
 # was fine; `run_id` mints a uuid per PROCESS, a --watch worker is a
 # process per restart, and a credential that has expired restarts it every
-# minute. This deployment reached five hundred projects, 497 of them
-# holding one span: the model call a preflight made before giving up.
+# minute.
 #
-# Two changes stop it growing - an unnamed run appends to its stage's own
-# project, and the exporter is not installed until the preflight passes -
-# and this takes back what the old arrangement left.
+# Two changes stop the count growing - an unnamed run appends to its
+# stage's own project, and the exporter is not installed until the
+# preflight passes - and this takes back what the old arrangement left.
 #
 #   make phoenix-projects    what Phoenix holds, changing nothing
 #   make phoenix-prune       delete the projects in which no work happened
 #
 # `prune` takes a project only when every span in it is a model call AND
 # it could read every span. A project too big to read in one page is left
-# alone: the first fifty spans of a real run are model calls too.
+# alone: the first fifty spans of a run can be model calls too.
 phoenix-projects:
 	$(LOADENV) && poetry run python -m telemetry.projects --list
 

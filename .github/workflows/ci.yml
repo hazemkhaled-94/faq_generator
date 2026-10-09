@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 # One run per branch. A push over a push cancels the older one, which is
-# otherwise twenty minutes of a runner testing a commit nobody has now.
+# otherwise a runner testing a commit nobody has now.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -19,9 +19,8 @@ jobs:
   # Installs once and fills the cache the rest restore. Without it all four
   # jobs below install in parallel on a cold cache, each pulling the same
   # 77 MB of spaCy pipelines from GitHub's release downloads at the same
-  # moment - which answered 504 to two of them on the first run - and then
-  # three of the four throw their work away, because only one save of a
-  # given key wins.
+  # moment, and then three of the four throw their work away, because only
+  # one save of a given key wins.
   setup:
     name: Dependencies
     runs-on: ubuntu-latest
@@ -42,7 +41,7 @@ jobs:
       - run: make lint
       # Named as their own steps rather than left to tests/static, so a
       # broken contract or a dead dependency reads as itself in the job
-      # summary instead of as one failing test among six hundred.
+      # summary instead of as one failing test among the rest.
       - run: make lint-imports
       - run: make deps
       # Measured too: the pinned-surface gates import the app and every
