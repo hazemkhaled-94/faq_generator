@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from contextlib import suppress
+from typing import get_args
 
 import pytest
 
@@ -125,3 +127,41 @@ def test_a_change_with_a_cheaper_rebuild_names_it_instead_of_a_rerun() -> None:
 
     assert "make questions-balance" in moved.detail, moved.detail
     assert "rerun" not in moved.detail, moved.detail
+
+
+def test_every_service_a_page_configures_is_parsed_before_a_write() -> None:
+    """A service missing here takes any value, and its worker then fails on it."""
+    assert set(changes.PARSERS) == set(get_args(catalog.Service))
+
+
+class _Watched(dict):
+    """A source that records which names were read from it."""
+
+    def __init__(self, values: dict[str, str]) -> None:
+        """Holds the values; nothing read yet."""
+        super().__init__(values)
+        self.read: set[str] = set()
+
+    def get(self, name, default=None):
+        """Records the name, then reads it."""
+        self.read.add(name)
+        return super().get(name, default)
+
+
+def test_every_writable_setting_is_read_from_the_source_its_parser_is_given() -> None:
+    """A stored row reaches a stage only through that source.
+
+    A setting read off the environment instead is one the page can change
+    and nothing applies.
+    """
+    source = _Watched({**os.environ, "LLM_MODEL": "ollama_chat/test"})
+    for load in changes.PARSERS.values():
+        with suppress(KeyError, ValueError):
+            load(source)
+
+    unread = [
+        one.name
+        for one in catalog.SETTINGS
+        if not one.fixed and one.name not in source.read
+    ]
+    assert not unread, unread
