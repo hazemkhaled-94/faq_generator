@@ -348,8 +348,9 @@ effect at all.
 
 ## What is shipped, and what is not
 
-Only this project's processes. Postgres, SeaweedFS, Redis and Elasticsearch
-itself keep the `json-file` driver and are read with `make logs`. Collecting
+Only this project's processes. The other containers — Postgres, SeaweedFS,
+Redis, Elasticsearch itself, Phoenix, Argilla, Grafana, Adminer and Filebeat —
+keep the `json-file` driver and are read with `make logs`. Collecting
 those too would mean reading the engine's own log store, which is in a
 different place under Docker and Podman and, on macOS, inside a virtual
 machine a bind mount cannot see.
