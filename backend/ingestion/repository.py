@@ -70,7 +70,7 @@ class DocumentRepository(Repository):
             )
 
     def digests(self) -> list[str]:
-        """Every stored document's digest, oldest first."""
+        """Every stored document's digest, in digest order."""
         with self._session() as session:
             return list(
                 session.scalars(select(Document.sha256).order_by(Document.sha256))
