@@ -70,7 +70,7 @@
       "id": 2,
       "type": "timeseries",
       "title": "Model call latency",
-      "description": "The pipeline's bottleneck, not the pipeline. A median passage was measured at 473 s on a 31B model. The 99th is what the extraction lease is derived from, so a p99 climbing towards LLM_TIMEOUT_SECONDS is the warning that healthy workers are about to start looking abandoned.",
+      "description": "The pipeline's bottleneck, not the pipeline. A p99 climbing towards LLM_TIMEOUT_SECONDS means calls are about to time out.",
       "datasource": { "type": "elasticsearch", "uid": "qa-logs" },
       "gridPos": { "h": 9, "w": 16, "x": 0, "y": 13 },
       "fieldConfig": {
