@@ -72,21 +72,22 @@ distance, and the one most likely to reach
 
 | | |
 |---|---|
-| The `corpus` job | Every stage, end to end. Run it by hand from the UI, from `make pipeline`, from the Run button, or from `POST /pipeline/run` |
-| The `nightly_corpus` schedule | 02:00 UTC. A refit is corpus-wide and goes stale on every new document |
-| The `arrivals` sensor | Polls parsing every minute and requests a run when documents are sitting `new` and `INGESTION_OPEN` is on |
+| The `corpus` job | Every stage but the topic fit, in order. Run it by hand from the UI, from `make pipeline` or `make all`, from the Run button, or from `POST /pipeline/run` |
+| The `nightly_corpus` schedule | The `corpus` job at 02:00 UTC, so it fits no topics |
+| The `arrivals` sensor | Polls parsing every minute and requests a run when documents other than the ones it last asked about are sitting `new` and `INGESTION_OPEN` is on. It requests none while a corpus run is going, while parsing has rows queued or in progress, or after a stopped run |
 
 The schedule and the sensor both ship **stopped**. A stack that starts
 running the pipeline the moment it comes up is one nobody chose. Either can
-be switched on from Dagster's own UI, from `make auto`, or from
-`PUT /pipeline/automation` — which is the same switch through the api, for a
-deployment whose operators never open this UI at all.
+be switched on from Dagster's own UI or from `PUT /pipeline/automation` —
+which is the same switch through the api, for a deployment whose operators
+never open this UI at all. `make auto` and `make manual` switch the sensor
+alone, and fail unless Dagster reports it switched.
 
 ### A fourth that only watches, and ships running
 
 | | |
 |---|---|
-| The `progress` sensor | Polls every stage's `/status` every 30 seconds and files an `AssetMaterialization` when a stage's worked count has risen or its worked rows are other rows at the same count, and an `AssetCheckEvaluation` when its failed count has moved at all |
+| The `progress` sensor | Polls every stage's `/status` every 30 seconds and files an `AssetMaterialization` when a stage's worked count has risen or its worked rows are other rows at the same count, and an `AssetCheckEvaluation` when its failed count has moved at all. While a corpus run is going it files nothing and only moves its cursor: the run's own assets record that work |
 
 Without it Dagster saw only its **own** runs. Every other way of setting a
 stage going — `make extract`, `POST /extraction/start`, the Start button, a
@@ -125,7 +126,7 @@ pool and is not documented thread-safe.
 
 `make up` starts the webserver and the daemon with everything else, and the
 UI is at <http://localhost:3000>. Both triggers ship stopped, so the daemon
-ticks nothing until one is switched on.
+ticks only `progress` until one is switched on.
 
 ## One corpus run at a time
 
@@ -133,11 +134,9 @@ ticks nothing until one is switched on.
 [`configs/dagster/dagster.yaml`](../configs/dagster/dagster.yaml).
 
 The `corpus` job drives the stage queues in order, so two of them racing
-through the same queues interleave: one can ask for a topic fit while the
-other is still draining extraction, and the fit then describes half a
-corpus. `POST /pipeline/run` refuses a second run with a 409, but that
-check reads the run list and then launches — two requests can pass it
-together — and it is not on the path at all for `make pipeline`, for
+through the same queues interleave. `POST /pipeline/run` refuses a second
+run with a 409, holding an advisory lock from that check through the
+launch, but it is not on the path at all for `make pipeline`, for
 `dagster job launch`, or for the Materialize button in Dagster's own UI.
 
 The 409 stays, because a second run **queued behind** one that may take
@@ -146,7 +145,7 @@ is now the affordance and the coordinator is the guarantee.
 
 ## The run that asked, on the rows it produced
 
-Every asset passes `context.run_id` to the stage route it starts, the
+Every asset passes its run's id to the stage route it starts, the
 backend writes it onto the rows that verb queues, and the worker that
 claims one adopts it for as long as it holds it. So a fact produced by a
 Dagster run carries that **run's** id, and `GET /lineage` leads from the
@@ -200,10 +199,11 @@ From [`configs/env/orchestration.env`](../configs/env/orchestration.env):
 | `ORCHESTRATION_DRAIN_TIMEOUT_SECONDS` | How long an asset waits for a stage to drain. Giving up is not failing the rows |
 | `ORCHESTRATION_POLL_SECONDS` | How often it asks |
 
-Plus `BACKEND_URL`, the only address it holds, and `INGESTION_OPEN` from
-[`configs/env/backend.env`](../configs/env/backend.env): whether `arrivals`
-may start a run at all. Off, it starts none, so it undoes no Stop. The instance
-and its one code location are configured in
+Plus `BACKEND_URL`, the only address its assets and sensors call, and
+`INGESTION_OPEN` from [`configs/env/backend.env`](../configs/env/backend.env):
+whether `arrivals` may start a run at all. Off, it starts none, so it undoes
+no Stop. The containers also hold their run-storage database's address and
+the trace collector's. The instance and its one code location are configured in
 [`configs/dagster/`](../configs/dagster/).
 
 ## Tests
@@ -214,7 +214,8 @@ poetry run pytest tests/unit/orchestration
 
 | File | Covers |
 |---|---|
-| [`test_definitions.py`](../tests/unit/orchestration/test_definitions.py) | The code location as Dagster loads it: the assets, the job, that both triggers ship stopped, and that the instance caps the corpus at one run |
+| [`test_definitions.py`](../tests/unit/orchestration/test_definitions.py) | The code location as Dagster loads it: the assets, the job and the fit it leaves out, that both triggers ship stopped, and that the instance caps the corpus at one run |
+| [`test_assets.py`](../tests/unit/orchestration/test_assets.py) | What the asset and check bodies report, against a stand-in backend |
 | [`test_orchestration_client.py`](../tests/unit/orchestration/test_orchestration_client.py) | The stage routes as the orchestrator reads them, and the run it carries into them |
 | [`test_sensor.py`](../tests/unit/orchestration/test_sensor.py) | When the orchestrator decides the pipeline should start, and what it records for the work it did not |
 | [`tests/smoke/test_compose.py`](../tests/smoke/test_compose.py) | That the orchestrator holds no database credential |
@@ -228,9 +229,9 @@ None of these reaches a network.
 - **A failed row does not fail the run.** It is an asset check.
 - **The two triggers ship stopped and stay stopped across a restart.** The
   `progress` sensor is the exception and ships running: it starts nothing.
-- **A materialisation no longer means Dagster ran it.** `progress` files one
-  for work any surface set going, and a check evaluation beside it when the
-  failures move.
+- **A materialisation no longer means Dagster ran it.** Outside a corpus
+  run, `progress` files one for work any surface set going, and a check
+  evaluation beside it when the failures move.
 - **A runless event is not a run.** Work Dagster did not launch shows on the
   asset page and never in the run list: there is no timeline and no step log
   to open, because Dagster OSS has no run to attach them to. What joins that
@@ -243,10 +244,9 @@ None of these reaches a network.
   themselves unavailable; every queue verb on every surface is untouched.
 - **The orchestrator cannot fix a row.** It has no database access by design.
 - **A run draws no release.** The `corpus` job ends at `assessments` and
-  leaves the last release in place. `make questions-balance` draws one: it
-  re-verifies every stored question first, which needs the spaCy pipelines
-  the api image does not carry, so no route the job could call does it.
-  `make corpus` runs it after `questions`.
+  leaves the last release in place. `make questions-balance` draws one, and
+  no route does, so the job has nothing to call for it. `make corpus` runs
+  it after `questions`.
 - **The api holds this webserver's address, not this package's code.** The
   queries it sends are pinned to Dagster 1.13 and proved against a live
   server by `tests/smoke/test_orchestrator_queries.py`.
