@@ -40,9 +40,9 @@ def build_service(
 ) -> QuestionGenerationService:
     """Wires the service and its collaborators.
 
-    Two models, served wherever the shared one is: QUESTIONS_MODEL writes
-    and QUESTIONS_VERIFIER_MODEL checks. A verifier that turns out to be the
-    writer is warned about.
+    Three models, from `models`: QUESTIONS_MODEL writes,
+    QUESTIONS_VERIFIER_MODEL checks and QUESTIONS_PHRASING_MODEL judges the
+    phrasing. A verifier that turns out to be the writer is warned about.
     """
     writer_model, verifier_model, phrasing_model = models(settings, model)
     independent = verifier_model.model != writer_model.model
