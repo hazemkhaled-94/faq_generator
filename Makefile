@@ -1818,8 +1818,7 @@ pipeline-retry:
 # ── Dagster, from here rather than from its own UI ─────────────────────────
 #
 # The asset graph already chains the stages: each waits for the one before
-# it to drain, which is the order `corpus` above runs them in, with a topic
-# fit `corpus` leaves out between extraction and questions. What these
+# it to drain, which is the order `corpus` above runs them in. What these
 # decide is WHEN, which is the only thing an orchestrator was ever for.
 #
 # Run inside the webserver container, which is where DAGSTER_HOME and the
@@ -1853,9 +1852,9 @@ runs:
 	  | grep -E "Run: |Job: |Status: "
 
 # Every stage once, through Dagster instead of in the foreground. The work
-# `corpus` does, with a topic fit and without the release draw; it is
-# recorded as a run, with a materialisation and a check per stage, and it
-# survives this terminal closing.
+# `corpus` does, without the release draw; it is recorded as a run, with a
+# materialisation and a check per stage, and it survives this terminal
+# closing.
 pipeline:
 	@$(call DAGSTER,job launch -j corpus) | grep -E "Launched run|Error" 
 
