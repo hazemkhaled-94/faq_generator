@@ -11,8 +11,8 @@ work, the unit of coverage reporting, and what makes a question's subject
 measurable. A corpus with no topics generates no questions.
 
 `tests/static/test_topics_pinned.py` pins this service's surface — the
-settings it reads, the routes it serves, the fields it answers with and the
-modules it is made of.
+routes it serves, that every setting it names is catalogued, and the
+sections of this README.
 
 ## What it does
 
@@ -32,10 +32,10 @@ meaningful within a language.
 **A fit is always the whole corpus.** Non-negative matrix factorisation
 estimates every component jointly, so there is no refitting one topic: adding
 a document makes all of them stale. That is why this stage has no per-item
-controls and no `start` — a fit is asked for, and one ask replaces the whole
-model. Gensim's `Nmf.update()` is deliberately not used: the vocabulary is
-fixed when the model is constructed, so a new document's novel terms would be
-silently dropped.
+controls and no `start` — a fit is asked for, and one ask replaces the model
+of every language it fits. Gensim's `Nmf.update()` is deliberately not used:
+the vocabulary is fixed when the model is constructed, so a new document's
+novel terms would be silently dropped.
 
 Factorisation rather than LDA, and a passage rather than a sentence, are both
 measured choices — see [measurements](../../docs/measurements.md).
@@ -59,8 +59,9 @@ is an outstanding request, and a row that has one is a topic.
    rather than fitted through: an empty vocabulary, and a vocabulary whose
    every surviving term has an idf of zero, which would make every topic
    `NaN`.
-5. **Fit.** `Nmf` over `TOPIC_NUM_TOPICS` components and `TOPIC_PASSES`
-   passes, seeded with `TOPIC_RANDOM_STATE`.
+5. **Fit.** `Nmf` over as many components as `TOPIC_NUM_TOPICS` and
+   `TOPIC_PASSAGES_PER_TOPIC` allow and `TOPIC_PASSES` passes, seeded with
+   `TOPIC_RANDOM_STATE`.
 6. **Read the topics out.** `TOPIC_TOP_TERMS` highest-weighted terms each.
    This is also the only signature a label is matched on across a refit.
 7. **Score every passage.** One walk produces the memberships (every weight
@@ -68,33 +69,40 @@ is an outstanding request, and a row that has one is a topic.
    and the whole fitted space the figure needs.
 8. **Carry the labels over.** `carry_labels` matches on shared top terms —
    Jaccard overlap of at least 0.4 — and each previous label is used at most
-   once. A topic whose terms moved too far loses its name. `ponytail:` a
+   once. The coverage choice and when a person last decided travel with it.
+   A topic whose terms moved too far loses its name. `ponytail:` a
    greedy pass; the upgrade is to solve it as an assignment problem.
 9. **Name the unnamed topics.** Only topics holding no label are offered to
    the model, which is shown the terms and up to four excerpts and told which
    language to answer in. `Mixed` is stored as no name. `labelled_by` records
    `person` or the model identifier.
-10. **Replace everything, in one transaction** per language. Topic ids are
+10. **Replace the fitted languages, in one transaction** for all of them. A
+    language the fit skipped keeps its topics and memberships. Topic ids are
     read back after the insert rather than from `RETURNING`, whose row order
     for an `executemany` is not guaranteed, and are keyed by
-    `(language, topic_index)`.
-11. **Draw the figure**, after the topics are written, so a failure here is
-    logged and left. `pyLDAvis` is imported inside the function. Two shims
-    are marked `ponytail:` — the complex residue from `js_PCoA`'s
-    eigendecomposition, and a log of zero in the relevance ranking.
+    `(language, topic_index)`. If the request was withdrawn, or swept and
+    claimed again, after this fit claimed it, the fit writes nothing, keeps
+    no model and draws no figure.
+11. **Keep the model and draw the figure**, after the topics are written, so
+    a failure here is logged and left. Each language's previous model and
+    figure go to the `archive` bucket first. `pyLDAvis` is imported inside
+    the function. Two shims are marked `ponytail:` — the complex residue
+    from `js_PCoA`'s eigendecomposition, and a log of zero in the relevance
+    ranking.
 
 On failure the previous topics stay exactly as they were, readable beside the
 reason. One language the fitter refuses is logged and left out; the run fails
 only if no language produced a model.
 
-Where `TOPIC_MODEL` or `LLM_MODEL` resolves to something, the worker asks it
-one question before claiming the request. See
+Where `LLM_MODEL` is set, the worker asks the naming model (`TOPIC_MODEL`,
+or `LLM_MODEL` without one) one question before claiming the request. See
 [`backend/llm/`](../llm/README.md).
 
 ### Where a topic sits
 
 `topics.embedding` is the mean of the vectors of the passages a topic holds,
-normalised to length 1, written in SQL out of `passages.embedding`.
+normalised to length 1, written in SQL out of `passages.embedding` by every
+fit. Nothing reads it.
 
 No HNSW index on that column: a fit is tens of rows.
 
@@ -127,7 +135,8 @@ Properties of the input, not defects here. Figures in
 
 **Writes:** `topics`, one row per topic per language; `passage_topics`, one
 row per passage-topic pair above the weight floor; `topics/<language>.npz`
-in the `models` bucket; and `topics/<language>.html` in the `export` bucket.
+in the `models` bucket; and `topics/<language>.html` in the `export` bucket,
+moving the previous fit's two into the `archive` bucket.
 
 ### The model and the picture of it are two artefacts
 
@@ -153,18 +162,26 @@ puts a term in few of its topics, and deflate is very good at that.
 | `GET /topics` | Every topic with how much of the corpus it holds |
 | `GET /topics/fit` | The model's state, one entry per language |
 | `GET /topics/visualisation/{language}` | One language's figure. 400 `invalid_language`, 404 `no_visualisation` |
-| `PATCH /topics/{topic_id}` | Records a label and a coverage choice |
+| `PATCH /topics/{topic_id}` | Records a label and a coverage choice, and when they were made |
 | `POST /topics/discover` | Queues a fit. 202 |
 | `POST /topics/stop` | Withdraws a queued fit |
 | `POST /topics/retry` | Returns a failed fit to the queue |
-| `DELETE /topics` | Deletes every topic, membership, stored model and figure |
+| `DELETE /topics` | Deletes every topic, membership, stored model and figure into the archive, which `make restore-documents` restores from |
 
 There is no `POST /topics/start` and no `/topics/rerun`: asking is what
 creates the work, and a fit has no scope to narrow to.
 
-**Command line:** `python -m topic_modelling.run`, one flag per route.
+**Command line:** `python -m topic_modelling.run`. `--status`, `--discover`,
+`--stop`, `--retry` and `--delete` do what their routes do, `--visualise`
+writes the figures the visualisation route serves, and `--render` redraws
+them from the stored models with no route of its own. The listing, the fit
+state and the label edit have no flag.
 `--discover` queues and drains in one go; `--watch` is what the worker
-container runs. Every flag has a `make` target.
+container runs. Every flag but `--watch` has a `make` target.
+
+`make topics-discover` is the refit: neither `make corpus` nor the Dagster
+corpus job asks for one. `make topics-status` also reports how many passages
+are in no topic.
 
 ### The database
 
@@ -184,8 +201,12 @@ topics tied at the same weight yield one row.
 
 ## Configuration
 
-Read once at start-up from the environment, with no default in code. The
-values are in [`configs/env/backend.env`](../../configs/env/backend.env).
+Read from the environment with the values stored on the settings page over
+it, with no default in code; a watching worker rebuilds when a setting
+changes. `TOPIC_MODEL` and `LLM_MODEL` are fixed: served read-only and never
+stored, so changing one needs a restart. The values are in
+[`configs/env/backend.env`](../../configs/env/backend.env), and `LLM_MODEL`'s
+in `.env`.
 Changing any of the first eight changes what the topics are, and there is no
 partial refit.
 
@@ -196,13 +217,13 @@ partial refit.
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
 | `TOPIC_RANDOM_STATE` | Seed. Fixed, so the same corpus gives the same topics |
 | `TOPIC_TOP_TERMS` | Terms stored as a topic's signature, and what a label is matched on |
-| `TOPIC_MIN_WEIGHT` | Smallest membership weight stored, exclusive. In `(0, 1]` |
+| `TOPIC_MIN_WEIGHT` | Smallest membership weight stored, exclusive. In `(0, 1)` |
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |
 | `TOPIC_NO_ABOVE` | Drop a term appearing in more than this share. In `(0, 1]` |
 | `TOPIC_LANGUAGE_NAMES` | ISO code to language name, for the naming prompt |
 | `TOPIC_LABEL_MIN_FACT_SHARE` | Below this share of validated facts, a topic is not sent to the model to be named |
-| `TOPIC_MODEL` | The model that names a topic |
-| `LLM_MODEL` | What `TOPIC_MODEL` falls back to. With neither, topics are fitted but not named |
+| `TOPIC_MODEL` | The model that names a topic. Read only when `LLM_MODEL` is set |
+| `LLM_MODEL` | What `TOPIC_MODEL` falls back to. Without it, topics are fitted but not named |
 
 Not configurable, on purpose: the Jaccard threshold for carrying a label
 (0.4), how many excerpts the labeller sees (4), how much of each (400
@@ -223,21 +244,21 @@ corpus-wide fit controls, and delete behind a confirmation.
 
 | Layer | Covers |
 |---|---|
-| Unit | The fitter, the labeller, the visualisation, the service flow, the wiring, the command line, reporting and what reaches the vocabulary |
+| Unit | The fitter, the labeller, the visualisation, the stored model, the service flow, the wiring, the command line, reporting and what reaches the vocabulary |
 | Regression | One test per defect this service has had, named for the symptom |
 | Property | Invariants over generated corpora: every weight a probability, every passage placed or counted, a seeded fit reproducible |
 | Integration | Both repositories against a migrated Postgres, and all nine routes |
 | Frontend | The page against a scripted backend, including every refusal |
 | Static | The pinned surface |
 
-Every test acts through an object rather than the code under test directly —
+Most tests act through an object rather than the code under test directly —
 `FitterDriver`, `FittingDriver`, `LabellerDriver`, `ServiceDriver` and
 `CommandDriver` in `tests/unit/topics/topic_drivers.py`, `TopicStore` and
-`TopicsApi` in `tests/integration/topics.py`, and `TopicsPage` in
-`tests/frontend/pages.py`.
+`TopicsApi` in `tests/integration/topics.py`, and the `View` in
+`tests/frontend/pages.py` that `open_view("topics")` opens.
 
-The quality of the topics themselves is not asserted. Whether twelve is the
-right number is a measurement, and a threshold on coherence would fail on
+The quality of the topics themselves is not asserted. Whether the number of
+topics is right is a measurement, and a threshold on coherence would fail on
 somebody else's corpus rather than on a regression. What is asserted is that
 the prompt carries what it should, that `Mixed` is stored as no name, and
 that an unreachable model does not lose the fit.
