@@ -67,8 +67,9 @@ class Settings:
     passages with it and topic modelling names topics with it, and two
     settings for one served model is how the two come to disagree.
 
-    A stage may name a different model with `overridden`, and only the
-    model: the address, the mode and the patience are the deployment's.
+    A stage may name a different model with `overridden`, which moves the
+    address only on a change of provider: the mode and the patience are the
+    deployment's.
     """
 
     model: str
@@ -189,9 +190,8 @@ class Settings:
         think. Both pathologies end in an empty answer, so a default can
         only choose which family of open models is broken out of the box.
 
-        It now chooses neither. Running on local models is the point of this
-        pipeline, so an open model that thinks has to work on a clone, and
-        one that should not think is one setting away. The cost of the
+        It now chooses neither. An open model that thinks works on a clone,
+        and one that should not think is one setting away. The cost of the
         reversal is paid where it can be seen rather than silently: a
         passage that yields nothing is a warning now, which is what says
         `off` is the setting this deployment wants.
