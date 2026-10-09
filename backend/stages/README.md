@@ -256,6 +256,22 @@ path. It refuses while that stage's worker container is running. The
 container workers build the dataset; a host drain is for developing a stage,
 and host parse, chunk and extract runs are kept off the dataset.
 
+## Recalibrating stored confidences
+
+`make confidence-recalibrate` runs [`recalibrate.py`](recalibrate.py). It
+takes every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR`
+or `EXTRACTION_DUPLICATE_FLOOR`, read with the stored overrides applied, and
+rewrites `gate_scores` and `confidence` on the questions and the facts.
+
+It calls no model and no embedder: each `gate_scores` entry carries the
+reading and what it was read against. It moves no verdict, so `status` and
+`rejected_reason` stay as they are; that is what separates it from
+`make questions-reverify`. A row whose readings come back unchanged is left
+alone, so a second run writes nothing.
+
+A row written before `gate_scores` recorded a direction takes it from
+`_REFUSES_HIGH`: `near_duplicate` and `duplicate` refuse a high reading.
+
 ## Configuration
 
 | Setting | What it does |
