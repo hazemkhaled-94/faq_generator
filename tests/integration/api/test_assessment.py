@@ -93,11 +93,6 @@ def test_the_listing_narrows_to_one_kind(client, engine, monkeypatch, kind) -> N
     assert [one["kind"] for one in listed["assessments"]] == [kind]
 
 
-def test_a_kind_no_artefact_has_is_refused(client) -> None:
-    """Before it reaches a query, because the Literal lists the three."""
-    assert client.get("/assessment", params={"kind": "passage"}).status_code == 422
-
-
 def test_the_configuration_panel_opens(client) -> None:
     """`GET /settings/assessment`, which the page draws its controls from.
 

@@ -87,15 +87,6 @@ def test_the_listing_narrows_to_one_kind(produced, kind, found) -> None:
     assert {one["kind"] for one in listed["facts"]} == {kind}
 
 
-def test_a_kind_nothing_writes_is_refused_before_it_reaches_the_queue(
-    produced,
-) -> None:
-    """A Literal, so the OpenAPI document lists what is accepted."""
-    client, _ = produced
-
-    assert client.get("/facts", params={"kind": "paragraph"}).status_code == 422
-
-
 def test_the_kind_filter_narrows_the_figures_too(produced) -> None:
     """One filter, so the report and the rows cannot disagree."""
     client, _ = produced

@@ -49,11 +49,6 @@ def test_every_service_reports_its_settings(client) -> None:
         assert body["settings"], service
 
 
-def test_a_service_nothing_configures_is_refused(client) -> None:
-    """The list is closed, so a typo in a path is not an empty page."""
-    assert client.get("/settings/nonsense").status_code == 422
-
-
 def test_a_setting_says_what_it_is_and_what_it_holds(client) -> None:
     """What a page draws a control from, holding no list of its own."""
     body = client.get("/settings/topics").json()

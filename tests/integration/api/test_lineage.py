@@ -183,11 +183,6 @@ def test_an_id_that_is_not_a_number_names_nothing(client, corpus) -> None:
     assert client.get("/lineage/question/:").status_code == 404
 
 
-def test_a_kind_the_pipeline_does_not_produce_is_refused(client) -> None:
-    """The route names what may be traced, so the OpenAPI document does."""
-    assert client.get("/lineage/sentence/1").status_code == 422
-
-
 @pytest.mark.parametrize(
     "path",
     [

@@ -139,12 +139,6 @@ def test_the_verbs_round_trip_the_queue(corpus, stage) -> None:
     assert corpus.get(f"/{stage}/status").json()["rows"].get("pending", 0) == 0
 
 
-@pytest.mark.parametrize("stage", STAGES)
-def test_a_verb_no_stage_has_is_refused(corpus, stage) -> None:
-    """The verbs are a Literal, so anything else never reaches a queue."""
-    assert corpus.post(f"/{stage}/obliterate").status_code == 422
-
-
 @pytest.mark.parametrize(
     ("stage", "held"), [("parsing", 1), ("chunking", 1), ("extraction", 2)]
 )

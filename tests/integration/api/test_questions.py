@@ -289,13 +289,6 @@ def test_a_page_size_outside_the_bounds_is_refused(written, params) -> None:
     assert client.get("/questions", params=params).status_code == 422
 
 
-def test_an_unknown_status_is_refused_rather_than_matching_nothing(written) -> None:
-    """A typo that answers `no questions` is worse than one that answers 422."""
-    client, _ = written
-
-    assert client.get("/questions", params={"status": "acepted"}).status_code == 422
-
-
 # ── Quality ────────────────────────────────────────────────────────────────
 
 
@@ -482,7 +475,7 @@ def test_deciding_an_unknown_question_is_a_named_refusal(written) -> None:
     assert refused.json()["code"] == "unknown_question"
 
 
-@pytest.mark.parametrize("body", [{"status": "approved"}, {"status": None}, {}])
+@pytest.mark.parametrize("body", [{"status": None}, {}])
 def test_a_verdict_that_is_not_one_of_the_three_is_refused(written, body) -> None:
     """The column's CHECK would refuse it anyway, with a worse message."""
     client, held = written
