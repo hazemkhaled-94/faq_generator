@@ -56,10 +56,11 @@ PROMPT_VERSION = "2"
 #: Each metric's labels and the score phoenix-evals gives them, and which
 #: label is the good one. Taken from that package's own evaluator configs:
 #: `hallucination` scores 1.0 for `hallucinated` because its optimisation
-#: direction is minimise, and every other metric here scores 1.0 for the
-#: label it wants. `approved` is stored per metric rather than derived from
-#: the score for exactly that reason - summing scores across these four
-#: would add a hallucination rate to a relevance rate.
+#: direction is minimise, `toxicity` and `refusal` score 1.0 for the bad
+#: label too, and every other metric here scores 1.0 for the label it wants.
+#: `approved` is stored per metric rather than derived from the score for
+#: exactly that reason - summing scores across these would add a
+#: hallucination rate to a relevance rate.
 _CHOICES: dict[str, tuple[dict[str, float], str]] = {
     JudgeMetric.HALLUCINATION: ({"hallucinated": 1.0, "factual": 0.0}, "factual"),
     JudgeMetric.RELEVANCE: ({"relevant": 1.0, "unrelated": 0.0}, "relevant"),
@@ -68,7 +69,7 @@ _CHOICES: dict[str, tuple[dict[str, float], str]] = {
     JudgeMetric.TOXICITY: ({"toxic": 1.0, "non-toxic": 0.0}, "non-toxic"),
     JudgeMetric.CONCISENESS: ({"concise": 1.0, "verbose": 0.0}, "concise"),
     # `refused` is the 1.0 and `answered` is what approves, which is the
-    # second metric here whose good label scores zero. phoenix-evals calls
+    # third metric here whose good label scores zero. phoenix-evals calls
     # its direction NEUTRAL - a refusal is not a defect in a chat assistant
     # - but in a reference dataset it is exactly one: an answerable
     # question whose stored answer is "the document does not say" is a row
@@ -173,7 +174,7 @@ class Template:
 
         Built per template so the `label` field is a `Literal` of exactly
         this metric's labels: an answer outside the rails is then a schema
-        failure instructor retries, rather than a string nothing maps.
+        failure the client retries, rather than a string nothing maps.
         """
         labels = Literal[self.labels]  # pyright: ignore[reportInvalidTypeForm]
 
@@ -758,9 +759,9 @@ def metrics_of(kind: str) -> tuple[str, ...]:
 def direction_of(metric: str) -> str:
     """How one metric is optimised, as phoenix-evals declares it.
 
-    Read by whatever reports a mean, because `hallucination`'s is the one
-    that runs the other way: a project whose mean score is high is one
-    whose judge found hallucinations, and a reader shown that beside three
-    maximised metrics without this would read it upside down.
+    Read by whatever reports a mean, because `hallucination`'s and
+    `toxicity`'s run the other way: a project whose mean hallucination score
+    is high is one whose judge found hallucinations, and a reader shown that
+    beside four maximised metrics without this would read it upside down.
     """
     return _DIRECTION[metric]
