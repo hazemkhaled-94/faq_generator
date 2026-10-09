@@ -1130,7 +1130,8 @@ spend:
 #   make settings-set SERVICE=topics SET=...   PATCH /settings/topics
 #   make settings-unset SERVICE=topics UNSET=…  PATCH, with a null
 #
-# A value written here reaches a worker when it next claims a row. Nothing is
+# A value written here reaches a worker once its queue next runs dry: a
+# worker reads its settings again between drains, not per row. Nothing is
 # requeued: the command names what it staled, and that stage's -rerun is what
 # rebuilds it.
 #
@@ -1592,7 +1593,8 @@ second-opinion:
 phoenix-projects:
 	$(LOADENV) && poetry run python -m telemetry.projects --list
 
-# Irreversible. Says what it is taking before it takes it.
+# Irreversible, and asks nothing first: it names at most 25 of the projects
+# it takes, then deletes them.
 phoenix-prune:
 	$(LOADENV) && poetry run python -m telemetry.projects --prune
 
@@ -1631,9 +1633,11 @@ REVIEW = $(call WITH,review.env) && \
 review-status:
 	$(REVIEW) --status
 
-# Delete every dataset in the workspace. What `make wipe` runs, and the one
-# review target that throws an answer away: a push reuses the dataset it
-# finds precisely so it never does. Pull first if a verdict still matters.
+# Delete the three datasets this tool pushes - facts, topic labels and
+# questions - and nothing else in the workspace. What `make wipe` runs, and
+# the one review target that throws an answer away: a push reuses the
+# dataset it finds precisely so it never does. Pull first if a verdict
+# still matters.
 review-delete:
 	$(REVIEW) --delete
 
@@ -1853,9 +1857,13 @@ pipeline:
 # because a pipeline that starts the moment the stack comes up is one
 # nobody chose.
 auto:
-	@$(call DAGSTER,sensor start arrivals) | grep -E "sensor arrivals|Error" || true
+	@out=$$($(call DAGSTER,sensor start arrivals)); \
+	  printf '%s\n' "$$out" | grep -E "sensor arrivals|Error"; \
+	  case "$$out" in *Error*) exit 1;; *"sensor arrivals"*) ;; *) exit 1;; esac
 	@echo "An upload now starts the pipeline. 'make manual' hands it back."
 
 # Take it back.
 manual:
-	@$(call DAGSTER,sensor stop arrivals) | grep -E "sensor arrivals|Error" || true
+	@out=$$($(call DAGSTER,sensor stop arrivals)); \
+	  printf '%s\n' "$$out" | grep -E "sensor arrivals|Error"; \
+	  case "$$out" in *Error*) exit 1;; *"sensor arrivals"*) ;; *) exit 1;; esac

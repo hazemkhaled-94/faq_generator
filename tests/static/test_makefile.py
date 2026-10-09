@@ -176,3 +176,32 @@ def test_the_log_wipe_fails_unless_elasticsearch_deleted_or_had_nothing(
     )
 
     assert (ran.returncode != 0) is refused, ran
+
+
+@pytest.mark.parametrize(
+    ("answer", "refused"),
+    [
+        ("echo 'Started sensor arrivals'; echo 'Stopped sensor arrivals'", False),
+        ("echo 'Error: Could not find sensor arrivals'", True),
+        ("echo 'Error: no container with name dagster-webserver' >&2; exit 125", True),
+        ("true", True),
+    ],
+    ids=["switched", "dagster-refused", "stack-down", "said-nothing"],
+)
+@pytest.mark.parametrize("target", ["auto", "manual"])
+def test_handing_over_fails_unless_dagster_switched_the_sensor(
+    tmp_path: Path, target: str, answer: str, refused: bool
+) -> None:
+    """A failed switch used to print the same success as a real one."""
+    engine = stand_in(tmp_path, answer)
+    switch = command(target, "sensor ", COMPOSE=str(engine))
+
+    ran = subprocess.run(
+        ["bash", "-c", switch],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (ran.returncode != 0) is refused, ran
