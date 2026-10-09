@@ -106,7 +106,7 @@ least eight rows, before any scrolling.
 | Band | Budget |
 |---|---|
 | Header: page title, product name, rule | ≤ 56px |
-| Overview: one strip of figures | ≤ 72px of content |
+| Overview: one strip of figures. Assessment's is the one two-row band: the kind shown and the disagreements filter, then the figures | ≤ 72px of content |
 | Service: queue verbs and state line, then its three folds in one row | ≤ 120px |
 | Search and filters: search, filters, pager | one row, two on Questions |
 | Table | everything left |
