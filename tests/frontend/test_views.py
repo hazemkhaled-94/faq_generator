@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 import requests
 from pages import (
+    DOCUMENT,
     LISTING,
     OWNED,
     PASSAGE_DETAIL,
@@ -258,6 +259,27 @@ def test_the_search_and_filters_wrap_only_once_a_row_is_full() -> None:
 
     assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 8, _PAGER])) == 2
     assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 3, _PAGER])) == 1
+
+
+def test_a_page_the_corpus_shrank_under_goes_back_to_the_first(open_view) -> None:
+    """Page 2 answering no rows is read again as page 1."""
+    held = {"total": 30}
+
+    def documents(**asked) -> dict:
+        """One row a page, until the offset passes the total."""
+        rows = [DOCUMENT] if asked["offset"] < held["total"] else []
+        return {"total": held["total"], "documents": rows}
+
+    client = Answers(**answers(documents=documents))
+    opened = open_view("documents", client)
+    held["total"] = 3
+    opened.numbers()["Page of 2"].set_value(2)
+
+    after = opened.rerun()
+
+    assert [one[2]["offset"] for one in client.calls("documents")][-2:] == [25, 0]
+    assert after.numbers()["Page of 1"].value == 1
+    assert "report.pdf" in after.tables()
 
 
 @pytest.mark.parametrize("name", LISTING)

@@ -123,6 +123,19 @@ def test_saving_sends_every_setting_it_may_write(open_view) -> None:
     assert "A_POOL" not in written
 
 
+def test_returning_to_the_file_clears_every_stored_setting(open_view) -> None:
+    """Each changed one goes back as null, and nothing else is sent."""
+    stored = {"A_COUNT", "A_NAME"}
+    held = [{**one, "stored": one["name"] in stored} for one in SETTINGS["settings"]]
+    configured = Answers(**settings(settings=held))
+
+    open_view("topics", configured=configured).press("Return to the file")
+
+    [(_, (_, values, version), _)] = configured.calls("change_settings")
+    assert values == dict.fromkeys(stored)
+    assert version == SETTINGS["version"]
+
+
 def test_a_refused_change_is_shown_in_the_words_the_api_refused_it(
     open_view,
 ) -> None:

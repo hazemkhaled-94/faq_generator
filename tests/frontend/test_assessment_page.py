@@ -11,7 +11,7 @@ where they differ.
 from __future__ import annotations
 
 import pytest
-from pages import ASSESSMENT, ASSESSMENT_PLAN, changed
+from pages import ASSESSMENT, ASSESSMENT_PLAN, Answers, answers, changed, status
 
 pytestmark = pytest.mark.frontend
 
@@ -85,6 +85,19 @@ def test_nothing_ticked_offers_no_verb(page) -> None:
         drawn.buttons()
     )
     assert "Tick a kind" in drawn.text()
+
+
+def test_two_kinds_ticked_send_one_action_per_kind(open_view) -> None:
+    """The route narrows to one kind, so each ticked kind is its own call."""
+    client = Answers(**answers(stage_status=lambda *a, **k: status(new=2)))
+    drawn = open_view("assessment", client).uncheck("assessment-judge-topic")
+
+    drawn.press("Start")
+
+    assert [one[1] for one in client.calls("stage_action")] == [
+        ("assessment", "start", ("kind", "fact")),
+        ("assessment", "start", ("kind", "question")),
+    ]
 
 
 def test_every_metric_is_offered_as_a_filter(page) -> None:
