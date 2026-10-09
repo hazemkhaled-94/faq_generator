@@ -1,13 +1,13 @@
 """Reading and changing what a service is configured to do.
 
-One service per request: the six stages, and `platform` for the model, the
+One service per request: the seven stages, and `platform` for the model, the
 tokenizer and the language pipelines they share.
 
 The shapes are here; what decides whether a change may be made is
 `settings.changes`, shared with the command line.
 
-Nothing here runs a stage. A setting reaches a worker when that worker next
-claims a row, and what a change staled is named in the answer.
+Nothing here runs a stage. A setting reaches a worker at that worker's next
+drain, and what a change staled is named in the answer.
 """
 
 from __future__ import annotations
@@ -192,7 +192,7 @@ def write(service: Service, change: Change) -> Changed:
     setting named must belong to this service, and one refusal refuses the
     whole request.
 
-    The next row a worker claims is worked under the new settings.
+    A worker's next drain is worked under the new settings.
 
     Raises:
         ApiError: 404 `unknown_setting`; 400 `wrong_service`,
