@@ -95,9 +95,9 @@ class FactPassage(Base):
 #: Locks the fact before deciding, so of two deletions at once the second
 #: waits for the first and sees its citation gone.
 #:
-#: Declared here, beside the table it belongs to, and executed by the
-#: migrations: autogenerate sees tables and columns,
-#: never a trigger.
+#: Declared here, beside the table it belongs to. The migrations carry
+#: their own copy, and tests/integration/database/test_schema.py checks the
+#: installed body against this one.
 DELETE_ORPHAN_FUNCTION = """
 CREATE OR REPLACE FUNCTION delete_fact_without_passage() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -114,15 +114,4 @@ BEGIN
     RETURN NULL;
 END;
 $$;
-"""
-
-DELETE_ORPHAN_TRIGGER = """
-CREATE TRIGGER fact_passages_delete_orphan_fact
-AFTER DELETE ON fact_passages
-FOR EACH ROW EXECUTE FUNCTION delete_fact_without_passage();
-"""
-
-DROP_DELETE_ORPHAN = """
-DROP TRIGGER IF EXISTS fact_passages_delete_orphan_fact ON fact_passages;
-DROP FUNCTION IF EXISTS delete_fact_without_passage();
 """
