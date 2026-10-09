@@ -1,8 +1,9 @@
 """Where Phoenix is, as the experiment runner reaches it.
 
 Runs on the host, so this is the published port rather than the compose
-service name - the same distinction OTEL_EXPORTER_OTLP_ENDPOINT and
-OTEL_CONTAINER_ENDPOINT already make in .env.
+service name - the same distinction OTEL_EXPORTER_OTLP_ENDPOINT, which the
+Makefile derives, and OTEL_CONTAINER_ENDPOINT, in configs/env/deployment.env,
+already make.
 """
 
 from __future__ import annotations
