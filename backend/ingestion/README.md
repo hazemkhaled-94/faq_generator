@@ -26,15 +26,18 @@ arrives with every stage at `new`, and a worker only claims `pending`.
 
 ### Step 1 — Refuse before reading the file
 
-If the declared `Content-Length` exceeds `MAX_FILE_SIZE_MB` by more than the
-multipart framing (`_FRAMING` in the upload route), the route refuses it
-without reading the file.
+The route checks the declared `Content-Length` before it parses the
+multipart form. If it exceeds `MAX_FILE_SIZE_MB` by more than the multipart
+framing (`_FRAMING` in the upload route), the route refuses it without
+reading the body.
 [`refuse_oversized`](service.py) writes the event and stops: with no bytes
-there is no digest and no document to point at.
+there is no digest and no document to point at, and the filename, which is
+in the body, is recorded as `unnamed`. A request declaring no length is
+refused `length_required` and writes no event.
 
 `Content-Length` covers the whole multipart body, so it is an upper bound.
-Any other request, one declaring no length included, is read to at most one
-byte past the limit and measured by the check below.
+Any other request is read to at most one byte past the limit and measured by
+the check below.
 
 ### Step 2 — Run the checks, cheapest first
 
@@ -165,7 +168,9 @@ the PDF reader are stood in for.
 - **A duplicate by *content* gets through here.** Different bytes carrying
   the same text pass every check, because nothing knows the text yet. Parsing
   refuses them on `content_sha256`.
-- **`Content-Length` is an upper bound.** It covers the whole multipart body.
+- **`Content-Length` is an upper bound, and required.** It covers the whole
+  multipart body. An upload refused on it is recorded as `unnamed`, and one
+  declaring none is refused `length_required` with no `ingest_events` row.
 - **An upload that fails on the object store writes no `ingest_events`
   row.** A stored upload's event is written with its document row, after the
   object; an unreachable bucket is a 500.

@@ -346,6 +346,7 @@ a caller branches on the code rather than on English:
 | `cross_site_write` | 403 | A request other than GET, HEAD or OPTIONS carries `Sec-Fetch-Site: cross-site` or `same-site`, or an `Origin` that is not the API's own |
 | `already_running` | 409 | `POST /pipeline/run` while a run is going |
 | `version_moved` | 409 | A settings change was sent against a version that is no longer current |
+| `length_required` | 411 | An upload declares no `Content-Length` |
 | `too_large` | 413 | An upload is over the size limit |
 | `unsupported_type` | 415 | An upload is not a readable document of an accepted type |
 | `no_orchestrator` | 503 | `run`, `GET /pipeline/runs` or `PUT /pipeline/automation` with no orchestrator answering |

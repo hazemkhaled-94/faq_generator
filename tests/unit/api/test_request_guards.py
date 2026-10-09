@@ -100,3 +100,91 @@ def test_a_read_from_another_site_is_answered(guarded, method: str) -> None:
     )
 
     assert answered.status_code == 200
+
+
+class Uploads:
+    """An ingest service whose limit every upload here is over."""
+
+    max_file_size_bytes = 0
+
+    def __init__(self) -> None:
+        """Starts with nothing refused and nothing ingested."""
+        self.refused: list[tuple[str, int]] = []
+        self.ingested: list[object] = []
+
+    def refuse_oversized(self, filename: str, size_bytes: int):
+        """Records the refusal by declared size."""
+        from database.qa_generator import Outcome
+        from ingestion.models import IngestResult
+
+        self.refused.append((filename, size_bytes))
+        return IngestResult(Outcome.TOO_LARGE, None, "over the limit")
+
+    def ingest(self, upload):
+        """Records the upload, which no test here should reach."""
+        self.ingested.append(upload)
+        raise AssertionError("the upload was ingested")
+
+
+@pytest.fixture
+def uploads(monkeypatch) -> Uploads:
+    """The upload route, on a service that records what it was asked."""
+    from api.routes import documents
+
+    service = Uploads()
+    monkeypatch.setattr(documents, "ingesting", lambda: service)
+    return service
+
+
+@pytest.fixture
+def parsed(monkeypatch) -> list[bool]:
+    """One entry each time a request's form is parsed."""
+    from starlette.requests import Request
+
+    form = Request.form
+    calls: list[bool] = []
+
+    def counted(self, *args, **kwargs):
+        calls.append(True)
+        return form(self, *args, **kwargs)
+
+    monkeypatch.setattr(Request, "form", counted)
+    return calls
+
+
+def test_an_upload_declaring_more_than_the_limit_is_refused_unparsed(
+    uploads, parsed
+) -> None:
+    """413 on Content-Length, recorded under the fallback name."""
+    from api.routes import documents
+
+    answered = called_as("localhost:8000").post(
+        "/documents",
+        files={"file": ("big.pdf", b"x" * (documents._FRAMING + 1), "application/pdf")},
+    )
+
+    assert answered.status_code == 413
+    assert answered.json()["code"] == "too_large"
+    assert [name for name, _ in uploads.refused] == ["unnamed"]
+    assert parsed == []
+
+
+def test_an_upload_declaring_no_length_is_refused_unparsed(uploads, parsed) -> None:
+    """Sent chunked: 411, and nothing recorded, parsed or ingested."""
+    body = (
+        b"--b\r\n"
+        b'Content-Disposition: form-data; name="file"; filename="big.pdf"\r\n'
+        b"Content-Type: application/pdf\r\n\r\n%PDF-\r\n--b--\r\n"
+    )
+
+    answered = called_as("localhost:8000").post(
+        "/documents",
+        content=iter([body]),
+        headers={"content-type": "multipart/form-data; boundary=b"},
+    )
+
+    assert answered.status_code == 411
+    assert answered.json()["code"] == "length_required"
+    assert parsed == []
+    assert uploads.refused == []
+    assert uploads.ingested == []

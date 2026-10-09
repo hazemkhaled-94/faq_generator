@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Request, Response, UploadFile
+from fastapi.routing import APIRoute
+from starlette.concurrency import run_in_threadpool
 
 from api.dependencies import ingest_service, ingesting, removal_service
 from api.errors import ApiError, ErrorBody
@@ -23,7 +25,7 @@ from ingestion.models import (
 
 #: Declared on the routes that can raise them, so a refusal appears in the
 #: OpenAPI document.
-_REFUSALS = {code: {"model": ErrorBody} for code in (400, 404, 413, 415)}
+_REFUSALS = {code: {"model": ErrorBody} for code in (400, 404, 411, 413, 415)}
 
 #: Ingest outcomes that are refusals. Anything absent answers 200; a
 #: duplicate is an answer, not an error.
@@ -143,12 +145,12 @@ def _found[T](sha256: str, read: Callable[[str], T | None]) -> T:
     return found
 
 
-@router.post("/documents", responses={code: _REFUSALS[code] for code in (413, 415)})
-def add_document(request: Request, file: UploadFile) -> IngestResult:
+def add_document(file: UploadFile) -> IngestResult:
     """Accepts one uploaded document, synchronously.
 
     A plain function, so FastAPI runs it off the event loop: the ingest
-    queries the database, hashes and writes the object store.
+    queries the database, hashes and writes the object store. Its declared
+    size is checked first, before the form is parsed.
 
     Everything after this is batch work the workers pick up by watching
     documents.parse_status.
@@ -162,22 +164,58 @@ def add_document(request: Request, file: UploadFile) -> IngestResult:
     # Per upload: ingestion has no worker to pick a changed limit up.
     service = ingesting()
 
-    # Checked before the file is read. Content-Length covers the whole
-    # multipart body, so it is an upper bound rather than the file's size:
-    # past the limit by more than the framing, and `ingest` holds the file
-    # itself to the limit exactly.
-    declared = _declared_size(request)
-    if declared is not None and declared > service.max_file_size_bytes + _FRAMING:
-        return _respond(service.refuse_oversized(filename, declared))
-
     # One byte past the limit at most, which `ingest` refuses as too large.
     read = file.file.read(service.max_file_size_bytes + 1)
     return _respond(service.ingest(UploadedFile(filename=filename, data=read)))
 
 
+class _DeclaredSize(APIRoute):
+    """A route that checks the declared size before the form is parsed."""
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        """Runs `_refuse_by_declared_size` ahead of FastAPI's own handler."""
+        handler = super().get_route_handler()
+
+        async def checked(request: Request) -> Response:
+            await run_in_threadpool(_refuse_by_declared_size, request)
+            return await handler(request)
+
+        return checked
+
+
+router.add_api_route(
+    "/documents",
+    add_document,
+    methods=["POST"],
+    responses={code: _REFUSALS[code] for code in (411, 413, 415)},
+    route_class_override=_DeclaredSize,
+)
+
+
 #: The most a multipart body adds around the file: boundaries and the part's
 #: headers.
 _FRAMING = 64 * 1024
+
+
+def _refuse_by_declared_size(request: Request) -> None:
+    """Refuses an upload by the size it declares, before its body is read.
+
+    Content-Length covers the whole multipart body, so it is an upper bound
+    rather than the file's size: past the limit by more than the framing,
+    and `ingest` holds the file itself to the limit exactly. The filename is
+    in the body, so a refusal here is recorded as "unnamed".
+
+    Raises:
+        ApiError: 411 `length_required` if it declares no Content-Length,
+            413 `too_large` if it declares more than the limit and the
+            framing.
+    """
+    declared = _declared_size(request)
+    if declared is None:
+        raise ApiError(411, "length_required", "an upload must declare its length")
+    service = ingesting()
+    if declared > service.max_file_size_bytes + _FRAMING:
+        _respond(service.refuse_oversized("unnamed", declared))
 
 
 def _declared_size(request: Request) -> int | None:

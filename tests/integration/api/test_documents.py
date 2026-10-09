@@ -82,14 +82,13 @@ def test_a_file_just_under_the_limit_is_accepted(client, pdf, monkeypatch) -> No
     assert upload(client, pdf).status_code == 200
 
 
-def test_an_upload_declaring_no_length_is_read_one_byte_past_the_limit(
-    client, pdf, monkeypatch
-) -> None:
-    """Sent chunked, so only the read itself can bound it."""
+@pytest.fixture
+def read(application, monkeypatch) -> list[int]:
+    """The size of each upload the route hands `ingest`, at a 10-byte limit."""
     from api.routes import documents
 
     made = documents.ingesting
-    read: list[int] = []
+    sizes: list[int] = []
 
     def limited():
         service = made()
@@ -97,13 +96,29 @@ def test_an_upload_declaring_no_length_is_read_one_byte_past_the_limit(
         ingest = service.ingest
 
         def measured(upload):
-            read.append(upload.size_bytes)
+            sizes.append(upload.size_bytes)
             return ingest(upload)
 
         service.ingest = measured
         return service
 
     monkeypatch.setattr(documents, "ingesting", limited)
+    return sizes
+
+
+def test_a_file_past_the_limit_by_less_than_the_framing_is_read_one_byte_past_it(
+    client, pdf, read
+) -> None:
+    """Content-Length lets it through, so only the read itself can bound it."""
+    answered = upload(client, pdf)
+
+    assert answered.status_code == 413
+    assert answered.json()["code"] == "too_large"
+    assert read == [11]
+
+
+def test_an_upload_declaring_no_length_is_refused_as_411(client, pdf, read) -> None:
+    """Sent chunked, so it is refused before anything is read."""
     body = (
         b"--b\r\n"
         b'Content-Disposition: form-data; name="file"; filename="big.pdf"\r\n'
@@ -116,9 +131,9 @@ def test_an_upload_declaring_no_length_is_read_one_byte_past_the_limit(
         headers={"content-type": "multipart/form-data; boundary=b"},
     )
 
-    assert answered.status_code == 413
-    assert answered.json()["code"] == "too_large"
-    assert read == [11]
+    assert answered.status_code == 411
+    assert answered.json()["code"] == "length_required"
+    assert read == []
 
 
 def test_the_same_file_twice_is_answered_not_refused(client, pdf) -> None:
