@@ -23,8 +23,7 @@ behind. This page is the long form.
 
 `setup` is safe to run twice: it replaces `change_me_*` placeholders and
 nothing else. It gives one secret per distinct placeholder and substitutes it
-everywhere that placeholder appears, which keeps `APP_DB_PASSWORD` and the
-password inside `DATABASE_URL` the same string.
+everywhere that placeholder appears.
 
 `doctor` ends with a real call to the configured model, so an unknown model
 id, an unreachable address or a stale credential fails here rather than on
@@ -33,20 +32,24 @@ the first passage of a run:
 ```text
   ok       podman
   ok       poetry
+  ok       configs/env/provider.env
   ok       .env
+  ok       configs/env/deployment.env
+  -        compose reads both: make passes them, a bare podman compose needs
+             export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
   ok       no placeholder passwords
   ok       PHOENIX_ADMIN_SECRET
-  ok       LLM_BASE_URL is not host-local
+  ok       containers call <LLM_CONTAINER_MODEL> at <OLLAMA_CONTAINER_URL>
 
-Asking <LLM_MODEL> one question...
+Asking <LLM_MODEL> one question, as the host calls it...
 ```
 
 ## The short list
 
 | Target | Does |
 |---|---|
-| `make all` | Bring the stack up, then run `make corpus` |
-| `make corpus` | Every stage but the topic fit in order, the judge last, stopping at the first failure. Incremental. Says how many passages are in no topic |
+| `make all` | Bring the stack up, wait for Dagster to list the corpus job, and launch it. The container workers drain every stage but the topic fit |
+| `make corpus` | Every stage but the topic fit, drained on the host in order, then the release draw and the judge, stopping at the first failure. For developing a stage. Incremental. Says how many passages are in no topic |
 | `make pipeline-status` | Where the corpus has got to, every stage in one call |
 | `make services` | Every container, whether it is listening, and where to open it |
 | `make open` | The same, and open the application |
@@ -58,8 +61,9 @@ Asking <LLM_MODEL> one question...
 
 ## Configuration and the container engine
 
-Targets read `configs/env/backend.env` then `.env`, in the order the
-containers do. A variable given on the command line beats both:
+Targets read `configs/env/backend.env`, `configs/env/deployment.env`,
+`configs/env/provider.env` then `.env`, in the order the containers do. A
+variable given on the command line beats them all:
 
 ```bash
 make topics-discover TOPIC_PASSES=20
@@ -83,8 +87,9 @@ run compose has no equivalent of.
 |---|---|
 | `make dev` | Certificates, every service, wait for PostgreSQL, create the schema |
 | `make install` | Dependencies and the spaCy pipelines `NLP_MODELS` names |
-| `make up` | Start services |
-| `make down` | Stop services, keep data |
+| `make up` | Start services, then grant Grafana's reader the five Phoenix tables the run dashboard queries, once Phoenix has made them |
+| `make grafana-grants` | Those grants alone. Safe to run again |
+| `make down` | Stop services, keep data, and remove dangling images |
 | `make down-volumes` | Stop services and **delete all data** |
 | `make certs` | Generate the TLS certificates Elasticsearch needs |
 | `make prune` | Remove dangling container images |
@@ -99,8 +104,8 @@ run compose has no equivalent of.
 | `make logs-orchestration` | The Dagster webserver and daemon |
 | `make logs-shipper` | The log shipper, when Grafana shows nothing |
 | `make logs-retention` | Not a follow: how long Elasticsearch keeps them. **Run once** |
-| `make logs-prune` | Not a follow: delete the files on the `logs` volume |
-| `make logs-wipe` | Not a follow: delete every log line, the `qa-logs` data stream included. What `make wipe` runs |
+| `make logs-prune` | Not a follow: delete the log files nothing has written to for `LOGS_KEEP_DAYS`, on the `logs` volume and in `./logs` |
+| `make logs-wipe` | Not a follow: delete every `qa-logs*` data stream and every log file. Stops unless Elasticsearch acknowledges the delete or holds no stream. What `make wipe` runs |
 
 ```bash
 make logs-retention LOGS_RETENTION_DAYS=90
@@ -119,10 +124,11 @@ five of them is five chances to miss one.
 | `make pipeline-stop` | Take back everything queued, in every stage, and stop the run behind it |
 | `make pipeline-retry` | Return every stage's failures to the queue |
 
-There is no `pipeline-start`: `make corpus` is the better one for a terminal,
-because it starts each stage **and waits for it to drain** before the next,
-which is the whole difficulty. The Run button and `make pipeline` ask Dagster
-to hold that wait instead.
+There is no `pipeline-start`: `make pipeline` is the better one for a
+terminal, because it starts each stage **and waits for it to drain** before
+the next, which is the whole difficulty. It and the Run button ask Dagster to
+hold that wait while the container workers drain; `make corpus` holds it in
+the shell and drains on the host.
 
 ## The five verbs every stage answers
 
@@ -157,7 +163,7 @@ one vocabulary.
 
 | Target | Does |
 |---|---|
-| `make topics-discover` | Ask for a fit over the whole corpus, and run it. `make corpus` never does |
+| `make topics-discover` | Ask for a fit over the whole corpus, and run it. Neither `make corpus` nor the corpus job does |
 | `make topics` | Run any queued fit here, in the foreground |
 | `make topics-status` | The topics held, any queued fit, and how many passages are in no topic |
 | `make topics-stop` | Withdraw a queued fit |
@@ -193,7 +199,8 @@ expensive part:
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
-| `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway |
+| `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first and deletes nothing if it does not answer. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway |
+| `make confidence-recalibrate` | Take every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR` or `EXTRACTION_DUPLICATE_FLOOR`. No model call, and no verdict moves |
 
 `chunk-revocabulary` and `extract-revalidate` take `SHA`;
 `extract-revalidate`, `extract-recap` and `extract-embed` take `PASSAGE`;
@@ -245,8 +252,8 @@ title**, the answer at length, and why the judge said what it did. The
 Citations sheet is still the grain that carries the page number and the
 passage ordinal, which is what checking an answer against the source needs.
 
-The Assessment sheet and the three `Judge` columns are empty unless
-`make assess` has run.
+The Assessment sheet and the three `Judge` columns are empty unless the
+judge has run.
 
 `questions-diff` reads live questions **and** archived ones, so a run
 `questions-rerun` replaced still answers. A run listed `(deleted)` is being
@@ -293,9 +300,9 @@ make assess-start ONLY=--only\ kind=question   # the deliverable only
 make assess
 ```
 
-A fact and a topic cost two model calls each; a question costs three.
+A fact costs three model calls, a topic two and a question six.
 `ASSESSMENT_KINDS` and `ASSESSMENT_SAMPLE` in `configs/env/backend.env` are
-the dials, and the default is a sample of 200 per kind rather than a corpus.
+the dials, and the default is a sample per kind rather than a corpus.
 
 A failure here is the **model** being unreachable, not an artefact being bad:
 a judgement that came back as a refusal is recorded as one and is not a
@@ -337,11 +344,13 @@ fills the archive, so the purge has to come second or it takes nothing.
 ### What a wipe leaves
 
 Nothing, by default. The command is called wipe, and a default that quietly
-kept things would be the wrong way round: Phoenix keeps no project and no
-dataset, Argilla no dataset, Dagster no run, and Grafana reads an empty log
-stream. Grafana holds nothing of its own - its dashboards come from
-[`configs/grafana/provisioning/`](../configs/grafana/provisioning/) on every
-start, so there is nothing there a wipe could take.
+kept things would be the wrong way round: Phoenix keeps no project but
+`default` and no dataset, Argilla no review dataset, Dagster no run, and
+Grafana reads an empty log stream. Grafana holds nothing of the corpus - its
+dashboards and datasources come from
+[`configs/grafana/provisioning/`](../configs/grafana/provisioning/), and a
+dashboard edited in the UI is kept until its file changes - so there is
+nothing there a wipe could take.
 
 `KEEP` spares the two things nothing upstream rebuilds:
 
@@ -362,6 +371,7 @@ Every deletion of a row or an object above is the first of two.
 | Target | Does |
 |---|---|
 | `make archive` | What is held, by table, with its age |
+| `make restore-documents` | Without `SINCE`, when each deletion happened. With `SINCE=<time>`, put back every row and object archived from then on. Run it before `archive-purge` |
 | `make archive-purge` | The second deletion. **This one is final** |
 
 ```bash
@@ -413,23 +423,21 @@ a trigger, a data backfill, or anything ordered.
 | `make eval-score` | Score the served model against them, and record it |
 | `make prompts-publish` | Republish every recorded prompt to Phoenix. A stage publishes what it records when it starts, so this is for a Phoenix wiped while the rows stayed |
 | `make eval-phrasing` | Score the two phrasing judgements, each against its floor |
-| `make second-opinion` | An independent judge over one run, and where it disagrees |
 
 ```bash
 make eval-score EVAL_RUN_NAME=extraction-prompt-v7
-make second-opinion RUN=<run id> LIMIT=50
 make review-push-questions IDS=12,34,56
 ```
 
-`second-opinion` settles nothing; it produces a queue for a person.
+`IDS` is how the disagreements the Assessment page marks reach a reviewer.
 
 ## Phoenix's projects
 
 | Target | Does |
 |---|---|
 | `make phoenix-projects` | What Phoenix holds, changing nothing |
-| `make phoenix-prune` | Delete the projects in which no work happened. **Irreversible**, and it says what it is taking before it takes it |
-| `make phoenix-purge` | Delete **every** project, whatever it holds. What `make wipe` runs, and what `prune` will not do |
+| `make phoenix-prune` | Delete the projects in which no work happened. **Irreversible**, and asks nothing first: it names at most 25 of the projects it takes, then deletes them |
+| `make phoenix-purge` | Delete **every** project but `default`, whatever it holds, and every dataset. What `make wipe` runs, and what `prune` will not do |
 | `make phoenix-purge KEEP=golden` | The same, but leave the datasets and their experiments |
 | `make dagster-wipe` | Every run Dagster remembers, and the event log under each |
 
@@ -445,8 +453,9 @@ and the exporter is not installed until the preflight passes — and `prune`
 takes back whatever an older arrangement left.
 
 `prune` takes a project only when **every span in it is a model call and it
-could read every span**. A project too big to read in one page is left
-alone, because the first fifty spans of a real run are model calls too.
+could read every span**, and never `default`. A project too big to read in
+one page is left alone, because the first fifty spans of a real run are model
+calls too, and so is one whose spans Phoenix would not hand over.
 
 ## Tests and checks
 
@@ -500,14 +509,14 @@ The asset graph already chains the stages. These decide **when**.
 | Target | Does |
 |---|---|
 | `make runs` | The sensor, the schedule and the last five runs |
-| `make pipeline` | Every stage once, as a recorded Dagster run |
+| `make pipeline` | Every stage but the topic fit once, as a recorded Dagster run |
 | `make auto` | Start the `arrivals` sensor: an upload starts a run on its own |
 | `make manual` | Stop it again |
 | `make dagster-dev` | Run the code location on the host |
 
 `auto` is the unattended mode and ships stopped. `pipeline` does the work of
-`make corpus` with a topic fit and without the release draw, and survives the
-terminal closing.
+`make corpus` without the release draw, in the container workers rather than
+on the host, and survives the terminal closing.
 
 All four have an equivalent through the api, for a deployment nobody drives
 from a terminal: `POST /pipeline/run` is `make pipeline`, and
