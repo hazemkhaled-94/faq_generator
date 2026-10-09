@@ -60,12 +60,16 @@ def test_the_orchestrator_image_pins_the_dagster_the_host_is_locked_to() -> None
         line.split("#")[0].strip()
         for line in (ROOT / "orchestration/requirements.txt").read_text().splitlines()
     ]
-    dagster = [line for line in declared if line.startswith("dagster")]
+    dagster = [line for line in declared if line.startswith(("dagster", "sqlalchemy"))]
     unpinned = [
         line
         for line in dagster
         if line.partition("==")[2] != locked.get(_folded(line.partition("==")[0]))
     ]
 
+    assert any(line.startswith("sqlalchemy") for line in dagster), (
+        "orchestration/requirements.txt leaves the SQLAlchemy dagster-postgres "
+        "connects through to the resolver"
+    )
     assert dagster, "orchestration/requirements.txt declares no dagster"
     assert not unpinned, unpinned

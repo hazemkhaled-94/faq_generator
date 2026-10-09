@@ -9,6 +9,8 @@
 dagster==1.13.24
 dagster-webserver==1.13.24
 dagster-postgres==0.29.24
+# The SQLAlchemy dagster-postgres connects through, at poetry.lock's version.
+sqlalchemy==2.0.52
 # The stage routes, which are the only thing this talks to.
 requests>=2.32.5,<3.0.0
 # The shared telemetry package, mounted at /shared, imports these. Logging
