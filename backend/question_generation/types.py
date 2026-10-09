@@ -45,7 +45,7 @@ PROMPT_VERSION = "11"
 #: The position is what orders them in Phoenix, where each gate is a column
 #: of the Evaluations view and columns sort by name. `gate 5: phrasing`
 #: sorts where the gate runs; `phrasing` would sort beside
-#: `near_duplicate`, which is three gates earlier.
+#: `off_topic`, which is three gates earlier.
 #:
 #: Here rather than in `checker`, which loads the embedder and the verifier:
 #: the api reads a stored question's sequence and may load neither.
@@ -866,10 +866,10 @@ SPECS: dict[str, TypeSpec] = {spec.name: spec for spec in _SPECS}
 #: whatever the label got wrong, and an exam blueprint reading the column
 #: could not tell which rows to trust.
 #:
-#: Four of them now. `entity` and `enumeration` face a structural gate each;
-#: `implication` and `application` are the derived types, whose entailment
-#: and arithmetic checks ARE the reading that they reason rather than look
-#: up. The other eight declare a level nothing has checked - `reason`,
+#: Six of them now. `entity`, `enumeration`, `comparison` and `temporal`
+#: face a structural gate each; `implication` and `application` are derived
+#: by entailment, whose check IS the reading that they reason rather than
+#: look up. The other seven declare a level nothing has checked - `reason`,
 #: `consequence` and `condition` have no structural signature and no model
 #: is asked for one again. `/questions/quality` reports the share, so the
 #: column says how much of itself is measured.
