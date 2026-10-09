@@ -220,7 +220,7 @@ class TopicQueue(StageQueue):
             ]
 
     def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
-        """Replaces every topic and membership with one run's results.
+        """Replaces the topics and memberships of each language one run fitted.
 
         Every language in one transaction: a corpus holding one language's new
         topics beside another's old memberships has weights pointing at the
