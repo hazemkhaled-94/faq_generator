@@ -59,7 +59,8 @@ x-logging: &logging
 #
 # HF_HOME is where the Hugging Face cache goes, and it is a path inside the
 # container for the same reason. EMBEDDING_MODEL is fetched on first use -
-# chunking wants its tokenizer, question generation wants its weights - and
+# chunking wants its tokenizer, extraction and question generation its
+# weights - and
 # the `models` volume below is what stops every restart fetching it again.
 # The api names it too and downloads nothing: it loads neither.
 x-service-env: &service-env
