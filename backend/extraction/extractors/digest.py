@@ -101,7 +101,7 @@ class _Digest(BaseModel):
 
 
 class DigestExtractor(Extractor):
-    """Reads a passage's summary and outline with a local model.
+    """Reads a passage's summary and outline with a served model.
 
     One call produces both: they are the same reading of the same passage,
     and asking twice costs twice.
