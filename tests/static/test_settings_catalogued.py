@@ -11,39 +11,15 @@ Read as syntax rather than by importing, so a failure names the setting.
 
 from __future__ import annotations
 
-import ast
 import re
 from pathlib import Path
 
 import pytest
 
 from settings.catalog import BY_NAME, SETTINGS, Service, of
+from tests.static.settings_scan import read_by
 
 ROOT = Path(__file__).resolve().parents[2]
-
-#: The readers in backend/settings/env.py, by name. `mapping` is here and is
-#: not in the sibling scan, which is why a mix could be read without being
-#: declared anywhere.
-#:
-#: The four leading-underscore names are a stage's own readers, which take
-#: the setting's name first and hand it to `required`, `mapping` or `csv`
-#: through a variable. Without them the mixes and the two kinds of length
-#: bound are invisible to a scan that only looks at the readers themselves.
-READERS = frozenset(
-    {
-        "required",
-        "optional",
-        "integer",
-        "decimal",
-        "boolean",
-        "csv",
-        "mapping",
-        "_kinds",
-        "_weights",
-        "_bounds",
-        "_span",
-    }
-)
 
 #: Settings read through a variable rather than by name, so no scan of the
 #: syntax can find them. The pool sizes are built into the engine's URL in
@@ -83,35 +59,6 @@ UNCONFIGURABLE = {
 }
 
 
-def _read_by(source: str) -> set[str]:
-    """Finds the settings one module reads, by literal name."""
-    found = set()
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Call) and node.args:
-            called = node.func
-            name = (
-                called.id
-                if isinstance(called, ast.Name)
-                else getattr(called, "attr", None)
-            )
-            first = node.args[0]
-            if (
-                name in READERS
-                and isinstance(first, ast.Constant)
-                and isinstance(first.value, str)
-            ):
-                found.add(first.value)
-        if (
-            isinstance(node, ast.Subscript)
-            and isinstance(node.slice, ast.Constant)
-            and isinstance(node.slice.value, str)
-            and node.slice.value.isupper()
-            and "environ" in ast.dump(node.value)
-        ):
-            found.add(node.slice.value)
-    return found
-
-
 def _every_name() -> set[str]:
     """Every setting any module in the image reads, by literal name."""
     found: set[str] = set()
@@ -119,7 +66,7 @@ def _every_name() -> set[str]:
         for path in sorted((ROOT / source).glob("**/*.py")):
             if "__pycache__" in path.parts or path.name == "catalog.py":
                 continue
-            found |= _read_by(path.read_text())
+            found |= read_by(path.read_text())
     return found
 
 

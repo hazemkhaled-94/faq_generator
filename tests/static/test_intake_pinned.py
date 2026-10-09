@@ -16,11 +16,12 @@ packages with three queues and three command lines.
 
 from __future__ import annotations
 
-import ast
 import json
 from pathlib import Path
 
 import pytest
+
+from tests.static.settings_scan import read_by
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -34,9 +35,6 @@ SERVICES = {
 #: The headings every service README carries, as in test_topics_pinned.py
 #: and test_facts_pinned.py.
 HEADINGS = ("## What it does", "## Configuration", "## Tests")
-
-#: The readers in backend/settings/env.py, by name.
-READERS = frozenset({"required", "optional", "integer", "decimal", "boolean", "csv"})
 
 #: Every setting the three stages read, and nothing else. Connection settings
 #: are absent because database and blob_store own theirs.
@@ -204,33 +202,13 @@ MODULES = {
 PIPELINES = frozenset({"__init__.py", "base.py", "pdf.py"})
 
 
-def _read_by(source: str) -> set[str]:
-    """Finds the settings one module reads, by literal name."""
-    found: set[str] = set()
-    for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, ast.Call) or not node.args:
-            continue
-        called = node.func
-        name = (
-            called.id if isinstance(called, ast.Name) else getattr(called, "attr", None)
-        )
-        first = node.args[0]
-        if (
-            name in READERS
-            and isinstance(first, ast.Constant)
-            and isinstance(first.value, str)
-        ):
-            found.add(first.value)
-    return found
-
-
 def test_the_stages_read_exactly_the_settings_named_here() -> None:
     """A new setting is a new thing to configure, document and default."""
     found: set[str] = set()
     for path in SERVICES.values():
         for module in path.glob("**/*.py"):
             if "__pycache__" not in module.parts:
-                found |= _read_by(module.read_text())
+                found |= read_by(module.read_text())
 
     assert found == SETTINGS, (
         f"added: {sorted(found - SETTINGS)}, gone: {sorted(SETTINGS - found)}"
