@@ -1,7 +1,7 @@
 """The settings a deployment changed, and what a stage then reads.
 
 A trust boundary twice over: what the store writes decides how every stage
-behaves on its next row, and what it refuses is what stands between a typed
+behaves on its next drain, and what it refuses is what stands between a typed
 value and a worker that will not start.
 
 tests/conftest.py puts configs/env/backend.env in the environment, so
@@ -38,7 +38,7 @@ def test_an_unconfigured_setting_reads_as_the_environment_says(store) -> None:
 
 
 def test_a_stored_setting_is_what_resolves(store) -> None:
-    """What a worker will read on its next row."""
+    """What a worker will read on its next drain."""
     store.write("TOPIC_PASSES", "42")
 
     assert store.resolved()["TOPIC_PASSES"] == "42"
