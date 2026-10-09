@@ -1,10 +1,11 @@
 # Tests
 
 Eleven directories, eight markers. `make test` runs everything that gates a
-merge; the three that do not are excluded from it.
+merge but `smoke`, which CI runs as a job of its own; `eval` and `perf`
+never gate and are excluded too.
 
 ```bash
-make test           # everything that gates; starts containers of its own
+make test           # everything that gates but smoke; starts containers of its own
 make test-fast      # only the fast layers: no spaCy, no pyright, no containers
 make test-unit      # everything but the integration, smoke, eval and perf layers
 make test-integration
@@ -20,17 +21,17 @@ make mutation       # change a gate and ask whether a test notices. Hours
 
 | Directory | What it covers | Needs |
 |---|---|---|
-| [`static/`](static/) | The repository against itself: settings declared where they are read, the migration chain, the schema extensions, the locks, the workflows, the dashboards, the pinned surface of three services, every prompt pinned by digest, the frontend's gate list, the two import contracts, every relative link and heading a README names, and pyright at zero | nothing |
+| [`static/`](static/) | The repository against itself: settings declared where they are read, the migration chain, the schema extensions, the locks, the workflows, the env files and the compose file, the Makefile's recipes, the dashboards, the pinned surface of three services, every prompt pinned by digest, the frontend's gate list, the two import contracts, every relative link and heading a README names, and pyright at zero | nothing |
 | [`unit/`](unit/) | One module at a time, no I/O. Includes the Dagster code location, the review round trip and the experiment evaluators | spaCy, for some |
 | [`property/`](property/) | Invariants over generated input, with hypothesis | spaCy, for some |
 | [`regression/`](regression/) | The verdicts the checks have always reached, pinned as a table | spaCy |
 | [`contract/`](contract/) | The OpenAPI surface, the paths the frontend builds, the refusals each route declares, and generated calls against every read route | a container |
 | [`integration/`](integration/) | The database, the object store and the HTTP surface, against the images compose runs | a container |
-| [`e2e/`](e2e/) | One document through every stage in this process, with the converter and the model stood in for | a container |
+| [`e2e/`](e2e/) | One document through every stage in this process, with the PDF converter, the served models, the embedder and the topic fit stood in for | a container |
 | [`frontend/`](frontend/) | Each Streamlit page against a scripted backend | nothing |
 | [`smoke/`](smoke/) | Both images built and looked inside, and the compose file resolved | a container engine |
-| [`eval/`](eval/) | How a real served model reads the golden passages, and whether the round-trip gate splits the golden questions | a served model |
-| [`perf/`](perf/) | The ceilings the code names in a comment, as loose wall-clock budgets | nothing |
+| [`eval/`](eval/) | How a real served model reads the golden passages, answers the phrasing judgements and writes questions, and whether the round-trip gate splits the golden questions | a served model |
+| [`perf/`](perf/) | The ceilings the code names in a comment, as wall-clock budgets of five times each one's measured mean | nothing |
 
 ## The markers
 
@@ -61,8 +62,10 @@ run to hundreds of lines, spelled the way `stages/prompts.py` spells it.
 
 ## Two checks that are a tool rather than a test
 
-Both run in `make test` through a thin wrapper in `static/`, and both have a
-target of their own that prints the finding itself:
+import-linter also runs in `make test`, through a thin wrapper in
+`static/`; deptry has no wrapper, and CI runs `make deps` as a step of the
+`static` job. Both have a target of their own that prints the finding
+itself:
 
 | | Runs | Covers |
 |---|---|---|
@@ -99,21 +102,23 @@ answers. Nothing they do touches a running stack.
 
 ## What never gates
 
-`tests/eval/` prints its numbers and asserts almost nothing: a model's
-answers move between versions and between runs at the same temperature.
+`tests/eval/` prints its numbers and asserts little: a model's answers move
+between versions and between runs at the same temperature.
 
 `tests/perf/` does assert, but never on a pull request — a wall-clock budget
 on a shared runner measures the runner. It runs nightly and by hand.
 
-The one thing `eval` does assert is that the round-trip gate splits its
-golden questions the right way round. That is not a measurement of the
-model's taste; it is whether the gate is wired up at all, and **a gate that
-accepts everything cannot be told from no gate**.
+What `eval` does assert is that the round-trip gate splits its golden
+questions the right way round, that each phrasing judgement beats a judge
+answering the same way every time, that extraction proposes and keeps
+something, and that the writer writes something for every kind. That is not
+a measurement of the model's taste; it is whether each piece is wired up at
+all, and **a gate that accepts everything cannot be told from no gate**.
 
 ## Two tests that skip rather than download 2.2 GB
 
 - [`unit/nlp/test_embedding.py`](unit/nlp/test_embedding.py) skips unless
-  `EMBEDDING_MODEL` is already in the Hugging Face cache. The five tests that
+  `EMBEDDING_MODEL` is already in the Hugging Face cache. The six tests that
   take the embedder are marked `nlp`; `cosine` is arithmetic over two lists
   and is not, so it still runs in the fast layer.
 - [`e2e/test_pipeline.py`](e2e/test_pipeline.py) stands the embedder in for
@@ -121,10 +126,10 @@ accepts everything cannot be told from no gate**.
 
 ## Every warning is an error
 
-`filterwarnings = error`, with three ignores in
-[`pyproject.toml`](../pyproject.toml) pinned to the third-party module that
-raises each — not to the category, so the same category from this code still
-fails. Nothing failed on a deprecation before, which is how a
+`filterwarnings = error`, with five ignores in
+[`pyproject.toml`](../pyproject.toml), each pinned to what one third-party
+module raises — not to a built-in category, so the same category from this
+code still fails. Nothing failed on a deprecation before, which is how a
 `StarletteDeprecationWarning` sat unread in every run's summary.
 
 ## How the tests are written
@@ -140,7 +145,9 @@ Non-UI tests follow the same **page-object** structure the UI tests do: one
 | [`integration/seed.py`](integration/seed.py) | Rows to test against, with only the columns the schema insists on |
 | [`frontend/pages.py`](frontend/pages.py) | One page object over every view, and the answers each view needs |
 
-Only the database, the buckets and the served model are ever stood in for.
+What is stood in for: the database and the buckets in the layers that start
+no container, the backend in `frontend/`, the served models, and in `e2e`
+the PDF converter, the embedder and the topic fit.
 
 Two static gates keep that structure from eroding, because it already had:
 
@@ -151,7 +158,7 @@ Two static gates keep that structure from eroding, because it already had:
   changes with the collection order.
 - [`static/test_fake_backend_matches_the_api.py`](static/test_fake_backend_matches_the_api.py)
   compares every fake response in `frontend/pages.py` against the dataclass
-  the API actually serialises. Sixteen shapes and the settings builder: a
+  the API actually serialises. Twenty shapes and the settings builder: a
   field the API gains and the fake does not is what it exists to catch.
 
 ## Continuous integration
@@ -162,7 +169,7 @@ request and every push to `main`:
 | Job | Runs |
 |---|---|
 | `setup` | Installs the dependencies and caches the virtualenv |
-| `static` | The `static/` layer, pyright included |
+| `static` | The `static/` layer, pyright included, and `make lint`, `make lint-imports` and `make deps` |
 | `unit` | Everything that needs neither a container nor a served model |
 | `integration` | The container layers, against pulled images |
 | `smoke` | Builds both images and looks inside them |
@@ -175,10 +182,10 @@ request and every push to `main`:
 | Job | Runs |
 |---|---|
 | `audit` | Known advisories against both locks |
-| `everything` | Every layer, images included |
+| `everything` | Every layer but `eval` and `perf`, images included |
 | `mutation` | `make mutation`, with the survivors in the job summary |
 | `ceilings` | `make test-perf` |
-| `evaluate` | The model evaluation — skips unless `LLM_MODEL` and `LLM_BASE_URL` are repository variables |
+| `evaluate` | The model evaluation — every test skips unless `LLM_MODEL` is a repository variable |
 
 ## Limits
 
