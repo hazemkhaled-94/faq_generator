@@ -451,5 +451,6 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pyright]
+# tests/ is not type-checked.
 include = ["backend", "frontend", "telemetry", "orchestration", "review", "evaluation"]
 extraPaths = ["backend"]
