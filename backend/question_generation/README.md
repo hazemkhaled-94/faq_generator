@@ -480,7 +480,8 @@ links. The span cannot carry the question id instead, because the question
 has no id yet when the gates run.
 
 **The source is the code.** A row is a record of what was sent; editing one
-changes nothing, and the next start-up writes the source's text back over it.
+changes nothing. The next start-up rewrites it when its digest, user template,
+response schema or model differs from the source's.
 A text that moves under an unchanged version is logged at WARNING and fails
 [`tests/static/test_prompts_pinned.py`](../../tests/static/test_prompts_pinned.py).
 
