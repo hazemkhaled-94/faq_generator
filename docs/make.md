@@ -19,7 +19,7 @@ behind. This page is the long form.
 | `make setup` | Write `.env` and `configs/env/provider.env`, and fill in every placeholder |
 | `make install` | The Python dependencies and the spaCy pipelines |
 | `make doctor` | Check the tools and the configuration, then ask the model one question |
-| `make dev` | Certificates, every service, and the schema |
+| `make dev` | Certificates, every service, the schema and the Grafana grants |
 
 `setup` is safe to run twice: it replaces `change_me_*` placeholders and
 nothing else. It gives one secret per distinct placeholder and substitutes it
@@ -85,7 +85,7 @@ run compose has no equivalent of.
 
 | Target | Does |
 |---|---|
-| `make dev` | Certificates, every service, wait for PostgreSQL, create the schema |
+| `make dev` | Certificates, every service, wait for PostgreSQL, create the schema, then the grants `make up` makes |
 | `make install` | Dependencies and the spaCy pipelines `NLP_MODELS` names |
 | `make up` | Start services, then grant Grafana's reader the five Phoenix tables the run dashboard queries, once Phoenix has made them |
 | `make grafana-grants` | Those grants alone. Safe to run again |

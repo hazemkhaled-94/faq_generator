@@ -311,7 +311,8 @@ doctor:
 	if test $$fail -eq 0; then echo "Ready. Next: make dev"; \
 	  else echo "Fix the above, then run make doctor again."; exit 1; fi
 
-# Install dependencies, start every service, and create the schema.
+# Install dependencies, start every service, and create the schema. Then
+# grant Grafana its Phoenix tables, as `up` does.
 dev: install certs logs-dir
 	$(COMPOSE_CMD) up -d
 	@echo "Waiting for PostgreSQL..."
@@ -319,6 +320,7 @@ dev: install certs logs-dir
 	  until $(COMPOSE_CMD) exec -T postgres pg_isready -h 127.0.0.1 -U "$$POSTGRES_SUPERUSER" -q; \
 	  do sleep 2; done
 	$(MAKE) schema
+	@$(MAKE) --no-print-directory grafana-grants
 
 # The spaCy pipelines are downloaded, not resolved: they are not on PyPI
 # under a version range.
@@ -365,7 +367,7 @@ up: certs logs-dir
 	@$(MAKE) --no-print-directory grafana-grants
 
 # Grafana's reader gets SELECT on the Phoenix tables the run dashboard queries,
-# once Phoenix has made them. Run by `up`; safe to run again.
+# once Phoenix has made them. Run by `up` and `dev`; safe to run again.
 grafana-grants:
 	@for i in $$(seq 1 30); do \
 	  $(COMPOSE_CMD) exec -T postgres sh -c 'psql -q -U "$$POSTGRES_USER" -d "$$PHOENIX_DB_NAME" -c "TABLE span_annotations LIMIT 0"' >/dev/null 2>&1 && break; \

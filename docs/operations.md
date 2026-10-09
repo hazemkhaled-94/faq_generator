@@ -136,8 +136,8 @@ podman compose exec postgres bash /docker-entrypoint-initdb.d/init.sh
 ```
 
 Its `SELECT` on the five Phoenix tables the run dashboard queries is granted
-by `make up`, once Phoenix has made them. `make grafana-grants` grants them
-on its own, for a stack started some other way.
+by `make up` and `make dev`, once Phoenix has made them. `make grafana-grants`
+grants them on its own, for a stack started some other way.
 
 ### Rotating `GRAFANA_SECRET_KEY`
 
@@ -206,7 +206,7 @@ read back through `/{stage}/status`.
 | A panel that groups by `stage` finds nothing | A field missing from `append_fields` in `filebeat.yml` |
 | An edit to `filebeat.yml` changed nothing | `setup.template.overwrite` is false |
 | Grafana cannot read the database | `init.sh` has not run on this volume |
-| The run dashboard's Phoenix panels cannot read their tables | The grants `make up` makes have not run. `make grafana-grants` |
+| The run dashboard's Phoenix panels cannot read their tables | The grants `make up` and `make dev` make have not run. `make grafana-grants` |
 | Streamlit refuses a file the API would accept | `server.maxUploadSize` is below `MAX_FILE_SIZE_MB` |
 | The frontend will not start, naming a variable | It is declared but not in the `streamlit` service's `environment` |
 | Argilla refuses the key | `ARGILLA_API_KEY` is under "My settings". It is not `ARGILLA_PASSWORD` |

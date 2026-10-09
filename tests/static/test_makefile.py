@@ -303,9 +303,12 @@ def test_the_balance_is_drawn_over_every_topic_whatever_narrows_it() -> None:
 DASHBOARD_TABLES = ("projects", "traces", "spans", "span_costs", "span_annotations")
 
 
-def test_bringing_the_stack_up_grants_grafana_the_dashboards_phoenix_tables() -> None:
+@pytest.mark.parametrize("target", ["up", "dev"])
+def test_bringing_the_stack_up_grants_grafana_the_dashboards_phoenix_tables(
+    target: str,
+) -> None:
     """Phoenix makes its tables after the database's first boot."""
-    granted = " ".join(printed("up"))
+    granted = " ".join(printed(target))
 
     assert "GRANT SELECT ON " + ", ".join(DASHBOARD_TABLES) in granted, granted
 

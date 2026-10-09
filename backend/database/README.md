@@ -182,8 +182,8 @@ is never a setting.
 `grafana_reader` holds `SELECT` and nothing else. It is granted on **two**
 databases, the application's and Phoenix's, which the Run dashboard reads
 together. On Phoenix's it reads only the five tables that dashboard queries,
-granted by `make up` through `make grafana-grants` once Phoenix has made
-them.
+granted by `make up` and `make dev` through `make grafana-grants` once
+Phoenix has made them.
 
 The role is created by
 [`configs/postgres/init.sh`](../../configs/postgres/init.sh), which only runs
