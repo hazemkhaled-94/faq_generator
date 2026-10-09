@@ -11,7 +11,7 @@ of `documents`, the object key in both buckets, and what a duplicate is
 detected by. No filename, declared content type or extension is evidence of
 anything.
 
-**Every attempt is recorded, refused ones included.** `ingest_events` is the
+**Every attempt that declares its length is recorded, refused ones included.** `ingest_events` is the
 record of what was offered; `documents` is the record of what was kept.
 
 The other two stages that turn a PDF into passages are
@@ -95,7 +95,7 @@ See [`archive/`](../archive/README.md).
 
 | Table | Holds |
 |---|---|
-| `ingest_events` | every upload attempt, refused ones included: the submitted filename, the size, the outcome, the reason, and the document it became |
+| `ingest_events` | every upload attempt that declares its length, refused ones included: the submitted filename, the size, the outcome, the reason, and the document it became |
 | `documents` | the digest, the media type, the page and character counts, and every stage's status at `new` |
 
 **Written, in SeaweedFS:** `documents`, at

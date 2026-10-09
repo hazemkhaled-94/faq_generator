@@ -12,7 +12,7 @@ the tables, the enums, the connection and the migrations.
 
 | Table | Holds | Written by |
 |---|---|---|
-| `ingest_events` | Every upload attempt, refused ones included | [ingestion](../ingestion/README.md) |
+| `ingest_events` | Every upload attempt that declares its length, refused ones included | [ingestion](../ingestion/README.md) |
 | `documents` | One row per kept document, keyed by the SHA-256 of its bytes, carrying every stage's status | ingestion, then each stage's own column |
 | `passages` | Text, numbered sentences, lemmas, language, table cells, bounding box, heading trail | [chunking](../preprocessing/chunking/README.md) |
 | `facts` | One claim each, with its verdict, its rejection code and the configuration it was produced under | [extraction](../extraction/README.md) |
