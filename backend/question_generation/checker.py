@@ -14,6 +14,8 @@ it:
   wrong_type      free: a question word asking for another kind, an entity
                   question asking after no party, an enumeration answered
                   with one thing
+  restates_question  free: the answer carries almost nothing the question did
+                  not
   explanation_unusable  free: the long answer is the wrong length, asserts a
                   number the passages do not carry, or only restates the key
   asks_nothing_new  free: a follow-up citing nothing its root did not, so a
@@ -21,12 +23,13 @@ it:
   off_thread      free: a follow-up resting on no passage the turn before it
                   used, so the conversation changed subject
   duplicate       one index probe against the questions already accepted
-  answerable      the same probe, when an unanswerable question has a twin
-                  the corpus does answer
+  answerable_after_all  the same probe, when an unanswerable question has a
+                  twin the corpus does answer; or the round trip
   leaks_source    free where the title is quoted, in the structural step;
                   the phrasing judge's otherwise
   unanchored      a question nobody could have asked without the passage
-  recoverable     the answer is not in the evidence the question cites
+  not_recoverable  the answer is not in the evidence the question cites
+  answer_incomplete  the key names much less than the round trip found
   answerable_elsewhere  one corpus-wide passage probe and a second call, on
                   the unanswerable share only: a passage it does not cite
                   answers it. Cosine over passages.embedding where the corpus
