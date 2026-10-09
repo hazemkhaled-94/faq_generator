@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -241,8 +241,3 @@ def recording(base_url: str | None = None) -> Iterator[Evaluations]:
         yield held
     finally:
         held.flush()
-
-
-def spans_of(verdicts: Iterable[Verdict]) -> Sequence[str]:
-    """The spans some verdicts are about. For tests and for logging."""
-    return [one.span_id for one in verdicts]
