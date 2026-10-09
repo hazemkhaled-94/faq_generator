@@ -153,7 +153,7 @@ IDLE = ! $(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q . || \
 # Colour only when a terminal is reading, so `make help | grep` is clean.
 help:
 	@if [ -t 1 ]; then b=$$(printf '\033[1m'); c=$$(printf '\033[36m'); r=$$(printf '\033[0m'); fi; \
-	printf '%sQ&A Reference Dataset Generator%s\n\n' "$$b" "$$r"; \
+	printf '%sFAQ Generator%s\n\n' "$$b" "$$r"; \
 	printf '  usage:      make <target> [VAR=value]\n'; \
 	printf '  first run:  %smake setup%s, then %smake doctor%s, then %smake dev%s\n' \
 	  "$$c" "$$r" "$$c" "$$r" "$$c" "$$r"; \

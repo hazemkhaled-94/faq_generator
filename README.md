@@ -1,4 +1,4 @@
-# Q&A Reference Dataset Generator
+# FAQ Generator
 
 Builds a verified question-and-answer dataset from a corpus of documents, so
 a retrieval-augmented chatbot can be measured against a fixed benchmark

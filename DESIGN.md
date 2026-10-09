@@ -1,6 +1,6 @@
 ---
 # gstack: design-md-format=spec
-name: Q&A Generator
+name: FAQ Generator
 description: An operator's ledger for a seven-stage document pipeline. Dense, quiet, one purple accent; a figure and the rows it counts share one screen.
 colors:
   primary: "#A100FF"          # accent on the light ground
@@ -77,7 +77,7 @@ components:
     backgroundColor: "{colors.table-header}"
 ---
 
-# Q&A Generator
+# FAQ Generator
 
 ## Overview
 

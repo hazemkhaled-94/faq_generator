@@ -49,7 +49,7 @@ class SameOriginWrites:
 
 
 app = FastAPI(
-    title="qa_generator API",
+    title="FAQ Generator API",
     middleware=[
         Middleware(TrustedHostMiddleware, allowed_hosts=csv("API_ALLOWED_HOSTS")),
         Middleware(SameOriginWrites),

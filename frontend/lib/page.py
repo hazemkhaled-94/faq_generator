@@ -55,7 +55,7 @@ def header(title: str) -> None:
     """Renders the page's title, with the product's name on the same line."""
     st.html(
         f"<div class='qa-header'><div class='qa-page-title'>{title}</div>"
-        "<div class='qa-brand-title'>Q&amp;A Generator</div></div>"
+        "<div class='qa-brand-title'>FAQ Generator</div></div>"
     )
 
 
