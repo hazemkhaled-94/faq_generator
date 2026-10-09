@@ -322,6 +322,15 @@ def test_every_published_port_listens_on_the_loopback_only() -> None:
     assert not open_to_all, "\n".join(open_to_all)
 
 
+def test_the_log_shipper_listens_on_nothing() -> None:
+    """It reads files. A listener takes lines from anyone who can reach it."""
+    services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    shipper = yaml.safe_load((ROOT / "configs/filebeat/filebeat.yml").read_text())
+
+    assert not services["filebeat"].get("ports"), services["filebeat"]["ports"]
+    assert {one["type"] for one in shipper["filebeat.inputs"]} == {"filestream"}
+
+
 def test_the_object_store_is_published_through_its_s3_gateway_only() -> None:
     """The master, filer and volume servers answer without credentials."""
     services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
