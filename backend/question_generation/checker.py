@@ -4,9 +4,13 @@ Cheapest first, because each one that fires saves the cost of those behind
 it:
 
   malformed       structural, free
+  compound        free: it asks two things, so half an answer is neither
+                  right nor wrong
   answer_too_short  free: nothing worth scoring against
   answer_too_long   free: not the form of answer that was asked for
   wrong_form        free: a value carrying a verb, an explanation with none
+  off_topic       free: an unanswerable question about nothing the material
+                  mentions, which any chatbot declines
   wrong_type      free: a question word asking for another kind, an entity
                   question asking after no party, an enumeration answered
                   with one thing
@@ -16,14 +20,11 @@ it:
                   thread asks one fact twice
   off_thread      free: a follow-up resting on no passage the turn before it
                   used, so the conversation changed subject
-  leaks_source    free where the title is quoted, the verifier's otherwise
-  off_topic       free: an unanswerable question about nothing the material
-                  mentions, which any chatbot declines
   duplicate       one index probe against the questions already accepted
   answerable      the same probe, when an unanswerable question has a twin
                   the corpus does answer
-  compound        it asks two things, so half an answer is neither right
-                  nor wrong
+  leaks_source    free where the title is quoted, in the structural step;
+                  the phrasing judge's otherwise
   unanchored      a question nobody could have asked without the passage
   recoverable     the answer is not in the evidence the question cites
   answerable_elsewhere  one corpus-wide passage probe and a second call, on
@@ -32,10 +33,10 @@ it:
                   has been embedded, shared lemmas where it has not
 
 The free ones are in `gates`, which imports no client; the calls are the
-`verifier`'s. Recoverability is the one no similarity measure makes: it asks
-whether the answer can be got back out of the passages, which is what a
-question is for, and a paraphrase, a decomposition and a resolved pronoun all
-survive it where a threshold would not.
+`verifier`'s and `phrasing`'s. Recoverability is the one no similarity
+measure makes: it asks whether the answer can be got back out of the
+passages, which is what a question is for, and a paraphrase, a decomposition
+and a resolved pronoun all survive it where a threshold would not.
 """
 
 from __future__ import annotations
@@ -127,15 +128,15 @@ class QuestionChecker:
         needs of the database is one probe, and taking the whole repository
         for it would let a gate read anything.
 
-        `judge_phrasing` is whether the verifier's opinion of the question
-        may reject one. Those gates are the only ones here that are an
-        opinion rather than a measurement, and an opinion needs an
+        `judge_phrasing` is whether the phrasing judge's opinion of the
+        question may reject one. Those gates are the only ones here that are
+        an opinion rather than a measurement, and an opinion needs an
         independent holder: a writer marking its own work rejected `According
         to the ECB and NCAs, who conducts the due diligence check?` for
-        naming nothing. The factory turns it off when QUESTIONS_VERIFIER_MODEL
-        is unset, and then the judgements are not asked for at all - see
-        `_opinion`. Recoverability stays on regardless, because that one is
-        checkable against the passage.
+        naming nothing. The factory turns it off when QUESTIONS_PHRASING_MODEL
+        resolves to the writer's model, and then the judgements are not asked
+        for at all - see `_opinion`. Recoverability stays on regardless,
+        because that one is checkable against the passage.
 
         `elsewhere` is the corpus-wide passage probe the unanswerable gate
         reads, taking the question's lemmas, its language, the passages it
