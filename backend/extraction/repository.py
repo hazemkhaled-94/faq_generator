@@ -585,16 +585,10 @@ class FactCatalog(Repository):
             query = query.where(DOMINANT.c.topic_id.in_(_topics(within)))
 
         with self._session() as session:
-            held: list[PassageToExtract] = []
-            current: int | None = None
-            for row in session.execute(query):
-                if row.topic_id != current:
-                    if held:
-                        yield cast("int", current), held
-                    current, held = row.topic_id, []
-                held.append(_passage(row, row.document_language))
-            if held:
-                yield cast("int", current), held
+            for topic_id, rows in groupby(
+                session.execute(query), key=lambda row: row.topic_id
+            ):
+                yield topic_id, [_passage(row, row.document_language) for row in rows]
 
     def recap(self, cap: int | None, reason: str, within=None) -> int:
         """Refuses the atomic facts already stored above the cap.
@@ -702,16 +696,7 @@ class FactCatalog(Repository):
 
     def embed_facts(self, vectors: list[tuple[int, list[float]]]) -> int:
         """Writes a vector onto each of the given facts."""
-        if not vectors:
-            return 0
-        with self._session.begin() as session:
-            # The table rather than the entity, as `rejudge` does: an
-            # executemany against the mapped class is read as an ORM bulk
-            # update by primary key, which refuses a WHERE of its own.
-            return session.execute(
-                update(_FACTS).where(_FACTS.c.id == bindparam("row")),
-                [{"row": fact_id, "embedding": one} for fact_id, one in vectors],
-            ).rowcount
+        return self._embed(_FACTS, vectors)
 
     def unembedded_passages(self, limit: int, within=None) -> list[tuple[int, str]]:
         """The next passages carrying no vector, as (id, text)."""
@@ -726,12 +711,19 @@ class FactCatalog(Repository):
 
     def embed_passages(self, vectors: list[tuple[int, list[float]]]) -> int:
         """Writes a vector onto each of the given passages."""
+        return self._embed(_PASSAGES, vectors)
+
+    def _embed(self, table: Table, vectors: list[tuple[int, list[float]]]) -> int:
+        """Writes a vector onto each of the given rows of one table."""
         if not vectors:
             return 0
         with self._session.begin() as session:
+            # The table rather than the entity, as `rejudge` does: an
+            # executemany against the mapped class is read as an ORM bulk
+            # update by primary key, which refuses a WHERE of its own.
             return session.execute(
-                update(_PASSAGES).where(_PASSAGES.c.id == bindparam("row")),
-                [{"row": passage_id, "embedding": one} for passage_id, one in vectors],
+                update(table).where(table.c.id == bindparam("row")),
+                [{"row": row, "embedding": one} for row, one in vectors],
             ).rowcount
 
     def clear_bridges(self, within=None) -> int:
