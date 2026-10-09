@@ -36,7 +36,7 @@ class Topic(Base):
     Also the queue: a row whose topic_index is NULL is an outstanding request
     to fit rather than a topic. A fit is always a whole language, because the
     factorisation estimates every topic together over one vocabulary, so a
-    completed run replaces every row here.
+    completed run replaces every row of each language it fits.
     """
 
     # No foreign key anywhere: a topic spans passages in many documents.
