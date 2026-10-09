@@ -20,50 +20,16 @@ from __future__ import annotations
 
 import pytest
 
-from assessment.templates import TEMPLATES
-from extraction.extractors import bridge, digest, llm
-from question_generation import phrasing, verifier
-from question_generation.generation import _FOLLOW, _PERTURB, _typed
+from question_generation.generation import _typed
 from question_generation.types import SPECS
 from tests.static.prompt_catalogues import recorded
-from topic_modelling import labels
 
 #: The six sections, each its own line, in the order RASCEF names them.
 SECTIONS = ("ROLE", "ACTION", "STEPS", "CONTEXT", "EXAMPLES", "FORMAT")
 
-
-def _prompts() -> dict[str, str]:
-    """Every system prompt this pipeline sends, composed as it is sent."""
-    written = {
-        f"questions/{name}": spec.system() for name, spec in sorted(SPECS.items())
-    }
-    written["questions/perturb"] = _PERTURB
-    # Its example comes with the type, so one type stands for all thirteen:
-    # what is being checked is the section, and `{{type}}` is what supplies
-    # it whichever type is asked for.
-    written["questions/follow"] = _FOLLOW.replace(
-        "{{type}}", _typed(SPECS["condition"])
-    )
-    for name in ("_SOURCE", "_NAMES", "_CONTAINED"):
-        written[f"phrasing/{name}"] = getattr(phrasing, name)
-    for name in ("_VERIFY", "_SUPPORT", "_COMPUTES", "_FOLLOWS"):
-        written[f"verifier/{name}"] = getattr(verifier, name)
-    # Composed with an empty cap paragraph, which is what a deployment that
-    # sets no EXTRACTION_MIN_OTHER_SHARE sends.
-    written["extraction/atomic"] = llm.composed("")
-    written["extraction/digest"] = digest._SYSTEM
-    written["extraction/bridge"] = bridge._SYSTEM
-    written["topics/label"] = labels._SYSTEM
-    for kind, templates in TEMPLATES.items():
-        for template in templates:
-            written[f"assessment/{kind}.{template.metric}"] = template.system
-    return written
-
-
-PROMPTS = _prompts()
-
-#: Every system prompt each stage's catalogue records, with one type in
-#: `follow`'s `{{type}}` as above.
+#: Every system prompt each stage's catalogue records. `follow`'s example
+#: comes with the type, through `{{type}}`, so one type stands for all
+#: thirteen.
 CATALOGUED = {
     f"catalogue/{service}/{name}": one.text.replace(
         "{{type}}", _typed(SPECS["condition"])
@@ -71,14 +37,11 @@ CATALOGUED = {
     for (service, name), one in recorded().items()
 }
 
-#: The hand-kept list and the catalogues', each checked.
-SENT = PROMPTS | CATALOGUED
 
-
-@pytest.mark.parametrize("name", sorted(SENT))
+@pytest.mark.parametrize("name", sorted(CATALOGUED))
 def test_a_prompt_carries_every_rascef_section(name: str) -> None:
     """A section missing is a section the model was never given."""
-    text = f"\n{SENT[name]}"
+    text = f"\n{CATALOGUED[name]}"
     missing = [one for one in SECTIONS if f"\n{one}\n" not in text]
 
     assert not missing, (
@@ -87,10 +50,10 @@ def test_a_prompt_carries_every_rascef_section(name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("name", sorted(SENT))
+@pytest.mark.parametrize("name", sorted(CATALOGUED))
 def test_the_sections_come_in_the_order_rascef_names_them(name: str) -> None:
     """A FORMAT above its STEPS reads as two prompts spliced together."""
-    text = f"\n{SENT[name]}"
+    text = f"\n{CATALOGUED[name]}"
     at = [text.index(f"\n{one}\n") for one in SECTIONS]
 
     assert at == sorted(at), (
@@ -98,13 +61,3 @@ def test_the_sections_come_in_the_order_rascef_names_them(name: str) -> None:
         f"{', '.join(one for _, one in sorted(zip(at, SECTIONS, strict=True)))}, and "
         f"RASCEF is {', '.join(SECTIONS)}."
     )
-
-
-def test_every_prompt_the_pipeline_sends_is_covered_here() -> None:
-    """The count, so a new prompt is added here rather than only shipped.
-
-    Thirteen question types, the perturbation and the follow-up, three
-    phrasing judgements, four verifier gates, three extraction readers, the
-    topic labeller, and eleven assessment metrics.
-    """
-    assert len(PROMPTS) == 13 + 2 + 3 + 4 + 3 + 1 + 11

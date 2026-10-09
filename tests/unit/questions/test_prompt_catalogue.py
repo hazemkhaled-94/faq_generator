@@ -9,6 +9,9 @@ and only the lookup comes back empty.
 
 from __future__ import annotations
 
+from importlib import import_module
+from pathlib import Path
+
 import pytest
 
 from assessment import prompts as assessment
@@ -16,9 +19,11 @@ from extraction import prompts as extraction
 from extraction.extractors import bridge, digest, llm
 from question_generation import phrasing, verifier
 from question_generation import prompts as questions
-from question_generation.types import PROMPT_VERSION, SPECS
+from question_generation.types import _ROLE, PROMPT_VERSION, SPECS
 from topic_modelling import labels
 from topic_modelling import prompts as topics
+
+BACKEND = Path(__file__).resolve().parents[3] / "backend"
 
 
 @pytest.fixture(scope="module")
@@ -56,30 +61,36 @@ def test_the_judges_are_declared_at_their_own_versions(catalogue) -> None:
     assert catalogue["verifier: recover"].version == verifier.PROMPT_VERSION
 
 
-def test_every_verifier_prompt_is_declared(catalogue) -> None:
-    """Four of them, and the three below `_VERIFY` are a different ask."""
-    declared = {one.text for one in catalogue.values()}
-    for text in (
-        verifier._VERIFY,
-        verifier._SUPPORT,
-        verifier._COMPUTES,
-        verifier._FOLLOWS,
-    ):
-        assert text in declared
+def test_every_prompt_a_module_holds_is_declared() -> None:
+    """A prompt held at module level and in no catalogue resolves nothing.
 
-
-def test_every_phrasing_prompt_is_declared(catalogue) -> None:
-    """Three of them, and `_NAMES` was the one nobody declared.
-
-    The verifier's four had a check of this shape and the phrasing
-    judgements did not, so the one that was missing stayed missing:
-    `names_something` is sent wherever the parse has already called a
-    question thin, and the version on those rows resolved to two prompts
-    out of three.
+    `types._ROLE` is the exception: the role block every type's prompt is
+    composed from, never sent alone.
     """
-    declared = {one.text for one in catalogue.values()}
-    for text in (phrasing._SOURCE, phrasing._NAMES, phrasing._CONTAINED):
-        assert text in declared
+    declared = {
+        one.text
+        for stage in (questions, extraction, topics, assessment)
+        for one in stage.catalogue()
+    }
+    # ponytail: modules are found by a line ending in ROLE in their source,
+    # so a heading built at run time is missed; import every backend module
+    # if one ever is.
+    held = {
+        f"{module.__name__}.{name}": value
+        for path in sorted(BACKEND.rglob("*.py"))
+        if "ROLE\n" in path.read_text(encoding="utf-8")
+        for module in [
+            import_module(".".join(path.relative_to(BACKEND).with_suffix("").parts))
+        ]
+        for name, value in vars(module).items()
+        if isinstance(value, str) and "\nROLE\n" in f"\n{value}"
+    }
+    missing = sorted(
+        name for name, text in held.items() if text not in declared and text != _ROLE
+    )
+
+    assert held, "no module-level prompt was found"
+    assert not missing, f"{missing} can be sent and is in no catalogue"
 
 
 def test_a_declared_prompt_is_never_empty(catalogue) -> None:

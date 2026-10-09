@@ -1,14 +1,8 @@
 """Every prompt a stage writes with, pinned to its version.
 
-Question generation and the judge. The two are held the same way and for
-the same reason, and they are here together because a reader looking for
-"what stops a prompt moving under a fixed version" should find one file.
-
-Every prompt each stage's `catalogue()` records - extraction's and the
-topic labeller's too - is also pinned over all three halves `_write` in
-`stages/prompts.py` calls drift: system prompt, user template and response
-schema.
-
+Every prompt each stage's `catalogue()` records is pinned over all three
+halves `_write` in `stages/prompts.py` calls drift: system prompt, user
+template and response schema.
 
 "Two prompts are two datasets" is what PROMPT_VERSION is for, and nothing
 checked it: a rule could be added to `types.py`, every question written
@@ -21,7 +15,7 @@ down - which is the decision the version exists to record.
 
 The digest and not the text, because the prompts are eight hundred lines
 and a copy of them here would be a second place for them to drift. Which
-one moved is what the per-type entries say; `test_prompts_name_no_domain`
+one moved is what the per-prompt entries say; `test_prompts_name_no_domain`
 is what reads their content.
 """
 
@@ -32,107 +26,9 @@ import json
 
 import pytest
 
-from assessment.templates import PROMPT_VERSION as JUDGE_VERSION
-from assessment.templates import TEMPLATES
-from question_generation import phrasing, verifier
-from question_generation.generation import _FOLLOW, _PERTURB
-from question_generation.types import PROMPT_VERSION, SPECS
+from question_generation.types import SPECS
 from stages.prompts import Composed
 from tests.static.prompt_catalogues import recorded
-
-#: The version every digest below was taken under.
-VERSION = "11"
-
-#: The prompts of the two gates that are not the writer's, each pinned to
-#: its own module's PROMPT_VERSION. They were unpinned and the verifier was
-#: unversioned until a gate verdict had to say which prompt reached it - and
-#: an unpinned prompt is exactly the drift the writer's pinning exists to
-#: stop, so all three are held the same way now.
-GATES = {
-    "phrasing": (
-        phrasing,
-        "3",
-        {
-            "source": phrasing._SOURCE,
-            "names": phrasing._NAMES,
-            "contained": phrasing._CONTAINED,
-        },
-    ),
-    "verifier": (
-        verifier,
-        "2",
-        {
-            "verify": verifier._VERIFY,
-            "support": verifier._SUPPORT,
-            "computes": verifier._COMPUTES,
-            "follows": verifier._FOLLOWS,
-        },
-    ),
-}
-
-#: Each gate prompt's digest, under its module's version above.
-GATE_PROMPTS = {
-    "source": "867ffe8a2658a4cd",
-    # Unpinned until now, and unrecorded with it: `_NAMES` is the third
-    # phrasing judgement and both this file and the catalogue knew of two.
-    "names": "1e20e3cb47a06b42",
-    "contained": "e1ecbfc515b009c2",
-    "verify": "5ff0d4c7dca5f205",
-    "support": "9e809a5e0c9f0395",
-    "computes": "48ee508c865b8c53",
-    "follows": "f1f9cef0e0db1194",
-}
-
-#: Each type's whole system prompt: the shared role, steps, context and
-#: format rules, the answer form, and its own guidance and worked example.
-TYPES = {
-    "aggregation": "fdd5e04bd6498b60",
-    "application": "b117f77a12d7c48b",
-    "comparison": "b830d07a45e28b0e",
-    "condition": "5aa6a7bfa2b47d63",
-    "consequence": "cb040e89c09dd27a",
-    "definition": "3611bc6e84479fe3",
-    "entity": "3ed7e7ffa7b302f1",
-    "enumeration": "815f03137711aa29",
-    "factoid": "197f849c62c1a2b6",
-    "implication": "8f28c60b01012c1e",
-    "procedure": "7a9ee6f977f5b75c",
-    "reason": "4f95746de48aa871",
-    "temporal": "0cd864fbf29687b0",
-}
-
-#: The two prompts that are not a type's: the perturbation that writes the
-#: unanswerable questions, and the one that writes the next turn.
-OTHERS = {
-    "perturb": "5e529d86b898c767",
-    "follow": "7a0b084fee6bea7e",
-}
-
-#: The version the judging templates below were taken under.
-JUDGE = "2"
-
-#: What the judge asks, by kind and metric - the names `assessment/prompts.py`
-#: records and Phoenix shows, so a failure here names the same prompt the
-#: table and the Evaluations view do.
-#:
-#: One version over all eleven, unlike the question types above. The
-#: judge's PROMPT_VERSION covers the SET a kind is asked as well as the
-#: wording of each template, because a row's verdicts are read against
-#: both - which is why the pinning below checks the names too, and not
-#: only the texts.
-JUDGEMENTS = {
-    "fact: hallucination": "434e71c9f4e1da52",
-    "fact: relevance": "1f07d89037187981",
-    "fact: toxicity": "8aa7cbe4c3ec5524",
-    "topic: summarization": "34433bc756e189cd",
-    "topic: relevance": "6041b3bd157b74c5",
-    "question: hallucination": "627af3102475c8a9",
-    "question: qa_correctness": "09445b11658c776d",
-    "question: relevance": "2b28fc01a2f3a234",
-    "question: refusal": "b90c67879cbadc36",
-    "question: conciseness": "dbd2e6340ac0f180",
-    "question: toxicity": "7416cf020159f9ec",
-}
 
 #: Every prompt a stage records, by service and name: its version, and the
 #: digest over its system prompt, user template and response schema.
@@ -192,118 +88,9 @@ def halves(one: Composed) -> str:
     return digest(f"{one.text}\0{one.user_text}\0{schema}")
 
 
-def judgements() -> dict[str, str]:
-    """Every judging template's system prompt, by the name it is pinned under."""
-    return {
-        f"{kind}: {one.metric}": one.system
-        for kind, group in TEMPLATES.items()
-        for one in group
-    }
-
-
 def digest(text: str) -> str:
     """The first sixteen hex characters of one prompt's SHA-256."""
     return hashlib.sha256(text.encode()).hexdigest()[:16]
-
-
-def test_the_version_pinned_here_is_the_one_the_code_declares() -> None:
-    """Bumping one and not the other leaves the pinning meaningless."""
-    assert PROMPT_VERSION == VERSION, (
-        f"PROMPT_VERSION is {PROMPT_VERSION} and this file pins {VERSION}. "
-        f"Update VERSION and the digests below in the same commit."
-    )
-
-
-@pytest.mark.parametrize("name", sorted(TYPES))
-def test_a_type_writes_the_prompt_it_was_pinned_with(name: str) -> None:
-    """A rule added to one type changes what that type's questions are."""
-    assert digest(SPECS[name].system()) == TYPES[name], (
-        f"the {name} prompt changed. Bump PROMPT_VERSION and write the new "
-        f"digest here: questions written before and after are two datasets."
-    )
-
-
-@pytest.mark.parametrize(("name", "text"), [("perturb", _PERTURB), ("follow", _FOLLOW)])
-def test_the_prompts_that_are_not_a_type_are_pinned_too(name: str, text: str) -> None:
-    """The unanswerable share and the follow-ups are written by these."""
-    assert digest(text) == OTHERS[name], (
-        f"the {name} prompt changed. Bump PROMPT_VERSION and write the new digest here."
-    )
-
-
-@pytest.mark.parametrize("gate", sorted(GATES))
-def test_a_gate_declares_the_version_pinned_here(gate: str) -> None:
-    """Bumping one and not the other leaves the pinning meaningless."""
-    module, version, _ = GATES[gate]
-    assert module.PROMPT_VERSION == version, (
-        f"{gate}'s PROMPT_VERSION is {module.PROMPT_VERSION} and this file "
-        f"pins {version}. Update both in the same commit."
-    )
-
-
-@pytest.mark.parametrize(
-    ("name", "text"),
-    [
-        (name, text)
-        for _, _, prompts in GATES.values()
-        for name, text in prompts.items()
-    ],
-)
-def test_a_gate_asks_what_it_was_pinned_asking(name: str, text: str) -> None:
-    """A gate's prompt moving is a gate that judges something else.
-
-    The verdict on a question names the gate and the prompt version that
-    reached it. Editing the prompt under a fixed version makes those two
-    records disagree about what was judged.
-    """
-    assert digest(text) == GATE_PROMPTS[name], (
-        f"the {name} prompt changed. Bump its module's PROMPT_VERSION and "
-        f"write the new digest here."
-    )
-
-
-def test_every_type_the_mix_can_name_is_pinned() -> None:
-    """A type added with no digest would be a prompt nothing watches."""
-    assert set(SPECS) == set(TYPES), (
-        "a question type was added or removed without pinning its prompt"
-    )
-
-
-def test_the_judge_declares_the_version_pinned_here() -> None:
-    """Bumping one and not the other leaves the pinning meaningless."""
-    assert JUDGE_VERSION == JUDGE, (
-        f"assessment's PROMPT_VERSION is {JUDGE_VERSION} and this file pins "
-        f"{JUDGE}. Update JUDGE and the digests below in the same commit."
-    )
-
-
-@pytest.mark.parametrize("name", sorted(JUDGEMENTS))
-def test_a_judgement_asks_what_it_was_pinned_asking(name: str) -> None:
-    """A verdict names a template version, and the row outlives the source.
-
-    An edited template under a fixed version makes a corpus judged before
-    it and one judged after it the same seven columns, with nothing saying
-    they were asked different questions.
-    """
-    every = judgements()
-    assert name in every, f"{name} is pinned here and is no longer a template"
-
-    assert digest(every[name]) == JUDGEMENTS[name], (
-        f"the {name} template changed. Bump assessment's PROMPT_VERSION and "
-        f"write the new digest here."
-    )
-
-
-def test_every_judgement_the_judge_can_ask_is_pinned() -> None:
-    """The SET, because the version covers which metrics a kind is asked.
-
-    Version 2 is version 1 plus toxicity, conciseness and refusal. Adding a
-    fourth without bumping it would leave two corpora carrying different
-    metrics under one version, which no pinning of the texts alone catches.
-    """
-    assert set(judgements()) == set(JUDGEMENTS), (
-        "a judging template was added or removed without pinning it"
-    )
 
 
 @pytest.mark.parametrize(("service", "name"), sorted(RECORDED))

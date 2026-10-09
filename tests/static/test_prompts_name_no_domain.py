@@ -14,21 +14,18 @@ teaches the model to expect it. It happened here. Four of `phrasing.py`'s
 examples named the syllabi this deployment was pointed at, down to the
 standard numbers, and `prompt_version` 2 recast them.
 
-So the prompts are read as syntax and checked against the vocabulary of the
-corpora this project has been aimed at. That list is a REGRESSION GUARD and
-not a definition of what a domain is - there is no such list. Point the
-pipeline at contracts and add the words a contract is full of; the test earns
-its keep by failing when the next person debugging a gate reaches for the
-nearest real example.
+So every prompt each stage's catalogue records is checked, as it is sent,
+against the vocabulary of the corpora this project has been aimed at. That
+list is a REGRESSION GUARD and not a definition of what a domain is - there
+is no such list. Point the pipeline at contracts and add the words a
+contract is full of; the test earns its keep by failing when the next person
+debugging a gate reaches for the nearest real example.
 
-Read without importing, so the test needs no NLP_MODELS and no model, and a
-failure names the prompt and the word. Each stage's catalogue is read too,
-as it composes what it sends.
+A failure names the prompt and the word.
 """
 
 from __future__ import annotations
 
-import ast
 import json
 import re
 from pathlib import Path
@@ -39,13 +36,9 @@ from tests.static.prompt_catalogues import recorded
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: Every module whose strings reach a model. `types.py` carries the thirteen
-#: type directives and the shared rule block, `generation.py` the
-#: perturbation and the follow-up, `verifier.py` the round trip, and
-#: `phrasing.py` the two judgements a rule could not settle. Extraction's are
-#: here for the same reason: its worked example is the one the README holds
-#: up as deliberately about nothing.
-PROMPTS = (
+#: Every code file whose strings reach a model, read as source by the
+#: placeholder check below.
+PROMPT_MODULES = (
     "backend/question_generation/types.py",
     "backend/question_generation/generation.py",
     "backend/question_generation/verifier.py",
@@ -54,11 +47,6 @@ PROMPTS = (
     "backend/extraction/extractors/bridge.py",
     "backend/extraction/extractors/digest.py",
     "backend/topic_modelling/labels.py",
-    # The evaluation phase's seven judging templates. Here for the reason
-    # the rest are, and with one of its own: a judge's worked example is
-    # the likeliest of all of them to be pasted in from the corpus being
-    # debugged against, because the example that shows what a bad fact
-    # looks like is a bad fact somebody just found.
     "backend/assessment/templates.py",
 )
 
@@ -68,11 +56,6 @@ PROMPTS = (
 #: take and raises when one is missing, which is the same guarantee made
 #: where the substitution actually happens.
 RENDERED_GENERICALLY = frozenset({"backend/assessment/templates.py"})
-
-#: The shortest string worth reading as a prompt. Below it a literal is a
-#: field description, a log line or a key, and a subject word in one of those
-#: reaches no model.
-PROMPT_CHARS = 120
 
 #: What the corpora this deployment has been aimed at are about. Lower-case,
 #: matched as a substring, and deliberately short: these are the words a
@@ -113,7 +96,7 @@ SUBJECTS = (
 PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 
 
-@pytest.mark.parametrize("module", PROMPTS)
+@pytest.mark.parametrize("module", PROMPT_MODULES)
 def test_every_placeholder_in_a_prompt_is_filled_in_the_same_module(
     module: str,
 ) -> None:
@@ -153,42 +136,6 @@ def test_every_placeholder_in_a_prompt_is_filled_in_the_same_module(
     )
 
 
-def _prompts(path: Path) -> list[tuple[int, str]]:
-    """Every string literal in one module long enough to be a prompt."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return [
-        (node.lineno, node.value)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant)
-        and isinstance(node.value, str)
-        and len(node.value) >= PROMPT_CHARS
-    ]
-
-
-@pytest.mark.parametrize("module", PROMPTS)
-def test_no_prompt_names_what_a_corpus_is_about(module: str) -> None:
-    """A worked example teaches the model what to expect. Keep it neutral."""
-    path = ROOT / module
-    assert path.exists(), f"{module} is named here and does not exist"
-
-    guilty = [
-        f"{module}:{line} names {subject!r}"
-        for line, text in _prompts(path)
-        for subject in SUBJECTS
-        if subject in text.casefold()
-    ]
-
-    assert not guilty, (
-        "a prompt names what a corpus is about:\n"
-        + "\n".join(guilty)
-        + "\n\nA worked example drawn from the corpus at hand teaches the "
-        "model to expect it, which is the one thing this pipeline claims not "
-        "to do. Recast it into the neutral domain the other examples use - a "
-        "support request, a shift plan, a site manager, an edition - and bump "
-        "that module's PROMPT_VERSION."
-    )
-
-
 #: Every prompt each stage's catalogue records, by service and name.
 CATALOGUED = recorded()
 
@@ -207,20 +154,6 @@ def test_no_catalogued_prompt_names_what_a_corpus_is_about(
     assert not guilty, (
         f"{service}/{name} names {guilty}. Recast it into the neutral domain "
         f"the other examples use and bump its module's PROMPT_VERSION."
-    )
-
-
-def test_the_guard_reads_the_prompts_it_claims_to() -> None:
-    """A path that stopped holding prompts would pass by reading nothing.
-
-    The list above is maintained by hand, so this is what says it is still
-    pointed at the strings that reach a model.
-    """
-    empty = [module for module in PROMPTS if not _prompts(ROOT / module)]
-
-    assert not empty, (
-        f"these are named as prompt modules and hold no string over "
-        f"{PROMPT_CHARS} characters: {', '.join(empty)}"
     )
 
 
