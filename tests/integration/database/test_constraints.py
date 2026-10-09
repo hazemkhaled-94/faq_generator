@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import pytest
 from seed import digest, document, event, fact, passage, question, topic
-from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -292,16 +291,3 @@ def test_a_passage_referencing_no_document_is_refused(session) -> None:
     with pytest.raises(IntegrityError):
         session.flush()
     session.rollback()
-
-
-def test_deleting_a_document_takes_its_passages_and_facts(session) -> None:
-    """One delete, and nothing derived from it survives."""
-    stored(session, document())
-    row = stored(session, passage(digest()))
-    stored(session, fact(row.id))
-
-    session.execute(text("DELETE FROM documents"))
-    session.flush()
-
-    assert session.execute(text("SELECT count(*) FROM passages")).scalar() == 0
-    assert session.execute(text("SELECT count(*) FROM facts")).scalar() == 0

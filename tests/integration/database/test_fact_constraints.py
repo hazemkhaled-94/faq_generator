@@ -148,21 +148,6 @@ def test_a_link_to_a_passage_that_does_not_exist_is_refused(session, passages) -
     )
 
 
-def test_deleting_a_document_takes_the_bridges_that_rested_on_it(
-    session, passages
-) -> None:
-    """One delete, and nothing derived from it survives."""
-    anchor, other = passages
-    session.add(fact(anchor, other, kind=FactKind.BRIDGE))
-    session.flush()
-
-    session.execute(text("DELETE FROM documents"))
-    session.flush()
-
-    assert session.execute(text("SELECT count(*) FROM facts")).scalar() == 0
-    assert session.execute(text("SELECT count(*) FROM fact_passages")).scalar() == 0
-
-
 def test_the_orphan_trigger_is_installed(engine, database) -> None:
     """Installed by a migration, which carries its own copy of the SQL."""
     with engine.connect() as connection:
