@@ -87,9 +87,9 @@ LOADENV = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.en
 # Each is something a deployment may want back and nothing upstream
 # rebuilds: the golden cases come from evaluation/ and the run history is
 # the record of what ran. The rest of what a wipe takes outside the
-# database and the buckets is gone for good: every Phoenix project, every
-# Argilla dataset with any answer not yet pulled, and the logs. `wipe`
-# refuses any other name.
+# database and the buckets is gone for good: every Phoenix project, the
+# three review datasets in Argilla with any answer not yet pulled, and the
+# logs. `wipe` refuses any other name.
 KEEP ?=
 
 # KEEP's names, split on commas, so a space after one does not hide a name.
@@ -1205,8 +1205,8 @@ delete:
 #
 # Those four deletions are final; nothing archives them. Phoenix loses every
 # project and, unless KEEP spares them, its datasets and their experiments;
-# Argilla loses every dataset and any answer not yet pulled; the logs go;
-# and the Dagster run history goes unless KEEP spares it.
+# Argilla loses the three review datasets and any answer not yet pulled;
+# the logs go; and the Dagster run history goes unless KEEP spares it.
 #
 # **The archive is the exception, and deliberately.** The rows and objects
 # deleted here are the first of two deletions: the triggers copy each row
@@ -1219,9 +1219,10 @@ wipe:
 	  { echo "KEEP names $(filter-out golden runs,$(KEPT)); it takes golden and runs."; exit 2; }
 	@echo "WARNING: this deletes every document, topic, fact and question; the"
 	@echo "archive keeps those, see make archive-purge. It deletes for good every"
-	@echo "Phoenix project, every Argilla dataset with any answer not yet pulled,"
-	@echo "and the logs; the Phoenix datasets and experiments unless KEEP=golden;"
-	@echo "the Dagster run history unless KEEP=runs. Ctrl-C within 5s to abort."
+	@echo "Phoenix project, the three Argilla review datasets with any answer not"
+	@echo "yet pulled, and the logs; the Phoenix datasets and experiments unless"
+	@echo "KEEP=golden; the Dagster run history unless KEEP=runs. Ctrl-C within 5s"
+	@echo "to abort."
 	@sleep 5
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-all
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --delete
