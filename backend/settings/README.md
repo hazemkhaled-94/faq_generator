@@ -14,7 +14,8 @@ precedence between them to know — see
 what, and for the values that are derived rather than declared.
 
 The files stay required. A variable missing from its file **stops the
-service at start-up naming itself** — there are no defaults in code. An
+service at start-up naming itself** — there are no defaults in code, bar the
+two pool sizes, which the engine falls back on when they are unset. An
 override is a row in `service_settings`, and deleting that row returns a
 setting to whatever the file says.
 
@@ -23,14 +24,16 @@ pull request.
 
 ## When a change takes effect
 
-A worker picks a change up **on the row it claims next**. The check sits
-between drains, where nothing is claimed, so a change is never applied
-halfway through an item.
+A watching worker picks a change up **at its next drain**. The check sits
+between drains, where nothing is claimed, so a change made during a drain
+waits for that drain to empty the queue and is never applied halfway through
+an item. A one-off `make` drain reads the settings once, when it starts.
 
 Nothing is requeued. If the change means what a stage already produced was
 made under the old value, whichever surface you used **says so and names the
-stage**, and that stage's `-rerun` rebuilds it. Every fact, topic and
-question records the configuration it was produced under.
+stage**, and the command that rebuilds it: a cheaper one where the catalogue
+names one, that stage's `-rerun` otherwise. Every fact, topic and question
+records the configuration it was produced under.
 
 That is what `invalidates` in the catalogue is for. It names the stages whose
 stored output this setting produced — direct staleness only, since naming
@@ -61,24 +64,34 @@ the page.
 
 | Service | Configured on | Holds |
 |---|---|---|
-| `ingestion` | Upload | The version stamp, the size limit, the allowlist |
+| `ingestion` | Upload | The size limit and the allowlist |
 | `parsing` | Documents | The converter's thresholds and modes |
-| `chunking` | Passages | How a passage is cut, and what counts its tokens |
+| `chunking` | Passages | How a passage is cut |
 | `extraction` | Facts | What a fact may be, and the caps on each kind |
 | `topics` | Topics | The fit: how many topics, how many passes, the vocabulary bounds |
 | `questions` | Questions | The plan, the deal, the gates, the release |
 | `assessment` | Assessment | Which artefacts the judge reads, and how many |
 | `platform` | System health | The model, the tokenizer and the language pipelines the rest share |
 
-The pool sizes and the addresses are read before a service could ask a
-database for anything, so they are marked `fixed`: served read-only and shown
-as the deployment's.
+Some settings are marked `fixed`: served read-only as the deployment's, and
+never stored. They are the pool sizes, read before a service could ask a
+database for anything; the addresses and host names (`LLM_BASE_URL`,
+`OLLAMA_BASE_URL`, `SERVICE_URLS`, `API_ALLOWED_HOSTS`); the eight model
+settings, `LLM_MODEL` and the ones a stage or a judgement names, so the host
+and the containers each keep their own; and the three spaCy pipeline
+settings and `WORKER_POLL_SECONDS`, of which nothing reads a stored value. A
+row stored for a fixed or retired setting does not apply and does not count
+toward the version.
 
 ## The three surfaces
 
 All three go through the **same validation** — the stage's own
 `Settings.load` — so what you are refused with is the message the worker
-would have failed at start-up with.
+would have failed at start-up with. Every stage's, `assessment` included,
+must still load after the change, and the catalogue's bounds and closed sets
+are checked first: `LLM_STRUCTURED_MODE` takes only an instructor mode. An
+empty value turns off an optional setting and is refused for any other; a
+list of nothing but commas counts as empty.
 
 ```bash
 # The page that runs the service, under Configuration.
@@ -96,7 +109,10 @@ make settings-unset SERVICE=topics UNSET="TOPIC_PASSES"
 ```
 
 A `null` value returns one setting to what the files say. **The whole request
-is refused if any one value is**, so a PATCH never lands half applied.
+is refused if any one value is**, so a PATCH never lands half applied. It is
+written in one transaction that locks the table and checks the version the
+page was drawn from, where it sent one, so a change made since is refused
+with `version_moved`.
 
 `GET /settings/{service}` answers, per setting: its value, what the files say
 it would be, its type, its bounds, and whether somebody changed it.
@@ -115,18 +131,18 @@ file, never in two, so "which file wins" is not a question a deployment has
 to answer. `tests/static/test_env_files.py` keeps it that way.
 
 The Makefile re-applies command-line overrides after sourcing the files,
-because sourcing would otherwise overwrite them.
+because sourcing would otherwise overwrite them, and names them in
+`QA_COMMAND_LINE`, so a stored row for one gives way too.
 
 ## A version is not a run
 
-`settings_version` names a **configuration**: a digest of the stored
-overrides, `environment` when nothing is overridden. It answers "what was
-this row produced under".
+`settings_version` names a **configuration**: a digest of every catalogued
+setting as resolved, the files overlaid with the stored rows and a `make`
+command line over both. It changes when any of them does. It answers "what
+was this row produced under".
 
 It cannot answer "which run produced it". Run a stage twice without touching
-a setting and both sets of rows carry the same version — which is the
-position anybody comparing two runs is in, because an A/B usually changes a
-model and nothing stored.
+a setting and both sets of rows carry the same version.
 
 So [`runs.py`](runs.py) names the run, and `facts`, `questions` and `topics`
 each carry a `run_id` beside their `settings_version`:
@@ -181,6 +197,8 @@ poetry run pytest tests/unit/settings tests/static/test_settings_catalogued.py
 | [`test_env.py`](../../tests/unit/settings/test_env.py) | Reading configuration out of the environment, and every refusal |
 | [`test_source.py`](../../tests/unit/settings/test_source.py) | Reading a setting from somewhere other than the process environment |
 | [`test_configs.py`](../../tests/unit/settings/test_configs.py) | Each stage's settings, read out of the environment |
+| [`test_changes.py`](../../tests/unit/settings/test_changes.py) | Which settings a change may name, and what it refuses |
+| [`test_runs.py`](../../tests/unit/settings/test_runs.py) | Which of three things names the run a row belongs to |
 | [`test_settings_documented.py`](../../tests/static/test_settings_documented.py) | Every setting the code reads is named in a file that declares it |
 | [`test_settings_catalogued.py`](../../tests/static/test_settings_catalogued.py) | Every setting the code reads is described, and every description is read |
 | [`test_service_settings.py`](../../tests/integration/database/test_service_settings.py) | The settings a deployment changed, and what a stage then reads |
