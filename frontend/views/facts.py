@@ -79,8 +79,7 @@ _CHECKS = {
     # The two the check matrix in the README does not draw, because neither
     # is a reading of one candidate: `over_cap` is a passage keeping more
     # atomic facts than its share allows, and `duplicate` is a comparison
-    # against everything already stored. Both are rejections all the same,
-    # and `duplicate` is the commonest of the lot.
+    # against everything already stored. Both are rejections all the same.
     "over_cap": (
         "Within the passage's share",
         "atomic",

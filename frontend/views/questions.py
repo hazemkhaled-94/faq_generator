@@ -428,9 +428,9 @@ def view() -> None:
                 # One figure rather than three, because the page holds
                 # five and this is one thing: how much of the material the
                 # accepted questions actually reach. A topic is covered by
-                # its FIRST accepted question, so the count above can read
-                # 38 of 38 while a third of the corpus was never asked
-                # about. The Analysis fold carries the parts.
+                # its FIRST accepted question, so the count above can be
+                # full while part of the corpus was never asked about. The
+                # Analysis fold carries the parts.
                 "Corpus reached": (
                     page.share(
                         quality["passages_asked"], quality["passages_with_facts"]
@@ -596,8 +596,8 @@ def _analysis(quality: dict, counts: dict[str, int], plan: dict) -> list[dict]:
     ]
 
     # Coverage, which is about the SET and not about any question in it.
-    # A run can clear every gate and still have asked about a third of the
-    # corpus, and nothing on the row level would say so.
+    # A run can clear every gate and still leave part of the corpus unasked,
+    # and nothing on the row level would say so.
     asked, askable = quality["passages_asked"], quality["passages_with_facts"]
     cited, validated = quality["facts_asked"], quality["facts_validated"]
     rows += [

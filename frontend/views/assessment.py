@@ -64,11 +64,7 @@ _SERVICE = explain.Service(
         "**This phase is not a gate and cannot become one.** It writes "
         "`assessments.approved`, which no stage reads; whether a fact is "
         "valid stays the checker's and whether a question is accepted stays "
-        "the gates'. That is measured, not cautious: over nineteen labelled "
-        "cases a served model answered a phrasing judgement 7/7 in English "
-        "and 6/12 in German, which is chance, and half this corpus is "
-        "German. A phase that could reject rows would have thrown away good "
-        "German questions on the strength of a coin.\n\n"
+        "the gates'.\n\n"
         "What a judge is good for is the **disagreement**, at corpus scale."
     ),
     steps=_STEPS,
@@ -341,9 +337,7 @@ def view() -> None:
                     "A judgement is never a gate. What decides whether a fact "
                     "is kept is the checker, and what decides a question is "
                     "the gates; this is a second opinion recorded beside them "
-                    "so the two can be compared. An LLM judge was measured at "
-                    "chance on the German half of one corpus, which is why it "
-                    "cannot reject anything."
+                    "so the two can be compared."
                 )
             explain.panel(_SERVICE, "How the evaluation phase works")
             configure.panel("assessment")
