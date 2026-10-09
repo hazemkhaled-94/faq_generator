@@ -107,8 +107,8 @@ memberships they held.
 
 [`service.py`](service.py) · `revocabulary`. Applies a change to how language
 or vocabulary is read without re-chunking, replacing `passages.language` and
-`passages.lemmas` in place. Unlike a chunking run, it detects a table
-passage's language on its own text too.
+`passages.lemmas` in place. As in a chunking run, a table passage takes its
+document's language without detection.
 
 Sentence offsets are deliberately left alone: a fact cites one by index, so
 moving them would point every citation in the corpus at different text.

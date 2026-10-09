@@ -153,28 +153,36 @@ class PassageCatalog(Repository):
     Separate from the queue: the API serves these and never claims a row.
     """
 
-    def texts(self, within=None) -> list[tuple[int, str, str | None]]:
-        """Reads every passage's id, text and its document's language.
+    def texts(self, within=None) -> list[tuple[int, str, str | None, bool]]:
+        """Reads every passage's id, text, document's language and table flag.
 
         The document's language and not the passage's: it is the fallback a
-        re-read applies. Joined to the document so `--only document=`
-        narrows here too.
+        re-read applies, and what a table passage takes. Joined to the
+        document so `--only document=` narrows here too.
 
         Args:
             within: A condition narrowing which passages, or None for all.
 
         Returns:
-            One (id, text, document language) per passage.
+            One (id, text, document language, holds a table) per passage.
         """
         query = (
-            select(Passage.id, Passage.text, Document.language)
+            select(
+                Passage.id,
+                Passage.text,
+                Document.language,
+                Passage.table_cells.is_not(None).label("table"),
+            )
             .join(Document, Document.sha256 == Passage.doc_sha256)
             .order_by(Document.language, Passage.id)
         )
         if within is not None:
             query = query.where(within)
         with self._session() as session:
-            return [(row.id, row.text, row.language) for row in session.execute(query)]
+            return [
+                (row.id, row.text, row.language, row.table)
+                for row in session.execute(query)
+            ]
 
     def languages(self, within=None) -> dict[int, str | None]:
         """What each passage's own language column says now.

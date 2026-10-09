@@ -834,6 +834,15 @@ def test_each_passage_is_written_with_the_language_of_its_own_text() -> None:
 
 
 @pytest.mark.nlp
+def test_a_table_passage_keeps_its_documents_language_on_a_re_read() -> None:
+    """As a chunking run gives it, whatever its rendering reads as."""
+    driver = RevocabularyDriver((1, ENGLISH, "de"), tables={1})
+
+    assert driver.run() == 1
+    assert driver.languages == {1: "de"}
+
+
+@pytest.mark.nlp
 def test_a_passage_too_short_to_judge_keeps_its_documents_language() -> None:
     """Below the detector's floor it is guessing from a few words."""
     driver = RevocabularyDriver((1, "Anhang", "de"))

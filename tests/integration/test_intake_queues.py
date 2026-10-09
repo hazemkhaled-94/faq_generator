@@ -540,7 +540,17 @@ def test_a_re_read_walks_every_passage_with_its_documents_language(corpus) -> No
     walked = corpus.texts()
 
     assert len(walked) == 3
-    assert {language for _, _, language in walked} == {"de", "en"}
+    assert {language for _, _, language, _ in walked} == {"de", "en"}
+
+
+def test_a_re_read_knows_which_passage_holds_a_table(corpus, engine) -> None:
+    """Which keeps its document's language, as in a chunking run."""
+    with engine.connect() as connection:
+        held = connection.execute(
+            text("SELECT id FROM passages WHERE block_type = 'table'")
+        ).scalar_one()
+
+    assert [one for one, _, _, table in corpus.texts() if table] == [held]
 
 
 def test_a_re_read_can_be_narrowed_to_one_document(corpus) -> None:
@@ -549,7 +559,7 @@ def test_a_re_read_can_be_narrowed_to_one_document(corpus) -> None:
 
     walked = corpus.texts(Passage.doc_sha256 == B)
 
-    assert [language for _, _, language in walked] == ["en"]
+    assert [language for _, _, language, _ in walked] == ["en"]
 
 
 def test_the_languages_a_re_read_compares_narrow_to_one_document(corpus) -> None:
@@ -559,7 +569,7 @@ def test_the_languages_a_re_read_compares_narrow_to_one_document(corpus) -> None
     narrowed = corpus.languages(Document.sha256 == B)
 
     assert narrowed == {
-        one: "en" for one, _, _ in corpus.texts(Passage.doc_sha256 == B)
+        one: "en" for one, _, _, _ in corpus.texts(Passage.doc_sha256 == B)
     }
 
 
