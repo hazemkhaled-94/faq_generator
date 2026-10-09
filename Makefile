@@ -869,8 +869,7 @@ questions-retry:
 # The gap between `retry`, which takes the failed, and `rerun`, which skips
 # what a worker holds. An interrupted topic is `in_progress` and neither of
 # those touches it, so until this existed the only thing that moved one was
-# the lease - derived from what a topic costs, and 67 days at 120 questions
-# a topic and a 900-second timeout.
+# the lease.
 #
 #   make questions-reclaim TOPIC=473    one topic
 #   make questions-reclaim              every one the stage holds
