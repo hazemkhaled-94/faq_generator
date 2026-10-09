@@ -327,12 +327,23 @@ def test_a_model_with_no_published_price_records_no_cost(monkeypatch) -> None:
     assert fields["llm.tokens.input"] == 10
 
 
-def test_a_response_the_pricing_cannot_read_costs_nothing(monkeypatch) -> None:
-    """A paid-for answer is not lost to the arithmetic about what it cost."""
+@pytest.mark.parametrize(
+    "raised",
+    [
+        ValueError("Model is None and does not exist in completion_response"),
+        Exception("This model isn't mapped yet"),
+    ],
+)
+def test_a_response_the_pricing_cannot_read_costs_nothing(monkeypatch, raised) -> None:
+    """A paid-for answer is not lost to the arithmetic about what it cost.
+
+    Both are what litellm raises: for a response it cannot read a model off,
+    and for a model missing from its price list.
+    """
 
     def unreadable(**_):
-        """What litellm raises for a response it cannot read a model off."""
-        raise ValueError("Model is None and does not exist in completion_response")
+        """Fails the way litellm's pricing does."""
+        raise raised
 
     monkeypatch.setattr(litellm, "completion_cost", unreadable)
 

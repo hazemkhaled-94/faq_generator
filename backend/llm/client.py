@@ -144,9 +144,10 @@ def spend(completion: Any) -> dict[str, Any]:
         fields["llm.tokens.output"] = getattr(usage, "completion_tokens", None)
     try:
         cost = litellm.completion_cost(completion_response=completion)
-    except ValueError:
-        # What it raises for a response it cannot read a model off. An
-        # unpriced model is not this: that comes back as zero.
+    except Exception:  # noqa: BLE001 - any failure here is the same answer
+        # A response it cannot read a model off, or a model missing from its
+        # price list. An unpriced self-hosted model is neither: that comes
+        # back as zero.
         cost = 0.0
     if cost:
         fields["llm.cost_usd"] = float(cost)
