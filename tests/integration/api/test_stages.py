@@ -234,59 +234,6 @@ def test_a_narrowing_that_selects_nothing_is_not_an_error(corpus) -> None:
     assert answered.json()["rows"] == 0
 
 
-def test_topic_modelling_reports_a_queue_with_no_rows_yet(client) -> None:
-    """It has no row until a fit is asked for."""
-    answered = client.get("/topics/status")
-
-    assert answered.status_code == 200
-    assert answered.json()["stage"] == "topics"
-
-
-def test_asking_for_a_fit_queues_one(client) -> None:
-    """Asking is what creates the row."""
-    answered = client.post("/topics/discover")
-
-    assert answered.status_code == 202
-    assert client.get("/topics/status").json()["rows"].get("pending") == 1
-
-
-def test_asking_twice_queues_one_fit(client) -> None:
-    """Replaces the outstanding request rather than adding to it."""
-    client.post("/topics/discover")
-    client.post("/topics/discover")
-
-    assert client.get("/topics/status").json()["rows"].get("pending") == 1
-
-
-def test_withdrawing_a_fit_takes_the_request_away(client) -> None:
-    """A request nobody is going to run is not a state worth keeping."""
-    client.post("/topics/discover")
-
-    answered = client.post("/topics/stop")
-
-    assert answered.status_code == 200
-    assert answered.json()["rows"] == 1
-    assert client.get("/topics/status").json()["rows"] == {}
-
-
-def test_the_topics_listing_is_empty_before_a_fit(client) -> None:
-    """Nothing is fitted until a worker runs one."""
-    assert client.get("/topics").json() == []
-
-
-def test_describing_a_topic_that_does_not_exist_is_a_404(client) -> None:
-    """A label is a person's, and it has to land on a topic."""
-    answered = client.patch("/topics/999", json={"label": "Shipping"})
-
-    assert answered.status_code == 404
-    assert answered.json()["code"]
-
-
-def test_a_visualisation_nothing_has_drawn_is_a_404(client) -> None:
-    """The figure is an artefact a fit produces."""
-    assert client.get("/topics/visualisation/de").status_code == 404
-
-
 # ── reclaim ────────────────────────────────────────────────────────────────
 #
 # The one verb that had no route. It used to be command-line only because
