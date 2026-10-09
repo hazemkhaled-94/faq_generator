@@ -28,6 +28,10 @@ killed mid-document leaves its row `in_progress`; the next run's sweep fails
 any claim older than the lease every stage shares; see
 [`backend/stages/`](../../stages/README.md).
 
+The worker sits on the internal `parsing` network, which holds only
+Postgres, the S3 gateway and Phoenix, with the Hugging Face hub offline:
+Docling's weights are read from the `models` volume, never fetched.
+
 ### Step 1 — Dispatch on the media type
 
 [`PipelineRegistry`](pipelines/__init__.py) picks the pipeline that owns the
@@ -44,12 +48,13 @@ reason is still known.
 
 ### Step 3 — Convert
 
-Docling, with heading hierarchy and table structure on and OCR off. Any
-failure becomes a `ConversionFailed` carrying the exception's type and
-message. `PARSING_TIMEOUT_SECONDS` is passed to Docling as its own document
-timeout. When it runs out, or a page cannot be parsed, Docling returns only
-the finished pages without raising; a conversion that did not end in success
-is failed with Docling's errors rather than stored as the whole document.
+Docling, built to accept PDF and no other input format, with heading
+hierarchy and table structure on and OCR off. Any failure becomes a
+`ConversionFailed` carrying the exception's type and message.
+`PARSING_TIMEOUT_SECONDS` is passed to Docling as its own document timeout.
+When it runs out, or a page cannot be parsed, Docling returns only the
+finished pages without raising; a conversion that did not end in success is
+failed with Docling's errors rather than stored as the whole document.
 
 ### Step 4 — Repair the text
 
@@ -57,9 +62,9 @@ is failed with Docling's errors rather than stored as the whole document.
 
 - compose to NFC
 - rejoin words the page broke across two lines — both the soft-hyphen
-  spelling and a real hyphen before a lower-case continuation, unless a
-  coordinating conjunction follows, because `Zoll- und Steuerrecht` is not a
-  broken word
+  spelling and a real hyphen before a lower-case continuation, unless a word
+  that completes a hanging hyphen follows (`und`, `als`, `bis`, `vs.` and
+  their kin), because `Zoll- und Steuerrecht` is not a broken word
 - drop control and zero-width characters
 - fold every other kind of space to U+0020
 
@@ -69,8 +74,9 @@ reproduce is one no quote of it can match.
 ### Step 5 — Store the converted document
 
 The converter's own exported dictionary, one JSON object in the `parsed`
-bucket keyed by the source digest. Re-parsing overwrites, but only once
-Step 7 has passed. This is what chunking reads, so re-chunking never
+bucket keyed by the source digest, carrying the digest and the Docling
+version that converted it as its metadata. Re-parsing overwrites, but only
+once Step 7 has passed. This is what chunking reads, so re-chunking never
 re-parses.
 
 ### Step 6 — Read the values the row holds
@@ -103,8 +109,10 @@ converted form untouched.
 the object it names in the `documents` bucket.
 
 **Written, in PostgreSQL:** on `documents` — `title`, `language`,
-`content_sha256`, `parse_confidence`, `parse_confidence_low`, and the
-`parse_status` / `parse_error` / `parse_claimed_at` triple. Nothing else.
+`content_sha256`, `parse_confidence`, `parse_confidence_low`, the run, trace
+and span that parsed it (`parse_run_id`, `parse_trace_id`, `parse_span_id`),
+the `parse_status` / `parse_error` / `parse_claimed_at` triple, and the
+`parse_trigger` its verbs set. Nothing else.
 
 **Written, in SeaweedFS:** `parsed`, at
 `{sha[0:2]}/{sha[2:4]}/{sha}.json` — the converted document, regenerable from
@@ -113,21 +121,23 @@ the uploaded bytes.
 | Route | Answers |
 |---|---|
 | `GET /parsing/status` | The queue depth, and whether a worker is on it |
-| `POST /parsing/{action}` | `start`, `stop`, `retry`, `rerun` |
+| `POST /parsing/{action}` | `start`, `stop`, `retry`, `rerun`, `reclaim` |
 | `GET\|POST /parsing/{scope}/{value}/…` | The same, narrowed to one document |
 
 The routes only move rows between statuses; the worker picks up whatever
 became claimable on its next poll.
 
 **Command line:** `make parse-status`, `parse-start`, `parse-stop`,
-`parse-retry`, `parse-rerun`, `parse`; `--only document=<sha>` narrows any of
-them.
+`parse-retry`, `parse-rerun`, `parse`; `SHA=<sha>` (`--only document=<sha>`)
+narrows every one but `parse`, which drains the whole queue on the host, for
+developing the stage. The container workers build the dataset.
 
 **Read by:** [chunking](../chunking/README.md).
 
 ## Configuration
 
-Read from the environment at start-up, with no defaults in code. Tuning is in
+Read from the environment with no defaults in code, and overridable as
+[`backend/settings/`](../../settings/README.md) describes. Tuning is in
 [`configs/env/backend.env`](../../../configs/env/backend.env).
 
 | Setting | What it does |
@@ -162,7 +172,7 @@ the two buckets and Docling itself are stood in for.
 
 | File | Covers |
 |---|---|
-| [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
+| [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
@@ -170,7 +180,7 @@ the two buckets and Docling itself are stood in for.
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes and which it must leave alone |
 | [`tests/integration/database/test_queue.py`](../../../tests/integration/database/test_queue.py) | The claim mechanics, including `SKIP LOCKED` and the abandoned-claim sweep |
 | [`tests/e2e/test_pipeline.py`](../../../tests/e2e/test_pipeline.py) | One document through every stage, with the converter stood in for |
-| [`tests/static/test_intake_pinned.py`](../../../tests/static/test_intake_pinned.py) | The settings, routes, answer shapes and modules, pinned |
+| [`tests/static/test_intake_pinned.py`](../../../tests/static/test_intake_pinned.py) | That the PDF pipeline handles exactly the types ingestion may accept, and that this README carries its three sections |
 
 The regression suite holds one test each for: every space codepoint folding
 to U+0020 and every zero-width mark removed, named one at a time; every
@@ -178,7 +188,8 @@ control character except newline and tab dropped; the repair reaching `orig`
 and the table grid; `enforce_same_font` off and the backend Docling's own;
 `generate_parsed_pages` following `PARSING_HEADING_HIERARCHY`; `do_ocr` off;
 table structure on with mode, timeout and weights path passed through; a bad
-table mode refused at construction; and the converter built once.
+table mode refused at construction; the converter built once; and a
+conversion Docling finished only in part refused.
 
 Not covered: the five lines of `PdfPipeline.convert` that call Docling, whose
 models are a multi-gigabyte download. OCR and any format other than PDF are
