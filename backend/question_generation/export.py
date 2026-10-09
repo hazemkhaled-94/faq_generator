@@ -123,7 +123,7 @@ _CITATION_COLUMNS = (
 )
 
 #: The Assessment sheet. One row per judgement rather than per question,
-#: because a question is judged three times and a reader wants to sort on
+#: because a question is judged six times and a reader wants to sort on
 #: which judgement failed.
 _ASSESSMENT_COLUMNS = (
     "Question ID",
@@ -364,7 +364,7 @@ def workbook(
     here, and typed loosely for the same reason: no backend service
     imports another, so this one is handed the verdicts by whichever
     caller already holds a catalogue. None leaves the Assessment sheet out
-    and the two Judge columns blank, which is a deployment that has never
+    and the three Judge columns blank, which is a deployment that has never
     run the evaluation phase.
     """
     held: Mapping[int, Any] = judged or {}
