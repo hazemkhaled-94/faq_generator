@@ -241,7 +241,6 @@ x-dagster: &dagster
     LOG_LEVEL: ${LOG_LEVEL}
     LOG_DIR: /var/log/qa
     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
-    OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET}
   volumes:
     - dagster_home:/opt/dagster/dagster_home
     - ./configs/dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro

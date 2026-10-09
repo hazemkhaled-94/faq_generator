@@ -360,12 +360,12 @@ def test_no_container_is_given_the_ca_key() -> None:
     assert not given, "\n".join(given)
 
 
-def test_the_api_and_the_frontend_hold_no_phoenix_admin_secret() -> None:
-    """Neither exports a span nor posts a verdict, so neither needs it."""
+def test_the_api_the_frontend_and_dagster_hold_no_phoenix_admin_secret() -> None:
+    """None of them exports a span or posts a verdict, so none needs it."""
     services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
     holding = [
         f"{name}: {key}"
-        for name in ("api", "streamlit")
+        for name in ("api", "streamlit", "dagster-webserver", "dagster-daemon")
         for key, value in services[name].get("environment", {}).items()
         if "PHOENIX_ADMIN_SECRET" in str(value)
     ]
