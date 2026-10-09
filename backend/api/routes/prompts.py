@@ -62,7 +62,7 @@ def read(
         None,
         max_length=NAME_MAX,
         pattern=NO_NUL,
-        description="questions, extraction or topics",
+        description="questions, extraction, topics or assessment",
     ),
     version: str | None = Query(
         None, max_length=NAME_MAX, pattern=NO_NUL, description="a PROMPT_VERSION"

@@ -242,7 +242,7 @@ def test_taking_a_topic_out_of_coverage_sends_the_choice(open_view) -> None:
 
 @pytest.mark.parametrize("queued", ({"pending": 1}, {"in_progress": 1}))
 def test_a_topic_cannot_be_saved_while_a_fit_is_queued_or_running(page, queued) -> None:
-    """The fit replaces every topic row, so a label saved now would be lost."""
+    """The fit may replace this topic, so a label saved now may be lost."""
     drawn = page(stage_status=lambda *a, **k: status(**queued)).select(0)
     save = drawn.button("Save")
 
@@ -255,13 +255,13 @@ def test_a_topic_cannot_be_saved_while_a_fit_is_queued_or_running(page, queued) 
 
 
 def test_fitting_the_corpus_asks_before_it_queues_a_fit(open_view) -> None:
-    """The first press arms it and says every topic goes; the second queues."""
+    """The first press arms it and says which topics go; the second queues."""
     client = Answers(**answers(stage_status=lambda *a, **k: status(new=2)))
 
     armed = open_view("topics", client).press("Fit all")
 
     assert not client.calls("stage_action")
-    assert "every topic" in " ".join(armed.warnings())
+    assert "every language it fits" in " ".join(armed.warnings())
 
     armed.press("Yes, fit")
 

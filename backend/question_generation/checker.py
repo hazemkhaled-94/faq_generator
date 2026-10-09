@@ -437,7 +437,8 @@ class QuestionChecker:
         if cited:
             reason = (
                 "it names the material the answer is in, so it asks a question "
-                "and answers half of it" + ("" if ruled else ", the verifier says")
+                "and answers half of it"
+                + ("" if ruled else ", the phrasing judge says")
             )
             return QuestionRejection.LEAKS_SOURCE, reason
 

@@ -132,10 +132,10 @@ poetry run pytest tests/unit/blob_store tests/integration/blob
   itself fetches the key by hand.
 - **There is one model per language, and no way to ask for an older one.**
   The next fit moves it to `archive` and writes its own, because the database
-  holds one fit's topics — `replace` drops every row and writes the new
-  fit's. A figure drawn from a previous model would number its topics off
-  rows that are gone, so `--language` picks which language to redraw, not
-  which fit.
+  holds one fit's topics per language — `replace` drops a fitted language's
+  rows and writes the new fit's. A figure drawn from a previous model would
+  number its topics off rows that are gone, so `--language` picks which
+  language to redraw, not which fit.
 - **An upload that fails on the object store writes no `ingest_events`
   row.** A stored upload's event is written with its document row, after the
   object; an unreachable bucket is a 500.

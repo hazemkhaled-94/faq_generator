@@ -106,8 +106,8 @@ _SERVICE = explain.Service(
         "appear together, one model per language, over the corpus's own "
         "vocabulary. **A fit is always the whole corpus** — the components "
         "are estimated jointly, so adding a document makes all of them "
-        "stale, and one ask replaces the whole model. That is why this stage "
-        "has no per-item controls and no Start."
+        "stale, and one ask replaces the model of every language it fits. "
+        "That is why this stage has no per-item controls and no Start."
     ),
     steps=_STEPS,
     gates=_GATES,
@@ -414,8 +414,8 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             key="topics-save",
             type="primary",
             disabled=fitting,
-            help="A fit is queued or running and replaces every topic, so a "
-            "label saved now would be lost. Save once it has finished."
+            help="A fit is queued or running and may replace this topic, so a "
+            "label saved now may be lost. Save once it has finished."
             if fitting
             else "Records the label and the coverage choice.",
         ):

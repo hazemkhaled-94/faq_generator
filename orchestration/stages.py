@@ -163,7 +163,7 @@ facts, facts_check = _BUILT[2]
     deps=[AssetKey("facts")],
     group_name=group("topic_modelling"),
     description="Fits one topic model per language over the whole corpus, "
-    "replacing every topic there was.",
+    "replacing the topics of every language it fits.",
     compute_kind="queue",
 )
 def topics(context: AssetExecutionContext) -> Output[int]:

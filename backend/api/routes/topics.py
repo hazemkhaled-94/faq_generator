@@ -135,8 +135,8 @@ def discover(run: RunName = None) -> TopicDiscovery:
         fit=fit_id,
         run=trigger,
         detail=(
-            f"fit {fit_id} queued; the worker will pick it up and replace every "
-            "existing topic."
+            f"fit {fit_id} queued; the worker will pick it up and replace the "
+            "topics of every language it fits."
         ),
     )
 

@@ -41,9 +41,9 @@ _ORDER = ("new", "pending", "in_progress", "failed")
 
 #: What Fit all asks before it queues the fit.
 _REFIT = (
-    "A fit replaces every topic. A name or a coverage choice a person gave "
-    "stays only where the new top terms carry it over, and the questions "
-    "written per topic follow the new topics."
+    "A fit replaces the topics of every language it fits. A name or a "
+    "coverage choice a person gave stays only where the new top terms carry "
+    "it over, and the questions written per topic follow the new topics."
 )
 
 
@@ -252,7 +252,7 @@ def _fit_verbs(client, queue: Queue) -> None:
         disabled=running,
         width="content",
         help="Queues one fit over every passage, one model per language. "
-        "Replaces every stored topic."
+        "Replaces the topics of every language it fits."
         if not running
         else "A fit is already queued or running.",
     ):
