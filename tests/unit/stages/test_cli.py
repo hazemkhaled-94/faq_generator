@@ -298,9 +298,8 @@ def test_a_watching_worker_waits_for_its_model_rather_than_exiting(
     """The process stays, and the model coming back is enough.
 
     Exiting costs a process, and under `restart: unless-stopped` a process
-    is a restart, a fresh `run_id` and a Phoenix project holding the one
-    call that failed. An expired credential once cost 2,019 restarts and
-    2,116 such projects.
+    is a restart and a fresh `run_id`. An expired credential once cost 2,019
+    restarts and 2,116 Phoenix projects.
     """
     slept: list[float] = []
 
