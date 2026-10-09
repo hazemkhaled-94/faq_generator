@@ -16,7 +16,7 @@ from collections.abc import Callable
 from typing import Any
 
 import telemetry
-from database.qa_generator import engine
+from database.qa_generator import Status, engine
 from settings import decimal
 from settings.runs import named_run, run_id
 from stages.queue import StageQueue, Unnarrowable
@@ -223,6 +223,27 @@ def queue_main(
         if getattr(args, flag):
             log.info("%s: %d row(s) %s", name, act(lambda q, w, do=run: do(w)), verb)
             return 0
+
+    # ponytail: a drain takes the whole queue, so `--only` narrows the verb
+    # before it and never the drain. Upgrade: pass the narrowing into
+    # `process_next`, which every stage's claim would have to take.
+    if args.only is not None:
+        if not args.rerun:
+            raise SystemExit(
+                "--only narrows a verb or --rerun; on its own the drain takes "
+                "the whole queue"
+            )
+        queue = repository()
+        within = narrowing(queue, args.only)
+        outside = queue.counts_by_status().get(
+            Status.PENDING, 0
+        ) - queue.counts_by_status(within).get(Status.PENDING, 0)
+        if outside:
+            raise SystemExit(
+                f"--only {args.only}: {outside} row(s) outside it are queued, and "
+                f"the drain after the rerun would take them too. Take them back "
+                f"first: python -m {module} --stop"
+            )
 
     # Here rather than inside the loop below, which logs an exception and
     # polls again: that is right for a drain that failed and wrong for a

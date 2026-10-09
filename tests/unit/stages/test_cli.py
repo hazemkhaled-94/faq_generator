@@ -329,3 +329,61 @@ def test_a_rebuilt_worker_claims_nothing_until_its_new_models_answer(
         "answered",
         "drained",
     ]
+
+
+# ── A narrowing that a drain would not keep to ─────────────────────────────
+
+
+class _Narrowed:
+    """A queue with rows pending inside and outside one topic."""
+
+    def __init__(self) -> None:
+        """Records each reset."""
+        self.reset_within: list = []
+
+    def narrowed(self, scope: str, value: str):
+        """The condition one topic selects."""
+        return f"{scope}={value}"
+
+    def counts_by_status(self, within=None) -> dict[str, int]:
+        """One pending row inside the topic, three in the whole queue."""
+        return {"pending": 1 if within else 3}
+
+    def reset(self, within=None, *, trigger=None) -> int:
+        """Records one reset."""
+        self.reset_within.append(within)
+        return 1
+
+
+def _narrowed_main(monkeypatch, argv: list[str]) -> _Narrowed:
+    """Runs the questions command line over that queue; nothing may drain."""
+    from stages import cli
+
+    monkeypatch.setattr(cli.telemetry, "configure", lambda *_, **__: None)
+    queue = _Narrowed()
+
+    def built():
+        """Nothing here may drain."""
+        raise AssertionError("drained")
+
+    with pytest.raises(SystemExit, match="--only"):
+        cli.queue_main(
+            name="questions",
+            module="question_generation.run",
+            repository=lambda: queue,
+            build_service=built,
+            argv=argv,
+        )
+    return queue
+
+
+def test_a_narrowing_with_nothing_to_narrow_is_refused(monkeypatch) -> None:
+    """A drain takes the whole queue, whatever `--only` says."""
+    _narrowed_main(monkeypatch, ["--only", "topic=7"])
+
+
+def test_a_narrowed_rerun_refuses_while_other_rows_are_queued(monkeypatch) -> None:
+    """Its drain would take them too, under this run's name."""
+    queue = _narrowed_main(monkeypatch, ["--rerun", "--only", "topic=7"])
+
+    assert queue.reset_within == [], "refused before the reset"
