@@ -1098,6 +1098,28 @@ def test_no_cap_gives_back_every_fact_a_cap_refused(store, corpus) -> None:
     assert [row[0] for row in store.rows("validated")] == [True, True]
 
 
+def test_a_recap_keeps_the_fact_asserting_a_value_and_leaves_a_grid_alone(
+    store, corpus
+) -> None:
+    """Ranked as the cap ranks a passage in flight, over written facts only."""
+    first = corpus["a"][0]
+    store.store(
+        first,
+        checked(first, "One claim."),
+        checked(first, "Two claims."),
+        checked(first, "It weighs 4 kg.", units_statement=["4 kg"]),
+        checked(first, "A row of the grid.", extraction_method="deterministic"),
+    )
+
+    assert store.catalog.recap(1, "over the cap") == 2
+    assert store.rows("statement", "validated") == [
+        ("One claim.", False),
+        ("Two claims.", False),
+        ("It weighs 4 kg.", True),
+        ("A row of the grid.", True),
+    ]
+
+
 def test_a_recap_records_the_settings_that_moved_each_verdict(store, corpus) -> None:
     """Refused and given back alike, as a re-judgement records them."""
     from extraction.repository import FactCatalog
