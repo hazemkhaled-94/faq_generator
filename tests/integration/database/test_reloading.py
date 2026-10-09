@@ -79,9 +79,9 @@ def test_a_setting_written_between_drains_is_picked_up(store) -> None:
 def test_the_service_is_built_again_only_when_something_changed(store) -> None:
     """A rebuild costs 2.2 GB of embedding weights in one of the five stages.
 
-    So the version is compared first, and it is a digest of the stored
-    overrides: one small query per poll, and a rebuild only when a value
-    actually moved.
+    So the version is compared first, and it is a digest of every catalogued
+    setting as resolved: one small query per poll, and a rebuild only when a
+    value actually moved.
     """
     built = []
 
