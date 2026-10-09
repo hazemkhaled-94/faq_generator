@@ -132,9 +132,6 @@ observability = [
     "openinference-instrumentation-litellm (>=0.1.45,<0.2.0)",
     "argilla>=2.8.0,<3.0.0",
     "arize-phoenix-client (>=3.5.0,<4.0.0)",
-    # Read only by tests/unit/assessment/test_templates.py, which pins the
-    # assessment metric names, labels and scores against its own configs.
-    "arize-phoenix-evals (>=2.0.0,<3.0.0)",
 ]
 
 dev = [

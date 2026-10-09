@@ -106,8 +106,8 @@ report the pipeline's most careful output as its worst.
 This is the one decision in the package worth arguing about, so:
 
 **The names, the labels, the scores and the optimisation direction** are
-read off `arize-phoenix-evals`' own evaluator configs and pinned against
-them in `tests/unit/assessment/test_templates.py`. A `hallucination`
+taken from `arize-phoenix-evals`' evaluator configs and written out in
+[`templates.py`](templates.py). A `hallucination`
 annotation here sits in the same Phoenix Evaluations view as one posted by
 anything else built on that package, and a reader sorts and charts them
 together. Renaming it, or scoring it the other way round, would produce a
@@ -135,8 +135,8 @@ cannot meet:
 - **An unexplained verdict is one a reviewer cannot act on.** Every template
   asks for the reason in the same call as the label.
 
-`arize-phoenix-evals` is also host-side only — no image carries it — so
-using it here would put a second LLM client, a second rate limiter and a
+`arize-phoenix-evals` is not a dependency of this repository, and using it
+here would put a second LLM client, a second rate limiter and a
 pandas dependency into a worker container to ask a question the client
 already in that container can ask. The judging goes through
 [`llm/client.py`](../llm/README.md) like every other model call: one retry
@@ -266,7 +266,7 @@ poetry run pytest tests/unit/assessment
 
 | File | Covers |
 |---|---|
-| [`test_templates.py`](../../tests/unit/assessment/test_templates.py) | The metric names and scores against phoenix-evals' own, and every placeholder against the fields that fill it |
+| [`test_templates.py`](../../tests/unit/assessment/test_templates.py) | The metric names, labels, scores and directions holding together, and every placeholder against the fields that fill it |
 | [`test_judge.py`](../../tests/unit/assessment/test_judge.py) | One call per metric, and an abstention against a refusal |
 | [`test_assessment_service.py`](../../tests/unit/assessment/test_assessment_service.py) | The row, the annotations, and the columns this phase does not write |
 | [`test_assessment_config.py`](../../tests/unit/assessment/test_assessment_config.py) | The flag, the judge and the two cost dials |

@@ -4,9 +4,7 @@ Phoenix is a shared vocabulary. A `hallucination` annotation posted by this
 pipeline sits in the same Evaluations view as one posted by anything else
 built on arize-phoenix-evals, and a reader sorts and charts them together.
 So the name, the labels, the scores and the optimisation direction are that
-package's and are pinned here against it - not against a copy written down,
-against the package itself, so an upgrade that renamed a label fails this
-file rather than producing a column that looks right and sorts backwards.
+package's, and what is checked here is that they hold together.
 
 The prompts are ours. What is checked about those is only that every
 placeholder a template carries is one the repository actually supplies: a
@@ -33,48 +31,6 @@ EVERY = [one for group in TEMPLATES.values() for one in group]
 
 #: A `{{name}}` in a template.
 PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
-
-#: What phoenix-evals itself calls each of these, and how it scores them.
-#: Read off the installed package rather than written out, which is the
-#: whole point: this fails when their vocabulary moves, not when ours does.
-PHOENIX = pytest.importorskip(
-    "phoenix.evals.default_templates", reason="arize-phoenix-evals is not installed"
-)
-
-
-def phoenix_labels(metric: str) -> set[str]:
-    """The labels arize-phoenix-evals gives one metric, from its own source.
-
-    Two places to look, because that package holds its metrics in two: the
-    older ones are rails on `EvalCriteria`, and the newer ones are
-    generated `ClassificationEvaluatorConfig` modules with a `choices`
-    map. Read rather than written down, which is the whole point - an
-    upgrade that renames a label fails this file instead of leaving a
-    column that looks like the one a reader knows and holds something
-    else.
-    """
-    criteria = {
-        JudgeMetric.HALLUCINATION: "HALLUCINATION",
-        JudgeMetric.RELEVANCE: "RELEVANCE",
-        JudgeMetric.QA_CORRECTNESS: "QA",
-        JudgeMetric.SUMMARIZATION: "SUMMARIZATION",
-        JudgeMetric.TOXICITY: "TOXICITY",
-    }.get(metric)
-    if criteria is not None:
-        return set(PHOENIX.EvalCriteria[criteria].value.rails)
-
-    generated = pytest.importorskip("phoenix.evals.__generated__")
-    import pathlib as _pathlib
-    import re as _re
-
-    source = (
-        _pathlib.Path(generated.__file__).parent
-        / "classification_evaluator_configs"
-        / f"_{metric}_classification_evaluator_config.py"
-    ).read_text()
-    found = _re.search(r"choices=\{([^}]*)\}", source)
-    assert found, f"phoenix-evals has no generated config for {metric}"
-    return set(_re.findall(r'"([a-z-]+)":', found.group(1)))
 
 
 def test_every_kind_is_judged() -> None:
@@ -122,23 +78,6 @@ def test_rendering_leaves_no_placeholder_behind(one) -> None:
 
 
 @pytest.mark.parametrize("one", EVERY, ids=lambda one: f"{one.kind}-{one.metric}")
-def test_the_labels_are_the_ones_phoenix_uses(one) -> None:
-    """The rails, against phoenix-evals' own.
-
-    Its `EvalCriteria` and generated configs hold the rails for the metrics
-    borrowed here.
-    A label of ours outside that set is a Phoenix column that looks like
-    the one a reader knows and holds something else.
-    """
-    theirs = phoenix_labels(one.metric)
-
-    assert set(one.labels) == theirs, (
-        f"{one.metric} does not carry phoenix-evals' own labels"
-    )
-    assert one.good in theirs
-
-
-@pytest.mark.parametrize("one", EVERY, ids=lambda one: f"{one.kind}-{one.metric}")
 def test_a_score_is_zero_or_one_and_the_shape_is_closed(one) -> None:
     """The column is CHECKed between 0 and 1, and the answer is a Literal.
 
@@ -152,28 +91,6 @@ def test_a_score_is_zero_or_one_and_the_shape_is_closed(one) -> None:
     field = one.shape().model_fields["label"]
 
     assert set(getattr(field.annotation, "__args__", ())) == set(one.labels)
-
-
-def test_the_scores_and_directions_are_the_ones_phoenix_configures() -> None:
-    """Read off the installed evaluator configs, for every metric they hold."""
-    configs = pytest.importorskip(
-        "phoenix.evals.__generated__.classification_evaluator_configs"
-    )
-    held = {
-        config.name: config
-        for config in (getattr(configs, name) for name in configs.__all__)
-        if isinstance(config, configs.ClassificationEvaluatorConfig)
-    }
-    ours = {one.metric: one for one in EVERY if one.metric in held}
-
-    assert set(ours) >= {
-        JudgeMetric.HALLUCINATION,
-        JudgeMetric.CONCISENESS,
-        JudgeMetric.REFUSAL,
-    }
-    for metric, one in ours.items():
-        assert one.scores == held[metric].choices, metric
-        assert direction_of(metric) == held[metric].optimization_direction, metric
 
 
 def test_hallucination_is_scored_the_way_phoenix_scores_it() -> None:

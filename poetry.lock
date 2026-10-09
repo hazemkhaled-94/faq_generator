@@ -351,33 +351,6 @@ harbor = ["harbor (>=0.21.0) ; python_version >= \"3.12\""]
 pytest = ["pytest (>=7)"]
 
 [[package]]
-name = "arize-phoenix-evals"
-version = "2.13.0"
-description = "LLM Evaluations"
-optional = false
-python-versions = "<3.15,>=3.10"
-groups = ["observability"]
-files = [
-    {file = "arize_phoenix_evals-2.13.0-py3-none-any.whl", hash = "sha256:db2aa81edc1d0226c3517ea55ed7fcb700c25865feb68e4c5536a9d259f5fbb2"},
-    {file = "arize_phoenix_evals-2.13.0.tar.gz", hash = "sha256:b0a87ab66aabd6e7bb0982f52476cd4487996ab9e17524b205bdb4e3881d3b16"},
-]
-
-[package.dependencies]
-jsonpath-ng = "*"
-openinference-instrumentation = ">=0.1.20"
-openinference-semantic-conventions = ">=0.1.19"
-opentelemetry-api = "*"
-pandas = "*"
-pydantic = ">=2.0.0"
-pystache = "*"
-tqdm = "*"
-typing-extensions = ">=4.5,<5"
-
-[package.extras]
-dev = ["anthropic (>0.18.0)", "boto3", "litellm (>=1.28.9,<1.82.7)", "mistralai (>=1.0.0)", "openai (>=1.0.0)", "vertexai"]
-test = ["anthropic (>=0.18.0)", "boto3", "lameenc", "litellm (>=1.28.9,<1.82.7)", "mistralai (>=1.0.0,<2)", "nest-asyncio", "openai (>=1.0.0)", "openinference-semantic-conventions", "pandas", "pandas-stubs (==2.0.3.230814)", "respx", "tqdm", "types-tqdm", "typing-extensions (>=4.5,<5)", "vertexai"]
-
-[[package]]
 name = "attrs"
 version = "26.1.0"
 description = "Classes Without Boilerplate"
@@ -3657,18 +3630,6 @@ cloudpickle = ">=3.0"
 [package.extras]
 docs = ["distributed", "lz4", "matplotlib", "numpy", "numpydoc", "pandas", "psutil", "pydata-sphinx-theme", "sphinx", "sphinx-copybutton", "sphinx-design", "sphinx-gallery", "tqdm"]
 test = ["distributed", "lz4", "memory_profiler", "numpy", "pytest", "pytest-asyncio", "pytest-cov", "pytest-run-parallel", "pytest-timeout", "threadpoolctl"]
-
-[[package]]
-name = "jsonpath-ng"
-version = "1.8.0"
-description = "A final implementation of JSONPath for Python that aims to be standard compliant, including arithmetic and binary comparison operators and providing clear AST for metaprogramming."
-optional = false
-python-versions = "*"
-groups = ["observability"]
-files = [
-    {file = "jsonpath_ng-1.8.0-py3-none-any.whl", hash = "sha256:b8dde192f8af58d646fc031fac9c99fe4d00326afc4148f1f043c601a8cfe138"},
-    {file = "jsonpath_ng-1.8.0.tar.gz", hash = "sha256:54252968134b5e549ea5b872f1df1168bd7defe1a52fed5a358c194e1943ddc3"},
-]
 
 [[package]]
 name = "jsonref"
@@ -7028,23 +6989,6 @@ typing-extensions = ">=4.1"
 all = ["nodejs-wheel-binaries", "twine (>=3.4.1)"]
 dev = ["twine (>=3.4.1)"]
 nodejs = ["nodejs-wheel-binaries"]
-
-[[package]]
-name = "pystache"
-version = "0.6.8"
-description = "Mustache for Python"
-optional = false
-python-versions = ">=3.8"
-groups = ["observability"]
-files = [
-    {file = "pystache-0.6.8-py3-none-any.whl", hash = "sha256:7211e000974a6e06bce2d4d5cad8df03bcfffefd367209117376e4527a1c3cb8"},
-    {file = "pystache-0.6.8.tar.gz", hash = "sha256:3707518e6a4d26dd189b07c10c669b1fc17df72684617c327bd3550e7075c72c"},
-]
-
-[package.extras]
-cov = ["coverage", "coverage_python_version"]
-doc = ["recommonmark", "sphinx", "sphinx_git", "sphinx_rtd_theme", "sphinxcontrib-apidoc"]
-test = ["pytest", "pytest-cov"]
 
 [[package]]
 name = "pytest"
@@ -10805,4 +10749,4 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "65d5181f60094c8ba459299d6711cdce9a050f315e9d5881c58491d63835616f"
+content-hash = "cb8596506eb0585c05f1d0cc0030db1b8f5be65210cc664db0d4af157b6d6546"
