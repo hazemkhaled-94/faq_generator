@@ -5,11 +5,11 @@ should name it, which `tests/static/test_api_stays_light.py` pins, and it
 sits beside `nlp.embedding` for the same reason: loading a model is this
 package's, and a service may not import another service to reach one.
 
-One call answers ONE question. An NLI model is given a premise and a
+One pair answers ONE question. An NLI model is given a premise and a
 hypothesis and returns three probabilities over them, and that is the whole
-of what it knows. A caller wanting two judgements makes two calls - the thing
-being replaced is a prompt that asked for four at once and confused them,
-which is the failure this shape exists to prevent.
+of what it knows. `judge_all` takes several pairs and judges each on its
+own - the thing being replaced is a prompt that asked for four at once and
+confused them, which is the failure this shape exists to prevent.
 
 The model is named by a setting rather than written here. Which encoder reads
 German best is a deployment's measurement to make and to re-make, and this
