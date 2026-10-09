@@ -26,12 +26,14 @@ arrives with every stage at `new`, and a worker only claims `pending`.
 
 ### Step 1 — Refuse before reading the body
 
-If the declared `Content-Length` already exceeds `MAX_FILE_SIZE_MB`, the body
-is never read. [`refuse_oversized`](service.py) writes the event and stops:
-with no bytes there is no digest and no document to point at.
+If the declared `Content-Length` exceeds `MAX_FILE_SIZE_MB` by more than the
+multipart framing (`_FRAMING` in the upload route), the body is never read.
+[`refuse_oversized`](service.py) writes the event and stops: with no bytes
+there is no digest and no document to point at.
 
-`Content-Length` covers the whole multipart body, so it is an upper bound. A
-request declaring no length is read in full and measured by the check below.
+`Content-Length` covers the whole multipart body, so it is an upper bound.
+Any other request, one declaring no length included, is read to at most one
+byte past the limit and measured by the check below.
 
 ### Step 2 — Run the checks, cheapest first
 
@@ -90,7 +92,7 @@ See [`archive/`](../archive/README.md).
 | Table | Holds |
 |---|---|
 | `ingest_events` | every upload attempt, refused ones included: the submitted filename, the size, the outcome, the reason, and the document it became |
-| `documents` | the digest, the media type, the original filename, the page and character counts, and every stage's status at `new` |
+| `documents` | the digest, the media type, the page and character counts, and every stage's status at `new` |
 
 **Written, in SeaweedFS:** `documents`, at
 `{sha[0:2]}/{sha[2:4]}/{sha}.pdf` — the uploaded bytes exactly as they
@@ -114,12 +116,13 @@ two-by-two hex fanout is not cosmetic: the filer keys its metadata on
 
 ## Configuration
 
-Read from the environment at start-up, with no defaults in code. Tuning is in
+Read from the environment with no defaults in code, overlaid with any stored
+override, on every upload. Tuning is in
 [`configs/env/backend.env`](../../configs/env/backend.env).
 
 | Setting | What it does |
 |---|---|
-| `MAX_FILE_SIZE_MB` | Largest upload accepted, by both the `Content-Length` check and the measured size. Keep in step with `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
+| `MAX_FILE_SIZE_MB` | Largest upload accepted, by the measured size and, with the framing added, by the `Content-Length` check. Keep in step with `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
 | `ALLOWED_MIME_TYPES` | Comma-separated. May only name types this build can detect from leading bytes. Anything else stops the service at start-up |
 
 The `pipeline-version` written into every stored object's metadata is not a
@@ -138,8 +141,9 @@ poetry run pytest tests/unit/ingestion tests/integration/test_ingest.py
 
 `IngestDriver` and `RemovalDriver` live in
 [`tests/unit/intake/intake_drivers.py`](../../tests/unit/intake/intake_drivers.py),
-over `MemoryDocuments`, `MemoryParsed` and `DocumentRows`. Only the database
-and the two buckets are stood in for.
+over `MemoryDocuments`, `MemoryParsed`, `MemoryArchive` and `DocumentRows`.
+Only the database, the three buckets and, where a test passes `ReaderSpy`,
+the PDF reader are stood in for.
 
 | File | Covers |
 |---|---|
@@ -150,7 +154,7 @@ and the two buckets are stood in for.
 | [`test_documents.py`](../../tests/integration/api/test_documents.py) | The HTTP surface: status codes, the digest guard, the refusal shapes |
 | [`test_orphans.py`](../../tests/integration/test_orphans.py) | That deleting a document leaves nothing derived from it behind |
 | [`test_views.py`](../../tests/frontend/test_views.py) | The Upload and Documents pages under Streamlit's own runner |
-| [`test_intake_pinned.py`](../../tests/static/test_intake_pinned.py) | The settings, routes, answer shapes and modules, pinned |
+| [`test_intake_pinned.py`](../../tests/static/test_intake_pinned.py) | That parsing dispatches exactly the types this stage may accept, and that this README carries its three sections |
 
 ## Limits
 
@@ -162,4 +166,5 @@ and the two buckets are stood in for.
   refuses them on `content_sha256`.
 - **`Content-Length` is an upper bound.** It covers the whole multipart body.
 - **An upload that fails on the object store writes no `ingest_events`
-  row.** Only refusals are recorded; an unreachable bucket is a 500.
+  row.** A stored upload's event is written with its document row, after the
+  object; an unreachable bucket is a 500.
