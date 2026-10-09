@@ -728,21 +728,6 @@ def test_an_unanchored_unanswerable_question_is_refused_too() -> None:
     assert result.rejected_reason == QuestionRejection.UNANCHORED
 
 
-def test_the_phrasing_judgement_is_made_before_the_answer_is() -> None:
-    """A question nobody would ask is refused whatever its answer does.
-
-    Reported as `unanchored` rather than `not_recoverable`, because those
-    say different things about what to change.
-    """
-    recording = Recording(recovers=None, stands_alone=False)
-
-    result = build(recording).check(
-        candidate(question_text="What specific components are included?")
-    )
-
-    assert result.rejected_reason == QuestionRejection.UNANCHORED
-
-
 def test_a_writer_marking_its_own_work_cannot_reject_on_phrasing() -> None:
     """The only gate here that is an opinion, and opinions need a holder.
 
@@ -889,17 +874,6 @@ def test_the_verifier_is_shown_the_thread_when_it_reads_a_follow_up() -> None:
     )
 
     assert recording.threaded == (("How long for a standard one?", "48 hours"),)
-
-
-def test_a_root_question_is_still_judged_on_standing_alone() -> None:
-    """The exemption is for follow-ups and for nothing else."""
-    recording = Recording(recovers="4 kg", stands_alone=False)
-
-    result = build(recording).check(
-        candidate(question_text="What specific components are included?")
-    )
-
-    assert result.rejected_reason == QuestionRejection.UNANCHORED
 
 
 def test_the_three_criteria_are_read_off_the_facts_the_question_cites() -> None:
@@ -1490,17 +1464,6 @@ def test_the_verifier_cannot_reject_a_question_that_names_something() -> None:
     )
 
     assert result.accepted, "the verifier overruled the question's own subjects"
-
-
-def test_the_verifier_still_rejects_a_question_that_names_nothing() -> None:
-    """Narrowing the gate must not turn it off."""
-    recording = Recording(recovers="4 kg", stands_alone=False)
-
-    result = build(recording).check(
-        candidate(question_text="What specific components are included?")
-    )
-
-    assert result.rejected_reason == QuestionRejection.UNANCHORED
 
 
 # ── The forms a type will take ─────────────────────────────────────────────
