@@ -92,8 +92,9 @@ class TableExtractor(Extractor):
         """Reads the full label stack to the left of each row.
 
         ponytail: falls back to the first column, which labels the row for a
-        column-oriented table and not for a transposed one. The stored grid
-        carries enough to settle it, once a document needs it.
+        column-oriented table and not for a transposed one. Upgrade: compare
+        the counts of `row_header` and `column_header` cells in the stored
+        grid, once a document needs it.
         """
         marked = _stack(cells, lambda cell: bool(cell.get("row_header")))
         if marked:

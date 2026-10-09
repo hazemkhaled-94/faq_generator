@@ -271,6 +271,8 @@ def _paired(
     Deterministic: the head order is the interleave's, and a tie between two
     equally near passages goes to the lower id.
     """
+    # ponytail: an O(n²) Python scan per topic, with pop(0) and remove on a
+    # list. Upgrade: one numpy cosine matrix per topic, or a pgvector KNN.
     remaining = list(interleaved)
     groups: list[list[PassageToExtract]] = []
     while len(remaining) >= size:
@@ -430,6 +432,10 @@ def _is_heading(passage: PassageToExtract) -> bool:
 #: umfasst das Thema X" from four passages. Both are navigation, and a
 #: question asked of either measures a reader's page-turning.
 _NAVIGATION = frozenset({"document_index", "code"})
+
+# ponytail: the skip heuristics below - _CHARS_PER_CLAIM, _NUMERIC_WORDS,
+# _CODE_CELLS, the code-cell pattern and "any © is a notice" - are
+# tuned to this corpus. Upgrade: settings, measured again on a new corpus.
 
 #: How many characters a passage may carry per claim before it stops
 #: reading as prose. The parser labels what it recognises, and an index it
@@ -970,6 +976,8 @@ class ExtractionService(StageService):
         Not one of the facts this passage's last reading left, which `store`
         is about to replace.
         """
+        # ponytail: one index query per candidate. Upgrade: one batched
+        # unnest + LATERAL probe per passage.
         twin = self._repository.nearest_fact(vector, excluding=passage_id)
         for statement, other in written:
             score = cosine(vector, other)
