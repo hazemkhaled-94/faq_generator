@@ -42,7 +42,7 @@ carries the whole call:
 |---|---|
 | System message | `prompts.text`, composed by the stage that sends it |
 | User message | `prompts.user_text`, the template with `{{name}}` where a call substitutes |
-| Invocation parameters | `llm.config.Settings` — temperature, timeout, and `num_ctx` and `reasoning_effort` where sent |
+| Invocation parameters | `llm.config.Settings` — the temperature, and `reasoning_effort` where it is one Phoenix knows. The timeout, `num_ctx` and Ollama's `off` go in the version's description, as "Also sent" |
 | Response format | `prompts.response_schema`, the JSON schema of the Pydantic shape |
 
 All four go through `PromptVersion.from_openai`. The plain `PromptVersion`
@@ -92,15 +92,17 @@ Two things made that possible, and neither is in this package:
   producing run B used to destroy run A. The diff reads live rows **and**
   archived ones.
 
-Each run's spans also go to a Phoenix project of its own,
-`<stage>-<run id>`, which is the half SQL cannot answer: the gate counts are
-columns, and the calls, tokens, latency and spend are in the spans.
+A run named with `RUN_ID` also sends its spans to a Phoenix project of its
+own, `<position>-<stage>-<name>`, which is the half SQL cannot answer: the
+gate counts are columns, and the calls, tokens, latency and spend are in the
+spans.
 
 ## What makes two runs comparable
 
 Phoenix **versions the dataset**, so a case added today does not invalidate
-yesterday's experiments. Each run records the model, the temperature and the
-structured mode as metadata.
+yesterday's experiments. Each run records the model and the temperature as
+metadata, with the structured mode for extraction and the prompt version and
+the floors for phrasing.
 
 `EVAL_RUN_NAME` is optional, and its absence means something: unset, the
 runner names the experiment after the **model** it scored. Set it when the
@@ -136,8 +138,11 @@ A model's answers move between versions, between quantisations, and between
 two runs at the same temperature. A threshold here would fail on somebody
 else's Tuesday rather than on a regression.
 
-The one thing `tests/eval/` asserts is that the round-trip gate splits its
-golden questions the right way round — whether the gate is wired up at all.
+What `tests/eval/` asserts is that each piece is wired up at all: the
+round-trip gate splits its golden questions the right way round, each
+phrasing judgement beats its floor and is scored on every case, German ones
+included, extraction proposes and keeps something, and the writer writes
+something for every kind.
 
 ## Layout
 
@@ -154,14 +159,14 @@ pytest layer and the Phoenix layer without either importing the other.
 Nothing here runs in an image. Both this and `review/`'s Argilla client run
 on the host: a worker has no business holding a judge. The backend image does
 carry `arize-phoenix-client`, for the one thing a worker posts itself — the
-gate verdicts in [`telemetry/evaluations.py`](../telemetry/evaluations.py).
+verdicts in [`telemetry/evaluations.py`](../telemetry/evaluations.py).
 
 ## Configuration
 
 | Setting | Where | What it does |
 | --- | --- | --- |
 | `EVAL_RUN_NAME` | [`configs/env/evaluation.env`](../configs/env/evaluation.env) | What a run is called. Unset names it after the model |
-| `PHOENIX_BASE_URL` | `.env` | Phoenix's HTTP API, as the host reaches it |
+| `PHOENIX_BASE_URL` | derived by the Makefile from `PHOENIX_PORT` in `configs/env/deployment.env` | Phoenix's HTTP API, as the host reaches it |
 | `PHOENIX_ADMIN_SECRET` | `.env` | At least 32 characters, including a digit and a lower-case letter |
 | `LLM_MODEL`, `LLM_BASE_URL` | `.env` | The model being scored |
 
@@ -178,11 +183,13 @@ poetry run pytest tests/eval              # needs a served model
 | File | Covers |
 |---|---|
 | [`test_experiments.py`](../tests/unit/evaluation/test_experiments.py) | The scores an experiment records, and the shape it records them in |
+| [`test_evaluation_cli.py`](../tests/unit/evaluation/test_evaluation_cli.py) | Which operation each flag selects, and the exit code of a set with no task |
 | [`test_extraction_quality.py`](../tests/eval/test_extraction_quality.py) | How well a real served model reads facts out of a passage |
 | [`test_question_quality.py`](../tests/eval/test_question_quality.py) | How a real served model writes and checks questions |
+| [`test_phrasing_judgements.py`](../tests/eval/test_phrasing_judgements.py) | How well a real served model answers the phrasing judgements, against their floor |
 
-`tests/eval/` is excluded from `make test`. The nightly workflow runs it and
-skips itself unless `LLM_MODEL` and `LLM_BASE_URL` are repository variables.
+`tests/eval/` is excluded from `make test`. The nightly workflow runs it, and
+every test in it skips unless `LLM_MODEL` is a repository variable.
 
 ## Limits
 
