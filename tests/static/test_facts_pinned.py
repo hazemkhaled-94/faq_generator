@@ -19,7 +19,7 @@ SERVICE = ROOT / "backend/extraction"
 #: One of this service's settings named in a string, refusals included.
 _NAMED = re.compile(r"EXTRACTION_[A-Z][A-Z0-9_]*")
 
-#: The queue routes, as (method, path). The four verbs come twice: once for
+#: The queue routes, as (method, path). The five verbs come twice: once for
 #: the whole queue and once for the part of it a scope names.
 QUEUE_ROUTES = frozenset(
     {
