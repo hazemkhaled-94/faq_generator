@@ -476,20 +476,26 @@ logs-prune:
 	   find logs -type f -mtime +$(LOGS_KEEP_DAYS) -print -delete 2>/dev/null; \
 	 } | wc -l | xargs printf '%s file(s) deleted.\n'
 
-# Every log line, in both places one lives: the `qa-logs` data stream that
+# Every log line, in both places one lives: the `qa-logs*` data streams that
 # Grafana reads, and the JSON files Filebeat ships from. What `make wipe`
 # runs - a log trail of a corpus that is gone describes nothing.
 #
 # Through the container: elasticsearch publishes no port, and Argilla
 # reaches it over TLS with a certificate the host does not have. Filebeat
-# recreates the stream on its next line, so nothing needs restarting.
+# recreates the stream on its next line, so nothing needs restarting. The
+# credential is read from the container's own environment, as in
+# logs-retention.
 #
-# `|| true` on the delete: a stream that is not there yet is a deployment
-# that has logged nothing, not a failure.
+# The answer is read: `index_not_found_exception` is a deployment that has
+# logged nothing yet and passes; anything but that or an acknowledgement,
+# a stopped container included, stops here.
 logs-wipe:
-	@$(LOADENV) && $(COMPOSE_CMD) exec -T elasticsearch \
-	   curl -sS -k -u "elastic:$$ELASTICSEARCH_PASSWORD" \
-	   -XDELETE "https://localhost:9200/_data_stream/qa-logs" >/dev/null || true
+	@answer=$$($(COMPOSE_CMD) exec -T elasticsearch sh -c 'curl -sS \
+	  --cacert /usr/share/elasticsearch/config/certs/ca.crt \
+	  -u "elastic:$$ELASTIC_PASSWORD" \
+	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"' 2>&1); \
+	  echo "$$answer"; \
+	  case "$$answer" in *'"acknowledged":true'*|*index_not_found_exception*) ;; *) exit 1;; esac
 	@$(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -delete' || true
 	@find logs -type f -delete 2>/dev/null || true
 	@echo "log stream and files deleted."

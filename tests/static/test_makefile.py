@@ -124,3 +124,55 @@ def test_a_command_line_value_is_named_for_the_store_to_give_way_to() -> None:
     lines = printed("topics-discover", "TOPIC_PASSES=20")
 
     assert any('QA_COMMAND_LINE="TOPIC_PASSES"' in line for line in lines), lines
+
+
+def command(target: str, holding: str, **environment: str) -> str:
+    """The one command `make -n` prints for a target that holds `holding`.
+
+    A recipe line continued with a backslash is printed over several lines;
+    they are joined back into the one command the shell is given.
+    """
+    joined = "\n".join(printed(target, **environment)).replace("\\\n", "")
+    (found,) = [line for line in joined.splitlines() if holding in line]
+    return found
+
+
+def stand_in(tmp_path: Path, script: str) -> Path:
+    """A compose that runs nothing and answers what `script` prints."""
+    engine = tmp_path / "compose"
+    engine.write_text(f"#!/bin/sh\n{script}\n")
+    engine.chmod(0o755)
+    return engine
+
+
+def test_the_log_wipe_takes_every_stream_grafana_reads() -> None:
+    """The dated streams an earlier filebeat.yml wrote are `qa-logs*` too."""
+    assert "_data_stream/qa-logs*" in command("logs-wipe", "_data_stream")
+
+
+@pytest.mark.parametrize(
+    ("answer", "refused"),
+    [
+        ("""echo '{"acknowledged":true}'""", False),
+        ("""echo '{"error":{"type":"index_not_found_exception"}}'""", False),
+        ("""echo '{"error":{"type":"security_exception"}}'""", True),
+        ("echo 'no container named elasticsearch' >&2; exit 125", True),
+    ],
+    ids=["deleted", "nothing-there", "refused", "stack-down"],
+)
+def test_the_log_wipe_fails_unless_elasticsearch_deleted_or_had_nothing(
+    tmp_path: Path, answer: str, refused: bool
+) -> None:
+    """A refusal or a stopped container is not "deleted"."""
+    engine = stand_in(tmp_path, answer)
+    delete = command("logs-wipe", "_data_stream", COMPOSE=str(engine))
+
+    ran = subprocess.run(
+        ["bash", "-c", delete],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (ran.returncode != 0) is refused, ran
