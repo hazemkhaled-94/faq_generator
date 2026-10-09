@@ -125,7 +125,8 @@ def test_rendering_leaves_no_placeholder_behind(one) -> None:
 def test_the_labels_are_the_ones_phoenix_uses(one) -> None:
     """The rails, against phoenix-evals' own.
 
-    Its `EvalCriteria` holds the rails for the four metrics borrowed here.
+    Its `EvalCriteria` and generated configs hold the rails for the metrics
+    borrowed here.
     A label of ours outside that set is a Phoenix column that looks like
     the one a reader knows and holds something else.
     """
@@ -259,7 +260,7 @@ def test_a_shape_is_named_after_its_metric() -> None:
 
 
 def test_a_question_is_judged_on_more_than_a_fact() -> None:
-    """Three judgements against two, and the extra one is the answer.
+    """Six judgements against three, and the extra ones are about the answer.
 
     A fact is asked whether its evidence supports it and whether the
     evidence is about the right thing. A question is asked both of those
