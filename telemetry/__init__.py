@@ -77,15 +77,15 @@ def configure(
     Call once, as early as possible: anything logged beforehand uses
     Python's default handler and carries no trace id.
 
-    `run` is what separates the two stores. It names the Phoenix project
-    this process's spans are filed under AND decides whether there are
-    spans to file: a stage passes `settings.runs.run_id()` and exports; the
-    api, the frontend, the orchestrator and every host command pass nothing
-    and export nothing, because none of them is the logic Phoenix holds.
+    `run` is what separates the two stores. It decides whether there are
+    spans to file: a stage and the ingestion command pass
+    `settings.runs.run_id()` and export; the api, the frontend, the
+    orchestrator and the other host commands pass nothing and export
+    nothing, because none of them is the logic Phoenix holds.
 
     The logs take it either way. `run.id` is on every line a stage writes,
     which is what lets Grafana show one run's lines across five processes
-    and Phoenix's project name find the same run from the other side.
+    and Phoenix's `run.id` find the same run from the other side.
 
     `named` is the run's NAME where somebody chose one. It decides only
     which project the spans are filed under; see `traces.configure`.
