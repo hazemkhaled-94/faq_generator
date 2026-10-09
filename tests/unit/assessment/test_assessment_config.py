@@ -129,7 +129,7 @@ def test_with_no_judge_named_the_status_says_nothing_is_judged(
 
     assert "assessment queue: {'queued': 1}" in caplog.text
     assert "nothing is judged" in caplog.text
-    assert "judging its own work is refused" in caplog.text
+    assert "LLM_MODEL is not asked in its place" in caplog.text
     assert "Set ASSESSMENT_JUDGE_MODEL" in caplog.text
     assert "ASSESSMENT_JUDGE_CONTAINER_MODEL" in caplog.text
 

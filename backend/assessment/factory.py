@@ -15,10 +15,10 @@ log = logging.getLogger(__name__)
 
 #: What is said when ASSESSMENT_JUDGE_MODEL names no model.
 UNNAMED = (
-    "ASSESSMENT_JUDGE_MODEL names no model, so nothing is judged: a model "
-    "judging its own work is refused, so LLM_MODEL is not asked in its place. "
-    "Set ASSESSMENT_JUDGE_MODEL, or ASSESSMENT_JUDGE_CONTAINER_MODEL for the "
-    "containers, to a model that is not LLM_MODEL."
+    "ASSESSMENT_JUDGE_MODEL names no model, so nothing is judged, and "
+    "LLM_MODEL is not asked in its place. Set ASSESSMENT_JUDGE_MODEL, or "
+    "ASSESSMENT_JUDGE_CONTAINER_MODEL for the containers, to a model that is "
+    "not LLM_MODEL."
 )
 
 
