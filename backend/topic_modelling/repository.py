@@ -483,7 +483,7 @@ class TopicCatalog(Repository):
             ).rowcount
         if not changed:
             return None
-        return next((topic for topic in self.topics() if topic.id == topic_id), None)
+        return next(iter(self.topics(topic_id)), None)
 
     def delete_all(self) -> TopicRemoval:
         """Removes every topic, and with it every membership.
@@ -610,8 +610,11 @@ class TopicCatalog(Repository):
             passages_without_language=unplaced,
         )
 
-    def topics(self) -> list[StoredTopic]:
+    def topics(self, topic_id: int | None = None) -> list[StoredTopic]:
         """Reads the fitted topics with how much of the corpus each holds.
+
+        Args:
+            topic_id: Only this topic, or None for every one.
 
         Returns:
             One entry per topic, ordered by language then topic index.
@@ -619,6 +622,8 @@ class TopicCatalog(Repository):
         # Three queries, not one. Folding either of the first two into the
         # aggregate below would join a second row per passage and inflate both
         # the membership count and the mean weight.
+        dominant = [] if topic_id is None else [_DOMINANT.c.topic_id == topic_id]
+        chosen = [] if topic_id is None else [Topic.id == topic_id]
         with self._session() as session:
             # Over the passages this topic is dominant in rather than every
             # passage holding it: a passage belongs to several topics.
@@ -633,6 +638,7 @@ class TopicCatalog(Repository):
                         .label("tables"),
                     )
                     .join(Passage, Passage.id == _DOMINANT.c.passage_id)
+                    .where(*dominant)
                     .group_by(_DOMINANT.c.topic_id)
                 ).all()
             }
@@ -646,6 +652,7 @@ class TopicCatalog(Repository):
                         FactPassage.passage_id == _DOMINANT.c.passage_id,
                     )
                     .join(Fact, (Fact.id == FactPassage.fact_id) & Fact.validated)
+                    .where(*dominant)
                     .group_by(_DOMINANT.c.topic_id)
                 ).all()
             )
@@ -666,7 +673,7 @@ class TopicCatalog(Repository):
                 )
                 .join(PassageTopic, PassageTopic.topic_id == Topic.id, isouter=True)
                 .join(Passage, Passage.id == PassageTopic.passage_id, isouter=True)
-                .where(~_OUTSTANDING)
+                .where(~_OUTSTANDING, *chosen)
                 .group_by(
                     Topic.id,
                     Topic.language,
