@@ -146,3 +146,31 @@ def test_recording_nothing_writes_nothing(written) -> None:
 
     assert record("questions", []) == 0
     assert [one.id for one in stored()] == before
+
+
+def test_a_rewritten_text_moves_updated_at_and_a_new_model_does_not(
+    written, engine
+) -> None:
+    """When the text was last written, which repointing a stage is not."""
+    from sqlalchemy import text
+
+    def written_at() -> tuple:
+        with engine.connect() as connection:
+            return connection.execute(
+                text(
+                    "SELECT first_seen_at, updated_at FROM prompts "
+                    "WHERE name = 'factoid'"
+                )
+            ).one()
+
+    record(
+        "questions",
+        [Composed("factoid", "8", "Write one question.", model="azure/gpt-4.1")],
+    )
+    first, repointed = written_at()
+    record("questions", [Composed("factoid", "8", "Write one QUESTION.")])
+    _, rewritten = written_at()
+
+    assert repointed == first
+    assert rewritten > first
+

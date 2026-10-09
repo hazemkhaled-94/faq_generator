@@ -19,7 +19,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from database.qa_generator import Prompt, sessions
@@ -247,7 +247,8 @@ def _write(service: str, held: Sequence[Composed]) -> list[Composed]:
             # The model alone moving is not drift; see `_HALVES`. Sliced
             # rather than compared field by field so the two stay in step:
             # a fourth half added to the warning is added to that tuple.
-            if was is not None and was[: len(_HALVES)] != sending[: len(_HALVES)]:
+            drifted = was is not None and was[: len(_HALVES)] != sending[: len(_HALVES)]
+            if drifted:
                 # All three halves, not the digest alone: the digest is over
                 # the system prompt, and a user template edited under a fixed
                 # version is the same two datasets.
@@ -289,6 +290,8 @@ def _write(service: str, held: Sequence[Composed]) -> list[Composed]:
                         "response_schema": one.response_schema,
                         "model": one.model,
                         "digest": one.digest,
+                        # ON CONFLICT fires no onupdate.
+                        **({"updated_at": func.now()} if drifted else {}),
                     },
                 )
             )
