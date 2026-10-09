@@ -28,8 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -226,18 +225,3 @@ def client(base_url: str | None = None):
         base_url=base_url or os.getenv(ENDPOINT),
         headers={"Authorization": f"Bearer {key}"} if key else None,
     )
-
-
-@contextmanager
-def recording(base_url: str | None = None) -> Iterator[Evaluations]:
-    """An `Evaluations` that posts whatever is left when the block ends.
-
-    The flush is the reason this exists. A topic writing ninety questions
-    leaves ninety annotations under the batch size, and without a flush the
-    last topic of every run is the one missing from Phoenix.
-    """
-    held = Evaluations(base_url)
-    try:
-        yield held
-    finally:
-        held.flush()
