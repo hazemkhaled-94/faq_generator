@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import partial
+from importlib.metadata import version
 from typing import ClassVar, Protocol
 
 from opentelemetry.trace import Span
@@ -31,6 +32,9 @@ from telemetry import tracer, working
 
 log = logging.getLogger(__name__)
 span = tracer(__name__)
+
+#: The Docling release this process converts with.
+_DOCLING = version("docling")
 
 
 class SourceStore(Protocol):
@@ -185,7 +189,7 @@ class ParsingService(StageService):
                 converted.document.export_to_dict(), ensure_ascii=False
             ).encode(),
             content_type="application/json",
-            metadata={"sha256": document.sha256},
+            metadata={"sha256": document.sha256, "docling-version": _DOCLING},
         )
         # ponytail: downloads the earlier object only to learn it exists; a
         # head request on the bucket is the upgrade.

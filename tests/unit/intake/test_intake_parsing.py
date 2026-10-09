@@ -8,6 +8,7 @@ of one here is read the way parsing reads it.
 from __future__ import annotations
 
 import json
+from importlib.metadata import version
 from types import SimpleNamespace
 
 import pytest
@@ -154,7 +155,10 @@ def test_the_converted_document_is_stored_before_the_row_is_written() -> None:
     key = driver.parsed.key_for(SHA)
     assert driver.parsed_keys == [key]
     assert driver.parsed.content_types[key] == "application/json"
-    assert driver.parsed.metadata[key] == {"sha256": SHA}
+    assert driver.parsed.metadata[key] == {
+        "sha256": SHA,
+        "docling-version": version("docling"),
+    }
     assert json.loads(driver.parsed.objects[key])["name"] == "t"
 
 
