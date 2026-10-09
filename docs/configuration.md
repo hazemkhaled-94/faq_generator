@@ -31,12 +31,13 @@ another, and no name to look up in two places to find out which value wins.
 `tests/static/test_env_files.py` refuses a second copy.
 
 compose hands each file to the services that need it with `env_file`, and
-the Makefile sources `backend.env`, `deployment.env` and `.env` for the host
-commands — so one value reaches both.
+the Makefile sources `backend.env`, `deployment.env`, `provider.env` and
+`.env` for the host commands — so one value reaches both.
 
-`.env` is the only file with a secret in it, and `.env.example` stands in
-for it in git, every value a `change_me_*` placeholder. `make setup` copies
-one to the other and generates the passwords.
+`.env` holds the deployment's secrets and `provider.env` the provider's.
+`.env.example` stands in for `.env` in git, every secret a `change_me_*`
+placeholder beside the model names. `make setup` copies one to the other and
+generates the passwords.
 
 ## What compose reads
 
@@ -79,7 +80,7 @@ are built from the names above rather than declared:
 
 ### The host and the container see different addresses
 
-Five things have two names, and the convention is the same for all of them:
+Seven things have two names, and the convention is the same for all of them:
 the plain name is the **host's**, and `*_CONTAINER_*` is what compose sets
 over it inside the network.
 
@@ -93,11 +94,12 @@ over it inside the network.
 | `QUESTIONS_VERIFIER_MODEL` | `QUESTIONS_VERIFIER_CONTAINER_MODEL` |
 | `ASSESSMENT_JUDGE_MODEL` | `ASSESSMENT_JUDGE_CONTAINER_MODEL` |
 
-The model pair is the one that does **not** fall back. A container holds no
-cloud credential and must never reach a hosted provider, so
-`LLM_CONTAINER_MODEL` is required, is checked by `make doctor`, and does not
-inherit `LLM_MODEL`. A container that inherits a hosted model restarts on
-every authentication failure, indefinitely.
+The model pairs are the ones that do **not** fall back. `LLM_CONTAINER_MODEL`
+is required, must name an Ollama model, is checked by `make doctor`,
+and does not inherit `LLM_MODEL`. The verifier and the judge do not inherit
+either: unset in the containers, the writer marks its own work and nothing is
+judged. A container that inherits a hosted model restarts on every
+authentication failure, indefinitely.
 
 ## Precedence
 
@@ -130,7 +132,8 @@ make settings-set SERVICE=topics SET="TOPIC_PASSES=20"
 make settings-unset SERVICE=topics UNSET="TOPIC_PASSES"
 ```
 
-A worker picks a change up on the row it claims next. Nothing is requeued:
+A worker picks a change up once its queue next runs dry: it reads its
+settings again between drains, not per row. Nothing is requeued:
 if the change stales what a stage already produced, the surface you used says
 so and names the stage, and that stage's `-rerun` rebuilds it.
 
@@ -151,8 +154,12 @@ more name a model for one judgement: `EXTRACTION_DIGEST_MODEL`,
 `QUESTIONS_PHRASING_MODEL`, `QUESTIONS_VERIFIER_MODEL` and
 `ASSESSMENT_JUDGE_MODEL`.
 
-Pool sizes and addresses are not configurable. They are read before a service
-could ask a database for anything, so they are served read-only.
+These eight model settings, `LLM_MODEL` among them, are fixed: the
+deployment sets them, they are served read-only and never stored, so the host
+and the containers each keep their own. So are the four language and poll
+settings (`NLP_MODELS`, `NLP_DEFAULT_LANGUAGE`, `NLP_CAPITALISED_NOUNS`,
+`WORKER_POLL_SECONDS`), the pool sizes, `API_ALLOWED_HOSTS` and the addresses,
+`LLM_BASE_URL` among them. A settings write refuses every one of them.
 
 ## Where to look for a setting
 
@@ -167,7 +174,7 @@ could ask a database for anything, so they are served read-only.
 | Which of the accepted questions ship | `configs/env/backend.env`, "The balanced release" |
 | Whether the judge runs, and who judges | `.env`; which artefacts and how many, `configs/env/backend.env` |
 | A port, an address, a role name | `configs/env/deployment.env` |
-| A password or a key | `.env`, listed in `.env.example` |
+| A password or a key | `.env`, listed in `.env.example`; the provider's in `configs/env/provider.env` |
 
 Each setting in `configs/env/backend.env` carries the paragraphs explaining
 what it does and how its value was arrived at;
@@ -175,13 +182,17 @@ what it does and how its value was arrived at;
 version the UI draws its controls from. How a default was measured is in
 [measurements.md](measurements.md).
 
-## Two settings with constraints
+## Four settings with constraints
 
 `PHOENIX_ADMIN_SECRET` needs at least 32 characters including a digit and a
 lower-case letter; `make doctor` checks all three.
 `PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD` is applied only when Phoenix first
 creates its admin user; changing it afterwards means dropping the `phoenix`
 database.
+
+`GRAFANA_SECRET_KEY`, in `.env`, encrypts the secrets Grafana stores in its
+database. compose refuses to start Grafana without it, and changing it is a
+rotation: [operations.md](operations.md) has the steps.
 
 `MAX_FILE_SIZE_MB` is the one setting written in two files, because
 Streamlit reads a static TOML and no env var: `server.maxUploadSize` in
@@ -193,7 +204,7 @@ pins the pair.
 
 | Test | Checks |
 |---|---|
-| `tests/static/test_env_files.py` | One name, one file. Every `${...}` compose interpolates is declared, and one with no fallback is actually set. `.env.example` holds placeholders only. The image bakes the pipelines `NLP_MODELS` loads |
+| `tests/static/test_env_files.py` | One name, one file. Every `${...}` compose interpolates is declared, and one with no fallback is actually set. `.env.example` holds a placeholder for every secret. The image bakes the pipelines `NLP_MODELS` loads |
 | `tests/static/test_settings_documented.py` | Every setting the code reads is named in a file that declares it |
 | `tests/static/test_settings_catalogued.py` | Every setting the code reads is described in `settings/catalog.py`, and every description is read |
 | `tests/static/test_doc_links.py` | Every relative link in a README resolves |
