@@ -103,9 +103,9 @@ def _span(name: str, source: Source = None) -> tuple[int, int]:
 class Settings:
     """What to write per topic, of what kinds, and what to hold it to.
 
-    Which model writes them is not here: that is `llm.config.Settings`, which
-    every stage that calls a model shares. Only the verifier's name is here,
-    because it is the one model choice this stage makes on its own.
+    Where a model is served is not here: that is `llm.config.Settings`,
+    which every stage that calls a model shares. The writer's, the
+    verifier's and the phrasing judge's names are here.
     """
 
     per_topic: int
@@ -120,7 +120,8 @@ class Settings:
     #: and a bridge a cross-document one.
     fact_kinds: tuple[str, ...]
     #: Which question types are written, and in what proportion. A type with a
-    #: weight of 0, or absent, is never written.
+    #: weight of 0, or absent, is never planned; a follow-up takes its type
+    #: from QUESTIONS_FOLLOWUP_TYPES.
     type_mix: dict[str, int]
     #: Which difficulty bands the plan aims for, in what proportion. A request
     #: for a shape of sample, not a verdict: `difficulty` is still read off
@@ -294,9 +295,9 @@ class Settings:
             max_tokens=integer("EMBEDDING_MAX_TOKENS", source),
             # Absent means the model LLM_MODEL names.
             model=optional("QUESTIONS_MODEL", source),
-            # Absent means the writer verifies its own questions, which is
-            # worth knowing about rather than guessing at, so the service
-            # warns rather than failing.
+            # Absent means the model LLM_MODEL names. A verifier that is the
+            # writer is worth knowing about rather than guessing at, so the
+            # service warns rather than failing.
             verifier_model=optional("QUESTIONS_VERIFIER_MODEL", source),
             phrasing_model=optional("QUESTIONS_PHRASING_MODEL", source),
             entailment_model=optional("NLI_MODEL", source),
