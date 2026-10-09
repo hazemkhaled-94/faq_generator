@@ -228,7 +228,7 @@ def prune(client, projects: list[Project], everything: bool = False) -> int:
     Args:
         client: The Phoenix client.
         projects: Everything Phoenix holds.
-        everything: Take all of them rather than only the spent ones. What
+        everything: Take all of them bar KEEP, rather than only the spent ones. What
             `make wipe` passes: a corpus that is gone has no traces worth
             keeping, and the spent-only rule would leave every project that
             recorded a real run - which after a wipe is all of them.
@@ -236,7 +236,11 @@ def prune(client, projects: list[Project], everything: bool = False) -> int:
     Returns:
         How many were deleted.
     """
-    taking = projects if everything else spent(projects)
+    taking = (
+        [one for one in projects if one.name not in KEEP]
+        if everything
+        else spent(projects)
+    )
     if not taking:
         return 0
     log.warning(

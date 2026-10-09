@@ -334,3 +334,30 @@ def test_a_single_page_asks_once() -> None:
 
     assert len(projects.held(client)) == 1
     assert len(client.asked) == 1
+
+
+def test_a_purge_spares_default_too() -> None:
+    """Where a misconfigured span lands, which a wipe must not take either."""
+
+    class _Answer:
+        """A successful response, as `requests` reports one."""
+
+        ok = True
+
+    class _Client:
+        """A client that succeeds at every delete."""
+
+        def __init__(self) -> None:
+            """Holds nothing yet."""
+            self.deleted: list[str] = []
+
+        def delete(self, path: str):
+            """Records the delete."""
+            self.deleted.append(path)
+            return _Answer()
+
+    held = [project("default", ["extract"]), project("worked", ["extract"])]
+
+    purging = _Client()
+    assert projects.prune(purging, held, everything=True) == 1
+    assert purging.deleted == ["/v1/projects/worked"]
