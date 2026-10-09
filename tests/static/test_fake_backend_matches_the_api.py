@@ -70,6 +70,12 @@ PINNED: dict[str, tuple[str, str]] = {
     "assessment_plan": ("ASSESSMENT_PLAN", "api.routes.assessment:JudgePlan"),
     # The configuration panel, which every page draws.
     "settings": ("SETTINGS", "api.routes.settings:ServiceSettings"),
+    # What a document picker lists.
+    "document_name": ("DOCUMENT_NAME", "ingestion.models:DocumentName"),
+    # What an upload or a deletion reports back.
+    "ingest_result": ("INGEST_RESULT", "ingestion.models:IngestResult"),
+    "removal": ("REMOVAL", "ingestion.models:Removal"),
+    "topic_removal": ("TOPIC_REMOVAL", "topic_modelling.models:TopicRemoval"),
 }
 
 

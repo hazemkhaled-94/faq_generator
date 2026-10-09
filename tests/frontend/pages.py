@@ -339,6 +339,20 @@ ASSESSMENT_PLAN = {
     },
 }
 
+DOCUMENT_NAME = {"sha256": SHA, "filename": "report.pdf"}
+
+REMOVAL = {
+    "sha256": SHA,
+    "document": True,
+    "passages": 10,
+    "file": True,
+    "parsed": True,
+}
+
+TOPIC_REMOVAL = {"topics": 2, "memberships": 60, "labels": 1, "languages": ["de"]}
+
+INGEST_RESULT = {"outcome": "stored", "sha256": SHA, "detail": None}
+
 #: Every backend call the catalogue pages make, and a default answer for
 #: each. One dictionary, because one client serves five pages and a page
 #: that started calling something new should not need a new fixture.
@@ -346,14 +360,8 @@ CATALOG: dict[str, Any] = {
     "stage_status": lambda *args, **kwargs: STATUS,
     "stage_action": {"detail": "1 row(s) queued.", "rows": 1},
     "documents": {"total": 1, "documents": [DOCUMENT]},
-    "document_names": [{"sha256": SHA, "filename": "report.pdf"}],
-    "delete": {
-        "sha256": SHA,
-        "document": True,
-        "passages": 10,
-        "file": True,
-        "parsed": True,
-    },
+    "document_names": [DOCUMENT_NAME],
+    "delete": REMOVAL,
     "passages": {"total": 1, "passages": [PASSAGE]},
     "passage": PASSAGE_DETAIL,
     "passage_types": ["paragraph", "table"],
@@ -363,7 +371,7 @@ CATALOG: dict[str, Any] = {
     "topic_fit": FIT,
     "topic_visualisation": None,
     "describe_topic": TOPIC,
-    "delete_topics": {"topics": 2, "memberships": 60, "labels": 1},
+    "delete_topics": TOPIC_REMOVAL,
     "questions": {"total": 1, "questions": [QUESTION]},
     "question": {"question": QUESTION, "sources": [QUESTION_SOURCE], "thread": []},
     "question_quality": QUESTION_QUALITY,
@@ -480,7 +488,7 @@ PIPELINE_CLIENT: dict[str, Any] = {
 #: `open_view` gives a page every client it reaches for, so a test naming a
 #: page never has to know which of these it is.
 OUTSIDE: dict[str, dict[str, Any]] = {
-    "upload": {"upload_api": {"counts": UPLOAD_COUNTS}},
+    "upload": {"upload_api": {"counts": UPLOAD_COUNTS, "add_document": INGEST_RESULT}},
     "health": {"health_api": HEALTH},
     # Documents carries a second client, unlike the other five listings:
     # the Pipeline panel asks the orchestrator to run every stage, which is
