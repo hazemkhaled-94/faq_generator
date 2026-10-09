@@ -166,3 +166,53 @@ def test_every_enum_check_matches_its_model(engine) -> None:
             f"  {name} is missing {missing}" for name, missing in drifted.items()
         )
     )
+
+
+def test_every_check_constraint_body_is_the_one_its_model_declares(
+    engine, postgres: str
+) -> None:
+    """A CHECK edited on a model without a revision, which autogenerate misses.
+
+    The migrated database against a scratch one the models build directly,
+    both read back in PostgreSQL's own normalised form, so the two compare
+    as text.
+    """
+    import uuid
+
+    from sqlalchemy import create_engine
+
+    from database.qa_generator import Base
+
+    checks = text(
+        "SELECT conrelid::regclass::text || '.' || conname, "
+        "pg_get_constraintdef(oid) FROM pg_constraint "
+        "WHERE contype = 'c' AND connamespace = 'public'::regnamespace"
+    )
+    name = f"models_{uuid.uuid4().hex[:12]}"
+    admin = create_engine(postgres, isolation_level="AUTOCOMMIT")
+    with admin.connect() as connection:
+        connection.execute(text(f'CREATE DATABASE "{name}"'))
+    scratch = create_engine(postgres.rsplit("/", 1)[0] + "/" + name)
+    try:
+        with scratch.begin() as connection:
+            for extension in ("vector", "pg_trgm"):
+                connection.execute(text(f"CREATE EXTENSION IF NOT EXISTS {extension}"))
+            Base.metadata.create_all(connection)
+            declared = dict(connection.execute(checks).all())
+    finally:
+        scratch.dispose()
+        with admin.connect() as connection:
+            connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()
+    with engine.connect() as connection:
+        built = dict(connection.execute(checks).all())
+
+    drifted = {
+        key: (declared[key], built[key])
+        for key in declared.keys() & built.keys()
+        if declared[key] != built[key]
+    }
+    assert not drifted, "\n".join(
+        f"{key}\n  model:    {model}\n  migrated: {migrated}"
+        for key, (model, migrated) in sorted(drifted.items())
+    )

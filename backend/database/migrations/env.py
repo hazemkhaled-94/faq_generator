@@ -32,8 +32,9 @@ def _render_item(type_, obj, autogen_context) -> bool:
     return False
 
 
-#: Autogenerate reads these off the models, so a changed CHECK constraint or
-#: a changed column comment produces a revision instead of being skipped.
+#: Autogenerate reads these off the models, so a changed type, server
+#: default or column comment produces a revision instead of being skipped.
+#: A changed CHECK constraint does not; test_schema.py compares those.
 _COMPARE = {
     "compare_type": True,
     "compare_server_default": True,

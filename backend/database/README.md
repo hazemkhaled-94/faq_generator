@@ -114,10 +114,11 @@ make schema-stamp                          # adopt a database that already holds
 ```
 
 **Read the generated revision before applying it.** Autogenerate compares
-tables, columns, indexes and constraints; it does not see a trigger, a data
-backfill, an extension, or anything ordered. The three trigger functions,
-the fifteen triggers and the two extensions in the initial revision are
-written by hand for that reason.
+tables, columns, indexes, foreign keys and column comments; it does not see
+a CHECK constraint's body, a trigger, a data backfill, an extension, or
+anything ordered. The three trigger functions, the fifteen triggers and the
+two extensions in the initial revision are written by hand for that reason,
+and `test_schema.py` compares every CHECK body against the models.
 
 It does not compare an index *predicate* either. A partial index therefore
 belongs in `__table_args__` as an `Index(..., postgresql_where=...)` rather
