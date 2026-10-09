@@ -950,6 +950,7 @@ services:
       TZ: UTC
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY:?Grafana needs its secret key}
       GF_USERS_ALLOW_SIGN_UP: "false"
       # Read by the provisioned datasources, which cannot hold a credential
       # of their own in a file that is in git.

@@ -422,3 +422,12 @@ def test_every_service_has_exactly_one_network_with_a_way_out() -> None:
     )
 
     assert not wrong, wrong
+
+
+def test_grafana_encrypts_its_secrets_with_a_key_of_this_deployment() -> None:
+    """Without one it uses the default every Grafana ships with."""
+    grafana = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]["grafana"]
+    example = (ROOT / ".env.example").read_text()
+
+    assert "GRAFANA_SECRET_KEY" in str(grafana["environment"]["GF_SECURITY_SECRET_KEY"])
+    assert "\nGRAFANA_SECRET_KEY=change_me" in example
