@@ -100,11 +100,14 @@ def csv(name: str, source: Mapping[str, str] | None = None) -> tuple[str, ...]:
     """Reads a required comma-separated list.
 
     Raises:
-        KeyError: If it is unset or empty.
+        KeyError: If it is unset or empty, or names nothing but separators.
     """
-    return tuple(
+    parts = tuple(
         part.strip() for part in required(name, source).split(",") if part.strip()
     )
+    if not parts:
+        raise KeyError(f"{name} must name at least one value, not only commas")
+    return parts
 
 
 def mapping(name: str, source: Mapping[str, str] | None = None) -> dict[str, str]:

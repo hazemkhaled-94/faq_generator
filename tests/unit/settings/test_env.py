@@ -128,4 +128,5 @@ def test_a_list_is_split_trimmed_and_emptied(monkeypatch, value, expected) -> No
 def test_a_list_of_nothing_but_separators_is_missing(monkeypatch) -> None:
     """`,,,` names nothing, and nothing is what `required` refuses."""
     monkeypatch.setenv(NAME, ",,,")
-    assert csv(NAME) == ()
+    with pytest.raises(KeyError, match=NAME):
+        csv(NAME)
