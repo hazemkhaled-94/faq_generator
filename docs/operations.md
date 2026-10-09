@@ -50,8 +50,8 @@ is one request row.
 
 `question-worker`'s first start downloads `EMBEDDING_MODEL`, 2.2 GB into the
 `models` volume, before it claims anything. The topics sit `pending` until it
-finishes and `make logs` says so. The container is given 6 GB because of it,
-and the weights are per container, not per lane.
+finishes and `make logs` says so. The container is given 6 GB for it and
+`NLI_MODEL`'s weights, and the weights are per container, not per lane.
 
 `assess-worker` is the cheapest of the six to scale and the only one that
 loads **no** weights at all: it asks a served model two to six questions
@@ -174,8 +174,9 @@ wherever they ran: a container writes to the `logs` volume and a host command
 to `./logs`, and filebeat reads both into one data stream. `host.name`
 separates them.
 
-Postgres, SeaweedFS, Redis and Elasticsearch keep the `json-file` driver and
-are read with `make logs`.
+The other containers — Postgres, SeaweedFS, Redis, Elasticsearch, Phoenix,
+Argilla, Grafana, Adminer and Filebeat — keep the `json-file` driver and are
+read with `make logs`.
 
 Retention has two halves. `make logs-retention` ages what Elasticsearch
 holds; `make logs-prune` ages the files. Until the first has run, nothing is
