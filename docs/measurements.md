@@ -396,7 +396,7 @@ Not a run figure. `make test-coverage` re-measures.
 
 ```bash
 make all                          # every stage but the topic fit, in the workers
-make topics-discover              # once that run ends: fit the topics
+# once that run ends: Fit all on the Topics page, or POST /topics/discover
 make pipeline                     # questions and the judge over those topics
 make questions-balance            # once that run ends: draw the release
 make pipeline-status              # the counts
