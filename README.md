@@ -17,9 +17,11 @@ discovered from the corpus's own vocabulary rather than supplied. German and
 English ship configured in `NLP_MODELS`; adding a third language is a short
 list of edits in [`backend/nlp/`](backend/nlp/README.md).
 
-Everything runs on infrastructure you control. **No document content leaves
-the deployment**, except to whichever model provider you configure — and with
-a locally served model, not even that.
+Everything but a hosted model runs on infrastructure you control. **No
+document content leaves the deployment**, except to whichever model provider
+you configure — and with a locally served model, not even that. The
+architecture supports local serving through Ollama; the measured run in
+[docs/measurements.md](docs/measurements.md) used hosted models.
 
 ## What you get
 
@@ -46,10 +48,11 @@ See [docs/measurements.md](docs/measurements.md) for what one run produced.
 | Disk | ~15 GB | Images, model weights and volumes |
 | RAM | 16 GB | 6 GB of it for the question worker |
 
-**Ollama is not optional.** The containers hold no cloud credential and must
-never reach a hosted provider, so `LLM_CONTAINER_MODEL` has to name a model
-Ollama serves. The host may call a hosted provider as well, but the
-containerised workers cannot. Pull at least one model before the first run:
+**Ollama is not optional.** `LLM_CONTAINER_MODEL` has to name a model Ollama
+serves: compose refuses to start without it, `make doctor` refuses one that
+is not an Ollama model, and a container never inherits the host's
+`LLM_MODEL`. The host may call a hosted provider as well. Pull at least one
+model before the first run:
 
 ```bash
 ollama pull gemma4:31b
@@ -118,23 +121,28 @@ make COMPOSE="docker compose" dev    # Docker instead
 ```
 
 **Model provider.** Ollama alone is the simplest and needs no credentials.
-A hosted provider is faster per call but applies only to host-side commands —
-containerised workers always call Ollama. Credentials go in
-`configs/env/provider.env`.
+A hosted provider is faster per call. The containerised workers call Ollama
+for `LLM_CONTAINER_MODEL`; `ASSESSMENT_JUDGE_CONTAINER_MODEL` may point the
+judge at a hosted one. Credentials go in `configs/env/provider.env`, which
+compose gives to the four workers that call a model.
 
 **Where the stages run.** The workers in their containers, or `make extract`
 and friends on the host, never both for one stage: a host drain refuses while
 that stage's worker is running, and prints the command that stops it. The
-host path exists for credentials that only exist where a person is.
+container workers build the dataset. A host drain is for developing a stage,
+and host parse, chunk and extract runs are kept off the dataset.
 
 **How the pipeline is driven.**
 
 | | Start it with | Suits |
 |---|---|---|
 | Browser | **Run the pipeline** on the Documents page | Trying it out — the easiest |
-| Terminal | `make corpus` | A scripted or reproducible run |
+| Terminal | `make all`, or `make pipeline` on a stack already up | A scripted or reproducible run |
 | HTTP | `POST /pipeline/run` | A deployment nobody drives interactively |
 | Unattended | `make auto` | An upload starting a run by itself |
+
+`make corpus` and the bare stage targets drain on the host instead, for
+developing a stage.
 
 **The easiest path is `make setup` → `make install` → `make doctor` →
 `make dev`, with Ollama for the model, Podman for the engine, and the
@@ -146,19 +154,22 @@ incremental and skips what is already done.
 Upload a PDF on the Upload page, then take it through:
 
 ```bash
-make corpus                              # every stage but the topic fit, stopping at the first failure
-make topics-discover                     # fit the topics, which corpus never does
-make corpus                              # now with questions about them
-make questions-balance                   # draw an evenly composed release
+make all                                 # every stage but the topic fit, in the workers
+# once that run ends: Fit all on the Topics page, or POST /topics/discover
+make pipeline                            # now with questions about those topics
+make questions-balance                   # once that run ends: draw an evenly composed release
 make questions-export OUT=exam.xlsx FILTER="--released"
 ```
 
-`corpus` runs the stages in order and waits for each to drain before starting
-the next. It drains each on the host, so it stops at the first stage whose
-worker is running and prints the command that stops it. It never fits the
-topics: a fit replaces every topic, so it is asked for on its own, and
-`corpus` says how many passages are in no topic instead. Stage by stage,
-which is what it runs:
+`all` brings the stack up and launches Dagster's corpus job, which starts the
+stages in order and waits for each to drain before starting the next; the
+container workers do the draining. It never fits the topics: a fit replaces
+every topic, so it is asked for on its own, and `make topics-status` says how
+many passages are in no topic.
+
+`make corpus` runs the same stages on the host, for developing a stage. It
+stops at the first stage whose worker is running and prints the command that
+stops it. Stage by stage, which is what it runs:
 
 ```bash
 make parse-start     && make parse       # a stored file becomes a structured document
@@ -166,6 +177,8 @@ make chunk-start     && make chunk       # that document becomes passages
 make extract-start   && make extract     # those passages become facts citing a sentence
 make topics-status                       # how many passages are in no topic
 make questions-start && make questions   # each topic's facts become questions
+make questions-balance                   # draw the release again
+make assess-start    && make assess      # the judge, when ASSESSMENT_ENABLED is true
 ```
 
 Watch it with `make pipeline-status`, the Documents page, or Grafana's
@@ -189,13 +202,14 @@ each verdict — it decides nothing, and the pairs where the two disagree are a
 queue for a person:
 
 ```ini
-ASSESSMENT_ENABLED=true                 # .env
-ASSESSMENT_JUDGE_MODEL=azure/gpt-4.1    # not LLM_MODEL
+ASSESSMENT_ENABLED=true                           # .env
+ASSESSMENT_JUDGE_CONTAINER_MODEL=azure/gpt-4.1    # who judges in assess-worker; not LLM_MODEL
 ```
 
 ```bash
+make up                                  # assess-worker reads them
 make assess-enrol                        # what it would cost, before paying
-make assess-start && make assess
+make assess-start                        # assess-worker judges what this queues
 ```
 
 ## Documentation
@@ -255,9 +269,11 @@ repository, each service documents itself beside its code.
 ## How it is put together
 
 No backend service imports another. Each owns a repository over the shared
-models; `database/`, `blob_store/` and `nlp/` are the only packages that build
-a connection or load a model. Stages hand work to each other through their own
-status column and share only what is in `backend/stages/`.
+models; `database/`, `blob_store/` and `llm/` build the connections, and
+`nlp/` loads the language models, beside the two a stage loads itself:
+parsing's Docling converter and chunking's tokenizer. Stages hand work to
+each other through their own status column and share only what is in
+`backend/stages/`.
 
 A service package re-exports nothing, so a caller naming
 `extraction.repository` pays for that submodule and no more — which is what
