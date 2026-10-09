@@ -395,8 +395,10 @@ Not a run figure. `make test-coverage` re-measures.
 ## Reproducing this page
 
 ```bash
-make corpus                       # every stage in order
-make questions-balance            # draw the release
+make all                          # every stage but the topic fit, in the workers
+make topics-discover              # once that run ends: fit the topics
+make pipeline                     # questions and the judge over those topics
+make questions-balance            # once that run ends: draw the release
 make pipeline-status              # the counts
 make spend LOG=run.log            # the calls and the cost
 ```
