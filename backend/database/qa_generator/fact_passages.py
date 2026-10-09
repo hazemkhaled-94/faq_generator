@@ -13,7 +13,8 @@ from database.qa_generator.base import Base
 #: A citation is written whole or not at all, and reads forwards.
 CITATION_COMPLETE = (
     "(sentence_ids IS NULL AND evidence_start IS NULL AND evidence_end IS NULL) "
-    "OR (sentence_ids IS NOT NULL AND evidence_end >= evidence_start)"
+    "OR (sentence_ids IS NOT NULL AND evidence_start IS NOT NULL "
+    "AND evidence_end IS NOT NULL AND evidence_end >= evidence_start)"
 )
 
 if TYPE_CHECKING:

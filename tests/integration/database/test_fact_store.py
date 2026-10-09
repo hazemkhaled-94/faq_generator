@@ -361,6 +361,25 @@ class TestBridges:
                 )
             )
 
+    def test_a_citation_naming_sentences_carries_both_bounds(
+        self, store, corpus
+    ) -> None:
+        """A NULL bound makes the comparison NULL, which a CHECK lets through."""
+        anchor, other = corpus["a"][0], corpus["b"][0]
+
+        with pytest.raises(IntegrityError, match="fact_passages_citation_complete"):
+            store.bridges(
+                checked(
+                    anchor,
+                    "Both name a way in.",
+                    kind=FactKind.BRIDGE,
+                    citations=[
+                        Citation(passage_id=anchor, sentence_ids=[0]),
+                        Citation(passage_id=other, sentence_ids=[0], start=0, end=4),
+                    ],
+                )
+            )
+
     def test_every_other_kind_records_the_one_passage_it_rests_on(
         self, store, corpus
     ) -> None:

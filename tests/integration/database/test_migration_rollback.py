@@ -26,8 +26,9 @@ DIGEST = "8213be66d5ba"
 DECIDED = "1ff74784a860"
 MODELLED = "bf8f2e65c149"
 LOCKED = "14432e9fd5c9"
+BOUNDED = "ad14bed603d4"
 #: Every revision after the previous head, oldest first.
-LATER = (RELEASED, REJECTED, DIGEST, DECIDED, MODELLED, LOCKED)
+LATER = (RELEASED, REJECTED, DIGEST, DECIDED, MODELLED, LOCKED, BOUNDED)
 
 #: Three documents, four passages, nine facts and five questions on them.
 #: Question 1 rests on documents a and b, 3 is already rejected, and 5
@@ -377,6 +378,33 @@ def test_a_topic_decision_time_is_added_empty_and_taken_back_out(spare: str) -> 
 
     command.upgrade(config, DECIDED)
     assert sql(spare, "SELECT * FROM topics") == [(*held[0], None)]
+
+
+def test_a_citation_naming_sentences_needs_both_bounds(spare: str) -> None:
+    """Refused once the revision is on; an upgrade over such a row names the check."""
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+
+    config = alembic(spare)
+    command.upgrade(config, LOCKED)
+    unbounded = (
+        "INSERT INTO fact_passages (fact_id, passage_id, position, sentence_ids) "
+        "VALUES (:fact, 1, 0, '{0}')"
+    )
+    sql(spare, *CORPUS[:3])
+    sql(spare, unbounded, fact=1)
+
+    with pytest.raises(IntegrityError, match="fact_passages_citation_complete"):
+        command.upgrade(config, BOUNDED)
+    assert version(spare) == LOCKED
+
+    sql(spare, "UPDATE fact_passages SET evidence_start = 0, evidence_end = 0")
+    command.upgrade(config, BOUNDED)
+    with pytest.raises(IntegrityError, match="fact_passages_citation_complete"):
+        sql(spare, unbounded, fact=2)
+
+    command.downgrade(config, LOCKED)
+    sql(spare, unbounded, fact=2)
 
 
 #: Every table the chain below compares, row for row.
