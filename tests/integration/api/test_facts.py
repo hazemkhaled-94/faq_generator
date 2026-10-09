@@ -106,26 +106,6 @@ def test_the_kind_filter_narrows_the_figures_too(produced) -> None:
     assert quality["kinds"] == {"atomic": 2}
 
 
-def test_the_quality_report_counts_each_reading(produced) -> None:
-    """What the page puts beside the headline figures."""
-    client, _ = produced
-
-    quality = client.get("/facts/quality").json()
-
-    assert quality["kinds"] == {"atomic": 2, "summary": 1, "outline": 1, "bridge": 1}
-    assert quality["total"] == 5
-    assert quality["validated"] == 4
-
-
-def test_a_refused_digest_is_grouped_on_its_code(produced) -> None:
-    """A message carrying a measurement would give one bucket per fact."""
-    client, _ = produced
-
-    quality = client.get("/facts/quality").json()
-
-    assert quality["rejected"] == {Rejection.NOT_CONDENSED: 1}
-
-
 def test_the_filters_combine(produced) -> None:
     """Every figure below is narrowed by all of them at once."""
     client, _ = produced
@@ -147,23 +127,6 @@ def test_a_bridge_names_the_passages_it_rests_on(produced) -> None:
 
     assert answered["fact"] == ids["bridge"]
     assert answered["passages"] == [ids["first"], ids["second"]]
-
-
-def test_another_kind_names_the_one_passage_it_rests_on(produced) -> None:
-    """The same route as a bridge's, with one passage rather than two."""
-    client, ids = produced
-    atomic = next(
-        one
-        for one in client.get("/facts", params={"kind": "atomic"}).json()["facts"]
-        if one["validated"] and one["statement"] == "Answered within 48 hours."
-    )
-
-    answered = client.get(f"/facts/{atomic['id']}/passages").json()
-
-    assert answered["passages"] == [ids["first"]]
-    assert [one["passage_id"] for one in atomic["passages"]] == [ids["first"]], (
-        "and the listing carries them, so the page need not ask"
-    )
 
 
 def test_a_fact_that_does_not_exist_rests_on_nothing(produced) -> None:

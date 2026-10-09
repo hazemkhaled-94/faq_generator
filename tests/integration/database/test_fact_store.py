@@ -792,6 +792,10 @@ class TestListing:
         ((fact_id,),) = store.rows("id")
 
         assert store.catalog.passages_of(fact_id) == [first]
+        _, (row,) = store.catalog.page()
+        assert [one.passage_id for one in row.passages] == [first], (
+            "and the listing carries it, so the page need not ask"
+        )
 
 
 class TestQuality:
