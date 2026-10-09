@@ -377,8 +377,8 @@ class Client:
             # Omitted unless LLM_REASONING_EFFORT names one, which leaves a
             # model its own default: a reasoning model thinks and every
             # other model has nothing to turn off. See `Settings.thinking`
-            # for why sending `off` by default broke the models this
-            # pipeline exists to run. Ollama reads this as `think`.
+            # for why sending `off` by default broke the models that think.
+            # Ollama reads this as `think`.
             **(
                 {"reasoning_effort": thinking}
                 if (thinking := self._settings.thinking)
