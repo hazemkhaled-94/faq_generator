@@ -47,8 +47,8 @@ _JOINING = (
 )
 
 #: A word the page broke across two lines with a real hyphen: a hyphen after
-#: a letter and before a lower-case continuation, unless a conjunction
-#: follows it.
+#: a letter and before a lower-case continuation, unless a word in
+#: `_JOINING` follows it.
 #:
 #: ponytail: punctuation alone cannot separate a broken word from two ratings
 #: written side by side in one cell ("Mittel- niedrig"). Measured over this
