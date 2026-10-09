@@ -3,11 +3,6 @@
 Every decision here is deterministic on purpose. A reference dataset whose
 contents move between runs of the same corpus is not a reference, which is
 the same reason TOPIC_RANDOM_STATE is fixed.
-
-The measurement these exist to hold: on the corpus this was written against,
-the deal that preceded them offered two passages in 5 of 214 samples, because
-`size` flushed a group and then added the next passage whole. Almost every
-question was single-passage, and `hard` was unreachable.
 """
 
 from __future__ import annotations
@@ -214,10 +209,10 @@ def test_the_deal_runs_out_rather_than_repeating() -> None:
 
 
 def test_passages_are_strided_over_the_whole_topic() -> None:
-    """A topic of eighty passages asked about across all of it, not its start.
+    """A topic asked about across all of it, not its start.
 
     Ten questions used to mean the first ten passages in document order, so
-    two thirds of a big topic was never asked about at all.
+    the rest of a big topic was never asked about at all.
     """
     reordered = strided(list(range(20)), 4)
 
@@ -373,9 +368,8 @@ def test_a_passage_a_bridge_rests_on_is_never_dealt_again() -> None:
 def test_a_passage_is_offered_as_many_times_as_rounds_allow() -> None:
     """A passage carrying a dozen facts holds a dozen questions.
 
-    Offering it once was the ceiling on the whole stage: 18.9% of one
-    corpus's passages were ever read and 1.8% of its facts, because each
-    topic stopped after its passages rather than after its material.
+    Offering it once was the ceiling on the whole stage, because each topic
+    stopped after its passages rather than after its material.
     """
     deal = Deal(facts_of(1, "a", count=6), wanted=10, size=2, rounds=3)
 
@@ -629,8 +623,7 @@ def test_a_widened_sample_reaches_facts_the_root_did_not() -> None:
 
     `_followups` was handed the root's own sample, so the only material a
     thread could ask about was the material its first turn had already
-    answered. Over one measured run 739 of 1,047 accepted follow-ups -
-    70.6% - cited nothing new.
+    answered.
     """
     deal = Deal(facts_of(1, "a", count=4), wanted=1, size=2)
     root = deal.sample()

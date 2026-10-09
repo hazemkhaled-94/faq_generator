@@ -92,8 +92,7 @@ def test_a_run_nobody_named_appends_to_the_stage(monkeypatch) -> None:
     """Rather than taking a project of its own and never being found again.
 
     `run_id` mints a uuid per PROCESS and a worker restarts, so a project
-    per unnamed run is a project per restart. One deployment reached five
-    hundred of them, almost all holding a handful of spans.
+    per unnamed run is a project per restart.
     """
     seen = _resource(monkeypatch)
 
@@ -127,7 +126,7 @@ def test_a_process_with_no_run_is_filed_nowhere(monkeypatch) -> None:
 
 
 def test_nothing_instruments_http_or_the_object_store() -> None:
-    """The 200k spans that were a worker fetching a file and polling a port.
+    """The spans that were a worker fetching a file and polling a port.
 
     Both libraries stay installed and both stay uninstrumented: what they
     did is in the logs, per service, which is where the system belongs.
@@ -203,9 +202,7 @@ def test_the_exporter_is_left_configurable_by_the_environment(monkeypatch) -> No
     override them silently. That would turn the one thing a deployment can
     tune about span export into a value requiring a rebuild.
 
-    The defaults are generous for this workload - a passage takes a median
-    473 s, so spans arrive minutes apart against a queue of 2,048 - and a
-    queue that did fill logs "Queue full, dropping spans" rather than
+    A queue that did fill logs "Queue full, dropping spans" rather than
     losing them quietly.
     """
     passed: dict = {}

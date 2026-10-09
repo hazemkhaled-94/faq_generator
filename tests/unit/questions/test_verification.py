@@ -53,8 +53,7 @@ def code(failed) -> str | None:
 
 
 #: What each form is held to unless a test says otherwise. The value floor is
-#: 1, as the setting ships: a floor of 15 refused 41% of the answers one
-#: corpus had accepted.
+#: 1, as the setting ships.
 BOUNDS = {"value": (1, 80), "list": (3, 300), "explanation": (20, 600)}
 
 
@@ -249,8 +248,7 @@ def test_the_verifier_disagrees_on_a_different_number() -> None:
 
 
 # Every pair below is one the verifier really produced. The four marked SAME
-# were all refused by the string containment this replaced, which is what
-# made `not_recoverable` the largest bucket of rejections.
+# were all refused by the string containment this replaced.
 
 
 @pytest.mark.parametrize(
@@ -327,8 +325,7 @@ def test_a_lemma_the_pipeline_gets_wrong_is_a_known_miss() -> None:
     """`de_core_news_md` leaves `Umbrüchen` alone and lemmatises `Umbrüche`.
 
     So these two, which are the same answer, do not meet. Recorded rather
-    than fixed: stemming would close it and would open false accepts, and
-    twelve pairs is not enough evidence to take that trade.
+    than fixed: stemming would close it and would open false accepts.
     """
     assert not agrees(
         "geopolitische Umbrüchen und fortschreitender Digitalisierung",
@@ -595,7 +592,7 @@ def test_a_good_question_is_its_fact_minus_the_answer(question, answer, fact) ->
     For a single atomic fact, asking about it IS reproducing it without its
     answer. Every question here does exactly that and every one is as good
     as a benchmark question gets; a gate refusing the shape refused all
-    three, measured on 61 real rows.
+    three.
     """
     assert (
         checked(
@@ -613,9 +610,8 @@ def test_a_vague_question_has_the_same_shape_and_is_not_refused_here() -> None:
 
     It has the same overlap with its fact as the three above. What makes it
     worse is that its answer is not determinate - and that is not lexical
-    either: requiring a number or a name in the answer refused 7 of 15
-    accepted answers. So the verifier judges it, under
-    `not_recoverable`, where it can be judged.
+    either. So the verifier judges it, under `not_recoverable`, where it
+    can be judged.
     """
     assert (
         checked(
@@ -810,8 +806,7 @@ def test_an_answer_under_the_floor_is_refused(answer) -> None:
     """A blunt measure, chosen deliberately.
 
     At fifteen characters it refuses `70%` and `2025` as well as `7` and
-    `Nein` - measured on one corpus, 41% of the answers that had been
-    accepted. QUESTIONS_MIN_ANSWER_CHARS is where that is decided.
+    `Nein`. QUESTIONS_MIN_ANSWER_CHARS is where that is decided.
     """
     failed = checked(target_answer=answer, bounds={**BOUNDS, "value": (15, 80)})
 
@@ -910,8 +905,7 @@ def test_a_follow_up_counts_towards_its_own_difficulty() -> None:
 # ── Naming the source, which is the one thing a question must not do ───────
 #
 # Every question below is a row this stage really wrote, under a prompt that
-# asked it to name what it was asking about. Seven of ten in one topic named
-# the document instead.
+# asked it to name what it was asking about.
 
 
 @pytest.mark.parametrize(
@@ -1090,7 +1084,7 @@ def test_a_shared_number_is_not_agreement_on_its_own() -> None:
     [("die Gebühr ist 1,033 Euro", "1.033 Euro"), ("0,3 Prozent", "0.3 Prozent")],
 )
 def test_a_number_is_the_same_number_in_either_locale(recovered, target) -> None:
-    """This corpus writes `0,3` and the verifier answers `0.3` as often.
+    """This corpus writes `0,3` and the verifier answers `0.3`.
 
     Folded only when comparing one number against another, so `4` is still
     not `48`.
@@ -1138,13 +1132,7 @@ def test_a_word_keeps_its_punctuation(token) -> None:
     ],
 )
 def test_an_explanation_carrying_a_verb_is_kept(answer) -> None:
-    """The questions the one verb rule made unwritable.
-
-    Measured before this existed: five of six realistic why, how and
-    procedure answers were refused as malformed, and only a bare value like
-    `EUR 15,000` survived. Every question in the set was a lookup because
-    nothing else could be stored.
-    """
+    """The questions the one verb rule made unwritable."""
     german = answer.startswith("weil")
     assert (
         checked(
@@ -1257,10 +1245,8 @@ def test_a_value_is_still_compared_whole() -> None:
 def test_no_gate_asks_the_verifier_what_kind_of_question_it_is_reading() -> None:
     """It was asked, and answered `true` for a question of the wrong kind.
 
-    Measured over 71 questions the judgement fired zero times while the kind
-    was plainly wrong on six of the 27 accepted - the same failure the
-    phrasing judgement had while it was a yes or no. `wrong_form` carries the
-    structural half, and `question_type` records what was asked for.
+    `wrong_form` carries the structural half, and `question_type` records
+    what was asked for.
     """
     recording = Recording(recovers="because the plant was rebuilt in March")
 
@@ -1302,11 +1288,10 @@ def test_an_unanswerable_question_carries_no_answer_form() -> None:
 def test_the_verifier_is_told_to_answer_in_the_language_of_the_passages() -> None:
     """A translated answer agrees with nothing.
 
-    Measured on one run: an 8B verifier answered a German question with `to
-    extract confidential information from the training data` where the target
-    was `Extraktion vertraulicher Informationen`. The two say the same thing
-    and share not one lemma, so a correct question was rejected as
-    not_recoverable.
+    An 8B verifier answered a German question with `to extract confidential
+    information from the training data` where the target was `Extraktion
+    vertraulicher Informationen`. The two say the same thing and share not
+    one lemma, so a correct question was rejected as not_recoverable.
     """
     from question_generation.verifier import _VERIFY
 
@@ -1335,8 +1320,7 @@ def test_a_question_asking_two_things_is_refused(question) -> None:
 
     Told to use both passages of a pair with no single question between them,
     the writer welds two together. A chatbot answering one of them is neither
-    right nor wrong, and nobody types this. 17 of the first 19 multi-passage
-    questions had this shape.
+    right nor wrong, and nobody types this.
     """
     failed = checked(
         question_text=question,
@@ -1595,12 +1579,7 @@ def test_an_unanswerable_question_no_other_passage_answers_stands() -> None:
 
 
 def test_recall_missing_an_answer_the_passages_support_is_rescued() -> None:
-    """Recalling an answer cold is a harder task than checking one.
-
-    Over one corpus the verifier failed to recall an answer 76 times against
-    19 real disagreements about what the answer was, so four in five of the
-    biggest rejection class were the task and not the question.
-    """
+    """Recalling an answer cold is a harder task than checking one."""
     recording = Recording(recovers=None, backs=True)
 
     result = build(recording).check(candidate(target_answer="4 kg"))
@@ -1693,7 +1672,7 @@ def _with_reader(recording: Recording, reader: Reader) -> QuestionChecker:
 
 
 def test_a_confident_span_answers_recall_without_a_call() -> None:
-    """The easy majority, answered locally in milliseconds."""
+    """The easy case, answered locally."""
     recording = Recording(recovers="4 kg")
     reader = Reader("4 kg")
 
@@ -1882,7 +1861,7 @@ def test_a_question_pointing_outside_itself_is_refused() -> None:
 def test_a_question_that_sets_its_own_case_up_is_kept() -> None:
     """The measurement over-fires and may only veto, so the verifier decides.
 
-    Half the questions carrying a pointer name what it points at first. They
+    A question carrying a pointer may name what it points at first. Those
     are the `application` type working as designed, and a rule reading the
     pointer alone would throw every one of them out.
     """
@@ -1915,7 +1894,7 @@ def test_a_follow_up_may_point_at_the_conversation() -> None:
 
 
 def test_a_reader_finding_nothing_elsewhere_saves_the_call() -> None:
-    """The gate fired 8 times in 3,131, so nearly every call confirms nothing.
+    """A reader that finds nothing elsewhere saves the call.
 
     There is no target answer here, which is why an extractive reader
     belongs in this gate and not in the recall half: the only question is
@@ -2098,7 +2077,7 @@ def test_an_entity_question_whose_answer_names_an_organisation_passes() -> None:
 
 
 def test_an_entity_question_asking_after_no_party_is_refused() -> None:
-    """85% of one run's accepted entity questions read like this one."""
+    """An entity question asking after no party is refused."""
     assert not asks_for_an_agent(
         "Womit können Test-Chartas erstellt werden?",
         "mit Flipcharts und Tabellenkalkulationen",
@@ -2120,7 +2099,7 @@ def test_an_enumeration_answering_with_a_set_passes() -> None:
 
 
 def test_a_follow_up_citing_only_its_root_asks_nothing_new() -> None:
-    """70.6% of one run's accepted follow-ups were this."""
+    """A follow-up citing only its root asks nothing new."""
     assert not moves_on(cited=(1, 2), root=(1, 2, 3))
 
 
@@ -2149,7 +2128,7 @@ def test_a_turn_resting_on_nothing_is_left_to_the_orphan_trigger() -> None:
 
 
 def test_an_answer_adding_no_content_word_restates_the_question() -> None:
-    """3.3% of one run's accepted answers read like this."""
+    """An answer adding no content word restates the question."""
     assert restates(
         "Wofür sind statische Analysen bei statischen Wartbarkeitstests geeignet?",
         "für statische Wartbarkeitstests",
@@ -2202,8 +2181,7 @@ def test_an_answer_asserting_a_number_is_exempt() -> None:
     """`content` drops numerals, so the answer would score as contained.
 
     `zwei` IS the answer, and a value carrying a figure is the most
-    scoreable kind there is. The exemption took the catch from 167 answers
-    to 121 and every one it dropped was a number.
+    scoreable kind there is.
     """
     assert not restates(
         "In wie viele Kategorien werden Schlüsselwörter eingeteilt?",
@@ -2412,7 +2390,7 @@ def test_a_count_is_not_a_period() -> None:
 
 
 def test_a_page_of_names_is_read_as_a_credits_page() -> None:
-    """Acknowledgements: median PER density 0.794 over 20 of them."""
+    """Acknowledgements are a page of names."""
     assert names_parties(
         "Graham Bath, Judy McKay, Tauhida Parveen, Mike Smith, Erik van "
         "Veenendaal, Rex Black, Kari Kakkonen, Leo van der Aalst",
@@ -2421,7 +2399,7 @@ def test_a_page_of_names_is_read_as_a_credits_page() -> None:
 
 
 def test_subject_matter_is_not_a_credits_page() -> None:
-    """Median PER density of everything else was 0.000."""
+    """Subject matter names no people."""
     assert not names_parties(
         "A standard support request is answered within 48 hours on working "
         "days, and an urgent request within four hours of being raised.",

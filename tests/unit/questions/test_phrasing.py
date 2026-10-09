@@ -1,13 +1,10 @@
 """What a question's own wording says, read without a model.
 
-Two of the three phrasing judgements moved off the verifier here, and the
-measurement that sent them is in `evaluation/README.md`: answered inside the
-call that reads the passages they were right 7 times out of 7 in English and
-6 out of 12 in German.
+Two of the three phrasing judgements moved off the verifier here.
 
-Every case below is one of the nineteen labelled ones, so what these assert
-and what `make test-eval` scores are the same cases. The eval module prints;
-this one gates, because a rule is not a matter of taste.
+Every case below is one of the labelled ones, so what these assert and what
+`make test-eval` scores are the same cases. The eval module prints; this one
+gates, because a rule is not a matter of taste.
 """
 
 from __future__ import annotations
@@ -48,8 +45,7 @@ def test_a_named_source_is_settled_without_a_model(
 ) -> None:
     """A numbered division, a bracketed reference, an author with a year.
 
-    Four of these are cases gpt-4.1 got wrong inside the reading call, and
-    none of them needs a reading: they are patterns.
+    None of them needs a reading: they are patterns.
     """
     assert cites_source(question, language) is True
 

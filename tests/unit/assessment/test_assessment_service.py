@@ -286,8 +286,7 @@ def test_nothing_is_posted_without_a_span(monkeypatch) -> None:
 def test_an_empty_queue_flushes_what_is_held() -> None:
     """A corpus smaller than the batch would otherwise never reach Phoenix.
 
-    The last batch of every run is the one this loses without a flush, and
-    on a corpus of eighty artefacts that is all of them.
+    The last batch of every run is the one this loses without a flush.
     """
     queue, evaluations = _Queue(_fact()), _Evaluations()
 

@@ -202,10 +202,8 @@ def test_a_question_is_judged_on_more_than_a_fact() -> None:
 def test_a_template_says_the_material_may_be_in_any_language() -> None:
     """The German half is why this phase cannot be a gate.
 
-    `evaluation/README.md` records a judgement answered 7/7 in English and
-    6/12 in German. Every template says so explicitly, because a judge
-    that starts reasoning about the language rather than the artefact is
-    the measured failure and not a hypothetical one.
+    Every template says so explicitly, because a judge must not start
+    reasoning about the language rather than the artefact.
     """
     for one in EVERY:
         assert "any language" in one.system, one.metric

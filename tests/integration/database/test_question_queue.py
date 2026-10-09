@@ -1585,8 +1585,7 @@ def test_neither_retry_nor_rerun_moves_a_row_a_worker_holds(corpus, engine) -> N
     `retry` takes the FAILED and `rerun` skips `in_progress` on purpose -
     a live worker's row must not be handed to a second one. Between them
     an interrupted topic was reachable only by its lease, which question
-    generation derives from what a topic costs: 67 days at the settings
-    this was written under.
+    generation derives from what a topic costs.
     """
     corpus(topics=1)
     QuestionQueue().start()

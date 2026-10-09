@@ -154,8 +154,8 @@ def test_the_fit_keeps_the_model_it_drew_the_figure_from(
     """One .npz per language, and it loads back as the model that was fitted.
 
     The figure is a view of this. Keeping only the view is what the fit did
-    before, which left an hour's work represented by an HTML file with d3
-    inlined into it and nothing able to recompute what it was a picture of.
+    before, which left a fit represented by an HTML file with d3 inlined
+    into it and nothing able to recompute what it was a picture of.
     """
     flow = service({"de": passages, "en": english})
 

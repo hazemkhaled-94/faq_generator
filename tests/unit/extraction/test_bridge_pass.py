@@ -135,8 +135,7 @@ class TestThePassageGate:
 
     `by_topic` asks only that a passage was segmented, so without this a
     group is spent on a table of contents or a bare heading - which is what
-    `skipped` exists to refuse, and the index this corpus renders as a code
-    block yielded 95 facts from four passages before it did.
+    `skipped` exists to refuse.
     """
 
     def test_navigation_is_not_offered_to_the_model(self) -> None:

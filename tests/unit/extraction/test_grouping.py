@@ -94,7 +94,7 @@ def test_a_passage_is_never_paired_with_itself() -> None:
 
 
 def test_the_groups_are_spread_over_the_topic_rather_than_its_start() -> None:
-    """Asking about the first four passages of eighty is not asking about it."""
+    """Asking about a topic's first four passages is not asking about it."""
     every = topic(*["a"] * 20)
     groups = grouped(every, wanted=2, size=2)
 
@@ -156,9 +156,9 @@ def _vector(*first: float) -> tuple[float, ...]:
 def test_a_head_is_paired_with_the_passage_it_most_nearly_meets() -> None:
     """Sharing a topic is a weak statement that two passages are related.
 
-    A topic holds eighty passages and a subject is narrower than that, so
-    the topic narrows and the vectors pair. Without them the head takes
-    whichever passage the interleave put next to it.
+    A subject is narrower than a topic, so the topic narrows and the
+    vectors pair. Without them the head takes whichever passage the
+    interleave put next to it.
     """
     near, far = _vector(1.0), _vector(0.0, 1.0)
     passages = [

@@ -23,11 +23,9 @@ def lemmas(text: str, language: str) -> list[str]:
     strict=True,
     reason="NLP_CAPITALISED_NOUNS keys the foreign-word rule on a token being "
     "lower-case, so title-cased English survives into the German vocabulary. "
-    "Reproduced in the stored de figure as topic #2: market, due, "
-    "concentration, financial, with, serious, incidents, consequences, of - "
-    "9.3% of the German corpus spent on an English topic. Fixing it means a "
-    "different signal than case in backend/nlp/analysis.py, because every "
-    "German noun is capitalised; remove this marker when it is fixed.",
+    "Fixing it means a different signal than case in backend/nlp/analysis.py, "
+    "because every German noun is capitalised; remove this marker when it is "
+    "fixed.",
 )
 def test_title_cased_foreign_grammar_is_dropped_too() -> None:
     """An English heading inside a German document is not German vocabulary."""

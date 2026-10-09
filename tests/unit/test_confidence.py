@@ -119,8 +119,7 @@ def test_a_floor_on_its_threshold_scores_zero_rather_than_raising() -> None:
 def test_the_floor_is_what_spreads_a_corpus_over_the_scale() -> None:
     """The defect this calibration exists for, at the two ends it showed up.
 
-    Measured over 3,781 scored questions: the lowest near_duplicate reading
-    was 0.745 and the median 0.882. Against a floor of 0 both land in the
+    Against a floor of 0 the lowest reading and the median both land in the
     bottom fifth and are indistinguishable; against 0.75 they are a
     question worth reviewing last and one worth reviewing first.
     """

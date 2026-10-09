@@ -46,8 +46,7 @@ READ_ONLY = {"GET"}
 #: rather than a convenience. It sends a verb the path does not declare and
 #: wants 405 back; here `POST /questions/{action}` is a real route, so a
 #: POST to `/questions/quality` genuinely matches it and is refused 422 for
-#: an action that is not one. That is the router working. Leaving the check
-#: on made 30 of 33 operations fail on it and hid everything else.
+#: an action that is not one. That is the router working.
 #:
 #: `negative_data_rejection` and `positive_data_acceptance` are opinions
 #: about which status a malformed query deserves; `ignored_auth`,
@@ -61,10 +60,9 @@ CONFORMANCE = [
     content_type_conformance,
 ]
 
-#: How many cases each operation gets. The default is 100, which over ~60
-#: read operations is a six-minute job on a layer that already starts two
-#: containers. Twenty finds the shapes that matter - a missing enum member,
-#: an integer where a string was promised - and keeps the layer usable.
+#: How many cases each operation gets, against a default of 100. Twenty
+#: finds the shapes that matter - a missing enum member, an integer where a
+#: string was promised.
 EXAMPLES = 20
 
 

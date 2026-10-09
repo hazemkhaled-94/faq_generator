@@ -625,10 +625,9 @@ def test_a_topic_that_runs_out_of_passages_stops_rather_than_repeating() -> None
 
 
 def test_a_gate_the_writer_could_have_satisfied_is_worth_asking_again() -> None:
-    """43 of 155 rejections over one corpus were of that kind.
+    """A question thrown away for how it was written, not for what it is about.
 
-    A question thrown away for how it was written rather than for what it
-    was about, where saying what went wrong costs one call.
+    Saying what went wrong costs one call.
     """
     from question_generation.service import again
 
@@ -665,8 +664,7 @@ def test_a_question_narrower_than_its_slot_is_asked_to_widen() -> None:
     """The other half of the difficulty problem.
 
     The writer is offered two passages, takes the escape hatch its own rules
-    give it, cites one fact, and the question bands easy. Planned medium
-    collapsed to easy 83 times over one corpus.
+    give it, cites one fact, and the question bands easy.
     """
     from question_generation.service import again
 
@@ -760,9 +758,7 @@ def test_the_follow_up_share_is_a_share_of_the_ACCEPTED_roots() -> None:
 
     Picked over the slots, the share was decided before the question was
     written and the thread only happened where that question was then
-    accepted - so what landed was the share TIMES the acceptance rate. One
-    run asked for 0.5 and got 448 threads from 1,209 accepted roots, which
-    is 37%, and the number would have moved again if acceptance had.
+    accepted - so what landed was the share TIMES the acceptance rate.
     """
 
     class EverySecondRoot(StubChecker):

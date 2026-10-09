@@ -181,7 +181,7 @@ def test_deleting_the_topics_from_the_command_line_takes_the_figures(
 
     `delete_all` reports which languages now have an orphaned figure; the
     route removed each one and the command read the list and dropped it. A
-    real wipe left two pyLDAvis pages in the export bucket, each describing
+    real wipe left pyLDAvis pages in the export bucket, each describing
     topics that no longer existed, and nothing said so.
     """
     from blob_store.s3 import ExportBucket
@@ -204,7 +204,7 @@ def test_deleting_the_topics_from_the_command_line_takes_the_figures(
 def test_the_api_is_wired_to_the_container_and_not_to_a_developers_database(
     client, engine
 ) -> None:
-    """The isolation failure that made three topic tests flake.
+    """The isolation failure that made topic tests flake.
 
     Every repository captures `sessions()` as it is constructed, and
     `api.dependencies` constructs them all at import. Anything that ran

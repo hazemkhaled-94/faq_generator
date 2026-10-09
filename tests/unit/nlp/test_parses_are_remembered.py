@@ -4,8 +4,7 @@ The gates in `question_generation` are described as free because none of
 them calls a model. Each of them still ran a full spaCy pipeline, and none
 knew another had already parsed the same string: one candidate through
 `QuestionChecker.check` parsed its question six times, its answer seven,
-and its cited passages joined together up to three - and that last one is a
-couple of thousand characters.
+and its cited passages joined together up to three.
 """
 
 from __future__ import annotations

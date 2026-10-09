@@ -6,7 +6,7 @@ is what makes those tests fast and what makes them lie: a page reads
 it, and the suite agrees with itself while the real API returns no such key.
 
 Which is what happened. The field was added to the API and to the page, the
-fake was updated to match, 2,673 tests passed, and the page raised
+fake was updated to match, the suite passed, and the page raised
 `KeyError: 'cognitive_level'` against a running backend.
 
 Nothing else covers this. tests/contract/test_openapi.py pins the SURFACE -
@@ -41,7 +41,7 @@ import pytest
 #: and caches an engine off DATABASE_URL as it is imported. pytest imports
 #: every test module while collecting, deselected ones included, so an
 #: import here bound the whole session's API to the placeholder DSN in
-#: conftest before any fixture could point it at a container. 222 of the
+#: conftest before any fixture could point it at a container. The
 #: integration tests failed on it and `test_the_api_is_wired_to_the_
 #: container_and_not_to_a_developers_database` said exactly why.
 PINNED: dict[str, tuple[str, str]] = {

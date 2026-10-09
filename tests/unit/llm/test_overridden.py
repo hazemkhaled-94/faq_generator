@@ -132,12 +132,10 @@ def test_a_self_hosted_override_with_nowhere_to_send_it_is_left_alone() -> None:
 def test_a_self_hosted_override_leaves_thinking_alone() -> None:
     """Overriding the model to a local one says nothing about thinking.
 
-    It used to turn it off, and the measurement behind that still holds -
-    gemma4:12b answered one boolean in a median 19.5s thinking and 3.2s
-    with it off. But `off` is an instruction a reasoning model answers
-    with nothing at all, so the derivation broke the open models this
-    pipeline exists to run. LLM_REASONING_EFFORT decides it now, and an
-    override is not a deployment saying anything about it.
+    It used to turn it off. But `off` is an instruction a reasoning model
+    answers with nothing at all, so the derivation broke the open models
+    this pipeline exists to run. LLM_REASONING_EFFORT decides it now, and
+    an override is not a deployment saying anything about it.
     """
     settings = shared(
         model="azure/gpt-4.1",

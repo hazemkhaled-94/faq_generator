@@ -304,11 +304,7 @@ def test_a_follow_up_takes_its_own_kind() -> None:
 
 
 def test_the_writer_is_told_not_to_pad_a_question_with_hedges() -> None:
-    """Nobody types `specific` into a search box.
-
-    Measured over 24 real questions: six used `spezifisch` and two `konkret`.
-    A third of the set read like a form rather than like somebody asking.
-    """
+    """Nobody types `specific` into a search box."""
     model = StubModel(question="Q?", answer="A")
 
     QuestionWriter(model).write(group(), plan())
@@ -319,10 +315,8 @@ def test_the_writer_is_told_not_to_pad_a_question_with_hedges() -> None:
 def test_the_unanswerable_prompt_carries_the_same_reading_rules() -> None:
     """A rule in one prompt and not the other is how the two disagree.
 
-    Measured: every question padded with `spezifische Kriterien` was an
-    unanswerable one, because the perturbation was the only prompt that had
-    never been told not to pad. It had its own copy of some rules and none of
-    the rest.
+    The perturbation was the only prompt that had never been told not to
+    pad. It had its own copy of some rules and none of the rest.
     """
     model = StubModel(question="Q?", answer="A")
     writer = QuestionWriter(model)

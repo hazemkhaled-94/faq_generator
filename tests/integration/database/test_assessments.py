@@ -488,9 +488,7 @@ def test_a_queue_told_nothing_enrols_what_the_settings_say(corpus, engine) -> No
 
     It serves `POST /assessment/enrol` and `POST /assessment/start`, and a
     default of "every kind, every row" is not a default - it is the
-    deployment's cost decision being ignored. Against a real corpus that
-    default enrolled 11,392 artefacts under an ASSESSMENT_SAMPLE of 200,
-    and `start` would have queued all of them.
+    deployment's cost decision being ignored.
     """
     from settings.store import Settings
 

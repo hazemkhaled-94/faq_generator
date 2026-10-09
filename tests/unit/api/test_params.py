@@ -13,7 +13,7 @@ builds the engine and hands `StatusService` a sessionmaker at import time.
 Both are `lru_cache`d and the sessionmaker is captured, so an import during
 COLLECTION binds them to the placeholder DATABASE_URL in tests/conftest.py,
 before the container fixture can clear either. A deselected test is still
-collected, so a module-scope import here failed 183 integration tests in a
+collected, so a module-scope import here failed the integration tests in a
 run that never executed this file. The import goes inside the test, where
 `-m integration` never reaches it.
 """

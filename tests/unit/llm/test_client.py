@@ -214,12 +214,7 @@ def sent(**overrides) -> dict:
 
 
 def test_a_context_window_reaches_the_runtime_when_one_is_set() -> None:
-    """A self-hosted runtime reserves the whole window before it reads.
-
-    A model advertising 131,072 tokens holds gigabytes of key-value cache for
-    a prompt of two thousand, which on one machine was the difference between
-    generating and swapping.
-    """
+    """A self-hosted runtime reserves the whole window before it reads."""
     assert sent(num_ctx=8192)["num_ctx"] == 8192
 
 
@@ -229,28 +224,21 @@ def test_nothing_is_sent_about_the_window_to_a_hosted_provider() -> None:
 
 
 def test_a_self_hosted_model_is_given_a_window_it_can_serve() -> None:
-    """Left to its own, a runtime reserves the model's advertised one.
-
-    Measured here: gemma4:12b loaded at 131,072 tokens, which is several
-    gigabytes of cache for a prompt of 1,441 and one request served at a
-    time - so a worker holding a call blocked every other process.
-    """
+    """Left to its own, a runtime reserves the model's advertised one."""
     from llm.config import WINDOW
 
     given = sent(num_ctx=None, model="ollama_chat/gemma4:12b")["num_ctx"]
 
     assert given == WINDOW
-    # Above anything the pipeline has been measured sending, which is what
-    # keeps a prompt from being truncated and answered anyway.
+    # Above the longest prompt the pipeline sends, which is what keeps a
+    # prompt from being truncated and answered anyway.
     assert given > 4308
 
 
 def test_the_reasoning_effort_reaches_the_runtime_when_one_is_set() -> None:
     """A thinking model asked for a structured answer answers with nothing.
 
-    Measured on a 12B model: 7,469 tokens of reasoning, the length limit, and
-    an empty string back after 307 seconds. The same call with thinking off
-    took 9 seconds. Ollama reads this parameter as `think`.
+    Ollama reads this parameter as `think`.
     """
     assert sent(reasoning_effort="off")["reasoning_effort"] == "off"
 
@@ -263,12 +251,10 @@ def test_a_hosted_model_is_left_its_own_default() -> None:
 def test_a_self_hosted_model_is_left_its_own_default_too() -> None:
     """Nothing is sent unless the deployment named an effort.
 
-    This used to send `off` to anything self-hosted, on the measurement
-    that a 12B spends its window reasoning and has no room to answer -
-    414.7 seconds against 12.6, and a worse question. What that could not
-    see is that `off` is an instruction rather than the absence of one:
-    muse-glimmer:30b-mlx answers it with 6 output tokens and zero facts,
-    and proposes 2 of 2 the moment it may think.
+    This used to send `off` to anything self-hosted, because a model that
+    thinks can spend its window reasoning and have no room to answer. What
+    that could not see is that `off` is an instruction rather than the
+    absence of one, and a reasoning model answers it with nothing.
 
     Both end in an empty answer, so a default only chooses which family of
     open models is broken on a clone. Sending nothing chooses neither.
@@ -463,7 +449,7 @@ def test_the_span_is_told_the_same_two_things(monkeypatch) -> None:
     """One fact said twice, spelled the same in the trace and the log.
 
     The instrumentor names every model call `completion`, so without these
-    a run is two hundred identical spans. Read off the context the way the
+    every span of a run is identical. Read off the context the way the
     instrumentor reads it, rather than by exporting a span: what is being
     checked is that the context carries them at all.
     """
@@ -518,13 +504,7 @@ def test_a_prompt_well_inside_the_window_says_nothing(monkeypatch, caplog) -> No
 
 
 def test_a_long_answer_fills_the_window_too(monkeypatch, caplog) -> None:
-    """The overflow a reasoning model causes is at the other end.
-
-    Measured on muse-glimmer:30b-mlx reading a MEDIAN passage: 1,252
-    tokens of prompt and 4,702 of answer, 97% of a 6,144 window. Watching
-    the prompt alone calls that 20% and says nothing, and the p90 passage
-    that goes over loses its system prompt in silence.
-    """
+    """The overflow a reasoning model causes is at the other end."""
     monkeypatch.setattr(
         Client,
         "_ask",

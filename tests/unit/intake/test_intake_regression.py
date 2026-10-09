@@ -169,8 +169,7 @@ def options(monkeypatch):
 def test_the_font_change_that_split_a_word_is_turned_off(options) -> None:
     """Left on, an f-ligature arrives as a bare `f` between two halves.
 
-    Measured on a 73-page document: 397 splits with the flag on, none with it
-    off. Every later stage reads the broken spelling.
+    Every later stage reads the broken spelling.
     """
     chosen, _ = options()
 
@@ -198,7 +197,7 @@ def test_table_structure_is_on_and_the_mode_is_the_configured_one(options) -> No
 
 
 def test_a_table_mode_that_is_not_one_is_refused_at_construction() -> None:
-    """Rather than at the first conversion, an hour into a batch."""
+    """Rather than at the first conversion, part way into a batch."""
     with pytest.raises(ValueError, match="thorough"):
         PdfPipeline(
             table_mode="thorough",

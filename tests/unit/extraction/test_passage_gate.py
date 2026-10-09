@@ -1,7 +1,6 @@
 """Which passages never reach the model.
 
-One model call costs minutes, and a heading or a caption returns its own text
-back as a fact.
+A heading or a caption returns its own text back as a fact.
 """
 
 from __future__ import annotations
@@ -67,10 +66,10 @@ def test_a_navigation_passage_is_skipped_before_its_sentences_are_read() -> None
 
 # ── Navigation the parser did not label ────────────────────────────────────
 #
-# Every text below is a real passage from a corpus this was measured on,
-# shortened. The parser labelled each of them `text`, so the block-type
-# check above never saw them; between them they produced questions asking
-# which pages a term appears on and how the document is licensed.
+# Every text below is a real passage from a corpus, shortened. The parser
+# labelled each of them `text`, so the block-type check above never saw
+# them; between them they produced questions asking which pages a term
+# appears on and how the document is licensed.
 
 
 def test_an_index_the_parser_labelled_prose_is_skipped() -> None:

@@ -310,9 +310,7 @@ def s3(runtime) -> Iterator[dict[str, str]]:
         # then refused every PutObject with an InternalError, which took the
         # three tests that store a topic figure whenever the other two
         # buckets were written to first - so it passed alone and failed in a
-        # full run, which is the worst way for a gate to be wrong. Measured
-        # on the container this builds: documents 7, parsed 7, default 6,
-        # free 0.
+        # full run, which is the worst way for a gate to be wrong.
         #
         # 60 is headroom rather than a second guess. A volume is created on
         # demand, so a slot nothing uses costs nothing.
@@ -492,7 +490,7 @@ def application(postgres: str, s3: dict[str, str]):
     `api.dependencies`. Its own docstring says so and defers the import into
     the test body, which is enough for `-m integration` - that run never
     executes the file - and not enough for `make test`, which runs both
-    layers in one process and shuffles the order. 217 API tests read the
+    layers in one process and shuffles the order. The API tests read the
     developer's own database whenever the unit layer got there first.
 
     So the three modules that hold a binding - the composition root, the
@@ -503,10 +501,9 @@ def application(postgres: str, s3: dict[str, str]):
     too, and `tests/integration/api/test_pipeline_routes.py` imports five
     of its classes at module scope to stand a Dagster in: rebuilt, the
     route would be raising a `Refused` that is not the `Refused` the test
-    is watching for, and eight tests failed on an isinstance against a
-    class of the same name. Everything a route needs by identity rather
-    than by binding - orchestrator, errors, status, params - is left as the
-    one copy. The same reasoning keeps blob_store, whose second copy would
+    is watching for. Everything a route needs by identity rather than by
+    binding - orchestrator, errors, status, params - is left as the one
+    copy. The same reasoning keeps blob_store, whose second copy would
     carry a second object count cache for the fixtures to clear the wrong
     one of.
     """

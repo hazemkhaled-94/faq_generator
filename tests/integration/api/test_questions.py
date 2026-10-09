@@ -551,9 +551,8 @@ def test_a_citation_row_is_one_fact_in_one_passage(written) -> None:
     `crossing` cites two facts in two documents and the other three cite
     one apiece, so five rows. Built as a WHERE subquery this came back as
     the product of every join instead: SQLAlchemy correlated the four
-    tables the id query is joined over to the outer query, emptied the
-    subquery's own FROM, and turned 1,229 rows into six million on the
-    real corpus - which Excel then refused outright.
+    tables the id query is joined over to the outer query and emptied the
+    subquery's own FROM.
     """
     client, held = written
 

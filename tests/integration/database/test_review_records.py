@@ -6,8 +6,7 @@ stratified over the verdicts, and an agreement rate computed off two
 different columns in two different tables.
 
 `tests/unit/review/test_records.py` covers `_even` and what a record carries
-once a row has been read. None of that touches SQL, which is why the module
-sat at 42% while the repositories tested here sit near complete.
+once a row has been read. None of that touches SQL.
 
 What is worth pinning is the sampling. A review answers "is the checker
 right", and every way of getting that wrong is a query:

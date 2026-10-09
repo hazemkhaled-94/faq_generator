@@ -40,7 +40,7 @@ def test_a_pointing_word_is_found(text: str, language: str) -> None:
 def test_a_definite_count_points_without_a_demonstrative(
     text: str, language: str
 ) -> None:
-    """The reading that made this gate fire zero times over 3,131 questions.
+    """The reading this gate used to miss.
 
     `den beiden` is an article plus `PronType=Ind` and `the two` is an
     article plus `NumType=Card`, so neither is `PronType=Dem` and the
@@ -114,7 +114,7 @@ def test_a_question_word_is_found_under_either_naming(text: str, language: str) 
 @pytest.mark.parametrize(
     ("text", "language"),
     [
-        # The only `unanchored` rejection one real topic produced, and it was
+        # An `unanchored` rejection a real topic produced, and it was
         # wrong. `die im Korrekturverzeichnis genannten Abschnitte` says
         # inside the question where to look, so `genannt` points at nothing
         # outside it. Bare `genannt` is no longer a trigger; the compounds

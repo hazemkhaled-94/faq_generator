@@ -216,8 +216,7 @@ def test_a_cell_too_long_for_excel_is_cut_and_marked() -> None:
     """Excel refuses a cell over 32,767 characters outright.
 
     Cut with the cut named, so nobody reads a truncated answer as a short
-    one - and so a workbook of thousands does not raise on its last row
-    after two minutes of work.
+    one - and so a workbook of thousands does not raise on its last row.
     """
     cut = _flatten("x" * (_CELL_LIMIT + 500))
 

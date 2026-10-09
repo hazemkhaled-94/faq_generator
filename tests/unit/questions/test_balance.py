@@ -1,9 +1,7 @@
 """Choosing a balanced release out of everything a run accepted.
 
 The gates decide whether a question is sound; nothing before this decides
-what the SET looks like. Over one corpus every gate did its job and the
-accepted set still came out 45% unanswerable and 96.5% easy, because what
-survives a filter is whatever the material happened to offer.
+what the SET looks like.
 
 Three marginals are held at once - answerability, difficulty band and kind -
 and they are marginals rather than a joint distribution on purpose. An even
@@ -220,7 +218,7 @@ def test_the_largest_release_comes_within_a_place_of_every_quota() -> None:
 
 
 def test_the_scarcest_band_is_what_caps_the_size() -> None:
-    """A pool that is 12% hard fills no release that wants a third hard."""
+    """A pool short of hard questions fills no release that wants a third hard."""
     counted = {
         (Difficulty.EASY, QuestionType.FACTOID, True): 100,
         (Difficulty.MEDIUM, QuestionType.FACTOID, True): 100,
@@ -250,11 +248,9 @@ def test_an_empty_pool_releases_nothing() -> None:
 
 
 def test_a_release_may_come_a_little_short_of_its_quota() -> None:
-    """Three marginals over eleven kinds cannot all reach zero together.
+    """Three marginals cannot all reach zero together.
 
-    Held to exactness the bisection collapsed: a pool filling 98% of a
-    release of 900 was refused, and the largest it would take was 199. The
-    target is "about a third each", so a few places short is taken and
+    The target is "about a third each", so a few places short is taken and
     reported rather than thrown away.
     """
     held = pool(SKEWED)
@@ -284,11 +280,8 @@ def test_what_it_could_not_fill_is_still_reported() -> None:
 def test_the_tolerance_is_set_above_the_endgame_not_below_it() -> None:
     """A tolerance under the shortfall buys almost no release at all.
 
-    The last places of a draw cannot be filled - three marginals over
-    eleven kinds do not reach zero together - and that endgame is about 5%
-    of each band at every size. Held to 3%, a pool of 2,259 questions gave
-    a largest release of 58; at 8% the same questions gave 1,145, with the
-    bands closer to even. So this is a floor as much as a ceiling.
+    The last places of a draw cannot be filled - three marginals do not
+    reach zero together - so this is a floor as much as a ceiling.
     """
     held = pool(SKEWED)
 
@@ -299,12 +292,7 @@ def test_the_tolerance_is_set_above_the_endgame_not_below_it() -> None:
 
 
 def test_a_bucket_the_pool_genuinely_cannot_supply_is_still_refused() -> None:
-    """Loosening the tolerance must not turn the check off.
-
-    The draw it exists to refuse was six aggregations short of fourteen -
-    43% of that bucket - which is what an unbalanced set looks like beside
-    an endgame of 5%.
-    """
+    """Loosening the tolerance must not turn the check off."""
     short = Release(
         ids=[1],
         quota=quota_of(140, BANDS, {**TYPES, QuestionType.AGGREGATION: 1}, 0.0),

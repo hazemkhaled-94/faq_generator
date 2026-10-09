@@ -233,9 +233,8 @@ def test_a_model_that_is_down_is_reported_once_and_then_counted(monkeypatch) -> 
     """Not once per attempt.
 
     A worker polling every 60s wrote a line every 60s, and the client,
-    instructor and a credential library wrote around it: 836 lines in four
-    minutes about one unreachable address. How often it TRIES is unchanged;
-    how often it says so is not.
+    instructor and a credential library wrote around it. How often it TRIES
+    is unchanged; how often it says so is not.
     """
     said = _waiting(monkeypatch, failures=40)
 
@@ -298,8 +297,7 @@ def test_a_watching_worker_waits_for_its_model_rather_than_exiting(
     """The process stays, and the model coming back is enough.
 
     Exiting costs a process, and under `restart: unless-stopped` a process
-    is a restart and a fresh `run_id`. An expired credential once cost 2,019
-    restarts and 2,116 Phoenix projects.
+    is a restart and a fresh `run_id`.
     """
     slept: list[float] = []
 

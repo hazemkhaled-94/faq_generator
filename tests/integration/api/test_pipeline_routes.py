@@ -4,7 +4,7 @@ Two halves. The queue verbs are the backend's own and are tested against a
 real database: what `start` queues, what `stop` takes back, what `retry`
 returns. The orchestrated half is tested against a stand-in, because
 launching the real `corpus` job would take the corpus through every stage
-and call a model several thousand times.
+and call a model.
 
 The stand-in matters less than it looks: what the API sends Dagster is
 proved against a live webserver in `tests/smoke/test_orchestrator_queries.py`

@@ -3,10 +3,6 @@
 A floor on the share of a passage's facts that are not atomic is a cap on
 the atomic ones, because a passage yields a fixed number of digests however
 much it says. This is the arithmetic of that, and which facts survive it.
-
-Read without a cap one corpus gave 18.4 atomic facts a passage against two
-digests - atomic was 91.9% of everything extracted, and an author list
-became fifty facts of the form "X wrote the original edition".
 """
 
 from __future__ import annotations
@@ -64,7 +60,7 @@ def test_the_floor_becomes_a_cap_on_the_atomic_facts(share, expected) -> None:
 
 
 def test_the_measured_share_of_one_corpus_reproduces_its_own_figure() -> None:
-    """18.4 atomic a passage against two digests is a tenth of everything."""
+    """Two digests beside 18 atomic facts are a tenth of everything."""
     assert atomic_cap(2, 0.10) == 18
 
 
@@ -189,9 +185,7 @@ def test_a_fact_a_check_already_refused_is_not_refused_again() -> None:
 def test_a_passage_too_short_to_condense_is_not_digested() -> None:
     """A digest is a fixed size, so how much it condenses is the passage's.
 
-    The prompt asks for two or three sentences whatever it is given. Against
-    a passage under 400 characters that came to 99% of it and 92% were
-    refused as `not_condensed` - refusals that had already been paid for.
+    The prompt asks for two or three sentences whatever it is given.
     """
     from extraction.service import ExtractionService
 

@@ -346,7 +346,7 @@ def test_the_orchestrator_does_not_run_the_backend_image(resolved, service) -> N
 
     That image serves the api and all six workers and carries torch,
     spaCy, Docling and litellm because some process in it needs each. This
-    one makes HTTP calls: sharing it would put three gigabytes behind a
+    one makes HTTP calls: sharing it would put all of that behind a
     process whose whole job is to POST and poll.
     """
     service_image = resolved["services"][service].get("image", "")

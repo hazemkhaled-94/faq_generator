@@ -75,9 +75,7 @@ class Score:
 def majority(judgement: str) -> float:
     """What answering every case the same way would score.
 
-    The floor a judgement has to clear to be doing anything. Seven of
-    twenty-five cases are not self-contained, so a judge that says True every
-    time scores 0.72 on that one and has measured nothing.
+    The floor a judgement has to clear to be doing anything.
     """
     counts = Counter(case[judgement] for case in PHRASING)
     return max(counts.values()) / len(PHRASING)
@@ -188,12 +186,8 @@ def test_every_judgement_is_scored_on_its_own(scored) -> None:
 def test_the_german_cases_are_judged_as_well_as_the_english(scored) -> None:
     """A judge that reads German worse is the risk a swap carries.
 
-    Printed rather than asserted: sixteen cases against nine is not a
-    difference anybody should gate on. It is here because the corpus is
-    German and an English-first judge would pass every test above - which
-    is not hypothetical. Asked inside the verifier's reading call these
-    judgements scored 7/7 in English and 6/12 in German, and that gap is
-    why they are asked on their own now.
+    Printed rather than asserted. It is here because the corpus is German
+    and an English-first judge would pass every test above.
 
     Read off `scored` rather than asked again, so the split is over the same
     answers the table above reports.

@@ -226,9 +226,7 @@ def test_the_facts_page_lists_exactly_the_codes_a_fact_can_be_rejected_under() -
     """The Questions guarantee, for the page that had none.
 
     It had drifted: `over_cap` and `duplicate` were in the enum and on
-    nothing in the UI, and `duplicate` is the commonest rejection there is
-    — 2,292 of 3,098 on one corpus, so three quarters of the refusals were
-    unexplained by a panel claiming to list every check.
+    nothing in the UI.
     """
     from database.qa_generator import Rejection
 

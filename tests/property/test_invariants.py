@@ -197,8 +197,8 @@ def test_no_sample_is_empty_or_over_the_cap(rows, wanted, size, shape) -> None:
     """An empty sample has no language and no difficulty to read off it.
 
     The cap is the whole offer and not a per-passage allowance: it used to
-    flush a group and then add the next passage entire, so a passage of
-    thirty-seven facts was offered whole and nothing fitted beside it.
+    flush a group and then add the next passage entire, so a long passage
+    was offered whole and nothing fitted beside it.
     """
     for one in _dealt(rows, wanted, size, shape):
         assert one.facts, "an empty sample was offered"

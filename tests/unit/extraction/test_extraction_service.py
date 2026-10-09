@@ -50,7 +50,7 @@ def test_a_passage_is_read_and_its_facts_stored() -> None:
 
 
 def test_a_passage_asserting_nothing_never_reaches_the_model() -> None:
-    """One call costs minutes; a heading returns its own text back."""
+    """A heading returns its own text back."""
     run = Extraction(passage("Risiko", language="de"), facts=ATOMIC)
     run.next()
 
@@ -170,8 +170,6 @@ class TestProseMergedWithATable:
     It then numbers the whole of it by rendered line with no predicates
     recorded, so `claims` is zero for every table and prose merged into one
     is invisible. The cell reader walks the grid; nothing read the rest.
-    Measured over this corpus: 161 of 188 table passages carry lines
-    outside their grids, about 145,000 characters.
     """
 
     #: One line, one finite verb, and nothing in the grid.
@@ -398,9 +396,6 @@ def test_a_readable_passage_with_no_facts_is_warned_about(caplog) -> None:
     "this passage carries none". It used to be recorded as though it were:
     the row went to `extracted` with nothing under it and the run looked
     clean, which is how a whole corpus is lost without one error.
-
-    Measured: muse-glimmer:30b-mlx sent `reasoning_effort=off` returns 6
-    output tokens and zero facts on every call.
     """
     run = Extraction(passage(), facts=EMPTY)
 

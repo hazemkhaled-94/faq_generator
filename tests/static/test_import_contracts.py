@@ -30,7 +30,6 @@ ROOT = Path(__file__).resolve().parents[2]
 #: How many edges the graph should hold. A contract over a graph that
 #: collapsed - a renamed package, a path that stopped resolving - passes by
 #: having nothing to check, which is the failure this number exists for.
-#: Measured at 431 when the contracts were written.
 LEAST_DEPENDENCIES = 300
 
 

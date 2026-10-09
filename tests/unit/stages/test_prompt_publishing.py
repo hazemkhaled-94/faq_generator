@@ -146,8 +146,8 @@ def test_ollamas_off_is_reported_rather_than_dropped() -> None:
     """The converter takes six values and `off` is not one of them.
 
     Sent as a parameter it vanishes without a word, and the published
-    prompt then says nothing about the setting worth 414.7 seconds against
-    12.6 on this corpus's writer prompt. So it goes in the description.
+    prompt then says nothing about the setting. So it goes in the
+    description.
 
     Named here rather than derived: nothing is sent unless a deployment
     says so, because `off` is what a reasoning model answers with nothing.

@@ -154,7 +154,7 @@ def test_the_built_service_names_itself_as_a_stage(unserved) -> None:
 
 
 def test_a_setting_the_fitter_refuses_stops_the_build(monkeypatch) -> None:
-    """Not at the first fit, an hour into a run."""
+    """Not at the first fit, part way into a run."""
     monkeypatch.setenv("TOPIC_NUM_TOPICS", "1")
 
     with pytest.raises(ValueError, match="TOPIC_NUM_TOPICS"):

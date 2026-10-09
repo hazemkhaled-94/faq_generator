@@ -40,9 +40,8 @@ def test_a_stored_model_comes_back_as_it_went_in() -> None:
 def test_a_long_term_is_not_truncated() -> None:
     """The array is as wide as the longest term, not a guessed width.
 
-    Half this corpus is German, where a compound noun runs to forty
-    characters; a fixed width would cut one and leave a vocabulary that
-    looks fine until somebody reads it.
+    In German a compound noun runs to forty characters; a fixed width would
+    cut one and leave a vocabulary that looks fine until somebody reads it.
     """
     word = "Verkehrsinfrastrukturfinanzierungsgesellschaft"
     read = load(dump(space(vocabulary=[word, "frist", "prüfung"])))

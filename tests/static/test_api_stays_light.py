@@ -8,8 +8,8 @@ wants: the api imports each stage's catalogue and never its service.
 That is an import-graph property, and an import graph is easy to break by
 accident. Moving one value object into the module that loads torch is enough,
 and nothing about the change looks like it costs anything - the api still
-starts, still answers, and is now several seconds slower to boot and carrying
-two gigabytes it never uses against a 512 MB limit.
+starts, still answers, and is now slower to boot and carrying weight it never
+uses against a 512 MB limit.
 
 Read as syntax rather than by importing, so it needs no database, no
 environment and no container, and so a failure can name the edge that
@@ -47,9 +47,9 @@ HEAVY = {
     # Not a model, and here for the same reason the rest are: the workbook
     # export imports both, `GET /questions/export` is one route out of
     # twenty that anybody calls by hand, and importing it at the top of
-    # `routes/questions.py` put sixty megabytes of them into the start-up
-    # of a process whose job is to serve JSON. The route imports it inside
-    # the function, which this reads as deferred and does not count.
+    # `routes/questions.py` put them into the start-up of a process whose
+    # job is to serve JSON. The route imports it inside the function, which
+    # this reads as deferred and does not count.
     "pandas": "the dataframe the workbook export builds",
     "openpyxl": "the engine that export writes an .xlsx through",
 }

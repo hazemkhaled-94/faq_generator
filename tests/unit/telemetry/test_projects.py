@@ -3,8 +3,7 @@
 The whole risk of this tool is in one predicate. A project holding only
 model calls is a preflight that never became a run and is worth taking
 back; a project whose first page happens to be model calls may be a
-corpus of labelling. `5-topic_modelling` reads exactly the second way and
-held fifty spans of it.
+corpus of labelling. `5-topic_modelling` reads exactly the second way.
 """
 
 from __future__ import annotations
@@ -79,9 +78,9 @@ def test_a_project_whose_spans_could_not_be_read_is_kept() -> None:
 def test_a_project_too_big_to_read_in_one_page_is_left_alone() -> None:
     """The failure this exists to avoid.
 
-    `5-topic_modelling` held fifty model calls in its first page and a
-    corpus of labelling behind them. Read to the sample limit, every span
-    seen is a model call - and deleting on that reading destroys the run.
+    `5-topic_modelling` held model calls in its first page and a corpus of
+    labelling behind them. Read to the sample limit, every span seen is a
+    model call - and deleting on that reading destroys the run.
     """
     filled = project("5-topic_modelling", [projects.CALL] * (projects.SAMPLE + 5))
 
@@ -313,10 +312,8 @@ def test_every_page_is_read_not_just_the_first() -> None:
     """A cursor ignored is a count that is really the page size.
 
     Phoenix answers with a page and a `next_cursor`. Reading one page
-    against a deployment holding 696 projects reported 500, pruned 497,
-    and then reported 500 again from the next page - which is
-    indistinguishable from a delete that silently failed, and is what
-    happened.
+    reports the page size again after a prune, which is indistinguishable
+    from a delete that silently failed.
     """
     client = _Paged([["a", "b"], ["c", "d"], ["e"]])
 

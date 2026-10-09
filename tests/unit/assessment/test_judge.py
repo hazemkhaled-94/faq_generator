@@ -62,13 +62,7 @@ def _fact() -> ArtifactToJudge:
 
 
 def test_every_metric_of_a_kind_is_asked() -> None:
-    """One call per judgement, never one call asking all of them.
-
-    `question_generation/phrasing.py` exists because three judgements in
-    one call were answered at chance in German while the harder task in the
-    same call was answered well in both. Asking separately is the fix, and
-    it is the fix here for the same reason.
-    """
+    """One call per judgement, never one call asking all of them."""
     client = _Answering("factual", "relevant", "non-toxic")
 
     judged = Judge(client).judge(_fact())
