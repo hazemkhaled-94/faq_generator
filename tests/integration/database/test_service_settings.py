@@ -39,7 +39,7 @@ def test_an_unconfigured_setting_reads_as_the_environment_says(store) -> None:
 
 def test_a_stored_setting_is_what_resolves(store) -> None:
     """What a worker will read on its next drain."""
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
 
     assert store.resolved()["TOPIC_PASSES"] == "42"
     assert store.overrides() == {"TOPIC_PASSES": "42"}
@@ -49,7 +49,7 @@ def test_a_stored_setting_reaches_the_stage_that_reads_it(store) -> None:
     """The whole point, end to end: a value stored becomes a loaded setting."""
     from topic_modelling.config import Settings
 
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
 
     assert Settings.load(store.resolved()).passes == 42
 
@@ -65,7 +65,7 @@ def test_a_platform_setting_reaches_a_stage_that_is_not_the_platform(
     """
     from question_generation.config import Settings
 
-    store.write("QA_ANSWER_CONFIDENCE", "0.5")
+    store.change({"QA_ANSWER_CONFIDENCE": "0.5"}, [])
 
     assert store.resolved()["QA_ANSWER_CONFIDENCE"] == "0.5"
     assert Settings.load(store.resolved()).answer_confidence == 0.5
@@ -73,8 +73,8 @@ def test_a_platform_setting_reaches_a_stage_that_is_not_the_platform(
 
 def test_writing_a_setting_twice_leaves_one_row(store) -> None:
     """Two rows for one setting would make row order decide the value."""
-    store.write("TOPIC_PASSES", "42")
-    store.write("TOPIC_PASSES", "7")
+    store.change({"TOPIC_PASSES": "42"}, [])
+    store.change({"TOPIC_PASSES": "7"}, [])
 
     assert store.overrides() == {"TOPIC_PASSES": "7"}
 
@@ -83,7 +83,7 @@ def test_clearing_a_setting_returns_it_to_the_environment(store) -> None:
     """The only way back: there is no stored copy of a default to restore."""
     import os
 
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
 
     assert store.clear("TOPIC_PASSES") is True
     assert store.overrides() == {}
@@ -108,7 +108,7 @@ def test_a_change_against_a_version_that_moved_writes_nothing(store) -> None:
     from settings.store import Stale
 
     before = store.version()
-    store.write("TOPIC_TOP_TERMS", "5")
+    store.change({"TOPIC_TOP_TERMS": "5"}, [])
 
     with pytest.raises(Stale):
         store.change({"TOPIC_PASSES": "42"}, ["TOPIC_TOP_TERMS"], expected=before)
@@ -119,13 +119,13 @@ def test_a_change_against_a_version_that_moved_writes_nothing(store) -> None:
 def test_a_setting_nothing_configures_is_refused(store) -> None:
     """The catalogue is the list, so a typo cannot be stored and forgotten."""
     with pytest.raises(KeyError, match="TOPIC_PASSESS"):
-        store.write("TOPIC_PASSESS", "42")
+        store.change({"TOPIC_PASSESS": "42"}, [])
 
 
 def test_a_setting_the_deployment_owns_is_refused(store) -> None:
     """A pool size is read when a process starts; storing one would do nothing."""
     with pytest.raises(ValueError, match="DATABASE_POOL_SIZE"):
-        store.write("DATABASE_POOL_SIZE", "50")
+        store.change({"DATABASE_POOL_SIZE": "50"}, [])
 
 
 def test_a_row_for_a_setting_nobody_may_write_is_not_applied(store, engine) -> None:
@@ -153,7 +153,7 @@ def test_a_row_for_a_setting_nobody_may_write_is_not_applied(store, engine) -> N
 def test_an_empty_value_is_refused_for_a_setting_that_needs_one(store) -> None:
     """Empty is what `required` refuses, so storing one stops the stage."""
     with pytest.raises(ValueError, match="TOPIC_PASSES"):
-        store.write("TOPIC_PASSES", "")
+        store.change({"TOPIC_PASSES": ""}, [])
 
 
 def test_an_empty_value_turns_off_a_setting_whose_absence_means_something(
@@ -166,7 +166,7 @@ def test_an_empty_value_turns_off_a_setting_whose_absence_means_something(
     """
     from question_generation.config import Settings
 
-    store.write("NLI_MODEL", "")
+    store.change({"NLI_MODEL": ""}, [])
 
     assert store.overrides() == {"NLI_MODEL": ""}
     assert Settings.load(store.resolved()).entailment_model is None
@@ -174,7 +174,7 @@ def test_an_empty_value_turns_off_a_setting_whose_absence_means_something(
 
 def test_a_value_is_trimmed_before_it_is_stored(store) -> None:
     """Surrounding whitespace is not part of a setting."""
-    store.write("TOPIC_PASSES", "  42  ")
+    store.change({"TOPIC_PASSES": "  42  "}, [])
 
     assert store.overrides() == {"TOPIC_PASSES": "42"}
 
@@ -185,7 +185,7 @@ def test_a_setting_is_stored_under_the_service_that_configures_it(
     """The column a page selects on, taken from the catalogue not the caller."""
     from sqlalchemy import text
 
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
 
     with engine.begin() as connection:
         rows = connection.execute(
@@ -206,7 +206,7 @@ def test_the_version_moves_when_the_environment_does(store, monkeypatch) -> None
 def test_the_version_changes_when_a_setting_changes(store) -> None:
     """What a row records, and what a write refuses to land on top of."""
     before = store.version()
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
 
     assert store.version() != before
 
@@ -214,7 +214,7 @@ def test_the_version_changes_when_a_setting_changes(store) -> None:
 def test_the_version_returns_when_a_setting_is_put_back(store) -> None:
     """A digest names a configuration by its content, so one name per content."""
     before = store.version()
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
     store.clear("TOPIC_PASSES")
 
     assert store.version() == before
@@ -227,9 +227,9 @@ def test_the_version_falls_back_when_an_override_is_deleted(store) -> None:
     with the revision of the one left, which describes a configuration that
     had both. A digest answers with the content there is now.
     """
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
     one = store.version()
-    store.write("TOPIC_TOP_TERMS", "5")
+    store.change({"TOPIC_TOP_TERMS": "5"}, [])
     store.clear("TOPIC_TOP_TERMS")
 
     assert store.version() == one
@@ -239,21 +239,21 @@ def test_the_version_does_not_depend_on_the_order_rows_were_written(
     store,
 ) -> None:
     """Two deployments configured the same way have the same version."""
-    store.write("TOPIC_PASSES", "42")
-    store.write("TOPIC_TOP_TERMS", "5")
+    store.change({"TOPIC_PASSES": "42"}, [])
+    store.change({"TOPIC_TOP_TERMS": "5"}, [])
     one = store.version()
 
     store.clear("TOPIC_PASSES")
     store.clear("TOPIC_TOP_TERMS")
-    store.write("TOPIC_TOP_TERMS", "5")
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_TOP_TERMS": "5"}, [])
+    store.change({"TOPIC_PASSES": "42"}, [])
 
     assert store.version() == one
 
 
 def test_when_a_setting_was_changed_is_recorded(store) -> None:
     """What a page shows beside a setting the file no longer decides."""
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
 
     assert set(store.changed_at()) == {"TOPIC_PASSES"}
 
@@ -267,7 +267,7 @@ def test_the_source_and_the_version_come_from_one_read(store) -> None:
     """
     from settings.store import snapshot, version
 
-    store.write("TOPIC_PASSES", "42")
+    store.change({"TOPIC_PASSES": "42"}, [])
     source, named = snapshot()
 
     assert source["TOPIC_PASSES"] == "42"
@@ -342,7 +342,7 @@ def test_an_unparseable_value_is_the_stage_refusing_it_not_the_store(
     """
     from topic_modelling.config import Settings
 
-    store.write("TOPIC_PASSES", "not a number")
+    store.change({"TOPIC_PASSES": "not a number"}, [])
 
     with pytest.raises(ValueError, match="TOPIC_PASSES"):
         Settings.load(store.resolved())

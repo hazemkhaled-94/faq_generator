@@ -204,16 +204,6 @@ class Settings:
             log.info("%s returned to the environment", name)
         return cleared
 
-    def write(self, name: str, value: str) -> None:
-        """Stores one setting.
-
-        Raises:
-            KeyError: If nothing is configurable under that name.
-            ValueError: If the deployment owns the setting, or the value is
-                empty and its absence means nothing.
-        """
-        self.change({name: value}, [])
-
     def clear(self, name: str) -> bool:
         """Deletes one override, saying whether there was one.
 

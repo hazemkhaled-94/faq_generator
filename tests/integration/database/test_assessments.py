@@ -494,7 +494,7 @@ def test_a_queue_told_nothing_enrols_what_the_settings_say(corpus, engine) -> No
     """
     from settings.store import Settings
 
-    Settings().write("ASSESSMENT_KINDS", "fact,question")
+    Settings().change({"ASSESSMENT_KINDS": "fact,question"}, [])
 
     AssessmentQueue().enrol()
 
