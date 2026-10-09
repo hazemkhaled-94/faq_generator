@@ -278,7 +278,7 @@ def confidence(row: Mapping[str, Any], readings: Mapping[str, Reading]) -> None:
     )
     if any("safe_end" not in one for one in scores):
         st.caption(
-            ":orange[This row was scored before the margins were calibrated,] "
+            "**This row was scored before the margins were calibrated,** "
             "so its confidence is measured against room its scale never had "
             "and reads lower than it should. `make confidence-recalibrate` "
             "takes every stored margin again."
