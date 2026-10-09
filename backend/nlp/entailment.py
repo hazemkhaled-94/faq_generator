@@ -70,7 +70,7 @@ def verdict(scores: Mapping[str, float], model_name: str) -> Verdict:
 
     Two heads are accepted and both are wanted. A three-way NLI model names
     all of entailment/neutral/contradiction; a zero-shot head - such as
-    bge-m3-zeroshot-v2.0, whose 8,194-token window is the reason to want it,
+    bge-m3-zeroshot-v2.0, whose 8,192-token window is the reason to want it,
     since a premise here is a passage already sized to 512 - names
     entailment and not_entailment only. Either is enough, because the only
     thing a gate asks is how sure the model is of entailment.
