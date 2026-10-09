@@ -12,29 +12,12 @@ import requests
 import streamlit as st
 
 from lib import config
-from lib.backend.base import Endpoint
 from lib.backend.catalog import CatalogApi
 from lib.backend.health import HealthApi
 from lib.backend.lineage import LineageApi
 from lib.backend.pipeline import PipelineApi
 from lib.backend.settings import SettingsApi
 from lib.backend.upload import UploadApi
-
-__all__ = [
-    "CatalogApi",
-    "Endpoint",
-    "HealthApi",
-    "LineageApi",
-    "PipelineApi",
-    "SettingsApi",
-    "UploadApi",
-    "catalog_api",
-    "health_api",
-    "lineage_api",
-    "pipeline_api",
-    "settings_api",
-    "upload_api",
-]
 
 
 @st.cache_resource
