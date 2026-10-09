@@ -171,8 +171,8 @@ def _render(only: str | None = None) -> int:
     idempotent rather than lossy.
 
     **Which model is not a choice, and cannot be.** One model is kept per
-    language because the database holds one fit's topics: `replace` drops
-    every row and writes the new fit's. A figure drawn from an older model
+    language because the database holds one fit's topics per language:
+    `replace` drops a fitted language's rows and writes the new fit's. A figure drawn from an older model
     would number its topics off rows that are gone, which is the orphan a
     fit already avoids by taking the old figure away before drawing the
     new one. `only` therefore picks a LANGUAGE.
