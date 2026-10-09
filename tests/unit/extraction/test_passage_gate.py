@@ -83,7 +83,7 @@ def test_an_index_the_parser_labelled_prose_is_skipped() -> None:
         language="de",
     )
 
-    assert skipped(index) is not None
+    assert skipped(index) == "no finite verb"
 
 
 def test_a_bibliography_is_skipped() -> None:
@@ -96,7 +96,22 @@ def test_a_bibliography_is_skipped() -> None:
         language="en",
     )
 
-    assert skipped(works) is not None
+    assert skipped(works) == "no finite verb"
+
+
+def test_an_index_with_a_stray_verb_is_skipped_as_one() -> None:
+    """One claim does not make five hundred characters of page numbers prose."""
+    index = passage(
+        "Das Register nennt die Seiten. "
+        + "Überdeckung 22, 23, 46, 47, 48 Grenzwertanalyse 30, 31 Review 42, 52 " * 8,
+        language="de",
+    )
+
+    assert index.claims == 1, index.claims
+    assert len(index.text) > 500
+    assert skipped(index) == (
+        "an index, a bibliography or a contents page rather than prose"
+    )
 
 
 def test_a_copyright_notice_is_skipped() -> None:

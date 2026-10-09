@@ -37,11 +37,16 @@ def test_an_empty_queue_is_not_worked() -> None:
 
 def test_a_passage_is_read_and_its_facts_stored() -> None:
     """The id comes back, and the facts are written against it."""
+    from extraction.extractors import llm
+
     run = Extraction(passage(), facts=ATOMIC)
 
     assert run.next() == 1
     assert run.queue.kinds() == [FactKind.ATOMIC]
-    assert run.queue.stored[1][0].statement == "The device weighs 4 kg."
+    (stored,) = run.queue.stored[1]
+    assert stored.statement == "The device weighs 4 kg."
+    assert stored.extraction_model == run.model.model
+    assert stored.prompt_version == llm.PROMPT_VERSION
 
 
 def test_a_passage_asserting_nothing_never_reaches_the_model() -> None:
@@ -264,6 +269,25 @@ class TestTheDedupGate:
 
         kept = [one.statement for one in run.queue.stored[1] if one.validated]
         assert kept == ["The device weighs 4 kg.", "The device runs for 12 hours."]
+
+    def test_the_atomic_cap_refuses_what_the_passage_has_no_room_for(self) -> None:
+        """The validated atomic facts past the cap, in the order written."""
+        facts = {
+            "facts": [
+                {"sentences": [0], "statement": "The device weighs 4 kg."},
+                {"sentences": [0], "statement": "The device runs for 12 hours."},
+                {"sentences": [1], "statement": "The device arrives in March 2026."},
+            ]
+        }
+        run = Extraction(passage(), facts=facts, atomic_cap=1)
+        run.next()
+
+        stored = run.queue.stored[1]
+        assert stored[0].validated, stored[0].validation_error
+        assert [one.rejection_code for one in stored[1:]] == [
+            Rejection.OVER_CAP,
+            Rejection.OVER_CAP,
+        ]
 
     def test_a_twin_below_the_threshold_is_not_a_duplicate(self) -> None:
         """Sharing a subject is not saying the same thing."""
