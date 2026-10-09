@@ -387,7 +387,7 @@ down-volumes:
 	$(COMPOSE_CMD) down -v
 
 # The container logs, as the engine holds them. Every service, this project's
-# and the infrastructure alike. What the api, the four workers and the
+# and the infrastructure alike. What the api, the six workers and the
 # frontend log also goes to Elasticsearch as JSON; Grafana is where you read
 # it back across services, filtered and over time.
 logs:

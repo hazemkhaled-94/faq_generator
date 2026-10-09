@@ -29,7 +29,7 @@ both are worth reviewing in a diff. See
 | `orchestration.env` | yes | How long Dagster waits on a stage it started |
 | `review.env` | yes | How a review sample is drawn |
 | `evaluation.env` | yes | What a golden-set run is called in Phoenix |
-| `provider.env` | **no** | Whatever env vars the model provider needs. Optional, absent for a plain Ollama, read by the three services that call a model |
+| `provider.env` | **no** | Whatever env vars the model provider needs. Optional, absent for a plain Ollama, read by the four services that call a model |
 
 **A name appears in exactly one of these, and in `.env` or here but never
 both.** No file overrides another, so there is no order to know;

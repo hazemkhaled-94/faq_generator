@@ -2,7 +2,7 @@
 # from beside itself. See compose.yaml.
 #
 # An image of its own rather than the backend one, which serves the api and
-# all five workers. That image carries torch, spaCy, Docling and litellm
+# all six workers. That image carries torch, spaCy, Docling and litellm
 # because some process in it needs each; this process makes HTTP calls and
 # needs none of them. Sharing it would have put three gigabytes behind two
 # containers whose whole job is to POST /parsing/start and poll a status

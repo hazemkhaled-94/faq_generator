@@ -892,7 +892,7 @@ services:
       resources:
         limits: { cpus: "0.25", memory: 256M }
 
-  # Reads the JSON lines the api, the five workers and the frontend write to
+  # Reads the JSON lines the api, the six workers and the frontend write to
   # the shared volume, and puts each one in Elasticsearch. Runs as root, which
   # is how it reads a volume the app user owns; --strict.perms=false is what
   # lets it accept a config file owned by whoever cloned the repository.
@@ -1005,7 +1005,7 @@ volumes:
   redis_data:
   grafana_data:
   filebeat_data:
-  #: Written by the api, the five workers and the frontend; read by filebeat.
+  #: Written by the api, the six workers and the frontend; read by filebeat.
   #: A volume rather than the engine's own log store, because that store is
   #: in a different place under Docker and Podman and, on macOS, inside a
   #: virtual machine.
@@ -1013,7 +1013,7 @@ volumes:
   #: The Hugging Face cache, holding EMBEDDING_MODEL: its tokenizer, which
   #: chunking sizes a passage with, and its weights, which question
   #: generation embeds with. A volume rather than a layer of the image,
-  #: because one image serves the api and all five workers and 2.2 GB of
+  #: because one image serves the api and all six workers and 2.2 GB of
   #: weights would ship into the four processes that never load them - and
   #: into every CI build of that image. Fetched once, on first use.
   models:

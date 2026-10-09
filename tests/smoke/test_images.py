@@ -100,7 +100,7 @@ def test_the_backend_image_builds(backend_image) -> None:
 
 
 def test_every_entry_point_imports_inside_the_image(backend_image) -> None:
-    """One image serves the api and all five workers.
+    """One image serves the api and all six workers.
 
     Under the tuning file the services read, because a stage reads its
     settings as it is imported and there are no defaults in code.

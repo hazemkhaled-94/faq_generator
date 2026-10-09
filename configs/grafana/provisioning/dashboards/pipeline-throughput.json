@@ -99,7 +99,7 @@
       "id": 3,
       "type": "stat",
       "title": "Model calls, and what they cost",
-      "description": "Every call the three model-calling stages made in the window: how many, the time spent waiting, the tokens the provider billed for and what it charged. Cost is missing rather than zero for a model litellm has no price for, which is every self-hosted one — a stack serving its own model shows tokens and no money, which is the truth about it.",
+      "description": "Every call the four model-calling stages made in the window: how many, the time spent waiting, the tokens the provider billed for and what it charged. Cost is missing rather than zero for a model litellm has no price for, which is every self-hosted one — a stack serving its own model shows tokens and no money, which is the truth about it.",
       "datasource": { "type": "elasticsearch", "uid": "qa-logs" },
       "gridPos": { "h": 9, "w": 8, "x": 16, "y": 13 },
       "fieldConfig": {

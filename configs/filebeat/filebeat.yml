@@ -1,7 +1,7 @@
 # Reads the JSON lines this project's processes write and puts each one in
 # Elasticsearch. Two places, because a stage runs in two:
 #
-#   /var/log/qa       the `logs` volume - the api, the five workers, the
+#   /var/log/qa       the `logs` volume - the api, the six workers, the
 #                     frontend and the orchestrator
 #   /var/log/qa-host  ./logs in the repository, bind-mounted - a `make`
 #                     target, `dagster dev`, anything run by hand

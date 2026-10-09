@@ -1,7 +1,7 @@
 {
   "uid": "qa-pipeline-logs",
   "title": "4 · Every line every process wrote",
-  "description": "Every line the api, the four workers and the frontend logged. Filter by service and level at the top; the panels below all follow those.",
+  "description": "Every line the api, the six workers and the frontend logged. Filter by service and level at the top; the panels below all follow those.",
   "tags": ["qa_generator"],
   "timezone": "utc",
   "editable": true,
