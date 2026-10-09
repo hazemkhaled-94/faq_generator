@@ -127,11 +127,10 @@ class Tokenizer:
 
 
 def test_a_model_is_held_to_its_own_window() -> None:
-    """ENCODER_MAX_TOKENS is one setting over encoders that disagree.
+    """ENCODER_MAX_TOKENS is one ceiling over every encoder.
 
-    bge-m3-zeroshot-v2.0 reads 8,192 and xlm-roberta-large-squad2 reads
-    512, so a deployment raising the setting for the first would hand the
-    second a length its position embeddings do not have.
+    A checkpoint whose tokenizer declares 512, as the shipped NLI model's
+    does, reads 512 however high the setting is.
     """
     from nlp.windows import window
 

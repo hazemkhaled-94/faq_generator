@@ -23,7 +23,9 @@ Three files load weights, and nothing outside a worker may import them:
 Each is held to its own window by [`windows.py`](windows.py):
 `EMBEDDING_MAX_TOKENS` is the ceiling a deployment asks for the embedder and
 `ENCODER_MAX_TOKENS` the one it asks for the other two, and a checkpoint that
-cannot read that far is given what it can.
+cannot read that far is given what it can. Entailment reads at most its
+tokenizer's `model_max_length`, 512 for the shipped `bge-m3-zeroshot-v2.0`, so
+`ENCODER_MAX_TOKENS` does not apply to it unless set below that.
 `tests/static/test_api_stays_light.py` pins that the API loads none of them.
 
 ## What it does
@@ -84,9 +86,10 @@ so what is left here is the one thing it does not do: refuse a checkpoint
 whose labels are not an NLI model's. A sentiment head scores every pair
 fluently and means nothing by it.
 
-The two-way heads are wanted rather than tolerated. `bge-m3-zeroshot-v2.0`
-reads 8,192 tokens where `mDeBERTa-v3-base-xnli` reads 512, and a premise here
-is a passage already sized to `EMBEDDING_MAX_TOKENS`.
+Two-way heads are read beside three-way ones, and the shipped
+`bge-m3-zeroshot-v2.0` is two-way. Its tokenizer declares 512 tokens, as
+`mDeBERTa-v3-base-xnli`'s does, and a premise here is a passage already sized
+to `EMBEDDING_MAX_TOKENS`.
 
 What the encoder returns is a **probability**, so a deployment can decide how
 sure it wants a gate to be. `NLI_ENTAILMENT_THRESHOLD` is that decision, and
@@ -198,7 +201,7 @@ never stored, so changing one needs a restart.
 | `NLI_ENTAILMENT_THRESHOLD` | How sure it must be before it rescues an answer |
 | `QA_MODEL` | The extractive reader asked for a span before the verifier is |
 | `QA_ANSWER_CONFIDENCE` | How sure that reader must be before its span is taken |
-| `ENCODER_MAX_TOKENS` | The longest pair an encoder reads. A **ceiling** |
+| `ENCODER_MAX_TOKENS` | The longest pair an encoder reads. A **ceiling**, held to each tokenizer's `model_max_length`, so it does not apply to entailment with the shipped model unless set below 512 |
 
 Changing `NLP_MODELS` changes what a fact is, in the same way changing the
 prompt does. Both are recorded on every fact — `spacy_model`,

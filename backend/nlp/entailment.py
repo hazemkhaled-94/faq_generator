@@ -70,10 +70,9 @@ def verdict(scores: Mapping[str, float], model_name: str) -> Verdict:
 
     Two heads are accepted and both are wanted. A three-way NLI model names
     all of entailment/neutral/contradiction; a zero-shot head - such as
-    bge-m3-zeroshot-v2.0, whose 8,192-token window is the reason to want it,
-    since a premise here is a passage already sized to 512 - names
-    entailment and not_entailment only. Either is enough, because the only
-    thing a gate asks is how sure the model is of entailment.
+    bge-m3-zeroshot-v2.0 - names entailment and not_entailment only. Either
+    is enough, because the only thing a gate asks is how sure the model is
+    of entailment.
 
     Args:
         scores: One probability per label, as the model named them.
@@ -126,7 +125,12 @@ class Entailment:
 
     @cached_property
     def _loaded(self):
-        """The classification pipeline, held to the window the model has."""
+        """The classification pipeline, held to its tokenizer's window.
+
+        A pair is cut to the tokenizer's `model_max_length`, 512 for the
+        shipped model; `ENCODER_MAX_TOKENS` does not apply unless set below
+        that.
+        """
         from transformers import pipeline
 
         log.info("loading %s", self._model_name)

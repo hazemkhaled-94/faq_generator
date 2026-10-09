@@ -1,15 +1,12 @@
 """How long a pair one encoder may be given.
 
-`ENCODER_MAX_TOKENS` is one setting and the encoders it configures do not
-agree about what is possible: `bge-m3-zeroshot-v2.0` reads 8,192 tokens and
-`xlm-roberta-large-squad2` reads 512. A deployment raising the setting for
-the first would hand the second a length its position embeddings do not
-have, which is an error at the first call rather than a slow degradation -
-and a deployment leaving it at 512 for the second quietly gives up the
-window that was the reason to choose the first.
+`ENCODER_MAX_TOKENS` is a CEILING a deployment asks for over every encoder,
+and each model is held to the window its tokenizer declares as
+`model_max_length`. Nothing here has to know which model is which.
 
-So the setting is a CEILING a deployment asks for, and each model is held to
-its own. Nothing here has to know which model is which.
+Entailment reads at most its tokenizer's `model_max_length`, 512 for the
+shipped `bge-m3-zeroshot-v2.0`, so `ENCODER_MAX_TOKENS` does not apply to it
+unless set below that. `xlm-roberta-large-squad2` declares 512 as well.
 """
 
 from __future__ import annotations
@@ -32,11 +29,10 @@ _ABSURD = 1_000_000
 def window(tokenizer, wanted: int) -> int:
     """The longest pair this checkpoint can be given, at or under `wanted`.
 
-    Read off the tokenizer rather than off `max_position_embeddings`,
-    because the two disagree by the positions a model reserves and the
-    tokenizer is the one that already accounts for them: `xlm-roberta`
-    declares 514 embeddings and its tokenizer says 512, which is the number
-    that matters here.
+    Read off the tokenizer's `model_max_length` rather than off
+    `max_position_embeddings`, and the two can disagree: `xlm-roberta`
+    declares 514 embeddings and its tokenizer 512, `bge-m3-zeroshot-v2.0`
+    8,194 and its tokenizer 512. The tokenizer's is the window used.
 
     Args:
         tokenizer: The loaded tokenizer.
