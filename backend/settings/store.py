@@ -204,8 +204,8 @@ class Settings:
             log.info("%s returned to the environment", name)
         return cleared
 
-    def write(self, name: str, value: str) -> str:
-        """Stores one setting, and returns the version it produced.
+    def write(self, name: str, value: str) -> None:
+        """Stores one setting.
 
         Raises:
             KeyError: If nothing is configurable under that name.
@@ -213,7 +213,6 @@ class Settings:
                 empty and its absence means nothing.
         """
         self.change({name: value}, [])
-        return self.version()
 
     def clear(self, name: str) -> bool:
         """Deletes one override, saying whether there was one.
