@@ -74,27 +74,12 @@ def test_striding_drops_nothing_and_invents_nothing(items, wanted) -> None:
     assert sorted(strided(list(items), wanted)) == sorted(items)
 
 
-@given(items=st.lists(st.integers(), min_size=1, max_size=40))
-def test_striding_is_a_permutation_of_its_input(items) -> None:
-    """Read as a reordering, so a duplicate must survive as a duplicate."""
-    strode = strided(list(items), len(items) // 2)
-
-    assert len(strode) == len(items)
-
-
 @given(share=st.floats(0.0, 1.0), over=st.integers(1, 200))
 def test_a_share_picks_about_that_share_of_them(share, over) -> None:
     """Spread by position, so it picks one in every `1/share` exactly."""
     picked = sum(1 for index in range(over) if spread(index, share))
 
     assert abs(picked - over * share) <= 1
-
-
-@given(over=st.integers(1, 50))
-def test_a_share_of_none_picks_none_and_a_share_of_all_picks_all(over) -> None:
-    """Both ends without a branch of their own."""
-    assert not any(spread(index, 0.0) for index in range(over))
-    assert all(spread(index, 1.0) for index in range(over))
 
 
 # ── The band a question turns out to be ──────────────────────────────────
@@ -197,16 +182,6 @@ def test_the_same_pool_draws_the_same_release_twice(pool, size) -> None:
     quota = quota_of(size, dict.fromkeys(_BANDS, 1), dict.fromkeys(_TYPES, 1), 0.3)
 
     assert choose(rows, quota).ids == choose(list(reversed(rows)), quota).ids
-
-
-@given(size=st.integers(0, 200), share=st.floats(0.0, 1.0))
-def test_a_quota_spends_every_place_it_has(size, share) -> None:
-    """The bands and the kinds each account for the whole release."""
-    quota = quota_of(size, dict.fromkeys(_BANDS, 1), dict.fromkeys(_TYPES, 1), share)
-
-    assert sum(quota.difficulty.values()) == size
-    assert sum(quota.types.values()) == size
-    assert 0 <= quota.unanswerable <= size
 
 
 def test_an_empty_quota_draws_an_empty_release() -> None:

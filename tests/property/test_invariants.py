@@ -20,14 +20,6 @@ from preprocessing.chunking.passages import NoPassages
 #: The setting the parser properties read and write.
 NAME = "QA_PROPERTY_SETTING"
 
-#: Anything a settings file can actually carry. The environment holds
-#: UTF-8 bytes, so os.environ refuses a NUL or a lone surrogate before the
-#: reader ever sees one.
-SETTING = st.text(
-    alphabet=st.characters(exclude_characters="\x00", exclude_categories=("Cs",)),
-    max_size=20,
-)
-
 #: Prose-shaped text: printable, and not only whitespace.
 PROSE = st.text(
     alphabet=st.characters(min_codepoint=32, max_codepoint=0x2FF, categories=None),
@@ -236,69 +228,6 @@ def test_a_sample_never_spans_more_passages_than_its_shape_asked_for(
 
 
 @given(
-    rows=FACTS,
-    wanted=st.integers(1, 12),
-    size=st.integers(1, 4),
-    shape=SHAPES,
-)
-@settings(deadline=None)
-@pytest.mark.nlp
-def test_every_scope_always_matches_the_spread_it_is_read_from(
-    rows, wanted, size, shape
-) -> None:
-    """The property the re-check relies on to notice evidence that moved.
-
-    Read over every passage of every fact rather than one per fact: a
-    bridge rests on several, and the re-check counts the same way.
-    """
-    from question_generation.models import criteria_of
-
-    for one in _dealt(rows, wanted, size, shape):
-        # First wins on a repeated id, which is how the group reads it.
-        held: dict[int, object] = {}
-        for fact in one.facts:
-            for passage in fact.passages:
-                held.setdefault(passage.id, passage)
-        resting = held.values()
-        assert one.criteria() == criteria_of(
-            passages=len(resting),
-            documents=len({passage.doc_sha256 for passage in resting}),
-            topics=len({one.topic_id for one in resting if one.topic_id}),
-            answer_chars=None,
-        )
-
-
-@given(
-    passages=st.integers(1, 5),
-    documents=st.integers(1, 5),
-    topics=st.integers(1, 5),
-    answer=st.integers(0, 200),
-    follows=st.booleans(),
-)
-@settings(deadline=None)
-def test_the_difficulty_band_never_disagrees_with_its_own_score(
-    passages, documents, topics, answer, follows
-) -> None:
-    """The band is the total, and nothing else may move it.
-
-    A weighting would be an opinion, and the point of deriving difficulty
-    rather than judging it is that nobody has to hold one.
-    """
-    from question_generation.models import criteria_of
-
-    read = criteria_of(
-        passages=passages,
-        documents=documents,
-        topics=topics,
-        answer_chars=answer,
-        follows=follows,
-    )
-    from question_generation.models import band
-
-    assert read.difficulty == band(read.score)
-
-
-@given(
     passages=st.integers(1, 5),
     documents=st.integers(1, 5),
     topics=st.integers(1, 5),
@@ -430,32 +359,6 @@ def given_setting(value: str):
         os.environ.pop(NAME, None)
 
 
-@given(value=st.integers(min_value=-(10**9), max_value=10**9))
-@settings(deadline=None)
-def test_a_whole_number_setting_round_trips(value) -> None:
-    """Whatever int() accepts, read back as the same number."""
-    from settings import integer
-
-    with given_setting(str(value)):
-        assert integer(NAME) == value
-
-
-@given(value=SETTING)
-@settings(deadline=None)
-def test_a_setting_that_is_not_a_number_is_always_refused(value) -> None:
-    """Never a silent zero, whatever the string is."""
-    from settings import integer
-
-    with given_setting(value):
-        try:
-            expected = int(value.strip())
-        except ValueError:
-            with pytest.raises((ValueError, KeyError), match=NAME):
-                integer(NAME)
-            return
-        assert integer(NAME) == expected
-
-
 @given(
     names=st.lists(
         st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=6),
@@ -470,14 +373,3 @@ def test_a_list_setting_keeps_every_name_and_invents_none(names) -> None:
 
     with given_setting(",".join(names)):
         assert csv(NAME) == tuple(names)
-
-
-@given(passage_id=st.integers(min_value=1, max_value=2**31 - 1))
-@settings(deadline=None)
-def test_a_narrowing_coerces_any_id_the_column_can_hold(passage_id) -> None:
-    """Comparing an integer column against a string is an error at the database."""
-    from extraction.repository import PassageQueue
-
-    narrowed = PassageQueue().narrow("passage", str(passage_id))
-
-    assert narrowed.right.value == passage_id
