@@ -28,8 +28,9 @@ _EXCERPTS = 4
 class TopicModellingService(StageService):
     """Fits the corpus topic model when a run asks for it.
 
-    The unit of work is one fit, over every language. Each fit replaces every
-    topic and every membership, carrying labels across by matching top terms.
+    The unit of work is one fit, over every language. Each fit replaces the
+    topics and memberships of every language it fits, carrying labels across
+    by matching top terms.
     A fit that fails leaves the previous topics in place, with the reason on
     the request row beside them.
     """
