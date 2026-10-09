@@ -2,9 +2,8 @@
 
 Object storage, one module per bucket, over any S3 implementation.
 
-One of the three packages that build a connection — the others are
-[`database/`](../database/README.md) and [`nlp/`](../nlp/README.md). A
-service asks for a bucket; it never builds a client or learns a credential.
+The one package that builds an S3 client. A service asks for a bucket; it
+never builds a client or learns a credential.
 
 ## The five buckets
 
@@ -14,7 +13,7 @@ service asks for a bucket; it never builds a client or learns a credential.
 | `parsed` | `{sha[0:2]}/{sha[2:4]}/{sha}.json` | The converter's complete output | never |
 | `models` | `topics/{language}.npz` | The fitted factorisation each language's topics were read off | replaced by the next fit |
 | `export` | `topics/{language}.html` | Each language's pyLDAvis figure, and nothing else | replaced by the next fit |
-| `archive` | `{origin}/{the key it had}` | What a deletion took out of the other four | `make archive-purge` |
+| `archive` | `{origin}/{the key it had}@{UTC time}` | What a deletion took out of the other four, and the model and figure a fit replaced | `make archive-purge` |
 
 `models` and `export` are one fit's two halves, and which is which matters.
 `models` holds the factorisation; `export` holds a picture drawn from it. The
@@ -30,7 +29,8 @@ flag — and the matrix those were read off stays in the object store.
 `archive` is the only one written by a **deletion**. `ArchiveBucket.take`
 copies an object across and then deletes the original — in that order, so a
 failure between the two leaves it in both places rather than neither. The key
-keeps the bucket it came out of as a prefix. See
+keeps the bucket it came out of as a prefix and the time it was taken as a
+suffix, so a second deletion of the same key keeps a second copy. See
 [`archive/`](../archive/README.md).
 
 A key is **derived in code and never stored**: it is a pure function of the
@@ -54,11 +54,13 @@ an order and accepts the one failure that order leaves.
 
 **Writing:** object first, row last. An object with no row holds exactly the
 bytes its key means and is harmless; a row pointing at a missing object fails
-every later stage. If the row cannot be written, the object is taken back
-out.
+every later stage. If the row cannot be written, the object is left.
 
 **Deleting:** objects first, row last. The reverse leaves an object nothing
 names.
+
+The topics go the other way both times: a fit and `make topics-delete` write
+or delete the rows first and the model and figure after.
 
 The bucket classes are shared behaviour in [`s3/bucket.py`](s3/bucket.py)
 and one subclass per bucket, so a caller names the bucket it means rather
@@ -66,8 +68,11 @@ than a string.
 
 ## Configuration
 
-Addresses and credentials only, all from `.env`, none configurable at
-runtime:
+Addresses and credentials only, none configurable at runtime. The two keys
+are in `.env`, the rest in `configs/env/deployment.env`. `S3_ENDPOINT` is
+derived: a host command's from `S3_PORT`, the S3 gateway's port, published
+on 127.0.0.1 only; a container's from `S3_CONTAINER_ENDPOINT`. SeaweedFS's
+master, filer and volume servers publish no port.
 
 | Setting | What it is |
 |---|---|
@@ -107,8 +112,10 @@ poetry run pytest tests/unit/blob_store tests/integration/blob
   A key nothing could find again is worse than a refusal.
 - **Rewriting an object in `documents` or `parsed` is harmless.** The key is
   content-addressed.
-- **`export` is the one bucket a fit overwrites.** A language modelled before
-  the figure was drawn has no object until the next fit, and the route 404s.
+- **A fit replaces both `models` and `export`.** It moves each language's old
+  model and figure to `archive` before writing its own. A language with no
+  figure 404s until the next fit, or until `make topics-render` draws one
+  from its `models` object.
 - **No bucket expires on its own.** The `s3.bucket.quota` lines in
   [`bucket-init.sh`](../../configs/seaweedfs/bucket-init.sh) are operator
   notes that file says are not run automatically, and no TTL is set anywhere.
@@ -124,9 +131,11 @@ poetry run pytest tests/unit/blob_store tests/integration/blob
   `export` disposable. No route serves a model; a reader wanting the matrix
   itself fetches the key by hand.
 - **There is one model per language, and no way to ask for an older one.**
-  The next fit replaces it, because the database holds one fit's topics —
-  `replace` drops every row and writes the new fit's. A figure drawn from a
-  previous model would number its topics off rows that are gone, so
-  `--language` picks which language to redraw, not which fit.
+  The next fit moves it to `archive` and writes its own, because the database
+  holds one fit's topics — `replace` drops every row and writes the new
+  fit's. A figure drawn from a previous model would number its topics off
+  rows that are gone, so `--language` picks which language to redraw, not
+  which fit.
 - **An upload that fails on the object store writes no `ingest_events`
-  row.** Only refusals are recorded; an unreachable bucket is a 500.
+  row.** A stored upload's event is written with its document row, after the
+  object; an unreachable bucket is a 500.
