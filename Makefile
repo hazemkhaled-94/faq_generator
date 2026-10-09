@@ -909,11 +909,12 @@ confidence-recalibrate:
 # Draw the balanced release out of every accepted question, and report what
 # it came out as. Accepting a question says it is sound; this says what the
 # SET looks like, and the two are different problems - every gate can do its
-# job and still leave a set that is 45% unanswerable and 96.5% easy, because
-# what survives a filter is whatever the material happened to offer.
+# job and still leave a set lopsided towards the unanswerable and the easy,
+# because what survives a filter is whatever the material happened to offer.
 #
 # Holds three shares at once: how much of the release has no answer, how it
-# spreads over the difficulty bands, and how it spreads over the kinds. A
+# spreads over the difficulty bands, and how it spreads over the kinds -
+# QUESTIONS_RELEASE_UNANSWERABLE, _DIFFICULTY and _TYPES in backend.env. A
 # column on the rows already there, so nothing is deleted, the questions left
 # out stay queryable, and running it again replaces the draw. Reports the
 # yield - how much of the accepted pool made it in - and names any quota the
@@ -975,8 +976,8 @@ questions-export:
 # Unset, `assess` judges nothing.
 #
 # ASSESSMENT_KINDS and ASSESSMENT_SAMPLE in configs/env/backend.env are the
-# cost dials. All three kinds at a sample of 200 is a few hundred model
-# calls; every fact of a large corpus is tens of thousands.
+# cost dials. A sample bounds how many model calls a kind costs; every
+# fact of a large corpus is tens of thousands.
 ASSESS = $(LOADENV) && PYTHONPATH=backend poetry run python -m assessment.run
 
 # Drain the judging queue here, in the foreground.
