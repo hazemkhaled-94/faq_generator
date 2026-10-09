@@ -63,8 +63,7 @@ _GOING = [
 #: A run that ended without finishing and that nobody stopped.
 _ENDED = [DagsterRunStatus.FAILURE]
 
-#: Every stage but the topic fit, which replaces every topic and is asked
-#: for on its own.
+#: Every stage but the topic fit, which is asked for on its own.
 corpus = define_asset_job(
     name="corpus",
     selection=AssetSelection.all() - AssetSelection.assets("topics"),
