@@ -258,6 +258,25 @@ def test_the_checks_of_the_baked_pipelines_name_the_ones_the_workers_load() -> N
     assert re.findall(r"'(\w+)'", loaded[1]) == wanted, loaded[1]
 
 
+def test_the_tests_start_the_images_compose_runs() -> None:
+    """The fixtures' images, and the ones CI pulls for them, are compose's."""
+    services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    composed = {one["image"] for one in services.values() if "image" in one}
+    fixtures = re.findall(
+        r'^[A-Z_]+_IMAGE = "([^"]+)"',
+        (ROOT / "tests/conftest.py").read_text(),
+        re.MULTILINE,
+    )
+    pulled = re.findall(
+        r"docker pull (\S+)", (ROOT / ".github/workflows/ci.yml").read_text()
+    )
+
+    strays = sorted(set(fixtures + pulled) - composed)
+
+    assert fixtures and pulled, (fixtures, pulled)
+    assert not strays, strays
+
+
 def test_the_frontend_rejects_an_upload_at_the_same_size_the_api_does() -> None:
     """One limit, written in two files, because Streamlit reads no env var.
 
