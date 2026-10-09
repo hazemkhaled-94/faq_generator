@@ -861,7 +861,7 @@ class QuestionGenerationService(StageService):
         plan: Plan,
         root: CheckedQuestion,
         accepted: list[CheckedQuestion],
-        followed: int = 0,
+        followed: int,
     ) -> list[CheckedQuestion]:
         """Writes the questions somebody would ask after this one.
 

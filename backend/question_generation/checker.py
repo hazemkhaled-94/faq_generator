@@ -392,7 +392,7 @@ class QuestionChecker:
         return None
 
     def _phrasing(
-        self, candidate: Candidate, abstained: list[str] | None = None
+        self, candidate: Candidate, abstained: list[str]
     ) -> tuple[str, str] | None:
         """What the question's own wording says, before any passage is read.
 
@@ -424,14 +424,12 @@ class QuestionChecker:
         # A question carrying its own source has already done the work it
         # was meant to test. Judged for a follow-up too - leaning on the
         # conversation is allowed, naming the file is not.
-        said = [] if abstained is None else abstained
-
         cited = cites_source(question, language)
         ruled = cited is not None
         if cited is None and (judge := self._opinion) is not None:
             cited = judge.names_its_source(question)
             if cited is None:
-                said.append("names_its_source")
+                abstained.append("names_its_source")
         if cited:
             reason = (
                 "it names the material the answer is in, so it asks a question "
@@ -465,7 +463,7 @@ class QuestionChecker:
             else True
         )
         if names is None:
-            said.append("names_something")
+            abstained.append("names_something")
         if names is False:
             reason = (
                 f"it names nothing a person searching would know - the "
@@ -486,7 +484,7 @@ class QuestionChecker:
             return None
         contained = judge.self_contained(question, pointers)
         if contained is None:
-            said.append("self_contained")
+            abstained.append("self_contained")
         if contained is False:
             reason = (
                 f"it points outward with {', '.join(repr(one) for one in pointers)} "

@@ -282,7 +282,6 @@ class QuestionQueue(RowQueue):
 
     def __init__(
         self,
-        lease=None,
         kinds: tuple[str, ...] = ASKABLE,
         version: str | None = None,
         boilerplate_cosine: float = 0.0,
@@ -307,7 +306,7 @@ class QuestionQueue(RowQueue):
         tagger, and a catalogue the api holds must not import the module that
         loads one. The service applies it to what this returns.
         """
-        super().__init__(lease)
+        super().__init__()
         self._kinds = kinds
         self._version = version
         self._boilerplate = boilerplate_cosine

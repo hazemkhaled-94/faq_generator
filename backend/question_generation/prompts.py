@@ -60,7 +60,7 @@ def catalogue(settings: Settings | None = None) -> list[Composed]:
     return list(_writer(settings)) + list(_judges(settings))
 
 
-def _writer(settings: Settings | None = None) -> Iterator[Composed]:
+def _writer(settings: Settings | None) -> Iterator[Composed]:
     """The prompts that write a question, at `types.PROMPT_VERSION`.
 
     Each type twice. `spans` adds the instruction to draw on more than one
@@ -83,7 +83,7 @@ def _writer(settings: Settings | None = None) -> Iterator[Composed]:
     yield Composed("follow", PROMPT_VERSION, _FOLLOW, _USER_FOLLOW, _ANSWERED, writes)
 
 
-def _judges(settings: Settings | None = None) -> Iterator[Composed]:
+def _judges(settings: Settings | None) -> Iterator[Composed]:
     """The prompts that judge one, each at its own module's version.
 
     The three phrasing judgements are a model's opinion about wording; the
