@@ -174,3 +174,10 @@ def test_a_rewritten_text_moves_updated_at_and_a_new_model_does_not(
     assert repointed == first
     assert rewritten > first
 
+
+def test_the_newest_version_comes_first_by_number(engine, database) -> None:
+    """`10` is newer than `9`, which a sort by text puts first."""
+    record("questions", [Composed("factoid", "9", "Nine.")])
+    record("questions", [Composed("factoid", "10", "Ten.")])
+
+    assert [one.version for one in stored(service="questions")] == ["10", "9"]

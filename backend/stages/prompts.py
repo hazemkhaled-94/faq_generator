@@ -122,7 +122,14 @@ def stored(
             session.scalars(
                 select(Prompt)
                 .where(*conditions)
-                .order_by(Prompt.service, Prompt.version.desc(), Prompt.name)
+                # ponytail: numeric only while every version is all digits,
+                # which all are. Upgrade: an integer version column.
+                .order_by(
+                    Prompt.service,
+                    func.length(Prompt.version).desc(),
+                    Prompt.version.desc(),
+                    Prompt.name,
+                )
             )
         )
         session.expunge_all()
