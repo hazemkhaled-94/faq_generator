@@ -91,8 +91,8 @@ def reloading(
 ) -> Callable[[Callable[[], bool]], int]:
     """Wraps a drain so it rebuilds the service when the settings change.
 
-    One small query per poll - the version is a digest of the stored
-    overrides - and a rebuild only when something moved.
+    One small query per poll - the version is a digest of every catalogued
+    setting as resolved - and a rebuild only when something moved.
 
     ponytail: checked between drains, not per row, so a change made during a
     long run waits for that run to finish. The ceiling is that a rebuild
@@ -294,11 +294,10 @@ def _ready(name: str, preflight: Callable[[], None], watching: bool) -> bool:
     A one-off drain gives up, because a person is holding the exit code.
     A **watching worker waits in place** instead, and that is the whole
     point of this function: exiting costs a process, and under
-    `restart: unless-stopped` a process is a restart, a new `run_id`, and
-    a Phoenix project holding the one call that failed. An expired
-    credential once cost 2,019 restarts and 2,116 such projects, which is
-    how a pipeline that was down for a day looked like a pipeline that had
-    run two thousand times.
+    `restart: unless-stopped` a process is a restart and a new `run_id`.
+    An expired credential once cost 2,019 restarts and 2,116 Phoenix
+    projects, which is how a pipeline that was down for a day looked like a
+    pipeline that had run two thousand times.
 
     Waiting also recovers by itself. A model that is down at boot and up
     ten minutes later is the ordinary case for one served off a laptop,
