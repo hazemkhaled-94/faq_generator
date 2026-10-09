@@ -1,4 +1,4 @@
-"""The trigger that deletes a question once its last fact is gone.
+"""The triggers that delete a question or a fact once its last source is gone.
 
 A foreign key cascades parent to child, never the reverse, so a question
 outliving every fact it was drawn from would be a question nothing can be
@@ -6,6 +6,10 @@ traced back to.
 """
 
 from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
+from contextlib import suppress
 
 import pytest
 from seed import digest, document, fact, link, passage, question
@@ -114,3 +118,64 @@ def test_a_question_with_no_facts_at_all_is_left_alone(written, engine) -> None:
         connection.execute(text("DELETE FROM facts WHERE id = :id"), {"id": facts[0]})
 
     assert counts(engine) == (1, 0)
+
+
+def _at_once(engine, statement: str, first: dict, second: dict) -> None:
+    """Runs a statement in two transactions, the second begun before the first ends.
+
+    The second runs in a thread while the first is still open, and the first
+    commits while the second is running or waiting on it.
+    """
+    pool = ThreadPoolExecutor(max_workers=1)
+    try:
+        with engine.begin() as opened:
+            opened.execute(text(statement), first)
+
+            def other() -> None:
+                with engine.begin() as connection:
+                    connection.execute(text(statement), second)
+
+            running = pool.submit(other)
+            with suppress(FuturesTimeout):
+                running.result(timeout=1)
+        running.result(timeout=10)
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
+def test_two_deletions_at_once_still_delete_a_question_left_with_no_fact(
+    written, engine
+) -> None:
+    """Each takes one of its two facts; neither may see the other's still there."""
+    _, facts = written(2)
+
+    _at_once(
+        engine, "DELETE FROM facts WHERE id = :id", {"id": facts[0]}, {"id": facts[1]}
+    )
+
+    assert counts(engine) == (0, 0)
+
+
+def test_two_deletions_at_once_still_delete_a_fact_left_with_no_citation(
+    engine, database
+) -> None:
+    """Each takes one of its two citations; neither may see the other's there."""
+    with Session(engine) as session:
+        session.add(document())
+        session.flush()
+        cited = [passage(digest(), ordinal=n) for n in (1, 2)]
+        session.add_all(cited)
+        session.flush()
+        session.add(fact(cited[0].id, cited[1].id))
+        session.commit()
+        first, second = (one.id for one in cited)
+
+    _at_once(
+        engine,
+        "DELETE FROM fact_passages WHERE passage_id = :id",
+        {"id": first},
+        {"id": second},
+    )
+
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM facts")).scalar() == 0

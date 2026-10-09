@@ -90,6 +90,9 @@ class FactPassage(Base):
 #: construction - the cascade from facts back into this table fires it again,
 #: and the second firing finds no fact to delete.
 #:
+#: Locks the fact before deciding, so of two deletions at once the second
+#: waits for the first and sees its citation gone.
+#:
 #: Declared here, beside the table it belongs to, and executed by the
 #: migrations: autogenerate sees tables and columns,
 #: never a trigger.
@@ -97,6 +100,7 @@ DELETE_ORPHAN_FUNCTION = """
 CREATE OR REPLACE FUNCTION delete_fact_without_passage() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+    PERFORM 1 FROM facts WHERE id = OLD.fact_id FOR UPDATE;
     DELETE FROM facts f
      WHERE f.id = OLD.fact_id
        AND (

@@ -57,7 +57,9 @@ class QuestionFact(Base):
 #: release, unless it is rejected already; deletes one left with no fact. A
 #: fact is left while it and a passage it cites exist. A foreign key
 #: cascades parent to child, never the reverse. Does nothing to a question
-#: that is itself being deleted.
+#: that is itself being deleted. Locks the question before deciding, so of
+#: two deletions at once the second waits for the first and sees its fact
+#: gone.
 #:
 #: Declared here, beside the table it belongs to, and executed by the
 #: migrations: autogenerate sees tables and columns, never a trigger.
@@ -70,6 +72,7 @@ DELETE_ORPHAN_FUNCTION = """
 CREATE OR REPLACE FUNCTION delete_question_without_facts() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+    PERFORM 1 FROM questions WHERE id = OLD.question_id FOR UPDATE;
     IF EXISTS (
         SELECT 1
           FROM question_facts qf
