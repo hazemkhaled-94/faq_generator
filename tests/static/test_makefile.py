@@ -205,3 +205,16 @@ def test_handing_over_fails_unless_dagster_switched_the_sensor(
     )
 
     assert (ran.returncode != 0) is refused, ran
+
+
+def test_every_target_is_declared_phony() -> None:
+    """A file of a target's name would otherwise make make skip it quietly."""
+    import re
+
+    makefile = (ROOT / "Makefile").read_text()
+    targets = set(re.findall(r"^([a-z][a-z0-9-]*):(?!=)", makefile, re.MULTILINE))
+    declared = re.search(r"^\.PHONY:((?:.*\\\n)*.*)$", makefile, re.MULTILINE)
+    phony = set(declared[1].replace("\\\n", " ").split())
+
+    assert len(targets) > 100, len(targets)
+    assert not targets - phony, sorted(targets - phony)

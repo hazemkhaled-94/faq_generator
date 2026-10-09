@@ -184,6 +184,7 @@ help:
 .PHONY: help setup doctor \
         dev install up down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
+        logs-wipe \
         prune spend spend-by-shape \
         schema schema-reset schema-status schema-down schema-stamp migration \
         parse parse-status parse-start parse-stop parse-retry parse-rerun \
@@ -198,9 +199,11 @@ help:
         questions questions-status questions-start questions-stop wipe \
         questions-retry questions-reclaim questions-rerun questions-reverify \
         confidence-recalibrate \
+        assess assess-status assess-start assess-enrol assess-stop \
+        assess-retry assess-reclaim assess-rerun \
         questions-balance questions-export \
         questions-runs questions-diff \
-        documents delete delete-derived \
+        documents delete delete-derived wipe-all dagster-wipe \
         archive archive-purge restore-documents \
         test test-fast test-unit test-integration test-e2e test-smoke \
         test-eval test-coverage test-perf mutation \
@@ -210,9 +213,11 @@ help:
         certs dagster-dev \
         review-status review-push-facts review-pull-facts \
         review-push-topics review-pull-topics \
-        review-push-questions review-pull-questions \
+        review-push-questions review-pull-questions review-delete review-all \
+        phoenix-projects phoenix-prune phoenix-purge \
         eval-upload eval-score prompts-publish \
-        all corpus open services review pull auto manual pipeline runs
+        all corpus open services review pull auto manual pipeline runs \
+        pipeline-status pipeline-stop pipeline-retry
 
 # ── Bootstrap ──────────────────────────────────────────────────────────────
 
