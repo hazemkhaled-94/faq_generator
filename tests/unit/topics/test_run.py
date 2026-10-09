@@ -223,3 +223,22 @@ def test_a_named_run_puts_this_stage_in_its_project(cli, monkeypatch) -> None:
     cli.run("--status")
 
     assert configured[0]["named"] == "the comparison"
+
+
+def test_the_model_check_runs_before_the_exporter_is_installed(
+    cli, monkeypatch
+) -> None:
+    """A preflight is not work, so its model call reaches no Phoenix project."""
+    from topic_modelling import run as module
+
+    happened: list = []
+    monkeypatch.setenv("LLM_MODEL", "ollama/namer")
+    monkeypatch.setattr(
+        module.telemetry,
+        "configure",
+        lambda *_, **options: happened.append(options.get("tracing", True)),
+    )
+    monkeypatch.setattr(module, "before_work", lambda *_: happened.append("check"))
+
+    assert cli.run() == 0
+    assert happened == [False, "check", True]

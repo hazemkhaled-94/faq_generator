@@ -74,10 +74,10 @@ def main(argv: list[str] | None = None) -> int:
         return build_service(Settings.load(source), version)
 
     # With the run, as `stages/cli.queue_main` does for the other four
-    # stages. Without it this stage's spans went to Phoenix's `default`
-    # project, so a pass over the pipeline was four projects and a heap.
-    telemetry.configure("topic_modelling", run=run_id(), named=named_run())
-    telemetry.trace_engine(engine())
+    # stages, and with no exporter until the model check has passed.
+    telemetry.configure(
+        "topic_modelling", run=run_id(), named=named_run(), tracing=False
+    )
 
     if args.status:
         queue = TopicQueue()
@@ -148,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
         # a deployment with no model never sends this prompt, and a row
         # saying it did would be a record of a call nothing made.
         record(prompts.SERVICE, prompts.catalogue(), naming)
+
+    telemetry.configure("topic_modelling", run=run_id(), named=named_run())
+    telemetry.trace_engine(engine())
 
     if not args.watch:
         service.drain()
