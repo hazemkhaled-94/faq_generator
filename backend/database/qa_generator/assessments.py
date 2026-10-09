@@ -123,8 +123,8 @@ class Assessment(Base):
         BigInteger,
         ForeignKey("topics.id", ondelete="CASCADE"),
         comment="The topic this is about, NULL unless artifact_kind is "
-        "`topic`. A refit replaces every topic, so this cascades on every "
-        "`make topics-discover`.",
+        "`topic`. Cascades when a fit replaces the topics of that topic's "
+        "language.",
     )
     question_id: Mapped[int | None] = mapped_column(
         BigInteger,

@@ -69,7 +69,8 @@ class Prompt(Base):
     service: Mapped[str] = mapped_column(
         Text,
         index=True,
-        comment="Which stage sends it: extraction or questions. The stage writes "
+        comment="Which stage sends it: extraction, topics, questions or "
+        "assessment. The stage writes "
         "its own and no other's, because no backend service imports another.",
     )
     name: Mapped[str] = mapped_column(

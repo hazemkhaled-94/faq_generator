@@ -157,7 +157,8 @@ class Topic(Base):
         "CHECK constraint. Question generation's own queue, over topics rather "
         "than over fits: the unit of work is one topic's facts. Meaningless on a "
         "fit request, which is why that queue carries topic_index IS NOT NULL. A "
-        "fit replaces every row here, so a refit returns every topic to `new`; "
+        "fit replaces the rows of each language it fits, so a refit returns "
+        "those topics to `new`; "
         "the questions themselves are not a topic's and survive it.",
     )
     question_error: Mapped[str | None] = mapped_column(

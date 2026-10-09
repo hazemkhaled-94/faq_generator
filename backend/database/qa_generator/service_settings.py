@@ -34,7 +34,7 @@ class ServiceSetting(Base):
             "comment": "Settings changed through the API, the CLI or a page, one row "
             "per setting. An override over what configs/env/backend.env and .env say, "
             "never a default: deleting a row returns the setting to the file. Workers "
-            "read this when they claim a row, so a change reaches them without a "
+            "read this before each drain, so a change reaches them without a "
             "restart."
         },
     )
