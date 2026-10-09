@@ -246,3 +246,28 @@ def test_the_preflight_is_offered_the_shared_model_when_no_digest_is_named() -> 
     named = models(settings(FactKind.ATOMIC), MODEL)
 
     assert [one.model for one in named] == ["ollama/test-model", "ollama/test-model"]
+
+
+@pytest.mark.parametrize(
+    ("model", "digest_model"),
+    [
+        (None, None),
+        ("ollama/reader", None),
+        (None, "ollama/small"),
+        ("ollama/reader", "ollama/small"),
+    ],
+)
+def test_the_preflight_checks_the_models_the_service_calls(
+    model: str | None, digest_model: str | None
+) -> None:
+    """The digest falls back to the passage reader in both."""
+    chosen = settings(
+        FactKind.ATOMIC, FactKind.SUMMARY, model=model, digest_model=digest_model
+    )
+    built = build_service(MODEL, chosen)
+
+    assert built._digest is not None
+    assert [one.model for one in models(chosen, MODEL)] == [
+        built._extractors.for_block_type("text").provenance.model,
+        built._digest.provenance.model,
+    ]

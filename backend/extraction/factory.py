@@ -22,10 +22,14 @@ def models(
 ) -> tuple[ModelSettings, ModelSettings]:
     """The two models this stage calls: passage reader and digest reader.
 
-    EXTRACTION_MODEL and EXTRACTION_DIGEST_MODEL name them and are LLM_MODEL
-    when absent.
+    EXTRACTION_MODEL names the reader and is LLM_MODEL when absent;
+    EXTRACTION_DIGEST_MODEL names the digest reader and is the reader when
+    absent.
     """
-    return shared.overridden(settings.model), shared.overridden(settings.digest_model)
+    reading = shared.overridden(settings.model)
+    if not settings.digest_model:
+        return reading, reading
+    return reading, shared.overridden(settings.digest_model)
 
 
 def build_service(
