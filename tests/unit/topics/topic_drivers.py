@@ -506,6 +506,9 @@ class CommandDriver:
         monkeypatch.setattr(
             module, "before_work", lambda *models: driver.checked.extend(models)
         )
+        # The prompt record that follows a passed preflight, which writes to
+        # the database DATABASE_URL names.
+        monkeypatch.setattr(module, "record", lambda *_: 0)
         monkeypatch.setattr(module.telemetry, "configure", lambda *_, **__: None)
         monkeypatch.setattr(module.telemetry, "trace_engine", lambda *_: None)
         monkeypatch.setattr(module, "engine", lambda: None)
