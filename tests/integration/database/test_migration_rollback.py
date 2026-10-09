@@ -27,8 +27,18 @@ DECIDED = "1ff74784a860"
 MODELLED = "bf8f2e65c149"
 LOCKED = "14432e9fd5c9"
 BOUNDED = "ad14bed603d4"
+COMMENTED = "a739b57cffae"
 #: Every revision after the previous head, oldest first.
-LATER = (RELEASED, REJECTED, DIGEST, DECIDED, MODELLED, LOCKED, BOUNDED)
+LATER = (
+    RELEASED,
+    REJECTED,
+    DIGEST,
+    DECIDED,
+    MODELLED,
+    LOCKED,
+    BOUNDED,
+    COMMENTED,
+)
 
 #: Three documents, four passages, nine facts and five questions on them.
 #: Question 1 rests on documents a and b, 3 is already rejected, and 5

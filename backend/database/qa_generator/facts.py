@@ -107,9 +107,9 @@ class Fact(Base):
         # Narrower than the one above, because `_self_contained` is applied
         # to a claim and not to a digest: a summary standing in for a whole
         # passage may open with a pronoun and 291 accepted ones do. So this
-        # holds for the kinds a question is actually written from, which is
-        # what QUESTIONS_FACT_KINDS names, and not for the two that stand
-        # in for a passage rather than assert something about it.
+        # holds for the two kinds that assert something, atomic and bridge,
+        # and not for the two that stand in for a passage rather than assert
+        # something about it, whichever of them QUESTIONS_FACT_KINDS names.
         CheckConstraint(
             "extraction_method <> 'llm' OR validated IS FALSE OR "
             "kind NOT IN ('atomic', 'bridge') OR "

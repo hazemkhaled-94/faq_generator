@@ -53,7 +53,8 @@ class FactPassage(Base):
         # the lookup by passage_id alone that re-extraction runs.
         index=True,
         comment="A passage the claim rests on. Deleting the passage deletes this "
-        "row and the fact with it.",
+        "row, and a trigger deletes the fact if it is a bridge or cites no other "
+        "passage.",
     )
     position: Mapped[int] = mapped_column(
         Integer,

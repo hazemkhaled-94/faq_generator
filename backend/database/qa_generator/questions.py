@@ -220,7 +220,8 @@ class Question(Base):
         Text,
         comment="What the question asks for, enforced by a CHECK constraint: "
         "factoid, definition, entity, enumeration, condition, reason, procedure, "
-        "consequence, comparison, aggregation or temporal. Requested by the plan "
+        "consequence, comparison, aggregation, temporal, implication or "
+        "application. Requested by the plan "
         "before the question is written, not read off it afterwards. "
         "QUESTIONS_TYPE_MIX sets which are written and in what proportion.",
     )
@@ -388,10 +389,9 @@ class Question(Base):
     settings_version: Mapped[str | None] = mapped_column(
         Text,
         comment="The configuration this question was written under, as the digest "
-        "settings.store computes, or 'environment' when nothing was overridden. "
-        "Which model wrote it, what mix the plan aimed for and what bounds the "
-        "gates held it to are all in the settings that version names. NULL for a "
-        "question written before a setting could be changed without a restart.",
+        "settings.store computes. The models that wrote and checked it are in "
+        "writer_model, verifier_model and phrasing_model. NULL for a question "
+        "written before a setting could be changed without a restart.",
     )
     writer_model: Mapped[str | None] = mapped_column(
         Text,

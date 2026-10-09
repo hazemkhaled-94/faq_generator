@@ -52,15 +52,16 @@ so no two rows can disagree about which topic a passage is in.
 
 ### Cascades and triggers
 
-Deleting a document takes its passages, their topic memberships, the facts on
-them, and — through a trigger on `question_facts` — the questions resting on
-those facts.
+Deleting a document takes its passages, their topic memberships and, through
+a trigger on `fact_passages`, each bridge citing one of them and each other
+fact left citing no passage. A trigger on `question_facts` then reaches the
+questions resting on those facts.
 
-The trigger exists because a cascade cannot express it: a question rests on
-*several* facts, so `ON DELETE CASCADE` from `facts` would take the question
-when its **first** citation went rather than its last. A question that loses
-a fact and keeps another is rejected as `source_changed` instead, and its
-release cleared.
+The `question_facts` trigger exists because a cascade cannot express it: a
+question rests on *several* facts, so `ON DELETE CASCADE` from `facts` would
+take the question when its **first** citation went rather than its last. A
+question that loses a fact and keeps another is rejected as `source_changed`
+instead, and its release cleared.
 
 `ingest_events.sha256` is a plain column, not a foreign key, so the record
 that an upload happened outlives the document and keeps its digest.

@@ -262,8 +262,9 @@ class AssessmentMetric(Base):
     )
     metric: Mapped[str] = mapped_column(
         Text,
-        comment="hallucination | relevance | qa_correctness | summarization. "
-        "Spelled as arize-phoenix-evals spells it.",
+        comment="hallucination | relevance | qa_correctness | summarization | "
+        "toxicity | conciseness | refusal. Spelled as arize-phoenix-evals "
+        "spells it.",
     )
     label: Mapped[str] = mapped_column(
         Text,

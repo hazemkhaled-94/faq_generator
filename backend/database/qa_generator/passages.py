@@ -214,7 +214,8 @@ class Passage(Base):
         back_populates="passage", cascade="all, delete-orphan", passive_deletes=True
     )
     #: Every fact resting on this passage, of any kind. Deleting the passage
-    #: deletes these rows, and a trigger on them deletes the facts.
+    #: deletes these rows, and a trigger on them deletes each bridge and each
+    #: other fact left citing no passage.
     fact_links: Mapped[list[FactPassage]] = relationship(
         back_populates="passage", cascade="all, delete-orphan", passive_deletes=True
     )
