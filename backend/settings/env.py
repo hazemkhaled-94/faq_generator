@@ -5,9 +5,10 @@ start-up, naming itself. Three files list what must be set:
 `configs/env/backend.env` for how the pipeline behaves,
 `configs/env/deployment.env` for the ports and addresses, and `.env` - see
 `.env.example` - for the credentials and the model. Each name is in exactly
-one of them. Two exceptions: a setting whose absence is itself meaningful
-uses `optional`, and `telemetry` falls back to INFO because it is configured
-before a service has read its settings.
+one of them. Three exceptions: a setting whose absence is itself meaningful
+uses `optional`, `telemetry` falls back to INFO because it is configured
+before a service has read its settings, and `database.qa_generator.engine`
+falls back when a pool size is unset.
 
 Every reader takes an optional `source`. Absent, it is the process
 environment. Given, it is whatever the caller resolved - the environment
