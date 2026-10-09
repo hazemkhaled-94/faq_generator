@@ -24,10 +24,11 @@ Synchronous, inside the API process. There is no queue and no worker: the
 route calls `IngestService.ingest` and returns its answer. The document
 arrives with every stage at `new`, and a worker only claims `pending`.
 
-### Step 1 — Refuse before reading the body
+### Step 1 — Refuse before reading the file
 
 If the declared `Content-Length` exceeds `MAX_FILE_SIZE_MB` by more than the
-multipart framing (`_FRAMING` in the upload route), the body is never read.
+multipart framing (`_FRAMING` in the upload route), the route refuses it
+without reading the file.
 [`refuse_oversized`](service.py) writes the event and stops: with no bytes
 there is no digest and no document to point at.
 
