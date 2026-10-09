@@ -169,7 +169,7 @@ def version(cap: int | None = None) -> str:
 
 
 class LlmExtractor(Extractor):
-    """Reads a passage's claims one at a time with a local model.
+    """Reads a passage's claims one at a time with a served model.
 
     The fallback for every passage the deterministic readers do not claim.
     The model sees one passage's numbered sentences and its heading trail,
