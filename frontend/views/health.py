@@ -136,7 +136,7 @@ def view() -> None:
     with page.panel("Services"):
         _services(running)
 
-    # The model, the tokenizer and the language pipelines the six stages
+    # The model, the tokenizer and the language pipelines the stages
     # share. A stage naming its own model does it on its own page.
     with page.panel("Platform"):
         configure.panel("platform")
