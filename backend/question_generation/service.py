@@ -706,10 +706,9 @@ class QuestionGenerationService(StageService):
             checked = replace(checked, trace_id=trace_id, span_id=span_id)
 
             # And as an annotation, which is the Evaluations view. CODE and
-            # not LLM: a gate is a rule reading a parse, and the phrasing
-            # judgements that are a model's opinion are the ones posted as
-            # LLM. The score is 1 or 0, so a project's mean over this
-            # annotation IS its acceptance rate.
+            # not LLM, the phrasing judgements included. The score is 1 or 0,
+            # so a project's mean over this annotation IS its acceptance
+            # rate.
             if span_id:
                 self._evaluations.record(*self._verdicts(span_id, checked))
             return checked
