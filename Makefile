@@ -1165,7 +1165,6 @@ settings:
 
 # Change one or more of them. Repeat SET for each, space separated.
 #   make settings-set SERVICE=topics SET="TOPIC_PASSES=20"
-#   make settings-set SERVICE=platform SET="LLM_MODEL=ollama_chat/qwen3:14b"
 settings-set:
 	@[ -n "$(SERVICE)" ] && [ -n "$(SET)" ] || { echo 'usage: make settings-set SERVICE=<name> SET="NAME=VALUE"'; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m settings.run --service $(SERVICE) $(foreach one,$(SET),--set $(one))
