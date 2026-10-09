@@ -168,8 +168,9 @@ SETTINGS: tuple[Setting, ...] = (
         kind="csv",
         choices=("atomic", "summary", "outline", "bridge"),
         invalidates=("extraction",),
-        help="Which readings of a passage a run produces. `atomic` is not "
-        "optional: every passage is read for its claims.",
+        help="Which digests the passage queue writes beside `atomic`, which is "
+        "not optional: every passage is read for its claims. `bridge` is "
+        "accepted and read by nothing.",
     ),
     Setting(
         name="EXTRACTION_DIGEST_MAX_SHARE",
@@ -829,8 +830,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="platform",
         kind="decimal",
         low=1,
-        help="How long to wait for one call. Size it from a measurement: it "
-        "also derives how long a claimed row may go unfinished.",
+        help="How long to wait for one call. Size it from a measurement.",
     ),
     Setting(
         name="LLM_MAX_ATTEMPTS",
@@ -883,8 +883,9 @@ SETTINGS: tuple[Setting, ...] = (
         kind="integer",
         low=1,
         invalidates=("chunking",),
-        help="That model's context window, and so the longest passage the "
-        "chunker emits. Larger silently truncates at embed time.",
+        help="That model's context window. The chunker cuts a passage to it "
+        "less the tokens the embedder adds. Larger silently truncates at embed "
+        "time.",
     ),
     Setting(
         name="NLP_MODELS",
@@ -902,8 +903,8 @@ SETTINGS: tuple[Setting, ...] = (
         kind="text",
         fixed=True,
         invalidates=("chunking", "extraction"),
-        help="Used for a passage too short for the detector to judge, and "
-        "for any language NLP_MODELS does not name.",
+        help="Its pipeline reads a passage whose language neither it nor its "
+        "document gives, and any language NLP_MODELS does not name.",
     ),
     Setting(
         name="NLP_CAPITALISED_NOUNS",

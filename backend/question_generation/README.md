@@ -492,7 +492,7 @@ does three jobs, and they are one setting because they must agree:
 
 | | |
 |---|---|
-| Chunking | Counts a passage's tokens. `EMBEDDING_MAX_TOKENS` is the model's window and so the longest passage |
+| Chunking | Counts a passage's tokens. `EMBEDDING_MAX_TOKENS` is the model's window, which a passage is cut to less the tokens the embedder adds |
 | Extraction | Embeds every passage and fact into `passages.embedding` and `facts.embedding`, which this stage reads to pair passages, to find the corpus's furniture and to probe for `answerable_elsewhere` |
 | The `duplicate` gate | Embeds each question into `questions.embedding`, which the HNSW index serves |
 

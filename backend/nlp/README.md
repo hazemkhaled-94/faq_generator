@@ -193,7 +193,7 @@ never stored, so changing one needs a restart.
 | `NLP_DEFAULT_LANGUAGE` | The pipeline a text is read with when its language is unknown or not in `NLP_MODELS` |
 | `NLP_CAPITALISED_NOUNS` | Languages where capitalisation is not evidence of a proper noun, and a lower-case noun is foreign |
 | `EMBEDDING_MODEL` | The one embedding model, and the tokenizer chunking sizes a passage by |
-| `EMBEDDING_MAX_TOKENS` | The embedder's ceiling, and so the longest passage chunking emits |
+| `EMBEDDING_MAX_TOKENS` | The embedder's ceiling. Chunking cuts a passage to it less the tokens the embedder adds |
 | `NLI_MODEL` | The entailment encoder. Absent asks the verifier instead |
 | `NLI_ENTAILMENT_THRESHOLD` | How sure it must be before it rescues an answer |
 | `QA_MODEL` | The extractive reader asked for a span before the verifier is |
