@@ -32,7 +32,8 @@ router = APIRouter(prefix="/prompts", tags=["prompts"])
 class Prompt:
     """One prompt, as it was composed under one version."""
 
-    #: The stage that sends it: `questions`, `extraction` or `topics`.
+    #: The stage that sends it: `questions`, `extraction`, `topics` or
+    #: `assessment`.
     service: str
     #: What it is within that stage - a question type, `perturb`, one of
     #: the verifier's four.
