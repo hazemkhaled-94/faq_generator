@@ -1,7 +1,7 @@
 {
   "uid": "qa-pipeline-runs",
   "title": "3 · One run, end to end",
-  "description": "One run, from all three stores at once. A run is `RUN_ID`, and it is spelled the same in each: `questions.run_id` on the rows, a Phoenix project named `<stage>-<run id>` on the spans, `run.id` on every log line. The rows say what the run produced and which gate stopped the rest; the spans say what the logic did and what it cost; the logs say literally everything else. Pick a run at the top. A run nobody named with RUN_ID, which is every container run and every Start button run, has no Phoenix project of its own: its spans are in its stage's shared project, and the four Phoenix panels show nothing for it.",
+  "description": "One run, from all three stores at once. A run is `RUN_ID`, and it is spelled the same in each: `questions.run_id` on the rows, a Phoenix project named `<position>-<stage>-<RUN_ID>` on the spans, `run.id` on every log line. The rows say what the run produced and which gate stopped the rest; the spans say what the logic did and what it cost; the logs say literally everything else. Pick a run at the top. A run nobody named with RUN_ID, which is every container run and every Start button run, has no Phoenix project of its own: its spans are in its stage's shared project, and the four Phoenix panels show nothing for it.",
   "tags": ["qa_generator"],
   "editable": true,
   "schemaVersion": 39,
