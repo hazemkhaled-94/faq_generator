@@ -188,9 +188,9 @@ model calls all filter on one id whoever set the stage going.
 is created by the first span filed under it, and a stage's first span is
 the model call its preflight makes. A credential that has expired
 therefore left a project per attempt — which under `restart:
-unless-stopped` is a project per restart. `stages/cli.py` now configures
-the logs first and tracing only once the process knows it is going to
-claim rows.
+unless-stopped` is a project per restart. `stages/cli.py` and
+`topic_modelling/run.py` configure the logs first and tracing only once the
+process knows it is going to claim rows.
 
 ```bash
 make phoenix-projects   # what Phoenix holds
