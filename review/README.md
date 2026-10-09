@@ -28,8 +28,8 @@ delete the Argilla dataset and the pipeline has lost nothing.
 Each record already carried what the **checker** decided. It now also
 carries what an **LLM judge** decided, from
 [the evaluation phase](../backend/assessment/README.md): a `judge` field
-holding the judgement and its reasoning, and `judge` and `judge_disagrees`
-as metadata to filter on.
+holding the judgement and its reasoning, and `judge_verdict` and
+`judge_disagrees` as metadata to filter on.
 
 `judge_disagrees=yes` is the sitting worth having. Those are the artefacts
 the pipeline **kept** and the judge refused — one of the two is wrong, and a
@@ -57,9 +57,10 @@ make review-push-questions   # a sample, spread over the gates
 make review-pull-questions
 make review-status           # how much has been looked at, and who agreed
 
-make review                  # push all three samples in one go
-make review-all              # every row of every kind, not a sample
+make review                  # push both samples and every topic in one go
+make review-all              # every row of every kind still to review, not a sample
 make pull                    # pull all three back
+make review-delete           # delete the three review datasets, and no other
 ```
 
 Push, review in the UI at `ARGILLA_API_URL`, then pull.
@@ -71,9 +72,11 @@ python -m review.run --push facts
 python -m review.run --push facts --all
 python -m review.run --pull questions
 python -m review.run --status
+python -m review.run --delete
 ```
 
-`--push`, `--pull` and `--status` are mutually exclusive and one is required.
+`--push`, `--pull`, `--status` and `--delete` are mutually exclusive and one
+is required.
 `--all` and `--ids` modify a push.
 
 ## What a review produces
@@ -98,9 +101,11 @@ rejection indistinguishable from a question no gate ever stopped.
 
 ## A sample, or the corpus
 
-`REVIEW_SAMPLE_SIZE` rows spread over the verdicts is the default, and what
-`make review` sends. `--all` sends every row of that kind instead, so Argilla
-holds the corpus and the reviewer filters there.
+`REVIEW_SAMPLE_SIZE` facts or questions spread over the verdicts is the
+default, and what `make review` sends; topics are pushed whole every time.
+`--all` sends every fact nobody has reviewed, or every question not already
+answered in Argilla, instead, so Argilla holds the corpus and the reviewer
+filters there.
 
 `make review-all` is that over all three kinds. It is the right shape when
 somebody is working through a corpus; the sample is the right shape when the
@@ -131,7 +136,9 @@ given here and one given on the Questions or Topics page are the same write.
 Facts had nowhere. `validated` and `rejection_code` are the checker's, and
 `make extract-revalidate` rewrites both from scratch, so a human decision
 recorded there would last until the next re-judgement.
-`reviewed_verdict` is its own column.
+`reviewed_verdict` is its own column, and a `rejected` there binds: question
+generation never writes from that fact, and re-verify rejects a question
+resting on it as `source_changed`. An `accepted` there changes nothing.
 
 A pull takes only **submitted** answers. Argilla saves a draft the moment a
 record is touched, and writing one back would record an opinion nobody has
@@ -146,13 +153,13 @@ From [`configs/env/review.env`](../configs/env/review.env), in git:
 | `REVIEW_SAMPLE_SIZE` | How many records one push puts in front of a reviewer, split across the groups |
 | `REVIEW_REVIEWER` | Read and not used: no column records who reviewed a row |
 
-From `.env`, not in git:
+From [`configs/env/deployment.env`](../configs/env/deployment.env) and `.env`:
 
 | Setting | What it does |
 | --- | --- |
-| `ARGILLA_API_URL` | The **host's** address: this is a `make` target, not a container |
-| `ARGILLA_API_KEY` | Argilla shows it under "My settings". **Not** `ARGILLA_PASSWORD` |
-| `ARGILLA_WORKSPACE` | One per deployment |
+| `ARGILLA_API_URL` | The **host's** address, derived by the Makefile from `ARGILLA_PORT` in `deployment.env`: this is a `make` target, not a container |
+| `ARGILLA_API_KEY` | In `.env`, not in git. Argilla shows it under "My settings". **Not** `ARGILLA_PASSWORD` |
+| `ARGILLA_WORKSPACE` | In `deployment.env`. One per deployment |
 
 Argilla's Elasticsearch is the one the logs already use — a shared heap, and
 [`configs/env/elasticsearch.env`](../configs/env/elasticsearch.env) is where
@@ -168,8 +175,9 @@ poetry run pytest tests/unit/review
 |---|---|
 | [`test_records.py`](../tests/unit/review/test_records.py) | How a review sample is drawn, and what a record carries |
 | [`test_service.py`](../tests/unit/review/test_service.py) | Bringing verdicts home |
+| [`test_review_cli.py`](../tests/unit/review/test_review_cli.py) | The command line, and what it refuses |
 
-Neither reaches a network.
+None of them reaches a network.
 
 ## Limits
 
