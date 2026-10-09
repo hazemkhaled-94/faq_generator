@@ -925,9 +925,9 @@ confidence-recalibrate:
 # column on the rows already there, so nothing is deleted, the questions left
 # out stay queryable, and running it again replaces the draw. Reports the
 # yield - how much of the accepted pool made it in - and names any quota the
-# pool could not fill.
+# pool could not fill. Always over every topic: TOPIC= does not narrow it.
 questions-balance:
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --balance $(ONLY)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --balance
 
 # The questions as a spreadsheet: one sheet of questions, one of the facts
 # each cites, one of counts. A question's own row carries what it rests on

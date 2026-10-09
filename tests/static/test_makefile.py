@@ -218,3 +218,12 @@ def test_every_target_is_declared_phony() -> None:
 
     assert len(targets) > 100, len(targets)
     assert not targets - phony, sorted(targets - phony)
+
+
+def test_the_balance_is_drawn_over_every_topic_whatever_narrows_it() -> None:
+    """A draw narrowed to one topic replaced the release for all of them."""
+    (drawing,) = [
+        line for line in printed("questions-balance", "TOPIC=7") if "--balance" in line
+    ]
+
+    assert "--only" not in drawing, drawing
