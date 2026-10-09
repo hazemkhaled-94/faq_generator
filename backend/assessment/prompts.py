@@ -1,7 +1,7 @@
 """Every prompt the judge sends, for the record that resolves a version.
 
 `assessments.prompt_version` named a version and nothing in the deployment
-could read it back. The other four stages that call a model record theirs
+could read it back. The other three stages that call a model record theirs
 at start-up; this phase did not, so a corpus judged under version 1 and one
 judged under version 2 were the same seven columns with nothing saying what
 either had been asked.
