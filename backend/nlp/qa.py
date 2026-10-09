@@ -98,10 +98,9 @@ class Extractive:
     ) -> Span | None:
         """The best span any one passage gives, or None for no answer.
 
-        One passage per call and the best of them wins, for the reason
-        `nlp.entailment` judges one at a time: a context of several passages
-        joined is longer than the window and is not the question being
-        asked. An answer is in the material when SOME passage holds it.
+        One passage per call and the best of them wins: a context of several
+        passages joined is longer than the window and is not the question
+        being asked. An answer is in the material when SOME passage holds it.
 
         Args:
             question: The question to answer.
