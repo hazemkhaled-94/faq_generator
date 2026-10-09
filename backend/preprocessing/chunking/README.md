@@ -15,7 +15,7 @@ original PDF, so re-chunking never re-parses.
 **A citation is an index, not a quote.** Every sentence is numbered and its
 character offsets recorded; a fact says "sentence 4" and the evidence span is
 resolved from the offsets. There is no similarity threshold anywhere in this
-stage. For a table, the rendered Markdown rows are numbered the same way.
+stage. For a table, the rendered Markdown lines are numbered the same way.
 
 The other two stages that turn a PDF into passages are
 [ingestion](../../ingestion/README.md) and [parsing](../parsing/README.md).
@@ -61,7 +61,8 @@ A table is rendered into the passage text as Markdown rows, and the grid is
 kept separately because the rendering loses the header flags, positions and
 spans. Each data row is paired with the rendered line that shows it, matched
 **by position** — every value must sit at its own column index — and lines
-are consumed in order, so two identical rows take two different lines.
+are consumed in order, so two identical rows take two different lines. A
+line one table took is no other table's in the same passage.
 
 A data row this passage does not render is dropped: it belongs to another
 piece of a table the chunker split. Header rows are kept whether matched or
@@ -73,21 +74,25 @@ row — it marks the stub in the first column of an ordinary data row.
 `_read` detects each passage's language on its own text, falling back to the
 document's when the passage is too short to judge. Per passage rather than per
 document, because a document carrying an English summary of a German report
-would send half its passages to the wrong pipeline.
+would send half its passages to the wrong pipeline. A table passage takes the
+document's language without detection.
 
 Then one spaCy batch per language, producing the **numbered units** a fact may
-cite — sentences for prose, each with its finite-verb count; the rendered rows
-for a table — and the **content lemmas** the topic model is fitted over.
+cite — sentences for prose, each with its finite-verb count; the rendered
+lines for a table, a line of prose among them carrying the finite-verb count
+of the sentences on it — and the **content lemmas** the topic model is fitted
+over.
 
 Every passage is read for vocabulary, a table included, since its headings and
 cell values are what it is about.
 
 Three choices sit inside the lemma reading: web addresses are excluded,
 because Markdown renders a link as `[text](url)` and the tokenizer offers
-every path segment as a word; a lemma must be alphabetic and longer than one
-character, because a lemmatiser handed a word from another language returns
-the placeholder `--`; and in a language named in `NLP_CAPITALISED_NOUNS`, a
-lower-case word tagged as a noun is treated as foreign and dropped.
+every path segment as a word; a lemma must hold a letter and be longer than
+one character, because a lemmatiser handed a word from another language
+returns the placeholder `--`; and in a language named in
+`NLP_CAPITALISED_NOUNS`, a lower-case word tagged as a noun is treated as
+foreign and dropped.
 
 ### Step 5 — Store
 
@@ -102,7 +107,8 @@ memberships they held.
 
 [`service.py`](service.py) · `revocabulary`. Applies a change to how language
 or vocabulary is read without re-chunking, replacing `passages.language` and
-`passages.lemmas` in place.
+`passages.lemmas` in place. Unlike a chunking run, it detects a table
+passage's language on its own text too.
 
 Sentence offsets are deliberately left alone: a fact cites one by index, so
 moving them would point every citation in the corpus at different text.
@@ -123,8 +129,9 @@ Used in exactly three places, and the medium models are required:
   a fit reads a column instead of re-tokenising the corpus.
 
 Everything else in `nlp/analysis.py` belongs to extraction and question
-generation. Both models must be present in the image; nothing downloads one
-at run time. `spacy.__version__` is recorded on every fact.
+generation, bar `normalised`, which parsing hashes the body with. Both models
+must be present in the image; nothing downloads one at run time. Every fact
+records the version of the spaCy pipeline that checked it.
 
 ## Inputs and outputs
 
@@ -136,7 +143,7 @@ the JSON object it names in the `parsed` bucket.
 | Table | Holds |
 |---|---|
 | `passages` | the text, the language, the numbered units, the lemmas, the pages, the heading trail, the block type, the converter's item references, the bounding boxes and the table grids |
-| `documents` | `oversized`, and the `chunk_status` / `chunk_error` / `chunk_claimed_at` triple. Nothing else |
+| `documents` | `oversized`, the `chunk_status` / `chunk_error` / `chunk_claimed_at` triple, and the `chunk_trigger` its verbs set. Nothing else |
 
 **Written, in SeaweedFS:** nothing.
 
@@ -151,13 +158,16 @@ the JSON object it names in the `parsed` bucket.
 
 **Command line:** `make chunk-status`, `chunk-start`, `chunk-stop`,
 `chunk-retry`, `chunk-rerun`, `chunk`, `chunk-revocabulary`;
-`--only document=<sha>` narrows any of them.
+`SHA=<sha>` (`--only document=<sha>`) narrows every one but `chunk`, which
+drains the whole queue on the host, for developing the stage. The container
+workers build the dataset.
 
 **Read by:** extraction, topic modelling and question generation.
 
 ## Configuration
 
-Read from the environment at start-up, with no defaults in code.
+Read from the environment with no defaults in code, and overridable as
+[`backend/settings/`](../../settings/README.md) describes.
 
 | Setting | What it does |
 |---|---|
@@ -175,7 +185,7 @@ Shared with parsing.
 | Setting | What it does |
 |---|---|
 | `NLP_MODELS` | `language:model` pairs. The spaCy pipeline per language, and the list the detector may answer with. Both models must be in the image |
-| `NLP_DEFAULT_LANGUAGE` | For a passage too short to detect. Must be one of the languages `NLP_MODELS` names |
+| `NLP_DEFAULT_LANGUAGE` | The pipeline that reads a passage whose language neither it nor its document gives. Must be one of the languages `NLP_MODELS` names |
 | `NLP_CAPITALISED_NOUNS` | Languages that write every noun with a capital. Empty is valid |
 
 ## Tests
@@ -188,9 +198,10 @@ poetry run pytest tests/unit/chunking
 
 `ChunkDriver` and `RevocabularyDriver` live in
 [`tests/unit/intake/intake_drivers.py`](../../../tests/unit/intake/intake_drivers.py),
-over `MemoryParsed`, `ChunkRows` and `PassageRows`. Only the database and the
-bucket are stood in for; the chunk reader, the table pairing and the real
-spaCy pipelines are the real code.
+over `MemoryParsed`, `ChunkRows` and `PassageRows`. `ChunkDriver` also stands
+in `ScriptedBuilder` for the passage builder, so the chunk reader, the table
+pairing and the real spaCy pipelines are reached by calling `PassageBuilder`
+and `chunking_of` directly.
 
 | File | Covers |
 |---|---|
@@ -202,7 +213,7 @@ spaCy pipelines are the real code.
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes, the transactional replacement and its cascade, and every listing filter |
 | [`tests/integration/database/test_queue.py`](../../../tests/integration/database/test_queue.py) | The claim mechanics under concurrent workers |
 | [`tests/e2e/test_pipeline.py`](../../../tests/e2e/test_pipeline.py) | One document through every stage, and that dropping the derived data lets chunking repeat without re-parsing |
-| [`tests/static/test_intake_pinned.py`](../../../tests/static/test_intake_pinned.py) | The settings, routes, answer shapes and modules, pinned |
+| [`tests/static/test_intake_pinned.py`](../../../tests/static/test_intake_pinned.py) | That this README carries its three sections |
 
 Not covered, by choice: the behaviour of the real embedding tokenizer on a
 corpus, which is a property of the model rather than of this code.
@@ -213,8 +224,9 @@ corpus, which is a property of the model rather than of this code.
   which cascades to the facts, memberships and questions resting on them.
 - **`oversized` should always read 0.** Above 0 means the chunker's split did
   not happen and those passages will be truncated when embedded.
-- **A passage too short to detect a language for gets `NULL`**, which puts it
-  outside every topic model and outside question generation.
+- **A passage too short to detect a language for, in a document with none,
+  gets `NULL`**, which puts it outside every topic model and outside question
+  generation.
 - **`revocabulary` does not renumber sentences.** A change to how sentences
   are split reaches the corpus only through a re-chunk.
 - **`start` and `rerun` skip a document parsing has not finished.** This is
