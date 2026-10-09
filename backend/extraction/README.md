@@ -29,11 +29,13 @@ the topic model put together. `make extract-bridge` walks every topic, forms
 groups, and writes what they yield. Topics must be fitted first. A second
 pass replaces the bridges in scope, so it refuses, deleting nothing, while an
 accepted question cites one of them; `FORCE=1` replaces them anyway, and
-those questions are rejected or deleted with them.
+those questions are rejected or deleted with them. It asks the model one
+question first, and deletes nothing if the model does not answer.
 
-`make extract-revalidate` re-judges every stored fact without calling a
-model, which is how a change to the checks reaches a corpus extracted before
-it.
+`make extract-revalidate` re-judges stored facts without calling a model,
+which is how a change to the checks reaches a corpus extracted before it. It
+leaves alone the `over_cap` and `duplicate` refusals, which no check
+reaches, and any fact whose citation recorded no sentence.
 
 ### Step 1 — Claim a passage
 
@@ -47,11 +49,17 @@ that outlived its lease. The lease is the one every stage shares; see
 A passage is skipped, and marked read with nothing found, when:
 
 - it has **no numbered sentences** — nothing can cite it;
+- its block type is **`document_index` or `code`** — navigation rather than
+  content;
 - it **is its own heading**;
 - **none of its sentences carries a finite verb** — a caption, a navigation
-  line, a bare list fragment.
+  line, a bare list fragment;
+- it carries a **copyright notice** — it is about the document;
+- it reads as **an index, a bibliography or a contents page** — long for the
+  claims it carries, and dense with digits. The shares are
+  `_CHARS_PER_CLAIM` and `_NUMERIC_WORDS` in [`service.py`](service.py).
 
-A table is exempt from the last two, because it is read from its cell grid.
+A table is exempt from the last four, because it is read from its cell grid.
 It is not exempt from one more: a grid whose filled cells are more than half
 identifiers — `TA-BO1`, `K2`, `1.7`, a tick — states nothing a reader would
 look up. The share is `_CODE_CELLS` in [`service.py`](service.py).
@@ -69,6 +77,10 @@ Routed by block type:
   sentences it came from. The evidence is resolved from the numbers
   afterwards; nothing is copied.
 
+A table passage that also carries prose outside its grid gets both: the
+deterministic reader for the grid, and the model shown only the prose lines
+that carry a finite verb.
+
 ### Step 4 — Read the digest
 
 One call produces both the `summary` and the `outline`, so naming both in
@@ -81,7 +93,8 @@ model reads the passage.
 ### Step 5 — Check everything
 
 Every check is structural rather than lexical. A citation is an index, so it
-cannot be half-right, and there are no similarity thresholds in this service.
+cannot be half-right, and no check reads a similarity: the one similarity
+threshold in this service is the `duplicate` refusal below.
 
 The citation is resolved first — a citation naming nothing that exists is
 `evidence_absent` and no further check runs. Then the checks the kind calls
@@ -91,23 +104,27 @@ for, first failure winning:
 |---|---|:-:|:-:|:-:|:-:|
 | citation resolves | `evidence_absent` | ● | ● | ● | ● |
 | not copied | `copied` | ● | | | |
+| two points or more | `not_listed` | | | ● | |
 | asserts something | `asserts_nothing` | ● | ● | | ● |
 | exactly one claim | `not_atomic` | ● | | | ● |
 | nothing invented | `unsupported_addition` | ● | ● | ● | ● |
 | no dangling pronoun or demonstrative | `unresolved_reference` | ● | | | ● |
 | shorter than its passage | `not_condensed` | | ● | ● | |
-| two points or more | `not_listed` | | | ● | |
 | rests on two passages | `not_bridging` | | | | ● |
 
 Two more refusals are the service refusing what the checks passed:
 
 - `duplicate` — the corpus already holds the statement.
   `EXTRACTION_DUPLICATE_COSINE` is how alike two may be, and a candidate is
-  probed against every validated fact in the corpus through the HNSW index
-  **and** against the facts this passage already kept.
+  probed through the HNSW index against every validated passage fact in the
+  corpus that carries a vector, bar those citing only the passage being
+  re-read, **and** against the facts this passage already kept. A bridge is
+  never its twin. The refused fact's citation is added to the stored fact it
+  repeats, with its evidence.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which works out to a cap on the atomic
-  ones. The facts asserting a number, date or name are kept first.
+  ones. The facts asserting a number, date or name are kept first, and the
+  ones the deterministic reader composed do not compete.
   `make extract-recap` re-applies it with no model call.
 
 The gaps are the design: a `summary` and an `outline` carry several claims by
@@ -121,8 +138,10 @@ form; a proper noun is lemmatised.
 
 ### Step 6 — Store
 
-One transaction. The passage's existing facts are deleted and the new ones
-written, scoped to that passage. Bridge facts resting on it are not deleted.
+One transaction. The passage's existing citations are deleted and the new
+facts written, scoped to that passage. A fact left citing nothing goes with
+them; one another passage still cites stays. A bridge resting on it keeps
+its citation.
 
 Every fact gets one `fact_passages` row per passage it rests on. That link is
 the only route from a fact to a passage, and so to a document and a topic.
@@ -139,14 +158,15 @@ inside each, and answers with a claim plus, per passage, the numbers of the
 sentences it read it in. It is told not to compute: a total nobody wrote down
 would be refused as `unsupported_addition`.
 
-A trigger deletes a fact once any passage it rests on is gone. Re-running the
-pass replaces what the previous one wrote.
+A trigger deletes a bridge once any passage it rests on is gone. Re-running
+the pass replaces what the previous one wrote.
 
 ## Inputs and outputs
 
 **Reads:** `passages` (text, numbered sentences, section path, block type,
-table grids), `documents.language`, `passage_topics` for the bridge pass, and
-one served model.
+table grids), `documents.language`, `passage_topics` for the bridge pass, the
+stored facts the `duplicate` probe compares against, and the served model,
+with a second where `EXTRACTION_DIGEST_MODEL` names one.
 
 **Writes:**
 
@@ -155,11 +175,14 @@ one served model.
   version it was produced under.
 - `fact_passages` — one row per passage the fact rests on, with the sentences
   and the span the claim rests on there.
-- `passages.extract_status`, `extract_error`, `extract_claimed_at`.
+- `passages.extract_status`, `extract_error`, `extract_claimed_at`,
+  `extract_trigger`, and the passage's own `embedding`.
 
 **Invariant:** for every `fact_passages` row whose citation was recorded,
-`passages.text[evidence_start:evidence_end]` is the text the claim was read
-in. `facts.evidence_text` is those spans joined in position order.
+`passages.text[evidence_start:evidence_end]` runs from the first sentence the
+claim cites there to the last. `facts.evidence_text` is the cited sentences
+alone: a gap between two of them, or a second passage, is a line break, and
+a citation a refused duplicate adds brings its evidence with it.
 
 **Serves**
 
@@ -169,7 +192,7 @@ in. `facts.evidence_text` is those spans joined in position order.
 | `GET /facts/quality` | The figures under that same filter |
 | `GET /facts/{id}/passages` | The passages one fact rests on |
 | `GET /extraction/status` | The queue depth, and whether a worker is on it |
-| `POST /extraction/{action}` | `start`, `stop`, `retry`, `rerun` |
+| `POST /extraction/{action}` | `start`, `stop`, `retry`, `rerun`, `reclaim` |
 | `GET\|POST /extraction/{scope}/{value}/…` | The same, narrowed to one document or passage |
 
 ## Prompts
@@ -177,34 +200,42 @@ in. `facts.evidence_text` is those spans joined in position order.
 Each of the three model-backed readers declares its own `PROMPT_VERSION` and
 writes its composed prompt to the `prompts` table before the first claim.
 [`prompts.py`](prompts.py) is the catalogue. The atomic prompt is recorded
-with the cap paragraph `EXTRACTION_MIN_OTHER_SHARE` works out to.
+with the cap paragraph `EXTRACTION_MIN_OTHER_SHARE` works out to, under its
+version with that cap appended (`<version>+cap<n>`). Each prompt is recorded
+under the model it is sent to: `EXTRACTION_MODEL` for the atomic and bridge
+readers, and `EXTRACTION_DIGEST_MODEL` for the digest, the reader's where
+unset.
 
 Read one back with `GET /prompts?service=extraction`, or in Phoenix, where
 this stage publishes whatever it records when it starts.
 
-A worker asks the configured model one question before it claims anything and
-refuses to start if it will not answer. See
+A drain asks the passage reader's model and the digest's one question before
+it claims anything. A one-off drain refuses to start if either will not
+answer; a watching worker waits until both do. See
 [`backend/llm/`](../llm/README.md).
 
 ## Configuration
 
-Nine settings of its own, in `configs/env/backend.env`. Everything else is
-shared: `LLM_*`, `NLP_MODELS`, `EMBEDDING_MODEL`, `DATABASE_*`.
+Ten settings of its own, in `configs/env/backend.env`. Everything else is
+shared: `LLM_*`, `NLP_*`, `EMBEDDING_MODEL`, `EMBEDDING_MAX_TOKENS`,
+`DATABASE_*`.
 
 | Setting | What it does |
 | --- | --- |
-| `EXTRACTION_KINDS` | Which kinds a run writes. `atomic` is mandatory |
+| `EXTRACTION_KINDS` | Which digests the passage queue writes beside `atomic`, which is mandatory. `bridge` is accepted and read by nothing |
 | `EXTRACTION_DIGEST_MAX_SHARE` | The longest a digest may be, as a share of its passage |
 | `EXTRACTION_DIGEST_MIN_CHARS` | Shortest passage worth digesting |
 | `EXTRACTION_BRIDGES_PER_TOPIC` | Groups one topic is worth |
 | `EXTRACTION_BRIDGE_PASSAGES` | Passages one group holds. At least 2 |
 | `EXTRACTION_MIN_OTHER_SHARE` | The floor a passage's non-atomic kinds keep |
 | `EXTRACTION_DUPLICATE_COSINE` | How alike two facts may be |
+| `EXTRACTION_DUPLICATE_FLOOR` | The cosine two unrelated facts score. Calibrates the stored confidence; refuses nothing |
 | `EXTRACTION_MODEL` | A different reader. Unset means `LLM_MODEL` |
 | `EXTRACTION_DIGEST_MODEL` | The model the digest call goes to |
 
 Naming `summary` or `outline` adds one model call per passage. Naming
-`bridge` costs nothing on the passage queue — it enables a separate pass.
+`bridge` changes nothing: `make extract-bridge` runs the bridge pass whether
+it is named or not.
 
 Changing `EXTRACTION_KINDS` or either bridge setting affects the next run;
 `EXTRACTION_DIGEST_MAX_SHARE` can be applied to stored facts with
@@ -214,7 +245,7 @@ Changing `EXTRACTION_KINDS` or either bridge setting affects the next run;
 
 ```bash
 make extract-start                  # queue every passage never asked for
-make extract                        # drain the queue here, in the foreground
+make extract                        # drain the queue here, for developing the stage
 make extract-status                 # passages by state, and facts held
 make extract-stop                   # take back whatever has not begun
 make extract-retry                  # return every failed passage to the queue
@@ -225,7 +256,7 @@ make extract-bridge FORCE=1         # even over bridges accepted questions cite
 make extract-recap                  # re-apply the atomic cap; no model call
 make extract-embed                  # write vectors onto rows already stored
 
-make extract-retry PASSAGE=<id>     # any of them, narrowed to one passage
+make extract-retry PASSAGE=<id>     # any of them but extract, narrowed to one passage
 make extract-rerun SHA=<sha256>     # or to one document
 ```
 
@@ -238,9 +269,9 @@ that gate existed was accepted.
 poetry run pytest tests/unit/extraction
 ```
 
-Twenty-two files over seven layers. Non-UI tests act through a driver —
-`Checker`, `Model`, `Queue`, `Catalogue`, `Extraction` in `tests/drivers.py`,
-and `FactStore` in `tests/integration/facts.py`.
+Twenty-five files over seven layers. Non-UI tests act through a driver —
+`Checker`, `Model`, `Queue`, `Catalogue`, `Vectors`, `Extraction` in
+`tests/drivers.py`, and `FactStore` in `tests/integration/facts.py`.
 
 | Layer | Holds |
 |---|---|
@@ -248,8 +279,9 @@ and `FactStore` in `tests/integration/facts.py`.
 | Integration | The SQL against a real Postgres, what the database refuses, and the HTTP surface |
 | Property | A verdict and its code always agree; a span always resolves; a bridge never records a passage it was not offered |
 | Regression | A golden table of every candidate anybody has seen, in both languages, with the verdict it should get |
-| Static | `tests/static/test_facts_pinned.py` — settings, routes, dataclass fields, modules, kinds, rejection codes and the check matrix; `tests/static/test_prompts_pinned.py` — the three prompts, by version and digest |
+| Static | `tests/static/test_facts_pinned.py` — the settings catalogued, the routes, the check matrix in order, and this README's sections, kinds and rejection codes; `tests/static/test_prompts_pinned.py` — the three prompts, by version and digest |
 | Eval | A real served model against golden passages. Prints; never gates |
+| Frontend | `tests/frontend/test_facts_page.py` — the Facts page against a scripted backend |
 
 ```bash
 make test-fast          # everything but spaCy, pyright and containers
@@ -261,11 +293,12 @@ make test-eval          # needs LLM_MODEL and LLM_BASE_URL; never gates
 ## Limits
 
 - **A spelled-out number counts as a unit.** spaCy's `like_num` is true of
-  *one*, *two*, *both* and *dozen*, so a statement saying `two parties` drawn
-  from a source writing `2 parties` is refused as an unsupported addition.
+  *one* and *two*, so a statement saying `two parties` drawn from a source
+  writing `2 parties` is refused as an unsupported addition.
 - **A bridge cannot aggregate.** A total, difference or average appears in no
   passage, so it is refused. Bridges relate what is written.
-- **An outline is checked on its shape, not its content.** The parser cannot
-  read a fragment.
+- **An outline is checked on its shape, not its grammar.** The parser cannot
+  read a fragment, so an outline faces neither `asserts something` nor
+  `exactly one claim`.
 - **The bridge pass depends on topic modelling.** With no fit it finds no
-  groups and says so in the log rather than failing.
+  group, writes no bridge and logs that it wrote none, rather than failing.
