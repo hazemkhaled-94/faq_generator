@@ -203,5 +203,6 @@ model is asked anything — see [`evaluation/`](../../evaluation/README.md).
   `tests/eval/` never gates.
 - **`QUESTIONS_VERIFIER_MODEL` unset makes the writer check its own
   questions rather than failing.** The worker warns on every start.
-- **An unknown model id fails at the first call, not at start-up.** The only
-  way to validate one is to call it; `make doctor` is that call.
+- **An unknown model id is found by asking it one question.** A drain asks
+  every model it calls before it claims anything; `make doctor` asks the
+  host's.
