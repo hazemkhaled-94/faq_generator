@@ -286,8 +286,7 @@ def _detail(moved: list[str], stale: list[str], rebuilds: list[str]) -> str:
     if not moved:
         return "nothing changed; every value given is the one already set."
     written = (
-        f"{len(moved)} setting(s) changed. Workers pick them up on the row "
-        f"they claim next."
+        f"{len(moved)} setting(s) changed. Workers pick them up at their next drain."
     )
     if not stale:
         return written
