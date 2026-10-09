@@ -99,16 +99,6 @@ Faktoren` (5355) count something their own facts state, and only happen to
 equal the number of facts cited. The digit rule refuses the same shape —
 `2 coverage items` (1409).
 
-## Known pipeline defects not counted above
-
-**F36 — German indefinite article read as definite.** `_counted` in
-[`analysis.py`](../backend/nlp/analysis.py) sets `definite` on
-`PronType=Art`, which German also gives `ein` and `eine`. It is read only by
-`pointing`, the question-side check that routes a question to the
-self-contained judge, never by the fact checks. It does not reproduce on the
-pinned parser, which attaches `ein` to `paar` rather than to the noun. Fix:
-require `Definite` not to be `Ind`.
-
 ## Reproducing this page
 
 The counts are queries over `questions`, `facts`, `question_facts` and
