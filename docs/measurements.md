@@ -8,7 +8,9 @@ stratified run of their own. The fact verdicts, the
 accepted pool and the release are that run's output as it stands on
 **2026-10-06**: the same 16 documents and the same 5,873 written questions,
 re-verified under fixed gates with two targeted fact repairs applied. It is
-not a fresh extraction, and no model was called for any of it.
+not a fresh extraction, and no model was called for any of it. The run of
+2026-09-26 ran every stage on the host and predates the rule that keeps
+host parse, chunk and extract runs off the dataset.
 
 The two repairs:
 
@@ -394,28 +396,15 @@ Not a run figure. `make test-coverage` re-measures.
 
 ## Reproducing this page
 
-```bash
-make corpus                       # every stage but the topic fit, on the host
-make topics-discover              # fit the topics, which corpus never does
-make corpus                       # the questions, the release draw and the judge
-make pipeline-status              # the counts
-make spend LOG=run.log            # the calls and the cost
-```
+This run cannot be reproduced under today's rules. It ran every stage on the
+host against hosted models. Today the container workers build the dataset,
+their shared model is an Ollama model, each host drain refuses while its
+stage's worker container runs, and host parse, chunk and extract runs are
+kept off the dataset. No run those rules allow repeats the run above.
 
-The evaluation phase's facts and questions, as the stratified run was
-invoked:
-
-```bash
-make assess-enrol ASSESSMENT_STRATIFY=true    # draw the sample; no model call
-make assess-start                             # queue it
-make assess RUN_ID=assess-stratified-2026-10-06
-```
-
-`assess-start` enrols again before it queues, and a stratified enrolment
-then drew a new random sample each time, so it ran without
-`ASSESSMENT_STRATIFY`. Newest-first, its enrolment found nothing new.
-
-Its figures count only complete verdicts:
+What can still be read again is what the run left in the tables. The
+evaluation phase ran as `assess-stratified-2026-10-06`, and its figures count
+only complete verdicts:
 
 ```sql
 SELECT a.* FROM assessments a
