@@ -84,7 +84,7 @@ class TopicFitter:
             passes: Times the factorisation walks the corpus.
             random_state: Seed for the factorisation.
             top_terms: Terms kept as a topic's signature, at least 1.
-            min_weight: Smallest membership weight kept, in (0, 1].
+            min_weight: Smallest membership weight kept, in (0, 1).
             no_below: Fewest passages a term must appear in.
             no_above: Largest share of passages a term may appear in, in
                 (0, 1].
