@@ -18,9 +18,10 @@ def _integer(name: str) -> int:
     raw = os.environ.get(name, "").strip()
     if not raw:
         raise RuntimeError(
-            f"{name} must be set for the frontend. It comes from .env and has "
-            f"to be listed in the streamlit service's environment in "
-            f"compose.yaml - being in .env alone is not enough."
+            f"{name} must be set for the frontend. It comes from "
+            f"configs/env/deployment.env and has to be listed in the streamlit "
+            f"service's environment in compose.yaml - being in that file alone "
+            f"is not enough."
         )
     try:
         return int(raw)
