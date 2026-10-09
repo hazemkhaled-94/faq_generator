@@ -25,12 +25,6 @@ _NOMINAL = frozenset({"NOUN", "PROPN"})
 #: How many texts to hand spaCy at once.
 _BATCH = 64
 
-#: A web address. Markdown renders a link as [text](url), and the brackets
-#: stop the tokenizer recognising the address as one token, so it splits on
-#: the punctuation inside and offers every path segment as a word. Shared
-#: with the detector, which must read the same text this does.
-_URL = URL
-
 _WHITESPACE = re.compile(r"\s+")
 
 #: Sentence punctuation the tokenizer keeps inside a token's surface form. The
@@ -478,7 +472,7 @@ def _lemmas(document: Doc) -> list[str]:
     and proper nouns, and one repeated link put `publikationen`, `fokus`, `im`
     and `en` among the most widespread terms in the corpus.
     """
-    addresses = [match.span() for match in _URL.finditer(document.text)]
+    addresses = [match.span() for match in URL.finditer(document.text)]
     return [
         token.lemma_.casefold()
         for token in document

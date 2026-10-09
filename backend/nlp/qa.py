@@ -200,8 +200,8 @@ class Extractive:
     @staticmethod
     def _pair(starts, ends, inside: list[int], offsets, context: str):
         """The best start/end pair inside one window, and the text it covers."""
-        top_starts = [at for at in _best_of(starts, inside)]
-        top_ends = [at for at in _best_of(ends, inside)]
+        top_starts = _best_of(starts, inside)
+        top_ends = _best_of(ends, inside)
         best: tuple[float, str] | None = None
         for start in top_starts:
             for end in top_ends:
