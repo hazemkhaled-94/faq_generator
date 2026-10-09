@@ -30,7 +30,7 @@ _COUNTS: dict[str, tuple[float, int]] = {}
 class Bucket:
     """One bucket in the S3 object store.
 
-    Holds put, get, remove and count. Key layout is not part of this
+    Holds put, get, find, remove and count. Key layout is not part of this
     interface: a bucket that is written to defines its own.
 
     One class per bucket rather than a name passed as a string, because a
@@ -85,8 +85,8 @@ class Bucket:
 
         A metadata VALUE is percent-encoded, and that is load-bearing
         rather than tidy: S3 user metadata travels as an HTTP header, a
-        header value is ASCII, and the one value written here is a
-        filename somebody chose. Unencoded, uploading `Jahresbericht
+        header value is ASCII, and one value written here is a filename
+        somebody chose. Unencoded, uploading `Jahresbericht
         Prüfung.pdf` fails at the PUT. Nothing in this project reads the
         metadata back, so nothing decodes it; a reader that wants to is
         the thing that needs `unquote`, not this.

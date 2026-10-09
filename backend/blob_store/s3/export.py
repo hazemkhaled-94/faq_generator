@@ -21,19 +21,19 @@ class ExportBucket(Bucket):
     commands are not run automatically, so nothing bounds this bucket but
     the next fit overwriting the figure and `topics-delete` archiving it.
 
-    **Nothing stored can redraw a figure.** It is prepared from the whole
+    **The database cannot redraw a figure.** It is prepared from the whole
     term-topic matrix and the database keeps each topic's top terms, not
-    the matrix, so the only thing that draws one is another fit.
-    `--visualise` reads this bucket rather than rendering, which is what
-    that distinction looks like in the command line.
+    the matrix. `--render` redraws one from the `models` object;
+    `--visualise` reads this bucket rather than rendering.
 
-    That is a re-fit and not a disaster: the factorisation is seeded with
-    TOPIC_RANDOM_STATE, so the same corpus under the same settings comes
-    back the same, and `TopicRepository.labelled_topics` carries the labels
-    a person wrote and the coverage flags they set across by `topic_index`.
-    What it costs is the fit, and what it risks is a corpus or a setting
-    having moved since - in which case the topics move too, and the old
-    figure was describing something that is gone anyway.
+    Losing the model too is a re-fit and not a disaster: the factorisation
+    is seeded with TOPIC_RANDOM_STATE, so the same corpus under the same
+    settings comes back the same, and `TopicRepository.labelled_topics`
+    carries the labels a person wrote and the coverage flags they set
+    across by `topic_index`. What it costs is the fit, and what it risks is
+    a corpus or a setting having moved since - in which case the topics
+    move too, and the old figure was describing something that is gone
+    anyway.
 
     It said it "also holds the encrypted hold-out sets, which are not
     regenerable", and there was neither a hold-out draw nor anything doing

@@ -15,7 +15,7 @@ _BATCH = 1000
 class ArchiveBucket(Bucket):
     """What a deletion took out of another bucket, until somebody purges it.
 
-    One bucket for all three rather than an archive beside each, because
+    One bucket for all four rather than an archive beside each, because
     the retention is the same wherever the object came from: it is held
     until a person says otherwise. A key carries the bucket it came out of,
     so the origin is not lost by being kept here, and when it was taken, so
