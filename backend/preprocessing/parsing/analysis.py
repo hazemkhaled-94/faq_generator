@@ -52,7 +52,7 @@ class DocumentAnalyser:
 
         return ParsedDocument(
             title=self.title(document),
-            language=self.language(body),
+            language=detect(body),
             content_sha256=self.content_hash(body),
             page_count=len(document.pages),
             confidence=conversion.confidence,
@@ -75,11 +75,6 @@ class DocumentAnalyser:
                 if item.label == label and (item.text or "").strip():
                     return item.text.strip()
         return None
-
-    @staticmethod
-    def language(body: str) -> str | None:
-        """Detects the language of the body text."""
-        return detect(body)
 
     @staticmethod
     def content_hash(body: str) -> str:
