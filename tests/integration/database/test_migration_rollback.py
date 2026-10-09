@@ -29,6 +29,7 @@ LOCKED = "14432e9fd5c9"
 BOUNDED = "ad14bed603d4"
 COMMENTED = "a739b57cffae"
 BUDGETED = "2871990b2443"
+RESOLVED = "6c1d0e4b9a27"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -40,6 +41,7 @@ LATER = (
     BOUNDED,
     COMMENTED,
     BUDGETED,
+    RESOLVED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.

@@ -198,11 +198,12 @@ class Topic(Base):
     )
     settings_version: Mapped[str | None] = mapped_column(
         Text,
-        comment="The configuration this topic was fitted under, as the digest "
-        "settings.store computes, or 'environment' when nothing was overridden. "
-        "A fit is not reproducible without the parameters it used, and the seed "
-        "is only one of them. NULL for a topic fitted before a setting could be "
-        "changed without a restart.",
+        comment="The configuration this topic was fitted under: a digest of every "
+        "catalogued setting as resolved, the env files and the make command "
+        "line overlaid with the stored overrides. A fit is not reproducible "
+        "without the parameters it used, and the seed is only one of them. NULL "
+        "for a topic fitted before a setting could be changed without a "
+        "restart.",
     )
     run_id: Mapped[str | None] = mapped_column(
         Text,

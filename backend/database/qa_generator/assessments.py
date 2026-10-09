@@ -183,9 +183,9 @@ class Assessment(Base):
     settings_version: Mapped[str | None] = mapped_column(
         Text,
         index=True,
-        comment="The configuration this judgement was made under, as the "
-        "digest settings.store computes, or 'environment' when nothing was "
-        "overridden.",
+        comment="The configuration this judgement was made under: a digest of every "
+        "catalogued setting as resolved, the env files and the make command "
+        "line overlaid with the stored overrides.",
     )
     run_id: Mapped[str | None] = mapped_column(
         Text,

@@ -181,11 +181,12 @@ class Fact(Base):
     )
     settings_version: Mapped[str | None] = mapped_column(
         Text,
-        comment="The configuration this fact was extracted under, as the digest "
-        "settings.store computes, or 'environment' when nothing was overridden. "
-        "The columns above name the model and the prompt; this names the rest of "
-        "it, including the shares the checks held this fact to. NULL for a fact "
-        "written before a setting could be changed without a restart.",
+        comment="The configuration this fact was extracted under: a digest of every "
+        "catalogued setting as resolved, the env files and the make command "
+        "line overlaid with the stored overrides. The columns above name the "
+        "model and the prompt; this names the rest of it, including the shares "
+        "the checks held this fact to. NULL for a fact written before a setting "
+        "could be changed without a restart.",
     )
     run_id: Mapped[str | None] = mapped_column(
         Text,
