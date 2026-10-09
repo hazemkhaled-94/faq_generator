@@ -106,6 +106,16 @@ class Recording(Environment):
         return []
 
 
+def test_a_structured_mode_instructor_does_not_have_is_refused() -> None:
+    """Otherwise every model worker fails its rebuild on every poll."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.apply(
+            "platform", {"LLM_STRUCTURED_MODE": "JSONSCHEMA"}, store=Recording()
+        )
+
+    assert refused.value.code == "not_a_choice"
+
+
 def test_an_empty_reasoning_effort_is_stored_as_the_absence_it_means(
     monkeypatch,
 ) -> None:

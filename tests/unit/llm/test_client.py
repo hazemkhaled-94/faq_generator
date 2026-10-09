@@ -25,6 +25,7 @@ from llm.client import (
     spend,
 )
 from llm.config import Settings
+from settings import catalog
 
 
 class Shape(BaseModel):
@@ -108,6 +109,13 @@ def test_an_unknown_mode_names_the_setting_and_the_choices() -> None:
     """The message says what to put in LLM_STRUCTURED_MODE instead."""
     with pytest.raises(ValueError, match="LLM_STRUCTURED_MODE"):
         mode("not_a_mode")
+
+
+def test_the_catalogue_offers_every_instructor_mode_and_no_other() -> None:
+    """It may not import instructor, so it spells the names out."""
+    (setting,) = [one for one in catalog.SETTINGS if one.name == "LLM_STRUCTURED_MODE"]
+
+    assert setting.choices == tuple(one.name for one in instructor.Mode)
 
 
 def test_the_model_and_temperature_are_published_for_provenance() -> None:
