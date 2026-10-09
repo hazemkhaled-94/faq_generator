@@ -161,6 +161,12 @@ class TopicModellingService(StageService):
             )
 
         memberships = self._repository.replace(fit_id, fittings)
+        if memberships is None:
+            log.warning(
+                "fit %d: the request was withdrawn or claimed again; nothing written",
+                fit_id,
+            )
+            return
         self._keep(fittings)
         self._draw(fittings)
         self._annotate(current, fittings, memberships)

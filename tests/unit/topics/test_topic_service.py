@@ -197,6 +197,21 @@ def test_a_refit_archives_the_previous_model_before_it_writes_its_own(
     assert flow.models.models["topics/de.npz"] != b"the previous fit"
 
 
+def test_a_fit_that_lost_its_claim_leaves_the_model_and_figure_alone(
+    service,
+) -> None:
+    """The fit that holds the claim now writes them; this one wrote no topics."""
+    flow = service()
+    flow.models.models["topics/de.npz"] = b"the newer fit"
+    flow.queue.lost = True
+
+    flow.request_and_run()
+
+    assert flow.models.models == {"topics/de.npz": b"the newer fit"}
+    assert not flow.figures
+    assert not flow.archive.objects
+
+
 def test_a_model_that_cannot_be_archived_is_not_overwritten(service) -> None:
     """The previous fit's model stays where it is rather than being lost."""
     flow = service()

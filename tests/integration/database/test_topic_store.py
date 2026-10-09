@@ -313,7 +313,7 @@ def test_a_fit_finishing_after_a_delete_writes_nothing(store) -> None:
     fit = store.claim() or store.request()
     store.catalog.delete_all()
 
-    assert store.store(fitting("de"), fit_id=fit) == 0
+    assert store.store(fitting("de"), fit_id=fit) is None
     assert store.stored_topics() == []
 
 

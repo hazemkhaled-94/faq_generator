@@ -221,7 +221,7 @@ class TopicQueue(StageQueue):
                 ).all()
             ]
 
-    def replace(self, fit_id: int, fittings: list[Fitting]) -> int:
+    def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
         """Replaces every topic and membership with one run's results.
 
         Every language in one transaction: a corpus holding one language's new
@@ -235,7 +235,8 @@ class TopicQueue(StageQueue):
             fittings: What each language's fit produced.
 
         Returns:
-            How many memberships were written.
+            How many memberships were written, or None when the request was
+            gone or claimed again and nothing was written.
         """
         with self._lock, self._session.begin() as session:
             # The request gone, or claimed again since this fit claimed it,
@@ -248,7 +249,7 @@ class TopicQueue(StageQueue):
                 )
                 is None
             ):
-                return 0
+                return None
             # Read as values, not as func.now(): these go into an executemany
             # below, where a SQL function cannot be a bound parameter.
             requested_at, fitted_at = session.execute(

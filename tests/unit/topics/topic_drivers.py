@@ -213,6 +213,7 @@ class RecordingQueue:
         self.claims: list[int] = []
         self.abandoned = 0
         self.refuses: Exception | None = None
+        self.lost = False
         self.bearing: set[int] = set()
         self._next_id = 1
 
@@ -250,10 +251,12 @@ class RecordingQueue:
         """Which of these passages carry a validated fact."""
         return self.bearing & set(passage_ids)
 
-    def replace(self, fit_id: int, fittings: list[Fitting]) -> int:
-        """Stores what one fit produced."""
+    def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
+        """Stores what one fit produced, or nothing for a claim another took."""
         if self.refuses is not None:
             raise self.refuses
+        if self.lost:
+            return None
         self.stored = list(fittings)
         return sum(len(one.weights) for one in fittings)
 
