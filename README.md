@@ -164,8 +164,8 @@ make questions-export OUT=exam.xlsx FILTER="--released"
 `all` brings the stack up and launches Dagster's corpus job, which starts the
 stages in order and waits for each to drain before starting the next; the
 container workers do the draining. It never fits the topics: a fit replaces
-every topic, so it is asked for on its own, and `make topics-status` says how
-many passages are in no topic.
+the topics of every language it fits, so it is asked for on its own, and
+`make topics-status` says how many passages are in no topic.
 
 `make corpus` runs the same stages on the host, for developing a stage. It
 stops at the first stage whose worker is running and prints the command that
