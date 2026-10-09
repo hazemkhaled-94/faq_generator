@@ -1,8 +1,8 @@
 """What names one run, so two of them can be told apart.
 
-`settings_version` names a CONFIGURATION. It is a digest of the stored
-overrides, so two runs under one configuration carry the same value and are
-indistinguishable in the data - which is exactly the position anybody
+`settings_version` names a CONFIGURATION. It is a digest of every catalogued
+setting as resolved, so two runs under one configuration carry the same value
+and are indistinguishable in the data - which is exactly the position anybody
 comparing runs is in. The A/B in `evaluation/README.md` changed a model and
 a rule together, and the only reason the two runs could be separated
 afterwards is that the first one's questions had been deleted first.
