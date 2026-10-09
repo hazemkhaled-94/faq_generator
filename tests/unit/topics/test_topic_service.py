@@ -312,6 +312,21 @@ def test_topics_are_named_by_the_model_when_one_is_configured(service) -> None:
     )
 
 
+def test_a_topic_whose_passages_carry_no_fact_is_not_offered_to_the_model(
+    service,
+) -> None:
+    """Mixed is decided off the facts, before any call."""
+    labeller = LabellerDriver("Shipping", languages={"de": "German"})
+    flow = service(labeller=labeller, min_fact_share=0.15)
+    flow.queue.bearing = {1, 2}
+
+    flow.request_and_run()
+
+    assert labeller.model.calls == 1, labeller.model.asked
+    labels = sorted(flow.labels_of("de"), key=lambda label: label or "")
+    assert labels == [None, "Shipping"], labels
+
+
 def test_a_name_another_topic_already_took_is_refused(service) -> None:
     """Two topics under one name read as one topic in the coverage report.
 

@@ -532,6 +532,17 @@ def test_a_topic_reports_the_validated_facts_drawn_from_its_passages(store) -> N
     assert first.validated_facts == 2, first.validated_facts
 
 
+def test_the_passages_bearing_a_fact_are_those_with_a_validated_one(store) -> None:
+    """A refused fact says nothing about its passage, and neither does none."""
+    store.given_passages(de=3)
+    first, second, third = store.passages["de"]
+    store.given_facts(first, validated=1)
+    store.given_facts(second, validated=0, rejected=2)
+
+    assert store.queue.bearing_facts([first, second, third]) == {first}
+    assert store.queue.bearing_facts([]) == set()
+
+
 def test_the_topics_come_back_ordered_by_language_then_index(store) -> None:
     """The table on the page is drawn in this order."""
     store.given_passages(de=1, en=1)

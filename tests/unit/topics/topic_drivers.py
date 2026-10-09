@@ -213,6 +213,7 @@ class RecordingQueue:
         self.claims: list[int] = []
         self.abandoned = 0
         self.refuses: Exception | None = None
+        self.bearing: set[int] = set()
         self._next_id = 1
 
     def request(self, trigger: str | None = None) -> int:
@@ -244,6 +245,10 @@ class RecordingQueue:
     def labelled_topics(self, language: str) -> list[FittedTopic]:
         """What a previous fit or a person left on this language."""
         return self.previous.get(language, [])
+
+    def bearing_facts(self, passage_ids: list[int]) -> set[int]:
+        """Which of these passages carry a validated fact."""
+        return self.bearing & set(passage_ids)
 
     def replace(self, fit_id: int, fittings: list[Fitting]) -> int:
         """Stores what one fit produced."""
@@ -555,6 +560,7 @@ class ServiceDriver:
         corpora: dict[str, list[PassageVocabulary]] | None = None,
         texts: dict[int, str] | None = None,
         labeller: LabellerDriver | None = None,
+        min_fact_share: float = 0.0,
     ) -> None:
         """Wires the service over the doubles."""
         self.queue = RecordingQueue(corpora or {}, texts)
@@ -571,6 +577,7 @@ class ServiceDriver:
             models=self.models,  # pyright: ignore[reportArgumentType]
             archive=self.archive,  # pyright: ignore[reportArgumentType]
             labeller=labeller.labeller if labeller else None,
+            min_fact_share=min_fact_share,
         )
 
     def request(self, trigger: str | None = None) -> int:
