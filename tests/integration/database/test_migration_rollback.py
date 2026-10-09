@@ -31,6 +31,7 @@ COMMENTED = "a739b57cffae"
 BUDGETED = "2871990b2443"
 RESOLVED = "6c1d0e4b9a27"
 UNREAD = "9e2b7c41d058"
+REFITTED = "f6f7b1880b23"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -44,6 +45,7 @@ LATER = (
     BUDGETED,
     RESOLVED,
     UNREAD,
+    REFITTED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
