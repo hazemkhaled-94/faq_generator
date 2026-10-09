@@ -377,7 +377,7 @@ def _env_files(service: dict) -> list[str]:
 
 
 def test_only_a_process_that_calls_a_model_holds_the_provider_credentials() -> None:
-    """A credential reaches the three stages that send requests, and no more.
+    """A credential reaches the four stages that send requests, and no more.
 
     The api reads the model settings and serves them, and refuses a bad
     value for one; it never sends a request to the model, so a key it held
