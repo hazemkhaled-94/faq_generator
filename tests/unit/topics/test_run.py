@@ -178,7 +178,7 @@ def test_visualise_writes_what_it_has_when_one_language_is_missing(cli) -> None:
 def test_a_watching_worker_waits_for_a_naming_model_that_is_down(
     cli, monkeypatch
 ) -> None:
-    """Exiting is a restart, a new run id and a Phoenix project per attempt."""
+    """Exiting is a restart and a new run id per attempt."""
     from stages import cli as stages_cli
     from topic_modelling import run as module
 
