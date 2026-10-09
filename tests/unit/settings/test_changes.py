@@ -39,6 +39,23 @@ def test_an_assessment_value_its_stage_cannot_read_is_refused() -> None:
     assert refused.value.code == "would_not_load"
 
 
+@pytest.mark.parametrize("value", ["0", "1"])
+def test_a_membership_floor_the_fit_would_refuse_is_refused_when_set(
+    value: str,
+) -> None:
+    """The fit keeps a membership only above a floor between 0 and 1."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.within_bounds(catalog.writable("TOPIC_MIN_WEIGHT"), value)
+
+    assert refused.value.code == "out_of_range"
+    assert "TOPIC_MIN_WEIGHT" in refused.value.detail
+
+
+def test_a_bound_is_accepted_where_the_setting_allows_it() -> None:
+    """Only a setting marked exclusive refuses its bounds themselves."""
+    changes.within_bounds(catalog.writable("TOPIC_NO_ABOVE"), "1")
+
+
 @pytest.mark.parametrize("name", ["LLM_BASE_URL", "OLLAMA_BASE_URL"])
 def test_a_change_naming_where_a_model_is_served_is_refused(name: str) -> None:
     """The address is the deployment's."""

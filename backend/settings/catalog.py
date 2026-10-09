@@ -51,6 +51,7 @@ class Setting:
         invalidates: Stages whose stored output this setting produced.
         low: Smallest accepted value, for a number.
         high: Largest accepted value, for a number.
+        exclusive: Whether `low` and `high` are themselves refused.
         choices: The only accepted values, where the set is closed.
         optional: Whether absence is itself meaningful.
         fixed: Whether the deployment owns it, so it is served but not written.
@@ -65,6 +66,7 @@ class Setting:
     invalidates: tuple[str, ...] = ()
     low: float | None = None
     high: float | None = None
+    exclusive: bool = False
     choices: tuple[str, ...] = ()
     optional: bool = False
     fixed: bool = False
@@ -320,6 +322,7 @@ SETTINGS: tuple[Setting, ...] = (
         kind="decimal",
         low=0,
         high=1,
+        exclusive=True,
         invalidates=("topics",),
         help="Smallest weight a passage's membership of a topic may carry "
         "and still be recorded.",

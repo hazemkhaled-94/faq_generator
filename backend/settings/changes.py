@@ -158,15 +158,20 @@ def within_bounds(setting: catalog.Setting, value: str) -> None:
     except ValueError:
         # Left to the stage's parser, which names the setting.
         return
-    if setting.low is not None and number < setting.low:
+    at = " at or" if setting.exclusive else ""
+    if setting.low is not None and (
+        number <= setting.low if setting.exclusive else number < setting.low
+    ):
         raise Refused(
             "out_of_range",
-            f"{setting.name} may not be below {setting.low:g}; {value!r} is.",
+            f"{setting.name} may not be{at} below {setting.low:g}; {value!r} is.",
         )
-    if setting.high is not None and number > setting.high:
+    if setting.high is not None and (
+        number >= setting.high if setting.exclusive else number > setting.high
+    ):
         raise Refused(
             "out_of_range",
-            f"{setting.name} may not be above {setting.high:g}; {value!r} is.",
+            f"{setting.name} may not be{at} above {setting.high:g}; {value!r} is.",
         )
 
 
