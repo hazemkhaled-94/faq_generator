@@ -71,7 +71,7 @@ def test_each_stage_waits_for_the_one_before_it(stage: str, waits_for: str) -> N
 
 
 def test_the_corpus_job_runs_every_stage_but_the_fit() -> None:
-    """A refit replaces every topic, so it is asked for on its own."""
+    """A refit replaces each fitted language's topics, so it is asked for on its own."""
     selected = defs.resolve_job_def(corpus.name).asset_layer.selected_asset_keys
 
     assert {key.to_user_string() for key in selected} == set(ORDER) - {"topics"}
