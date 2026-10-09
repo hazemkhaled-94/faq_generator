@@ -25,17 +25,12 @@ class ArtifactToJudge:
         fields: The text the templates substitute, by the name they use -
             `statement` and `evidence` for a fact, `terms` and `label` for a
             topic, `question`, `answer` and `facts` for a question.
-        language: What the artefact is written in, recorded on the span. Not
-            sent to the model: every template says the material may be in
-            any language, and naming it invites a judgement about the
-            language rather than about the artefact.
     """
 
     assessment_id: int
     kind: str
     artifact_id: int
     fields: dict[str, str]
-    language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -174,11 +169,6 @@ class MetricQuality:
     #: `maximize` or `minimize`, as phoenix-evals declares it, so a reader
     #: knows which way up to read the mean of `score`.
     direction: str
-
-    @property
-    def share(self) -> float:
-        """What fraction this metric approved."""
-        return self.approved / self.judged if self.judged else 0.0
 
 
 @dataclass(frozen=True)

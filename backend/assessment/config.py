@@ -38,11 +38,6 @@ class Settings:
     #: of newest first. Drawn again over the same corpus, it is the same rows.
     stratify: bool = False
 
-    @property
-    def unlimited(self) -> bool:
-        """Whether a sample size of 0 means every artefact."""
-        return self.sample <= 0
-
     @classmethod
     def load(cls, source: Source = None) -> Settings:
         """Reads settings from the environment, or from an override."""

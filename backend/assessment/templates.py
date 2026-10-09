@@ -114,7 +114,6 @@ class Template:
         labels: The answers allowed, in the order the prompt offers them.
         scores: What each label scores, as phoenix-evals scores it.
         good: The label that counts as approval.
-        direction: `maximize` or `minimize`, as phoenix-evals declares it.
     """
 
     metric: str
@@ -142,11 +141,6 @@ class Template:
     def good(self) -> str:
         """The label that counts as approval."""
         return _CHOICES[self.metric][1]
-
-    @property
-    def direction(self) -> str:
-        """How this metric is optimised, as phoenix-evals declares it."""
-        return _DIRECTION[self.metric]
 
     def rendered(self, **fields: str) -> str:
         """The user message with this artefact's text substituted in.

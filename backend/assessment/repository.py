@@ -197,7 +197,6 @@ class AssessmentQueue(RowQueue):
 
     def __init__(
         self,
-        lease: Any = None,
         *,
         kinds: tuple[str, ...] | None = None,
         sample: int | None = None,
@@ -218,7 +217,7 @@ class AssessmentQueue(RowQueue):
         queues, would have put all of them in front of the judge at three
         to six model calls each.
         """
-        super().__init__(lease)
+        super().__init__()
         self._kinds = tuple(kinds) if kinds else None
         self._sample = sample
         self._stratify = stratify
@@ -468,22 +467,22 @@ class AssessmentQueue(RowQueue):
         """
         counts = dict(self.counts_by_status())
         with self._session() as session:
-            for name, condition in (
-                ("approved", APPROVED.is_(True)),
-                ("refused", APPROVED.is_(False)),
-                # Counted here rather than left to whoever writes the query,
-                # because the row is `assessed` either way and `retry` cannot
-                # find it: nothing failed, the judge was simply unreachable
-                # for part of it. `metrics_due` is what makes this SQL rather
-                # than code.
-                ("thin", _THIN),
-            ):
-                counts[name] = (
-                    session.execute(
-                        select(func.count()).select_from(Assessment).where(condition)
-                    ).scalar()
-                    or 0
+            counts |= (
+                session.execute(
+                    select(
+                        func.count().filter(APPROVED.is_(True)).label("approved"),
+                        func.count().filter(APPROVED.is_(False)).label("refused"),
+                        # Counted here rather than left to whoever writes the
+                        # query, because the row is `assessed` either way and
+                        # `retry` cannot find it: nothing failed, the judge was
+                        # simply unreachable for part of it. `metrics_due` is
+                        # what makes this SQL rather than code.
+                        func.count().filter(_THIN).label("thin"),
+                    ).select_from(Assessment)
                 )
+                .one()
+                ._asdict()
+            )
         return counts
 
 

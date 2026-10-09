@@ -57,8 +57,17 @@ def test_the_flag_is_read() -> None:
 
 def test_a_sample_of_zero_means_every_artefact() -> None:
     """Which on a large corpus is a model call per fact, so it is opt-in."""
-    assert settings(ASSESSMENT_SAMPLE="0").unlimited is True
-    assert settings().unlimited is False
+    from sqlalchemy.dialects import postgresql
+
+    from assessment.repository import AssessmentQueue
+
+    def enrols(sample: int) -> str:
+        """The enrolment's SQL for one sample size."""
+        built = AssessmentQueue()._enrolment("fact", sample)
+        return str(built.compile(dialect=postgresql.dialect()))
+
+    assert "LIMIT" not in enrols(0)
+    assert "LIMIT" in enrols(3)
 
 
 def test_the_kinds_are_checked_against_the_templates() -> None:
