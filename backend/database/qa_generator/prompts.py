@@ -36,8 +36,9 @@ class Prompt(Base):
 
     Written by the code and read by everything else. A row is a record of
     what a version meant, not a place to change it: editing one here
-    changes nothing about what any process sends, and the next start-up
-    writes the source's text back over it.
+    changes nothing about what any process sends. The next start-up
+    rewrites it when its digest, user template, response schema or model
+    differs from the source's.
 
     No `settings_version`. What a prompt says does not move when a setting
     does - that is the whole reason this column is not covered by the one
@@ -50,8 +51,8 @@ class Prompt(Base):
         # "what did version 8 say" depend on row order, which is the
         # question this table exists to answer. The service is in the key
         # because a version is per MODULE: extraction's digest extractor
-        # and question generation's verifier are both at version 1, and
-        # they are unrelated.
+        # and question generation's verifier number their versions apart,
+        # and the two are unrelated.
         UniqueConstraint(
             "service", "version", "name", name="prompts_service_version_name_unique"
         ),
