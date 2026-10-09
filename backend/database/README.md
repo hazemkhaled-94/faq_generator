@@ -72,7 +72,8 @@ that an upload happened outlives the document and keeps its digest.
 
 What a deletion does **not** take is `topics`, which has no foreign key to a
 document. Deleting every document leaves the topics standing, describing
-passages that are gone; the next fit replaces every row, and `make wipe` runs
+passages that are gone; the next fit replaces the rows of every language it
+fits, and `make wipe` runs
 both in order.
 
 ### Nothing is deleted without a copy
