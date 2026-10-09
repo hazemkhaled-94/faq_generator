@@ -119,10 +119,11 @@ def reachable(settings: Settings) -> None:
 def before_work(*models: Settings) -> None:
     """Refuses to start when a model a stage is about to call will not answer.
 
-    Passed to `stages.cli.queue_main` as its preflight, by the three stages
-    that call a model. Runs before the watch loop rather than inside it,
-    because that loop logs an exception and retries - which is right for a
-    drain that failed and wrong for a deployment that can never work.
+    Passed to `stages.cli.queue_main` as its preflight by extraction,
+    question generation and assessment; topic modelling calls it itself.
+    Runs before the watch loop rather than inside it, because that loop logs
+    an exception and retries - which is right for a drain that failed and
+    wrong for a deployment that can never work.
 
     Args:
         *models: Every model this stage calls, writer and verifier alike.
