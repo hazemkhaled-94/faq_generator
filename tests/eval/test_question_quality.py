@@ -5,17 +5,18 @@ model's answers move between versions, between quantisations and between runs
 at the same temperature, so a threshold here would fail on somebody else's
 Tuesday rather than on a regression. It prints its numbers.
 
-The one thing it does assert is that the round-trip gate splits the golden
-cases the right way round. That is not a measurement of the model's taste -
-it is whether the gate is wired up at all, and a gate that accepts everything
-is indistinguishable from no gate.
+What it asserts is that the round-trip gate splits the golden cases the
+right way round, agrees with at least one of them, and that the writer
+returns a question for a fact and for every kind it is asked for. That is not
+a measurement of the model's taste - it is whether the pieces are wired up at
+all, and a gate that accepts everything is indistinguishable from no gate.
 
-Needs a model: set LLM_MODEL and LLM_BASE_URL, and QUESTIONS_VERIFIER_MODEL
-for the second one, then run
+Needs a model: set LLM_MODEL, and QUESTIONS_VERIFIER_MODEL for the second
+one, then run
 
     make test-eval
 
-Skipped otherwise, which is every CI run.
+Skipped while LLM_MODEL is unset.
 """
 
 from __future__ import annotations
