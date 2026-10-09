@@ -50,19 +50,11 @@ def test_two_readers_claiming_one_block_type_are_refused() -> None:
         ExtractorRegistry((Reader("table"), Reader("table")), Reader())
 
 
-def test_the_claimed_types_are_reported_in_order() -> None:
-    """What the status panel and the docs list."""
-    registry = ExtractorRegistry((Reader("table", "picture"), Reader("code")), Reader())
-
-    assert registry.block_types == ("code", "picture", "table")
-
-
 def test_a_registry_claiming_nothing_by_name_answers_with_its_default() -> None:
     """A deployment with no deterministic reader still routes."""
     default = Reader()
     registry = ExtractorRegistry((), default)
 
-    assert registry.block_types == ()
     assert registry.for_block_type("table") is default
 
 

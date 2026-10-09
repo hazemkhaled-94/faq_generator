@@ -66,8 +66,3 @@ class ExtractorRegistry:
         this and the reader its block type routed it to.
         """
         return self._default
-
-    @property
-    def block_types(self) -> tuple[str, ...]:
-        """Every block type claimed by name."""
-        return tuple(sorted(self._by_block_type))

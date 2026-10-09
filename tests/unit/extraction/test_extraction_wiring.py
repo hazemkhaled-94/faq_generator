@@ -97,7 +97,6 @@ def test_the_table_reader_is_claimed_by_name_and_the_model_is_the_default() -> N
     """A cell grid needs no model; everything else does."""
     built = build_service(MODEL, settings(FactKind.ATOMIC))
 
-    assert built._extractors.block_types == ("table",)
     assert built._extractors.for_block_type("table").method == "deterministic"
     assert built._extractors.for_block_type("text").method == "llm"
 
@@ -140,7 +139,7 @@ def test_the_settings_are_read_from_the_environment_when_none_are_given(
     built = build_service(MODEL)
 
     assert built._checker is not None
-    assert built._extractors.block_types == ("table",)
+    assert built._extractors.for_block_type("table").method == "deterministic"
 
 
 class TestCommandLine:
