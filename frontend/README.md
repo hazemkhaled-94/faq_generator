@@ -219,7 +219,7 @@ versions. `footer` no longer matches anything.
 
 | Setting | Where | What it does |
 |---|---|---|
-| `BACKEND_URL` | compose, from `BACKEND_CONTAINER_URL` in `configs/env/deployment.env`; the Makefile derives the host's | The one address. `http://api:8000` from a container |
+| `BACKEND_URL` | compose, from `BACKEND_CONTAINER_URL` in `configs/env/deployment.env`; the Makefile derives the host's | The one address |
 | `PAGE_SIZE` | `configs/env/deployment.env` | Rows per page in the listings |
 | `PHOENIX_BASE_URL` | compose and the Makefile, from `PHOENIX_PORT` | Where a **browser** reaches Phoenix. Optional: unset shows the ids as text |
 | `LOG_LEVEL` | `configs/env/deployment.env` | The frontend logs through the same telemetry configuration as every other process |
