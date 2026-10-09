@@ -309,6 +309,10 @@ def _references(span: Doc | Span) -> tuple[str, ...]:
 #: where to look - and that second shape is ordinary in this corpus. It cost
 #: a real question: over one topic the only `unanchored` rejection was that
 #: phrasing. The compounds that carry the pointing in the word itself stay.
+#:
+#: ponytail: German and English only, here and in `_ASKING`, so a third
+#: language loses recall on this measurement. Upgrade: a list per language,
+#: as a setting.
 _ANAPHORIC = frozenset(
     {
         "aforementioned",

@@ -51,6 +51,10 @@ _MAX_ANSWER_TOKENS = 40
 
 #: How many starts and ends are paired. The decode is O(k^2) per window and
 #: the logits past the twentieth are not the answer.
+#:
+#: ponytail: with _MAX_ANSWER_TOKENS, a hand-written SQuAD decode with fixed
+#: caps: an answer longer than the cap is lost, and the pair scan is O(k^2).
+#: Upgrade: a maintained library decode, if transformers ships one again.
 _TOP_K = 20
 
 
