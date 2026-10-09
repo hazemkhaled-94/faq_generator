@@ -162,7 +162,7 @@ Read from the environment at start-up, with no defaults in code.
 | Setting | What it does |
 |---|---|
 | `EMBEDDING_MODEL` | The model whose tokenizer sizes a passage, and the model that will embed it. One name for both |
-| `EMBEDDING_MAX_TOKENS` | The token budget, and so the longest passage the chunker emits. Keep it equal to the model's context window |
+| `EMBEDDING_MAX_TOKENS` | The model's context window. The chunker cuts a passage to it less the tokens the embedder adds, its prefix and special tokens, so an embedded passage still fits. Keep it equal to the model's context window |
 | `CHUNKING_MERGE_PEERS` | Whether undersized neighbours sharing a heading are combined |
 
 There is deliberately no character floor and no character ceiling: a

@@ -163,9 +163,10 @@ class Document(Base):
     )
     oversized: Mapped[int | None] = mapped_column(
         Integer,
-        comment="Passages the last chunking run stored above EMBEDDING_MAX_TOKENS. "
-        "Expected to be 0: the chunker splits on that budget, so anything above it "
-        "means the split did not happen. A tripwire; chunking discards nothing.",
+        comment="Passages the last chunking run stored above its token budget, "
+        "EMBEDDING_MAX_TOKENS less the tokens the embedder adds. Expected to be 0: "
+        "the chunker splits on that budget, so anything above it means the split "
+        "did not happen. A tripwire; chunking discards nothing.",
     )
 
     # passive_deletes: without it SQLAlchemy NULLs the child foreign key, and
