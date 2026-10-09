@@ -101,8 +101,8 @@ jobs:
       - run: make test-perf
         continue-on-error: true
 
-  # Skips itself unless a model is reachable, which no hosted runner has.
-  # Here so that pointing LLM_BASE_URL at one is all it takes.
+  # Skips itself while LLM_MODEL is unset; a named model that does not answer
+  # fails it.
   evaluate:
     name: Model quality
     needs: setup
