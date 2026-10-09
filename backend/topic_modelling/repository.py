@@ -157,15 +157,14 @@ class TopicQueue(StageQueue):
     def languages(self) -> list[str]:
         """Lists the languages the corpus holds, commonest first."""
         with self._session() as session:
-            return [
-                row.language
-                for row in session.execute(
-                    select(Passage.language, func.count().label("passages"))
+            return list(
+                session.scalars(
+                    select(Passage.language)
                     .where(Passage.language.is_not(None))
                     .group_by(Passage.language)
                     .order_by(func.count().desc())
                 ).all()
-            ]
+            )
 
     def passages(self, language: str) -> Iterator[PassageVocabulary]:
         """Streams one language's passages by id, in batches of `_BATCH`.
@@ -674,15 +673,7 @@ class TopicCatalog(Repository):
                 .join(PassageTopic, PassageTopic.topic_id == Topic.id, isouter=True)
                 .join(Passage, Passage.id == PassageTopic.passage_id, isouter=True)
                 .where(~_OUTSTANDING, *chosen)
-                .group_by(
-                    Topic.id,
-                    Topic.language,
-                    Topic.topic_index,
-                    Topic.top_terms,
-                    Topic.label,
-                    Topic.labelled_by,
-                    Topic.include_in_coverage,
-                )
+                .group_by(Topic.id)
                 .order_by(Topic.language, Topic.topic_index)
             ).all()
         return [

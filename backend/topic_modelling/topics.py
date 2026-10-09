@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable, Iterator
+from dataclasses import replace
 from itertools import batched
 from typing import cast
 
@@ -345,9 +346,8 @@ def carry_labels(
             continue
         taken.add(best.topic_index)
         carried.append(
-            FittedTopic(
-                topic_index=topic.topic_index,
-                top_terms=topic.top_terms,
+            replace(
+                topic,
                 label=best.label,
                 labelled_by=best.labelled_by,
                 include_in_coverage=best.include_in_coverage,
