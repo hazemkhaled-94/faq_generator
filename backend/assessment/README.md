@@ -78,7 +78,7 @@ the two would flag the most careful part of a difficult corpus.
 
 ### What is deliberately not asked
 
-phoenix-evals ships 26 evaluators. The seven above are the ones that apply.
+Of the evaluators phoenix-evals ships, the seven above are the ones that apply.
 
 | Not asked | Why |
 |---|---|
