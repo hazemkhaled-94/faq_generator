@@ -60,9 +60,9 @@ from stages import Columns, RowQueue
 #: about.
 _IS_TOPIC = Topic.topic_index.is_not(None)
 
-#: The questions this stage judges. Answerable and answered: two of the
-#: three metrics ask whether the facts support the answer, and an unanswerable question has
-#: no answer for them to support. Those are written deliberately, to test
+#: The questions this stage judges. Answerable and answered: five of the
+#: six metrics judge the answer, and an unanswerable question has
+#: no answer for them to judge. Those are written deliberately, to test
 #: whether a chatbot admits it does not know, and scoring them here would
 #: report the pipeline's most careful output as its worst.
 _JUDGEABLE_QUESTION = and_(
