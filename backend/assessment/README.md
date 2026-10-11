@@ -11,7 +11,10 @@ make assess-start && make assess
 make assess-status
 ```
 
-Off unless `ASSESSMENT_ENABLED` is true in `.env`.
+Off unless `ASSESSMENT_ENABLED` is true in `.env`. Off, `assess-worker` waits
+in place rather than exiting, and starts claiming within `WORKER_POLL_SECONDS`
+of the flag being switched on from the Assessment page. A change to `.env`
+reaches it with `make up`.
 
 ## Why it is called assessment
 

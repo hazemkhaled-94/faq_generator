@@ -57,7 +57,9 @@ topics sit `pending` until it finishes and `make logs` says so. The container is
 loads **no** weights at all: it asks a served model two to six questions
 about text it already has. 1 GB and one CPU. It also does nothing until
 `ASSESSMENT_ENABLED` is true, so a deployment that never turns the
-evaluation phase on pays for one container polling an empty queue.
+evaluation phase on pays for one idle container. It reads the flag every
+`WORKER_POLL_SECONDS`, so switching it on from the Assessment page needs no
+restart; a change to `.env` reaches it with `make up`.
 
 ## What the model costs
 

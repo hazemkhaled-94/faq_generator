@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 
 import telemetry
 from assessment import prompts
@@ -21,6 +22,7 @@ from assessment.factory import UNNAMED, build_service, judge_model
 from assessment.repository import AssessmentQueue
 from llm.check import before_work
 from llm.config import Settings as ModelSettings
+from settings import decimal
 from settings.store import snapshot
 from stages.cli import queue_main
 from stages.prompts import record
@@ -50,6 +52,8 @@ def main(argv: list[str] | None = None) -> int:
         source, version = snapshot()
         return Settings.load(source), ModelSettings.load(source), version
 
+    argv = sys.argv[1:] if argv is None else argv
+
     # The flag alone, and deliberately not through `configured`: that one
     # also reads the model settings, which are required and have no
     # default. A deployment with this phase off and no LLM_MODEL set is a
@@ -58,7 +62,15 @@ def main(argv: list[str] | None = None) -> int:
     if not Settings.load(snapshot()[0]).enabled:
         telemetry.configure("assessment", tracing=False)
         log.info("%s", OFF)
-        return 0
+        # A worker waits in place rather than exiting: under `restart:
+        # unless-stopped` an exit is a restart every few seconds, and the
+        # Assessment page switches the flag on without restarting anything.
+        # ponytail: argv read by hand, as for --status below.
+        if "--watch" not in argv:
+            return 0
+        while not Settings.load(snapshot()[0]).enabled:
+            time.sleep(decimal("WORKER_POLL_SECONDS"))
+        log.info("ASSESSMENT_ENABLED is on, so the worker starts claiming work")
 
     def build():
         """Builds the service, naming the model it will ask."""
@@ -112,7 +124,6 @@ def main(argv: list[str] | None = None) -> int:
         ),
     }
 
-    argv = sys.argv[1:] if argv is None else argv
     code = queue_main(
         name="assessment",
         module="assessment.run",

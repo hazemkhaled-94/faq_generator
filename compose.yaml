@@ -664,8 +664,8 @@ services:
   # The evaluation phase: an LLM judge over the facts, topics and questions
   # the five workers above produced. Started like the rest and idle like the
   # rest until somebody asks for it - and idle twice over here, because
-  # `assessment.run` reads ASSESSMENT_ENABLED and stops before it claims
-  # anything when the phase is off, which is the default.
+  # `assessment.run` reads ASSESSMENT_ENABLED and, while the phase is off,
+  # which is the default, waits for it without claiming anything.
   #
   # So a deployment that never turns this on pays for one container polling
   # an empty queue, which is what every other worker costs when its stage

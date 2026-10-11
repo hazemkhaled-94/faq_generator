@@ -201,6 +201,30 @@ def test_the_command_line_stops_when_the_phase_is_off(monkeypatch, caplog) -> No
     assert "ASSESSMENT_ENABLED" in caplog.text
 
 
+def test_a_watching_worker_waits_for_the_phase_rather_than_exiting(monkeypatch) -> None:
+    """An exit is a restart under `restart: unless-stopped`, every few seconds.
+
+    And the Assessment page switches the flag on without restarting the
+    worker, so the worker has to notice it in place.
+    """
+    flags = iter(["false", "false"])
+    monkeypatch.setattr(
+        "assessment.run.snapshot",
+        lambda: ({**VALUES, "ASSESSMENT_ENABLED": next(flags, "true")}, "environment"),
+    )
+    monkeypatch.setenv("WORKER_POLL_SECONDS", "5")
+    slept: list[float] = []
+    monkeypatch.setattr("assessment.run.time.sleep", slept.append)
+    monkeypatch.setattr("assessment.run.telemetry.configure", lambda *a, **k: None)
+    handed: dict = {}
+    monkeypatch.setattr(cli, "queue_main", lambda **kwargs: handed.update(kwargs) or 0)
+
+    assert cli.main(["--watch"]) == 0
+
+    assert slept == [5]
+    assert handed["argv"] == ["--watch"]
+
+
 def test_the_phase_off_message_is_logged_once_logging_is_set_up(monkeypatch) -> None:
     """Logged before the handlers exist, it reached nobody on the host."""
     monkeypatch.setattr(
