@@ -1470,7 +1470,7 @@ lock:
 # for the Elasticsearch instance Argilla connects to. Idempotent; delete certs/
 # to rotate.
 #
-# Two details are load-bearing:
+# Three details are load-bearing:
 #
 #   elasticsearch.key is mode 644. Elasticsearch runs as uid 1000, but under
 #   rootless Podman the host user maps to container uid 0 and the host group
@@ -1482,6 +1482,11 @@ lock:
 #   keyUsage extension, and OpenSSL 3 clients reject such a CA even when it is
 #   passed explicitly as the trust anchor.
 #
+#   The key identifiers are named, not left to the tool. OpenSSL 3 adds them
+#   unasked; macOS's /usr/bin/openssl is LibreSSL and does not. Python 3.13
+#   verifies strictly and refuses a chain without them, so Argilla failed with
+#   "Missing Authority Key Identifier" and reported Elasticsearch as down.
+#
 # For a real deployment these come from a secret store.
 certs:
 	@mkdir -p certs
@@ -1490,7 +1495,8 @@ certs:
 	openssl req -new -x509 -days 3650 -key certs/ca.key -out certs/ca.crt \
 	  -subj "/CN=qa-generator-ca" \
 	  -addext "basicConstraints=critical,CA:TRUE" \
-	  -addext "keyUsage=critical,keyCertSign,cRLSign"; \
+	  -addext "keyUsage=critical,keyCertSign,cRLSign" \
+	  -addext "subjectKeyIdentifier=hash"; \
 	openssl genrsa -out certs/elasticsearch.key 4096; \
 	openssl req -new -key certs/elasticsearch.key -out certs/elasticsearch.csr \
 	  -subj "/CN=elasticsearch"; \
@@ -1501,7 +1507,9 @@ certs:
 	    "subjectAltName=DNS:elasticsearch,DNS:localhost,IP:127.0.0.1" \
 	    "basicConstraints=critical,CA:FALSE" \
 	    "keyUsage=critical,digitalSignature,keyEncipherment" \
-	    "extendedKeyUsage=serverAuth") \
+	    "extendedKeyUsage=serverAuth" \
+	    "subjectKeyIdentifier=hash" \
+	    "authorityKeyIdentifier=keyid,issuer") \
 	  -out certs/elasticsearch.crt; \
 	rm certs/elasticsearch.csr certs/ca.srl; \
 	echo "Certificates written to certs/"
