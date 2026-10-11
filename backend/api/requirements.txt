@@ -15,9 +15,10 @@ numpy>=2.0.0,<3.0.0
 # One image serves the api and all six workers, so every stage's libraries
 # ship in it whether or not the process that starts uses them. The api
 # imports none of these: each stage package loads on demand. Docling brings
-# torch, which is most of the image size. Held at 2.129.0 until the next
-# measured run: a Docling upgrade changes parse output.
-docling==2.129.0
+# torch, which is most of the image size. Held at 2.132.0, the first free of
+# the advisories against 2.129.0, until the next measured run: a Docling
+# upgrade changes parse output.
+docling==2.132.0
 lingua-language-detector>=2.2.0,<3.0.0
 # Extraction: the model client, structured output and retries.
 litellm>=1.98.0,<2.0.0
@@ -72,3 +73,4 @@ arize-phoenix-client>=3.5.0,<4.0.0
 # the ones the lock held.
 PyJWT>=2.15.0
 setuptools>=83.0.0
+Mako>=1.4.2

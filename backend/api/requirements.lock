@@ -24,7 +24,7 @@
 # https://download.pytorch.org/whl/cpu.
 Faker==40.39.0
 Jinja2==3.1.6
-Mako==1.4.1
+Mako==1.4.3
 MarkupSafe==3.0.3
 PyJWT==2.15.1
 PyYAML==6.0.3
@@ -40,7 +40,6 @@ annotated-types==0.8.0
 antlr4-python3-runtime==4.9.3
 anyio==4.15.1
 arize-phoenix-client==3.5.0
-asgiref==3.12.1
 attrs==26.1.0
 azure-core==1.41.0
 azure-identity==1.25.3
@@ -63,11 +62,11 @@ defusedxml==0.7.1
 dill==0.4.1
 distro==1.9.0
 doclang==0.7.3
-docling-core==2.98.0
+docling-core==2.101.1
 docling-ibm-models==4.0.3
-docling-parse==7.21.0
-docling-slim==2.129.0
-docling==2.129.0
+docling-parse==7.22.2
+docling-slim==2.132.0
+docling==2.132.0
 docstring_parser==0.18.0
 et_xmlfile==2.0.0
 fastapi==0.141.1
@@ -129,17 +128,11 @@ opentelemetry-exporter-otlp-proto-common==1.44.0
 opentelemetry-exporter-otlp-proto-grpc==1.44.0
 opentelemetry-exporter-otlp-proto-http==1.44.0
 opentelemetry-exporter-otlp==1.44.0
-opentelemetry-instrumentation-asgi==0.65b0
-opentelemetry-instrumentation-botocore==0.65b0
-opentelemetry-instrumentation-fastapi==0.65b0
-opentelemetry-instrumentation-requests==0.65b0
 opentelemetry-instrumentation-sqlalchemy==0.65b0
 opentelemetry-instrumentation==0.65b0
-opentelemetry-propagator-aws-xray==1.0.2
 opentelemetry-proto==1.44.0
 opentelemetry-sdk==1.44.0
 opentelemetry-semantic-conventions==0.65b0
-opentelemetry-util-http==0.65b0
 packaging==26.3
 pandas==3.0.6
 pgvector==0.5.0
