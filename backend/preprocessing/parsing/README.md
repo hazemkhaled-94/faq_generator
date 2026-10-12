@@ -31,6 +31,8 @@ any claim older than the lease every stage shares; see
 The worker sits on the internal `parsing` network, which holds only
 Postgres, the S3 gateway and Phoenix, with the Hugging Face hub offline:
 Docling's weights are read from the `models` volume, never fetched.
+`make install` puts them there through `make docling-weights`, which runs
+[`weights.py`](weights.py) in a container that can reach the hub.
 
 ### Step 1 — Dispatch on the media type
 

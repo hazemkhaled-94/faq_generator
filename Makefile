@@ -182,7 +182,7 @@ help:
 	' $(MAKEFILE_LIST)
 
 .PHONY: help setup doctor \
-        dev install up grafana-grants down down-volumes logs logs-frontend logs-api \
+        dev install docling-weights up grafana-grants down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
         logs-wipe \
         prune spend spend-by-shape \
@@ -337,7 +337,7 @@ SPACY_MODELS := $(strip $(shell sed -n 's/^NLP_MODELS=//p' configs/env/backend.e
 export SPACY_MODELS
 SPACY_MODEL_VERSION := $(shell sed -n 's/^ARG SPACY_MODEL_VERSION=//p' backend/api/Dockerfile)
 
-# Install the Python dependencies and the spaCy pipelines.
+# Install the Python dependencies, the spaCy pipelines and Docling's weights.
 install:
 	poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
 	@for model in $(SPACY_MODELS); do \
@@ -350,6 +350,16 @@ install:
 	    echo "spacy download $$model failed; retrying in 15s"; sleep 15; \
 	  done; \
 	done
+	@$(MAKE) --no-print-directory docling-weights
+
+# Download Docling's weights into the `models` volume parse-worker reads.
+#
+# parse-worker has the hub offline and sits on a network with no route out,
+# so a fresh volume failed every document. chunk-worker is the same image
+# with the same volume on a network that reaches the hub. Builds the image
+# if there is none yet; fetches nothing already cached.
+docling-weights:
+	$(COMPOSE_CMD) run --rm --no-deps chunk-worker python -m preprocessing.parsing.weights
 
 # ── Services ───────────────────────────────────────────────────────────────
 

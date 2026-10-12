@@ -86,9 +86,14 @@ LLM_MODEL=azure/<deployment>           # a key, or Entra ID
 without it. Set both to the same value if one model serves both.
 
 ```bash
-make install    # dependencies, and the spaCy pipelines NLP_MODELS names
+make install    # dependencies, the spaCy pipelines NLP_MODELS names, and Docling's weights
 make doctor     # checks the tools and the config, then asks the model one question
 ```
+
+`install` needs the container engine running. The parse worker has no
+internet access, so `install` downloads Docling's weights into the `models`
+volume from a container that has. After `make down-volumes`, run
+`make docling-weights` again before parsing.
 
 `doctor` ends with a real call to the configured model, so a wrong model id,
 an unreachable address or a stale credential fails there rather than on the

@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -322,3 +323,22 @@ def test_the_first_boot_grants_grafana_no_phoenix_table() -> None:
 
     assert "ON ALL TABLES" not in phoenix
     assert "DEFAULT PRIVILEGES" not in phoenix
+
+
+def test_install_fetches_doclings_weights_where_the_hub_is_reachable() -> None:
+    """parse-worker reads them offline, so a fresh volume failed every document.
+
+    The fetch runs in a service that mounts parse-worker's cache volume and
+    sits on no internal network.
+    """
+    (fetch,) = [line for line in printed("install") if "parsing.weights" in line]
+    service = fetch.split(" run --rm --no-deps ")[1].split()[0]
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text())
+    internal = {
+        name for name, network in compose["networks"].items() if network.get("internal")
+    }
+    fetcher, parser = compose["services"][service], compose["services"]["parse-worker"]
+    cache = [volume for volume in parser["volumes"] if volume.startswith("models:")]
+
+    assert cache and cache[0] in fetcher["volumes"], fetcher["volumes"]
+    assert not internal & set(fetcher["networks"]), fetcher["networks"]

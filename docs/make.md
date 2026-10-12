@@ -17,7 +17,7 @@ behind. This page is the long form.
 | Target | Does |
 |---|---|
 | `make setup` | Write `.env` and `configs/env/provider.env`, and fill in every placeholder |
-| `make install` | The Python dependencies and the spaCy pipelines |
+| `make install` | The Python dependencies, the spaCy pipelines and Docling's weights |
 | `make doctor` | Check the tools and the configuration, then ask the model one question |
 | `make dev` | Certificates, every service, the schema and the Grafana grants |
 
@@ -86,7 +86,8 @@ run compose has no equivalent of.
 | Target | Does |
 |---|---|
 | `make dev` | Certificates, every service, wait for PostgreSQL, create the schema, then the grants `make up` makes |
-| `make install` | Dependencies and the spaCy pipelines `NLP_MODELS` names |
+| `make install` | Dependencies, the spaCy pipelines `NLP_MODELS` names, then `make docling-weights` |
+| `make docling-weights` | Download Docling's weights into the `models` volume parse-worker reads offline. Needs the container engine; fetches nothing already cached |
 | `make up` | Start services, then grant Grafana's reader the five Phoenix tables the run dashboard queries, once Phoenix has made them |
 | `make grafana-grants` | Those grants alone. Safe to run again |
 | `make down` | Stop services, keep data, and remove dangling images |

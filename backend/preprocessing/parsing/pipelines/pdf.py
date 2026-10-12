@@ -143,6 +143,15 @@ class PdfPipeline(Pipeline):
             confidence_low=_score(result, "low_score"),
         )
 
+    def fetch_weights(self) -> None:
+        """Builds the converter, which downloads any weight not yet cached.
+
+        Raises:
+            LocalEntryNotFoundError: If a weight is not cached and the
+                Hugging Face hub is offline.
+        """
+        self._converter().initialize_pipeline(InputFormat.PDF)
+
     def _converter(self) -> DocumentConverter:
         """Returns the converter, building it once."""
         if self._built is None:

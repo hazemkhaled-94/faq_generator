@@ -23,17 +23,25 @@ def build_service(settings: Settings) -> ParsingService:
         repository=ParseQueue(),
         documents=DocumentsBucket(),
         parsed=ParsedBucket(),
-        pipelines=PipelineRegistry(
-            (
-                PdfPipeline(
-                    table_mode=settings.table_mode,
-                    heading_hierarchy=settings.heading_hierarchy,
-                    document_timeout_seconds=settings.document_timeout_seconds,
-                    artifacts_path=settings.artifacts_path,
-                ),
-            )
-        ),
+        pipelines=PipelineRegistry((pdf_pipeline(settings),)),
         analyser=DocumentAnalyser(),
         ocr_char_threshold=settings.ocr_char_threshold,
         min_confidence=settings.min_confidence,
+    )
+
+
+def pdf_pipeline(settings: Settings) -> PdfPipeline:
+    """Builds the PDF pipeline the service converts with.
+
+    Args:
+        settings: The loaded parsing settings.
+
+    Returns:
+        The pipeline. Its converter is built on first use, not here.
+    """
+    return PdfPipeline(
+        table_mode=settings.table_mode,
+        heading_hierarchy=settings.heading_hierarchy,
+        document_timeout_seconds=settings.document_timeout_seconds,
+        artifacts_path=settings.artifacts_path,
     )
