@@ -51,7 +51,7 @@ runs:
     - name: Install dependencies
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      run: make install
+      run: make install-python
 
     # A restored virtualenv carries absolute paths, so it is only usable
     # where it was built. The key holds the full patch version for that

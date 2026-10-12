@@ -342,3 +342,17 @@ def test_install_fetches_doclings_weights_where_the_hub_is_reachable() -> None:
 
     assert cache and cache[0] in fetcher["volumes"], fetcher["volumes"]
     assert not internal & set(fetcher["networks"]), fetcher["networks"]
+
+
+def test_ci_installs_without_the_container_engine() -> None:
+    """A runner has no .env for compose to read, and its jobs need no volume."""
+    action = yaml.safe_load((ROOT / ".github/actions/setup/action.yml").read_text())
+    (step,) = [
+        step
+        for step in action["runs"]["steps"]
+        if step.get("name") == "Install dependencies"
+    ]
+    lines = printed(step["run"].removeprefix("make "))
+
+    assert any("poetry install" in line for line in lines), lines
+    assert not [line for line in lines if "compose" in line], lines

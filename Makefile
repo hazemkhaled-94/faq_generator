@@ -182,7 +182,7 @@ help:
 	' $(MAKEFILE_LIST)
 
 .PHONY: help setup doctor \
-        dev install docling-weights up grafana-grants down down-volumes logs logs-frontend logs-api \
+        dev install install-python docling-weights up grafana-grants down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
         logs-wipe \
         prune spend spend-by-shape \
@@ -338,7 +338,13 @@ export SPACY_MODELS
 SPACY_MODEL_VERSION := $(shell sed -n 's/^ARG SPACY_MODEL_VERSION=//p' backend/api/Dockerfile)
 
 # Install the Python dependencies, the spaCy pipelines and Docling's weights.
-install:
+install: install-python docling-weights
+
+# Install the Python dependencies and the spaCy pipelines, on the host alone.
+#
+# What CI's setup action runs: its jobs need the virtualenv and never the
+# `models` volume, and a runner has no .env for compose to read.
+install-python:
 	poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
 	@for model in $(SPACY_MODELS); do \
 	  attempt=1; \
@@ -350,7 +356,6 @@ install:
 	    echo "spacy download $$model failed; retrying in 15s"; sleep 15; \
 	  done; \
 	done
-	@$(MAKE) --no-print-directory docling-weights
 
 # Download Docling's weights into the `models` volume parse-worker reads.
 #
