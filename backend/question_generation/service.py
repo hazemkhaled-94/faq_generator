@@ -706,7 +706,24 @@ class QuestionGenerationService(StageService):
                     other = instead(plan, self._settings.type_mix, swapped)
                     swapped += 1
                     if other is None:
+                        log.warning(
+                            "topic %d: a %s slot was not written: nothing left "
+                            "in the topic states a reason, and "
+                            "QUESTIONS_TYPE_MIX has no other kind that does not "
+                            "span to write instead",
+                            topic.id,
+                            plan.spec.name,
+                            extra={"topic.id": topic.id},
+                        )
                         continue
+                    log.info(
+                        "topic %d: a %s slot is written as %s: nothing left in "
+                        "the topic states a reason",
+                        topic.id,
+                        plan.spec.name,
+                        other.spec.name,
+                        extra={"topic.id": topic.id},
+                    )
                     plan = other
             # A reading is written from a passage condensed, a value from
             # the claim carrying the number. Which facts are offered first
@@ -749,6 +766,7 @@ class QuestionGenerationService(StageService):
                             checked,
                             accepted,
                             followed,
+                            topic.id,
                         )
                         followed += 1
                     roots += 1
@@ -1044,6 +1062,7 @@ class QuestionGenerationService(StageService):
         root: CheckedQuestion,
         accepted: list[CheckedQuestion],
         followed: int,
+        topic_id: int,
     ) -> list[CheckedQuestion]:
         """Writes the questions somebody would ask after this one.
 
@@ -1091,6 +1110,12 @@ class QuestionGenerationService(StageService):
             # the other kinds and never repeats one in a reason's place.
             names = tuple(one for one in names if one != QuestionType.REASON)
             if not names:
+                log.warning(
+                    "topic %d: a thread was not followed: its material states "
+                    "no reason, and QUESTIONS_FOLLOWUP_TYPES names no other kind",
+                    topic_id,
+                    extra={"topic.id": topic_id},
+                )
                 return []
         for turn in range(self._settings.max_followups):
             candidate = self._writer.follow_up(

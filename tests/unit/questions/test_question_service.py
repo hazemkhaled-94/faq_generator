@@ -701,6 +701,69 @@ def test_a_reason_turn_with_no_reason_to_ask_takes_the_next_kind() -> None:
     assert QuestionType.REASON not in turns
 
 
+def test_a_swapped_reason_slot_says_what_it_became(caplog) -> None:
+    """A mix that came out short of reasons is a fact somebody wants to read."""
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, statement=text)
+        for n, text in enumerate(RULES)
+    ]
+    settings = reasons_only(
+        type_mix={QuestionType.REASON: 1, QuestionType.FACTOID: 1}, per_topic=2
+    )
+    service, _ = build(topic(id=11), facts, settings=settings)
+
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        service.process_next()
+
+    (said,) = [one for one in caplog.records if "states a reason" in one.message]
+    assert said.levelname == "INFO"
+    assert "topic 11" in said.message
+    assert "reason" in said.message and "factoid" in said.message
+    assert said.__dict__["topic.id"] == 11
+
+
+def test_a_reason_slot_with_nothing_to_become_is_skipped_out_loud(caplog) -> None:
+    """Writing nothing is a decision, and a quiet one reads as a short topic."""
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, statement=text)
+        for n, text in enumerate(RULES)
+    ]
+    service, _ = build(topic(id=12), facts, settings=reasons_only(per_topic=1))
+
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        service.process_next()
+
+    (said,) = [one for one in caplog.records if "not written" in one.message]
+    assert said.levelname == "WARNING"
+    assert "topic 12" in said.message
+    assert said.__dict__["topic.id"] == 12
+
+
+def test_a_thread_with_no_kind_left_to_ask_is_skipped_out_loud(caplog) -> None:
+    """The follow-up half of the same decision."""
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, statement=text)
+        for n, text in enumerate(RULES)
+    ]
+    settings = replace(
+        SETTINGS,
+        per_topic=1,
+        type_mix={QuestionType.FACTOID: 1},
+        followup_types=(QuestionType.REASON,),
+        followup_share=1.0,
+        unanswerable_share=0.0,
+    )
+    service, _ = build(topic(id=13), facts, settings=settings)
+
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        service.process_next()
+
+    (said,) = [one for one in caplog.records if "not followed" in one.message]
+    assert said.levelname == "WARNING"
+    assert "topic 13" in said.message
+    assert said.__dict__["topic.id"] == 13
+
+
 def test_a_thread_without_a_reason_to_ask_never_repeats_a_kind() -> None:
     """The reason turn drops out of the cycle, not into another kind's place.
 
