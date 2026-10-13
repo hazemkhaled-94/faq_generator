@@ -253,3 +253,14 @@ def test_a_quote_that_only_says_the_question_back_is_read_as_the_checker_reads_i
     rejudge(catalog, SETTINGS, Verifier(Client(RULE, verdict)))
 
     assert catalog.rejected == rejected
+
+
+def test_a_quote_read_as_silent_is_logged_with_the_question(caplog) -> None:
+    """The row keeps only the silence, so the quote it overrode is logged."""
+    catalog = Catalog(unanswered(question_text=WHY, passages=(RULE,)))
+
+    with caplog.at_level("INFO", logger="question_generation.checker"):
+        rejudge(catalog, SETTINGS, Verifier(Client(RULE, Settling.ANSWERS)))
+
+    (line,) = [one for one in caplog.messages if "as silent" in one]
+    assert "question 7" in line and RULE in line

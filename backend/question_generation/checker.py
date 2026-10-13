@@ -104,7 +104,12 @@ log = logging.getLogger(__name__)
 __all__ = ["GATES", "PASSED", "REFUSED", "QuestionChecker", "annotation"]
 
 
-def heard(settled: Settled, question: str, language: str | None) -> Settled:
+def heard(
+    settled: Settled,
+    question: str,
+    language: str | None,
+    question_id: int | None = None,
+) -> Settled:
     """A `settles` verdict, silent where its answer only says the question back.
 
     A `why` the passage gives no reason for comes back as the rule it asks
@@ -112,12 +117,22 @@ def heard(settled: Settled, question: str, language: str | None) -> Settled:
     `restates` is the reading the key is held to the same way. Only an
     `answers` verdict is read so: the quote of a `refutes` or a `rule` is
     the rule itself, which is how those settle a question.
+
+    The silenced quote is logged, with the question's id where it has one,
+    because the row keeps only the silence.
     """
     if (
         settled.verdict == Settling.ANSWERS
         and settled.quote is not None
         and restates(question, settled.quote, language)
     ):
+        log.info(
+            "reading question %s as silent: the verifier answered %r with %r, "
+            "which only says it back",
+            "unsaved" if question_id is None else question_id,
+            question,
+            settled.quote,
+        )
         return Settled(verdict=Settling.SILENT, quote=None)
     return settled
 

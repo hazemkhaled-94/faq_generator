@@ -525,6 +525,7 @@ def _settled(
         verifier.settles(question.question_text, question.passages),
         question.question_text,
         question.language,
+        question.id,
     )
     opinions = [settled.reading("settles")]
     if settled.verdict != Settling.SILENT:
@@ -547,6 +548,7 @@ def _settled(
         verifier.settles(question.question_text, probed),
         question.question_text,
         question.language,
+        question.id,
     )
     opinions.append(settled.reading("settles_elsewhere"))
     if settled.verdict != Settling.SILENT:
