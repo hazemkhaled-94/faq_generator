@@ -1351,3 +1351,240 @@ def test_a_stored_count_over_figures_of_something_else_is_left_to_the_model() ->
         [_P469],
         "en",
     )
+
+
+#: Stored rows the gates still misjudge, each with the verdict it should get
+#: and why it does not: (name, question, answer, language, type, form, the
+#: right code, reason). Strict, so a fix that reaches one says so.
+MISJUDGED_ROWS: tuple[tuple[str, str, str, str, str, str, str | None, str], ...] = (
+    (
+        "Q1268",
+        (
+            "How is the dropped-ball position decided when play is stopped for contact "
+            "with a match official or an outside agent?"
+        ),
+        (
+            "The ball is dropped at the position of the interference when there is "
+            "interference by a match official. The ball is dropped where the contact "
+            "occurred if play is stopped because the ball makes contact with an "
+            "outside agent."
+        ),
+        "en",
+        QuestionType.PROCEDURE,
+        AnswerForm.EXPLANATION,
+        None,
+        (
+            "its deciding words are too small a share of an answer repeating the "
+            "question's setup"
+        ),
+    ),
+    (
+        "Q1410",
+        (
+            "What happens if a player, substitute, substituted player or team official "
+            "enters the video operation room?"
+        ),
+        (
+            "A player, substitute, substituted player or team official who enters the "
+            "video operation room will be sent off."
+        ),
+        "en",
+        QuestionType.PROCEDURE,
+        AnswerForm.LIST,
+        None,
+        (
+            "its one deciding verb is too small a share of an answer repeating the "
+            "question's parties"
+        ),
+    ),
+    (
+        "Q140",
+        (
+            "Worin unterscheidet sich die Rolle des VAR von der des Schiedsrichters "
+            "bei Entscheidungen?"
+        ),
+        "beratende Rolle des VAR und endgültige Entscheidung des Schiedsrichters",
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        None,
+        "the sides share no word the question lacks: its axis is in the question",
+    ),
+    (
+        "Q152",
+        (
+            "Wodurch unterscheiden sich bei VAR-Entscheidungen subjektive und "
+            "objektive Fälle?"
+        ),
+        (
+            "bei subjektiven Fällen ist ein OFR sinnvoll, bei objektiven erfolgt "
+            "üblicherweise eine VAR-Konsultation"
+        ),
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        None,
+        "only one side names a subject of the question, as the parser lemmatises it",
+    ),
+    (
+        "Q48",
+        (
+            "Worin unterscheidet sich das bei unabsichtlichem und absichtlichem "
+            "Handspiel zur Vereitelung einer offensichtlichen Torchance?"
+        ),
+        (
+            "Verwarnung bei unabsichtlichem Handspiel mit Strafstoss und Feldverweis "
+            "bei absichtlichem Handspiel"
+        ),
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        None,
+        "the sides share no word the question lacks: its axis is in the question",
+    ),
+    (
+        "Q807",
+        (
+            "How do verbal offences and offences against outside agents differ in the "
+            "restart?"
+        ),
+        "indirect free kick, dropped ball",
+        "en",
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        None,
+        "its two values name neither subject and share no word the question lacks",
+    ),
+    (
+        "Q385",
+        (
+            "Worin unterscheidet sich die Spielfortsetzung bei einer eingreifenden "
+            "Drittperson von der bei einem eingreifenden Teamangehörigen des "
+            "erzielenden Teams?"
+        ),
+        "Schiedsrichterball und direkter Freistoss",
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        None,
+        "the sides share no word the question lacks: its axis is in the question",
+    ),
+    (
+        "Q220",
+        (
+            "Wie unterscheiden sich die zulässigen Breiten von Spielfeldlinien und von "
+            "Torpfosten mit Querlatte?"
+        ),
+        (
+            "höchstens 12 cm bei den Spielfeldlinien und höchstens 12 cm bei "
+            "Torpfosten und Querlatte"
+        ),
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        None,
+        "the sides share no word the question lacks: its axis is in the question",
+    ),
+    (
+        "Q469",
+        (
+            "Wodurch unterscheiden sich Eingreifen ins Spiel und Beeinflussung eines "
+            "Gegners?"
+        ),
+        "Spielen oder Berühren des Balls, Hindern oder Beeinflussen eines Gegners",
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        None,
+        "only one side names a subject of the question, as the parser lemmatises it",
+    ),
+    (
+        "Q480",
+        (
+            "Wodurch unterscheiden sich ein Handspielvergehen bei absichtlicher "
+            "Ballberührung und eines bei unnatürlicher Vergrösserung des Körpers?"
+        ),
+        (
+            "absichtliche Ballberührung mit der Hand oder dem Arm und unnatürliche "
+            "Vergrösserung des Körpers durch die Hand- oder Armhaltung"
+        ),
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        None,
+        "the sides share no word the question lacks: its axis is in the question",
+    ),
+    (
+        "Q595",
+        (
+            "Worin unterscheiden sich die Anforderungen an Schienbeinschoner und "
+            "EPTS-Technologie?"
+        ),
+        (
+            "geeignetes Material bei Schienbeinschonern und Erfüllung des "
+            "FIFA-Qualitätsprogramms bei EPTS-Technologie"
+        ),
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        None,
+        "the sides share no word the question lacks: its axis is in the question",
+    ),
+    (
+        "Q1376",
+        (
+            "What distinguishes the assistant referee's role from the fourth "
+            "official's in a requested substitution?"
+        ),
+        (
+            "signalling the request to the referee at the next stoppage, supervising "
+            "the substitution procedure"
+        ),
+        "en",
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        None,
+        "its two values name neither subject and share no word the question lacks",
+    ),
+    (
+        "Q700",
+        (
+            "Worin unterscheiden sich die Änderungen beim Zeichen für Strafstoss und "
+            "beim Zeichen für Eckstoss?"
+        ),
+        "geändertes Zeichen für Strafstoss und geändertes Zeichen für Eckstoss",
+        "de",
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        QuestionRejection.WRONG_TYPE,
+        (
+            "both sides share geändert, which the question carries only as the noun "
+            "Änderungen"
+        ),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "kind", "form", "expected"),
+    [
+        pytest.param(
+            *row[1:7], id=row[0], marks=pytest.mark.xfail(strict=True, reason=row[7])
+        )
+        for row in MISJUDGED_ROWS
+    ],
+)
+def test_a_stored_question_the_gates_still_misjudge(
+    question: str,
+    answer: str,
+    language: str,
+    kind: str,
+    form: str,
+    expected: str | None,
+) -> None:
+    """The verdict re-verify should store, which it does not yet."""
+    stored = replace(_stored(question, answer, kind, form), language=language)
+
+    failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
+
+    assert (failed[0] if failed else None) == expected, failed
