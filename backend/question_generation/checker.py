@@ -592,6 +592,13 @@ class QuestionChecker:
             # whole, so its bar is all of it, and one that came back whole
             # records nothing: its margin against all of itself is 0, which
             # would make every value key the weakest reading of its row.
+            # One whose recovery fell short and which the entailment pass
+            # then rescued keeps its reading, so its confidence is 0: it was
+            # accepted on the rescue, not on recall.
+            #
+            # A list or an explanation recovered with no content lemma at all
+            # reads 0 rather than abstaining: the key's lemmas were looked
+            # for and none came back.
             if read.recovered is not None:
                 language = candidate.group.language
                 recall = recalled(read.recovered, target, language, form)

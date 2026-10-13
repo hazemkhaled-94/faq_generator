@@ -279,7 +279,10 @@ languages whose number words the gates hold.
 
 The `recall` reading stored beside the verdict is held to the bar the form
 was: all of it for a `value`, which records a reading only where it fell
-short, and `QUESTIONS_ANSWER_OVERLAP` otherwise.
+short, and `QUESTIONS_ANSWER_OVERLAP` otherwise. So a `value` whose recovery
+fell short and which the entailment pass then rescued carries a confidence of
+0, and a `list` or `explanation` whose recovery holds no content word reads 0
+rather than abstaining.
 
 The form is the one the answer fits among those its type takes, and only a
 `list` is then checked for completeness. Three items punctuated apart make a
