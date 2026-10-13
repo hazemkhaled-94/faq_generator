@@ -124,6 +124,38 @@ def test_a_sibling_claim_of_its_own_passage_is_given_back() -> None:
     assert dedup(catalog, BAR) == 1  # type: ignore[arg-type]
 
 
+def test_a_refusal_given_back_carries_the_reading_against_today_s_bar() -> None:
+    """As a fact read in flight would: its nearest twin, against this bar."""
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 1, "The device weighs 4 kg.", at(0.97)))
+        .refusing(refusal("The device has a weight of 4 kg."))
+    )
+
+    dedup(catalog, BAR, floor=0.75)  # type: ignore[arg-type]
+
+    ((reading,), margin) = catalog.readings[10]
+    assert (reading["gate"], reading["value"], reading["threshold"]) == (
+        "duplicate",
+        0.97,
+        BAR,
+    )
+    assert margin == round((BAR - 0.97) / (BAR - 0.75), 4)
+
+
+def test_a_refusal_with_no_twin_left_carries_no_reading() -> None:
+    """The refusal's own margin is not a validated fact's; nothing replaces it."""
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 1, "The device weighs 7 kg.", at(0.99)))
+        .refusing(refusal("The device weighs 4 kg."))
+    )
+
+    dedup(catalog, BAR, floor=0.75)  # type: ignore[arg-type]
+
+    assert catalog.readings[10] == (None, None)
+
+
 def test_the_gate_off_gives_every_refusal_back() -> None:
     """EXTRACTION_DUPLICATE_COSINE at 0 refuses nothing, in flight or here."""
     catalog = (

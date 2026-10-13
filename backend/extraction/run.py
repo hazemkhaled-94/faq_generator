@@ -111,7 +111,12 @@ def main(argv: list[str] | None = None) -> int:
     def run_dedup(within) -> int:
         """Re-decides every stored duplicate refusal under today's rule."""
         _, settings, version = configured()
-        return dedup(FactCatalog(version=version), settings.duplicate_cosine, within)
+        return dedup(
+            FactCatalog(version=version),
+            settings.duplicate_cosine,
+            within,
+            floor=settings.duplicate_floor,
+        )
 
     def run_embed(within) -> int:
         """Writes the vectors onto passages and facts already stored."""

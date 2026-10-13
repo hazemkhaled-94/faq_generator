@@ -1349,10 +1349,17 @@ class TestTheDedupReplay:
         )
         ((refused,),) = store.rows("id")
 
-        assert FactCatalog(version="deduped").give_back(refused) == 1
+        reading = [{"gate": "duplicate", "value": 0.97, "threshold": 0.985}]
+
+        assert FactCatalog(version="deduped").give_back(refused, reading, 0.064) == 1
         assert store.rows(
-            "validated", "rejection_code", "validation_error", "settings_version"
-        ) == [(True, None, None, "deduped")]
+            "validated",
+            "rejection_code",
+            "validation_error",
+            "settings_version",
+            "gate_scores",
+            "confidence",
+        ) == [(True, None, None, "deduped", reading, 0.064)]
 
     def test_what_a_passage_keeps_is_read_with_its_kinds(self, store, corpus) -> None:
         """The facts it validated, and not the ones it refused."""
@@ -1398,12 +1405,15 @@ class TestTheDedupReplay:
                     rejection_code=Rejection.DUPLICATE,
                     validation_error="says what fact 1 already says",
                     embedding=_axis(0),
+                    gate_scores=[{"gate": "duplicate", "value": 1.0, "margin": 0.0}],
+                    confidence=0.0,
                 ),
             )
 
         assert dedup(store.catalog, 0.985) == 1
-        assert store.rows("statement", "rejection_code") == [
-            ("The device weighs 7 kg.", None),
-            ("The device weighs 4 kg.", None),
-            ("The device weighs 7 kg.", Rejection.DUPLICATE),
+        assert store.rows("statement", "rejection_code", "confidence") == [
+            ("The device weighs 7 kg.", None, None),
+            ("The device weighs 4 kg.", None, None),
+            ("The device weighs 7 kg.", Rejection.DUPLICATE, 0.0),
         ]
+        assert dedup(store.catalog, 0.985) == 0, "a second run gives nothing back"

@@ -180,7 +180,9 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
     return written
 
 
-def dedup(catalog: FactCatalog, threshold: float, within=None) -> int:
+def dedup(
+    catalog: FactCatalog, threshold: float, within=None, floor: float = 0.0
+) -> int:
     """Re-decides every stored `duplicate` refusal, without calling the model.
 
     The replay for this gate, as `recap` is for the cap: what the model wrote
@@ -199,13 +201,18 @@ def dedup(catalog: FactCatalog, threshold: float, within=None) -> int:
 
     A fact given back was judged by the checks of its own extraction and has
     not been counted against the cap, which is why `make extract-revalidate`
-    and `make extract-recap` run after this.
+    and `make extract-recap` run after this. Its stored reading is replaced
+    by the one this probe took, against this bar, as a fact read in flight
+    would carry; with no twin left it carries none. The refusal's own margin
+    is never left on a validated fact.
 
     Args:
         catalog: Where the refusals are read from and written back to.
         threshold: EXTRACTION_DUPLICATE_COSINE. 0 refuses nothing, so every
             refusal is given back.
         within: A condition narrowing which facts are read, or None.
+        floor: EXTRACTION_DUPLICATE_FLOOR, which a reading's margin is
+            measured down to.
 
     Returns:
         How many refusals were given back.
@@ -236,9 +243,15 @@ def dedup(catalog: FactCatalog, threshold: float, within=None) -> int:
             probed,
             catalog.kept(refused.passage_id),
         )
-        if threshold > 0 and twin is not None and twin.similarity >= threshold:
+        if threshold <= 0 or twin is None:
+            given += catalog.give_back(refused.fact_id)
             continue
-        given += catalog.give_back(refused.fact_id)
+        if twin.similarity >= threshold:
+            continue
+        reading = _measured(twin, threshold, floor)
+        given += catalog.give_back(
+            refused.fact_id, scored([reading]), confidence([reading])
+        )
     log.info("gave back %d duplicate refusal(s) today's rule would not make", given)
     return given
 
@@ -740,6 +753,19 @@ def _refuse(fact: CheckedFact, cap: int) -> CheckedFact:
     )
 
 
+def _measured(twin: Twin, threshold: float, floor: float) -> Measurement:
+    """The dedup gate's reading of one twin, as the stored confidence takes it.
+
+    The only reading in this service that is a measurement: every other check
+    is structural, and a citation resolves or it does not. High is what
+    refuses, so a statement far from anything already stored has the whole
+    margin.
+    """
+    return Measurement(
+        "duplicate", twin.similarity, threshold, high_is_safe=False, safe_end=floor
+    )
+
+
 def _counted_alike(statement: str, twin: str, language: str | None) -> bool:
     """Whether two statements name the same numbers, as often as each other."""
     return numbers(statement, language) == numbers(twin, language)
@@ -1053,17 +1079,7 @@ class ExtractionService(StageService):
                 continue
             twin = self._nearest(fact, vector, written, passage_id, language)
             if twin is not None:
-                # The only reading in this service that is a measurement:
-                # every other check is structural, and a citation resolves
-                # or it does not. High is what refuses, so a statement far
-                # from anything already stored has the whole margin.
-                reading = Measurement(
-                    "duplicate",
-                    twin.similarity,
-                    threshold,
-                    high_is_safe=False,
-                    safe_end=self._duplicate_floor,
-                )
+                reading = _measured(twin, threshold, self._duplicate_floor)
                 fact = replace(
                     fact,
                     gate_scores=scored([reading]),

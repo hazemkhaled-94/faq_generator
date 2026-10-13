@@ -781,11 +781,23 @@ class FactCatalog(Repository):
                 for row in session.execute(query)
             ]
 
-    def give_back(self, fact_id: int) -> int:
+    def give_back(
+        self,
+        fact_id: int,
+        gate_scores: list[dict] | None = None,
+        confidence: float | None = None,
+    ) -> int:
         """Validates one `duplicate` refusal again, as it was judged when read.
 
-        Only the verdict moves, stamped with the settings it moved under, as
-        a recap stamps one. Nothing where the fact is no longer a refusal.
+        The verdict moves, stamped with the settings it moved under, as a
+        recap stamps one, and so does the dedup reading: the refusal's own
+        margin is replaced by the one the caller read against today's bar,
+        or cleared. Nothing where the fact is no longer a refusal.
+
+        Args:
+            fact_id: The refusal.
+            gate_scores: The reading to store, or None for none.
+            confidence: Its margin, or None with it.
 
         Returns:
             How many facts were given back: 1, or 0.
@@ -799,6 +811,8 @@ class FactCatalog(Repository):
                     rejection_code=None,
                     validation_error=None,
                     settings_version=self._version,
+                    gate_scores=gate_scores or None,
+                    confidence=confidence,
                 )
             ).rowcount
 

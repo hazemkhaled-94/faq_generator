@@ -133,7 +133,8 @@ Two more refusals are the service refusing what the checks passed:
   on its own passage alone, so a passage it was refused against never
   counts towards the scope of a question asked of it.
   `make extract-dedup` re-decides every stored refusal under the rule as it
-  stands, giving back the ones it would no longer make, and takes out the
+  stands, giving back the ones it would no longer make with the reading
+  taken against today's bar, or none, and takes out the
   citations an earlier version's refusal added to its twin, rebuilding that
   fact's evidence from the citation it keeps. No model is called.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a

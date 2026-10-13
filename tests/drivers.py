@@ -400,6 +400,8 @@ class Catalogue:
         self.kept_facts: list[Kept] = []
         self.refusals: list[Refused] = []
         self.given_back: list[int] = []
+        #: The reading each refusal given back was written with.
+        self.readings: dict[int, tuple[list[dict] | None, float | None]] = {}
         #: What `unfold` answers: facts unfolded, and facts left with folds.
         self.folds: tuple[int, int] = (0, 0)
         self.unfolded = 0
@@ -480,9 +482,15 @@ class Catalogue:
             if one.passage_id == passage_id
         ]
 
-    def give_back(self, fact_id: int) -> int:
+    def give_back(
+        self,
+        fact_id: int,
+        gate_scores: list[dict] | None = None,
+        confidence: float | None = None,
+    ) -> int:
         """Records one refusal given back; it is a twin from now on."""
         self.given_back.append(fact_id)
+        self.readings[fact_id] = (gate_scores, confidence)
         return 1
 
     def _validated(self) -> list[Kept]:
