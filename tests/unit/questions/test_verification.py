@@ -2486,35 +2486,38 @@ def test_a_follow_up_may_point_at_the_conversation() -> None:
     assert result.rejected_reason != QuestionRejection.UNANCHORED
 
 
-def test_a_reader_finding_nothing_elsewhere_saves_the_call() -> None:
-    """A reader that finds nothing elsewhere saves the call.
+def test_a_reader_finding_no_span_elsewhere_still_lets_the_probe_settle_it() -> None:
+    """A refutation or a general rule is not a span.
 
-    There is no target answer here, which is why an extractive reader
-    belongs in this gate and not in the recall half: the only question is
-    whether some passage answers this at all.
+    The extractive reader answers "where is the answer" and nothing else, so
+    its finding nothing in the probe says nothing about whether a passage
+    there refutes the question's premise. The verifier is asked regardless.
     """
-    # The cited passages do not answer it, so the gate before this one
-    # passes and `_corpus` is reached.
     recording = Recording(recovers=None)
     reader = Reader(None)
+
+    def settles(question, passages):
+        recording.verified += 1
+        if any("Only account holders" in passage for passage in passages):
+            return Settled(verdict=Settling.REFUTES, quote="Only account holders")
+        return Settled(verdict=Settling.SILENT, quote=None)
+
+    recording.settles = settles  # type: ignore[method-assign]
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
         nearest=lambda embedding, **_: None,
         threshold=0.93,
         phrasing=recording,
-        elsewhere=lambda *a, **k: ["Something else entirely."],
+        elsewhere=lambda *a, **k: ["Only account holders are refunded."],
         elsewhere_passages=2,
         extractive=reader,
     )
 
     result = checker.check(candidate(target_answer=None, answerable=False))
 
-    assert result.accepted
-    # Once, here. The recall half of an unanswerable question does not ask
-    # it: a span there is a rejection, which is not an extractor's to make.
-    assert reader.asked == 1
-    assert recording.verified == 1, "only the recall call, not the corpus one"
+    assert result.rejected_reason == QuestionRejection.ANSWERABLE_ELSEWHERE
+    assert recording.verified == 2, "its own passages, then the probe"
 
 
 def test_a_span_found_elsewhere_still_goes_to_the_verifier() -> None:
