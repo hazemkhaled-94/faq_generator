@@ -1377,24 +1377,27 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
     A split divides the two subjects the question names where each side of
     it holds a content lemma of the question the other side lacks.
 
-    True where a comparative divides them: `Card payments settle faster
-    than bank transfers`, `Card payments are faster, while bank transfers
-    take a day`. A comparative with both subjects before it, or neither
-    after it, describes one side and compares it with nothing: `excessive
-    force is using more force than is necessary` is a definition.
+    With no seam - no `;`, `,` or conjunction - the answer is one clause,
+    and it holds where a comparative divides the subjects: `Card payments
+    settle faster than bank transfers`. False where none does.
 
-    Otherwise the sides are read either side of a seam - a `;`, `,` or
-    conjunction - and the answer holds when they share a content lemma the
-    question did not supply. The first seam dividing the subjects wins, in
-    that order, except that a comma opening a subordinate clause comes after
-    a conjunction: `beim Anstoss und ... des Elfmeters, wenn der Ball ...`
-    compares at the `und`.
+    Otherwise the sides are read either side of a seam. The first seam
+    dividing the subjects wins, in that order, except that a comma opening
+    a subordinate clause comes after a conjunction: `beim Anstoss und ...
+    des Elfmeters, wenn der Ball ...` compares at the `und`. The answer
+    holds where each side carries a comparative of its own - `less formal`,
+    `more formal` - or, at a seam opening a subordinate clause, where one
+    side does: `Card payments are faster, while bank transfers take a day`.
+    A single comparative at any other seam describes its side and compares
+    it with nothing - `excessive force is using more force than is
+    necessary` is a definition, whichever half it is welded to first. Short
+    of a comparative, the answer holds where the sides share a content
+    lemma the question did not supply.
 
-    False where the answer has no seam, so no two sides. False too where no
-    seam divides the subjects and one side names a subject while the other
-    names none: a definition welded to a second sentence answers for one
-    side. Where neither side names one - `48 hours, 4 hours` - the sides are
-    read at the first seam as before.
+    False where no seam divides the subjects and one side names a subject
+    while the other names none: a definition welded to a second sentence
+    answers for one side. Where neither side names one - `48 hours, 4
+    hours` - the sides are read at the first seam as before.
 
     ponytail: a lexical reading of a judgement. It refuses a comparison
     whose shared attribute is named in the question (`bei der Zahl ihrer
@@ -1409,23 +1412,33 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
         right = content(read[at + 1 :].text, language)
         return left, right, bool((left & asked) - right and (right & asked) - left)
 
-    if any(
-        split(token.i)[2] for token in read if "Cmp" in token.morph.get("Degree", [])
-    ):
-        return True
+    def compared(side) -> bool:
+        """Whether a span carries a comparative."""
+        return any("Cmp" in token.morph.get("Degree", []) for token in side)
+
     seams = [
         token.i for token in read if token.text in (";", ",") or token.pos_ == "CCONJ"
     ]
     if not seams:
-        return False
+        return any(split(token.i)[2] for token in read if compared([token]))
     sides = {seam: split(seam) for seam in seams}
     dividing = [seam for seam in seams if sides[seam][2]]
     seam = min(dividing or seams, key=lambda one: (_seam_rank(read, one), one))
     left, right, divides = sides[seam]
+    if divides:
+        before, after = compared(read[:seam]), compared(read[seam + 1 :])
+        if (before and after) or (
+            (before or after) and _seam_rank(read, seam) == _SUBORDINATE_SEAM
+        ):
+            return True
     # One side naming a subject and the other naming none answers for one.
-    if not divides and ((left & asked) - right or (right & asked) - left):
+    elif (left & asked) - right or (right & asked) - left:
         return False
     return bool((left & right) - asked)
+
+
+#: The rank `_seam_rank` gives a comma opening a subordinate clause.
+_SUBORDINATE_SEAM = 3
 
 
 def _seam_rank(read, seam: int) -> int:
@@ -1449,7 +1462,7 @@ def _seam_rank(read, seam: int) -> int:
         or "Rel" in after.morph.get("PronType", [])
         or after.tag_.startswith("W")
     )
-    return 3 if opens else 1
+    return _SUBORDINATE_SEAM if opens else 1
 
 
 def periods(answer: str, language: str | None) -> bool:

@@ -2957,14 +2957,27 @@ def test_a_comparison_is_split_at_its_and_not_at_a_relative_which() -> None:
     )
 
 
-def test_a_comparative_inside_one_side_is_not_a_difference() -> None:
-    """`more than the account holds` defines an overdraft and compares nothing."""
-    assert not compares(
-        "How do a savings plan and an overdraft differ?",
-        "a savings plan sets aside a fixed sum every month, an overdraft is "
-        "borrowing more than the account holds",
-        "en",
-    )
+@pytest.mark.parametrize(
+    "answer",
+    [
+        (
+            "a savings plan sets aside a fixed sum every month, an overdraft is "
+            "borrowing more than the account holds"
+        ),
+        (
+            "an overdraft is borrowing more than the account holds, a savings "
+            "plan sets aside a fixed sum every month"
+        ),
+    ],
+    ids=["comparative second", "comparative first"],
+)
+def test_a_comparative_inside_one_side_is_not_a_difference(answer: str) -> None:
+    """`more than the account holds` defines an overdraft and compares nothing.
+
+    In either order: with the definition carrying it first, both subjects
+    still lie either side of the comparative, and it is still a definition.
+    """
+    assert not compares("How do a savings plan and an overdraft differ?", answer, "en")
 
 
 @pytest.mark.parametrize(
