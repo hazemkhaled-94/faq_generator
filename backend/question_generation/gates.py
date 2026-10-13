@@ -1265,10 +1265,12 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     Universal Dependencies part of speech, so every tagset marks it, which
     is the same argument `PronType=Dem` rests on in `phrasing`.
 
-    An answer stating a polarity its question did not is exempt too: `Ja,
-    das Gerät ist wasserdicht.` is the answer to `Ist das Gerät
-    wasserdicht?`, and `ja` is what it says. A polarity the question already
-    had is no answer - `not` asked and `not` said back is an echo.
+    An answer stating a polarity its question did not is exempt too, where
+    the question is asked yes or no - with no question word: `Ja, das Gerät
+    ist wasserdicht.` is the answer to `Ist das Gerät wasserdicht?`, and
+    `ja` is what it says. A polarity the question already had is no answer -
+    `not` asked and `not` said back is an echo - and neither is one put to a
+    `why`, which `A transfer is not released until it is signed` restates.
     """
     read = pipeline(language)(answer)
     said = _says(read)
@@ -1277,7 +1279,9 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     if any(token.pos_ == "NUM" or token.like_num for token in read):
         return False
     asked = pipeline(language)(question)
-    if _polarity(read, language) - _polarity(asked, language):
+    if not interrogatives(question, language) and (
+        _polarity(read, language) - _polarity(asked, language)
+    ):
         return False
     return len(said - _says(asked)) / len(said) < _NEW
 

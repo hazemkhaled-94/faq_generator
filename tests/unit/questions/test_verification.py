@@ -798,15 +798,23 @@ def test_an_unanswerable_question_the_passages_do_not_answer_is_accepted() -> No
     assert result.accepted
 
 
-def test_a_recovery_that_only_restates_the_question_is_not_an_answer() -> None:
+@pytest.mark.parametrize(
+    "recovered",
+    [
+        "A senior officer must sign a transfer before it is released.",
+        "A transfer is not released until a senior officer signs it.",
+    ],
+)
+def test_a_recovery_that_only_restates_the_question_is_not_an_answer(
+    recovered: str,
+) -> None:
     """A `why` the passage gives no reason for, read back as the rule itself.
 
     The recovery says what the question already said, so the passages did
-    not answer it, and a chatbot declining it is right.
+    not answer it, and a chatbot declining it is right. Its `not` is no
+    answer either: a `why` is not asked yes or no.
     """
-    recording = Recording(
-        recovers="A senior officer must sign a transfer before it is released."
-    )
+    recording = Recording(recovers=recovered)
 
     result = build(recording).check(
         candidate(
@@ -2727,6 +2735,15 @@ def test_a_polarity_the_question_already_had_is_still_an_echo() -> None:
     """`not` asked and `not` answered adds nothing."""
     assert restates(
         "Why is the device not waterproof?", "the device is not waterproof", "en"
+    )
+
+
+def test_a_polarity_answering_a_question_word_is_still_an_echo() -> None:
+    """Only a question asked yes or no is answered by a `not`."""
+    assert restates(
+        "Why must a senior officer sign a transfer before it is released?",
+        "A transfer is not released until a senior officer signs it.",
+        "en",
     )
 
 
