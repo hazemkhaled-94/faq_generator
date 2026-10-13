@@ -415,7 +415,9 @@ one. Each verdict is stored in `gate_scores`, `settles` and
 `settles_elsewhere`, 1 for silent and 0 for settled, so a row says what the
 verifier made of it. It is an **opinion**: kept with no margin, it moves no
 confidence.
-`make questions-rejudge` asks the same of the questions already accepted.
+`make questions-rejudge` asks the same of the questions already accepted,
+writes its verdicts on each row the same way, and does not ask again about
+a row that already carries one.
 
 A recovery or quote that only says the question back is not an answer: a
 `why` the passage gives no reason for comes back as the rule itself. So an

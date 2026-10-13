@@ -371,6 +371,44 @@ def test_the_rejudge_reads_every_accepted_unanswerable_with_what_it_cites(
     assert found.passages == ("The device weighs 4 kg.", "The device weighs 4 kg.")
 
 
+def test_a_rejudged_question_keeps_its_verdict_and_its_confidence(
+    corpus, engine
+) -> None:
+    """The verdict joins what was measured, and the margin stays theirs."""
+    from confidence import Measurement
+
+    written = corpus(topics=1, facts_per_topic=1)
+    (cited,) = written["facts"][written["topics"][0]]
+    measured = {"gate": "off_topic", "value": 0.4, "threshold": 0.3, "margin": 0.14}
+    with Session(engine) as session:
+        asked = question(
+            status="accepted",
+            answerable=False,
+            gate_scores=[measured],
+            confidence=0.14,
+        )
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=cited))
+        session.commit()
+        kept = asked.id
+    catalog = QuestionCatalog()
+    assert not catalog.unanswered()[0].judged
+
+    catalog.opine(kept, [Measurement("settles", 1.0, 0.5, opinion=True)])
+
+    (found,) = catalog.unanswered()
+    assert found.judged
+    with engine.connect() as connection:
+        scores, held = connection.execute(
+            text("SELECT gate_scores, confidence FROM questions WHERE id = :q"),
+            {"q": kept},
+        ).one()
+    assert [one["gate"] for one in scores] == ["off_topic", "settles"]
+    assert scores[1]["margin"] is None and scores[1]["opinion"] is True
+    assert held == 0.14
+
+
 # ── Storing what a topic produced ──────────────────────────────────────────
 
 

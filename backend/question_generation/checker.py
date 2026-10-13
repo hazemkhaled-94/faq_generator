@@ -104,18 +104,6 @@ log = logging.getLogger(__name__)
 __all__ = ["GATES", "PASSED", "REFUSED", "QuestionChecker", "annotation"]
 
 
-def _reading(gate: str, settled: Settled) -> Measurement:
-    """A `settles` verdict as a reading: 1 where the passages settle nothing.
-
-    A verdict and not a measure, so it is an opinion: stored so a row says
-    what the verifier made of it, which a code and a log line could not,
-    and given no margin, so it moves no confidence.
-    """
-    return Measurement(
-        gate, 1.0 if settled.verdict == Settling.SILENT else 0.0, 0.5, opinion=True
-    )
-
-
 def heard(settled: Settled, question: str, language: str | None) -> Settled:
     """A `settles` verdict, silent where its answer only says the question back.
 
@@ -699,7 +687,7 @@ class QuestionChecker:
             candidate.question_text,
             candidate.group.language,
         )
-        readings.append(_reading("settles", settled))
+        readings.append(settled.reading("settles"))
         if settled.verdict != Settling.SILENT:
             return (
                 QuestionRejection.ANSWERABLE_AFTER_ALL,
@@ -898,7 +886,7 @@ class QuestionChecker:
             candidate.question_text,
             language,
         )
-        readings.append(_reading("settles_elsewhere", settled))
+        readings.append(settled.reading("settles_elsewhere"))
         if settled.verdict == Settling.SILENT:
             return None
         return (

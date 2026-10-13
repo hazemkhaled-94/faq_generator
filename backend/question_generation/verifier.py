@@ -26,6 +26,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from confidence import Measurement
 from llm.client import Client
 
 #: Bumped whenever a prompt here changes what the round trip asks for.
@@ -360,6 +361,17 @@ class Settled:
 
     verdict: Settling
     quote: str | None
+
+    def reading(self, gate: str) -> Measurement:
+        """This verdict as the row keeps it: 1 where nothing is settled.
+
+        An opinion and not a measure, so it is stored with no margin and
+        moves no confidence; it is kept so a row says what the verifier made
+        of it, which a code and a log line could not.
+        """
+        return Measurement(
+            gate, 1.0 if self.verdict == Settling.SILENT else 0.0, 0.5, opinion=True
+        )
 
 
 @dataclass(frozen=True)

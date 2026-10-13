@@ -48,14 +48,23 @@ class Catalog:
     """The accepted unanswerable questions, the probe, and what was rejected."""
 
     def __init__(self, *questions: Unanswered) -> None:
-        """Holds the questions; nothing probed or rejected yet."""
+        """Holds the questions; nothing probed, judged or rejected yet."""
         self.questions = list(questions)
         self.probed: list[tuple] = []
         self.rejected: list[tuple[int, str]] = []
+        self.opined: dict[int, list] = {}
 
     def unanswered(self, within=None):
-        """Every accepted question written to have no answer."""
-        return list(self.questions)
+        """Every accepted question written to have no answer, as stored now."""
+        return [
+            replace(one, judged=one.judged or one.id in self.opined)
+            for one in self.questions
+            if one.id not in {qid for qid, _ in self.rejected}
+        ]
+
+    def opine(self, question_id, opinions):
+        """Records the verdicts written to one row's gate_scores."""
+        self.opined.setdefault(question_id, []).extend(opinions)
 
     def elsewhere(self, lemmas, language, skip, limit, embedding=None):
         """The uncited passages the probe hands the verifier."""
@@ -141,6 +150,50 @@ def test_a_question_a_person_accepted_is_left_alone() -> None:
 
     assert catalog.rejected == []
     assert client.shown == [], "nobody's decision was worth a call to second-guess"
+
+
+def test_each_verdict_is_written_to_the_row_as_an_opinion() -> None:
+    """What the verifier made of it, kept on the row, rejected or not."""
+    catalog = Catalog(unanswered(), unanswered(id=8))
+    settings = replace(SETTINGS, elsewhere_passages=10)
+
+    rejudge(catalog, settings, Verifier(Client(PROBED)))
+
+    for qid in (7, 8):
+        written = catalog.opined[qid]
+        assert [one.gate for one in written] == ["settles", "settles_elsewhere"]
+        assert [one.value for one in written] == [1.0, 0.0]
+        assert all(one.opinion for one in written)
+
+
+def test_a_second_run_asks_nothing_about_what_a_first_judged() -> None:
+    """Silent ones included.
+
+    A re-run, or one after an interruption, costs only what no run has
+    paid for yet.
+    """
+    catalog = Catalog(unanswered(), unanswered(id=8))
+    client = Client(None)
+    settings = replace(SETTINGS, elsewhere_passages=10)
+    rejudge(catalog, settings, Verifier(client))
+    asked = len(client.shown)
+    assert asked == 4, "both kept, each asked of its passages and the probe"
+
+    again = rejudge(catalog, settings, Verifier(client))
+
+    assert again == 0
+    assert len(client.shown) == asked, "a judged question was asked again"
+
+
+def test_a_question_the_checker_already_judged_is_not_asked_again() -> None:
+    """Written since `settles` gated generation, it carries the verdict."""
+    catalog = Catalog(unanswered(judged=True))
+    client = Client(CITED)
+
+    rejudge(catalog, SETTINGS, Verifier(client))
+
+    assert client.shown == []
+    assert catalog.rejected == []
 
 
 @pytest.mark.parametrize("verdict", [Settling.ANSWERS, Settling.REFUTES, Settling.RULE])

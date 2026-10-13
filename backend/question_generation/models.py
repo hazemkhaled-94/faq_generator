@@ -516,7 +516,8 @@ class Unanswered:
     """An accepted question written to have no answer, as a re-judge reads it.
 
     The passages it cites, by id and by text: the text is what the verifier
-    is shown, and the ids are what the corpus probe skips.
+    is shown, and the ids are what the corpus probe skips. `judged` is
+    whether its `gate_scores` already carry a `settles` verdict.
     """
 
     id: int
@@ -526,6 +527,7 @@ class Unanswered:
     embedding: list[float] | None
     passage_ids: tuple[int, ...]
     passages: tuple[str, ...]
+    judged: bool = False
 
 
 @dataclass(frozen=True)

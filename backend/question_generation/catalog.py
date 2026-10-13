@@ -27,6 +27,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import aliased
 
+from confidence import Measurement, scored
 from database.qa_generator import (
     Document,
     Fact,
@@ -808,6 +809,7 @@ class QuestionCatalog(Repository):
                     Question.language,
                     Question.reviewed_verdict,
                     Question.embedding,
+                    Question.gate_scores,
                     func.array_agg(func.distinct(Passage.id)).label("passage_ids"),
                 )
             )
@@ -843,9 +845,36 @@ class QuestionCatalog(Repository):
                     ),
                     passage_ids=ids,
                     passages=tuple(texts[one] for one in ids),
+                    judged=any(
+                        one.get("gate") == "settles" for one in row.gate_scores or ()
+                    ),
                 )
             )
         return found
+
+    def opine(self, question_id: int, opinions: Sequence[Measurement]) -> None:
+        """Adds a model's verdicts to one question's `gate_scores`.
+
+        Opinions only. They carry no margin, so the row's confidence stays
+        what its measurements made it and nothing here recomputes it; a
+        measurement added this way would leave the two disagreeing.
+
+        Raises:
+            ValueError: If any of them is a measurement.
+        """
+        if any(not one.opinion for one in opinions):
+            raise ValueError("only an opinion is added without its confidence")
+        if not opinions:
+            return
+        with self._session.begin() as session:
+            stored = session.scalar(
+                select(Question.gate_scores).where(Question.id == question_id)
+            )
+            session.execute(
+                update(Question)
+                .where(Question.id == question_id)
+                .values(gate_scores=[*(stored or ()), *scored(opinions)])
+            )
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:
         """Records what a re-check found, one gate code per question.

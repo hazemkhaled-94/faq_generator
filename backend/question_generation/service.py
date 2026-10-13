@@ -9,7 +9,7 @@ from typing import ClassVar
 
 from opentelemetry.trace import Span
 
-from confidence import confidence
+from confidence import Measurement, confidence
 from database.qa_generator import (
     AnswerForm,
     QuestionRejection,
@@ -480,17 +480,23 @@ def rejudge(
     It only ever rejects, as `reverify` does, and a released question goes
     with the rest: one the material answers marks a correct chatbot wrong.
     A question a person accepted is left alone, for the reason `_recheck`
-    gives. Each rejection is written as it is decided, so an interrupted
-    run keeps what it paid for; a second run asks the rest again.
+    gives.
+
+    Each verdict is written to the row's `gate_scores` as it is reached,
+    kept or rejected, and a question already carrying a `settles` verdict -
+    from an earlier run, or from the checker since it asks the same - is
+    not asked again. So a second run, or one after an interruption, pays
+    only for what no run has judged.
 
     Returns:
         How many questions were rejected.
     """
     written = 0
     for question in catalog.unanswered(within):
-        if question.reviewed_verdict == ReviewVerdict.ACCEPTED:
+        if question.reviewed_verdict == ReviewVerdict.ACCEPTED or question.judged:
             continue
-        failed = _settled(catalog, settings, verifier, question)
+        failed, opinions = _settled(catalog, settings, verifier, question)
+        catalog.opine(question.id, opinions)
         if failed:
             code, reason = failed
             log.info("rejecting question %d: %s (%s)", question.id, reason, code)
@@ -504,8 +510,11 @@ def _settled(
     settings: Settings,
     verifier: Verifier,
     question: Unanswered,
-) -> tuple[str, str] | None:
-    """Why the material answers a question written to have none, or None."""
+) -> tuple[tuple[str, str] | None, list[Measurement]]:
+    """Why the material answers a question written to have none, or None.
+
+    Beside it, the verdicts that decided it, as the row keeps them.
+    """
     # Read as the checker reads it, so a question it would keep is not
     # rejected here on a quote that only says it back.
     settled = heard(
@@ -513,13 +522,14 @@ def _settled(
         question.question_text,
         question.language,
     )
+    opinions = [settled.reading("settles")]
     if settled.verdict != Settling.SILENT:
         return (
             QuestionRejection.ANSWERABLE_AFTER_ALL,
             f"its own passages settle it ({settled.verdict}): {settled.quote!r}",
-        )
+        ), opinions
     if settings.elsewhere_passages <= 0:
-        return None
+        return None, opinions
     probed = catalog.elsewhere(
         sorted(content(question.question_text, question.language)),
         question.language,
@@ -528,12 +538,13 @@ def _settled(
         question.embedding,
     )
     if not probed:
-        return None
+        return None, opinions
     settled = heard(
         verifier.settles(question.question_text, probed),
         question.question_text,
         question.language,
     )
+    opinions.append(settled.reading("settles_elsewhere"))
     if settled.verdict != Settling.SILENT:
         return (
             QuestionRejection.ANSWERABLE_ELSEWHERE,
@@ -541,8 +552,8 @@ def _settled(
                 f"a passage it does not cite settles it ({settled.verdict}): "
                 f"{settled.quote!r}"
             ),
-        )
-    return None
+        ), opinions
+    return None, opinions
 
 
 def again(checked: CheckedQuestion, plan: Plan, sample: FactGroup) -> str | None:

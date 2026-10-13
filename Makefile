@@ -944,8 +944,9 @@ confidence-recalibrate:
 # settle as answerable_after_all or answerable_elsewhere, released questions
 # included, and leaves one a person accepted alone. CALLS THE VERIFIER MODEL,
 # two calls a question at most, which is why it is not part of
-# questions-reverify. Run make questions-balance after it to draw the release
-# again.
+# questions-reverify. Each verdict is written to the row's gate_scores, and a
+# row already carrying one is skipped, so running it again costs only what is
+# new. Run make questions-balance after it to draw the release again.
 #
 #   make questions-rejudge TOPIC=473    one topic
 #   make questions-rejudge              every accepted unanswerable question
