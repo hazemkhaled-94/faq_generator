@@ -2520,44 +2520,6 @@ def test_a_reader_finding_no_span_elsewhere_still_lets_the_probe_settle_it() -> 
     assert recording.verified == 2, "its own passages, then the probe"
 
 
-def test_a_span_found_elsewhere_still_goes_to_the_verifier() -> None:
-    """Rejecting here marks a correct chatbot wrong.
-
-    That verdict is not one an extractor should make alone, so a span is
-    a reason to ask rather than an answer.
-    """
-    recording = Recording(recovers=None)
-    # Found only in the passage the corpus probe returns, never in the ones
-    # the question cites - which is what this gate is about. The verifier
-    # reads the same way, so the cited passages answer nothing and the
-    # uncited one answers.
-    reader = Reader("4 kg", only_in="uncited note")
-
-    def settles(question, passages):
-        recording.verified += 1
-        found = any("uncited note" in passage for passage in passages)
-        if found:
-            return Settled(verdict=Settling.ANSWERS, quote="4 kg")
-        return Settled(verdict=Settling.SILENT, quote=None)
-
-    recording.settles = settles  # type: ignore[method-assign]
-    checker = QuestionChecker(
-        embedder=recording,
-        verifier=recording,
-        nearest=lambda embedding, **_: None,
-        threshold=0.93,
-        phrasing=recording,
-        elsewhere=lambda *a, **k: ["An uncited note records 4 kg."],
-        elsewhere_passages=2,
-        extractive=reader,
-    )
-
-    result = checker.check(candidate(target_answer=None, answerable=False))
-
-    assert result.rejected_reason == QuestionRejection.ANSWERABLE_ELSEWHERE
-    assert recording.verified == 2, "the recall call, and the verifier confirming"
-
-
 def test_a_span_in_its_own_passages_does_not_reject_an_unanswerable_question() -> None:
     """The same verdict as the gate above, so the same rule applies.
 

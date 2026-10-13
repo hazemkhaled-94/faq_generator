@@ -302,17 +302,23 @@ def _weakest(
     worst = min(measured, key=lambda one: one["margin"])
     reading = readings.get(worst["gate"])
     comfort = "comfortable" if held >= 0.5 else "close" if held < 0.2 else "adequate"
+    opinions = len(scores) - len(measured)
     said = (
         f"**Confidence {held:.2f} — {comfort}.** The weakest of the "
-        f"{len(measured)} reading(s) below is `{worst['gate']}`, which measured "
-        f"{worst['value']:.3f} against a threshold of {worst['threshold']:.2f} "
-        f"({direction(worst)})."
+        f"{len(measured)} measured reading(s) below is `{worst['gate']}`, which "
+        f"measured {worst['value']:.3f} against a threshold of "
+        f"{worst['threshold']:.2f} ({direction(worst)})."
     )
     if reading:
         said += f" {reading.reads}"
+    if opinions:
+        said += (
+            f" The other {opinions} row(s) are verdicts a model gave, kept "
+            f"with no margin; they are not part of the confidence."
+        )
     return (
-        f"{said} A margin, not a probability — it is the smallest reading of "
-        f"the several below, which sit on different scales and cannot be "
+        f"{said} A margin, not a probability — it is the smallest margin of "
+        f"the measurements below, which sit on different scales and cannot be "
         f"averaged."
     )
 

@@ -457,9 +457,11 @@ class CheckedQuestion:
     #: that is not answerable from a run that records only the winner.
     attempt: int = 1
     #: What the gates that MEASURED something read, beside the gate list
-    #: that says which ran. Only a gate comparing a number to a threshold
-    #: writes one: an opinion has nothing to record, and a structural rule
-    #: has no scale. `confidence` is the weakest margin of them.
+    #: that says which ran. A gate comparing a number to a threshold writes
+    #: one, and a structural rule has no scale to write. An opinion has no
+    #: number behind it and writes nothing, bar the verifier's `settles`
+    #: verdicts, kept here as opinions with no margin. `confidence` is the
+    #: weakest margin of the measurements alone.
     readings: tuple[Measurement, ...] = ()
     #: Every judgement this question was meant to get and could not, because
     #: the model would not answer. NOT the same as a gate that passed, which

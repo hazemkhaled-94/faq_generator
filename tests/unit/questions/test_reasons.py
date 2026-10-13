@@ -27,6 +27,8 @@ pytestmark = pytest.mark.nlp
         ("Die Karte wird gesperrt, damit niemand sie benutzen kann.", "de"),
         ("Der Zweck der Sperre ist der Schutz des Kontos.", "de"),
         ("Zu diesem Zweck wird die Karte gesperrt.", "de"),
+        # `für` under `Zweck` names what the purpose is for; it governs nothing.
+        ("Der Zweck für die Sperre ist der Schutz des Kontos.", "de"),
         ("Die Lieferung verzögert sich, weil das Lager geschlossen ist.", "de"),
     ],
 )

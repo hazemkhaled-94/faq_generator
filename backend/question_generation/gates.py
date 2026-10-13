@@ -27,6 +27,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from itertools import combinations
+from typing import TYPE_CHECKING
 
 from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
 from nlp.analysis import (
@@ -40,6 +41,9 @@ from nlp.analysis import (
 from nlp.language import detect
 from nlp.pipelines import pipeline
 from question_generation.models import Neighbour
+
+if TYPE_CHECKING:
+    from spacy.tokens import Token
 
 #: Length bounds per answer form, as QUESTIONS_ANSWER_CHARS sets them. This is
 #: the fallback for a re-check reading a row whose settings are not to hand,
@@ -1214,11 +1218,13 @@ def states_a_reason(text: str, language: str | None) -> bool | None:
     )
 
 
-def _reads_as(token, step: str) -> bool:
+def _reads_as(token: Token, step: str) -> bool:
     """Whether one token is the word a marker step names, as it names it.
 
-    The governing preposition is the token's head or one of its children,
-    whichever way the language's parser attaches a noun to its preposition.
+    The governing preposition is the token's head: both parsers configured
+    attach a noun under the preposition that governs it. Not a child, which
+    is a preposition the noun governs - `Der Zweck für die Sperre ist ...`
+    states a purpose.
     """
     named, _, unless = step.partition("!")
     word, _, tag = named.partition("/")
@@ -1226,10 +1232,8 @@ def _reads_as(token, step: str) -> bool:
         return False
     if tag and token.pos_ != tag:
         return False
-    governing = [token.head, *token.children]
-    return not unless or not any(
-        one.pos_ == "ADP" and one.lemma_.casefold() == unless for one in governing
-    )
+    head = token.head
+    return not unless or not (head.pos_ == "ADP" and head.lemma_.casefold() == unless)
 
 
 #: The fewest items an enumeration answers with. Its own directive says "if

@@ -336,11 +336,12 @@ sees only the cited passages, never the corpus: what is being measured is
 the dataset, not a retriever.
 
 `unanchored` and `leaks_source` are asked of `QUESTIONS_PHRASING_MODEL`, one
-judgement per call. Each is a judgement rather than a measurement, and they
-are the only gates here that are **opinions** — so the factory turns them off
-when the phrasing model is the writer's own, and then they are not asked for
-at all: a verdict that may not reject is a call per question buying a log
-line. The rule half of `leaks_source` still fires, because a pattern is a
+judgement per call. Each is a judgement rather than a measurement — an
+**opinion**, as the verifier's `settles` verdicts behind
+`answerable_after_all` and `answerable_elsewhere` are too — and these two are
+the phrasing model's, so the factory turns them off when the phrasing model
+is the writer's own, and then they are not asked for at all: a verdict that
+may not reject is a call per question buying a log line. The rule half of `leaks_source` still fires, because a pattern is a
 measurement. Recoverability stays on regardless.
 
 `unanchored` covers two ways of failing to stand alone: naming too little,

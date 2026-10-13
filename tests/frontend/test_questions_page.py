@@ -209,6 +209,8 @@ def test_a_settles_verdict_says_what_it_is_and_is_never_the_weakest(page) -> Non
     assert "settle" in reads["settles"]
     assert "settle" in reads["settles_elsewhere"]
     assert "off_topic" in said(opened)
+    assert "1 measured reading(s)" in said(opened)
+    assert "not part of the confidence" in said(opened)
 
 
 # ── A verdict ─────────────────────────────────────────────────────────────
