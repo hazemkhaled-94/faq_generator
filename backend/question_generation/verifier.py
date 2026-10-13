@@ -6,6 +6,12 @@ an answer cold and checking one put in front of you are different tasks.
 `supports` shows the model the answer and asks only whether the passages
 back it.
 
+A question written to have no answer is asked something else. `settles`
+asks whether the passages settle it at all - by stating the answer, by
+refuting its premise, or by a general rule that covers its case - because a
+question the material refutes is answered, and "not stated" is not "no
+answer".
+
 Two things are load-bearing. The verifier is meant to be a different model
 from the writer, because a model marking its own work agrees with itself. And
 it sees only the cited passages, never the corpus: what is being measured is
@@ -16,6 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -26,7 +33,7 @@ from llm.client import Client
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "2"
+PROMPT_VERSION = "3"
 
 _VERIFY = """ROLE
 You are an independent verifier for a document-search chatbot's test set. You
@@ -225,6 +232,69 @@ Return `supported`, true or false, and nothing else.
   them, or when the passages state the answer outright.
 """
 
+_SETTLES = """ROLE
+You are an independent verifier for a document-search chatbot's test set. You
+check a question that was written to have NO answer in the material, before
+it is used to test whether a chatbot admits that it does not know.
+
+ACTION
+Say whether these PASSAGES settle the QUESTION, and how.
+
+STEPS
+1. Read the passages, then the question.
+2. Look for a statement that answers it, across ALL the passages. It may be
+   spread over two sentences or worded differently from the question.
+3. Check its premise: does a passage say that what the question takes for
+   granted is not so?
+4. Check for a closed list or an exception: does a passage say "only",
+   "every", "no other", or name the cases a rule leaves out, so that the
+   case asked about is decided by it?
+5. Check for a general rule: does a passage state a rule that covers the
+   case asked about, even though it never names that case?
+6. Give the first of these that holds, or `silent` when none does.
+
+CONTEXT
+A chatbot asked this question is marked RIGHT for saying the material does
+not answer it. Where the material does settle it, the chatbot that says so
+is marked wrong, and that is the failure this check exists to stop.
+
+Settling is not the same as stating outright. "Only account holders may raise
+a request" settles a question about a visitor's request - a visitor cannot
+raise one - as surely as a sentence naming the visitor would.
+
+You have no knowledge outside the passages and may use none. A question the
+world answers and these passages do not is `silent`. The passages and the
+question may be in any language, and the examples below are in English only
+because these instructions are.
+
+EXAMPLES
+  passages "Standard requests are answered within 48 hours on working days."
+           and "Only account holders may raise a request."
+
+  answers  "How long is allowed for answering a standard request?"
+  refutes  "How long is allowed for answering a request raised by a visitor?"
+           (only account holders may raise one)
+  rule     "How long is allowed for a standard request raised on a public
+            holiday?"
+           (the 48 hours count working days, which settles the holiday)
+  silent   "Through which channel is the answer to a standard request sent?"
+           (no passage says, and no list or rule in them reaches it)
+
+FORMAT
+Return `quote` and `verdict`.
+
+- `quote` is the words of the passage that settle it, as they stand. Empty
+  when the verdict is `silent`.
+- `verdict` is one of:
+  - `answers` - a passage states the answer;
+  - `refutes` - a passage contradicts the question's premise, or a closed
+    list or exception in one decides the case it asks about;
+  - `rule` - a general rule in a passage covers the case, though no passage
+    names it;
+  - `silent` - none of these. A correct answer whenever it is true, and the
+    only one that keeps the question.
+"""
+
 #: The user messages, as the catalogue records them and the two calls below
 #: render them.
 _USER_JUDGE = "Passages:\n{{passages}}\n\n{{conversation}}Question: {{question}}\nAnswer: {{answer}}"
@@ -252,6 +322,41 @@ class _Recovered(BaseModel):
         description="The answer, taken from the passages and in their "
         "language. Empty when in_passage is false.",
     )
+
+
+class Settling(StrEnum):
+    """How the passages settle a question written to have no answer."""
+
+    ANSWERS = "answers"
+    REFUTES = "refutes"
+    RULE = "rule"
+    SILENT = "silent"
+
+
+class _Settled(BaseModel):
+    """Whether the passages settle one question, and with what words."""
+
+    quote: str = Field(
+        default="",
+        description="The words of the passage that settle it, as they stand. "
+        "Empty when the verdict is silent.",
+    )
+    verdict: Settling = Field(
+        description="answers, refutes, rule, or silent when the passages "
+        "settle nothing. Silent is a correct answer."
+    )
+
+
+@dataclass(frozen=True)
+class Settled:
+    """What the verifier made of a question written to have no answer.
+
+    `quote` is what the passages said, or None where they settle nothing:
+    the words that answered it are what a reviewer of the rejection needs.
+    """
+
+    verdict: Settling
+    quote: str | None
 
 
 @dataclass(frozen=True)
@@ -375,6 +480,37 @@ class Verifier:
             prompt_version=PROMPT_VERSION,
         )
         return got.supported
+
+    def settles(self, question: str, passages: Sequence[str]) -> Settled:
+        """Whether these passages settle a question written to have none.
+
+        What an unanswerable question is judged by instead of `read`. Stated
+        outright is one way to be answered of three: a premise the passages
+        refute and a case a list or a rule in them covers are answered too,
+        and `read` comes back "not in the passages" for both.
+
+        No conversation: an unanswerable question is never a follow-up.
+
+        Raises:
+            ModelUnavailable: If the model could not be reached or would not
+                answer in the shape.
+        """
+        numbered = "\n\n".join(
+            f"[{position}] {passage}" for position, passage in enumerate(passages, 1)
+        )
+        got = self._client.answer(
+            system=_SETTLES,
+            user=_USER_VERIFY.replace("{{passages}}", numbered).replace(
+                "{{question}}", f"Question: {question}"
+            ),
+            shape=_Settled,
+            prompt_version=PROMPT_VERSION,
+        )
+        silent = got.verdict == Settling.SILENT
+        return Settled(
+            verdict=got.verdict,
+            quote=None if silent else (got.quote.strip() or None),
+        )
 
     def read(
         self,

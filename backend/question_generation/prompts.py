@@ -7,7 +7,7 @@ examples assembled at call time, and the thing worth keeping is what the
 model was actually given.
 
 Three versions, not one. The writer's prompts, the phrasing judgements and
-the verifier's four are bumped separately because they change for different
+the verifier's five are bumped separately because they change for different
 reasons: what a question IS, what counts as naming its source, and what
 counts as recovering an answer.
 
@@ -39,8 +39,8 @@ if TYPE_CHECKING:
 #: What the stage records its prompts under.
 SERVICE = "questions"
 
-#: The JSON schemas the three writer shapes and the four judge shapes ask
-#: their answers to come back in.
+#: The JSON schemas the three writer shapes and the judge shapes ask their
+#: answers to come back in.
 _ANSWERED = _Answered.model_json_schema()
 _UNANSWERED = _Unanswered.model_json_schema()
 
@@ -87,10 +87,11 @@ def _judges(settings: Settings | None) -> Iterator[Composed]:
     """The prompts that judge one, each at its own module's version.
 
     The three phrasing judgements are a model's opinion about wording; the
-    verifier's four are the round trip. `_VERIFY` asks for the answer,
+    verifier's first four are the round trip. `_VERIFY` asks for the answer,
     and the three below it ask whether passages support an answer already
     in hand - which is a different question, and the reason recoverability
-    may cost a second call.
+    may cost a second call. `_SETTLES` is what a question written to have
+    no answer is asked instead.
 
     All THREE phrasing prompts. `_NAMES` was missing, and a missing one is
     the one failure this catalogue has: the stage sends it - `_phrasing`
@@ -150,6 +151,12 @@ def _judges(settings: Settings | None) -> Iterator[Composed]:
             verifier._FOLLOWS,
             verifier._USER_JUDGE,
             verifier._Supported,
+        ),
+        (
+            "verifier: settles",
+            verifier._SETTLES,
+            verifier._USER_VERIFY,
+            verifier._Settled,
         ),
     ):
         yield Composed(
