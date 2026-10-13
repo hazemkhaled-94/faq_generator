@@ -28,10 +28,12 @@ def catalogue(
 
     `cap` is what `EXTRACTION_MIN_OTHER_SHARE` works out to, as the
     factory resolved it, because the atomic extractor appends the cap
-    instruction to its own prompt and a record of the uncapped text would
-    be a record of something the model was never given. Absent means the
-    same thing it means there: no cap, and the paragraph is left off
-    entirely rather than written as a limitless one.
+    instruction to its own prompt. The text recorded under it is what a
+    passage stating no more sentences and list items than the cap is sent;
+    a passage stating more is sent the same text with its own count, under
+    the same version. Absent means the same thing it means there: no cap,
+    and the paragraph is left off entirely rather than written as a
+    limitless one.
 
     `settings` names the model each is sent to: EXTRACTION_MODEL reads and
     bridges, and EXTRACTION_DIGEST_MODEL condenses, the reader when absent.

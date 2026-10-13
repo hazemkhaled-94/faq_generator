@@ -161,9 +161,10 @@ def composed(cap: int | None = None) -> str:
     """This extractor's system prompt, as it is sent under one cap.
 
     A function because two callers need the same text and neither may
-    rebuild it: the extractor, which sends it, and `extraction.prompts`,
-    which records what was sent. Written twice, a record of the uncapped
-    text under a capped run would be a record of something no model saw.
+    rebuild it: the extractor, which sends it with each passage's own room
+    as the cap, and `extraction.prompts`, which records it with the cap
+    itself - the text a passage within the cap is sent. Written twice, the
+    record and what was sent could drift apart.
     """
     return _SYSTEM + _CAP.format(cap=cap) if cap else _SYSTEM
 

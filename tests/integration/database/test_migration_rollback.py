@@ -34,6 +34,7 @@ UNREAD = "9e2b7c41d058"
 REFITTED = "f6f7b1880b23"
 SUPERSEDED = "f7bba722de8e"
 UNFOLDED = "3c5a9d2e7b14"
+FLOORED = "7d4e1f2a9c63"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -50,6 +51,7 @@ LATER = (
     REFITTED,
     SUPERSEDED,
     UNFOLDED,
+    FLOORED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.

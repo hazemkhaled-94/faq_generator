@@ -266,7 +266,7 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
 
     What the extraction dedup gate compares before it reads a cosine: two
     statements naming different numbers state different claims however alike
-    their words are - 68 cm and 70 cm, the 5,5 m line and the 16,5 m one.
+    their words are - a 4 kg and a 7 kg device, a 5,5 % rate and a 16,5 % one.
 
     A multiset rather than a set, so "2 EUR and 2 EUR" is not "2 EUR". A digit
     keeps its surface form, as `_units` reads one, so `12,5` and `12.5` stay
@@ -334,8 +334,8 @@ _ARGUMENTS = frozenset(
 
 #: Pronouns that stand in for a clause or an object beside them rather than
 #: for a noun, by ISO 639-1 code: German `es` in "sofern es die
-#: Bestimmungen gestatten", which the parser reads with the object as its
-#: sibling and a verb that does not agree with it.
+#: Vertragsbedingungen gestatten", which the parser reads with the object as
+#: its sibling and a verb that does not agree with it.
 #:
 #: ponytail: German only. A language missing here flags its correlates as it
 #: always has. Upgrade: a list per language, as a setting.
@@ -395,10 +395,11 @@ def _correlate(token) -> bool:
 
     A clause beside it only where its head is not an auxiliary, whose own
     `oc` is the rest of its verb chain rather than a clause. And only where
-    that verb disagrees with it in number - "sofern es die Bestimmungen
-    gestatten" - which says the verb's subject is something else: a verb
-    agreeing with it, as in "bevor es den Ruhemodus verlässt", has it as its
-    subject, and then it stands for a noun the passage named.
+    that verb disagrees with it in number - "sofern es die
+    Vertragsbedingungen gestatten" - which says the verb's subject is
+    something else: a verb agreeing with it, as in "bevor es den Ruhemodus
+    verlässt", has it as its subject, and then it stands for a noun the
+    passage named.
     """
     if token.text.casefold() not in _CORRELATES.get(token.doc.lang_, frozenset()):
         return False

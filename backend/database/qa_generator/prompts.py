@@ -84,7 +84,7 @@ class Prompt(Base):
         index=True,
         comment="The PROMPT_VERSION its module declared when this text was written, "
         "with the cap appended for a capped atomic extraction prompt, as "
-        "9+cap4. Indexed: resolving a question's prompt_version is the query "
+        "10+cap4. Indexed: resolving a question's prompt_version is the query "
         "this table is for.",
     )
     text: Mapped[str] = mapped_column(
