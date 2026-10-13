@@ -310,6 +310,9 @@ class Queue:
         self.beats = 0
         #: What `nearest_fact` answers, or None for an empty corpus.
         self.twin: Twin | None = None
+        #: The kind that twin is of, which only a probe for that kind finds,
+        #: as the index answers; None answers it to every probe.
+        self.twin_kind: str | None = None
         #: The language and kind each `nearest_fact` probe was narrowed to.
         self.probed: list[tuple[str | None, str | None]] = []
 
@@ -337,6 +340,8 @@ class Queue:
     ) -> Twin | None:
         """The stored fact this queue was told to answer with."""
         self.probed.append((language, kind))
+        if self.twin_kind not in (None, kind):
+            return None
         return self.twin
 
     def fail(self, passage_id: int, error: str) -> None:

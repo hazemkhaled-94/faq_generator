@@ -120,10 +120,13 @@ Two more refusals are the service refusing what the checks passed:
   `EXTRACTION_DUPLICATE_COSINE` is how alike two may be, and a candidate is
   probed through the HNSW index against every validated passage fact in the
   corpus of its own language and kind that carries a vector, bar those
-  citing only the passage being re-read, **and** against the facts this
-  passage already kept. A bridge is never its twin, and nor is a fact naming
-  other numbers - another value, or the same one a different number of
-  times, a number word read as the value it names. The bar sits near
+  citing only the passage being re-read, **and** against the facts of
+  another kind this passage already kept - a summary or an outline
+  repeating one of its claims. Two atomic facts of one passage are never
+  twins: two items of a list, two conditions, a least and a most differ by
+  a word and are two claims. A bridge is never its twin, and nor is a fact
+  naming other numbers - another value, or the same one a different number
+  of times, a number word read as the value it names. The bar sits near
   identity: the vector is read off the bare statement, and two statements
   about one subject score high on the subject alone. The refusal names the
   stored fact it repeats and writes nothing onto it: the stored fact rests

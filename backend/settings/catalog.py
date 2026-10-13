@@ -224,10 +224,10 @@ SETTINGS: tuple[Setting, ...] = (
         invalidates=("extraction",),
         help="How alike two statements may be before the second is refused "
         "as a duplicate. Cosine over the corpus's facts of the same language "
-        "and kind and over the facts one passage already kept; a fact naming "
-        "other numbers is never a twin. Near identity, because bare "
-        "statements on one subject score high. 0 turns the gate off and "
-        "writes no vectors.",
+        "and kind and over the facts of another kind one passage already "
+        "kept; a fact naming other numbers is never a twin. Near identity, "
+        "because bare statements on one subject score high. 0 turns the gate "
+        "off and writes no vectors.",
     ),
     Setting(
         name="EXTRACTION_DUPLICATE_FLOOR",

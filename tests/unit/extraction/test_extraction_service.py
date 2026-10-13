@@ -222,20 +222,50 @@ class TestTheDedupGate:
         ]
     }
 
-    def test_one_passage_saying_a_thing_twice_keeps_it_once(self) -> None:
-        """The index holds nothing yet, so only the run's own memory catches it."""
+    #: The passage's claim, and a summary of it saying the same thing.
+    REPEATED: ClassVar[dict] = {
+        "summary": "The device weighs 4 kg.",
+        "outline": ["Weighs 4 kg", "Runs for 12 hours"],
+    }
+
+    def test_two_atomic_facts_of_one_passage_are_never_duplicates(self) -> None:
+        """Two items of a list differ by a word and are two claims.
+
+        The passage's own facts are compared across kinds only, so two of
+        its claims are kept however near their vectors sit; the question
+        dedup refuses a second question on a true repeat.
+        """
         run = Extraction(passage(), facts=self.TWICE, duplicate_cosine=0.9)
         run.next()
 
-        stored = run.queue.stored[1]
-        assert [one.validated for one in stored] == [True, False]
-        assert stored[1].rejection_code == Rejection.DUPLICATE
-        assert stored[1].twin_id is None, "its twin has no id until stored"
-        assert "fact 0" not in (stored[1].validation_error or "")
+        assert [one.validated for one in run.queue.stored[1]] == [True, True]
+
+    def test_a_summary_repeating_an_atomic_fact_is_still_refused(self) -> None:
+        """The index holds nothing yet, so only the run's own memory catches it."""
+        run = Extraction(
+            passage(),
+            facts=ATOMIC,
+            digest=self.REPEATED,
+            kinds=(FactKind.SUMMARY,),
+            duplicate_cosine=0.9,
+        )
+        run.next()
+
+        atomic, summary = run.queue.stored[1]
+        assert atomic.validated, atomic.validation_error
+        assert summary.rejection_code == Rejection.DUPLICATE
+        assert summary.twin_id is None, "its twin has no id until stored"
+        assert "a fact this passage kept" in (summary.validation_error or "")
 
     def test_a_refused_duplicate_is_kept_with_its_reason(self) -> None:
         """Drop-rate evidence, like every other refusal."""
-        run = Extraction(passage(), facts=self.TWICE, duplicate_cosine=0.9)
+        run = Extraction(
+            passage(),
+            facts=ATOMIC,
+            digest=self.REPEATED,
+            kinds=(FactKind.SUMMARY,),
+            duplicate_cosine=0.9,
+        )
         run.next()
 
         refused = run.queue.stored[1][1]
@@ -288,15 +318,21 @@ class TestTheDedupGate:
         facts = {
             "facts": [
                 {"sentences": [0], "statement": "The device weighs 4 kg."},
-                {"sentences": [0], "statement": "The device weighs 4 kg."},
                 {"sentences": [0], "statement": "The device runs for 12 hours."},
+                {"sentences": [1], "statement": "The device arrives in March 2026."},
             ]
         }
         run = Extraction(passage(), facts=facts, duplicate_cosine=0.9, atomic_cap=2)
+        run.queue.twin = Twin(
+            fact_id=7, statement="The device weighs 4 kg.", similarity=0.99
+        )
         run.next()
 
         kept = [one.statement for one in run.queue.stored[1] if one.validated]
-        assert kept == ["The device weighs 4 kg.", "The device runs for 12 hours."]
+        assert kept == [
+            "The device runs for 12 hours.",
+            "The device arrives in March 2026.",
+        ]
 
     def test_the_atomic_cap_refuses_what_the_passage_has_no_room_for(self) -> None:
         """The validated atomic facts past the cap, in the order written."""
@@ -383,12 +419,27 @@ class TestTheDedupGate:
         assert run.queue.embeddings[1] is not None
 
     def test_a_refused_fact_is_not_what_a_later_one_is_compared_against(self) -> None:
-        """Otherwise the first copy kept depends on which check ran first."""
-        run = Extraction(passage(), facts=self.TWICE, duplicate_cosine=0.9)
+        """Otherwise the first copy kept depends on which check ran first.
+
+        The claim is refused against the corpus, so the summary repeating it
+        has nothing in this passage to repeat.
+        """
+        run = Extraction(
+            passage(),
+            facts=ATOMIC,
+            digest=self.REPEATED,
+            kinds=(FactKind.SUMMARY,),
+            duplicate_cosine=0.9,
+        )
+        run.queue.twin = Twin(
+            fact_id=7, statement="The device weighs 4 kg.", similarity=0.99
+        )
+        run.queue.twin_kind = FactKind.ATOMIC
         run.next()
 
-        kept = [one for one in run.queue.stored[1] if one.validated]
-        assert len(kept) == 1, "the second is refused against the first, not the third"
+        atomic, summary = run.queue.stored[1]
+        assert atomic.rejection_code == Rejection.DUPLICATE
+        assert summary.validated, summary.validation_error
 
     def test_both_writers_of_the_column_embed_the_same_text(self) -> None:
         """Extraction and `--embed` write one column and disagreed about it.

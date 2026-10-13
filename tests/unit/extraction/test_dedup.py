@@ -113,6 +113,17 @@ def test_a_refusal_is_read_against_its_own_passage_too() -> None:
     assert dedup(catalog, BAR) == 0  # type: ignore[arg-type]
 
 
+def test_a_sibling_claim_of_its_own_passage_is_given_back() -> None:
+    """Two atomic facts of one passage are never duplicates."""
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 2, "The device weighs 4 kg.", at(0.99)))
+        .refusing(refusal("The device weighs 4 kg.", passage_id=2))
+    )
+
+    assert dedup(catalog, BAR) == 1  # type: ignore[arg-type]
+
+
 def test_the_gate_off_gives_every_refusal_back() -> None:
     """EXTRACTION_DUPLICATE_COSINE at 0 refuses nothing, in flight or here."""
     catalog = (

@@ -38,8 +38,13 @@ def embedder():
     return Embedder(MODEL, max_tokens=int(os.environ["EMBEDDING_MAX_TOKENS"]))
 
 
-def _stored(embedder, read, statement: str, twin: Twin | None):
-    """What the service stores for one scripted candidate citing the excerpt."""
+def _stored(
+    embedder, read, *statements: str, twin: Twin | None = None, bar: float = 0.0
+):
+    """What the service stores for scripted candidates citing the excerpt.
+
+    `bar` is the cosine the gate refuses at, the configured one when 0.
+    """
     from extraction.config import Settings
     from extraction.extractors import ExtractorRegistry, LlmExtractor, TableExtractor
     from extraction.service import ExtractionService
@@ -48,7 +53,9 @@ def _stored(embedder, read, statement: str, twin: Twin | None):
     queue = Queue(read)
     queue.twin = twin
     cited = [one.index for one in read.sentences]
-    model = Model({"facts": [{"sentences": cited, "statement": statement}]})
+    model = Model(
+        {"facts": [{"sentences": cited, "statement": one} for one in statements]}
+    )
     settings = Settings.load()
     ExtractionService(
         repository=queue,  # type: ignore[arg-type]
@@ -58,11 +65,10 @@ def _stored(embedder, read, statement: str, twin: Twin | None):
         ),
         checker=FactChecker(DIGEST_SHARE),
         embedder=embedder,
-        duplicate_cosine=settings.duplicate_cosine,
+        duplicate_cosine=bar or settings.duplicate_cosine,
         duplicate_floor=settings.duplicate_floor,
     ).process_next()
-    (stored,) = queue.stored[read.id]
-    return stored
+    return queue.stored[read.id]
 
 
 #: (name, stored fact, its statement, the candidate's sentence, its language,
@@ -203,18 +209,118 @@ def test_a_stored_pair_reaches_its_recorded_verdict(
     from nlp.embedding import cosine
 
     similarity = cosine(embedder.embed(statement), embedder.embed(twin))
-    stored = _stored(
+    (stored,) = _stored(
         embedder,
         passage(sentence, language=language, id=9),
         statement,
-        Twin(fact_id=twin_id, statement=twin, similarity=similarity),
+        twin=Twin(fact_id=twin_id, statement=twin, similarity=similarity),
     )
 
     if expected is None:
-        assert stored.rejection_code != Rejection.DUPLICATE, (
+        assert stored.validated, (
             f"refused at cosine {similarity:.3f} as F{twin_id}: "
             f"{stored.validation_error}"
         )
     else:
         assert stored.rejection_code == expected, stored.validation_error
         assert stored.twin_id == twin_id
+
+
+#: (name, the passage's excerpt, its language, the claim kept, its sibling).
+SIBLINGS: tuple[tuple[str, str, str, str, str], ...] = (
+    (
+        "touchlines and goal lines",
+        (
+            "Rechteckige, von den Seitenlinien und Torlinien begrenzte Fläche, "
+            "auf der Fussball gespielt wird."
+        ),
+        "de",
+        "Das Spielfeld wird von den Seitenlinien begrenzt.",
+        "Das Spielfeld wird von den Torlinien begrenzt.",
+    ),
+    (
+        "no goals or an equal number",
+        (
+            "Wenn beide Teams keine oder die gleiche Anzahl an Toren erzielen, "
+            "endet das Spiel unentschieden."
+        ),
+        "de",
+        "Das Spiel endet unentschieden, wenn beide Teams keine Tore erzielen.",
+        (
+            "Das Spiel endet unentschieden, wenn beide Teams die gleiche Anzahl "
+            "an Toren erzielen."
+        ),
+    ),
+    (
+        "a caution or a sending-off",
+        (
+            "- A temporarily dismissed player who commits a cautionable (YC) or "
+            "sending-off (RC) offence during their temporary dismissal period "
+            "will take no further part in the match and may not be replaced or "
+            "substituted"
+        ),
+        "en",
+        (
+            "A temporarily dismissed player who commits a cautionable offence "
+            "during the temporary dismissal period takes no further part in the "
+            "match."
+        ),
+        (
+            "A temporarily dismissed player who commits a sending-off offence "
+            "during the temporary dismissal period takes no further part in the "
+            "match."
+        ),
+    ),
+    (
+        "two conditions of one rule",
+        (
+            "A player is in an offside position if:\n"
+            "- any part of the head, body or feet is in the opponents' half "
+            "(excluding the halfway line) and\n"
+            "- any part of the head, body or feet is nearer to the opponents' "
+            "goal line than both the ball and the second-last opponent"
+        ),
+        "en",
+        (
+            "A player is in an offside position if any part of the head, body or "
+            "feet is in the opponents' half excluding the halfway line."
+        ),
+        (
+            "A player is in an offside position if any part of the head, body or "
+            "feet is nearer to the opponents' goal line than both the ball and "
+            "the second-last opponent."
+        ),
+    ),
+    (
+        "the least and the most of one length",
+        (
+            "Die Seitenlinie muss länger als die Torlinie sein.\n"
+            "- Länge der Seitenlinie: mindestens 90 m (100 yds) höchstens 120 m "
+            "(130 yds)"
+        ),
+        "de",
+        "Die Seitenlinie hat eine Mindestlänge von 90 m (100 yds).",
+        "Die Seitenlinie hat eine Höchstlänge von 120 m (130 yds).",
+    ),
+)
+
+#: A bar every sibling pair clears, so it is the scan's rule that keeps the
+#: second claim and not the bar.
+_LOW = 0.9
+
+
+@pytest.mark.parametrize(
+    ("excerpt", "language", "kept", "sibling"),
+    [row[1:] for row in SIBLINGS],
+    ids=[row[0] for row in SIBLINGS],
+)
+def test_a_sibling_claim_of_one_passage_is_kept(
+    embedder, excerpt, language, kept, sibling
+) -> None:
+    """Two list items, two conditions, a least and a most: two facts."""
+    first, second = _stored(
+        embedder, passage(excerpt, language=language, id=9), kept, sibling, bar=_LOW
+    )
+
+    assert first.validated, first.validation_error
+    assert second.validated, second.validation_error
