@@ -494,7 +494,8 @@ SETTINGS: tuple[Setting, ...] = (
         invalidates=("questions",),
         help="How much of what an unanswerable question is about has to "
         "occur in the material it was drawn from. Below it the question is "
-        "off topic rather than unanswerable.",
+        "off topic rather than unanswerable. 0 turns the gate off. Off by "
+        "default.",
     ),
     Setting(
         name="QUESTIONS_ELSEWHERE_PASSAGES",

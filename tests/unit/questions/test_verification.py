@@ -19,6 +19,7 @@ from database.qa_generator import (
     QuestionType,
 )
 from question_generation.checker import QuestionChecker
+from question_generation.config import Settings
 from question_generation.gates import (
     OVERLAP,
     _folded,
@@ -1850,6 +1851,39 @@ def test_a_passage_with_no_lemmas_refuses_nothing() -> None:
 def test_a_floor_of_zero_turns_the_gate_off() -> None:
     """One setting, and 0 is how a deployment declines to hold the opinion."""
     assert on_topic("What is the top speed of a swallow?", "en", frozenset({"a"}), 0.0)
+
+
+def test_the_shipped_setting_refuses_no_perturbation_as_off_topic() -> None:
+    """QUESTIONS_OFF_TOPIC_OVERLAP ships at 0, so the gate abstains.
+
+    A perturbation moves a fact out of reach by design, so it carries words
+    its one cited passage lacks - and that one passage was the whole
+    vocabulary it was measured against.
+    """
+    shipped = Settings.load().off_topic_overlap
+    recording = Recording(recovers=None)
+    checker = QuestionChecker(
+        embedder=recording,
+        verifier=recording,
+        nearest=lambda embedding, **_: None,
+        threshold=0.93,
+        off_topic_overlap=shipped,
+    )
+
+    result = checker.check(
+        candidate(
+            question_text=(
+                "How much does the device weigh with its winter battery pack fitted?"
+            ),
+            target_answer=None,
+            answerable=False,
+            facts=group(source(lemmas=("device", "weight", "kg"))),
+        )
+    )
+
+    assert result.rejected_reason != QuestionRejection.OFF_TOPIC
+    assert "off_topic" not in {reading.gate for reading in result.readings}
+    assert shipped == 0
 
 
 def test_an_unanswerable_question_no_other_passage_answers_stands() -> None:

@@ -227,7 +227,7 @@ its own document, runs in it too.
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |
 | `wrong_form` | answers in the wrong shape | nothing |
-| `off_topic` | was written to have no answer and is about nothing the material mentions | nothing |
+| `off_topic` | was written to have no answer and is about nothing the material mentions. **Off** as shipped — see [Unanswerable questions](#unanswerable-questions) | nothing |
 | `wrong_type` | is not the kind it was planned as, where a rule can say so. A `comparison` has to answer with two sides, split where they divide the two subjects it names, and state a difference: a comparative on each side, or a word both sides share and the question does not | nothing |
 | `restates_question` | is answered with almost no content word the question did not already carry. An answer with a number, and a `comparison`, are not read | nothing |
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure the passages do not, or only restates the key | nothing |
@@ -331,8 +331,8 @@ just out of reach. `QUESTIONS_UNANSWERABLE_SHARE` sets how many are
 **attempted**, spread by position rather than at random. One is always
 planned `easy` and from one passage.
 
-Attempted, not held: they face three gates of their own, and those gates
-bite, which is why the default sits above the share a release should hold. Over-setting is safe — `QUESTIONS_RELEASE_UNANSWERABLE` is a
+Attempted, not held: they face three gates of their own, and the two that
+are on bite, which is why the default sits above the share a release should hold. Over-setting is safe — `QUESTIONS_RELEASE_UNANSWERABLE` is a
 ceiling.
 
 | | |
@@ -350,6 +350,15 @@ decide.
 The last matters more than it looks: a chatbot refusing *"What is the capital
 of Mars?"* has demonstrated nothing about whether it knows the limits of
 **this** corpus.
+
+It ships **off** (`QUESTIONS_OFF_TOPIC_OVERLAP=0`), because the vocabulary it
+compares against is too small to tell. It is the stored lemmas of the cited
+passages' text, which is usually one short passage and never its section
+heading, where a glossary entry's headword sits. A perturbation moves one fact
+out of that passage by design, so it always carries words the passage lacks:
+the gate refused questions about the material and found none about anything
+else. Measured against the vocabulary of the corpus's language, headings
+included, it could be turned back on.
 
 ## Follow-up threads
 
@@ -589,7 +598,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_BOILERPLATE_COSINE` | How alike a passage must be to one in another document before it is read as furniture. `0` turns it off |
 | `QUESTIONS_ANSWER_OVERLAP` | How much of a list or explanation has to come back. Numbers are always exact |
 | `QUESTIONS_UNANSWERABLE_SHARE` | What share are attempted with no answer in the corpus |
-| `QUESTIONS_OFF_TOPIC_OVERLAP` | Below this share of shared lemmas, an unanswerable question is off-topic |
+| `QUESTIONS_OFF_TOPIC_OVERLAP` | Below this share of shared lemmas, an unanswerable question is off-topic. **Off** |
 | `QUESTIONS_ELSEWHERE_PASSAGES` | How many uncited passages the `answerable_elsewhere` probe reads |
 | `QUESTIONS_ENTAILMENT_OVERLAP` | How much of what a question asks about must occur in its passages before the entailment pass may rescue it. `0` turns the guard off |
 | `QUESTIONS_FOLLOWUP_SHARE` | What share of accepted answerable roots get a thread |
