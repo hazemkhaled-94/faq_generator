@@ -1373,11 +1373,16 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
     """Whether a comparison answer states a difference between its two sides.
 
     A split divides the two subjects the question names where each side of
-    it holds a content lemma of the question the other side lacks.
+    it holds a content lemma of the question the other side lacks. A seam
+    is a `;`, `,` or conjunction.
 
-    With no seam - no `;`, `,` or conjunction - the answer is one clause,
-    and it holds where a comparative divides the subjects: `Card payments
-    settle faster than bank transfers`. False where none does.
+    True where a comparative divides the subjects within its own stretch,
+    the seam-free run of tokens around it: `Card payments settle faster than
+    bank transfers`, and the same with `, which take a day` or `and cost
+    less` after it. A comparative whose other subject lies past a seam
+    describes its own side and compares it with nothing - `excessive force
+    is using more force than is necessary` is a definition, whichever half
+    it is welded to first.
 
     Otherwise the sides are read either side of a seam. The first seam
     dividing the subjects wins, in that order, except that a comma opening
@@ -1386,11 +1391,9 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
     holds where each side carries a comparative of its own - `less formal`,
     `more formal` - or, at a seam opening a subordinate clause, where one
     side does: `Card payments are faster, while bank transfers take a day`.
-    A single comparative at any other seam describes its side and compares
-    it with nothing - `excessive force is using more force than is
-    necessary` is a definition, whichever half it is welded to first. Short
-    of a comparative, the answer holds where the sides share a content
-    lemma the question did not supply.
+    Short of a comparative, it holds where the sides share a content lemma
+    the question did not supply. With no seam at all and no comparative
+    dividing the subjects, it is False: there are no two sides.
 
     False where no seam divides the subjects and one side names a subject
     while the other names none: a definition welded to a second sentence
@@ -1404,10 +1407,12 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
     read = pipeline(language)(answer)
     asked = content(question, language)
 
-    def split(at: int) -> tuple[frozenset[str], frozenset[str], bool]:
-        """Either side of one token, and whether it divides the subjects."""
-        left = content(read[:at].text, language)
-        right = content(read[at + 1 :].text, language)
+    def split(
+        at: int, start: int = 0, end: int | None = None
+    ) -> tuple[frozenset[str], frozenset[str], bool]:
+        """Either side of one token within a stretch, and whether it divides."""
+        left = content(read[start:at].text, language)
+        right = content(read[at + 1 : end].text, language)
         return left, right, bool((left & asked) - right and (right & asked) - left)
 
     def compared(side) -> bool:
@@ -1417,8 +1422,14 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
     seams = [
         token.i for token in read if token.text in (";", ",") or token.pos_ == "CCONJ"
     ]
+    for token in read:
+        if compared([token]):
+            start = max((one for one in seams if one < token.i), default=-1) + 1
+            end = min((one for one in seams if one > token.i), default=len(read))
+            if split(token.i, start, end)[2]:
+                return True
     if not seams:
-        return any(split(token.i)[2] for token in read if compared([token]))
+        return False
     sides = {seam: split(seam) for seam in seams}
     dividing = [seam for seam in seams if sides[seam][2]]
     seam = min(dividing or seams, key=lambda one: (_seam_rank(read, one), one))
