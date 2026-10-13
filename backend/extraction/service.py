@@ -208,7 +208,8 @@ def _rejudge(
     """Judges one stored fact against the passages it was drawn from.
 
     A non-bridge fact is judged on its first passage, and keeps the evidence
-    of every citation a refused duplicate added to it, as `_cite` added it.
+    of any further citation it still carries - one an earlier version's
+    duplicate refusal added - so its evidence and its citations agree.
     """
     if candidate.kind == FactKind.BRIDGE:
         return checker.check_bridge(passages, candidate)

@@ -253,7 +253,7 @@ class TestTheDedupGate:
         stored = run.queue.stored[1]
         assert stored[0].rejection_code == Rejection.DUPLICATE
         assert "fact 7" in (stored[0].validation_error or "")
-        assert stored[0].twin_id == 7, "its citation is recorded on fact 7"
+        assert stored[0].twin_id == 7, "the refusal names fact 7"
 
     def test_a_twin_stating_other_numbers_is_not_a_duplicate(self) -> None:
         """4 kg and 7 kg share every word but one, and are two claims."""

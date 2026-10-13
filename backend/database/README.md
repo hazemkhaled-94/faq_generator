@@ -141,7 +141,7 @@ head these carry ([`revision.py`](qa_generator/revision.py)): until
 `make schema` has applied it, `/status` is not green and a queue claims
 nothing.
 
-The fifteen revisions, oldest first:
+The sixteen revisions, oldest first:
 
 | File | Changes |
 |---|---|
@@ -160,6 +160,7 @@ The fifteen revisions, oldest first:
 | `20261009_1200_column_comments_after_the_fixes.py` | Comments only: `prompts.version`, `prompts.digest`, `facts.prompt_version`, `topics.embedding` |
 | `20261009_2000_refit_and_reader_comments.py` | Comments only: `topics.question_status`, `assessments.topic_id`, `prompts.service`, and the `service_settings` table |
 | `20261013_2300_superseded_and_opinion_comments.py` | Comments only: `questions.gates_ran` can end with `superseded`, and `questions.gate_scores` carries `settles` verdicts as opinions |
+| `20261013_1200_a_refusal_cites_nothing.py` | Comment only: `fact_passages.position` says what a later position on a passage fact is |
 
 ## Column comments
 

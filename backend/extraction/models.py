@@ -184,7 +184,10 @@ class CheckedFact:
     #: does not.
     gate_scores: list[dict] = field(default_factory=list)
     confidence: float | None = None
-    #: The stored fact a duplicate repeats, which gains this one's citations.
+    #: The stored fact a duplicate repeats, as its refusal names it. Nothing
+    #: is written onto that fact: a candidate the gate reads as its twin may
+    #: state another rule, and a citation added there would count this
+    #: passage towards every question asked of it.
     twin_id: int | None = None
 
 

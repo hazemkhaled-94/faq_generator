@@ -7,22 +7,18 @@ from itertools import groupby
 from typing import ClassVar, cast
 
 from sqlalchemy import (
-    ARRAY,
     ColumnElement,
-    Integer,
     Select,
     Table,
     bindparam,
     delete,
     func,
     insert,
-    literal,
     or_,
     select,
     true,
     update,
 )
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
 from database.qa_generator import (
@@ -43,7 +39,6 @@ from extraction.models import (
     WRITTEN,
     CandidateFact,
     CheckedFact,
-    Citation,
     Cited,
     FactQuality,
     FactSource,
@@ -460,54 +455,7 @@ def _write(session, facts: list[CheckedFact], version: str | None = None) -> int
     ]
     if links:
         session.execute(insert(FactPassage), links)
-    for fact in facts:
-        if fact.twin_id is not None:
-            for cited in fact.citations:
-                _cite(session, fact.twin_id, cited, fact.evidence_text)
     return len(facts)
-
-
-def _cite(session, fact_id: int, cited: Citation, evidence: str) -> None:
-    """Adds one citation to a stored fact, after its last one, and its evidence.
-
-    Nothing where the fact has no citation left, which is a fact this
-    transaction deleted, or already cites the passage.
-    """
-    position = func.max(FactPassage.position) + 1
-    added = session.execute(
-        pg_insert(FactPassage)
-        .from_select(
-            [
-                "fact_id",
-                "passage_id",
-                "position",
-                "sentence_ids",
-                "evidence_start",
-                "evidence_end",
-            ],
-            select(
-                literal(fact_id),
-                literal(cited.passage_id),
-                position,
-                literal(cited.sentence_ids, ARRAY(Integer)),
-                literal(cited.start, Integer),
-                literal(cited.end, Integer),
-            )
-            .where(FactPassage.fact_id == fact_id)
-            .having(func.count() > 0),
-        )
-        .on_conflict_do_nothing()
-    )
-    if not added.rowcount:
-        return
-    # ponytail: a segment outlives a citation that re-reading removes, and the
-    # segments can drift from position order. Upgrade: rebuild evidence_text
-    # from fact_passages whenever a citation is added or removed.
-    session.execute(
-        update(Fact)
-        .where(Fact.id == fact_id, func.strpos(Fact.evidence_text, evidence) == 0)
-        .values(evidence_text=Fact.evidence_text + "\n" + evidence)
-    )
 
 
 def _row(fact: CheckedFact, version: str | None = None) -> dict:

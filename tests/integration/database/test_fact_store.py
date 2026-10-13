@@ -110,10 +110,15 @@ class TestStoring:
 
         assert [row[0] for row in store.rows("statement")] == ["Three."]
 
-    def test_a_duplicate_cites_its_passage_beside_the_fact_it_repeats(
+    def test_a_duplicate_adds_no_citation_to_the_fact_it_repeats(
         self, store, corpus
     ) -> None:
-        """The surviving fact then cites every document that states it."""
+        """The refusal names its twin, and the twin rests on its own passage alone.
+
+        A citation added there counts the duplicate's passage towards every
+        question the twin is asked in, and a candidate the gate reads as a
+        twin may state another rule.
+        """
         first, other = corpus["a"][0], corpus["b"][0]
         store.store(first, checked(first, "Requests are answered in 48 hours."))
         ((survivor,),) = store.rows("id")
@@ -133,12 +138,12 @@ class TestStoring:
             (passage, position)
             for fact, passage, position in store.links()
             if fact == survivor
-        ] == [(first, 0), (other, 1)]
+        ] == [(first, 0)]
 
     def test_reading_the_duplicate_again_keeps_the_fact_it_repeats(
         self, store, corpus
     ) -> None:
-        """The other document still states it, so it is not deleted."""
+        """The twin rests on its own passage, which was not read again."""
         first, other = corpus["a"][0], corpus["b"][0]
         store.store(first, checked(first, "Requests are answered in 48 hours."))
         ((survivor,),) = store.rows("id")
@@ -160,37 +165,10 @@ class TestStoring:
             (survivor, first)
         ]
 
-    def test_a_duplicate_adds_its_evidence_to_the_fact_it_repeats(
+    def test_a_duplicate_adds_no_evidence_to_the_fact_it_repeats(
         self, store, corpus
     ) -> None:
-        """evidence_text is every cited span, the added citation's included."""
-        first, other = corpus["a"][0], corpus["b"][0]
-        store.store(
-            first,
-            checked(first, "Requests are answered in 48 hours.", evidence_text="A."),
-        )
-        ((survivor,),) = store.rows("id")
-
-        store.store(
-            other,
-            checked(
-                other,
-                "Requests are answered in 48 hours.",
-                validated=False,
-                rejection_code=Rejection.DUPLICATE,
-                twin_id=survivor,
-                evidence_text="B.",
-            ),
-        )
-
-        assert store.rows("evidence_text", where="id = :id", id=survivor) == [
-            ("A.\nB.",)
-        ]
-
-    def test_reading_a_duplicate_again_does_not_repeat_its_evidence(
-        self, store, corpus
-    ) -> None:
-        """The citation comes back on a re-read; its text is already there."""
+        """evidence_text stays the twin's own span, however often it is refused."""
         first, other = corpus["a"][0], corpus["b"][0]
         store.store(
             first,
@@ -205,13 +183,11 @@ class TestStoring:
             twin_id=survivor,
             evidence_text="B.",
         )
-        store.store(other, duplicate)
 
         store.store(other, duplicate)
+        store.store(other, duplicate)
 
-        assert store.rows("evidence_text", where="id = :id", id=survivor) == [
-            ("A.\nB.",)
-        ]
+        assert store.rows("evidence_text", where="id = :id", id=survivor) == [("A.",)]
 
     def test_only_the_passage_read_is_replaced(self, store, corpus) -> None:
         """Two workers on one document do not delete each other's results."""
@@ -952,20 +928,11 @@ class TestRejudging:
     def test_a_citation_the_verdict_does_not_name_keeps_its_span(
         self, store, corpus
     ) -> None:
-        """An atomic verdict cites its first passage; a twin's citation stays."""
+        """An atomic verdict cites its first passage; a folded citation stays."""
         first, other = corpus["a"][0], corpus["b"][0]
         store.store(first, checked(first, "Requests are answered in 48 hours."))
         ((survivor,),) = store.rows("id")
-        store.store(
-            other,
-            checked(
-                other,
-                "Requests are answered in 48 hours.",
-                validated=False,
-                rejection_code=Rejection.DUPLICATE,
-                twin_id=survivor,
-            ),
-        )
+        store.folded(survivor, other)
         before = store.citations()
 
         store.catalog.rejudge(

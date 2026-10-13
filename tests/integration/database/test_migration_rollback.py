@@ -33,6 +33,7 @@ RESOLVED = "6c1d0e4b9a27"
 UNREAD = "9e2b7c41d058"
 REFITTED = "f6f7b1880b23"
 SUPERSEDED = "f7bba722de8e"
+UNFOLDED = "3c5a9d2e7b14"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -48,6 +49,7 @@ LATER = (
     UNREAD,
     REFITTED,
     SUPERSEDED,
+    UNFOLDED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.

@@ -123,8 +123,10 @@ Two more refusals are the service refusing what the checks passed:
   other numbers - another value, or the same one a different number of
   times, a number word read as the value it names. The bar sits near
   identity: the vector is read off the bare statement, and two statements
-  about one subject score high on the subject alone. The refused fact's
-  citation is added to the stored fact it repeats, with its evidence.
+  about one subject score high on the subject alone. The refusal names the
+  stored fact it repeats and writes nothing onto it: the stored fact rests
+  on its own passage alone, so a passage it was refused against never
+  counts towards the scope of a question asked of it.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which works out to a cap on the atomic
   ones. The facts asserting a number, date or name are kept first, and the
@@ -185,8 +187,7 @@ with a second where `EXTRACTION_DIGEST_MODEL` names one.
 **Invariant:** for every `fact_passages` row whose citation was recorded,
 `passages.text[evidence_start:evidence_end]` runs from the first sentence the
 claim cites there to the last. `facts.evidence_text` is the cited sentences
-alone: a gap between two of them, or a second passage, is a line break, and
-a citation a refused duplicate adds brings its evidence with it.
+alone: a gap between two of them, or a second passage, is a line break.
 
 **Serves**
 

@@ -59,7 +59,9 @@ class FactPassage(Base):
     position: Mapped[int] = mapped_column(
         Integer,
         comment="Where this passage sat in what the model was shown, from 0. "
-        "0 for the one passage of an atomic fact, a summary or an outline.",
+        "0 for the one passage of an atomic fact, a summary or an outline. A "
+        "higher one on any of those is a citation an earlier version's "
+        "duplicate refusal added to the fact it repeated.",
     )
     sentence_ids: Mapped[list[int] | None] = mapped_column(
         ARRAY(Integer),
@@ -87,8 +89,8 @@ class FactPassage(Base):
 #:
 #: A bridge goes on any citation: its spans are the whole of what it rests
 #: on, so losing one is losing part of the claim. Any other fact goes on its
-#: last: each further citation is a duplicate stating the whole claim again,
-#: recorded where extraction refused it. Re-entrant by
+#: last: a further citation is one an earlier version's duplicate refusal
+#: added, and the fact still rests on its own. Re-entrant by
 #: construction - the cascade from facts back into this table fires it again,
 #: and the second firing finds no fact to delete.
 #:

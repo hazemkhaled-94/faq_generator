@@ -178,6 +178,29 @@ class FactStore:
         """Writes bridge facts, as the bridge pass does."""
         return self.catalog.add_bridges(list(facts))
 
+    def folded(self, fact_id: int, passage_id: int, evidence: str = "") -> None:
+        """Writes the citation an earlier version's duplicate refusal added.
+
+        After the fact's last one, with the refused candidate's evidence
+        appended to the fact's: what extraction wrote onto a twin before a
+        refusal stopped citing it, and what a corpus extracted then holds.
+        """
+        self._execute(
+            "INSERT INTO fact_passages (fact_id, passage_id, position, "
+            "sentence_ids, evidence_start, evidence_end) "
+            "SELECT :fact, :passage, max(position) + 1, ARRAY[0], 0, 0 "
+            "FROM fact_passages WHERE fact_id = :fact",
+            fact=fact_id,
+            passage=passage_id,
+        )
+        if evidence:
+            self._execute(
+                "UPDATE facts SET evidence_text = evidence_text || chr(10) || "
+                ":evidence WHERE id = :fact",
+                fact=fact_id,
+                evidence=evidence,
+            )
+
     def asked(self, fact_id: int, status: str) -> None:
         """Writes a question of `status` resting on one fact."""
         with Session(self.engine) as session:
