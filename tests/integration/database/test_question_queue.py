@@ -524,6 +524,124 @@ def test_the_probe_looks_only_at_questions_of_the_language_asked_for(
     assert QuestionCatalog().nearest([0.0] * 1023 + [1.0], language="fr") is None
 
 
+def test_a_re_check_finds_a_twin_behind_closer_questions_that_cannot_refuse_it(
+    engine, database
+) -> None:
+    """One in another language, and one unanswerable, both nearer than the twin.
+
+    Neither can refuse an answerable English question, so the probe looks
+    past them, at the accepted answerable English questions only.
+    """
+    from math import sqrt
+
+    from question_generation.service import reverify
+
+    def at(alike: float, axis: int) -> list[float]:
+        """A unit vector this alike to the first axis."""
+        vector = [0.0] * 1024
+        vector[0], vector[axis] = alike, sqrt(1.0 - alike * alike)
+        return vector
+
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        here = passage(digest("a"), ordinal=1, language="en")
+        session.add(here)
+        session.flush()
+        weight, colour = fact(here.id), fact(here.id, statement="It is grey.")
+        session.add_all([weight, colour])
+        session.flush()
+        common = {
+            "status": "accepted",
+            "difficulty": "easy",
+            "passage_scope": "single_passage",
+            "document_scope": "single_document",
+            "topic_scope": "single_topic",
+        }
+        rows = [
+            question(
+                question_text="How heavy is the device?",
+                target_answer="4 kg",
+                answer_chars=4,
+                embedding=at(0.95, 1),
+                **common,
+            ),
+            question(
+                question_text="Wie schwer ist das Gerät?",
+                target_answer="4 kg",
+                answer_chars=4,
+                language="de",
+                embedding=at(0.99, 2),
+                **common,
+            ),
+            question(
+                question_text="How heavy is the device on the moon?",
+                answerable=False,
+                embedding=at(0.99, 3),
+                **common,
+            ),
+            question(
+                question_text="How heavy is the device, in kilograms?",
+                target_answer="4 kg",
+                answer_chars=4,
+                embedding=at(1.0, 4),
+                **common,
+            ),
+        ]
+        session.add_all(rows)
+        session.flush()
+        session.add_all(
+            [
+                QuestionFact(question_id=rows[0].id, fact_id=weight.id),
+                QuestionFact(question_id=rows[1].id, fact_id=weight.id),
+                QuestionFact(question_id=rows[2].id, fact_id=colour.id),
+                QuestionFact(question_id=rows[3].id, fact_id=weight.id),
+            ]
+        )
+        session.commit()
+        twin, asked = rows[0].id, rows[3].id
+
+    reverify(QuestionCatalog(), _settings(duplicate_shared_cosine=0.88))
+
+    with engine.connect() as connection:
+        reasons = dict(
+            connection.execute(
+                text("SELECT id, rejected_reason FROM questions ORDER BY id")
+            ).all()
+        )
+    assert reasons[asked] == "duplicate"
+    assert reasons[twin] is None
+
+
+def test_the_probe_can_be_told_to_look_only_at_answerable_questions(
+    corpus, engine
+) -> None:
+    """Which is all an answerable question can be the twin of."""
+    with Session(engine) as session:
+        session.add_all(
+            [
+                question(
+                    question_text="answered",
+                    embedding=[0.9, 0.1] + [0.0] * 1022,
+                    status="accepted",
+                ),
+                question(
+                    question_text="not answered",
+                    answerable=False,
+                    embedding=[1.0] + [0.0] * 1023,
+                    status="accepted",
+                ),
+            ]
+        )
+        session.commit()
+
+    catalog = QuestionCatalog()
+
+    assert catalog.nearest([1.0] + [0.0] * 1023).question_text == "not answered"
+    found = catalog.nearest([1.0] + [0.0] * 1023, answerable=True)
+    assert found is not None and found.question_text == "answered"
+
+
 def test_the_probe_can_be_told_to_look_only_at_earlier_questions(
     corpus, engine
 ) -> None:

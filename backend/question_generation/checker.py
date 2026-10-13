@@ -69,12 +69,13 @@ from question_generation.gates import (
     anchored,
     asserted,
     cites_source,
+    deciding,
     explains,
     incomplete,
     moves_on,
-    near_bar,
     near_verdict,
     on_topic,
+    rivals,
     same_material,
     shared_lemmas,
     structural,
@@ -286,7 +287,6 @@ class QuestionChecker:
 
         ran.append("near_duplicate")
         embedding = self._embedder.embed(candidate.question_text)
-        near = self._near(embedding, seen)
         probed = {
             "answerable": candidate.answerable,
             "threshold": self._threshold,
@@ -296,7 +296,8 @@ class QuestionChecker:
             "passages": [passage.id for passage in candidate.group.resting],
             "facts": [fact.id for fact in candidate.group.facts],
         }
-        bar = None if near is None else near_bar(near, **probed)
+        found = deciding(self._near(embedding, seen, candidate), **probed)
+        near, bar = found if found is not None else (None, None)
         if near is not None and bar is not None:
             # High is what refuses here: a question near an accepted one is
             # the duplicate. The first question of a run has no neighbour
@@ -858,29 +859,46 @@ class QuestionChecker:
         return True
 
     def _near(
-        self, embedding: list[float], seen: Sequence[CheckedQuestion]
-    ) -> Neighbour | None:
-        """The nearest accepted question, stored or written earlier in this run.
+        self,
+        embedding: list[float],
+        seen: Sequence[CheckedQuestion],
+        candidate: Candidate,
+    ) -> list[Neighbour]:
+        """The nearest accepted question of each kind that can refuse this one.
+
+        Stored or written earlier in this run, in the candidate's language,
+        one per answerability `rivals` names. Probed for apart, because the
+        nearest question of any kind is often one that cannot refuse this
+        one, and it would hide the one that can.
 
         ponytail: every candidate is scored against everything `seen`, so a
         topic costs O(n^2) cosines. Upgrade: hold `seen` as one matrix and
         score it in one product.
         """
-        near = self._nearest(embedding)
-        for other in seen:
-            if other.embedding is None:
-                continue
-            score = cosine(embedding, other.embedding)
-            if near is None or score > near.similarity:
-                near = Neighbour(
-                    other.question_text,
-                    other.answerable,
-                    score,
-                    fact_ids=frozenset(other.fact_ids),
-                    language=other.language,
-                    passage_ids=frozenset(other.passage_ids),
-                )
-        return near
+        language = candidate.group.language
+        found: list[Neighbour] = []
+        for answerable in rivals(candidate.answerable):
+            near = self._nearest(embedding, language=language, answerable=answerable)
+            for other in seen:
+                if (
+                    other.embedding is None
+                    or other.language != language
+                    or other.answerable != answerable
+                ):
+                    continue
+                score = cosine(embedding, other.embedding)
+                if near is None or score > near.similarity:
+                    near = Neighbour(
+                        other.question_text,
+                        other.answerable,
+                        score,
+                        fact_ids=frozenset(other.fact_ids),
+                        language=other.language,
+                        passage_ids=frozenset(other.passage_ids),
+                    )
+            if near is not None:
+                found.append(near)
+        return found
 
     @staticmethod
     def _verdict(

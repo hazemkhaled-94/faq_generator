@@ -146,7 +146,7 @@ def build(recording: Recording):
     return QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         bounds={"value": (1, 80), "list": (3, 300), "explanation": (20, 600)},
         phrasing=recording,

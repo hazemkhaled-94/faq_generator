@@ -552,7 +552,7 @@ def build(recording: Recording, near: Neighbour | None = None) -> QuestionChecke
     return QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: near,
+        nearest=lambda embedding, **_: near,
         threshold=0.93,
         phrasing=recording,
     )
@@ -596,7 +596,7 @@ def test_the_duplicate_reading_is_taken_against_the_bar_that_applied() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: near,
+        nearest=lambda embedding, **_: near,
         threshold=0.93,
         shared_threshold=0.88,
         phrasing=recording,
@@ -608,6 +608,134 @@ def test_the_duplicate_reading_is_taken_against_the_bar_that_applied() -> None:
     assert [
         one.threshold for one in result.readings if one.gate == "near_duplicate"
     ] == [0.88]
+
+
+class _Probe:
+    """A stored-question probe that honours the filters it is asked with."""
+
+    def __init__(self, *stored: Neighbour) -> None:
+        self.stored = stored
+
+    def __call__(self, embedding, language=None, answerable=None) -> Neighbour | None:
+        """The nearest stored question of this language and answerability."""
+        fitting = [
+            one
+            for one in self.stored
+            if language in (None, one.language) and answerable in (None, one.answerable)
+        ]
+        return max(fitting, key=lambda one: one.similarity, default=None)
+
+
+def _probed(probe: _Probe, **asked) -> str | None:
+    """What the checker makes of a candidate against this probe."""
+    recording = Recording()
+    checker = QuestionChecker(
+        embedder=recording,
+        verifier=recording,
+        nearest=probe,
+        threshold=0.93,
+        shared_threshold=0.88,
+        phrasing=recording,
+    )
+    seen = asked.pop("seen", ())
+    return checker.check(candidate(**asked), seen=seen).rejected_reason
+
+
+#: Stored in English, resting on the candidate's fact and asking with its word.
+_TWIN = Neighbour(
+    "How heavy is the device?",
+    answerable=True,
+    similarity=0.95,
+    fact_ids=frozenset({1}),
+    language="en",
+)
+
+
+def test_a_twin_behind_a_closer_question_in_another_language_is_found() -> None:
+    """A question in another language cannot refuse this one, so it hides nothing."""
+    probe = _Probe(
+        _TWIN,
+        Neighbour(
+            "Wie schwer ist das Gerät?", answerable=True, similarity=0.99, language="de"
+        ),
+    )
+
+    assert _probed(probe) == QuestionRejection.DUPLICATE
+
+
+def test_a_twin_behind_a_closer_unanswerable_question_is_found() -> None:
+    """An answerable question is never the twin of an unanswerable one."""
+    probe = _Probe(
+        _TWIN,
+        Neighbour(
+            "How heavy is the device on the moon?",
+            answerable=False,
+            similarity=0.99,
+            fact_ids=frozenset({1}),
+            language="en",
+        ),
+    )
+
+    assert _probed(probe) == QuestionRejection.DUPLICATE
+
+
+def test_an_unanswerable_twin_behind_a_closer_answered_question_is_found() -> None:
+    """An unanswerable question is probed among both kinds, each for its gate.
+
+    The answered neighbour rests on another fact, so it does not answer this
+    one; the unanswerable one beside it cites the same passage and asks the
+    same thing.
+    """
+    probe = _Probe(
+        Neighbour(
+            "How heavy is the device?",
+            answerable=True,
+            similarity=0.99,
+            fact_ids=frozenset({2}),
+            language="en",
+        ),
+        Neighbour(
+            "How heavy is the device on Mars?",
+            answerable=False,
+            similarity=0.95,
+            passage_ids=frozenset({1}),
+            language="en",
+        ),
+    )
+
+    got = _probed(
+        probe,
+        question_text="How heavy is the device on the moon?",
+        target_answer=None,
+        answerable=False,
+    )
+
+    assert got == QuestionRejection.DUPLICATE
+
+
+def test_a_question_this_run_wrote_in_another_language_hides_no_twin() -> None:
+    """The run's own questions are read by the same filters as the stored ones."""
+    from question_generation.models import CheckedQuestion, Criteria
+
+    german = CheckedQuestion(
+        question_text="Wie schwer ist das Gerät?",
+        target_answer="4 kg",
+        answerable=True,
+        criteria=Criteria(
+            passage_scope="single_passage",
+            document_scope="single_document",
+            topic_scope="single_topic",
+            answer_chars=4,
+            difficulty="easy",
+        ),
+        language="de",
+        status="accepted",
+        rejected_reason=None,
+        fact_ids=(1,),
+        embedding=[1.0] + [0.0] * 1023,
+    )
+
+    assert _probed(_Probe(_TWIN), seen=(german,)) == QuestionRejection.DUPLICATE
 
 
 def test_a_duplicate_never_reaches_the_verifier() -> None:
@@ -905,7 +1033,7 @@ def test_a_writer_marking_its_own_work_cannot_reject_on_phrasing() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         judge_phrasing=False,
         phrasing=recording,
@@ -927,7 +1055,7 @@ def test_recoverability_is_judged_even_when_phrasing_is_not() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         judge_phrasing=False,
     )
@@ -943,7 +1071,7 @@ def test_the_free_gates_are_unaffected_by_who_is_verifying() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         judge_phrasing=False,
     )
@@ -1180,7 +1308,7 @@ def test_a_self_judged_verifier_cannot_reject_for_naming_a_source() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         phrasing=recording,
         judge_phrasing=False,
@@ -1201,7 +1329,7 @@ def test_the_free_half_of_the_gate_runs_without_a_verifier_at_all() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         judge_phrasing=False,
     )
@@ -1718,7 +1846,7 @@ def test_an_unanswerable_question_no_other_passage_answers_stands() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         bounds=BOUNDS,
         elsewhere=lambda lemmas, language, skip, limit, embedding=None: [
@@ -1831,7 +1959,7 @@ def _with_reader(recording: Recording, reader: Reader) -> QuestionChecker:
     return QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         phrasing=recording,
         extractive=reader,
@@ -1908,7 +2036,7 @@ def test_an_encoder_answers_the_pass_where_one_is_configured() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         phrasing=recording,
         entailment=encoder,
@@ -1946,7 +2074,7 @@ def test_the_encoder_is_asked_one_passage_at_a_time() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         phrasing=recording,
         entailment=encoder,
@@ -2074,7 +2202,7 @@ def test_a_reader_finding_nothing_elsewhere_saves_the_call() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         phrasing=recording,
         elsewhere=lambda *a, **k: ["Something else entirely."],
@@ -2113,7 +2241,7 @@ def test_a_span_found_elsewhere_still_goes_to_the_verifier() -> None:
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=0.93,
         phrasing=recording,
         elsewhere=lambda *a, **k: ["An uncited note records 4 kg."],

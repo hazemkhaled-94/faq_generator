@@ -19,7 +19,7 @@ from question_generation.service import _recheck, reverify
 class _Twin:
     """A catalogue whose nearest accepted question is the same question."""
 
-    def nearest(self, embedding, before=None, excluding=(), language=None):
+    def nearest(self, embedding, before=None, excluding=(), **_):
         return Neighbour("What does the device weigh?", True, similarity=1.0)
 
 
@@ -115,7 +115,7 @@ class _Rejected:
     def judged(self, within=None):
         yield _stored(status="rejected", embedding=[1.0])
 
-    def nearest(self, embedding, before=None, excluding=(), language=None):
+    def nearest(self, embedding, before=None, excluding=(), **_):
         raise AssertionError("a rejected question was probed")
 
     def reject(self, verdicts) -> int:

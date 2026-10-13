@@ -770,6 +770,38 @@ def near_bar(
     return bar
 
 
+def rivals(answerable: bool) -> tuple[bool, ...]:
+    """The answerability of the accepted questions that can refuse this one.
+
+    An answerable question is refused only by an answerable twin. An
+    unanswerable one is refused by an unanswerable twin as a duplicate, and
+    by an answered question on its own fact as answerable after all, so it
+    is probed among both: probed among all at once, the nearest of either
+    kind hides a refusal by the other.
+    """
+    return (True,) if answerable else (False, True)
+
+
+def deciding(
+    neighbours: Sequence[Neighbour | None], **probed
+) -> tuple[Neighbour, float] | None:
+    """Of the neighbours the probes found, the one nearest to refusing.
+
+    With the bar it is held to, or None when none of them can refuse at
+    all. `probed` is what `near_bar` reads besides the neighbour.
+    """
+    best: tuple[Neighbour, float] | None = None
+    for near in neighbours:
+        if near is None:
+            continue
+        bar = near_bar(near, **probed)
+        if bar is None:
+            continue
+        if best is None or near.similarity - bar > best[0].similarity - best[1]:
+            best = (near, bar)
+    return best
+
+
 def near_verdict(
     near: Neighbour | None,
     *,

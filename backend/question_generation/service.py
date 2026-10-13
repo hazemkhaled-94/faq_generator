@@ -27,9 +27,11 @@ from question_generation.checker import (
 )
 from question_generation.config import Settings
 from question_generation.gates import (
+    deciding,
     names_parties,
     near_bar,
     near_verdict,
+    rivals,
     structural,
     typed,
 )
@@ -264,21 +266,31 @@ def _recheck(
 
     if question.embedding is None:
         return None
-    return near_verdict(
-        catalog.nearest(
-            question.embedding,
-            before=question.id,
-            excluding=pending,
-            language=question.language,
-        ),
-        answerable=question.answerable,
-        threshold=settings.duplicate_cosine,
-        shared_threshold=settings.duplicate_shared_cosine,
-        question=question.question_text,
-        language=question.language,
-        passages=question.passage_ids,
-        facts=question.fact_ids,
+    probed = {
+        "answerable": question.answerable,
+        "threshold": settings.duplicate_cosine,
+        "shared_threshold": settings.duplicate_shared_cosine,
+        "question": question.question_text,
+        "language": question.language,
+        "passages": question.passage_ids,
+        "facts": question.fact_ids,
+    }
+    # One probe per kind of question that can refuse this one, as the
+    # checker probes: see `gates.rivals`.
+    found = deciding(
+        [
+            catalog.nearest(
+                question.embedding,
+                before=question.id,
+                excluding=pending,
+                language=question.language,
+                answerable=answerable,
+            )
+            for answerable in rivals(question.answerable)
+        ],
+        **probed,
     )
+    return near_verdict(found[0] if found else None, **probed)
 
 
 def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:

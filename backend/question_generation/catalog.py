@@ -499,12 +499,17 @@ class QuestionCatalog(Repository):
         before: int | None = None,
         excluding: Sequence[int] = (),
         language: str | None = None,
+        answerable: bool | None = None,
     ) -> Neighbour | None:
         """The accepted question closest to this vector, or None if there is none.
 
         `language` looks only at questions written in it. There is no twin
         across languages: a bilingual set asks each language its own
         questions, and a question and its translation are one item each.
+
+        `answerable` looks only at questions of that answerability, so a
+        closer question that cannot refuse the one probed for does not hide
+        one that can: see `gates.rivals`.
 
         `before` looks only at questions written earlier. A re-check needs
         it: without it, two questions that are duplicates of each other each
@@ -517,10 +522,15 @@ class QuestionCatalog(Repository):
         flushed - the same pass over the same rows rejecting a different
         set at a different batch size.
 
-        The HNSW index serves the ordering and the filter on status is
-        applied over it, which at this corpus's size costs nothing; a corpus
-        large enough for that to under-return is one to raise
-        `hnsw.ef_search` for.
+        The HNSW index serves the ordering, and every filter here - status,
+        language, answerability, `before` - is applied over the candidates
+        its scan returns, which number `hnsw.ef_search`. So the filters can
+        leave nothing: a language holding a small share of the questions,
+        or an answerability that is the rarer one, may have no question
+        among the scan's nearest and come back empty although it has a near
+        one further down. At this corpus's size the scan reaches everything;
+        one large enough to under-return is one to raise `hnsw.ef_search`
+        for, or to run with pgvector's iterative scans.
         """
         distance = Question.embedding.cosine_distance(embedding)
         query = (
@@ -544,6 +554,8 @@ class QuestionCatalog(Repository):
             query = query.where(Question.id.notin_(list(excluding)))
         if language is not None:
             query = query.where(Question.language == language)
+        if answerable is not None:
+            query = query.where(Question.answerable == answerable)
         with self._session() as session:
             found = session.execute(query).one_or_none()
             if found is None:

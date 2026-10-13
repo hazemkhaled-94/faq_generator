@@ -65,7 +65,7 @@ def checker():
         verifier=verifier,
         # No probe: these cases are about recoverability, and a database the
         # eval layer does not have would only add a way for them to fail.
-        nearest=lambda embedding: None,
+        nearest=lambda embedding, **_: None,
         threshold=questions.duplicate_cosine,
         bounds=questions.answer_chars,
         overlap=questions.answer_overlap,
