@@ -83,6 +83,7 @@ class Driver:
         self.service = Service()
         self.built = 0
         self.rechecked: list = []
+        self.rescored: list = []
         self.balanced: list = []
         self.watched: list[float] = []
         #: The models the preflight was asked to prove, in order. Replaced
@@ -119,6 +120,11 @@ class Driver:
             module,
             "rejudge",
             lambda catalog, settings, verifier, within: self._rejudge(verifier, within),
+        )
+        monkeypatch.setattr(
+            module,
+            "rescore",
+            lambda catalog, settings, within: self.rescored.append(within) or 2,
         )
 
         def proving(*models):
@@ -210,6 +216,13 @@ def test_reverify_puts_the_stored_questions_through_the_free_gates(cli) -> None:
     assert cli.run("--reverify") == 0
     assert cli.rechecked == [None]
     assert cli.built == 0, "the re-check calls no model and needs no service"
+
+
+def test_rescore_rewrites_the_stored_bands_without_building_a_service(cli) -> None:
+    """The criteria are read off the citations, so no model is called."""
+    assert cli.run("--rescore") == 0
+    assert cli.rescored == [None]
+    assert cli.built == 0
 
 
 def test_balance_draws_a_release_without_building_a_service(cli) -> None:

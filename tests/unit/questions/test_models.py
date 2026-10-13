@@ -90,3 +90,47 @@ def test_both_models_are_held_to_the_same_patience() -> None:
 
     assert written.timeout_seconds == SHARED.timeout_seconds
     assert checked.max_attempts == SHARED.max_attempts
+
+
+# ── What a question's citations make it ───────────────────────────────────
+#
+# The three scopes, and the band they add up to, are read off every passage
+# the cited facts rest on. An atomic fact rests on the passage it was read
+# from; it counted a second one only through the citation a duplicate
+# refusal used to fold into it, which `make extract-dedup` takes out.
+
+
+def test_an_atomic_fact_is_one_passage_once_its_fold_is_gone() -> None:
+    """One claim, one lookup: single passage, single topic, easy."""
+    from factories import source
+
+    from database.qa_generator import Difficulty, PassageScope, TopicScope
+    from question_generation.models import FactGroup
+
+    fact = source(7, passage_id=3, topic_id=3)
+
+    read = FactGroup((fact,)).criteria(answer_chars=len("4 kg"))
+
+    assert (read.passage_scope, read.topic_scope, read.difficulty) == (
+        PassageScope.SINGLE,
+        TopicScope.SINGLE,
+        Difficulty.EASY,
+    )
+
+
+def test_a_second_passage_counts_through_a_real_citation() -> None:
+    """A bridge rests on both its passages, and a question on it spans them."""
+    from factories import bridge, resting
+
+    from database.qa_generator import DocumentScope, PassageScope, TopicScope
+    from question_generation.models import FactGroup
+
+    spans = bridge(resting(8, topic_id=8), passage_id=3, topic_id=3)
+
+    read = FactGroup((spans,)).criteria(answer_chars=len("4 kg"))
+
+    assert (read.passage_scope, read.document_scope, read.topic_scope) == (
+        PassageScope.MULTI,
+        DocumentScope.CROSS,
+        TopicScope.MULTI,
+    )

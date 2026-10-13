@@ -2020,3 +2020,49 @@ def test_reclaim_can_be_narrowed_to_one_topic(corpus, engine) -> None:
 
     assert moved == 1
     assert statuses(engine)["in_progress"] == 1
+
+
+def test_a_rescore_carries_a_lost_citation_into_the_stored_band(
+    engine, database
+) -> None:
+    """A question stored as spanning two passages, now citing one, is rescored.
+
+    And a re-verify after it rejects nothing: the scope it compares is the
+    one the rescore wrote.
+    """
+    from question_generation.service import rescore, reverify
+
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        here = passage(digest("a"), ordinal=1, language="en")
+        session.add(here)
+        session.flush()
+        cited = fact(here.id, statement="The device weighs 4 kg.")
+        session.add(cited)
+        session.flush()
+        asked = question(
+            target_answer="4 kg",
+            status="accepted",
+            passage_scope="multi_passage",
+            document_scope="single_document",
+            topic_scope="single_topic",
+            difficulty="medium",
+            planned_difficulty="medium",
+        )
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=cited.id))
+        session.commit()
+
+    assert rescore(QuestionCatalog(), _settings()) == 1
+    assert rescore(QuestionCatalog(), _settings()) == 0, "nothing moved twice"
+    assert reverify(QuestionCatalog(), _settings()) == 0
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(
+                "SELECT status, passage_scope, difficulty, planned_difficulty "
+                "FROM questions"
+            )
+        ).one()
+    assert tuple(row) == ("accepted", "single_passage", "easy", "medium")

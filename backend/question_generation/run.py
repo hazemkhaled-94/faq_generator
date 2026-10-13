@@ -17,7 +17,7 @@ from question_generation.catalog import QuestionCatalog
 from question_generation.config import Settings
 from question_generation.factory import build_service, models
 from question_generation.queue import QuestionQueue
-from question_generation.service import balance, rejudge, reverify
+from question_generation.service import balance, rejudge, rescore, reverify
 from question_generation.verifier import Verifier
 from settings.store import snapshot
 from stages.cli import queue_main
@@ -64,6 +64,13 @@ def main(argv: list[str] | None = None) -> int:
             "check every stored question again, without calling a model",
             "rejected",
             lambda within: reverify(QuestionCatalog(), configured()[0], within),
+        ),
+        #: No model either: the four criteria columns read again off what a
+        #: question cites now, which a re-verify then compares against.
+        "rescore": (
+            "rewrite every stored question's scopes and band from its citations",
+            "rescored",
+            lambda within: rescore(QuestionCatalog(), configured()[0], within),
         ),
         #: Which of the accepted questions make up the release. Accepting
         #: one says it is sound; this says what the SET looks like, and the

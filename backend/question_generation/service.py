@@ -42,6 +42,7 @@ from question_generation.generation import QuestionWriter
 from question_generation.models import (
     Candidate,
     CheckedQuestion,
+    Criteria,
     FactGroup,
     JudgedQuestion,
     SourceFact,
@@ -177,6 +178,56 @@ def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     return written
 
 
+def rescore(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
+    """Rewrites every stored question's scopes and band from what it cites now.
+
+    No model is called. A question stores the criteria its facts made when it
+    was written, and a fact that loses a citation - `make extract-dedup` takes
+    out the ones a duplicate refusal folded in - leaves them describing
+    evidence the question no longer has: a one-passage lookup banded as if it
+    combined two. `reverify` rejects such a row as `source_changed`, so this
+    runs first, reading the criteria as `reverify` reads them, through
+    `criteria_of`, which is what `FactGroup.criteria` bands a new question
+    with. Only the four columns move; the verdict is `reverify`'s.
+
+    Every question, a rejected one included: the columns describe the row,
+    whatever became of it.
+
+    Args:
+        catalog: Where the questions are read from and written back to.
+        settings: The answer length a long answer is read against.
+        within: A condition narrowing which questions are read, or None.
+
+    Returns:
+        How many questions were rewritten.
+    """
+    moved: list[tuple[int, Criteria]] = []
+    for question in catalog.judged(within):
+        now = _cited(question, settings)
+        if (
+            question.passage_scope,
+            question.document_scope,
+            question.topic_scope,
+            question.difficulty,
+        ) != (now.passage_scope, now.document_scope, now.topic_scope, now.difficulty):
+            moved.append((question.id, now))
+    written = catalog.rescore(moved)
+    log.info("rescored %d question(s) from what they cite now", written)
+    return written
+
+
+def _cited(question: JudgedQuestion, settings: Settings) -> Criteria:
+    """The criteria a stored question's facts make today, read off its row."""
+    return criteria_of(
+        passages=question.passages,
+        documents=question.documents,
+        topics=question.topics,
+        answer_chars=len(question.target_answer or "") or None,
+        follows=question.follows_id is not None,
+        long_answer=settings.long_answer_chars,
+    )
+
+
 def _recheck(
     catalog: QuestionCatalog,
     settings: Settings,
@@ -209,14 +260,7 @@ def _recheck(
     # not on the band, because two different spreads can land in one band
     # and the scopes are what a reader filters on. Not on the topic scope,
     # which a refit moves with no fact or citation changing.
-    now = criteria_of(
-        passages=question.passages,
-        documents=question.documents,
-        topics=question.topics,
-        answer_chars=len(question.target_answer or "") or None,
-        follows=question.follows_id is not None,
-        long_answer=settings.long_answer_chars,
-    )
+    now = _cited(question, settings)
     moved = [
         f"{name} was {was} and is now {is_now}"
         for name, was, is_now in (

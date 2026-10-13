@@ -199,6 +199,7 @@ expensive part:
 | `make extract-revalidate` | Judge every stored fact again. No model call |
 | `make chunk-revocabulary` | Re-read language and vocabulary. Only `passages.language` and `passages.lemmas` change |
 | `make questions-reverify` | Put every stored question through the gates that need no model |
+| `make questions-rescore` | Rewrite every stored question's scopes and difficulty from what it cites now. Run it before `questions-reverify` after a citation moved |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to |
 | `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, and take out the citations a refusal added to the fact it repeated. No model call |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
@@ -208,7 +209,7 @@ expensive part:
 `chunk-revocabulary` and `extract-revalidate` take `SHA`;
 `extract-revalidate`, `extract-recap`, `extract-dedup` and `extract-embed` take
 `PASSAGE`;
-`questions-reverify` takes `TOPIC`.
+`questions-reverify` and `questions-rescore` take `TOPIC`.
 
 The alternative is destructive: `extract-rerun` calls the model again over
 the whole corpus, and `chunk-rerun` deletes every passage of a document along
@@ -223,6 +224,7 @@ both warn and wait 5 seconds first.
 | `make questions-export` | Write the questions a filter selects to an `.xlsx` |
 | `make questions-reverify` | Re-check stored questions; no model call |
 | `make questions-rejudge` | Ask the verifier whether the passages settle each accepted unanswerable question, and reject those they do. **Calls the verifier model**; takes `TOPIC` |
+| `make questions-rescore` | Rewrite stored scopes and difficulty from current citations; no model call |
 | `make questions-runs` | Which runs there are, newest first |
 | `make questions-diff` | Two runs side by side, on the gate that stopped each |
 | `make questions-reclaim` | Return a topic a dead worker still holds. **Narrow it** |

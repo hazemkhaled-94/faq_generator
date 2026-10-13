@@ -253,6 +253,13 @@ another question — and the band is the total: 0–1 `easy`, 2 `medium`, 3+
 The band the plan asked for is stored as `planned_difficulty` beside it. The
 two disagree when the writer cited fewer facts than it was offered.
 
+All four are stored, and read again by `make questions-reverify`, which
+rejects a question whose passage or document scope no longer matches its
+citations. `make questions-rescore` rewrites the four from what each
+question cites now, with no model call; run it first when a citation moved
+for a reason the question did not, as `make extract-dedup` taking out a
+citation a duplicate refusal had folded into a fact.
+
 ## The gates
 
 Applied cheapest first, in this order. The first five are one structural
@@ -664,6 +671,7 @@ make questions-rerun
 make questions-start TOPIC=7    # any of the five, over one topic
 make questions-reverify         # re-check stored questions; no model call
 make questions-rejudge          # ask whether the passages settle each accepted unanswerable; calls the verifier
+make questions-rescore          # rewrite stored scopes and bands; no model call
 make questions-balance          # draw the balanced release
 make questions-export           # write what a filter selects to an .xlsx
 ```
@@ -731,19 +739,20 @@ poetry run pytest tests/integration/database/test_release.py
 | [`test_verification.py`](../../tests/unit/questions/test_verification.py) | Every gate, and the order they are applied in |
 | [`test_competence.py`](../../tests/unit/questions/test_competence.py) | The types whose answers are reasoned to rather than found |
 | [`test_balance.py`](../../tests/unit/questions/test_balance.py) | Choosing a balanced release |
-| [`test_models.py`](../../tests/unit/questions/test_models.py) | Which model writes a question, and which one checks it |
+| [`test_models.py`](../../tests/unit/questions/test_models.py) | Which model writes a question, and which one checks it; what a question's citations make its scopes |
 | [`test_question_service.py`](../../tests/unit/questions/test_question_service.py) | What the service does with a topic |
 | [`test_reverify.py`](../../tests/unit/questions/test_reverify.py) | What a re-check does with a question a person accepted |
 | [`test_rejudge.py`](../../tests/unit/questions/test_rejudge.py) | What `questions-rejudge` does with the accepted unanswerable questions |
 | [`test_settles.py`](../../tests/unit/questions/test_settles.py) | What the verifier is asked of a question written to have no answer |
 | [`test_reasons.py`](../../tests/unit/questions/test_reasons.py) | Whether the material states why, which is what a `reason` slot is dealt |
+| [`test_rescore.py`](../../tests/unit/questions/test_rescore.py) | Rewriting a stored question's scopes from its citations, and the re-verify after it |
 | [`test_phrasing.py`](../../tests/unit/questions/test_phrasing.py) | What a question's own wording says, read without a model |
 | [`test_abstention.py`](../../tests/unit/questions/test_abstention.py) | A judgement that could not be had is recorded, not read as a pass |
 | [`test_context.py`](../../tests/unit/questions/test_context.py) | What the writer is told about where each fact came from |
 | [`test_thread_cycle.py`](../../tests/unit/questions/test_thread_cycle.py) | A thread that closes into a loop is read once |
 | [`test_export.py`](../../tests/unit/questions/test_export.py) | The workbook |
 | [`test_prompt_catalogue.py`](../../tests/unit/questions/test_prompt_catalogue.py) | That every prompt the stage sends is in the catalogue a version resolves against |
-| [`test_questions_cli.py`](../../tests/unit/questions/test_questions_cli.py) | The re-check and the release draw on the command line |
+| [`test_questions_cli.py`](../../tests/unit/questions/test_questions_cli.py) | The re-check, the rescore and the release draw on the command line |
 | [`test_embedding.py`](../../tests/unit/nlp/test_embedding.py) | The embedding behind the dedup gate. Skips unless the model is cached |
 | [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py) | Two queues on one table |
 | [`test_release.py`](../../tests/integration/database/test_release.py) | Drawing a balanced release |

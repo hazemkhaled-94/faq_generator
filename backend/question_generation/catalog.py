@@ -44,6 +44,7 @@ from database.qa_generator.repository import Repository, matching
 from question_generation.balance import Row
 from question_generation.models import (
     Citation,
+    Criteria,
     JudgedQuestion,
     Neighbour,
     QuestionDetail,
@@ -905,6 +906,31 @@ class QuestionCatalog(Repository):
                     **(_rejecting(rejected) if rejected else {}),
                 )
             )
+
+    def rescore(self, rows: Sequence[tuple[int, Criteria]]) -> int:
+        """Writes the scopes and the band a rescore read, one row per question.
+
+        Nothing else on the row moves: not its status, its answer length or
+        the band its plan asked for.
+        """
+        if not rows:
+            return 0
+        with self._session.begin() as session:
+            # One executemany, read as an ORM bulk update by primary key.
+            session.execute(
+                update(Question),
+                [
+                    {
+                        "id": question_id,
+                        "passage_scope": now.passage_scope,
+                        "document_scope": now.document_scope,
+                        "topic_scope": now.topic_scope,
+                        "difficulty": now.difficulty,
+                    }
+                    for question_id, now in rows
+                ],
+            )
+        return len(rows)
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:
         """Records what a re-check found, one gate code per question.

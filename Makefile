@@ -198,6 +198,7 @@ help:
         settings settings-set settings-unset \
         questions questions-status questions-start questions-stop wipe \
         questions-retry questions-reclaim questions-rerun questions-reverify \
+        questions-rescore \
         confidence-recalibrate \
         assess assess-status assess-start assess-enrol assess-stop \
         assess-retry assess-reclaim assess-rerun \
@@ -935,6 +936,15 @@ questions-rerun:
 # re-extraction of one document, through to the questions resting on it.
 questions-reverify:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --reverify $(ONLY)
+
+# Rewrite every stored question's passage, document and topic scope and its
+# difficulty from the facts it cites now, as generation bands a new one. No
+# model is called and no verdict moves. A citation taken away under a stored
+# question - extract-dedup takes out the ones a duplicate refusal folded in -
+# leaves its scope describing evidence it no longer has, and
+# questions-reverify rejects such a row as source_changed; run this first.
+questions-rescore:
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --rescore $(ONLY)
 
 # Take every stored margin again, after a change to where a similarity scale
 # is measured from. Reads QUESTIONS_DUPLICATE_FLOOR and
