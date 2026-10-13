@@ -301,6 +301,91 @@ def _refers(token) -> bool:
     return "3" in token.morph.get("Person") or "Dem" in token.morph.get("PronType")
 
 
+#: What a pronoun and a noun it stands for agree in, where both carry it.
+_AGREEMENT = ("Gender", "Number")
+
+#: Dependency labels for a subject or an object, German and English: what a
+#: noun is read as an antecedent by when the morphology says nothing.
+_ARGUMENTS = frozenset(
+    {
+        "sb",
+        "sbp",
+        "oa",
+        "da",
+        "og",
+        "nsubj",
+        "nsubjpass",
+        "nsubj:pass",
+        "dobj",
+        "obj",
+        "iobj",
+        "dative",
+    }
+)
+
+#: Pronouns that stand in for a clause or an object beside them rather than
+#: for a noun, by ISO 639-1 code: German `es` in "sofern es die
+#: Bestimmungen gestatten", which the parser reads with the object as its
+#: sibling.
+#:
+#: ponytail: German only. A language missing here flags its correlates as it
+#: always has. Upgrade: a list per language, as a setting.
+_CORRELATES: dict[str, frozenset[str]] = {"de": frozenset({"es"})}
+
+#: What a correlate stands beside: an object, a clause, a repeated element.
+_BESIDE = frozenset({"oa", "oc", "re"})
+
+
+def _agrees(pronoun, noun) -> bool:
+    """Whether a noun can be what a pronoun stands for.
+
+    Only the features both carry are compared: an English noun carries no
+    gender, so `it` agrees with any singular noun, and German `er` with a
+    masculine singular one. Where they share none, the noun has to be a
+    subject or an object, which is all the parse has to say.
+    """
+    shared = [
+        one for one in _AGREEMENT if pronoun.morph.get(one) and noun.morph.get(one)
+    ]
+    if not shared:
+        return noun.dep_ in _ARGUMENTS
+    return all(set(pronoun.morph.get(one)) & set(noun.morph.get(one)) for one in shared)
+
+
+def _correlate(token) -> bool:
+    """Whether a pronoun stands beside the object or clause it anticipates.
+
+    A clause beside it only where its head is not an auxiliary, whose own
+    `oc` is the rest of its verb chain rather than a clause.
+    """
+    if token.text.casefold() not in _CORRELATES.get(token.doc.lang_, frozenset()):
+        return False
+    return any(
+        sibling.dep_ in _BESIDE and (sibling.dep_ == "oa" or token.head.pos_ != "AUX")
+        for sibling in token.head.children
+        if sibling.i != token.i
+    )
+
+
+def _resolved(token) -> bool:
+    """Whether a personal pronoun names something earlier in its own statement.
+
+    "Der Ball ist aus dem Spiel, wenn er die Linie überquert hat": `er` is the
+    ball, and refusing the statement throws its condition away. Resolved by a
+    noun before it that agrees with it, or by being a correlate.
+
+    A demonstrative is never resolved here, and nor is a pronoun opening its
+    statement, with no noun before it to stand for: both are what a reader
+    without the passage cannot place.
+    """
+    if "Prs" not in token.morph.get("PronType"):
+        return False
+    earlier = [one for one in token.doc[: token.i] if one.pos_ in _NOMINAL]
+    if not earlier:
+        return False
+    return _correlate(token) or any(_agrees(token, noun) for noun in earlier)
+
+
 #: Nouns naming the source document, as lemma or as written.
 _SOURCE = frozenset(
     {
@@ -340,13 +425,14 @@ def _opens(token) -> bool:
 def _references(span: Doc | Span) -> tuple[str, ...]:
     """Collects what leaves a statement dependent on its context.
 
-    The pronouns anywhere, and what `_opens` reads before the first finite
-    verb.
+    The pronouns anywhere that the statement does not resolve itself, and
+    what `_opens` reads before the first finite verb. A pronoun it resolves
+    is not recorded at all: a validated claim may carry no reference.
     """
     opening = takewhile(lambda t: "Fin" not in t.morph.get("VerbForm", []), span)
     return tuple(
         sorted(
-            {t.text.casefold() for t in span if _refers(t)}
+            {t.text.casefold() for t in span if _refers(t) and not _resolved(t)}
             | {t.text.casefold() for t in opening if _opens(t)}
         )
     )

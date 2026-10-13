@@ -109,6 +109,47 @@ GERMAN_ATOMIC: tuple[tuple[str, str, int, str | None], ...] = (
     ),
 )
 
+#: (name, the cited excerpt, statement, expected code or None): stored German
+#: claims whose pronoun points back inside the statement, to the subject the
+#: condition is about. Refused as dangling before the reading looked behind
+#: the pronoun.
+SELF_RESOLVED: tuple[tuple[str, str, str, str | None], ...] = (
+    (
+        "the ball, then a condition on it",
+        (
+            "Der Ball ist aus dem Spiel, wenn:\n"
+            "- er auf dem Boden oder in der Luft die Tor- oder Seitenlinie "
+            "vollständig überquert hat,"
+        ),
+        "Der Ball ist aus dem Spiel, wenn er die Torlinie vollständig überquert hat.",
+        None,
+    ),
+    (
+        "the ball touching an official",
+        (
+            "Der Ball ist zu jedem anderen Zeitpunkt im Spiel, auch wenn er einen "
+            "Spieloffiziellen berührt oder von einem Torpfosten, der Querlatte "
+            "oder einer Eckfahnenstange zurückspringt und auf dem Spielfeld "
+            "bleibt."
+        ),
+        "Der Ball bleibt im Spiel, wenn er einen Spieloffiziellen berührt.",
+        None,
+    ),
+    (
+        "a player, then what he attempts",
+        (
+            "Ein Spieler ist wegen unsportlichen Verhaltens zu verwarnen, wenn er:\n"
+            "- den Schiedsrichter zu täuschen versucht, z. B. durch das Simulieren "
+            "einer\nVerletzung oder eines Fouls (Schwalbe),"
+        ),
+        (
+            "Ein Spieler ist wegen unsportlichen Verhaltens zu verwarnen, wenn er "
+            "den Schiedsrichter zu täuschen versucht."
+        ),
+        None,
+    ),
+)
+
 #: (name, statement, expected code or None), over PROSE as a summary.
 SUMMARIES: tuple[tuple[str, str, str | None], ...] = (
     ("a condensed reading", "The device weighs 4 kg. It arrives in March 2026.", None),
@@ -243,6 +284,21 @@ def test_a_german_candidate_reaches_its_recorded_verdict(
 ) -> None:
     """The other language, where the parser behaves differently enough."""
     assert verdict(german.atomic(statement, cited)) == expected
+
+
+@pytest.mark.parametrize(
+    ("excerpt", "statement", "expected"),
+    [row[1:] for row in SELF_RESOLVED],
+    ids=[row[0] for row in SELF_RESOLVED],
+)
+def test_a_pronoun_its_statement_resolves_reaches_its_verdict(
+    excerpt, statement, expected
+) -> None:
+    """The subject named first is what the pronoun after it names."""
+    checked = Checker(passage(excerpt, language="de")).atomic(statement, 0)
+
+    assert verdict(checked) == expected, checked.validation_error
+    assert not checked.unresolved_references
 
 
 @pytest.mark.parametrize(

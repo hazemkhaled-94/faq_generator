@@ -133,14 +133,15 @@ that gate **silently never fires** for it — no error, no log.
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
 | `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing | `Lehrplan`, `syllabus` |
 | `_NUMBER_WORDS` | same | Number words and ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
+| `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 
 None is read as a substring: `_DIVISIONS`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
-by the word as written, `_AGENTS` and `_NUMBER_WORDS` by the word as written, the openings off
-the start of the question, `_COUNTS` against an answer's first word and
-`_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
+by the word as written, `_AGENTS`, `_NUMBER_WORDS` and `_CORRELATES` by the
+word as written, the openings off the start of the question, `_COUNTS`
+against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
 
 `_NAMED` is the one that is not a word list, and a language missing from it
@@ -182,6 +183,7 @@ are written.
 | Content words and lemmas | `NOUN`, `PROPN`, `ADJ` |
 | A number, for the circularity exemption | `NUM` |
 | Pointing outward | `PronType=Dem`, and a noun with both a definite article (`Definite=Def`, or `PronType=Art` without `Definite=Ind`) and a quantifier (`NumType=Card`, or a determiner with `PronType=Ind`) |
+| A pronoun its own statement resolves, for `unresolved_reference` | `PronType=Prs`, and `Gender` and `Number` on it and on a noun before it; a subject or object label where neither carries them |
 | Everything measured on an embedding | `EMBEDDING_MODEL`, which is multilingual |
 | Every length, share and citation reading | no language at all |
 

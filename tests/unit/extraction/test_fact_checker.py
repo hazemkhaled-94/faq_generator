@@ -140,6 +140,55 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
 
 
 @pytest.mark.parametrize(
+    ("statement", "language"),
+    [
+        ("The card is blocked if it is reported stolen.", "en"),
+        ("The bank replaces the card when its chip fails.", "en"),
+        ("Der Kredit wird gekündigt, wenn er nicht bedient wird.", "de"),
+        (
+            (
+                "Ein Kunde erhält eine Ersatzkarte, sofern es die "
+                "Geschäftsbedingungen gestatten."
+            ),
+            "de",
+        ),
+    ],
+)
+def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
+    statement, language
+) -> None:
+    """`it` after `The card`, in the same statement, names the card.
+
+    And it is not recorded at all: the table refuses a validated claim
+    carrying an unresolved reference, so refusing nothing is not enough.
+    """
+    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+
+    assert judged.validated, judged.validation_error
+    assert not judged.unresolved_references
+
+
+@pytest.mark.parametrize(
+    ("statement", "language", "pointer"),
+    [
+        ("Er wird gekündigt, wenn der Kredit nicht bedient wird.", "de", "er"),
+        ("Der Kredit wird gekündigt, wenn sie ihn nicht bedient.", "de", "sie"),
+        ("The card is blocked if this is reported stolen.", "en", "this"),
+    ],
+)
+def test_a_pronoun_its_statement_does_not_resolve_is_still_refused(
+    statement, language, pointer
+) -> None:
+    """Opening the statement, agreeing with nothing before it, or pointing."""
+    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNRESOLVED_REFERENCE, (
+        judged.validation_error
+    )
+    assert pointer in judged.unresolved_references
+
+
+@pytest.mark.parametrize(
     ("statement", "language", "pointer"),
     [
         (
@@ -320,10 +369,19 @@ class TestDigest:
         assert several.validated, several.rejection_code
 
     def test_a_dangling_pronoun_is_allowed_inside_a_summary(self, checker) -> None:
-        """A summary names its subject once and may refer back to it."""
-        referring = checker.summary("The device weighs 4 kg. It arrives in March 2026.")
+        """A summary stands in for its passage and may open on a pronoun."""
+        referring = checker.summary("It weighs 4 kg. It arrives in March 2026.")
 
         assert referring.unresolved_references, "the pronoun is still recorded"
+        assert referring.validated, referring.rejection_code
+
+    def test_a_summary_referring_back_to_its_own_subject_records_nothing(
+        self, checker
+    ) -> None:
+        """`It` after `The device`, in the same text, names the device."""
+        referring = checker.summary("The device weighs 4 kg. It arrives in March 2026.")
+
+        assert not referring.unresolved_references
         assert referring.validated, referring.rejection_code
 
     def test_a_digest_as_long_as_its_passage_is_refused(self, checker) -> None:
