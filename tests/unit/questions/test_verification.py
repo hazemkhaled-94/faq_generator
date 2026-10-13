@@ -2919,6 +2919,16 @@ def test_a_comparison_is_split_between_its_subjects_not_at_a_subordinate_comma()
     )
 
 
+def test_a_comparison_is_split_at_its_and_not_at_a_relative_which() -> None:
+    """`en_core_web_md` marks `which` WDT and gives it no `PronType=Rel`."""
+    assert compares(
+        "How do card payments and bank transfers differ?",
+        "a refund within a day for card payments and a refund within a week, "
+        "which bank transfers allow",
+        "en",
+    )
+
+
 def test_a_comparative_inside_one_side_is_not_a_difference() -> None:
     """`more than the account holds` defines an overdraft and compares nothing."""
     assert not compares(

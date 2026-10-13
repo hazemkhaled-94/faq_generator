@@ -1415,8 +1415,11 @@ def _seam_rank(read, seam: int) -> int:
     """Where a seam comes in the order sides are split at, lowest first.
 
     `;`, then a comma, then a conjunction, then a comma opening a
-    subordinate clause: one followed by a subordinating conjunction or a
-    relative pronoun, which every Universal Dependencies tagset marks.
+    subordinate clause: one followed by a subordinating conjunction, a
+    pronoun the morphology marks `PronType=Rel`, or a Penn W-word. The last
+    because `en_core_web_md` gives a relative `which` no `PronType`. A
+    relative the tagger reads as something else - `de_core_news_md` tags a
+    relative `die` after a comma as an article - is not seen.
     """
     token = read[seam]
     if token.text == ";":
@@ -1425,7 +1428,9 @@ def _seam_rank(read, seam: int) -> int:
         return 2
     after = read[seam + 1] if seam + 1 < len(read) else None
     opens = after is not None and (
-        after.pos_ == "SCONJ" or "Rel" in after.morph.get("PronType", [])
+        after.pos_ == "SCONJ"
+        or "Rel" in after.morph.get("PronType", [])
+        or after.tag_.startswith("W")
     )
     return 3 if opens else 1
 
