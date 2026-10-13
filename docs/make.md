@@ -48,8 +48,8 @@ Asking <LLM_MODEL> one question, as the host calls it...
 
 | Target | Does |
 |---|---|
-| `make all` | Bring the stack up, wait for Dagster to list the corpus job, and launch it. The container workers drain every stage but the topic fit |
-| `make corpus` | Every stage but the topic fit, drained on the host in order, then the release draw and the judge, stopping at the first failure. For developing a stage. Incremental. Says how many passages are in no topic |
+| `make all` | Bring the stack up, wait for Dagster to list the corpus job, and launch it. The container workers drain every stage but the topic fit, which Fit all on the Topics page asks for |
+| `make corpus` | Every stage but the topic fit, drained on the host in order, then the release draw and the judge, stopping at the first failure. For developing a stage. Incremental. Says how many passages are in no topic; `make topics-discover` fits them |
 | `make pipeline-status` | Where the corpus has got to, every stage in one call |
 | `make services` | Every container, whether it is listening, and where to open it |
 | `make open` | The same, and open the application |

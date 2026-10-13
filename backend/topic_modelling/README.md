@@ -179,9 +179,10 @@ state and the label edit have no flag.
 `--discover` queues and drains in one go; `--watch` is what the worker
 container runs. Every flag but `--watch` has a `make` target.
 
-`make topics-discover` is the refit: neither `make corpus` nor the Dagster
-corpus job asks for one. `make topics-status` also reports how many passages
-are in no topic.
+`make topics-discover` is the fit on the host, the first one as much as every
+refit: neither `make corpus` nor the Dagster corpus job asks for one. Bare
+`make topics` drains only a fit already queued. `make topics-status` also
+reports how many passages are in no topic.
 
 ### The database
 
