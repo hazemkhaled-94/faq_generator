@@ -368,7 +368,7 @@ class QuestionCatalog(Repository):
                     question_type=row.question_type,
                     follows_id=row.follows_id,
                     language=row.language,
-                    confidence=row.confidence or 0.0,
+                    confidence=row.confidence,
                 )
                 for row in session.execute(query.order_by(Question.id))
             ]

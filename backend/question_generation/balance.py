@@ -43,7 +43,8 @@ class Row:
     #: The language it is written in, which a release holds a share of.
     language: str = ""
     #: How sure the gates were of it, which decides which of two twins stays.
-    confidence: float = 0.0
+    #: None where none was recorded, which ranks below any reading.
+    confidence: float | None = None
 
 
 @dataclass(frozen=True)
@@ -189,6 +190,8 @@ def choose(
         if row.follows_id is not None:
             turns.setdefault(row.follows_id, []).append(row)
     chosen: list[int] = []
+    #: `chosen` as a set, for asking whether a twin is already in.
+    held_ids: set[int] = set()
 
     def fits(row: Row) -> bool:
         """Whether every bucket this question spends a place in has one."""
@@ -235,7 +238,14 @@ def choose(
             for twin in alike.get(first.id, set())
             if twin in waiting and fits(waiting[twin][1])
         ]
-        root = min([first, *rivals], key=lambda one: (-one.confidence, _rank(one)))
+        root = min(
+            [first, *rivals],
+            key=lambda one: (
+                one.confidence is None,
+                -(one.confidence or 0.0),
+                _rank(one),
+            ),
+        )
         # ponytail: a cell is rebuilt to take one row out. Upgrade: a deque
         # per cell, and a set of the ids taken out of turn.
         taken(root)
@@ -243,7 +253,8 @@ def choose(
         within = {root.id}
         for turn in thread:
             for follow in turns.get(turn.id, ()):
-                if alike.get(follow.id, set()) & (within | set(chosen)):
+                twinned = alike.get(follow.id)
+                if twinned and not twinned.isdisjoint(within | held_ids):
                     continue
                 thread.append(follow)
                 within.add(follow.id)
@@ -252,6 +263,7 @@ def choose(
                 if twin in waiting:
                     taken(waiting[twin][1])
             chosen.append(turn.id)
+            held_ids.add(turn.id)
             left[turn.answerable] -= 1
             bands[turn.difficulty] = bands.get(turn.difficulty, 0) - 1
             types[turn.question_type] = types.get(turn.question_type, 0) - 1

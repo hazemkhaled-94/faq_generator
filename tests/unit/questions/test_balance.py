@@ -469,7 +469,7 @@ def test_a_draw_does_not_favour_what_was_written_first() -> None:
 # ── Twins ──────────────────────────────────────────────────────────────────
 
 
-def ranked(id: int, confidence: float, kind: str = QuestionType.FACTOID) -> Row:
+def ranked(id: int, confidence: float | None, kind: str = QuestionType.FACTOID) -> Row:
     """One accepted easy question of this kind, held with this confidence."""
     return Row(
         id=id,
@@ -534,3 +534,14 @@ def test_of_two_twins_the_better_held_one_is_kept() -> None:
         drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
 
         assert high in drawn and low not in drawn, drawn
+
+
+def test_a_twin_with_no_confidence_recorded_ranks_below_one_with_any() -> None:
+    """None is no reading, so it is not taken for a reading of nothing."""
+    for unread, read in ((1, 2), (2, 1)):
+        held = [ranked(unread, None), ranked(read, 0.0), ranked(3, 0.5)]
+        quota = quota_of(2, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+
+        drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
+
+        assert read in drawn and unread not in drawn, drawn
