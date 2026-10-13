@@ -93,6 +93,9 @@ def plans(
     from one is a question about one thing. A type needing one passage may
     still decline the band: an `application` puts a rule in the material to
     a case that is not, which is not a lookup however little it reaches.
+    Such a type is still dealt the one passage it declares, whatever band
+    it carries. Its band is the work the case takes, not a wider sample, and
+    handed two passages and told to use both it welds the second one on.
 
     An unanswerable question is planned `easy` and single whatever its slot
     said. It is written by moving one fact out of reach, so a second passage
@@ -126,6 +129,7 @@ def plans(
             band = spec.floor
         if not answerable:
             band = Difficulty.EASY
-        shape = Shape.SINGLE if not answerable else SHAPES[band]
+        single = not answerable or (spec.least is not None and not spec.spans)
+        shape = Shape.SINGLE if single else SHAPES[band]
         planned.append(Plan(spec=spec, band=band, shape=shape, answerable=answerable))
     return planned

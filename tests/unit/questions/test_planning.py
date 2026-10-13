@@ -127,6 +127,37 @@ def test_a_type_needing_one_passage_may_still_decline_easy() -> None:
     assert not any(one.spec.spans for one in built), "it needs one passage"
     assert all(one.band != Difficulty.EASY for one in built)
     assert {one.band for one in built} == {Difficulty.MEDIUM, Difficulty.HARD}
+    # Its band is the work the case takes, not a wider sample: it is dealt
+    # the one passage it declares.
+    assert all(one.shape == Shape.SINGLE for one in built)
+
+
+def test_a_one_passage_type_is_not_dealt_two_passages_and_told_to_span() -> None:
+    """Whatever band its slot came up, in a mix of other kinds.
+
+    Dealt two passages and told to use both, a type whose rule sits in one
+    passage welds the second one on.
+    """
+    built = plans(
+        wanted=30,
+        types={
+            QuestionType.APPLICATION: 1,
+            QuestionType.FACTOID: 1,
+            QuestionType.COMPARISON: 1,
+        },
+        bands=BANDS,
+        unanswerable_share=0.25,
+    )
+
+    applications = [
+        one
+        for one in built
+        if one.spec.name == QuestionType.APPLICATION and one.answerable
+    ]
+    assert applications
+    assert not [one for one in applications if one.spans]
+    # The other kinds keep the shape their band asks for.
+    assert any(one.spans for one in built if one.spec.name == QuestionType.FACTOID)
 
 
 def test_a_type_declaring_no_floor_is_still_planned_easy() -> None:

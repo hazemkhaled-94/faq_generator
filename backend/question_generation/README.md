@@ -38,7 +38,8 @@ unanswerable share and the follow-up share are both taken by position.
 A kind with a weight of `0`, or left out, is never planned; a follow-up takes
 its kind from `QUESTIONS_FOLLOWUP_TYPES` instead. A band can be moved off its
 weight: an `easy` slot is raised to its kind's floor, and an unanswerable one
-is planned `easy`. `GET /questions/plan` reports the configured mixes, shares
+is planned `easy`. A kind that declares a floor of its own while needing one
+passage is dealt one passage whatever its band, so it is never told to span. `GET /questions/plan` reports the configured mixes, shares
 and answer bounds the next run will read.
 
 ### Step 2 — Deal the facts
@@ -146,7 +147,9 @@ domain.
 
 A type needing two passages cannot be planned `easy`. `application` is the
 exception and declares a **floor** of its own: it needs one passage, but the
-case it puts the rule to is not in the material.
+case it puts the rule to is not in the material. Its band is that work, not a
+wider sample: at `medium` and `hard` it is still dealt the one passage its
+rule sits in, and never told to use two.
 
 ### The answer form
 
