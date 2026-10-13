@@ -1795,6 +1795,22 @@ def test_two_items_are_not_a_list() -> None:
     assert form == AnswerForm.VALUE
 
 
+def test_two_items_are_a_list_where_the_type_asked_for_one() -> None:
+    """A `condition` asks for a list first, so its two conditions are one.
+
+    Neither carries a verb, so the shape hint alone reads it as a value.
+    """
+    form, failed = fitting(
+        "for card fraud, and for unpaid fees",
+        (AnswerForm.LIST, AnswerForm.VALUE),
+        BOUNDS,
+        "en",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.LIST
+
+
 def test_the_complaint_reported_is_the_asked_for_forms() -> None:
     """That is the form the writer was told to produce, so it is the one to show."""
     form, failed = fitting("x" * 700, (AnswerForm.VALUE, AnswerForm.LIST), BOUNDS, "en")
@@ -2509,6 +2525,38 @@ def test_a_key_naming_most_of_what_came_back_is_complete() -> None:
         language="en",
         form=AnswerForm.LIST,
     )
+
+
+#: Everything the passage says blocks a card, as a verifier reading it
+#: writes it back.
+_BLOCKED = (
+    "A card is blocked for card fraud, unpaid fees, a court order, a theft "
+    "report, a closed account, a fraud alert or a changed address."
+)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "rejected"),
+    [
+        (_BLOCKED, QuestionRejection.ANSWER_INCOMPLETE),
+        ("for card fraud or for unpaid fees", None),
+    ],
+    ids=["two of six", "both of two"],
+)
+def test_a_two_item_key_to_a_list_first_type_is_checked_for_completeness(
+    recovered: str, rejected: str | None
+) -> None:
+    """Read as the list its type asked for, it reaches `answer_incomplete`."""
+    result = build(Recording(recovers=recovered)).check(
+        candidate(
+            question_text="When is a card blocked?",
+            target_answer="for card fraud, and for unpaid fees",
+            question_type=QuestionType.CONDITION,
+        )
+    )
+
+    assert result.rejected_reason == rejected
+    assert result.answer_form == AnswerForm.LIST
 
 
 @pytest.mark.parametrize("form", [AnswerForm.VALUE, AnswerForm.EXPLANATION])

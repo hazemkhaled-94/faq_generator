@@ -7,17 +7,19 @@ its own score, and a figure reader that reads a number wherever a sentence
 happens to put it.
 
 Every one of them is pure and total, so there is nothing to stub and no
-deadline worth setting.
+deadline worth setting. The ones marked `nlp` read a spaCy parse, and are
+pure all the same.
 """
 
 from __future__ import annotations
 
 from math import isinf, isnan
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from database.qa_generator import Difficulty, QuestionType
+from database.qa_generator import AnswerForm, Difficulty, QuestionType
 from question_generation.balance import (
     Quota,
     Row,
@@ -26,9 +28,10 @@ from question_generation.balance import (
     quota_of,
     shares,
 )
-from question_generation.gates import figures
+from question_generation.gates import BOUNDS, figures, fitting
 from question_generation.models import band, criteria_of
 from question_generation.selection import spread, strided
+from question_generation.types import SPECS
 
 #: A mix as a setting writes one: names nobody has to be told, weights that
 #: may include a zero, and at least one that is not.
@@ -284,3 +287,53 @@ def test_reading_figures_never_raises_and_never_returns_a_nan(text) -> None:
     found = figures(text)
 
     assert not any(isnan(one) or isinf(one) for one in found), found
+
+
+# ── The form an answer is read in ────────────────────────────────────────
+
+#: Two things a key may name, in a language NLP_MODELS configures.
+ITEMS = st.sampled_from(
+    [
+        (
+            "en",
+            ("card fraud", "a court order", "a failed login", "an unpaid balance"),
+        ),
+        (
+            "de",
+            (
+                "ein Betrugsverdacht",
+                "eine Pfändung",
+                "eine fehlgeschlagene Anmeldung",
+                "ein Gerichtsbeschluss",
+            ),
+        ),
+    ]
+).flatmap(
+    lambda pair: st.tuples(
+        st.just(pair[0]), st.sampled_from(pair[1]), st.sampled_from(pair[1])
+    )
+)
+
+#: The forms of every type that asks for a list before anything else.
+LIST_FIRST = [spec.forms for spec in SPECS.values() if spec.forms[0] == AnswerForm.LIST]
+
+
+@pytest.mark.nlp
+@given(
+    items=ITEMS, forms=st.sampled_from(LIST_FIRST), joined=st.sampled_from([",", ";"])
+)
+def test_a_two_item_answer_to_a_list_first_type_is_read_as_a_list(
+    items, forms, joined
+) -> None:
+    """Which is what puts it in front of `answer_incomplete`.
+
+    The shape hint wants three items before it calls an answer a list, so
+    `Berlin, 2025` is a value where a value was asked for. A type that asked
+    for a list first is taken at its word for two.
+    """
+    language, first, second = items
+
+    form, failed = fitting(f"{first}{joined} {second}", forms, BOUNDS, language)
+
+    assert failed is None
+    assert form == AnswerForm.LIST

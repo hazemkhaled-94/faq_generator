@@ -162,8 +162,14 @@ _ITEMS = re.compile(r"[,;]")
 #: list. Two commas, so `A, B and C` is a list and `Berlin, 2025` is not.
 _LISTED = 3
 
+#: The same, for a type that asked for a list first: one comma will do. Its
+#: two items are a list because the type said a list is what it wants, and
+#: read as a value they never reach the completeness check `incomplete`
+#: makes of a list.
+_LISTED_WHEN_ASKED = 2
 
-def _looks_like(answer: str, verbs: bool) -> str:
+
+def _looks_like(answer: str, verbs: bool, listed: int = _LISTED) -> str:
     """The form an answer appears to take, read before any type is consulted.
 
     Which matters because the forms are tried in order and the first that
@@ -171,8 +177,11 @@ def _looks_like(answer: str, verbs: bool) -> str:
     carries no verb, so it passed as a value and was then held to a value's
     comparison, which wants every one of its lemmas back. The hint puts the
     form the answer actually has first, where its type allows that form.
+
+    `listed` is how many items make a list, which `fitting` lowers for a
+    type whose first form is one.
     """
-    if len(_ITEMS.split(answer)) >= _LISTED:
+    if len(_ITEMS.split(answer)) >= listed:
         return AnswerForm.LIST
     if verbs and len(answer.split()) > 1:
         return AnswerForm.EXPLANATION
@@ -204,7 +213,11 @@ def fitting(
     """
     asked = forms[0] if forms else AnswerForm.VALUE
     verbs = bool(claim(answer, language).verbs)
-    looks = _looks_like(answer, verbs)
+    looks = _looks_like(
+        answer,
+        verbs,
+        _LISTED_WHEN_ASKED if asked == AnswerForm.LIST else _LISTED,
+    )
     tried = (
         (looks, *(one for one in forms if one != looks)) if looks in forms else forms
     )

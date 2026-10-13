@@ -238,7 +238,7 @@ its own document, runs in it too.
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
-| `answer_incomplete` | has a key naming far less than the verifier found | the same round trip |
+| `answer_incomplete` | has a `list` key naming far less than the verifier found | the same round trip |
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite answers it | a passage probe and a second call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
 
@@ -263,6 +263,12 @@ if what comes back carries every number, name and date the target asserts,
 and enough of what it is about. A `value` is compared whole; a `list` or an
 `explanation` by overlap — `QUESTIONS_ANSWER_OVERLAP`. Numbers are always
 exact, so `4 hours` never passes for `48 hours`.
+
+The form is the one the answer fits among those its type takes, and only a
+`list` is then checked for completeness. Three items punctuated apart make a
+list; two do where the type asks for a list first, so a `condition` answered
+with two of the passage's conditions is held to `answer_incomplete` rather
+than compared as a value.
 
 Three things about it are load-bearing. The verifier is meant to be a
 **different** model, because a model marking its own work recovers what it

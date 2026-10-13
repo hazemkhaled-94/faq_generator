@@ -3,6 +3,9 @@
 Rows docs/bugs.md quotes, each beside the code re-verify has to store for it,
 and one sound row. A rule added to the checker's type gates that re-verify
 does not run leaves the stored release as it was.
+
+`LISTED_ROWS` is the exception: stored keys read as the round trip reads
+them, which re-verify does not repeat.
 """
 
 from __future__ import annotations
@@ -14,9 +17,10 @@ import pytest
 
 from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
 from question_generation.config import Settings
-from question_generation.gates import near_verdict
+from question_generation.gates import BOUNDS, fitting, incomplete, near_verdict
 from question_generation.models import JudgedQuestion, Neighbour
 from question_generation.service import _recheck
+from question_generation.types import spec
 
 pytestmark = pytest.mark.nlp
 
@@ -906,3 +910,89 @@ def test_a_stored_question_is_rechecked_in_its_own_language(
     failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
 
     assert (failed[0] if failed else None) == expected, failed
+
+
+#: The passage Q741 cites: every offence a player is cautioned for.
+_CAUTIONS = (
+    "A player is cautioned if guilty of:\n"
+    "- delaying the restart of play (as outlined below in 'Delaying the restart "
+    "of play')\n"
+    "- dissent by word or action\n"
+    "- entering, re-entering or deliberately leaving the field of play without "
+    "the referee's permission\n"
+    "- failing to respect the required distance when play is restarted with a "
+    "dropped ball, corner kick, free kick or throw-in\n"
+    "- persistent offences (no specific number or pattern of offences "
+    "constitutes 'persistent')\n"
+    "- unsporting behaviour\n"
+    "- entering the referee review area (RRA)\n"
+    "- excessively using the 'review' (TV screen) signal\n"
+    "A substitute or substituted player is cautioned if guilty of:\n"
+    "- delaying the restart of play\n"
+    "- dissent by word or action\n"
+    "- entering or re-entering the field of play without the referee's "
+    "permission\n"
+    "- unsporting behaviour\n"
+    "- entering the referee review area (RRA)\n"
+    "- excessively using the 'review' (TV screen) signal\n"
+    "Where two separate cautionable offences are committed (even in close "
+    "proximity), they should result in two cautions, for example if a player "
+    "enters the field of play without the required permission and commits a "
+    "reckless tackle or stops a promising attack with a foul/handball, etc."
+)
+
+#: Keys this corpus stored, beside the passage they cite: (name, type, key,
+#: passage, language, whether the key names much less than the passage).
+#: Read as the round trip reads them - in the form `fitting` finds among the
+#: type's, against the most the cited passage gives back.
+LISTED_ROWS: tuple[tuple[str, str, str, str, str, bool], ...] = (
+    (
+        "Q741: two of the offences a player is cautioned for",
+        QuestionType.CONDITION,
+        "for dissent by word or action, and for persistent offences",
+        _CAUTIONS,
+        "en",
+        True,
+    ),
+    (
+        "Q304: both of the two cases its passage names",
+        QuestionType.CONDITION,
+        (
+            "bei einer Auswechslung des ernannten Spielers und bei einem "
+            "Feldverweis des ernannten Spielers"
+        ),
+        (
+            "- Bei einer Auswechslung oder einem Feldverweis des ernannten "
+            "Spielers muss ein anderer Spieler ernannt werden."
+        ),
+        "de",
+        False,
+    ),
+    (
+        "Q663: both of the two conditions its passage names",
+        QuestionType.CONDITION,
+        "unter Aufsicht des Schiedsrichters, wenn sie die Anforderungen von Regel 2 erfüllen",
+        (
+            "Zusätzliche Bälle dürfen um das Spielfeld herum bereitgehalten "
+            "werden, wenn sie die Anforderungen von Regel 2 erfüllen und ihr "
+            "Einsatz unter Aufsicht des Schiedsrichters erfolgt.\n"
+        ),
+        "de",
+        False,
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("kind", "key", "passage", "language", "expected"),
+    [row[1:] for row in LISTED_ROWS],
+    ids=[row[0] for row in LISTED_ROWS],
+)
+def test_a_stored_key_is_held_to_the_list_its_type_asked_for(
+    kind: str, key: str, passage: str, language: str, expected: bool
+) -> None:
+    """A key naming part of its cited list is incomplete; a whole one is not."""
+    form, failed = fitting(key, spec(kind).forms, BOUNDS, language)
+
+    assert failed is None
+    assert incomplete(passage, key, language, form) is expected, form
