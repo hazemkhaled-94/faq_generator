@@ -262,6 +262,10 @@ Settling is not the same as stating outright. "Only account holders may raise
 a request" settles a question about a visitor's request - a visitor cannot
 raise one - as surely as a sentence naming the visitor would.
 
+A list or rule about the same subject that does not decide this case is
+`silent`; settling a question the passages leave open throws away a sound
+test.
+
 You have no knowledge outside the passages and may use none. A question the
 world answers and these passages do not is `silent`. The passages and the
 question may be in any language, and the examples below are in English only
@@ -291,8 +295,7 @@ Return `quote` and `verdict`.
     list or exception in one decides the case it asks about;
   - `rule` - a general rule in a passage covers the case, though no passage
     names it;
-  - `silent` - none of these. A correct answer whenever it is true, and the
-    only one that keeps the question.
+  - `silent` - none of these. A correct answer whenever it is true.
 """
 
 #: The user messages, as the catalogue records them and the two calls below

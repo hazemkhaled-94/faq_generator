@@ -46,6 +46,22 @@ def test_the_prompt_asks_whether_the_passages_refute_or_settle_it() -> None:
         assert re.search(asked, system, re.IGNORECASE), asked
 
 
+def test_the_prompt_says_a_rule_that_does_not_decide_the_case_is_silent() -> None:
+    """Both ways of being wrong, and no word on what either verdict costs.
+
+    A prompt that only warns against keeping an answered question teaches
+    the model to settle open ones; one that says which verdict keeps the
+    question tells it what the caller wants to hear.
+    """
+    client = Client()
+
+    Verifier(client).settles("When are refunds paid to visitors?", ["Text."])
+
+    system = " ".join(client.asked[-1][0].split())
+    assert "does not decide this case is `silent`" in system
+    assert "keeps the question" not in system
+
+
 @pytest.mark.parametrize("verdict", list(Settling))
 def test_each_verdict_comes_back_as_the_model_gave_it(verdict: str) -> None:
     """With what the passages said, unless they said nothing."""
