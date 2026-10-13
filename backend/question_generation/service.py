@@ -113,8 +113,9 @@ _NOTES: dict[str, str] = {
     ),
     QuestionRejection.ANSWERABLE_AFTER_ALL: (
         "the passages answered it, and this question is supposed to have no "
-        "answer. Move further out of reach: change the party, the period or "
-        "the category to one the material does not cover."
+        "answer. A passage answers it when it states the answer, contradicts "
+        "its premise, or settles it by a closed list or a general rule. Ask "
+        "for a detail of this subject that none of them settles."
     ),
     QuestionRejection.ANSWERABLE_ELSEWHERE: (
         "another part of the corpus answers it, and this question is "
@@ -625,10 +626,13 @@ class QuestionGenerationService(StageService):
                     plan = other
             # A reading is written from a passage condensed, a value from
             # the claim carrying the number. Which facts are offered first
-            # follows from that, and it is what the weld responds to.
+            # follows from that, and it is what the weld responds to. An
+            # unanswerable one is moved out of reach of one claim: a summary
+            # perturbed is a whole passage moved at once, and the move lands
+            # on one of the claims it holds.
             sample = deal.sample(
                 plan.shape,
-                condensed=plan.spec.form != AnswerForm.VALUE,
+                condensed=plan.answerable and plan.spec.form != AnswerForm.VALUE,
                 prefer=prefer,
             )
             if sample is None:

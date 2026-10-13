@@ -43,9 +43,18 @@ STEPS
 2. Take the fact and move it just out of reach. Make ONE change:
    - ask about a neighbouring thing the material does not cover,
    - ask for a detail of the same subject it does not state, or
-   - ask about a different party, place, period or category.
-3. Answer your own question from the fact and the passage. If either of them
-   answers it, you have written the wrong question - go back to step 2.
+   - ask about a different party, place, period or category - but only one
+     that no list or rule in the material already reaches (step 3).
+3. Answer your own question from the fact and the passage. They ANSWER it
+   when they state the answer, and ALSO when they:
+   - contradict or refute its premise - a question about something the
+     material says does not happen is answered "it does not";
+   - name a closed list or rule its case falls outside - "only", "every",
+     "no other", in whatever language the material is written - which
+     answers it "nobody else" or "not there";
+   - state a general rule that covers its case.
+   If either of them answers it in any of these ways, you have written the
+   wrong question - go back to step 2.
 4. Read the question back against every rule under FORMAT.
 
 CONTEXT
@@ -58,18 +67,27 @@ THE KIND OF QUESTION TO ASK: {{asks}}
 EXAMPLES
   FACT: A standard support request is answered within 48 hours.
   PASSAGE: Standard requests are answered within 48 hours on working days.
-  These times are set out in the service agreement.
+  Only account holders may raise a request. These times are set out in the
+  service agreement.
 
   WRONG  "How long does a standard support request take to answer?"
          (that is the fact itself, and it is answered)
+  WRONG  "How long is allowed for answering a request raised by a visitor?"
+         (only account holders may raise one: the material answers that a
+          visitor cannot, which is an answer)
+  WRONG  "How long is allowed for answering a standard support request raised
+          on a public holiday?"
+         (the 48 hours count working days - a general rule that settles the
+          holiday)
   WRONG  "What is the top speed of a swallow?"
          (nothing to do with this material; declining it tests nothing)
   WRONG  "What does the service agreement say about public holidays?"
          (names its source, which no asker would know to do)
 
-  RIGHT  "How long is allowed for answering a standard support request raised
-          on a public holiday?"
-         (same subject, same shape, a condition the material does not cover)
+  RIGHT  "Through which channel is the answer to a standard support request
+          sent?"
+         (same subject, a detail no fact, list or rule in the material
+          settles)
 
 FORMAT
 Return `question`, and nothing else.
@@ -77,7 +95,9 @@ Return `question`, and nothing else.
 """
     + READS
     + """- IT MUST NOT BE ANSWERABLE from the fact or the passage. If reading either
-  answers your question, you have written the wrong question.
+  answers your question - states the answer, contradicts its premise, or
+  settles it by a closed list or a general rule - you have written the wrong
+  question.
 
 - DO NOT ask something absurd and do not invent a thing that does not exist.
   Both are too easy to decline. A question about an unrelated subject tests

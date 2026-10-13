@@ -382,7 +382,17 @@ a passage. `QUESTIONS_PHRASING_MODEL` is the dial; unset it falls back to
 Some questions are written to have no answer, by perturbing a verified fact
 just out of reach. `QUESTIONS_UNANSWERABLE_SHARE` sets how many are
 **attempted**, spread by position rather than at random. One is always
-planned `easy` and from one passage.
+planned `easy` and from one passage, and dealt an **atomic** fact first: a
+summary perturbed moves a whole passage's claims at once, and the move lands
+on one of them.
+
+The writer is told what "answered" means, because "not stated" is not the
+same thing. The material answers a question when it states the answer, and
+also when it **contradicts its premise**, names a **closed list or rule** its
+case falls outside (`only`, `every`, `no other`, in any language), or states
+a **general rule** that covers its case. Swapping the party or the period is
+the move that most often lands on one of those, so neither the prompt nor the
+retry note after `answerable_after_all` prescribes it.
 
 Attempted, not held: they face three gates of their own, and the two that
 are on bite, which is why the default sits above the share a release should hold. Over-setting is safe — `QUESTIONS_RELEASE_UNANSWERABLE` is a

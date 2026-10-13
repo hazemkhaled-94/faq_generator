@@ -17,6 +17,7 @@ from factories import source
 
 from database.qa_generator import (
     Difficulty,
+    FactKind,
     QuestionRejection,
     QuestionType,
     Status,
@@ -793,6 +794,62 @@ def test_a_gate_the_writer_could_have_satisfied_is_worth_asking_again() -> None:
     )
 
     assert again(refused, easy_plan(), _NARROW) is not None
+
+
+def test_an_unanswerable_question_answered_after_all_is_not_told_to_swap_parties() -> (
+    None
+):
+    """A swapped party is the move a closed list or a general rule refutes.
+
+    The note says what counted as an answer instead of prescribing the move
+    that most often gets one.
+    """
+    from question_generation.service import again
+
+    refused = replace(
+        accepted_question(),
+        answerable=False,
+        status="rejected",
+        rejected_reason=QuestionRejection.ANSWERABLE_AFTER_ALL,
+    )
+
+    note = again(refused, easy_plan(), _NARROW)
+
+    assert note is not None
+    assert "party" not in note
+
+
+def test_an_unanswerable_slot_is_dealt_an_atomic_fact() -> None:
+    """A summary of a whole passage is the passage, and the passage answers it.
+
+    Perturbed, the condensed fact moves a whole paragraph's worth of claims
+    at once, and the move lands on one of them.
+    """
+    facts = [
+        source(1, document="a", passage_id=1, statement="Refunds take 14 days."),
+        source(
+            2,
+            document="a",
+            passage_id=1,
+            statement="The passage sets out how refunds are paid.",
+            kind=FactKind.SUMMARY,
+        ),
+    ]
+    writer = Handed()
+    settings = replace(
+        SETTINGS,
+        per_topic=1,
+        sample_size=1,
+        type_mix={QuestionType.CONDITION: 1},
+        unanswerable_share=1.0,
+    )
+    service, _ = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    ((dealt, slot),) = writer.handed
+    assert not slot.answerable
+    assert [one.kind for one in dealt.facts] == [FactKind.ATOMIC]
 
 
 def test_a_duplicate_is_not_worth_asking_again() -> None:

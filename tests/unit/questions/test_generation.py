@@ -7,6 +7,8 @@ the shape that comes back.
 
 from __future__ import annotations
 
+import re
+
 from factories import group, plan, source
 
 from question_generation.generation import QuestionWriter
@@ -328,3 +330,46 @@ def test_the_unanswerable_prompt_carries_the_same_reading_rules() -> None:
     for rule in ("PADDING", "NEVER SAY WHERE THE ANSWER IS", "ONE question"):
         assert rule in answerable, rule
         assert rule in model.system, f"{rule} is missing from the perturbation"
+
+
+# ── What counts as answered, for a question meant to have no answer ───────
+
+
+def _perturbation_prompt() -> str:
+    """The system prompt an unanswerable `condition` slot is written with.
+
+    The system half only: the fact's own words ("only") must not satisfy a
+    test about the instructions.
+    """
+    model = StubModel(question="Q?")
+    fact = source(
+        1,
+        statement="Refunds are only paid to account holders.",
+        passage_text="Refunds are only paid to account holders, by transfer.",
+    )
+    QuestionWriter(model).write(
+        group(fact), plan(question_type="condition", answerable=False)
+    )
+    return model.system
+
+
+def test_the_writer_is_told_a_refuted_premise_is_an_answer() -> None:
+    """Asking when refunds reach a visitor is answered: they do not.
+
+    A question whose premise the material contradicts has an answer, and a
+    chatbot saying so is right, not wrong.
+    """
+    assert re.search(r"premise|contradict|refut", _perturbation_prompt(), re.IGNORECASE)
+
+
+def test_the_writer_is_told_closed_lists_and_general_rules_settle_new_cases() -> None:
+    """A case outside an "only" list, or one a general rule covers, is answered.
+
+    Moving the party or the period is the move that lands on exactly those
+    cases, so the prompt has to say when it does not take a question out of
+    reach.
+    """
+    prompt = _perturbation_prompt()
+
+    assert re.search(r"general rule", prompt, re.IGNORECASE)
+    assert re.search(r"closed list|\bonly\b.{0,40}\blist", prompt, re.IGNORECASE)
