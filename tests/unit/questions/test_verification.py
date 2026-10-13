@@ -2670,6 +2670,118 @@ def test_a_count_the_facts_cited_do_not_equal_is_left_alone() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("question", "answer", "statements", "language"),
+    [
+        (
+            "How many copies of each backup does the device keep?",
+            "two copies",
+            (
+                "The device keeps two copies of each backup.",
+                "A backup is written every night.",
+            ),
+            "en",
+        ),
+        (
+            "Wie viele Kopien jeder Sicherung behält das Gerät?",
+            "zwei Kopien",
+            (
+                "Das Gerät behält zwei Kopien jeder Sicherung.",
+                "Eine Sicherung wird jede Nacht geschrieben.",
+            ),
+            "de",
+        ),
+    ],
+)
+def test_a_count_a_cited_fact_states_is_not_the_prompt_counted(
+    question: str, answer: str, statements: tuple[str, ...], language: str
+) -> None:
+    """The fact says two, so two is what the material holds.
+
+    German `zwei` is not `like_num` to `de_core_news_md`, so the statement is
+    read for the count in words as well as in digits.
+    """
+    assert (
+        checked(
+            question_text=question,
+            target_answer=answer,
+            language=language,
+            statements=statements,
+        )
+        is None
+    )
+
+
+#: Two facts about a device, neither of which says how many of anything.
+_DEVICE_FACTS = (
+    "The device locks its network settings after a failed update.",
+    "The device locks its display settings after a failed update.",
+)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        ("Which two settings does the device lock after a failed update?", "two", "en"),
+        (
+            "Welche Folgen hat ein fehlgeschlagenes Update für das Gerät?",
+            "zwei Fälle",
+            "de",
+        ),
+    ],
+)
+def test_a_bare_count_of_the_facts_cited_is_malformed_whatever_it_asks(
+    question: str, answer: str, language: str
+) -> None:
+    """A key that is the count and nothing else counts the offer, however asked."""
+    assert (
+        code(
+            checked(
+                question_text=question,
+                target_answer=answer,
+                language=language,
+                statements=_DEVICE_FACTS,
+            )
+        )
+        == QuestionRejection.MALFORMED
+    )
+
+
+def test_a_count_asked_in_the_dative_is_malformed() -> None:
+    """`In wie vielen Fällen` asks how many as surely as `Wie viele` does."""
+    assert (
+        code(
+            checked(
+                question_text="In wie vielen Fällen sperrt die Bank ein Konto?",
+                target_answer="zwei verschiedene Fälle",
+                language="de",
+                statements=(
+                    "Die Bank sperrt ein Konto bei einem Betrugsverdacht.",
+                    "Die Bank sperrt ein Konto bei einer Pfändung.",
+                ),
+            )
+        )
+        == QuestionRejection.MALFORMED
+    )
+
+
+def test_a_language_with_no_count_words_keeps_the_opening_rule() -> None:
+    """A bare count is read for German and English only; elsewhere as before.
+
+    Short enough that the detector, which knows only the configured
+    languages, abstains rather than calling it English.
+    """
+    assert (
+        checked(
+            question_text="Quels deux réglages ?",
+            target_answer="2 réglages",
+            language="fr",
+            statements=_DEVICE_FACTS,
+        )
+        is None
+    )
+
+
 def test_a_temporal_answer_needs_two_periods() -> None:
     """`How did it change from 2024 to 2025?` is answered with both years."""
     assert periods("from 72 hours in 2024 to 48 hours in 2025", "en")

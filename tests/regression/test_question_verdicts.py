@@ -656,3 +656,164 @@ def test_a_refit_moving_the_topics_is_not_a_changed_source() -> None:
     )
 
     assert _recheck(None, Settings.load(), stored) is None  # type: ignore[arg-type]
+
+
+#: Rows this corpus stored, read in their own language: (name, question,
+#: answer, language, statements, type, form, expected code or None).
+#: `statements` holds what a row cites where a gate reads it, and is empty
+#: where none does.
+STORED_ROWS: tuple[
+    tuple[str, str, str, str, tuple[str, ...], str, str, str | None], ...
+] = (
+    (
+        "Q70: a count its cited statement states",
+        (
+            "Wie viele Verwarnungen gibt es für zwei separate verwarnungswürdige "
+            "Vergehen, auch wenn sie unmittelbar aufeinanderfolgen?"
+        ),
+        "zwei Verwarnungen",
+        "de",
+        (
+            "Ein Spieler wird bei Verzögerung der Spielfortsetzung verwarnt.",
+            (
+                "Der Auszug listet die Vergehen auf, für die Spieler, "
+                "Einwechselspieler und ausgewechselte Spieler verwarnt werden. "
+                "Außerdem wird klargestellt, dass bei zwei separaten "
+                "verwarnungswürdigen Vergehen jeweils eine eigene Verwarnung "
+                "ausgesprochen wird, auch wenn sie direkt nacheinander erfolgen."
+            ),
+        ),
+        QuestionType.FACTOID,
+        AnswerForm.VALUE,
+        None,
+    ),
+    (
+        "Q71: a count its cited statement states",
+        (
+            "Wie viele Verwarnungen gibt es für zwei unmittelbar "
+            "aufeinanderfolgende separate verwarnungswürdige Vergehen wie die "
+            "Verzögerung der Spielfortsetzung und ein weiteres solches Vergehen?"
+        ),
+        "zwei Verwarnungen",
+        "de",
+        (
+            "Ein Spieler wird bei Verzögerung der Spielfortsetzung verwarnt.",
+            (
+                "Der Auszug listet die Vergehen auf, für die Spieler, "
+                "Einwechselspieler und ausgewechselte Spieler verwarnt werden. "
+                "Außerdem wird klargestellt, dass bei zwei separaten "
+                "verwarnungswürdigen Vergehen jeweils eine eigene Verwarnung "
+                "ausgesprochen wird, auch wenn sie direkt nacheinander erfolgen."
+            ),
+        ),
+        QuestionType.FACTOID,
+        AnswerForm.VALUE,
+        None,
+    ),
+    (
+        "Q1384: a count its cited statement states",
+        (
+            "How many concussion substitution protocols were used during the "
+            "trials before a single protocol was approved for competitions?"
+        ),
+        "two different protocols",
+        "en",
+        (
+            (
+                "Additional permanent concussion substitutions must accord with "
+                "the protocol listed under 'Notes and modifications'."
+            ),
+            "Two different protocols were used during the trials.",
+        ),
+        QuestionType.FACTOID,
+        AnswerForm.VALUE,
+        None,
+    ),
+    (
+        "Q598: a which question answered with the count of its facts",
+        (
+            "Welche zwei Ausrüstungs- oder Regelvorgaben werden für den "
+            "Schiedsrichter und den Umgang mit beleidigendem Verhalten genannt?"
+        ),
+        "zwei",
+        "de",
+        (
+            (
+                "Regel 12 verlangt Disziplinarmassnahmen gegen einen Spieler bei "
+                "anstössigen, beleidigenden oder schmähenden Äusserungen oder "
+                "Handlungen."
+            ),
+            (
+                "Der Schiedsrichter muss über einen Notizblock oder ein sonstiges "
+                "Mittel für Aufzeichnungen über das Spiel verfügen."
+            ),
+        ),
+        QuestionType.AGGREGATION,
+        AnswerForm.VALUE,
+        QuestionRejection.MALFORMED,
+    ),
+    (
+        "Q258: a which question answered with the count of its facts",
+        (
+            "Welche Folgen führen bei einem Einwurf dazu, dass das gegnerische "
+            "Team den Einwurf erhält?"
+        ),
+        "zwei Fälle",
+        "de",
+        (
+            (
+                "Bei Verzögerung eines Einwurfs für das eigene Team wird auf "
+                "Einwurf für das gegnerische Team entschieden."
+            ),
+            (
+                "Das gegnerische Team führt den Einwurf aus, wenn der Einwurf "
+                "nicht korrekt ausgeführt wird."
+            ),
+        ),
+        QuestionType.AGGREGATION,
+        AnswerForm.VALUE,
+        QuestionRejection.MALFORMED,
+    ),
+    (
+        "Q790: a count no cited statement states",
+        (
+            "How many player actions are expressly forbidden in these rules "
+            "about safety and injuries?"
+        ),
+        "2",
+        "en",
+        (
+            "A player must not use dangerous equipment.",
+            "An injured player may not be treated on the field of play.",
+        ),
+        QuestionType.AGGREGATION,
+        AnswerForm.VALUE,
+        QuestionRejection.MALFORMED,
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "statements", "kind", "form", "expected"),
+    [row[1:] for row in STORED_ROWS],
+    ids=[row[0] for row in STORED_ROWS],
+)
+def test_a_stored_question_is_rechecked_in_its_own_language(
+    question: str,
+    answer: str,
+    language: str,
+    statements: tuple[str, ...],
+    kind: str,
+    form: str,
+    expected: str | None,
+) -> None:
+    """What re-verify stores for a row, read in its language over what it cites."""
+    stored = replace(
+        _stored(question, answer, kind, form),
+        language=language,
+        statements=statements,
+    )
+
+    failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
+
+    assert (failed[0] if failed else None) == expected, failed

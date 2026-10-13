@@ -222,7 +222,7 @@ its own document, runs in it too.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|
-| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or asks how many and answers with the number of facts it cites | nothing |
+| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or answers with the number of facts it cites where no cited fact states that number, when it asks how many or the answer is that count alone | nothing |
 | `compound` | asks two things | nothing |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |

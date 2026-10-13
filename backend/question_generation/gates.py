@@ -221,6 +221,19 @@ def fitting(
 #: The opening of a question asking for a count.
 _HOW_MANY = r"^(how many|wie viele)\b"
 
+#: How a question asks for a count anywhere in it, by ISO 639-1 code. The
+#: German dative asks too: `In wie vielen Fällen` is `Wie viele` after a
+#: preposition. A language with no entry is read at its opening by
+#: `_HOW_MANY`, as before.
+_ASKS_HOW_MANY: dict[str, str] = {
+    "en": r"\bhow many\b",
+    "de": r"\bwie vielen?\b",
+}
+
+#: The most words a count may carry and still be nothing but a count:
+#: `zwei`, `2 Fälle`.
+_BARE_COUNT = 2
+
 #: Counts written out, in the two languages NLP_MODELS configures.
 _COUNTS = {
     word: value
@@ -230,6 +243,24 @@ _COUNTS = {
     )
     for value, word in enumerate(words.split(), start=2)
 }
+
+
+def _count(word: str) -> int | None:
+    """The count a lower-case word is, in digits or written out, or None."""
+    return int(word) if word.isdecimal() else _COUNTS.get(word)
+
+
+def _stated(count: int, statements: Sequence[str], language: str | None) -> bool:
+    """Whether a cited statement states this count, in digits or in words.
+
+    Read off every form a statement's words take rather than off
+    `claim().units`, because `de_core_news_md` gives `zwei` no `like_num`.
+    """
+    return any(
+        _count(form) == count
+        for statement in statements
+        for form in vocabulary(statement, language)
+    )
 
 
 def structural(
@@ -320,24 +351,38 @@ def structural(
         ), form
 
     # A count of the facts the writer was handed rather than of anything the
-    # corpus holds.
+    # corpus holds: a question asking how many, or an answer that is the
+    # count and nothing else whatever the question asked - `Welche zwei
+    # Vorgaben werden genannt?` answered `zwei`. A count a cited statement
+    # states is the material's, and is kept.
     #
     # ponytail: digits, or a word from two to twelve in German or English; a
-    # third language or a larger written count passes. Upgrade: read number
-    # words off the parse.
+    # third language or a larger written count passes, and a language with
+    # no `_ASKS_HOW_MANY` entry is read at its opening alone. Upgrade: read
+    # number words off the parse.
     leading = re.match(r"\s*(\w+)", target_answer or "")
     word = leading.group(1).lower() if leading else ""
-    said = int(word) if word.isdecimal() else _COUNTS.get(word)
+    said = _count(word)
+    asks = _ASKS_HOW_MANY.get((language or "").lower())
+    if asks is None:
+        counting = bool(re.search(_HOW_MANY, normalised(asked)))
+    else:
+        counting = bool(re.search(asks, normalised(asked))) or (
+            len((target_answer or "").split()) <= _BARE_COUNT
+        )
     if (
-        re.search(_HOW_MANY, normalised(asked))
+        counting
+        and said is not None
         and len(statements) > 1
         and said == len(statements)
+        and not _stated(said, statements, language)
     ):
         return (
             QuestionRejection.MALFORMED,
             (
-                f"it asks how many and answers {word}, the number "
-                f"of facts it cites, so it counts the prompt and not the corpus"
+                f"it answers {word}, the number of facts it cites, and none of "
+                f"them states that count, so it counts the prompt and not the "
+                f"corpus"
             ),
         ), form
 
