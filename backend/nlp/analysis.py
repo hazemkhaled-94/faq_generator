@@ -254,6 +254,12 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: or written as a time - `08:00` - is still a number.
 _DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 
+#: The parts of speech a number word is tagged with when it is one: a count,
+#: or an ordinal, which taggers read as an adjective. A word spelled like a
+#: number and used otherwise - the verb `achten`, `Elf` naming a team, `one`
+#: in "No one" - is tagged something else and names no value.
+_NUMERAL = frozenset({"NUM", "ADJ"})
+
 
 def numbers(text: str, language: str | None) -> tuple[str, ...]:
     """The numbers a text states, each as often as it states it, sorted.
@@ -265,16 +271,19 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     A multiset rather than a set, so "2 EUR and 2 EUR" is not "2 EUR". A digit
     keeps its surface form, as `_units` reads one, so `12,5` and `12.5` stay
     two values; a number word reads as the digits it names where the
-    language has a row in `_NUMBER_WORDS`, and as written where it does not.
+    language has a row in `_NUMBER_WORDS`, and as written where it does not,
+    and only where it is tagged as a numeral.
     """
     spelled = _NUMBER_WORDS.get((language or "").strip().lower(), {})
     found: list[str] = []
     for token in _read(text, language):
         written = token.text.casefold()
-        if written in spelled:
-            found.append(spelled[written])
-        elif digits := _DIGITS.findall(token.text):
+        if digits := _DIGITS.findall(token.text):
             found += digits
+        elif token.pos_ not in _NUMERAL:
+            continue
+        elif written in spelled:
+            found.append(spelled[written])
         elif token.like_num:
             found.append(written)
     return tuple(sorted(found))

@@ -47,6 +47,23 @@ def test_two_different_values_read_differently(first, second, language) -> None:
     assert numbers(first, language) != numbers(second, language)
 
 
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("Die Kunden achten auf die Gebühren.", "de"),
+        ("Die Elf des Betriebs trifft sich am Montag.", "de"),
+        ("No one may open the vault at night.", "en"),
+    ],
+)
+def test_a_word_spelled_like_a_number_and_used_otherwise_is_none(
+    text, language
+) -> None:
+    """`achten` is a verb, `Elf` a team and `No one` nobody: read as words."""
+    from nlp.analysis import numbers
+
+    assert numbers(text, language) == ()
+
+
 def test_a_figure_glued_to_its_unit_is_still_read() -> None:
     """`45m` and `08:00` carry numbers that no `like_num` token holds."""
     from nlp.analysis import numbers
