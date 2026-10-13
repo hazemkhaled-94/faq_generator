@@ -35,7 +35,7 @@ PROMPT_VERSION = "11"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
-#: of, and in this order.
+#: of, and in this order, bar the `SUPERSEDED` marker below.
 #:
 #: Two are conditional and their position is still fixed: `off_topic` runs
 #: only for an unanswerable question, `round_trip` only for what reaches
@@ -57,6 +57,12 @@ GATES = (
     "phrasing",
     "round_trip",
 )
+
+#: Appended to `gates_ran` after the gates a draft passed, when another
+#: draft of the same slot was kept in its place. Not a gate: it names why a
+#: question no gate refused was set aside, so lineage does not blame the
+#: last gate that ran.
+SUPERSEDED = "superseded"
 
 #: What one gate's verdict is called where it is shown beside the others.
 PASSED, REFUSED = "passed", "refused"

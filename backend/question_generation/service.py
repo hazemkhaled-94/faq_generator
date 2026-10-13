@@ -12,7 +12,6 @@ from opentelemetry.trace import Span
 from confidence import confidence
 from database.qa_generator import (
     AnswerForm,
-    Difficulty,
     QuestionRejection,
     QuestionStatus,
     ReviewVerdict,
@@ -49,7 +48,7 @@ from question_generation.planning import Plan, plans
 from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
 from question_generation.selection import Deal, spread
-from question_generation.types import PROMPT_VERSION, SPECS, spec
+from question_generation.types import PROMPT_VERSION, SPECS, SUPERSEDED, spec
 from settings.runs import run_id
 from stages import StageService
 from telemetry import tracer, working
@@ -60,10 +59,6 @@ span = tracer(__name__)
 
 #: How many re-checked questions to write at once.
 _RECHECK_BATCH = 500
-
-#: The bands in order, for asking whether a question came out below the one
-#: its plan wanted.
-_RANK: dict[str, int] = {band: rank for rank, band in enumerate(Difficulty)}
 
 #: What to tell the writer about a draft a gate refused, by the gate that
 #: refused it. Only the gates a second attempt can do anything about are
@@ -125,16 +120,6 @@ _NOTES: dict[str, str] = {
         "subject that no document would carry."
     ),
 }
-
-#: Told to the writer when a question was accepted but came out narrower
-#: than the band its slot asked for. Not a rejection: the draft stands if
-#: the second attempt is worse.
-_WIDEN = (
-    "it was accepted, but it used facts from only one passage where this "
-    "slot needs a question that genuinely requires both. Ask ONE question "
-    "that cannot be answered without facts from each passage, and cite them "
-    "all. Still one question about one thing - do not weld two together."
-)
 
 
 def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
@@ -476,33 +461,14 @@ def _report(pool, release, drawn, written: int) -> None:
 def again(checked: CheckedQuestion, plan: Plan, sample: FactGroup) -> str | None:
     """What to tell the writer about this draft, or None to keep it as it is.
 
-    Two reasons to ask a second time, and they are not the same kind of
-    reason.
+    Only a gate refusing it, and only a gate the writer could have satisfied.
 
-    A gate refused it, and it is a gate the writer could have satisfied.
-
-    Or it was accepted and came out below the band its slot asked for. That
-    is the other half of the difficulty problem: the writer is offered two
-    passages, takes the escape hatch its own rules give it, cites one fact,
-    and the question bands easy. This one only ever asks - the accepted
-    draft stands if the second attempt turns out worse. And only where the
-    sample dealt, cited whole, reaches the band: a deal that fell back to one
-    passage has nothing to widen to.
+    An accepted draft that came out below its band is left alone. Asking it
+    to cite every passage it was offered is asking for the weld the span
+    rules forbid: the writer narrowed because the facts did not meet, and a
+    second draft citing them all was accepted in its place.
     """
-    if checked.rejected_reason in _NOTES:
-        return _NOTES[checked.rejected_reason]
-    whole = sample.criteria(
-        checked.criteria.answer_chars, long_answer=checked.criteria.long_answer
-    )
-    if (
-        checked.accepted
-        and plan.answerable
-        and plan.spans
-        and _RANK[checked.criteria.difficulty] < _RANK[plan.band]
-        and _RANK[whole.difficulty] >= _RANK[plan.band]
-    ):
-        return _WIDEN
-    return None
+    return _NOTES.get(checked.rejected_reason or "")
 
 
 class QuestionGenerationService(StageService):
@@ -903,10 +869,9 @@ class QuestionGenerationService(StageService):
         other refusal, and quietly dropping it would make the writer look
         better than it is while hiding what the retry cost.
 
-        A retry can only improve the outcome. If the second draft is refused
-        where the first was not, the first is what is kept - which is what
-        makes it safe to ask again about a question that was merely narrower
-        than its slot wanted.
+        A retry can only improve the outcome. Only a refused draft is asked
+        again, so the first draft a gate let through is the one kept: a
+        later draft the gates passed as well is not traded for it.
         """
         # Checked against what this run has accepted as well as what the
         # database holds: nothing is stored until the topic is finished, so
@@ -926,15 +891,20 @@ class QuestionGenerationService(StageService):
                     attempt=len(drafts) + 1,
                 )
             )
-        best = max(range(len(drafts)), key=lambda one: (drafts[one].accepted, one))
+        best = next(
+            (at for at, one in enumerate(drafts) if one.accepted), len(drafts) - 1
+        )
         kept = drafts.pop(best)
-        # One sample keeps one accepted question: an accepted draft the
-        # retry replaced is refused, as the duplicate it is of the kept one.
+        # One sample keeps one accepted question: any other accepted draft
+        # is refused, as the duplicate it is of the kept one. No gate refused
+        # it, so the marker goes after the gates it passed - lineage reads
+        # the last entry as what set a rejected question aside.
         drafts = [
             replace(
                 one,
                 status=QuestionStatus.REJECTED,
                 rejected_reason=QuestionRejection.DUPLICATE,
+                gates_ran=(*one.gates_ran, SUPERSEDED),
             )
             if one.accepted
             else one

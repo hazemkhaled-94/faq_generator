@@ -65,7 +65,8 @@ weighed against the **nearest** of the facts already offered, not their mean.
 
 Where nothing in the second passage meets the first, the sample is still
 offered and the writer is told to narrow. `difficulty` is read off what it
-cited, so a question that narrowed bands as what it is.
+cited, so a question that narrowed bands as what it is, and stands: nothing
+asks it to widen.
 
 A reading type is offered the condensed facts first; a `value` type is not.
 `QUESTIONS_MEETS_FLOOR` would narrow the sample where the second passage
@@ -99,6 +100,15 @@ scored against, and `answer_explanation` beside it.
 
 Which facts a question cites is the **writer's** answer, not the sample's. A
 sample wider than one passage also carries an instruction to use both halves.
+
+A draft a gate refused for how it was written — two questions welded
+together, its source named, an answer of the wrong shape — is written again
+with a note saying what went wrong, up to `QUESTIONS_RETRIES` times. An
+accepted draft is never asked again, however narrow it came out: asking it
+to cite every passage it was offered asks for the weld the span rules
+forbid. Every draft is stored; should two drafts of one slot both be
+accepted, the first is kept and the other is stored as `duplicate` with
+`superseded` after the gates it passed in `gates_ran`.
 
 ### Step 4 — Gate it
 
@@ -236,7 +246,7 @@ its own document, runs in it too.
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure or a name the passages do not — every proper noun it carries counts as a name — or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
-| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft a retry replaced. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
+| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft of a slot whose earlier accepted draft was kept (`superseded` closes its `gates_ran`). How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
 | `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages answer it | the probe among answerable questions, the second of the two, or the round trip |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
@@ -626,7 +636,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_FOLLOWUP_SHARE` | What share of accepted answerable roots get a thread |
 | `QUESTIONS_MAX_FOLLOWUPS` | How far a thread may run past its root |
 | `QUESTIONS_FOLLOWUP_TYPES` | The kinds the turns of a thread take, cycled |
-| `QUESTIONS_RETRIES` | How many further attempts a root question gets when a gate a rewrite can answer refuses it, or it comes out below its planned band. Every attempt is stored |
+| `QUESTIONS_RETRIES` | How many further attempts a root question gets when a gate a rewrite can answer refuses it. An accepted draft is never asked again. Every attempt is stored |
 | `QUESTIONS_LONG_ANSWER_CHARS` | Where an answer starts counting towards the band. Not a gate |
 | `QUESTIONS_DUPLICATE_COSINE` | How alike two questions sharing a cited passage but no fact must be before the later one is dropped. Halfway from it to identical is the bar for two citing nothing in common, or asking with different question words |
 | `QUESTIONS_DUPLICATE_SHARED_COSINE` | How alike two questions resting on the same fact must be before the later one is dropped |

@@ -452,8 +452,8 @@ SETTINGS: tuple[Setting, ...] = (
         kind="integer",
         low=0,
         help="How many more times a question may be written when a gate "
-        "refused the draft, or it came out below the band its slot asked "
-        "for. 0 keeps the first draft whatever it is.",
+        "refused the draft. An accepted draft is never asked again. 0 keeps "
+        "the first draft whatever it is.",
     ),
     Setting(
         name="QUESTIONS_ANSWER_CHARS",

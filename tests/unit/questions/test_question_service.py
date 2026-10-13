@@ -660,36 +660,39 @@ def test_a_question_that_stood_is_left_alone() -> None:
     assert again(accepted_question(), easy_plan(), _NARROW) is None
 
 
-def test_a_question_narrower_than_its_slot_is_asked_to_widen() -> None:
-    """The other half of the difficulty problem.
+def test_an_honest_narrow_draft_is_not_asked_to_weld_facts_that_do_not_meet() -> None:
+    """An accepted draft is never asked again, however narrow it came out.
 
-    The writer is offered two passages, takes the escape hatch its own rules
-    give it, cites one fact, and the question bands easy.
+    The slot asked for two passages and the dealt pair, cited whole, reaches
+    its band - but the writer cited one fact, because the other has nothing
+    to do with it. Asking it to cite both is asking for the weld the span
+    rules forbid, and the accepted retry used to replace the honest draft.
     """
     from question_generation.service import again
+    from question_generation.types import SPECS
 
-    assert again(accepted_question(), wide_plan(), _WIDE) is not None
+    refunds = source(
+        1, document="a", passage_id=1, statement="Refunds are paid within 14 days."
+    )
+    cable = source(
+        2,
+        document="a",
+        passage_id=2,
+        statement="The device ships with a charging cable.",
+    )
+    narrow = replace(
+        accepted_question(band=Difficulty.EASY),
+        question_type=QuestionType.APPLICATION,
+        answer_form="explanation",
+        planned_difficulty=Difficulty.MEDIUM,
+        fact_ids=(1,),
+        # Past QUESTIONS_LONG_ANSWER_CHARS, so the pair cited whole bands
+        # medium and the slot's band was within reach.
+        criteria=replace(accepted_question().criteria, answer_chars=72),
+    )
+    slot = replace(wide_plan(), spec=SPECS[QuestionType.APPLICATION])
 
-
-def test_a_question_that_met_its_band_is_not_asked_to_widen() -> None:
-    """The band is a request, and this one was granted."""
-    from question_generation.service import again
-
-    assert again(accepted_question(band=Difficulty.MEDIUM), wide_plan(), _WIDE) is None
-
-
-def test_a_single_passage_slot_is_never_asked_to_widen() -> None:
-    """It was never offered a second passage to use."""
-    from question_generation.service import again
-
-    assert again(accepted_question(), easy_plan(), _NARROW) is None
-
-
-def test_a_sample_of_one_passage_is_never_asked_to_widen() -> None:
-    """The deal fell back to one passage, so there is nothing to widen to."""
-    from question_generation.service import again
-
-    assert again(accepted_question(), wide_plan(), _NARROW) is None
+    assert again(narrow, slot, FactGroup((refunds, cable))) is None
 
 
 #: A sample dealt from one passage, and one dealt across two documents.
@@ -920,15 +923,20 @@ def test_a_retry_is_numbered_by_the_draft_that_wrote_it() -> None:
     assert drafts[-1][0] == 2
 
 
-def test_a_retry_accepted_after_an_accepted_draft_supersedes_it(monkeypatch) -> None:
-    """One sample, one accepted question: the earlier draft is refused."""
+def test_an_accepted_draft_is_kept_over_a_retry_accepted_after_it(monkeypatch) -> None:
+    """One sample, one accepted question: the LATER draft is the one refused.
+
+    No note follows an accepted draft today, so this pins the policy for any
+    that does: the draft that stood is not traded for a second one the same
+    gates happened to pass too.
+    """
     from question_generation import service as module
 
     monkeypatch.setattr(
         module,
         "again",
         lambda checked, plan, sample: (
-            "widen" if checked.question_text.startswith("draft 1") else None
+            "again" if checked.question_text.startswith("draft 1") else None
         ),
     )
     service, queue = build(
@@ -945,8 +953,57 @@ def test_a_retry_accepted_after_an_accepted_draft_supersedes_it(monkeypatch) -> 
         for one in queue.written
         if one.question_text.startswith("draft ")
     }
-    assert drafts["draft 2"] == ("accepted", None)
-    assert drafts["draft 1"] == ("rejected", QuestionRejection.DUPLICATE)
+    assert drafts["draft 1"] == ("accepted", None)
+    assert drafts["draft 2"] == ("rejected", QuestionRejection.DUPLICATE)
+    assert queue.written[-1].question_text.startswith("draft 1"), "kept is last"
+
+
+def test_a_draft_a_retry_replaced_does_not_blame_a_gate_it_passed(monkeypatch) -> None:
+    """What GET /lineage reads as the refusing gate is the last one that ran.
+
+    A superseded draft cleared every gate, so the last entry names why it was
+    set aside rather than the round trip it passed.
+    """
+    from question_generation import service as module
+
+    ran = ("structural", "kind_and_thread", "near_duplicate", "phrasing", "round_trip")
+
+    class PassesEverything(StubChecker):
+        """Accepts every draft, having run every gate."""
+
+        def check(self, candidate, seen=()) -> CheckedQuestion:
+            """The stub's verdict, with the full gate sequence on it."""
+            return replace(super().check(candidate, seen), gates_ran=ran)
+
+    monkeypatch.setattr(
+        module,
+        "again",
+        lambda checked, plan, sample: "again" if checked.attempt == 1 else None,
+    )
+    service, _ = build(
+        topic(),
+        writer=RetryingWriter(),
+        checker=PassesEverything(),
+        settings=replace(SETTINGS, retries=1),
+    )
+    from question_generation.planning import Plan
+    from question_generation.selection import Shape
+    from question_generation.types import SPECS
+
+    superseded, kept = service._attempt(
+        _WIDE,
+        Plan(
+            spec=SPECS[QuestionType.FACTOID],
+            band=Difficulty.MEDIUM,
+            shape=Shape.CROSS,
+            answerable=True,
+        ),
+        [],
+    )
+
+    assert kept.accepted and kept.attempt == 1
+    assert superseded.rejected_reason == QuestionRejection.DUPLICATE
+    assert superseded.gates_ran == (*ran, "superseded")
 
 
 def test_a_release_spreads_over_its_own_kinds() -> None:
