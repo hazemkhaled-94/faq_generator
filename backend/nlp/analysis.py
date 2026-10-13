@@ -326,7 +326,7 @@ _ARGUMENTS = frozenset(
 #: Pronouns that stand in for a clause or an object beside them rather than
 #: for a noun, by ISO 639-1 code: German `es` in "sofern es die
 #: Bestimmungen gestatten", which the parser reads with the object as its
-#: sibling.
+#: sibling and a verb that does not agree with it.
 #:
 #: ponytail: German only. A language missing here flags its correlates as it
 #: always has. Upgrade: a list per language, as a setting.
@@ -385,9 +385,16 @@ def _correlate(token) -> bool:
     """Whether a pronoun stands beside the object or clause it anticipates.
 
     A clause beside it only where its head is not an auxiliary, whose own
-    `oc` is the rest of its verb chain rather than a clause.
+    `oc` is the rest of its verb chain rather than a clause. And only where
+    that verb disagrees with it in number - "sofern es die Bestimmungen
+    gestatten" - which says the verb's subject is something else: a verb
+    agreeing with it, as in "bevor es den Ruhemodus verlässt", has it as its
+    subject, and then it stands for a noun the passage named.
     """
     if token.text.casefold() not in _CORRELATES.get(token.doc.lang_, frozenset()):
+        return False
+    number = set(token.head.morph.get("Number"))
+    if not number or number & set(token.morph.get("Number")):
         return False
     return any(
         sibling.dep_ in _BESIDE and (sibling.dep_ == "oa" or token.head.pos_ != "AUX")

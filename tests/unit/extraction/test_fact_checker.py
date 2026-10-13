@@ -149,8 +149,8 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
         ("Der Kredit wird gekündigt, wenn er nicht bedient wird.", "de"),
         (
             (
-                "Ein Kunde erhält eine Ersatzkarte, sofern es die "
-                "Geschäftsbedingungen gestatten."
+                "Ein Kunde erhält eine Ersatzkarte, sofern es die Bedingungen "
+                "der Bank gestatten."
             ),
             "de",
         ),
@@ -179,6 +179,11 @@ def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
         ("The customer must return it within 14 days.", "en", "it"),
         ("The account holder must inform him within three days.", "en", "him"),
         ("Der Kunde muss ihn informieren.", "de", "ihn"),
+        (
+            "Der Nutzer muss den Akku laden, bevor es den Ruhemodus verlässt.",
+            "de",
+            "es",
+        ),
     ],
 )
 def test_a_pronoun_its_statement_does_not_resolve_is_still_refused(
