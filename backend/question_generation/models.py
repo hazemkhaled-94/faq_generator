@@ -512,6 +512,23 @@ class Neighbour:
 
 
 @dataclass(frozen=True)
+class Unanswered:
+    """An accepted question written to have no answer, as a re-judge reads it.
+
+    The passages it cites, by id and by text: the text is what the verifier
+    is shown, and the ids are what the corpus probe skips.
+    """
+
+    id: int
+    question_text: str
+    language: str
+    reviewed_verdict: str | None
+    embedding: list[float] | None
+    passage_ids: tuple[int, ...]
+    passages: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class JudgedQuestion:
     """A stored question and everything a re-check needs, read in one query.
 

@@ -300,6 +300,16 @@ def test_the_balance_is_drawn_over_every_topic_whatever_narrows_it() -> None:
     assert "--only" not in drawing, drawing
 
 
+def test_the_rejudge_is_the_question_command_narrowed_like_the_reverify() -> None:
+    """The one re-check that calls a model, wired as the free one is."""
+    (judging,) = [
+        line for line in printed("questions-rejudge", "TOPIC=7") if "--rejudge" in line
+    ]
+
+    assert "question_generation.run" in judging, judging
+    assert "--only topic=7" in judging, judging
+
+
 #: The Phoenix tables the run dashboard queries.
 DASHBOARD_TABLES = ("projects", "traces", "spans", "span_costs", "span_annotations")
 

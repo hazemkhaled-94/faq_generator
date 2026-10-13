@@ -201,7 +201,7 @@ help:
         confidence-recalibrate \
         assess assess-status assess-start assess-enrol assess-stop \
         assess-retry assess-reclaim assess-rerun \
-        questions-balance questions-export \
+        questions-balance questions-export questions-rejudge \
         questions-runs questions-diff \
         documents delete delete-derived wipe-all dagster-wipe \
         archive archive-purge restore-documents \
@@ -936,6 +936,21 @@ questions-reverify:
 # second time.
 confidence-recalibrate:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m stages.recalibrate_run
+
+# Ask the verifier again, of every accepted question written to have no
+# answer, whether its passages settle it - state the answer, refute its
+# premise, or cover its case with a list or a general rule - over what it
+# cites and then over the corpus probe the checker reads. Rejects what they
+# settle as answerable_after_all or answerable_elsewhere, released questions
+# included, and leaves one a person accepted alone. CALLS THE VERIFIER MODEL,
+# two calls a question at most, which is why it is not part of
+# questions-reverify. Run make questions-balance after it to draw the release
+# again.
+#
+#   make questions-rejudge TOPIC=473    one topic
+#   make questions-rejudge              every accepted unanswerable question
+questions-rejudge:
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --rejudge $(ONLY)
 
 # Draw the balanced release out of every accepted question, and report what
 # it came out as. Accepting a question says it is sound; this says what the

@@ -17,6 +17,7 @@ from database.qa_generator import (
     QuestionType,
     ReviewVerdict,
 )
+from nlp.analysis import content
 from question_generation.balance import choose, composition, largest, quota_of
 from question_generation.catalog import QuestionCatalog
 from question_generation.checker import (
@@ -44,6 +45,7 @@ from question_generation.models import (
     JudgedQuestion,
     SourceFact,
     TopicToCover,
+    Unanswered,
     criteria_of,
 )
 from question_generation.planning import Plan, instead, plans
@@ -51,6 +53,7 @@ from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
 from question_generation.selection import Deal, spread
 from question_generation.types import PROMPT_VERSION, SPECS, SUPERSEDED, spec
+from question_generation.verifier import Settling, Verifier
 from settings.runs import run_id
 from stages import StageService
 from telemetry import tracer, working
@@ -459,6 +462,76 @@ def _report(pool, release, drawn, written: int) -> None:
                 f"{name} short by {count}" for name, count in release.short.items()
             ),
         )
+
+
+def rejudge(
+    catalog: QuestionCatalog, settings: Settings, verifier: Verifier, within=None
+) -> int:
+    """Asks again whether the passages settle each accepted unanswerable question.
+
+    The one re-check that costs a call, which is why it is not part of
+    `reverify`. Each of these was accepted when the verifier, asked for an
+    answer stated outright, found none; `Verifier.settles` asks whether its
+    passages refute its premise or cover its case with a list or a rule as
+    well - over the passages it cites, then over the corpus probe the
+    checker reads.
+
+    It only ever rejects, as `reverify` does, and a released question goes
+    with the rest: one the material answers marks a correct chatbot wrong.
+    A question a person accepted is left alone, for the reason `_recheck`
+    gives. Each rejection is written as it is decided, so an interrupted
+    run keeps what it paid for; a second run asks the rest again.
+
+    Returns:
+        How many questions were rejected.
+    """
+    written = 0
+    for question in catalog.unanswered(within):
+        if question.reviewed_verdict == ReviewVerdict.ACCEPTED:
+            continue
+        failed = _settled(catalog, settings, verifier, question)
+        if failed:
+            code, reason = failed
+            log.info("rejecting question %d: %s (%s)", question.id, reason, code)
+            written += catalog.reject([(question.id, code)])
+    log.info("re-judged and rejected %d question(s)", written)
+    return written
+
+
+def _settled(
+    catalog: QuestionCatalog,
+    settings: Settings,
+    verifier: Verifier,
+    question: Unanswered,
+) -> tuple[str, str] | None:
+    """Why the material answers a question written to have none, or None."""
+    settled = verifier.settles(question.question_text, question.passages)
+    if settled.verdict != Settling.SILENT:
+        return (
+            QuestionRejection.ANSWERABLE_AFTER_ALL,
+            f"its own passages settle it ({settled.verdict}): {settled.quote!r}",
+        )
+    if settings.elsewhere_passages <= 0:
+        return None
+    probed = catalog.elsewhere(
+        sorted(content(question.question_text, question.language)),
+        question.language,
+        question.passage_ids,
+        settings.elsewhere_passages,
+        question.embedding,
+    )
+    if not probed:
+        return None
+    settled = verifier.settles(question.question_text, probed)
+    if settled.verdict != Settling.SILENT:
+        return (
+            QuestionRejection.ANSWERABLE_ELSEWHERE,
+            (
+                f"a passage it does not cite settles it ({settled.verdict}): "
+                f"{settled.quote!r}"
+            ),
+        )
+    return None
 
 
 def again(checked: CheckedQuestion, plan: Plan, sample: FactGroup) -> str | None:

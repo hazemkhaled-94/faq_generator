@@ -49,6 +49,7 @@ from question_generation.models import (
     QuestionQuality,
     QuestionSource,
     StoredQuestion,
+    Unanswered,
     pages,
 )
 from question_generation.queue import HOLDS, IS_TOPIC
@@ -791,6 +792,60 @@ class QuestionCatalog(Repository):
                         ),
                     }
                 )
+
+    def unanswered(self, within=None) -> list[Unanswered]:
+        """Every accepted question written to have no answer, with its passages.
+
+        What `make questions-rejudge` reads. Released ones included: the
+        release is a subset of the accepted, and a released question the
+        material answers is the one that marks a correct chatbot wrong.
+        """
+        query = (
+            _joined(
+                select(
+                    Question.id,
+                    Question.question_text,
+                    Question.language,
+                    Question.reviewed_verdict,
+                    Question.embedding,
+                    func.array_agg(func.distinct(Passage.id)).label("passage_ids"),
+                )
+            )
+            .where(
+                Question.status == QuestionStatus.ACCEPTED,
+                Question.answerable.is_(False),
+            )
+            .group_by(Question.id)
+            .order_by(Question.id)
+        )
+        if within is not None:
+            query = query.where(within)
+        with self._session() as session:
+            rows = session.execute(query).all()
+            cited = {one for row in rows for one in row.passage_ids or () if one}
+            texts = {
+                row.id: row.text
+                for row in session.execute(
+                    select(Passage.id, Passage.text).where(Passage.id.in_(cited))
+                )
+            }
+        found = []
+        for row in rows:
+            ids = tuple(sorted(one for one in row.passage_ids or () if one))
+            found.append(
+                Unanswered(
+                    id=row.id,
+                    question_text=row.question_text,
+                    language=row.language,
+                    reviewed_verdict=row.reviewed_verdict,
+                    embedding=(
+                        list(row.embedding) if row.embedding is not None else None
+                    ),
+                    passage_ids=ids,
+                    passages=tuple(texts[one] for one in ids),
+                )
+            )
+        return found
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:
         """Records what a re-check found, one gate code per question.

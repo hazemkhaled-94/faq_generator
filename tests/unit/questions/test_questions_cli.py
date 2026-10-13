@@ -113,6 +113,13 @@ class Driver:
         monkeypatch.setattr(
             module, "balance", lambda catalog, settings, within: self._balance(within)
         )
+        #: The verifier each re-judge was handed, and what it was narrowed to.
+        self.rejudged: list[tuple[str, object]] = []
+        monkeypatch.setattr(
+            module,
+            "rejudge",
+            lambda catalog, settings, verifier, within: self._rejudge(verifier, within),
+        )
 
         def proving(*models):
             """Records what was asked."""
@@ -131,6 +138,11 @@ class Driver:
         """Records one re-check and what it was narrowed to."""
         self.rechecked.append(within)
         return 3
+
+    def _rejudge(self, verifier, within) -> int:
+        """Records one re-judge, the model it asks and its narrowing."""
+        self.rejudged.append((verifier.model, within))
+        return 2
 
     def _balance(self, within) -> int:
         """Records one draw and what it was narrowed to."""
@@ -224,3 +236,17 @@ def test_the_only_scope_this_stage_takes_is_a_topic(cli) -> None:
     """A topic is already the smallest subject there is."""
     with pytest.raises(SystemExit, match="narrows to topic"):
         cli.run("--status", "--only", "document=abc")
+
+
+def test_rejudge_asks_the_verifier_model_and_proves_it_first(cli, monkeypatch) -> None:
+    """The one re-check that calls a model, so the model is the verifier's.
+
+    Proved before the first question is asked, as a drain proves its models,
+    and narrowed to a topic like the free re-check beside it.
+    """
+    monkeypatch.setenv("QUESTIONS_VERIFIER_MODEL", "ollama_chat/verifier")
+
+    assert cli.run("--rejudge", "--only", "topic=4") == 0
+    assert cli.proved == ["ollama_chat/verifier"]
+    assert cli.rejudged == [("ollama_chat/verifier", "topic=4")]
+    assert cli.built == 0, "a re-judge writes no question and needs no service"

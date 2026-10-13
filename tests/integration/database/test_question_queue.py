@@ -339,6 +339,38 @@ def test_a_fact_only_a_rejected_question_rests_on_is_written_about_again(
     ]
 
 
+def test_the_rejudge_reads_every_accepted_unanswerable_with_what_it_cites(
+    corpus, engine
+) -> None:
+    """Released ones included; answerable and rejected ones are not its."""
+    written = corpus(topics=1, facts_per_topic=2)
+    first, second = written["facts"][written["topics"][0]]
+    with Session(engine) as session:
+        asked = {
+            "kept": question(status="accepted", answerable=False),
+            "answerable": question(status="accepted", target_answer="4 kg"),
+            "refused": question(
+                status="rejected",
+                answerable=False,
+                rejected_reason="answerable_after_all",
+            ),
+        }
+        session.add_all(asked.values())
+        session.flush()
+        for one in asked.values():
+            for cited in (first, second):
+                session.add(QuestionFact(question_id=one.id, fact_id=cited))
+        session.commit()
+        kept = asked["kept"].id
+
+    (found,) = QuestionCatalog().unanswered()
+
+    assert found.id == kept
+    assert found.question_text == "What does the device weigh?"
+    assert len(found.passage_ids) == 2
+    assert found.passages == ("The device weighs 4 kg.", "The device weighs 4 kg.")
+
+
 # ── Storing what a topic produced ──────────────────────────────────────────
 
 

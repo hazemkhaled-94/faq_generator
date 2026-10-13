@@ -10,13 +10,15 @@ import logging
 import sys
 
 from llm.check import before_work
+from llm.client import Client
 from llm.config import Settings as ModelSettings
 from question_generation import prompts
 from question_generation.catalog import QuestionCatalog
 from question_generation.config import Settings
 from question_generation.factory import build_service, models
 from question_generation.queue import QuestionQueue
-from question_generation.service import balance, reverify
+from question_generation.service import balance, rejudge, reverify
+from question_generation.verifier import Verifier
 from settings.store import snapshot
 from stages.cli import queue_main
 from stages.prompts import record
@@ -43,6 +45,17 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("--balance draws the whole release and takes no --only")
         return balance(QuestionCatalog(), configured()[0], within)
 
+    def rejudged(within) -> int:
+        """Re-judges the accepted unanswerable questions, with the verifier.
+
+        The verifier the workers use, from the same settings, and proved
+        before the first question is asked.
+        """
+        settings, model, _ = configured()
+        _, verifier, _ = models(settings, model)
+        before_work(verifier)
+        return rejudge(QuestionCatalog(), settings, Verifier(Client(verifier)), within)
+
     #: This stage's own operation. No model is called: it puts the stored
     #: questions through the gates that need none, which is how a fact
     #: re-judged or a citation deleted reaches the questions resting on it.
@@ -59,6 +72,16 @@ def main(argv: list[str] | None = None) -> int:
             "draw a balanced release out of every accepted question",
             "released",
             balanced,
+        ),
+        #: The re-check that calls a model, and so is not part of reverify:
+        #: whether the passages settle each accepted unanswerable question.
+        "rejudge": (
+            (
+                "ask the verifier whether the passages settle each accepted "
+                "unanswerable question, and reject those they do"
+            ),
+            "rejected",
+            rejudged,
         ),
     }
 

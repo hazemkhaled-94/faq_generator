@@ -634,6 +634,7 @@ make questions-retry
 make questions-rerun
 make questions-start TOPIC=7    # any of the five, over one topic
 make questions-reverify         # re-check stored questions; no model call
+make questions-rejudge          # ask whether the passages settle each accepted unanswerable; calls the verifier
 make questions-balance          # draw the balanced release
 make questions-export           # write what a filter selects to an .xlsx
 ```
@@ -704,6 +705,9 @@ poetry run pytest tests/integration/database/test_release.py
 | [`test_models.py`](../../tests/unit/questions/test_models.py) | Which model writes a question, and which one checks it |
 | [`test_question_service.py`](../../tests/unit/questions/test_question_service.py) | What the service does with a topic |
 | [`test_reverify.py`](../../tests/unit/questions/test_reverify.py) | What a re-check does with a question a person accepted |
+| [`test_rejudge.py`](../../tests/unit/questions/test_rejudge.py) | What `questions-rejudge` does with the accepted unanswerable questions |
+| [`test_settles.py`](../../tests/unit/questions/test_settles.py) | What the verifier is asked of a question written to have no answer |
+| [`test_reasons.py`](../../tests/unit/questions/test_reasons.py) | Whether the material states why, which is what a `reason` slot is dealt |
 | [`test_phrasing.py`](../../tests/unit/questions/test_phrasing.py) | What a question's own wording says, read without a model |
 | [`test_abstention.py`](../../tests/unit/questions/test_abstention.py) | A judgement that could not be had is recorded, not read as a pass |
 | [`test_context.py`](../../tests/unit/questions/test_context.py) | What the writer is told about where each fact came from |
@@ -728,7 +732,8 @@ poetry run pytest tests/integration/database/test_release.py
   resting on it.** One that loses a citation and keeps another is rejected
   as `source_changed` rather than deleted, a person's acceptance included.
 - **`questions-reverify` only ever rejects.** Accepting is a person's
-  decision.
+  decision. So does `questions-rejudge`, released questions included, and
+  it leaves a question a person accepted alone.
 - **No rule gate overrules a person.** `questions-reverify` rejects a
   question a person accepted only when a fact it rests on no longer holds,
   which includes a fact a person rejected.

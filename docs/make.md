@@ -220,6 +220,7 @@ both warn and wait 5 seconds first.
 | `make questions-balance` | Draw the balanced release out of what was accepted |
 | `make questions-export` | Write the questions a filter selects to an `.xlsx` |
 | `make questions-reverify` | Re-check stored questions; no model call |
+| `make questions-rejudge` | Ask the verifier whether the passages settle each accepted unanswerable question, and reject those they do. **Calls the verifier model**; takes `TOPIC` |
 | `make questions-runs` | Which runs there are, newest first |
 | `make questions-diff` | Two runs side by side, on the gate that stopped each |
 | `make questions-reclaim` | Return a topic a dead worker still holds. **Narrow it** |
