@@ -246,6 +246,36 @@ def test_nearness_alone_to_an_answered_question_is_not_an_answer() -> None:
     assert near_verdict(near, answerable=False, threshold=0.93, facts=(1,)) is None
 
 
+def test_an_answerable_question_is_never_a_duplicate_of_an_unanswerable_one() -> None:
+    """Refusing it would keep the claim that there is no answer, and drop the answer.
+
+    The two are different items whatever their vectors say: one asks a
+    chatbot for a value, the other asks it to decline. Whether the
+    unanswerable one is wrong is for the unanswerable checks to say.
+    """
+    near = Neighbour(
+        "What does the device weigh on the moon?",
+        answerable=False,
+        similarity=0.96,
+        fact_ids=frozenset({1}),
+    )
+
+    assert near_verdict(near, answerable=True, threshold=0.93, facts=(1,)) is None
+
+
+def test_a_question_in_another_language_is_not_a_twin() -> None:
+    """A bilingual set asks each language its own questions.
+
+    A question and its translation are one item each, so the gate compares
+    a question only with the accepted questions of its own language.
+    """
+    near = Neighbour(
+        "Wie schwer ist das Gerät?", answerable=True, similarity=0.99, language="de"
+    )
+
+    assert near_verdict(near, answerable=True, threshold=0.93, language="en") is None
+
+
 def test_two_unanswerable_near_twins_are_only_duplicates() -> None:
     """Neither of them is evidence the corpus answers anything."""
     near = Neighbour("What about on Mars?", answerable=False, similarity=0.96)

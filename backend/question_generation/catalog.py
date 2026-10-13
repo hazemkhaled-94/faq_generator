@@ -495,8 +495,13 @@ class QuestionCatalog(Repository):
         embedding: list[float],
         before: int | None = None,
         excluding: Sequence[int] = (),
+        language: str | None = None,
     ) -> Neighbour | None:
         """The accepted question closest to this vector, or None if there is none.
+
+        `language` looks only at questions written in it. There is no twin
+        across languages: a bilingual set asks each language its own
+        questions, and a question and its translation are one item each.
 
         `before` looks only at questions written earlier. A re-check needs
         it: without it, two questions that are duplicates of each other each
@@ -520,6 +525,7 @@ class QuestionCatalog(Repository):
                 Question.id,
                 Question.question_text,
                 Question.answerable,
+                Question.language,
                 distance.label("far"),
             )
             .where(
@@ -533,6 +539,8 @@ class QuestionCatalog(Repository):
             query = query.where(Question.id < before)
         if excluding:
             query = query.where(Question.id.notin_(list(excluding)))
+        if language is not None:
+            query = query.where(Question.language == language)
         with self._session() as session:
             found = session.execute(query).one_or_none()
             if found is None:
@@ -548,6 +556,7 @@ class QuestionCatalog(Repository):
             # pgvector answers in cosine distance; the gates read likeness.
             similarity=1.0 - float(found.far),
             fact_ids=frozenset(cited),
+            language=found.language,
         )
 
     def judged(self, within=None) -> Iterator[JudgedQuestion]:

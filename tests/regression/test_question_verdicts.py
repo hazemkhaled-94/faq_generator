@@ -85,7 +85,7 @@ class _Nearest:
     def __init__(self, twin: Neighbour) -> None:
         self._twin = twin
 
-    def nearest(self, embedding, before=None, excluding=()):
+    def nearest(self, embedding, before=None, excluding=(), language=None):
         return self._twin
 
 

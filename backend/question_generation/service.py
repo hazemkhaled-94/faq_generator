@@ -259,7 +259,12 @@ def _recheck(
     if question.embedding is None:
         return None
     return near_verdict(
-        catalog.nearest(question.embedding, before=question.id, excluding=pending),
+        catalog.nearest(
+            question.embedding,
+            before=question.id,
+            excluding=pending,
+            language=question.language,
+        ),
         answerable=question.answerable,
         threshold=settings.duplicate_cosine,
         question=question.question_text,

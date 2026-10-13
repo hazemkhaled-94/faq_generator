@@ -866,6 +866,7 @@ class QuestionChecker:
                     other.answerable,
                     score,
                     fact_ids=frozenset(other.fact_ids),
+                    language=other.language,
                 )
         return near
 

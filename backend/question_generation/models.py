@@ -499,6 +499,8 @@ class Neighbour:
     #: The facts it cites. Empty where nobody read them, which says the two
     #: share none.
     fact_ids: frozenset[int] = frozenset()
+    #: The language it is written in, or None where nobody read it.
+    language: str | None = None
 
 
 @dataclass(frozen=True)

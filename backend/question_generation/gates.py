@@ -739,12 +739,21 @@ def near_verdict(
     vetoed: `answerable_after_all` says the corpus answers something this
     close, and that holds whatever the two questions ask for.
 
+    Neither half reaches across languages: a question and its translation
+    are one item each in a bilingual set. And an answerable question is
+    never a duplicate of an unanswerable one. Refusing it would keep the
+    claim that there is no answer and drop the question that has one; the
+    two ask a chatbot for different things, and whether the unanswerable
+    one is wrong is the unanswerable checks' to say.
+
     `facts` are what this question cites, read against the neighbour's.
     """
     if near is None or near.similarity < threshold:
         return None
-    if near.answerable and not answerable:
-        if not near.fact_ids & set(facts):
+    if language and near.language and near.language != language:
+        return None
+    if near.answerable != answerable:
+        if not near.answerable or not near.fact_ids & set(facts):
             return None
         return (
             QuestionRejection.ANSWERABLE_AFTER_ALL,

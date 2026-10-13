@@ -479,6 +479,50 @@ def test_the_dedup_probe_finds_the_nearest_accepted_question(corpus, engine) -> 
     assert found.similarity == pytest.approx(1.0, abs=1e-5)
 
 
+def test_the_probe_looks_only_at_questions_of_the_language_asked_for(
+    corpus, engine
+) -> None:
+    """There is no twin across languages, so none is offered.
+
+    And the one it finds names its language and the facts it cites, which
+    is what the gates read it against.
+    """
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        here = passage(digest("a"), ordinal=1, language="en")
+        session.add(here)
+        session.flush()
+        cited = fact(here.id)
+        session.add(cited)
+        english = question(
+            question_text="What does the device weigh?",
+            embedding=[1.0] + [0.0] * 1023,
+            status="accepted",
+        )
+        german = question(
+            question_text="Wie schwer ist das Gerät?",
+            embedding=[1.0] + [0.0] * 1023,
+            status="accepted",
+            language="de",
+        )
+        session.add_all([english, german])
+        session.flush()
+        session.add(QuestionFact(question_id=english.id, fact_id=cited.id))
+        session.commit()
+        fact_id = cited.id
+
+    found = QuestionCatalog().nearest([1.0] + [0.0] * 1023, language="en")
+
+    assert found is not None
+    assert (found.question_text, found.language) == (
+        "What does the device weigh?",
+        "en",
+    )
+    assert found.fact_ids == {fact_id}
+    assert QuestionCatalog().nearest([0.0] * 1023 + [1.0], language="fr") is None
+
+
 def test_the_probe_can_be_told_to_look_only_at_earlier_questions(
     corpus, engine
 ) -> None:
