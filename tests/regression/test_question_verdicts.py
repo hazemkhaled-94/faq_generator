@@ -24,6 +24,7 @@ from question_generation.gates import (
     fitting,
     incomplete,
     near_verdict,
+    structural,
 )
 from question_generation.models import JudgedQuestion, Neighbour
 from question_generation.service import _recheck
@@ -1206,3 +1207,129 @@ def test_a_stored_count_of_what_a_passage_lists_is_left_to_the_model(
 ) -> None:
     """`4` counts what P143 lists, which no sum of its figures could find."""
     assert adds_up("4", [_P143]) is None, name
+
+
+#: Questions this corpus stored that ask one thing through a clause opened by
+#: a question word: (name, question, answer, language, form). None is a
+#: second question.
+EMBEDDED_ROWS: tuple[tuple[str, str, str, str, str], ...] = (
+    (
+        "Q1141: differ in where",
+        "How do free kicks and penalty kicks differ in where they are taken from?",
+        (
+            "free kicks from the place of the offence with stated exceptions, penalty "
+            "kicks from the penalty mark"
+        ),
+        "en",
+        AnswerForm.LIST,
+    ),
+    (
+        "Q1089: does where",
+        (
+            "Why does where the offence was committed matter when deciding whether to "
+            "apply advantage?"
+        ),
+        (
+            "Because the closer to the opponent's goal the offence was committed, the "
+            "more effective the advantage can be."
+        ),
+        "en",
+        AnswerForm.EXPLANATION,
+    ),
+    (
+        "Q1294: differ in where",
+        (
+            "How do the penalty area and the corner area differ in where they are "
+            "defined on the field?"
+        ),
+        (
+            "the area bounded by the lines and the goal line, the corner area nearest "
+            "to the point where the ball passed over the goal line"
+        ),
+        "en",
+        AnswerForm.LIST,
+    ),
+    (
+        "Q1295: in where",
+        (
+            "What sets the penalty area apart from the corner area in where the ball "
+            "is placed?"
+        ),
+        (
+            "the area bounded by the lines and the goal line, the corner area nearest "
+            "to where the ball passed over the goal line"
+        ),
+        "en",
+        AnswerForm.LIST,
+    ),
+    (
+        "Q1039: differ in who",
+        (
+            "How do a kick-off and a goal kick differ in who last touched the ball "
+            "before each restart?"
+        ),
+        (
+            "a kick-off follows a goal, and a goal kick follows the ball last touching "
+            "an attacking player"
+        ),
+        "en",
+        AnswerForm.LIST,
+    ),
+    (
+        "Q710: darin, wen",
+        (
+            "Wie unterscheiden sich Antäuschen und Ablenken darin, wen sie verwirren "
+            "sollen?"
+        ),
+        "Antäuschen einen Gegner, Ablenken eine Person",
+        "de",
+        AnswerForm.VALUE,
+    ),
+    (
+        "Q915: on who",
+        (
+            "What is the rule on who may convey tactical instructions from the "
+            "technical area?"
+        ),
+        (
+            "Only one person at a time is authorised to convey tactical instructions "
+            "from the technical area."
+        ),
+        "en",
+        AnswerForm.EXPLANATION,
+    ),
+    (
+        "Q210: ab, wann",
+        (
+            "Wovon hängt ab, wann ein Spieler nach der Minute ausserhalb des "
+            "Spielfelds zurückkehren darf?"
+        ),
+        (
+            "vom Ende der Minute, das der Schiedsrichter bestimmt, und von der "
+            "Erlaubnis des Schiedsrichters"
+        ),
+        "de",
+        AnswerForm.LIST,
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "form"),
+    [row[1:] for row in EMBEDDED_ROWS],
+    ids=[row[0] for row in EMBEDDED_ROWS],
+)
+def test_a_stored_question_with_an_embedded_question_word_is_not_compound(
+    question: str, answer: str, language: str, form: str
+) -> None:
+    """Only a question word a conjunction introduces is a second question."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        forms=(form,),
+        bounds=BOUNDS,
+    )
+
+    assert (failed[0] if failed else None) != QuestionRejection.COMPOUND, failed

@@ -285,6 +285,41 @@ def _stated(count: int, statements: Sequence[str], language: str | None) -> bool
     )
 
 
+def _asks(question: str, language: str | None) -> tuple[str, ...]:
+    """The question words that each open a question of their own.
+
+    The first, and every further one a conjunction introduces, a preposition
+    at most between them: `... und wie hoch ist ...`, `... and for how long
+    ...`. A question word anywhere else opens a clause inside the one
+    question - `How do the two differ in where they are taken from?`,
+    `Wovon hängt ab, wann ...` - and asks nothing a second time.
+
+    Read off the neighbouring tokens and not off the dependency tree:
+    `de_core_news_md` hangs a German main verb under its auxiliary as `oc`,
+    the label an embedded clause carries, so the tree reads a second
+    question asked with an auxiliary as embedded too.
+    """
+    words = interrogatives(question, language)
+    if len(words) < 2:
+        return words
+    asking = {word.casefold() for word in words}
+    tokens = list(pipeline(language)(question))
+    at = [token.i for token in tokens if token.lower_ in asking]
+    return tuple(
+        tokens[one].text
+        for position, one in enumerate(at)
+        if position == 0 or _coordinated(tokens, one)
+    )
+
+
+def _coordinated(tokens: Sequence, at: int) -> bool:
+    """Whether a conjunction stands before this token, a preposition apart at most."""
+    before = at - 1
+    if before > 0 and tokens[before].pos_ == "ADP":
+        before -= 1
+    return before >= 0 and tokens[before].pos_ == "CCONJ"
+
+
 def structural(
     *,
     question_text: str,
@@ -362,7 +397,7 @@ def structural(
     # A chatbot answering half of it is neither right nor wrong, and nobody
     # types it. This is what a writer told to use both passages of a wide
     # sample does when the two have no single question between them.
-    asked_about = interrogatives(asked, language)
+    asked_about = _asks(asked, language)
     if len(asked_about) > 1:
         return (
             QuestionRejection.COMPOUND,

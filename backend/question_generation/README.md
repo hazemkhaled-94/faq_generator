@@ -248,9 +248,15 @@ its own document, runs in it too.
 no run of the writer produces — it is `make questions-reverify` carrying a
 change further up the pipeline through to the questions resting on it.
 
-`compound` is read off the tagger: a question using more than one
-interrogative word is two questions. It replaced a model-judged `wrong_type`
-that never fired.
+`compound` is read off the tagger: a question word a conjunction introduces
+after the first, a preposition at most between them, is a second question —
+`Welche Vorschriften gelten und wie hoch ist die Gebühr?`, `When is it due
+and for how long?`. One anywhere else opens a clause inside the one question
+and asks nothing twice: `How do the two differ in where they are taken
+from?`, `Wovon hängt ab, wann …`. It reads the neighbouring tokens rather than
+the dependency tree, because the German parser hangs a main verb under its
+auxiliary with the label an embedded clause carries. It replaced a
+model-judged `wrong_type` that never fired.
 
 There is **no gate for "the question is its own fact rearranged"**. One was
 written in two formulations and both refused questions that are as good as a

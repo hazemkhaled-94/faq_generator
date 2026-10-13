@@ -1762,6 +1762,65 @@ def test_one_question_about_two_things_is_kept(question, language) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        (
+            (
+                "How do card payments and bank transfers differ in where the "
+                "money is held?"
+            ),
+            "en",
+        ),
+        ("What is the rule on who may approve a refund?", "en"),
+        ("Wovon hängt ab, wann ein Konto gesperrt wird?", "de"),
+        ("Wie unterscheiden sich Mahnung und Sperre darin, wen sie betreffen?", "de"),
+    ],
+)
+def test_a_question_word_opening_a_clause_is_not_a_second_question(
+    question: str, language: str
+) -> None:
+    """`where the money is held` is what is asked about, not a second ask."""
+    assert (
+        checked(
+            question_text=question,
+            target_answer=(
+                "two things, and another"
+                if language == "en"
+                else "zwei Dinge, und eins"
+            ),
+            language=language,
+            form=AnswerForm.LIST,
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        ("When is a card blocked and when is it unblocked?", "en"),
+        ("Wann wird ein Konto gesperrt und wann wird es wieder freigegeben?", "de"),
+        ("What does a transfer cost and for how long is it held?", "en"),
+    ],
+)
+def test_a_question_word_after_a_conjunction_is_a_second_question(
+    question: str, language: str
+) -> None:
+    """A conjunction, a preposition at most between, and a second ask."""
+    assert (
+        code(
+            checked(
+                question_text=question,
+                target_answer="two things, and another",
+                language=language,
+                form=AnswerForm.LIST,
+            )
+        )
+        == QuestionRejection.COMPOUND
+    )
+
+
 def test_the_target_answer_may_restate_the_question_without_disagreeing() -> None:
     """A real rejection, and a false one.
 
