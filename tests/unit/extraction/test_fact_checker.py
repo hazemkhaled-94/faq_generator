@@ -179,6 +179,7 @@ def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
         ("The customer must return it within 14 days.", "en", "it"),
         ("The account holder must inform him within three days.", "en", "him"),
         ("Der Kunde muss ihn informieren.", "de", "ihn"),
+        ("The customer must return hers.", "en", "hers"),
         (
             "Der Nutzer muss den Akku laden, bevor es den Ruhemodus verlässt.",
             "de",

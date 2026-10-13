@@ -344,6 +344,12 @@ _CORRELATES: dict[str, frozenset[str]] = {"de": frozenset({"es"})}
 #: What a correlate stands beside: an object, a clause, a repeated element.
 _BESIDE = frozenset({"oa", "oc", "re"})
 
+#: How a possessive determiner is attached - "its cards", "his address" - in
+#: English, Universal Dependencies and German. A standalone possessive, "hers",
+#: is an object like any other pronoun.
+_POSSESSIVE_DEPS = frozenset({"poss", "nmod:poss"})
+_POSSESSIVE_TAGS = frozenset({"PPOSAT"})
+
 #: What opens a clause of its own beneath another: a subordinator on its verb,
 #: or the verb hung off its head as an adverbial or a relative clause. English
 #: and German labels, and the Universal Dependencies names for the same. A
@@ -403,8 +409,10 @@ def _correlate(token) -> bool:
     """
     if token.text.casefold() not in _CORRELATES.get(token.doc.lang_, frozenset()):
         return False
-    number = set(token.head.morph.get("Number"))
-    if not number or number & set(token.morph.get("Number")):
+    # A missing tag on either side says nothing disagrees, so it stays a
+    # pronoun: refusing a sound statement is the cheaper mistake here.
+    verb, own = set(token.head.morph.get("Number")), set(token.morph.get("Number"))
+    if not verb or not own or verb & own:
         return False
     return any(
         sibling.dep_ in _BESIDE and (sibling.dep_ == "oa" or token.head.pos_ != "AUX")
@@ -423,8 +431,9 @@ def _resolved(token) -> bool:
     Only a noun outside the pronoun's own clause: a personal pronoun never
     names a noun of its own clause, which takes a reflexive, so `it` in "The
     customer must return it" is something the passage named before. A
-    possessive is the exception - "The bank replaces its cards" - because
-    English has no reflexive possessive to take its place.
+    possessive determiner is the exception - "The bank replaces its cards" -
+    because English has no reflexive possessive to take its place; a
+    standalone one, "The customer must return hers", is not.
 
     A demonstrative is never resolved here, and nor is a pronoun opening its
     statement, with no noun before it to stand for: both are what a reader
@@ -437,7 +446,7 @@ def _resolved(token) -> bool:
         return False
     if _correlate(token):
         return True
-    if "Yes" not in token.morph.get("Poss"):
+    if token.dep_ not in _POSSESSIVE_DEPS and token.tag_ not in _POSSESSIVE_TAGS:
         own = _clause(token)
         earlier = [noun for noun in earlier if _clause(noun) != own]
     return any(_agrees(token, noun) for noun in earlier)

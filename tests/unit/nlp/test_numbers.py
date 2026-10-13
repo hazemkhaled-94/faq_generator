@@ -68,7 +68,7 @@ def test_a_figure_glued_to_its_unit_is_still_read() -> None:
     """`45m` and `08:00` carry numbers that no `like_num` token holds."""
     from nlp.analysis import numbers
 
-    assert numbers("Die Torlinie misst mindestens 45m.", "de") == ("45",)
+    assert numbers("Das Kabel misst mindestens 45m.", "de") == ("45",)
     assert numbers("The line opens at 08:00.", "en") == ("00", "08")
 
 
