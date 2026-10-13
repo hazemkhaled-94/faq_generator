@@ -272,6 +272,10 @@ alone, so a second run writes nothing.
 A row written before `gate_scores` recorded a direction takes it from
 `_REFUSES_HIGH`: `near_duplicate` and `duplicate` refuse a high reading.
 
+An entry marked `opinion` - a model's verdict kept beside the readings, such
+as `settles` - has no margin and is rebuilt as one, so it never enters a
+recalculated confidence.
+
 ## Configuration
 
 | Setting | What it does |

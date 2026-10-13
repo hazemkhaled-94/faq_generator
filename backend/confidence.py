@@ -23,7 +23,10 @@ that was never there.
 A gate that is a judgement rather than a measurement contributes nothing
 here, and that is the point. `leaks_source` answered by a model is a yes or
 a no with no number behind it; recording 1.0 for it would put a confidence
-on an opinion.
+on an opinion. One that is worth keeping on the row anyway - `settles`,
+whose verdict is what a reviewer of an unanswerable question needs - is
+stored as an `opinion`: beside the readings, with no margin, and feeding no
+confidence.
 """
 
 from __future__ import annotations
@@ -48,6 +51,9 @@ class Measurement:
             trained embedder does not reach 0, so the room a
             `near_duplicate` reading has is the distance from its threshold
             to where unrelated questions sit and not to zero.
+        opinion: Whether this is a model's verdict rather than a number a
+            gate measured. Recorded with no margin, and left out of
+            `confidence`.
     """
 
     gate: str
@@ -55,6 +61,7 @@ class Measurement:
     threshold: float
     high_is_safe: bool = True
     safe_end: float | None = None
+    opinion: bool = False
 
     @property
     def _safest(self) -> float:
@@ -94,15 +101,21 @@ class Measurement:
         value of 0.88 is comfortable under one gate and refusing under
         another, and a reader that had to know which way each gate runs
         would be a second list of gates to keep in step with this one.
+
+        An opinion carries no margin, and says it is one; a measurement's
+        row is what it always was, so a recalibration rewrites none of them.
         """
-        return {
+        recorded: dict[str, Any] = {
             "gate": self.gate,
             "value": round(self.value, 4),
             "threshold": round(self.threshold, 4),
-            "margin": round(self.margin, 4),
+            "margin": None if self.opinion else round(self.margin, 4),
             "high_is_safe": self.high_is_safe,
             "safe_end": round(self._safest, 4),
         }
+        if self.opinion:
+            recorded["opinion"] = True
+        return recorded
 
 
 def scored(readings: Sequence[Measurement]) -> list[dict[str, Any]]:
@@ -117,7 +130,9 @@ def confidence(readings: Sequence[Measurement]) -> float | None:
     no measuring gate read is not a question that barely survived one. It
     is a question whose gates were all judgements or all free rules, and a
     column of zeroes would sort those to the top of every review queue.
+    An opinion is left out for the same reason.
     """
-    if not readings:
+    measured = [one.margin for one in readings if not one.opinion]
+    if not measured:
         return None
-    return round(min(one.margin for one in readings), 4)
+    return round(min(measured), 4)

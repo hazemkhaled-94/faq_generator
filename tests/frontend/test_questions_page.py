@@ -161,6 +161,56 @@ def test_a_question_nothing_measured_says_so_rather_than_scoring_zero(page) -> N
     assert "not a low one" in said(opened)
 
 
+#: An unanswerable question kept: one measurement, and the verifier's two
+#: `settles` verdicts recorded beside it as opinions with no margin.
+SETTLED = changed(
+    QUESTION,
+    answerable=False,
+    target_answer=None,
+    confidence=0.05,
+    gate_scores=[
+        {
+            "gate": "off_topic",
+            "value": 0.33,
+            "threshold": 0.3,
+            "margin": 0.0476,
+            "high_is_safe": True,
+            "safe_end": 1.0,
+        },
+        {
+            "gate": "settles",
+            "value": 1.0,
+            "threshold": 0.5,
+            "margin": None,
+            "high_is_safe": True,
+            "safe_end": 1.0,
+            "opinion": True,
+        },
+        {
+            "gate": "settles_elsewhere",
+            "value": 1.0,
+            "threshold": 0.5,
+            "margin": None,
+            "high_is_safe": True,
+            "safe_end": 1.0,
+            "opinion": True,
+        },
+    ],
+)
+
+
+def test_a_settles_verdict_says_what_it_is_and_is_never_the_weakest(page) -> None:
+    """An opinion beside the readings: described, and given no margin."""
+    opened = page(question=_detail(SETTLED), questions=_one(SETTLED)).select()
+    table = opened.table_with("Reads")
+    reads = dict(zip(table["Gate"], table["Reads"], strict=True))
+
+    assert opened.raised == []
+    assert "settle" in reads["settles"]
+    assert "settle" in reads["settles_elsewhere"]
+    assert "off_topic" in said(opened)
+
+
 # ── A verdict ─────────────────────────────────────────────────────────────
 
 

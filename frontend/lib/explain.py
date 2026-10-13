@@ -238,9 +238,13 @@ def confidence(row: Mapping[str, Any], readings: Mapping[str, Reading]) -> None:
                 if one["gate"] in readings
                 else "—",
                 "Measured": one["value"],
-                "Refuses at": one["threshold"],
-                "Safe when": direction(one),
-                "Margin": one["margin"],
+                # A model's verdict sits beside the readings with no
+                # threshold of its own and no margin: it is not a measure.
+                "Refuses at": None if one.get("opinion") else one["threshold"],
+                "Safe when": "a verdict, not a measure"
+                if one.get("opinion")
+                else direction(one),
+                "Margin": one.get("margin"),
             }
             for one in scores
         ],
@@ -291,15 +295,16 @@ def _weakest(
     most of what it says.
     """
     held = row.get("confidence")
-    if held is None:
+    measured = [one for one in scores if one.get("margin") is not None]
+    if held is None or not measured:
         return "Nothing this row was measured against carries a margin."
 
-    worst = min(scores, key=lambda one: one["margin"])
+    worst = min(measured, key=lambda one: one["margin"])
     reading = readings.get(worst["gate"])
     comfort = "comfortable" if held >= 0.5 else "close" if held < 0.2 else "adequate"
     said = (
         f"**Confidence {held:.2f} — {comfort}.** The weakest of the "
-        f"{len(scores)} reading(s) below is `{worst['gate']}`, which measured "
+        f"{len(measured)} reading(s) below is `{worst['gate']}`, which measured "
         f"{worst['value']:.3f} against a threshold of {worst['threshold']:.2f} "
         f"({direction(worst)})."
     )

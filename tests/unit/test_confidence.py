@@ -135,3 +135,36 @@ def test_the_floor_is_what_spreads_a_corpus_over_the_scale() -> None:
     assert all(one.margin < 0.2 for one in uncalibrated)
     assert calibrated[0].margin == 1.0
     assert calibrated[1].margin == pytest.approx(0.2667, abs=1e-4)
+
+
+# ── A model's verdict, kept beside the readings ────────────────────────────
+
+
+def test_an_opinion_feeds_no_confidence() -> None:
+    """A yes or a no with no number behind it is not a margin.
+
+    Scored 1.0, a question no measuring gate read would carry a confidence
+    a model's verdict made up.
+    """
+    verdict = Measurement("settles", 1.0, 0.5, opinion=True)
+
+    assert confidence([verdict]) is None
+    measured = Measurement("off_topic", 0.4, 0.3)
+    assert confidence([verdict, measured]) == confidence([measured])
+
+
+def test_an_opinion_is_recorded_with_no_margin() -> None:
+    """Stored so a row says what the model made of it, and marked as such."""
+    (written,) = scored([Measurement("settles", 0.0, 0.5, opinion=True)])
+
+    assert written["gate"] == "settles"
+    assert written["value"] == 0.0
+    assert written["margin"] is None
+    assert written["opinion"] is True
+
+
+def test_a_measurement_is_recorded_as_it_always_was() -> None:
+    """No `opinion` key, so a recalibration finds every stored row unchanged."""
+    (written,) = scored([Measurement("recall", 0.8, 0.6)])
+
+    assert "opinion" not in written

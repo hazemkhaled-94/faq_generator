@@ -107,11 +107,13 @@ __all__ = ["GATES", "PASSED", "REFUSED", "QuestionChecker", "annotation"]
 def _reading(gate: str, settled: Settled) -> Measurement:
     """A `settles` verdict as a reading: 1 where the passages settle nothing.
 
-    A verdict and not a measure, so it sits at either end of its scale; it
-    is stored so a row says what the verifier made of it, which a code and
-    a log line could not.
+    A verdict and not a measure, so it is an opinion: stored so a row says
+    what the verifier made of it, which a code and a log line could not,
+    and given no margin, so it moves no confidence.
     """
-    return Measurement(gate, 1.0 if settled.verdict == Settling.SILENT else 0.0, 0.5)
+    return Measurement(
+        gate, 1.0 if settled.verdict == Settling.SILENT else 0.0, 0.5, opinion=True
+    )
 
 
 def heard(settled: Settled, question: str, language: str | None) -> Settled:
@@ -244,7 +246,9 @@ class QuestionChecker:
         ran: list[str] = ["structural"]
         # Appended to beside `ran`, and for the same reason: which gates
         # measured something is not derivable from the verdict either. Only
-        # the gates that ARE measurements write here.
+        # the gates that ARE measurements write here, and the `settles`
+        # verdicts, which go in as opinions: kept on the row, with no margin
+        # and no part in the confidence.
         readings: list[Measurement] = []
         # And the judgements that were asked for and could not be had. An
         # abstention leaves no other trace: the checker rejects on False and

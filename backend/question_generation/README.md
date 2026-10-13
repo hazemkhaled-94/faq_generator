@@ -411,8 +411,10 @@ premise** (a closed list or an exception included), or cover its case with a
 `silent`, which is the only verdict that keeps the question. First over the
 passages it cites, then over the probe: the `QUESTIONS_ELSEWHERE_PASSAGES`
 nearest by vector and the passages two ordinals either side of each cited
-one. Each verdict is stored as a reading, `settles` and `settles_elsewhere`,
-1 for silent and 0 for settled, so a row says what the verifier made of it.
+one. Each verdict is stored in `gate_scores`, `settles` and
+`settles_elsewhere`, 1 for silent and 0 for settled, so a row says what the
+verifier made of it. It is an **opinion**: kept with no margin, it moves no
+confidence.
 `make questions-rejudge` asks the same of the questions already accepted.
 
 A recovery or quote that only says the question back is not an answer: a

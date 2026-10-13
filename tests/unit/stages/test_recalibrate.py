@@ -95,3 +95,24 @@ def test_the_command_reads_both_floors_from_the_settings(monkeypatch) -> None:
 
     assert recalibrate_run.run() == 0
     assert asked == {"questions": 0.81, "facts": 0.70}
+
+
+def test_a_stored_opinion_is_rebuilt_as_one() -> None:
+    """And so is written back unchanged, still feeding no confidence."""
+    from confidence import confidence, scored
+
+    stored = {
+        "gate": "settles",
+        "value": 1.0,
+        "threshold": 0.5,
+        "margin": None,
+        "high_is_safe": True,
+        "safe_end": 1.0,
+        "opinion": True,
+    }
+
+    rebuilt = _reading(stored, floor=0.75)
+
+    assert rebuilt.opinion is True
+    assert scored([rebuilt]) == [stored]
+    assert confidence([rebuilt]) is None

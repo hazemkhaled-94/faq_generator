@@ -135,8 +135,9 @@ _GATES = (
     explain.Gate(
         "answerable_after_all",
         "near_duplicate or round_trip",
-        "A question written to have no answer has none.",
-        "the same probe, or the round trip",
+        "A question written to have no answer has none: its passages neither "
+        "state one, refute its premise, nor cover its case with a rule.",
+        "the same probe, or one settles call",
         "opinion",
     ),
     explain.Gate(
@@ -156,8 +157,8 @@ _GATES = (
     explain.Gate(
         "answerable_elsewhere",
         "round_trip",
-        "No passage it leaves uncited answers it either.",
-        "a lemma probe and a second call",
+        "No passage it leaves uncited settles it either.",
+        "a passage probe and a second settles call",
         "opinion",
     ),
     explain.Gate(
@@ -173,9 +174,11 @@ _GATES = (
 #: rather than written twice.
 _TESTS = {one.code: one.tests for one in _GATES}
 
-#: What each measuring gate's number actually is. Only these five gates
-#: carry a margin; everything else is a rule or an opinion and contributes
-#: no confidence at all.
+#: What each measuring gate's number actually is. Only the first five carry
+#: a margin; everything else is a rule or an opinion and contributes no
+#: confidence at all. The two `settles` verdicts are opinions kept on the
+#: row anyway, with no margin, because they are what a reviewer of an
+#: unanswerable question needs to see.
 _READINGS = {
     "near_duplicate": explain.Reading(
         "Cosine between this question's embedding and the nearest question "
@@ -206,6 +209,19 @@ _READINGS = {
         "cited passage.",
         "no passage supports the answer strongly enough",
         "a probability from the encoder's entailment head, 0 to 1",
+    ),
+    "settles": explain.Reading(
+        "Whether the verifier found that the cited passages settle a question "
+        "written to have no answer: state it, refute its premise, or cover its "
+        "case with a list or a rule. An opinion, with no margin.",
+        "the passages it cites settle it after all",
+        "1 when they settle nothing, 0 when they do",
+    ),
+    "settles_elsewhere": explain.Reading(
+        "Whether the verifier found that a passage the question does not cite "
+        "settles it, read over the corpus probe. An opinion, with no margin.",
+        "a passage it does not cite settles it",
+        "1 when they settle nothing, 0 when they do",
     ),
 }
 

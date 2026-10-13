@@ -51,6 +51,7 @@ def _reading(stored: dict, floor: float) -> Measurement:
         threshold=float(stored["threshold"]),
         high_is_safe=not refuses_high,
         safe_end=floor if refuses_high else None,
+        opinion=bool(stored.get("opinion")),
     )
 
 

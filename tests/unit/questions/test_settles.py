@@ -231,6 +231,19 @@ def test_the_verdict_is_stored_as_a_reading() -> None:
     assert refused["settles"] == 1.0 and refused["settles_elsewhere"] == 0.0
 
 
+def test_the_verdict_is_an_opinion_and_moves_no_confidence() -> None:
+    """A model said silent; that is not a margin of 1.0 on anything."""
+    from confidence import confidence
+
+    judged = checked(Gating())
+    settled = [one for one in judged.readings if one.gate.startswith("settles")]
+
+    assert settled and all(one.opinion for one in settled)
+    assert confidence(judged.readings) == confidence(
+        [one for one in judged.readings if not one.opinion]
+    )
+
+
 def test_no_probe_leaves_the_cited_passages_as_the_whole_judgement() -> None:
     """QUESTIONS_ELSEWHERE_PASSAGES=0, as before."""
     client = Gating(UNCITED)
