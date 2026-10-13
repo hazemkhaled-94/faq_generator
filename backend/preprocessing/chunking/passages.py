@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import replace
+from typing import cast
 
+from docling_core.transforms.chunker.doc_chunk import DocChunk
 from docling_core.transforms.chunker.hierarchical_chunker import (
     ChunkingDocSerializer,
     ChunkingSerializerProvider,
@@ -18,6 +20,7 @@ from docling_core.transforms.serializer.markdown import (
 from docling_core.types.doc.common.reference import RefItem
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.node import DocItem
+from docling_core.types.doc.items.text import TextItem
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import read
@@ -75,6 +78,106 @@ def chunking_of(
         1 for passage in passages if count_tokens(passage.text) > max_tokens
     )
     return Chunking(passages=passages, oversized=oversized)
+
+
+#: What a lead-in is: a paragraph, as the converter labels one.
+_PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
+
+
+def lead_ins_kept(
+    chunks: list[DocChunk], chunker: HybridChunker, document: DoclingDocument
+) -> list[DocChunk]:
+    """Keeps a list with the sentence that introduces it.
+
+    The chunker closes a chunk wherever the token budget runs out, which can
+    be right after a lead-in ending in ":" and before the list it introduces;
+    every item of that list then reads as a rule of its own. When a chunk
+    ends on such a lead-in and the next, under the same headings, opens with
+    a list item, the lead-in moves into the next chunk if that still fits
+    the budget, and otherwise is appended to its heading trail, which both
+    model stages are shown. A list cut from its lead-in by a sub-heading is
+    left as it is: its own heading says what it is under.
+
+    Args:
+        chunks: What the chunker returned, in order.
+        chunker: The chunker, whose tokenizer and budget a moved lead-in is
+            measured by, and whose delimiter it is joined with.
+        document: The converted document, which holds the lead-in's text.
+
+    Returns:
+        The chunks, with every such lead-in kept beside its list. A chunk the
+        move leaves empty is gone.
+    """
+    # As the chunker cut them: a trail extended below is not a new heading.
+    trails = [chunk.meta.headings for chunk in chunks]
+    kept: list[DocChunk] = []
+    for index, chunk in enumerate(chunks):
+        lead = (
+            _lead_in(kept[-1], document)
+            if kept and trails[index - 1] == trails[index] and _opens_a_list(chunk)
+            else None
+        )
+        if lead is not None:
+            item, text = lead
+            moved = chunk.model_copy(
+                update={
+                    "text": text + chunker.delim + chunk.text,
+                    "meta": chunk.meta.model_copy(
+                        update={"doc_items": [item, *chunk.meta.doc_items]}
+                    ),
+                }
+            )
+            if (
+                chunker.tokenizer.count_tokens(chunker.contextualize(moved))
+                <= chunker.max_tokens
+            ):
+                before = kept.pop()
+                rest = before.text.rstrip()[: -len(text)].rstrip()
+                if rest:
+                    kept.append(
+                        before.model_copy(
+                            update={
+                                "text": rest,
+                                "meta": before.meta.model_copy(
+                                    update={"doc_items": before.meta.doc_items[:-1]}
+                                ),
+                            }
+                        )
+                    )
+                chunk = moved
+            else:
+                chunk = chunk.model_copy(
+                    update={
+                        "meta": chunk.meta.model_copy(
+                            update={"headings": [*(chunk.meta.headings or []), text]}
+                        )
+                    }
+                )
+        kept.append(chunk)
+    return kept
+
+
+def _lead_in(chunk: DocChunk, document: DoclingDocument) -> tuple[DocItem, str] | None:
+    """The paragraph ending in ":" a chunk closes on, and its text, or None.
+
+    The chunker hands its items over as bare copies, so the text is read
+    off the document the reference names.
+    """
+    last = chunk.meta.doc_items[-1] if chunk.meta.doc_items else None
+    if last is None or last.label not in _PROSE:
+        return None
+    item = RefItem.model_validate({"$ref": last.self_ref}).resolve(document)
+    text = item.text.strip() if isinstance(item, TextItem) else ""
+    if text.endswith(":") and chunk.text.rstrip().endswith(text):
+        return last, text
+    return None
+
+
+def _opens_a_list(chunk: DocChunk) -> bool:
+    """Reports whether a chunk's first item is a list item."""
+    return bool(chunk.meta.doc_items) and (
+        chunk.meta.doc_items[0].label == DocItemLabel.LIST_ITEM
+    )
 
 
 def lines_of(text: str) -> list[dict]:
@@ -169,8 +272,9 @@ class PassageBuilder:
         Raises:
             NoPassages: If the document yielded nothing but whitespace.
         """
+        chunks = cast(list[DocChunk], list(self._chunker.chunk(document)))
         chunking = chunking_of(
-            self._chunker.chunk(document),
+            lead_ins_kept(chunks, self._chunker, document),
             max_tokens=self._max_tokens,
             count_tokens=self._tokenizer.count_tokens,
             to_passage=lambda ordinal, chunk: self._passage(document, ordinal, chunk),

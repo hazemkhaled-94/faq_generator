@@ -42,6 +42,17 @@ a passage keeps its heading trail.
 Every kind of block is serialised into the passage text as Markdown, tables
 included, because evidence has to be a span of the passage text.
 
+**A list keeps its lead-in.** The chunker closes a chunk wherever the budget
+runs out, which can fall between a paragraph ending in ":" and the list it
+introduces, and every item of that list then reads as a rule of its own.
+[`lead_ins_kept`](passages.py) finds a chunk ending on such a lead-in
+followed, under the same headings, by a chunk opening with a list item. The
+lead-in moves into the list's chunk when the two fit the budget together,
+measured as the chunker measures; otherwise it is appended to that chunk's
+heading trail, which extraction and question generation both show the
+model. A list cut from its lead-in by a sub-heading is left as it is: its
+own heading says what it is under.
+
 ### Step 2 — Number and count
 
 [`chunking_of`](passages.py) drops chunks holding only whitespace, numbers the
@@ -207,7 +218,7 @@ and `chunking_of` directly.
 |---|---|
 | [`test_intake_chunking.py`](../../../tests/unit/intake/test_intake_chunking.py) | Numbering, the token budget, block-type labelling, the row-to-line pairing, the cell grids, the bounding boxes, the failure paths and the re-read |
 | [`test_intake_surface.py`](../../../tests/unit/intake/test_intake_surface.py) | The spaCy-backed reading with real pipelines: per-passage language, sentence offsets, predicate counts, table rows, and what becomes vocabulary |
-| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions and the numbering of a rendered table |
+| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, nowhere across a sub-heading; and, as a property, that no passage opens on a list cut from its lead-in or exceeds the budget |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | Every non-blank chunk is stored, ordinals run from 1 without a gap, `oversized` never exceeds the passages stored |
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes, the transactional replacement and its cascade, and every listing filter |
@@ -227,6 +238,11 @@ corpus, which is a property of the model rather than of this code.
 - **A passage too short to detect a language for, in a document with none,
   gets `NULL`**, which puts it outside every topic model and outside question
   generation.
+- **A lead-in that cannot travel with its list is repeated as a heading.**
+  When the two do not fit one budget, the lead-in stays at the end of the
+  passage before and becomes the last segment of the list passage's
+  `section_path`. A lead-in that does not end in ":", or one split across
+  two chunks, is not carried.
 - **`revocabulary` does not renumber sentences.** A change to how sentences
   are split reaches the corpus only through a re-chunk.
 - **`start` and `rerun` skip a document parsing has not finished.** This is
