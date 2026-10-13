@@ -86,11 +86,13 @@ class PassageToExtract:
     def room(self, cap: int | None) -> int | None:
         """The most validated atomic facts this passage keeps under a cap.
 
-        Never fewer than it states, its claims and its list items together:
-        the sentence splitter reads a list as one sentence, and a cap set to
-        leave room for the digests would keep four items of a list of
-        fourteen, which then reads as the whole rule. A short passage keeps
-        the cap itself. No cap stays no cap.
+        Never fewer than it states, its sentences and its list items
+        together - a line with no verb, "Minimum amount: 10 EUR.", states a
+        value too. The sentence splitter reads a list as one sentence, and a
+        cap set to leave room for the digests would keep the first few items
+        of a long list, which then read as the whole rule. Counting high is
+        the side to err on: the model is told a ceiling, not a quota. A short
+        passage keeps the cap itself. No cap stays no cap.
 
         Args:
             cap: What EXTRACTION_MIN_OTHER_SHARE works out to, or None.
@@ -100,7 +102,7 @@ class PassageToExtract:
         """
         if cap is None:
             return None
-        return max(cap, self.claims + self.items)
+        return max(cap, len(self.sentences) + self.items)
 
 
 @dataclass(frozen=True)

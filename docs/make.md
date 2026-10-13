@@ -200,7 +200,7 @@ expensive part:
 | `make chunk-revocabulary` | Re-read language and vocabulary. Only `passages.language` and `passages.lemmas` change |
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make questions-rescore` | Rewrite every stored question's scopes and difficulty from what it cites now. Run it before `questions-reverify` after a citation moved |
-| `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own claims and list items |
+| `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own sentences and list items |
 | `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, and take out the citations a refusal added to the fact it repeated. No model call |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
 | `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first and deletes nothing if it does not answer. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway |

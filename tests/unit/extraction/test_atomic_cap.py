@@ -112,7 +112,7 @@ def _passage(text: str, claims: int) -> PassageToExtract:
 
 
 def test_a_list_passage_has_room_for_every_item() -> None:
-    """The cap is never below the passage's claims and list items."""
+    """The cap is never below the passage's sentences and list items."""
     listed = _passage(LISTED, claims=1)
 
     assert listed.items == 8
@@ -125,6 +125,28 @@ def test_a_short_prose_passage_keeps_the_share_based_cap() -> None:
 
     assert prose.items == 0
     assert prose.room(4) == 4
+
+
+def test_a_sentence_with_no_verb_has_room_too() -> None:
+    """`Minimum amount: 10 EUR.` states a value, so every sentence counts."""
+    stated = PassageToExtract(
+        id=1,
+        text="Minimum amount: 10 EUR. Maximum amount: 500 EUR. A fee is charged.",
+        section_path=None,
+        block_type="text",
+        language="en",
+        sentences=[
+            Sentence(
+                index=0, text="Minimum amount: 10 EUR.", start=0, end=23, predicates=0
+            ),
+            Sentence(
+                index=1, text="Maximum amount: 500 EUR.", start=24, end=48, predicates=0
+            ),
+            Sentence(index=2, text="A fee is charged.", start=49, end=66, predicates=1),
+        ],
+    )
+
+    assert stated.room(1) == 3
 
 
 def test_no_cap_is_no_cap_however_long_the_passage() -> None:

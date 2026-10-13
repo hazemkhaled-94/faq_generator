@@ -121,7 +121,7 @@ Write every statement in {{language}}."""
 #: is near still changes what a model writes.
 #:
 #: The number is the passage's own room, `PassageToExtract.room`: the cap, or
-#: its claims and list items where they are more, so a list is asked for
+#: its sentences and list items where they are more, so a list is asked for
 #: every item rather than for the first few.
 _CAP = """
 MOST IMPORTANT RULE, ABOVE ALL THE OTHERS:
@@ -197,7 +197,7 @@ class LlmExtractor(Extractor):
             client: The model that reads a passage.
             cap: The most facts one passage may yield, or None for no
                 ceiling. What EXTRACTION_MIN_OTHER_SHARE works out to; a
-                passage stating more claims and list items is asked for those.
+                passage stating more sentences and list items is asked for those.
         """
         self._client = client
         self._cap = cap

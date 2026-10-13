@@ -615,7 +615,7 @@ class FactCatalog(Repository):
 
         Args:
             cap: The most validated atomic facts one passage may keep. A
-                passage stating more claims and list items keeps that many,
+                passage stating more sentences and list items keeps that many,
                 as `PassageToExtract.room` reads it.
             reason: What to record on the ones refused.
             within: A condition on Passage narrowing which are read, or None.

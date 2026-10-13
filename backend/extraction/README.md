@@ -138,10 +138,10 @@ Two more refusals are the service refusing what the checks passed:
   fact's evidence from the citation it keeps. No model is called.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which works out to a cap on the atomic
-  ones. A passage's cap is never below what it states, its sentences
-  carrying a finite verb and its list items together, so the cap never cuts
-  a list short: the splitter reads a list as one sentence, and a few of its
-  items read as the whole rule. The facts asserting a number, date or name
+  ones. A passage's cap is never below what it states, its sentences - a
+  line with no verb included - and its list items together, so the cap
+  never cuts a list short: the splitter reads a list as one sentence, and a
+  few of its items read as the whole rule. The facts asserting a number, date or name
   are kept first, and the ones the deterministic reader composed do not
   compete. `make extract-recap` re-applies it with no model call.
 
@@ -231,7 +231,7 @@ writes its composed prompt to the `prompts` table before the first claim.
 [`prompts.py`](prompts.py) is the catalogue. The atomic prompt is recorded
 with the cap paragraph `EXTRACTION_MIN_OTHER_SHARE` works out to, under its
 version with that cap appended (`<version>+cap<n>`). A passage stating more
-claims and list items than the cap is sent the same text with its own count,
+sentences and list items than the cap is sent the same text with its own count,
 under the same version. Each prompt is recorded
 under the model it is sent to: `EXTRACTION_MODEL` for the atomic and bridge
 readers, and `EXTRACTION_DIGEST_MODEL` for the digest, the reader's where
