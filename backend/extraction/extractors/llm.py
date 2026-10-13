@@ -13,8 +13,9 @@ from llm.prompt import fill
 from nlp.models import named
 
 #: Recorded on every fact drawn with the prompt below. Bumped whenever that
-#: prompt changes what counts as a fact.
-PROMPT_VERSION = "9"
+#: prompt changes what counts as a fact. 10 states each passage's own room in
+#: the cap paragraph, where 9 stated the cap to every passage alike.
+PROMPT_VERSION = "10"
 
 _SYSTEM = """ROLE
 You are a claims analyst. You read one numbered excerpt of a document and
@@ -118,6 +119,10 @@ Write every statement in {{language}}."""
 #: fewer spends fewer tokens reaching the same set. Left off entirely when
 #: there is no cap, rather than written as a large number: a ceiling nothing
 #: is near still changes what a model writes.
+#:
+#: The number is the passage's own room, `PassageToExtract.room`: the cap, or
+#: its claims and list items where they are more, so a list is asked for
+#: every item rather than for the first few.
 _CAP = """
 MOST IMPORTANT RULE, ABOVE ALL THE OTHERS:
 
@@ -164,7 +169,12 @@ def composed(cap: int | None = None) -> str:
 
 
 def version(cap: int | None = None) -> str:
-    """The version this prompt is recorded under for one cap, as "9+cap4"."""
+    """The version this prompt is recorded under for one cap, as "10+cap4".
+
+    The cap named is the one EXTRACTION_MIN_OTHER_SHARE works out to, and the
+    text recorded under it is what a passage stating no more than that is
+    sent. A passage stating more is sent the same text with its own count.
+    """
     return f"{PROMPT_VERSION}+cap{cap}" if cap else PROMPT_VERSION
 
 
@@ -186,10 +196,11 @@ class LlmExtractor(Extractor):
         Args:
             client: The model that reads a passage.
             cap: The most facts one passage may yield, or None for no
-                ceiling. What EXTRACTION_MIN_OTHER_SHARE works out to.
+                ceiling. What EXTRACTION_MIN_OTHER_SHARE works out to; a
+                passage stating more claims and list items is asked for those.
         """
         self._client = client
-        self._system = composed(cap)
+        self._cap = cap
         self._version = version(cap)
 
     @property
@@ -216,7 +227,7 @@ class LlmExtractor(Extractor):
         """
         try:
             answer = self._client.answer(
-                system=self._system,
+                system=composed(passage.room(self._cap)),
                 user=self._prompt(passage),
                 shape=_Facts,
                 prompt_version=self._version,

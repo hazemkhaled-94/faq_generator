@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from database.qa_generator import FactKind
@@ -21,6 +22,11 @@ BULLET = "- "
 
 #: The fewest points an outline may hold.
 MIN_POINTS = 2
+
+#: A line the chunker renders as a list item: a bullet, or a number closed by
+#: a full stop or a bracket, then a space. Markdown's own markers, so a list
+#: reads alike in any language.
+_ITEM = re.compile(r"^[ \t]*(?:[-*+\u2022]|\d+[.)])[ \t]+\S", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -71,6 +77,30 @@ class PassageToExtract:
     def claims(self) -> int:
         """How many of its sentences assert anything."""
         return sum(1 for sentence in self.sentences if sentence.predicates)
+
+    @property
+    def items(self) -> int:
+        """How many list items its text renders, one per bulleted or numbered line."""
+        return len(_ITEM.findall(self.text))
+
+    def room(self, cap: int | None) -> int | None:
+        """The most validated atomic facts this passage keeps under a cap.
+
+        Never fewer than it states, its claims and its list items together:
+        the sentence splitter reads a list as one sentence, and a cap set to
+        leave room for the digests would keep four items of a list of
+        fourteen, which then reads as the whole rule. A short passage keeps
+        the cap itself. No cap stays no cap.
+
+        Args:
+            cap: What EXTRACTION_MIN_OTHER_SHARE works out to, or None.
+
+        Returns:
+            The larger of the two, or None.
+        """
+        if cap is None:
+            return None
+        return max(cap, self.claims + self.items)
 
 
 @dataclass(frozen=True)

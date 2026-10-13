@@ -1070,6 +1070,22 @@ def test_a_recap_keeps_the_fact_asserting_a_value_and_leaves_a_grid_alone(
     ]
 
 
+def test_a_recap_never_caps_a_passage_below_its_claims_and_items(store) -> None:
+    """A list of three under a cap of one keeps all three."""
+    (listed,) = store.corpus(
+        ("c", ["Fees apply to:\n- cards\n- transfers\n- letters"])
+    )["c"]
+    store.store(
+        listed,
+        checked(listed, "Fees apply to cards."),
+        checked(listed, "Fees apply to transfers."),
+        checked(listed, "Fees apply to letters."),
+    )
+
+    assert store.catalog.recap(1, "over the cap") == 0
+    assert [row[0] for row in store.rows("validated")] == [True, True, True]
+
+
 def test_a_recap_records_the_settings_that_moved_each_verdict(store, corpus) -> None:
     """Refused and given back alike, as a re-judgement records them."""
     from extraction.repository import FactCatalog

@@ -748,7 +748,8 @@ extract-bridge:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --bridge $(if $(filter 1,$(FORCE)),--force) $(ONLY)
 
 # Refuse the atomic facts a passage yielded above the cap
-# EXTRACTION_MIN_OTHER_SHARE works out to, keeping the ones that assert a
+# EXTRACTION_MIN_OTHER_SHARE works out to, or above the passage's own claims
+# and list items where those are more, keeping the ones that assert a
 # number, a date or a name. No model is called, so a corpus extracted before
 # the cap existed is re-balanced in seconds rather than re-read over hours.
 # Only the verdict moves: nothing is deleted, and the facts refused carry

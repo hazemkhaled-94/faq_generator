@@ -156,7 +156,8 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
     Args:
         catalog: Where the facts are read from and written back to.
         cap: The most validated atomic facts one passage may keep, or None
-            when EXTRACTION_MIN_OTHER_SHARE sets no cap.
+            when EXTRACTION_MIN_OTHER_SHARE sets no cap. A passage stating
+            more claims and list items than this keeps that many instead.
         within: A condition narrowing which passages are read, or None.
 
     Returns:
@@ -164,12 +165,18 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
     """
     written = catalog.recap(
         cap,
-        f"the passage yielded more than the {cap} atomic fact(s) "
-        f"EXTRACTION_MIN_OTHER_SHARE leaves room for, and the ones asserting "
-        f"a number, a date or a name were kept ahead of it",
+        f"the passage yielded more atomic facts than it has room for - its own "
+        f"claims and list items, or the {cap} EXTRACTION_MIN_OTHER_SHARE leaves "
+        f"room for where that is more - and the ones asserting a number, a date "
+        f"or a name were kept ahead of it",
         within,
     )
-    log.info("moved %d atomic fact(s) across the cap of %s a passage", written, cap)
+    log.info(
+        "moved %d atomic fact(s) across the cap of %s a passage, or its own "
+        "claim count where that is more",
+        written,
+        cap,
+    )
     return written
 
 
@@ -724,9 +731,11 @@ def _refuse(fact: CheckedFact, cap: int) -> CheckedFact:
         validated=False,
         rejection_code=Rejection.OVER_CAP,
         validation_error=(
-            f"the passage yielded more than the {cap} atomic fact(s) "
-            f"EXTRACTION_MIN_OTHER_SHARE leaves room for, and the ones "
-            f"asserting a number, a date or a name were kept ahead of it"
+            f"the passage yielded more than the {cap} atomic fact(s) it has room "
+            f"for - its own claims and list items, or what "
+            f"EXTRACTION_MIN_OTHER_SHARE leaves room for where that is more - "
+            f"and the ones asserting a number, a date or a name were kept ahead "
+            f"of it"
         ),
     )
 
@@ -825,7 +834,8 @@ class ExtractionService(StageService):
             digest: The reader of a passage's summary and outline, or None
                 when this deployment writes neither.
             atomic_cap: The most atomic facts one passage keeps, or None for
-                no cap. EXTRACTION_MIN_OTHER_SHARE is where it comes from.
+                no cap. EXTRACTION_MIN_OTHER_SHARE is where it comes from. A
+                passage stating more claims and list items keeps that many.
             digest_min_chars: The shortest passage worth digesting. 0
                 digests every passage carrying enough claims.
             embedder: The embedding model, or None to write no vectors and
@@ -874,6 +884,7 @@ class ExtractionService(StageService):
             try:
                 facts = self._passage(passage, current)
                 facts = self._capped(
+                    passage,
                     self._deduplicated(facts, current, passage.id, passage.language),
                     current,
                 )
@@ -981,9 +992,15 @@ class ExtractionService(StageService):
             _nothing_found(passage, current)
         return facts + self._digested(passage)
 
-    def _capped(self, facts: list[CheckedFact], current) -> list[CheckedFact]:
-        """Refuses the atomic facts past the cap, after dedup has refused its own."""
-        cap = self._atomic_cap
+    def _capped(
+        self, passage: PassageToExtract, facts: list[CheckedFact], current
+    ) -> list[CheckedFact]:
+        """Refuses the atomic facts past the cap, after dedup has refused its own.
+
+        The cap this passage has room for, which is never below what it
+        states: see `PassageToExtract.room`.
+        """
+        cap = passage.room(self._atomic_cap)
         refused = over_cap(facts, cap)
         if cap is None or not refused:
             return facts

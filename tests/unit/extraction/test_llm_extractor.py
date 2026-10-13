@@ -75,6 +75,35 @@ def test_a_capped_prompt_is_recorded_under_a_version_of_its_own() -> None:
     assert recorded(4) != recorded(None) == PROMPT_VERSION
 
 
+def test_a_passage_stating_more_than_the_cap_is_told_its_own_count() -> None:
+    """A list of eight is asked for eight, under the version the cap names."""
+    from extraction.prompts import catalogue
+
+    listed = passage(
+        "A customer is charged a fee for:\n- a card\n- a transfer\n- a statement\n"
+        "- a closure\n- a reminder\n- a cheque\n- a search\n- a letter"
+    )
+    client = _Client(_Answer())
+    capped = LlmExtractor(client, cap=4)
+
+    capped.extract(listed)
+
+    recorded = next(one for one in catalogue(4) if one.name == "atomic")
+    assert "AT MOST 9 FACTS" in client.asked["system"]
+    assert client.asked["prompt_version"] == recorded.version
+
+
+def test_a_short_passage_is_told_the_cap_itself() -> None:
+    """The recorded text is exactly what such a passage is sent."""
+    from extraction.prompts import catalogue
+
+    client = _Client(_Answer())
+    LlmExtractor(client, cap=4).extract(passage())
+
+    recorded = next(one for one in catalogue(4) if one.name == "atomic")
+    assert client.asked["system"] == recorded.text
+
+
 def test_the_sentences_are_sent_numbered() -> None:
     """The number is what a citation resolves against."""
     client = _Client(_Answer())

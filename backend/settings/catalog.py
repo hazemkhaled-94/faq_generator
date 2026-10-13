@@ -203,7 +203,8 @@ SETTINGS: tuple[Setting, ...] = (
         invalidates=("extraction",),
         help="Smallest share of a passage's facts that may be something "
         "other than atomic, which caps how many atomic facts one passage "
-        "keeps. 0 turns the cap off.",
+        "keeps - never below the passage's own claims and list items. 0 turns "
+        "the cap off.",
     ),
     Setting(
         name="EXTRACTION_DIGEST_MODEL",

@@ -1,12 +1,13 @@
-"""The verdicts the fact dedup gate reaches on stored pairs, pinned as a table.
+"""The refusals the service makes of facts the checks passed, pinned as tables.
 
-Each row is a candidate a run refused as `duplicate`, beside the fact it was
-refused against, and the sentence the candidate cites. The service is the
-real `ExtractionService` with the real checker and EMBEDDING_MODEL, read from
-the Hugging Face cache and skipped when it is not there; only the served
-model is scripted, answering with the statement the run recorded, and the
-index probe answers with the stored fact at the cosine the embedder reads
-between the two. `EXTRACTION_DUPLICATE_COSINE` is the configured one.
+`duplicate` and `over_cap`, on stored rows. Each dedup row is a candidate a
+run refused as `duplicate`, beside the fact it was refused against, and the
+sentence the candidate cites. The service is the real `ExtractionService`
+with the real checker and EMBEDDING_MODEL, read from the Hugging Face cache
+and skipped when it is not there; only the served model is scripted,
+answering with the statement the run recorded, and the index probe answers
+with the stored fact at the cosine the embedder reads between the two.
+`EXTRACTION_DUPLICATE_COSINE` and the cap are the configured ones.
 """
 
 from __future__ import annotations
@@ -324,3 +325,74 @@ def test_a_sibling_claim_of_one_passage_is_kept(
 
     assert first.validated, first.validation_error
     assert second.validated, second.validation_error
+
+
+#: A list passage the run read for fewer facts than it has items, and the
+#: claim each item makes.
+LISTED = (
+    "A player is cautioned if guilty of:\n"
+    "- delaying the restart of play (as outlined below in 'Delaying the restart "
+    "of play')\n"
+    "- dissent by word or action\n"
+    "- entering, re-entering or deliberately leaving the field of play without "
+    "the referee's permission\n"
+    "- failing to respect the required distance when play is restarted with a "
+    "dropped ball, corner kick, free kick or throw-in\n"
+    "- persistent offences (no specific number or pattern of offences "
+    "constitutes 'persistent')\n"
+    "- unsporting behaviour\n"
+    "- entering the referee review area (RRA)\n"
+    "- excessively using the 'review' (TV screen) signal\n"
+    "A substitute or substituted player is cautioned if guilty of:\n"
+    "- delaying the restart of play\n"
+    "- dissent by word or action\n"
+    "- entering or re-entering the field of play without the referee's "
+    "permission\n"
+    "- unsporting behaviour\n"
+    "- entering the referee review area (RRA)\n"
+    "- excessively using the 'review' (TV screen) signal\n"
+    "Where two separate cautionable offences are committed (even in close "
+    "proximity), they should result in two cautions, for example if a player "
+    "enters the field of play without the required permission and commits a "
+    "reckless tackle or stops a promising attack with a foul/handball, etc."
+)
+ITEMS = (
+    "delaying the restart of play",
+    "dissent by word or action",
+    "entering the field of play without the referee's permission",
+    "failing to respect the required distance when play is restarted",
+    "persistent offences",
+    "unsporting behaviour",
+    "entering the referee review area",
+    "excessively using the review signal",
+)
+
+
+def test_a_list_passage_keeps_a_fact_per_item() -> None:
+    """The configured cap never truncates a list of more items than it allows."""
+    from drivers import Extraction
+
+    from extraction.config import Settings
+
+    read = passage(LISTED, language="en", id=9)
+    (lead,) = [
+        one.index
+        for one in read.sentences
+        if "A player is cautioned if guilty of" in one.text
+    ]
+    run = Extraction(
+        read,
+        facts={
+            "facts": [
+                {"sentences": [lead], "statement": f"A player is cautioned for {one}."}
+                for one in ITEMS
+            ]
+        },
+        atomic_cap=Settings.load().atomic_cap,
+    )
+    run.next()
+
+    stored = run.queue.stored[9]
+    assert all(one.validated for one in stored), [
+        one.validation_error for one in stored if not one.validated
+    ]

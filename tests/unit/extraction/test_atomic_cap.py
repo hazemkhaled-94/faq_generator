@@ -80,6 +80,90 @@ def test_the_cap_is_never_below_one() -> None:
     assert atomic_cap(2, 0.99) == 1
 
 
+# ── What one passage has room for ──────────────────────────────────────────
+
+#: A lead-in and eight list items, as the chunker renders a list.
+LISTED = (
+    "A customer is charged a fee for:\n"
+    "- a card replacement\n"
+    "- a cash withdrawal abroad\n"
+    "* a paper statement\n"
+    "* a returned direct debit\n"
+    "1. a standing order change\n"
+    "2. an urgent transfer\n"
+    "3) a balance confirmation\n"
+    "4) an account closure"
+)
+
+
+def _passage(text: str, claims: int) -> PassageToExtract:
+    """A passage carrying `claims` sentences with a finite verb."""
+    return PassageToExtract(
+        id=1,
+        text=text,
+        section_path=None,
+        block_type="text",
+        language="en",
+        sentences=[
+            Sentence(index=at, text=text, start=0, end=len(text), predicates=1)
+            for at in range(claims)
+        ],
+    )
+
+
+def test_a_list_passage_has_room_for_every_item() -> None:
+    """The cap is never below the passage's claims and list items."""
+    listed = _passage(LISTED, claims=1)
+
+    assert listed.items == 8
+    assert listed.room(4) == 9
+
+
+def test_a_short_prose_passage_keeps_the_share_based_cap() -> None:
+    """Room for its two claims is within the cap the share works out to."""
+    prose = _passage("The card is blocked. A new one is sent.", claims=2)
+
+    assert prose.items == 0
+    assert prose.room(4) == 4
+
+
+def test_no_cap_is_no_cap_however_long_the_passage() -> None:
+    """None is EXTRACTION_MIN_OTHER_SHARE turning the cap off."""
+    assert _passage(LISTED, claims=1).room(None) is None
+
+
+def test_a_number_inside_a_line_is_not_a_list_item() -> None:
+    """Only a bullet or a number opening a line, then a space, marks one."""
+    prose = _passage("The fee is 2. 5 EUR are charged.\n-5 is no bullet.", claims=2)
+
+    assert prose.items == 0
+
+
+def test_the_service_keeps_a_fact_per_item_of_a_long_list() -> None:
+    """Eight items under a cap of four are eight facts, none over the cap."""
+    from drivers import Extraction, passage
+
+    items = LISTED.splitlines()[1:]
+    facts = {
+        "facts": [
+            {
+                "sentences": [0],
+                "statement": f"A customer is charged a fee for {one.split(' ', 1)[1]}.",
+            }
+            for one in items
+        ]
+    }
+    run = Extraction(passage(LISTED), facts=facts, atomic_cap=4)
+    run.next()
+
+    refused = [
+        one.statement
+        for one in run.queue.stored[1]
+        if one.rejection_code == Rejection.OVER_CAP
+    ]
+    assert not refused, refused
+
+
 # ── Which facts it refuses ─────────────────────────────────────────────────
 
 

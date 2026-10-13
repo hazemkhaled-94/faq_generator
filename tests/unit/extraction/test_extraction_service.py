@@ -335,7 +335,10 @@ class TestTheDedupGate:
         ]
 
     def test_the_atomic_cap_refuses_what_the_passage_has_no_room_for(self) -> None:
-        """The validated atomic facts past the cap, in the order written."""
+        """The validated atomic facts past the cap, in the order written.
+
+        Room for two: the passage states two claims, above a cap of one.
+        """
         facts = {
             "facts": [
                 {"sentences": [0], "statement": "The device weighs 4 kg."},
@@ -347,11 +350,12 @@ class TestTheDedupGate:
         run.next()
 
         stored = run.queue.stored[1]
-        assert stored[0].validated, stored[0].validation_error
-        assert [one.rejection_code for one in stored[1:]] == [
-            Rejection.OVER_CAP,
+        assert [one.rejection_code for one in stored] == [
+            None,
+            None,
             Rejection.OVER_CAP,
         ]
+        assert "the 2 atomic fact(s)" in (stored[2].validation_error or "")
 
     def test_the_corpus_is_probed_in_the_candidate_s_language_and_kind(self) -> None:
         """A German summary is never the twin of an English atomic fact."""

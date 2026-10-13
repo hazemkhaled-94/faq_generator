@@ -7,10 +7,13 @@ from itertools import groupby
 from typing import ClassVar, cast
 
 from sqlalchemy import (
+    BigInteger,
     ColumnElement,
+    Integer,
     Select,
     Table,
     bindparam,
+    column,
     delete,
     func,
     insert,
@@ -18,6 +21,7 @@ from sqlalchemy import (
     select,
     true,
     update,
+    values,
 )
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
@@ -319,6 +323,38 @@ def _nearest_fact(
     )
 
 
+def _room(session, cap: int, passages: Select):
+    """Each passage's room under `cap`, as a VALUES table, or None for none.
+
+    Read off each passage in Python, through `PassageToExtract.room`, so the
+    cap a recap applies and the one a passage in flight is held to are one
+    reading rather than two that could drift.
+    """
+    rows = [
+        (
+            row.id,
+            PassageToExtract(
+                id=row.id,
+                text=row.text,
+                section_path=None,
+                block_type=None,
+                language=None,
+                sentences=_sentences(row.text, row.sentences),
+            ).room(cap),
+        )
+        for row in session.execute(
+            select(Passage.id, Passage.text, Passage.sentences).where(
+                Passage.id.in_(passages)
+            )
+        )
+    ]
+    if not rows:
+        return None
+    return values(
+        column("passage_id", BigInteger), column("room", Integer), name="room"
+    ).data(rows)
+
+
 class PassageQueue(RowQueue):
     """Reads the extraction queue and records what became of each passage.
 
@@ -574,11 +610,13 @@ class FactCatalog(Repository):
 
         Ranked exactly as `over_cap` ranks a passage in flight - the facts
         a model wrote, asserting a number, a date or a name first, ties by
-        id - so a passage re-extracted later keeps the same facts this
-        leaves.
+        id - and against the room each passage has, as in flight, so a
+        passage re-extracted later keeps the same facts this leaves.
 
         Args:
-            cap: The most validated atomic facts one passage may keep.
+            cap: The most validated atomic facts one passage may keep. A
+                passage stating more claims and list items keeps that many,
+                as `PassageToExtract.room` reads it.
             reason: What to record on the ones refused.
             within: A condition on Passage narrowing which are read, or None.
 
@@ -588,6 +626,7 @@ class FactCatalog(Repository):
         ranked = (
             select(
                 Fact.id,
+                FactPassage.passage_id,
                 func.row_number()
                 .over(
                     partition_by=FactPassage.passage_id,
@@ -615,13 +654,21 @@ class FactCatalog(Repository):
         if within is not None:
             ranked = ranked.where(_resting(within))
         over = ranked.subquery()
-        inside = over.c.rank <= cap if cap is not None else true()
+        chosen = select(over.c.id)
         with self._session.begin() as session:
+            if cap is None:
+                inside = true()
+            else:
+                room = _room(session, cap, select(over.c.passage_id))
+                if room is None:
+                    return 0
+                chosen = chosen.join(room, room.c.passage_id == over.c.passage_id)
+                inside = over.c.rank <= room.c.room
             refused = session.execute(
                 update(Fact)
                 .where(
                     Fact.validated,
-                    Fact.id.in_(select(over.c.id).where(~inside)),
+                    Fact.id.in_(chosen.where(~inside)),
                 )
                 .values(
                     validated=False,
@@ -634,7 +681,7 @@ class FactCatalog(Repository):
                 update(Fact)
                 .where(
                     Fact.rejection_code == Rejection.OVER_CAP,
-                    Fact.id.in_(select(over.c.id).where(inside)),
+                    Fact.id.in_(chosen.where(inside)),
                 )
                 .values(
                     validated=True,
