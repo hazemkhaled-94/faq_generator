@@ -143,7 +143,9 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
     ("statement", "language"),
     [
         ("The card is blocked if it is reported stolen.", "en"),
+        ("If the card is reported stolen, it is blocked.", "en"),
         ("The bank replaces the card when its chip fails.", "en"),
+        ("The bank replaces its cards every year.", "en"),
         ("Der Kredit wird gekündigt, wenn er nicht bedient wird.", "de"),
         (
             (
@@ -174,12 +176,20 @@ def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
         ("Er wird gekündigt, wenn der Kredit nicht bedient wird.", "de", "er"),
         ("Der Kredit wird gekündigt, wenn sie ihn nicht bedient.", "de", "sie"),
         ("The card is blocked if this is reported stolen.", "en", "this"),
+        ("The customer must return it within 14 days.", "en", "it"),
+        ("The account holder must inform him within three days.", "en", "him"),
+        ("Der Kunde muss ihn informieren.", "de", "ihn"),
     ],
 )
 def test_a_pronoun_its_statement_does_not_resolve_is_still_refused(
     statement, language, pointer
 ) -> None:
-    """Opening the statement, agreeing with nothing before it, or pointing."""
+    """Opening the statement, agreeing with nothing before it, or pointing.
+
+    Or agreeing only with a noun of its own clause, which a personal pronoun
+    never names - that takes a reflexive - so `it` in "The customer must
+    return it" is something the passage named before.
+    """
     judged = Checker(passage(statement, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.UNRESOLVED_REFERENCE, (

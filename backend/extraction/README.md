@@ -151,12 +151,15 @@ a `summary` resolves its own pronoun, and a statement a deterministic reader
 composed faces only `copied`.
 
 A pronoun the statement resolves itself is not dangling, and is not recorded
-in `unresolved_references` at all: one with a noun before it that agrees
-with it in gender and number, where the language marks them, or that is a
-subject or an object where it does not - "The card is blocked if it is
-reported stolen" - and a German `es` standing beside the object or clause it
-anticipates. A demonstrative, and a pronoun opening its statement with no
-noun before it, are refused as before.
+in `unresolved_references` at all: one with a noun before it, outside the
+pronoun's own clause, that agrees with it in gender and number where the
+language marks them, or that is a subject or an object where it does not -
+"The card is blocked if it is reported stolen" - and a German `es` standing
+beside the object or clause it anticipates. A noun of the pronoun's own
+clause never resolves it: "The customer must return it" points outside.
+A possessive may name one, as in "The bank replaces its cards". A
+demonstrative, and a pronoun opening its statement with no noun before it,
+are refused as before.
 
 What `nothing invented` compares is **numbers and proper nouns only** — both
 are things a writer reports rather than chooses. A number keeps its surface

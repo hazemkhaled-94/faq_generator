@@ -335,6 +335,35 @@ _CORRELATES: dict[str, frozenset[str]] = {"de": frozenset({"es"})}
 #: What a correlate stands beside: an object, a clause, a repeated element.
 _BESIDE = frozenset({"oa", "oc", "re"})
 
+#: What opens a clause of its own beneath another: a subordinator on its verb,
+#: or the verb hung off its head as an adverbial or a relative clause. English
+#: and German labels, and the Universal Dependencies names for the same. A
+#: scheme naming none of them reads every statement as one clause, so its
+#: pronouns resolve only as a correlate or a possessive, which is the safe
+#: side of the line.
+_SUBORDINATOR = frozenset({"mark", "cp"})
+_EMBEDDED = frozenset({"advcl", "relcl", "acl", "acl:relcl", "rc"})
+
+
+def _clause(token) -> int:
+    """Where the clause a token sits in is headed, as a token index.
+
+    The nearest head above the token that carries a subordinator or hangs off
+    its own head as an adverbial or relative clause; failing one, the root of
+    its sentence, so two sentences' main clauses are two clauses. Read off the
+    labels rather than the part of speech: a tagger that calls the verb of a
+    `wenn` clause an adverb still hangs the `wenn` from it.
+    """
+    at = token.head
+    while True:
+        if at.dep_ in _EMBEDDED or any(
+            child.dep_ in _SUBORDINATOR for child in at.children
+        ):
+            return at.i
+        if at.head.i == at.i:
+            return at.i
+        at = at.head
+
 
 def _agrees(pronoun, noun) -> bool:
     """Whether a noun can be what a pronoun stands for.
@@ -370,9 +399,15 @@ def _correlate(token) -> bool:
 def _resolved(token) -> bool:
     """Whether a personal pronoun names something earlier in its own statement.
 
-    "Der Ball ist aus dem Spiel, wenn er die Linie überquert hat": `er` is the
-    ball, and refusing the statement throws its condition away. Resolved by a
-    noun before it that agrees with it, or by being a correlate.
+    "The card is blocked if it is reported stolen": `it` is the card, and
+    refusing the statement throws its condition away. Resolved by a noun
+    before it that agrees with it, or by being a correlate.
+
+    Only a noun outside the pronoun's own clause: a personal pronoun never
+    names a noun of its own clause, which takes a reflexive, so `it` in "The
+    customer must return it" is something the passage named before. A
+    possessive is the exception - "The bank replaces its cards" - because
+    English has no reflexive possessive to take its place.
 
     A demonstrative is never resolved here, and nor is a pronoun opening its
     statement, with no noun before it to stand for: both are what a reader
@@ -383,7 +418,12 @@ def _resolved(token) -> bool:
     earlier = [one for one in token.doc[: token.i] if one.pos_ in _NOMINAL]
     if not earlier:
         return False
-    return _correlate(token) or any(_agrees(token, noun) for noun in earlier)
+    if _correlate(token):
+        return True
+    if "Yes" not in token.morph.get("Poss"):
+        own = _clause(token)
+        earlier = [noun for noun in earlier if _clause(noun) != own]
+    return any(_agrees(token, noun) for noun in earlier)
 
 
 #: Nouns naming the source document, as lemma or as written.
