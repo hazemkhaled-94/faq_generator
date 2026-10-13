@@ -395,21 +395,29 @@ happened to offer.
 
 So the run overgenerates and the composition is chosen afterwards.
 `make questions-balance` fills a quota out of everything accepted and writes
-`questions.release_id` on what it drew. Three shares are held at once:
+`questions.release_id` on what it drew. Four shares are held at once:
 
 | | |
 |---|---|
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of the release that may have no answer. A ceiling |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands |
 | `QUESTIONS_RELEASE_TYPES` | How it spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
+| `QUESTIONS_RELEASE_LANGUAGES` | How it spreads over the languages. Unset weighs every language the pool holds alike |
 
 They are **marginals, not a joint distribution**: an even spread of kinds
 within each band is not reachable, because a `factoid` answers with a value
 and a short answer cannot earn the length point a `hard` question needs.
 
+Within a bucket the draw goes in the order of an md5 of the question's id,
+not of the id. Ids are creation order, and a run writes one language's
+topics before the next, so an id-order draw released whatever was written
+first. The hash is as reproducible: the same pool and settings draw the same
+release twice.
+
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
-within `TOLERANCE` of every quota. The command reports what it drew, the yield, and any
-quota the pool came up short on.
+within `TOLERANCE` of every quota. The command reports what it drew, the yield,
+its spread over every share, the languages included, and any quota the pool
+came up short on.
 
 Nothing is deleted. The draw re-checks first, as `questions-reverify` does,
 so a question that no longer passes the free gates is rejected before it can
@@ -575,6 +583,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How a release spreads over the bands |
 | `QUESTIONS_RELEASE_TYPES` | How a release spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
+| `QUESTIONS_RELEASE_LANGUAGES` | How a release spreads over the languages, by ISO 639-1 code. Unset weighs every language the pool holds alike |
 | `QUESTIONS_MODEL` | A different writer. Unset means `LLM_MODEL` |
 | `QUESTIONS_VERIFIER_MODEL` | The second model. Unset means `LLM_MODEL`. Where it comes out the writer's own, the entailment pass is off, and so are the opinion gates while `QUESTIONS_PHRASING_MODEL` is unset |
 | `QUESTIONS_PHRASING_MODEL` | The model asked what a question's wording amounts to. Never sees a passage. Unset means the verifier's. Where it comes out the writer's own, the opinion gates are off |

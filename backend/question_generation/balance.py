@@ -5,14 +5,14 @@ what the SET looks like, and the two are different problems: what survives a
 filter is whatever the material happened to offer.
 
 So the composition is chosen here instead, out of a pool deliberately larger
-than the release. Three marginals are held at once - how many questions have
-no answer, how they spread over the difficulty bands, and how they spread
-over the kinds - and they are marginals rather than a joint distribution on
-purpose. Demanding an even spread of kinds WITHIN each band is not reachable
-and not wanted: a `factoid` answers with a value, a value is short, and a
-short answer cannot earn the length point that a `hard` question generally
-needs. Asking for both marginals is achievable; asking for their product is
-asking the corpus to be something it is not.
+than the release. Four marginals are held at once - how many questions have
+no answer, and how they spread over the difficulty bands, over the kinds and
+over the languages - and they are marginals rather than a joint distribution
+on purpose. Demanding an even spread of kinds WITHIN each band is not
+reachable and not wanted: a `factoid` answers with a value, a value is short,
+and a short answer cannot earn the length point that a `hard` question
+generally needs. Asking for both marginals is achievable; asking for their
+product is asking the corpus to be something it is not.
 
 Nothing is deleted and nothing is rewritten. A release is a column on the
 rows already there, so the questions left out stay queryable and a second
@@ -21,10 +21,11 @@ run with different shares replaces the first.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ class Row:
     question_type: str
     #: The turn this one follows, or None for a root.
     follows_id: int | None = None
+    #: The language it is written in, which a release holds a share of.
+    language: str = ""
 
 
 @dataclass(frozen=True)
@@ -55,6 +58,8 @@ class Quota:
     unanswerable: int
     difficulty: dict[str, int]
     types: dict[str, int]
+    #: Empty holds no share of any language.
+    languages: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -95,6 +100,7 @@ def quota_of(
     bands: Mapping[str, int],
     types: Mapping[str, int],
     unanswerable: float,
+    languages: Mapping[str, int] | None = None,
 ) -> Quota:
     """The quota a release of this size wants."""
     return Quota(
@@ -102,38 +108,53 @@ def quota_of(
         unanswerable=int(size * unanswerable),
         difficulty=shares(bands, size),
         types=shares(types, size),
+        languages=shares(languages, size) if languages else {},
     )
 
 
-def _celled(pool: Sequence[Row]) -> dict[tuple[bool, str, str], list[Row]]:
+def _rank(row: Row) -> str:
+    """Where a question stands in the draw: a hash of its id.
+
+    Not the id itself. Ids are creation order, so a draw in id order is a
+    draw of whatever the run happened to write first - the first topics it
+    claimed, in the first language it wrote. A hash is as reproducible and
+    says nothing about when a row was written. The same hash the assessment
+    sample is stratified by.
+    """
+    return hashlib.md5(str(row.id).encode()).hexdigest()
+
+
+def _celled(pool: Sequence[Row]) -> dict[tuple[bool, str, str, str], list[Row]]:
     """The pool grouped by the cell a question would spend its places in.
 
-    Each in id order, so the same pool draws the same release twice.
+    Each in `_rank` order, so the same pool draws the same release twice.
     """
-    held: dict[tuple[bool, str, str], list[Row]] = {}
-    for row in sorted(pool, key=lambda one: one.id):
-        held.setdefault((row.answerable, row.difficulty, row.question_type), []).append(
-            row
-        )
+    held: dict[tuple[bool, str, str, str], list[Row]] = {}
+    for row in sorted(pool, key=_rank):
+        held.setdefault(
+            (row.answerable, row.difficulty, row.question_type, row.language), []
+        ).append(row)
     return held
 
 
 def choose(pool: Sequence[Row], quota: Quota) -> Release:
     """The questions filling this quota, and whatever it could not fill.
 
-    Largest deficit first. A question spends a place in three buckets at
-    once - answerability, band and kind - so at each step the cell taken
-    from is the one whose band and kind are the furthest, as a SHARE of
-    what each was asked for, from being filled. Measured as a share and not
-    as a count: a band's quota is three times a kind's, so compared raw the
-    band term decided every step and the kinds ran out underneath it.
+    Largest deficit first. A question spends a place in four buckets at
+    once - answerability, band, kind and language - so at each step the cell
+    taken from is the one whose band, kind and language are the furthest,
+    as a SHARE of what each was asked for, from being filled. Measured as a
+    share and not as a count: a band's quota is three times a kind's, so
+    compared raw the band term decided every step and the kinds ran out
+    underneath it.
 
     That keeps the marginals in step for almost all of the draw and not for
     the end of it, where three marginals cannot all reach zero together -
     which is what `TOLERANCE` is for, in `largest` above. This reports what
     it could not fill and leaves that judgement there.
 
-    Ties go to the lowest question id, so the draw is reproducible.
+    Ties go to the cell whose next question ranks first by `_rank`, so the
+    draw is reproducible and does not lean on the order rows were written.
 
     Threads are drawn whole: only a root is chosen, and it brings every turn
     under it, each counted against its own buckets. A follow-up whose root
@@ -141,9 +162,11 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
     """
     bands = dict(quota.difficulty)
     types = dict(quota.types)
+    languages = dict(quota.languages)
     # A ceiling: places the pool has no unanswerable row for go to answerable.
     held = min(quota.unanswerable, sum(not row.answerable for row in pool))
-    left = {True: quota.size - held, False: held}
+    places = {True: quota.size - held, False: held}
+    left = dict(places)
     cells = _celled([row for row in pool if row.follows_id is None])
     turns: dict[int, list[Row]] = {}
     for row in sorted(pool, key=lambda one: one.id):
@@ -152,27 +175,32 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
     chosen: list[int] = []
 
     while len(chosen) < quota.size:
-        best: tuple[tuple[float, int], tuple[bool, str, str]] | None = None
+        best: tuple[float, str, tuple[bool, str, str, str]] | None = None
         for key, rows in cells.items():
-            answerable, band, kind = key
+            answerable, band, kind, language = key
             if not rows or left[answerable] <= 0:
                 continue
             if bands.get(band, 0) <= 0 or types.get(kind, 0) <= 0:
                 continue
+            if quota.languages and languages.get(language, 0) <= 0:
+                continue
             # The SHARE of each bucket still to be filled, not the count.
             # Compared raw, a band's quota is three times a kind's, so the
             # band term decided every step and the kinds ran out under it.
-            score = (
-                bands[band] / max(quota.difficulty.get(band, 1), 1)
-                + types[kind] / max(quota.types.get(kind, 1), 1),
-                -rows[0].id,
-            )
-            if best is None or score > best[0]:
-                best = (score, key)
+            share = bands[band] / max(quota.difficulty.get(band, 1), 1)
+            share += types[kind] / max(quota.types.get(kind, 1), 1)
+            # Answerability too. Its places are held for it, and a draw that
+            # spent the band and kind they need first left them unfilled.
+            share += left[answerable] / max(places[answerable], 1)
+            if quota.languages:
+                share += languages[language] / max(quota.languages[language], 1)
+            head = _rank(rows[0])
+            if best is None or share > best[0] or (share == best[0] and head < best[1]):
+                best = (share, head, key)
         if best is None:
             break
         # ponytail: pop(0) shifts the cell each draw. Upgrade: deque.popleft().
-        thread = [cells[best[1]].pop(0)]
+        thread = [cells[best[2]].pop(0)]
         for turn in thread:
             thread.extend(turns.get(turn.id, ()))
         for turn in thread:
@@ -180,8 +208,12 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
             left[turn.answerable] -= 1
             bands[turn.difficulty] = bands.get(turn.difficulty, 0) - 1
             types[turn.question_type] = types.get(turn.question_type, 0) - 1
+            if quota.languages:
+                languages[turn.language] = languages.get(turn.language, 0) - 1
 
-    short = {name: count for name, count in (bands | types).items() if count > 0}
+    short = {
+        name: count for name, count in (bands | types | languages).items() if count > 0
+    }
     if left[True] > 0:
         short["answerable"] = left[True]
     return Release(ids=sorted(chosen), quota=quota, short=short)
@@ -206,6 +238,7 @@ def close_enough(release: Release, tolerance: float = TOLERANCE) -> bool:
     wanted = {
         **release.quota.difficulty,
         **release.quota.types,
+        **release.quota.languages,
         "answerable": release.quota.size - release.quota.unanswerable,
     }
     return all(
@@ -220,6 +253,7 @@ def largest(
     types: Mapping[str, int],
     unanswerable: float,
     tolerance: float = TOLERANCE,
+    languages: Mapping[str, int] | None = None,
 ) -> Release:
     """The biggest release this pool fills, near enough, found by bisection.
 
@@ -239,11 +273,13 @@ def largest(
     available beside a note of what is missing from it.
     """
     low, high = 1, len(pool)
-    empty = Release(ids=[], quota=quota_of(0, bands, types, unanswerable), short={})
+    empty = Release(
+        ids=[], quota=quota_of(0, bands, types, unanswerable, languages), short={}
+    )
     best, most = empty, empty
     while low <= high:
         size = (low + high) // 2
-        release = choose(pool, quota_of(size, bands, types, unanswerable))
+        release = choose(pool, quota_of(size, bands, types, unanswerable, languages))
         if release.size > most.size:
             most = release
         if close_enough(release, tolerance):
@@ -263,4 +299,5 @@ def composition(pool: Sequence[Row], ids: Sequence[int]) -> dict[str, dict[str, 
         ),
         "difficulty": Counter(row.difficulty for row in taken),
         "type": Counter(row.question_type for row in taken),
+        "language": Counter(row.language for row in taken),
     }

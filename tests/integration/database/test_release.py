@@ -99,6 +99,19 @@ def test_a_question_with_no_band_or_kind_is_not_offered(written, engine) -> None
     assert QuestionCatalog().releasable() == []
 
 
+def test_a_question_is_offered_with_its_language(written, engine) -> None:
+    """The draw holds a share per language, so it has to know which one."""
+    ids = written([("easy", "factoid", True, "accepted")] * 2)
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE questions SET language = 'de' WHERE id = :id"), {"id": ids[0]}
+        )
+
+    offered = {one.id: one.language for one in QuestionCatalog().releasable()}
+
+    assert offered == {ids[0]: "de", ids[1]: "en"}
+
+
 def test_the_draw_writes_one_id_on_what_it_chose(written, engine) -> None:
     """A release is a column on the rows already there."""
     ids = written([("easy", "factoid", True, "accepted")] * 3)
@@ -222,10 +235,10 @@ def test_the_balance_command_holds_every_share(written, engine) -> None:
         ).scalar_one()
 
     assert count == released(engine)
-    # Within one of each other: a size that does not divide by three has to
-    # give one band the remainder, and largest-remainder is what decides
-    # which.
-    assert max(got.values()) - min(got.values()) <= 1
+    # Within two of each other: a size that does not divide by three has to
+    # give one band the remainder, largest-remainder is what decides which,
+    # and TOLERANCE lets a band come one place short of its quota.
+    assert max(got.values()) - min(got.values()) <= 2
     assert set(got) == set(BANDS)
     assert unanswerable <= count * 0.1 + 1
 

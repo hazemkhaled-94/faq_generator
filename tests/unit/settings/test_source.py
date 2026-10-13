@@ -201,6 +201,24 @@ def test_a_mix_naming_an_unknown_type_is_refused_from_a_source() -> None:
         Settings.load(_overridden(QUESTIONS_TYPE_MIX="nonsense:1"))
 
 
+def test_a_release_language_mix_takes_any_language_code_from_a_source() -> None:
+    """A third language is a value to set, not a change to the code."""
+    from question_generation.config import Settings
+
+    loaded = Settings.load(_overridden(QUESTIONS_RELEASE_LANGUAGES="de:1,en:1,fr:2"))
+
+    assert loaded.release_languages == {"de": 1, "en": 1, "fr": 2}
+    assert Settings.load(_overridden()).release_languages is None
+
+
+def test_a_release_language_mix_naming_no_language_code_is_refused() -> None:
+    """`german` is a word, and no question's language column holds it."""
+    from question_generation.config import Settings
+
+    with pytest.raises(ValueError, match="QUESTIONS_RELEASE_LANGUAGES"):
+        Settings.load(_overridden(QUESTIONS_RELEASE_LANGUAGES="german:1"))
+
+
 def test_extraction_still_insists_on_the_atomic_kind_from_a_source() -> None:
     """Every passage is read for its claims, however the setting arrived."""
     from extraction.config import Settings

@@ -996,3 +996,66 @@ def test_a_release_spreads_over_its_own_kinds() -> None:
     assert {pool[at - 1].question_type for at in catalog.drawn} == {
         QuestionType.FACTOID
     }
+
+
+def test_a_release_holds_and_reports_the_languages_its_pool_holds(caplog) -> None:
+    """Unset QUESTIONS_RELEASE_LANGUAGES weighs every language present alike.
+
+    And the report says what came out, so a release that is mostly one
+    language is visible in `make questions-balance` rather than only in a
+    query afterwards.
+    """
+    from uuid import uuid4
+
+    from question_generation.balance import Row
+    from question_generation.service import balance
+
+    pool = [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=Difficulty.EASY,
+            question_type=QuestionType.FACTOID,
+            language=language,
+        )
+        for at, language in enumerate(["de"] * 30 + ["en"] * 30, start=1)
+    ]
+
+    class Catalog:
+        """Offers the pool and keeps what was drawn."""
+
+        drawn: tuple[int, ...] = ()
+
+        def judged(self, within=None):
+            return []
+
+        def reject(self, verdicts):
+            return 0
+
+        def releasable(self, within=None):
+            return pool
+
+        def release(self, ids):
+            self.drawn = tuple(ids)
+            return uuid4(), len(self.drawn)
+
+    catalog = Catalog()
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        balance(
+            catalog,
+            replace(
+                SETTINGS,
+                release_size=20,
+                release_difficulty={Difficulty.EASY: 1},
+                release_unanswerable=0.0,
+                release_types={QuestionType.FACTOID: 1},
+            ),
+        )
+
+    german = sum(pool[at - 1].language == "de" for at in catalog.drawn)
+    assert len(catalog.drawn) == 20
+    assert german == 10
+    assert any(
+        "language" in line and "de 10" in line and "en 10" in line
+        for line in caplog.messages
+    ), caplog.messages

@@ -338,3 +338,129 @@ def test_unanswerable_places_the_pool_cannot_fill_go_to_answerable_rows() -> Non
     quota = quota_of(10, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.1)
 
     assert choose([row(n) for n in range(1, 21)], quota).size == 10
+
+
+# ── Languages ──────────────────────────────────────────────────────────────
+
+#: Equal weight on two languages, which is what an unset
+#: QUESTIONS_RELEASE_LANGUAGES gives a pool holding both.
+LANGUAGES = {"de": 1, "en": 1}
+
+
+def spoken(id: int, language: str, answerable: bool = True, **bucket: str) -> Row:
+    """One accepted question in one language, easy and factoid unless told."""
+    return Row(
+        id=id,
+        answerable=answerable,
+        difficulty=bucket.get("band", Difficulty.EASY),
+        question_type=bucket.get("kind", QuestionType.FACTOID),
+        language=language,
+    )
+
+
+def written_in(languages: tuple[str, ...], per_cell: int) -> list[Row]:
+    """The same pool in each language, one language after the other.
+
+    Ids follow creation order, and a run writes one language's topics before
+    the next, so every row of the first language has a lower id than every
+    row of the second.
+    """
+    built: list[Row] = []
+    for language in languages:
+        for band in BANDS:
+            for kind in TYPES:
+                for _ in range(per_cell):
+                    built.append(spoken(len(built) + 1, language, band=band, kind=kind))
+    return built
+
+
+def test_an_even_bilingual_pool_is_released_evenly() -> None:
+    """Half of each language in, half of each out, within a place.
+
+    Without a language quota every place went to the language written
+    first: each cell drained in id order, and its ids were all lower.
+    """
+    held = written_in(("de", "en"), per_cell=10)
+
+    release = choose(held, quota_of(60, BANDS, TYPES, 0.0, LANGUAGES))
+    got = composition(held, release.ids)
+
+    assert release.size == 60
+    assert all(abs(got["language"][one] - 30) <= 1 for one in LANGUAGES), got
+
+
+def test_the_unanswerable_ceiling_is_shared_by_the_languages() -> None:
+    """Not filled from whichever language was written first."""
+    held: list[Row] = []
+    for language in LANGUAGES:
+        for answerable in (True, False):
+            for _ in range(10):
+                held.append(spoken(len(held) + 1, language, answerable))
+
+    release = choose(
+        held,
+        quota_of(20, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.5, LANGUAGES),
+    )
+    unanswerable = composition(
+        [one for one in held if not one.answerable], release.ids
+    )["language"]
+
+    assert sum(unanswerable.values()) == 10
+    assert min(unanswerable[one] for one in LANGUAGES) >= 3, unanswerable
+
+
+def test_a_language_the_pool_has_none_of_is_dropped_from_the_quota() -> None:
+    """A German-only pool would otherwise refuse every size of release."""
+    supplied = _supplied([spoken(1, "de")], LANGUAGES, "language", "language")
+
+    assert supplied == {"de": 1}
+
+
+def test_a_heavier_language_takes_its_weighted_share() -> None:
+    """`de:2,en:1` releases about two thirds German."""
+    held = written_in(("de", "en"), per_cell=20)
+
+    release = choose(held, quota_of(60, BANDS, TYPES, 0.0, {"de": 2, "en": 1}))
+    got = composition(held, release.ids)
+
+    assert release.size == 60
+    assert abs(got["language"]["de"] - 40) <= 1, got
+
+
+def test_a_third_language_is_held_to_its_share_too() -> None:
+    """No language is special: any code the pool holds is a bucket."""
+    languages = {"de": 1, "en": 1, "fr": 1}
+    held = written_in(tuple(languages), per_cell=10)
+
+    release = choose(held, quota_of(60, BANDS, TYPES, 0.0, languages))
+    got = composition(held, release.ids)
+
+    assert all(abs(got["language"][one] - 20) <= 1 for one in languages), got
+
+
+def test_the_composition_reports_the_language() -> None:
+    """The report logs it, so a skew towards one is visible."""
+    held = [spoken(1, "de"), spoken(2, "de"), spoken(3, "en")]
+
+    assert composition(held, [1, 2, 3])["language"] == {"de": 2, "en": 1}
+
+
+# ── Order ──────────────────────────────────────────────────────────────────
+
+
+def test_a_draw_does_not_favour_what_was_written_first() -> None:
+    """Twenty of forty identical rows come from both halves of the ids.
+
+    Ids are creation order, so a draw in id order is a draw of whatever the
+    run happened to write first: the first topics claimed, in the first
+    language.
+    """
+    held = [row(at) for at in range(1, 41)]
+    quota = quota_of(20, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+
+    drawn = choose(held, quota).ids
+    early = sum(at <= 20 for at in drawn)
+
+    assert len(drawn) == 20
+    assert 5 <= early <= 15, drawn
+    assert choose(held, quota).ids == drawn

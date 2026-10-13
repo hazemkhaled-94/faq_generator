@@ -12,13 +12,21 @@ deadline worth setting.
 
 from __future__ import annotations
 
+from collections import Counter
 from math import isinf, isnan
 
 from hypothesis import given
 from hypothesis import strategies as st
 
 from database.qa_generator import Difficulty, QuestionType
-from question_generation.balance import Quota, Row, choose, quota_of, shares
+from question_generation.balance import (
+    Quota,
+    Row,
+    choose,
+    composition,
+    quota_of,
+    shares,
+)
 from question_generation.gates import figures
 from question_generation.models import band, criteria_of
 from question_generation.selection import spread, strided
@@ -174,7 +182,7 @@ def test_a_draw_never_takes_more_unanswerable_than_the_ceiling(pool, size) -> No
 
 @given(pool=POOL, size=st.integers(0, 40))
 def test_the_same_pool_draws_the_same_release_twice(pool, size) -> None:
-    """Ties go to the lowest id, so nothing here is order-dependent."""
+    """Ties go by a hash of the id, so nothing here is order-dependent."""
     rows = [
         Row(id=at, answerable=a, difficulty=b, question_type=t)
         for at, (a, b, t) in enumerate(pool, 1)
@@ -182,6 +190,63 @@ def test_the_same_pool_draws_the_same_release_twice(pool, size) -> None:
     quota = quota_of(size, dict.fromkeys(_BANDS, 1), dict.fromkeys(_TYPES, 1), 0.3)
 
     assert choose(rows, quota).ids == choose(list(reversed(rows)), quota).ids
+
+
+_LANGUAGES = ("de", "en", "fr")
+
+
+@given(
+    size=st.integers(0, 12),
+    extra=st.lists(
+        st.tuples(
+            st.sampled_from(_BANDS),
+            st.sampled_from(_TYPES),
+            st.sampled_from(_LANGUAGES),
+        ),
+        max_size=30,
+    ),
+    order=st.randoms(use_true_random=False),
+)
+def test_which_ids_a_pool_was_given_moves_its_composition_a_place_at_most(
+    size, extra, order
+) -> None:
+    """The same questions under other ids come out as the same set, near enough.
+
+    Ids are creation order, and the order a run wrote its rows in says
+    nothing about them, so a draw that read the id would release another
+    composition from the same material written in another order.
+
+    Over a pool that can fill its quota: every band, kind and language
+    together, `size` deep, and whatever else on top. Where it cannot, which
+    of two tied rows goes first decides what is still possible after it, and
+    that is a greedy draw's endgame rather than its order.
+    """
+    cells = [
+        (band, kind, language)
+        for band in _BANDS
+        for kind in _TYPES
+        for language in _LANGUAGES
+    ]
+    pool = [cell for cell in cells for _ in range(size)] + extra
+    ids = list(range(1, len(pool) + 1))
+    shuffled = ids.copy()
+    order.shuffle(shuffled)
+    weights = (dict.fromkeys(_BANDS, 1), dict.fromkeys(_TYPES, 1), 0.0)
+    languages = dict.fromkeys(_LANGUAGES, 1)
+
+    def drawn(assigned: list[int]) -> dict[str, Counter]:
+        rows = [
+            Row(id=at, answerable=True, difficulty=b, question_type=t, language=lang)
+            for at, (b, t, lang) in zip(assigned, pool, strict=True)
+        ]
+        release = choose(rows, quota_of(size, *weights, languages))
+        return composition(rows, release.ids)
+
+    first, second = drawn(ids), drawn(shuffled)
+
+    for bucket, counted in first.items():
+        for name in set(counted) | set(second[bucket]):
+            assert abs(counted[name] - second[bucket][name]) <= 1, (bucket, name)
 
 
 def test_an_empty_quota_draws_an_empty_release() -> None:

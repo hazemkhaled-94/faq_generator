@@ -625,6 +625,16 @@ SETTINGS: tuple[Setting, ...] = (
         help="How a release spreads over the kinds. Absent reuses QUESTIONS_TYPE_MIX.",
     ),
     Setting(
+        name="QUESTIONS_RELEASE_LANGUAGES",
+        rebuild="make questions-balance",
+        service="questions",
+        kind="mapping",
+        optional=True,
+        invalidates=("questions",),
+        help="How a release spreads over the languages, by ISO 639-1 code. "
+        "Absent weighs every language the accepted pool holds alike.",
+    ),
+    Setting(
         name="QUESTIONS_MODEL",
         service="questions",
         kind="text",

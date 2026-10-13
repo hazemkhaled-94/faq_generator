@@ -291,7 +291,16 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     types = _supplied(
         pool, settings.release_types or settings.type_mix, "kind", "question_type"
     )
-    if not bands or not types:
+    # Unset weighs every language the pool holds alike, so a corpus in a
+    # third language is held to a third without anybody naming it.
+    languages = _supplied(
+        pool,
+        settings.release_languages
+        or dict.fromkeys(sorted({row.language for row in pool}), 1),
+        "language",
+        "language",
+    )
+    if not bands or not types or not languages:
         log.warning("nothing accepted can fill any quota; no release was drawn")
         catalog.release([])
         return 0
@@ -304,10 +313,13 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
                 bands,
                 types,
                 settings.release_unanswerable,
+                languages,
             ),
         )
     else:
-        release = largest(pool, bands, types, settings.release_unanswerable)
+        release = largest(
+            pool, bands, types, settings.release_unanswerable, languages=languages
+        )
 
     drawn, written = catalog.release(release.ids)
     _report(pool, release, drawn, written)

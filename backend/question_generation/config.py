@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -40,6 +41,32 @@ def _weights(
     if not any(weight > 0 for weight in read.values()):
         raise ValueError(f"{name} gives every entry a weight of 0, so nothing is asked")
     return read
+
+
+#: A language as every `language` column holds one: an ISO 639-1 code.
+_LANGUAGE = re.compile(r"[a-z]{2}")
+
+
+def _languages(name: str, source: Source = None) -> dict[str, int]:
+    """Reads a `language:weight` mix, taking any ISO 639-1 code.
+
+    `_weights` over an open set of names: which languages a corpus holds is
+    the deployment's business, so a third one is a value to set and not a
+    change to this list.
+
+    Raises:
+        KeyError: If the setting is unset or empty.
+        ValueError: If a name is not an ISO 639-1 code, or a weight is not a
+            whole number, or every weight is zero.
+    """
+    codes = tuple(mapping(name, source))
+    wrong = [code for code in codes if not _LANGUAGE.fullmatch(code)]
+    if wrong:
+        raise ValueError(
+            f"{name} names {', '.join(map(repr, wrong))}, which is not an "
+            f"ISO 639-1 code such as de or en"
+        )
+    return _weights(name, codes, source)
 
 
 def _bounds(name: str, source: Source = None) -> dict[str, tuple[int, int]]:
@@ -223,6 +250,9 @@ class Settings:
     encoder_max_tokens: int = 512
     #: How a release spreads over the kinds, or None for type_mix.
     release_types: dict[str, int] | None = None
+    #: How a release spreads over the languages, or None for every language
+    #: the accepted pool holds, weighed alike.
+    release_languages: dict[str, int] | None = None
 
     @classmethod
     def load(cls, source: Source = None) -> Settings:
@@ -304,6 +334,11 @@ class Settings:
             release_types=(
                 _weights("QUESTIONS_RELEASE_TYPES", SPECS, source)
                 if optional("QUESTIONS_RELEASE_TYPES", source)
+                else None
+            ),
+            release_languages=(
+                _languages("QUESTIONS_RELEASE_LANGUAGES", source)
+                if optional("QUESTIONS_RELEASE_LANGUAGES", source)
                 else None
             ),
         )

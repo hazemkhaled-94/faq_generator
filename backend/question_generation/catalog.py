@@ -341,6 +341,7 @@ class QuestionCatalog(Repository):
             Question.difficulty,
             Question.question_type,
             Question.follows_id,
+            Question.language,
         ).where(
             Question.status == QuestionStatus.ACCEPTED,
             Question.difficulty.is_not(None),
@@ -356,6 +357,7 @@ class QuestionCatalog(Repository):
                     difficulty=row.difficulty,
                     question_type=row.question_type,
                     follows_id=row.follows_id,
+                    language=row.language,
                 )
                 for row in session.execute(query.order_by(Question.id))
             ]
