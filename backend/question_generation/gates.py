@@ -707,9 +707,8 @@ def _unalike(threshold: float) -> float:
     The bar for two that ask with different words, and for two that cite
     nothing in common. Halfway from the threshold to identical, so it moves
     with the setting rather than being a second number to keep in step with
-    it: at the 0.93
-    QUESTIONS_DUPLICATE_COSINE ships with, a question asking something else
-    has to reach 0.965 before it is a duplicate anyway.
+    it: at the 0.93 QUESTIONS_DUPLICATE_COSINE ships with, a question asking
+    something else has to reach 0.965 before it is a duplicate anyway.
     """
     return threshold + (1.0 - threshold) / 2
 

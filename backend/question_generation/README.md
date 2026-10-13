@@ -233,8 +233,8 @@ its own document, runs in it too.
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure the passages do not, or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
-| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft a retry replaced. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe |
-| `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages answer it | the same probe, or the round trip |
+| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft a retry replaced. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
+| `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages answer it | the probe among answerable questions, the second of the two, or the round trip |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
@@ -423,10 +423,10 @@ release twice.
 A release holds one question of each twin group. Twins are read by the
 `duplicate` gate's own rule, over each accepted question's few nearest of
 its language and answerability rather than over the one neighbour the gate
-probed, so a twin the gate let past behind a closer question is caught here. A root whose twin is already in is
-skipped, a thread ends at a turn that twins what is already in, and of a
-group the question the gates were surest of, by `confidence`, is the one
-kept where it fits.
+probed, so a twin the gate let past behind a closer question is caught here.
+A root whose twin is already in is skipped, a thread ends at a turn that
+twins what is already in, and of a group the question the gates were surest
+of, by `confidence`, is the one kept where it fits.
 
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota. The command reports what it drew, the yield,
