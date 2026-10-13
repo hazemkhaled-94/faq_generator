@@ -55,7 +55,9 @@ the shape of the sample:
 
 Passages are dealt strided over the whole topic, each offered
 `QUESTIONS_SAMPLES_PER_PASSAGE` times. A topic sitting in one document falls
-back to the nearest passage of the same document rather than writing nothing.
+back to the passage of the same document most like the first, by the same
+likeness, rather than writing nothing; the nearest in reading order breaks a
+tie.
 
 Likeness pairs the **passages**, then picks the **facts**: the second
 passage's share is the facts closest to what the first offered, not its own
@@ -71,7 +73,8 @@ asks it to widen.
 A reading type is offered the condensed facts first; a `value` type is not.
 `QUESTIONS_MEETS_FLOOR` would narrow the sample where the second passage
 meets nothing, and ships off — the sweep found no threshold that removes
-the welds without throwing away sound questions.
+the welds without throwing away sound questions. It weighs the fact the first
+passage offers first, so for a reading type that is the condensed one.
 
 **The corpus's own furniture is never offered.** A copyright notice, contents
 page or revision table is real text a fact extracts from cleanly and no gate
@@ -625,7 +628,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |
-| `QUESTIONS_MEETS_FLOOR` | How much a candidate fact must share with the head of its sample before a second passage is offered. **Off** |
+| `QUESTIONS_MEETS_FLOOR` | How much a candidate fact must share with the fact the head of its sample offers first before a second passage is offered. **Off** |
 | `QUESTIONS_EXPLANATION_CHARS` | Shortest and longest `answer_explanation` |
 | `QUESTIONS_BOILERPLATE_COSINE` | How alike a passage must be to one in another document before it is read as furniture. `0` turns it off |
 | `QUESTIONS_ANSWER_OVERLAP` | How much of a list or explanation has to come back. Numbers are always exact |

@@ -581,9 +581,9 @@ SETTINGS: tuple[Setting, ...] = (
         low=0,
         high=1,
         invalidates=("questions",),
-        help="How much a candidate fact must have in common with the head of "
-        "its sample before a second passage is offered at all. 0 offers one "
-        "whatever it holds. Off by default.",
+        help="How much a candidate fact must have in common with the fact the "
+        "head of its sample offers first before a second passage is offered at "
+        "all. 0 offers one whatever it holds. Off by default.",
     ),
     Setting(
         name="QUESTIONS_BOILERPLATE_COSINE",

@@ -335,7 +335,7 @@ class Deal:
             return self._group([head], condensed=condensed)
 
         partner = self._bridge(head) if shape == Shape.BRIDGE else self._cross(head)
-        if partner and not self._clears(head, partner):
+        if partner and not self._clears(head, partner, condensed):
             # Nothing in the second passage meets the first well enough to
             # be worth offering. The span rules already tell the writer to
             # narrow in this case; this narrows for it, and the question
@@ -343,12 +343,19 @@ class Deal:
             partner = None
         return self._group([head, partner] if partner else [head], condensed=condensed)
 
-    def _clears(self, head: list[SourceFact], partner: list[SourceFact]) -> bool:
+    def _clears(
+        self, head: list[SourceFact], partner: list[SourceFact], condensed: bool
+    ) -> bool:
         """Whether the partner holds a fact close enough to the head to offer.
 
         Read off the BEST the partner can do rather than its average: one
         fact meeting the head is what a question spans, which is the same
         reading `meets` makes of a sample already part-chosen.
+
+        Weighed against the head's fact `_group` will offer first, which
+        `condensed` decides. The first in rank order is an atomic claim
+        that a reading is never offered, so the floor would pass a pair on
+        a fact the writer never sees.
 
         Abstains where either side has nothing left, because a measurement
         with nothing to measure is not evidence - the same bargain
@@ -356,7 +363,8 @@ class Deal:
         """
         if self._floor <= 0:
             return True
-        offered = self._left(head)[:1]
+        left = self._left(head)
+        offered = (condensed_first(left) if condensed else left)[:1]
         candidates = self._left(partner)
         if not offered or not candidates:
             return True
@@ -419,18 +427,16 @@ class Deal:
         return None
 
     def _cross(self, head: list[SourceFact]) -> list[SourceFact] | None:
-        """A passage in another document, or the nearest one in this document.
+        """A passage in another document, or the likeliest one in this document.
 
         Ranked by `overlap`, so the pair is two passages the corpus itself
         says are about related things. Pairing two passages because
         they came from different files produced questions about the first
         carrying a spread earned by the second.
 
-        The fallback is the closest passage of the same document, by ordinal:
-        passages are numbered in reading order, so a neighbour is the rest of
-        the same section rather than an unrelated part of the same file. It is
-        one point rather than two, and it is what a topic sitting in one
-        document has.
+        The fallback is the passage of the same document most like the head,
+        by the same `overlap`. It is one point rather than two, and it is what
+        a topic sitting in one document has.
         """
         return self._best(head, self._free(head, elsewhere=True)) or self._neighbour(
             head
@@ -484,7 +490,14 @@ class Deal:
         return min(candidates, key=lambda one: (-overlap(head, one), one[0].passage_id))
 
     def _neighbour(self, head: list[SourceFact]) -> list[SourceFact] | None:
-        """The closest unused passage of the same document, by ordinal."""
+        """The unused passage of the same document most like the head.
+
+        Likeness first, as `_best` ranks: a topic's passages are not
+        contiguous, so the next one in reading order may be about something
+        else and pairing it is the weld. Reading order breaks a tie, because
+        passages are numbered as they are read and the nearest is then the
+        rest of the same section.
+        """
         candidates = [
             passage
             for passage in self._free(head)
@@ -495,6 +508,7 @@ class Deal:
         return min(
             candidates,
             key=lambda one: (
+                -overlap(head, one),
                 abs(one[0].ordinal - head[0].ordinal),
                 one[0].passage_id,
             ),

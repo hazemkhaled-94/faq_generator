@@ -143,8 +143,35 @@ def test_a_topic_of_one_passage_offers_it_alone() -> None:
     assert {fact.passage_id for fact in sample.facts} == {1}
 
 
-def test_the_nearest_passage_of_a_document_is_the_one_paired() -> None:
-    """Passages are numbered in reading order, so a neighbour is related."""
+def test_a_single_document_cross_deal_pairs_by_likeness_not_by_ordinal() -> None:
+    """The partner is the passage about the same thing, not the next one.
+
+    A topic sitting in one document has no other document to pair with, and
+    its passages are not contiguous: the next passage in reading order may
+    be about something else entirely.
+    """
+    deal = Deal(
+        [
+            source(100, document="a", passage_id=1, ordinal=1, axis=3, passage_axis=3),
+            source(200, document="a", passage_id=2, ordinal=2, axis=9, passage_axis=9),
+            source(900, document="a", passage_id=9, ordinal=9, axis=3, passage_axis=3),
+        ],
+        wanted=1,
+        size=2,
+    )
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, 9}
+
+
+def test_passages_equally_alike_are_paired_by_reading_order() -> None:
+    """Likeness decides, and where it cannot, reading order does.
+
+    The nearest passage is then the rest of the same section rather than an
+    unrelated part of the file.
+    """
     deal = Deal(
         facts_of(1, "a", ordinal=1)
         + facts_of(2, "a", ordinal=2)
@@ -765,6 +792,54 @@ def test_a_floor_nothing_clears_narrows_to_one_passage() -> None:
 
     assert offered is not None
     assert len(offered.resting) == 1, "a pair with nothing in common was offered"
+
+
+def test_a_floor_narrows_a_pair_whose_vectors_share_nothing() -> None:
+    """Two facts at cosine 0 are not one sample, under any floor above it."""
+    deal = Deal(
+        [
+            source(100, document="a", passage_id=1, axis=3, passage_axis=3),
+            source(200, document="b", passage_id=2, axis=9, passage_axis=3),
+        ],
+        wanted=1,
+        size=2,
+        floor=0.5,
+    )
+
+    offered = deal.sample(Shape.CROSS)
+
+    assert offered is not None
+    assert len(offered.resting) == 1, "a pair at cosine 0 was offered"
+
+
+def test_the_floor_measures_the_fact_the_deal_actually_offers() -> None:
+    """The floor weighs the fact the head offers first.
+
+    A reading is offered the condensed fact first, not the atomic fact
+    ranked first, which it is never offered. The head passage's atomic claim meets the partner and its summary meets
+    nothing; offered summary-first, the pair has nothing in common.
+    """
+    head = [
+        source(1, document="a", passage_id=1, axis=3, passage_axis=3),
+        source(
+            2,
+            document="a",
+            passage_id=1,
+            axis=9,
+            passage_axis=3,
+            kind=FactKind.SUMMARY,
+        ),
+    ]
+    partner = [source(3, document="b", passage_id=2, axis=3, passage_axis=3)]
+    deal = Deal(head + partner, wanted=1, size=2, floor=0.5)
+
+    offered = deal.sample(Shape.CROSS, condensed=True)
+
+    assert offered is not None
+    assert len(offered.resting) == 1, (
+        f"floor 0.5 passed on a fact never offered; the offered pair was "
+        f"{[fact.id for fact in offered.facts]}"
+    )
 
 
 def test_a_floor_a_related_passage_clears_still_offers_two() -> None:
