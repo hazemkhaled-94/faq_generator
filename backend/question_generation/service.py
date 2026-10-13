@@ -362,9 +362,9 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
 def _twins(catalog: QuestionCatalog, settings: Settings, pool) -> dict[int, set[int]]:
     """Which accepted questions the release may hold only one of.
 
-    The duplicate gate's own rule, read over every pair rather than over the
-    one neighbour the gate probed: a twin behind a closer question that is
-    not one got past it.
+    The duplicate gate's own rule, read over each question's few nearest
+    rather than over the one neighbour the gate probed: a twin behind a
+    closer question that is not one got past it.
     """
     shared = settings.duplicate_shared_cosine
     floor = (

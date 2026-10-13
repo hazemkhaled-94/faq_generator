@@ -183,6 +183,63 @@ def test_the_twins_are_the_pairs_of_accepted_questions_of_one_language(
     assert first.passage_ids == second.passage_ids == {passage_id}
 
 
+def test_the_twins_are_read_among_each_question_s_nearest_few(engine, database) -> None:
+    """The probe is a nearest-k over the index, not every pair in the pool.
+
+    The asked question has more close neighbours than are read for it, and
+    the furthest of them has as many closer ones of its own, so neither side
+    reads the other. Every pair a question's nearest few hold is still found,
+    from either side.
+    """
+    from math import sqrt
+
+    from question_generation.catalog import TWIN_NEIGHBOURS
+
+    def at(alike: float, axis: int) -> list[float]:
+        """A unit vector this alike to the first axis."""
+        vector = [0.0] * 1024
+        vector[0], vector[axis] = alike, sqrt(1.0 - alike * alike)
+        return vector
+
+    # Alike enough to the asked one to be twins, and not to each other.
+    near = [0.89 + 0.01 * step for step in range(TWIN_NEIGHBOURS)]
+    with Session(engine) as session:
+        asked = question(
+            question_text="Asked?", status="accepted", embedding=at(1.0, 1)
+        )
+        closer = [
+            question(
+                question_text=f"Closer {step}?",
+                status="accepted",
+                embedding=at(alike, 2 + step),
+            )
+            for step, alike in enumerate(near)
+        ]
+        # Further from the asked one than every closer one, and with a
+        # cluster of its own nearer to it than the asked one is.
+        beyond = [
+            question(
+                question_text=f"Beyond {step}?",
+                status="accepted",
+                embedding=at(0.885, 100),
+            )
+            for step in range(TWIN_NEIGHBOURS + 1)
+        ]
+        session.add_all([asked, *closer, *beyond])
+        session.commit()
+        asked_id = asked.id
+        closer_ids = {row.id for row in closer}
+
+    found = QuestionCatalog().twins(0.88)
+
+    with_asked = {
+        first.id if second.id == asked_id else second.id
+        for first, second in found
+        if asked_id in (first.id, second.id)
+    }
+    assert with_asked == closer_ids
+
+
 def test_the_draw_writes_one_id_on_what_it_chose(written, engine) -> None:
     """A release is a column on the rows already there."""
     ids = written([("easy", "factoid", True, "accepted")] * 3)

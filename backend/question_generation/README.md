@@ -421,9 +421,9 @@ first. The hash is as reproducible: the same pool and settings draw the same
 release twice.
 
 A release holds one question of each twin group. Twins are read by the
-`duplicate` gate's own rule, over every accepted pair of one language rather
-than over the one neighbour the gate probed, so a twin the gate let past
-behind a closer question is caught here. A root whose twin is already in is
+`duplicate` gate's own rule, over each accepted question's few nearest of
+its language and answerability rather than over the one neighbour the gate
+probed, so a twin the gate let past behind a closer question is caught here. A root whose twin is already in is
 skipped, a thread ends at a turn that twins what is already in, and of a
 group the question the gates were surest of, by `confidence`, is the one
 kept where it fits.

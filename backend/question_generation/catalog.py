@@ -22,6 +22,7 @@ from sqlalchemy import (
     distinct,
     func,
     select,
+    true,
     update,
 )
 from sqlalchemy.orm import aliased
@@ -68,6 +69,13 @@ DEFAULT_FIELD = "both"
 
 #: How many questions to hold at once while re-checking them.
 _BATCH = 500
+
+#: How many of its nearest accepted questions each one is read against for
+#: a twin. The gate reads one; the release has to see past a closer question
+#: that is not a twin, and a twin group is a handful of questions at most,
+#: so a few cover one without reading the whole pool per question. Below
+#: `hnsw.ef_search`, which caps what one index scan returns.
+TWIN_NEIGHBOURS = 5
 
 #: Only passages the corpus makes a checkable claim from. Without it a probe
 #: comes back with tables of contents and indexes, which carry every term in
@@ -585,7 +593,7 @@ class QuestionCatalog(Repository):
         )
 
     def twins(self, floor: float) -> list[tuple[Neighbour, Neighbour]]:
-        """Every pair of accepted questions at least this alike, in one language.
+        """The pairs of accepted questions at least this alike, in one language.
 
         What the release reads twins off: `nearest` answers one neighbour
         per question, so a twin behind a closer question that is not one
@@ -595,78 +603,98 @@ class QuestionCatalog(Repository):
         caller can hold the pair to the duplicate gate's own rule, and
         `floor` is the lowest bar that rule has.
 
-        ponytail: a self-join over every accepted pair, which pgvector reads
-        without its index. Upgrade: a lateral join over the k nearest of
-        each question once a corpus is large enough for this to show.
+        Read among each question's `TWIN_NEIGHBOURS` nearest, over the HNSW
+        index, rather than over every pair, which is a scan of the pool for
+        each question in it. A pair either side holds among its nearest is
+        found, so a twin is missed only behind as many closer questions of
+        the same language and answerability on both sides. The filters
+        apply over the index scan, as in `nearest`.
         """
-        first, second = aliased(Question), aliased(Question)
-        distance = first.embedding.cosine_distance(second.embedding)
-        pairs = select(
-            first.id.label("first"), second.id.label("second"), distance.label("far")
-        ).where(
-            first.id < second.id,
-            first.status == QuestionStatus.ACCEPTED,
-            second.status == QuestionStatus.ACCEPTED,
-            first.embedding.is_not(None),
-            second.embedding.is_not(None),
-            first.language == second.language,
-            first.answerable == second.answerable,
-            distance <= 1.0 - floor,
+        asked, other = aliased(Question), aliased(Question)
+        distance = other.embedding.cosine_distance(asked.embedding)
+        nearest = (
+            select(other.id.label("id"), distance.label("far"))
+            .where(
+                other.status == QuestionStatus.ACCEPTED,
+                other.embedding.is_not(None),
+                other.language == asked.language,
+                other.answerable == asked.answerable,
+                other.id != asked.id,
+            )
+            .order_by(distance)
+            .limit(TWIN_NEIGHBOURS)
+            .lateral("nearest")
         )
+        first = func.least(asked.id, nearest.c.id)
+        second = func.greatest(asked.id, nearest.c.id)
+        pairs = (
+            select(
+                first.label("first"),
+                second.label("second"),
+                func.min(nearest.c.far).label("far"),
+            )
+            .select_from(asked)
+            .join(nearest, true())
+            .where(
+                asked.status == QuestionStatus.ACCEPTED,
+                asked.embedding.is_not(None),
+                nearest.c.far <= 1.0 - floor,
+            )
+            .group_by(first, second)
+            .cte("pairs")
+        )
+        paired = select(pairs.c.first).union(select(pairs.c.second))
+        cited = (
+            select(
+                QuestionFact.question_id.label("id"),
+                func.array_agg(func.distinct(QuestionFact.fact_id)).label("facts"),
+                func.array_agg(func.distinct(FactPassage.passage_id)).label("passages"),
+            )
+            .join(
+                FactPassage, FactPassage.fact_id == QuestionFact.fact_id, isouter=True
+            )
+            .where(QuestionFact.question_id.in_(paired))
+            .group_by(QuestionFact.question_id)
+            .cte("cited")
+        )
+        query = select(pairs.c.far)
+        for name in ("first", "second"):
+            held, cites = aliased(Question), cited.alias(f"{name}_cited")
+            query = (
+                query.add_columns(
+                    pairs.c[name].label(f"{name}_id"),
+                    held.question_text.label(f"{name}_text"),
+                    held.answerable.label(f"{name}_answerable"),
+                    held.language.label(f"{name}_language"),
+                    cites.c.facts.label(f"{name}_facts"),
+                    cites.c.passages.label(f"{name}_passages"),
+                )
+                .join(held, held.id == pairs.c[name])
+                .join(cites, cites.c.id == pairs.c[name], isouter=True)
+            )
+        query = query.select_from(pairs).order_by(pairs.c.first, pairs.c.second)
         with self._session() as session:
-            found = session.execute(pairs.order_by(first.id, second.id)).all()
-            ids = {row.first for row in found} | {row.second for row in found}
-            if not ids:
-                return []
-            asked = {
-                row.id: row
-                for row in session.execute(
-                    select(
-                        Question.id,
-                        Question.question_text,
-                        Question.answerable,
-                        Question.language,
-                    ).where(Question.id.in_(ids))
-                )
-            }
-            cited = session.execute(
-                select(
-                    QuestionFact.question_id,
-                    QuestionFact.fact_id,
-                    FactPassage.passage_id,
-                )
-                .join(
-                    FactPassage,
-                    FactPassage.fact_id == QuestionFact.fact_id,
-                    isouter=True,
-                )
-                .where(QuestionFact.question_id.in_(ids))
-            ).all()
-        facts: dict[int, set[int]] = {}
-        passages: dict[int, set[int]] = {}
-        for row in cited:
-            facts.setdefault(row.question_id, set()).add(row.fact_id)
-            if row.passage_id is not None:
-                passages.setdefault(row.question_id, set()).add(row.passage_id)
+            found = session.execute(query).all()
 
-        def side(question_id: int, similarity: float) -> Neighbour:
+        def side(row: Any, name: str) -> Neighbour:
             """One half of a pair, as the duplicate gate reads a neighbour."""
-            row = asked[question_id]
+            values = row._mapping
             return Neighbour(
-                question_text=row.question_text,
-                answerable=row.answerable,
-                similarity=similarity,
-                fact_ids=frozenset(facts.get(question_id, ())),
-                language=row.language,
-                id=question_id,
-                passage_ids=frozenset(passages.get(question_id, ())),
+                question_text=values[f"{name}_text"],
+                answerable=values[f"{name}_answerable"],
+                # pgvector answers in cosine distance; the gates read likeness.
+                similarity=1.0 - float(values["far"]),
+                fact_ids=frozenset(
+                    one for one in values[f"{name}_facts"] or () if one is not None
+                ),
+                language=values[f"{name}_language"],
+                id=values[f"{name}_id"],
+                passage_ids=frozenset(
+                    one for one in values[f"{name}_passages"] or () if one is not None
+                ),
             )
 
-        # pgvector answers in cosine distance; the gates read likeness.
-        return [
-            (side(row.first, 1.0 - row.far), side(row.second, 1.0 - row.far))
-            for row in found
-        ]
+        return [(side(row, "first"), side(row, "second")) for row in found]
 
     def judged(self, within=None) -> Iterator[JudgedQuestion]:
         """Streams every stored question with what a re-check needs.
