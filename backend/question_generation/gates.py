@@ -1227,29 +1227,81 @@ def compares(question: str, answer: str, language: str | None) -> bool:
 def _contrasts(question: str, answer: str, language: str | None) -> bool:
     """Whether a comparison answer states a difference between its two sides.
 
-    True where the answer carries a comparative, or where its two sides share
-    a content lemma the question did not supply. True where it has no two
-    sides to read.
+    The sides are read either side of the seam between the two subjects the
+    question names: a `;`, `,` or conjunction with, on each side, a content
+    lemma of the question the other side lacks. The first such seam in that
+    order wins, except that a comma opening a subordinate clause comes after
+    a conjunction: `beim Anstoss und ... des Elfmeters, wenn der Ball ...`
+    compares at the `und`.
+
+    True where each side carries a comparative of its own - `less formal`,
+    `more formal` - or where the two sides share a content lemma the
+    question did not supply. One comparative inside one side describes that
+    side and compares it with nothing: `excessive force is using more force
+    than is necessary` is a definition.
+
+    False where the answer has no seam, so no two sides. False too where no
+    seam divides the subjects and one side names a subject while the other
+    names none: a definition welded to a second sentence answers for one
+    side. Where neither side names one - `48 hours, 4 hours` - the sides are
+    read at the first seam as before.
 
     ponytail: a lexical reading of a judgement. It refuses a comparison
     whose shared attribute is named in the question (`bei der Zahl ihrer
     Kerne`); the upgrade is to deal comparison facts that share an attribute.
     """
     read = pipeline(language)(answer)
-    if any("Cmp" in token.morph.get("Degree", []) for token in read):
-        return True
-    seams = (
-        [token.i for token in read if token.text == ";"]
-        or [token.i for token in read if token.text == ","]
-        or [token.i for token in read if token.pos_ == "CCONJ"]
-    )
+    seams = [
+        token.i for token in read if token.text in (";", ",") or token.pos_ == "CCONJ"
+    ]
     if not seams:
-        return True
-    left, right = (
-        content(side.text, language)
-        for side in (read[: seams[0]], read[seams[0] + 1 :])
+        return False
+    asked = content(question, language)
+    sides = {
+        seam: (
+            content(read[:seam].text, language),
+            content(read[seam + 1 :].text, language),
+        )
+        for seam in seams
+    }
+    # The question's lemmas each side holds and the other does not.
+    named = {
+        seam: ((left & asked) - right, (right & asked) - left)
+        for seam, (left, right) in sides.items()
+    }
+    dividing = [seam for seam in seams if all(named[seam])]
+    if dividing:
+        seam = min(dividing, key=lambda one: (_seam_rank(read, one), one))
+        if all(
+            any("Cmp" in token.morph.get("Degree", []) for token in side)
+            for side in (read[:seam], read[seam + 1 :])
+        ):
+            return True
+    else:
+        seam = min(seams, key=lambda one: (_seam_rank(read, one), one))
+        if any(named[seam]):
+            return False
+    left, right = sides[seam]
+    return bool((left & right) - asked)
+
+
+def _seam_rank(read, seam: int) -> int:
+    """Where a seam comes in the order sides are split at, lowest first.
+
+    `;`, then a comma, then a conjunction, then a comma opening a
+    subordinate clause: one followed by a subordinating conjunction or a
+    relative pronoun, which every Universal Dependencies tagset marks.
+    """
+    token = read[seam]
+    if token.text == ";":
+        return 0
+    if token.text != ",":
+        return 2
+    after = read[seam + 1] if seam + 1 < len(read) else None
+    opens = after is not None and (
+        after.pos_ == "SCONJ" or "Rel" in after.morph.get("PronType", [])
     )
-    return bool((left & right) - content(question, language))
+    return 3 if opens else 1
 
 
 def periods(answer: str, language: str | None) -> bool:

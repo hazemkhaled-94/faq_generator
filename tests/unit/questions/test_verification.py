@@ -2565,6 +2565,80 @@ def test_a_comparison_saying_which_side_is_more_passes() -> None:
     )
 
 
+def test_a_comparison_answered_in_one_piece_is_refused() -> None:
+    """No seam is no two sides: this says what one thing does."""
+    assert not compares(
+        "What can the status light show when the update has finished on the device?",
+        "that the update has been installed on the device",
+        "en",
+    )
+
+
+def test_a_comparison_naming_one_side_is_refused_whatever_the_sides_share() -> None:
+    """A definition welded to another names one subject; `device` is incidental."""
+    assert not compares(
+        "How do the charging area and a sleeve differ?",
+        "a marked area on desks for staff devices, part of a device's kit worn "
+        "over its back cover",
+        "en",
+    )
+
+
+def test_a_comparison_is_split_between_its_subjects_not_at_a_subordinate_comma() -> (
+    None
+):
+    """The `und` divides the two payments; the comma opens the `wenn` clause."""
+    assert compares(
+        "Wodurch unterscheiden sich Überweisung und Lastschrift, wenn das Konto "
+        "gesperrt wird?",
+        "Rückbuchung der Zahlung bei der Überweisung und Rückbuchung der "
+        "Lastschrift, wenn das Konto gedeckt ist",
+        "de",
+    )
+
+
+def test_a_comparative_inside_one_side_is_not_a_difference() -> None:
+    """`more than the account holds` defines an overdraft and compares nothing."""
+    assert not compares(
+        "How do a savings plan and an overdraft differ?",
+        "a savings plan sets aside a fixed sum every month, an overdraft is "
+        "borrowing more than the account holds",
+        "en",
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Each side gives its own subject's value on the axis the question "
+    "names, so the sides share no lemma the question lacks. That is the "
+    "question-subtraction rule in gates._contrasts, deferred until it is "
+    "measured on the split this test now gets; remove this marker then.",
+)
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            (
+                "Worin unterscheidet sich die Rolle des Anlageberaters von der "
+                "des Kunden bei Anlageentscheidungen?"
+            ),
+            "beratende Rolle des Anlageberaters und endgültige Entscheidung des Kunden",
+            "de",
+        ),
+        (
+            "How do card payments and bank transfers differ in settlement time?",
+            "within seconds, on the next working day",
+            "en",
+        ),
+    ],
+)
+def test_a_comparison_whose_axis_is_in_the_question_passes(
+    question: str, answer: str, language: str
+) -> None:
+    """A sound A-against-B answer names its axis in the question, not twice."""
+    assert compares(question, answer, language)
+
+
 def test_a_why_question_typed_as_a_procedure_is_the_wrong_type() -> None:
     """The type is read off the question word as well as off the answer."""
     recording = Recording(recovers="4 kg")

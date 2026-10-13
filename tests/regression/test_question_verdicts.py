@@ -790,6 +790,95 @@ STORED_ROWS: tuple[
         AnswerForm.VALUE,
         QuestionRejection.MALFORMED,
     ),
+    (
+        "Q280: a comparison split at its und, not at the wenn clause",
+        "Wodurch unterscheiden sich Anstoss und Elfmeter, wenn der Ball beschädigt wird?",
+        (
+            "Wiederholung der Spielfortsetzung beim Anstoss und Wiederholung des "
+            "Elfmeters, wenn der Ball sich nach vorne bewegt"
+        ),
+        "de",
+        (),
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q845: two definitions, one carrying a comparative of its own",
+        (
+            "How do an electronic performance and tracking system and excessive "
+            "force differ?"
+        ),
+        (
+            "an electronic performance and tracking system records data about the "
+            "physical performance of a player, excessive force is using more force "
+            "than is necessary"
+        ),
+        "en",
+        (),
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        QuestionRejection.WRONG_TYPE,
+    ),
+    (
+        "Q1469: two definitions sharing an incidental word",
+        "How do the technical area and a shirt differ?",
+        (
+            "a defined area in stadiums for team officials, part of a team's "
+            "uniform worn over a player's upper body"
+        ),
+        "en",
+        (),
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        QuestionRejection.WRONG_TYPE,
+    ),
+    (
+        "Q439: a comparison answered in one piece",
+        (
+            "Was können zusätzliche Schiedsrichterassistenten anzeigen, wenn es um "
+            "das vollständige Überqueren der Torlinie durch den Ball geht?"
+        ),
+        "dass der Ball die Torlinie vollständig überquert hat",
+        "de",
+        (),
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        QuestionRejection.WRONG_TYPE,
+    ),
+    (
+        "Q82: two descriptions of one zone, one mis-tagged as a comparative",
+        (
+            "Wodurch unterscheiden sich ein Einwechselspieler und ein "
+            "Teamoffizieller in Bezug auf technische Zone und Disziplinarmassnahme?"
+        ),
+        (
+            "Person in der technischen Zone, Ermahnung bei gelegentlichem "
+            "Verlassen der eigenen technischen Zone ohne weiteres Vergehen"
+        ),
+        "de",
+        (),
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        QuestionRejection.WRONG_TYPE,
+    ),
+    (
+        "Q1246: the question's two sides said back, its comparative included",
+        (
+            "How does touching the ball with the hand or arm deliberately differ "
+            "from touching it when the hand or arm has made the body unnaturally "
+            "bigger?"
+        ),
+        (
+            "deliberately touching the ball with the hand or arm, touching it when "
+            "the hand or arm has made the body unnaturally bigger"
+        ),
+        "en",
+        (),
+        QuestionType.COMPARISON,
+        AnswerForm.EXPLANATION,
+        QuestionRejection.WRONG_TYPE,
+    ),
 )
 
 
