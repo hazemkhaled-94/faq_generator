@@ -189,7 +189,9 @@ too: its total is not in the material. Because their answers are absent by
 construction, recoverability asks them the wrong question and they face one
 of their own — `arithmetic`, for `aggregation`, asks whether the figures
 come to the total, and `entailment`, for the two in bold, whether the
-conclusion follows from the premises.
+conclusion follows from the premises. Where the passages hold fewer than two
+figures there is no total to compute, so a count of what they list is asked
+of the model rather than refused.
 
 `GET /questions/quality` also reports `cognitive_level_checked`, how many
 accepted questions are of a type a rule settles. Only six of the thirteen
@@ -260,9 +262,17 @@ fact minus its answer.
 `not_recoverable` is the one no similarity measure makes. A second model is
 shown **only the cited passages** and asked to answer; the question survives
 if what comes back carries every number, name and date the target asserts,
-and enough of what it is about. A `value` is compared whole; a `list` or an
-`explanation` by overlap — `QUESTIONS_ANSWER_OVERLAP`. Numbers are always
-exact, so `4 hours` never passes for `48 hours`.
+and enough of what it is about. A `value` is compared whole, on its verbs as
+well as its nouns and adjectives, so `a report` is what a passage saying
+`must be reported` says; a `list` or an `explanation` by overlap —
+`QUESTIONS_ANSWER_OVERLAP`. Numbers are always exact, so `4 hours` never
+passes for `48 hours`, and a count written out is its figure: `two
+conditions` is `2 conditions` and `zehn Sekunden` is `10 Sekunden`, for the
+languages whose number words the gates hold.
+
+The `recall` reading stored beside the verdict is held to the bar the form
+was: all of it for a `value`, which records a reading only where it fell
+short, and `QUESTIONS_ANSWER_OVERLAP` otherwise.
 
 The form is the one the answer fits among those its type takes, and only a
 `list` is then checked for completeness. Three items punctuated apart make a

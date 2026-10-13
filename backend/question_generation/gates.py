@@ -66,7 +66,7 @@ def _bare(text: str) -> str:
     return normalised(text).rstrip("?.!")
 
 
-def _folded(token: str) -> str:
+def _folded(token: str, language: str | None = None) -> str:
     """Reads a token as the value it is, where it is one.
 
     `0,3` and `0.3` are one value; so are `1.033`, `1,033` and `1033`. The
@@ -88,9 +88,15 @@ def _folded(token: str) -> str:
     which is what the paragraph above always claimed and the deletion never
     did: `U.S.A.` folded to `USA`, and a version like `1.2.3` folded to
     `123`.
+
+    A count written out is read as its figure in the language `_COUNTED`
+    holds it for: `two` is `2` and `zehn` is `10`, so a passage that lists
+    two conditions in words agrees with a key that says `2 conditions`. By
+    language, because `elf` is eleven in German and a word in English.
     """
     if _FIGURE.fullmatch(token) is None:
-        return token
+        written = _COUNTED.get((language or "").lower(), {}).get(token.casefold())
+        return token if written is None else repr(float(written))
     found = figures(token)
     return repr(found[0]) if len(found) == 1 else token
 
@@ -247,15 +253,18 @@ _ASKS_HOW_MANY: dict[str, str] = {
 #: `zwei`, `2 Fälle`.
 _BARE_COUNT = 2
 
-#: Counts written out, in the two languages NLP_MODELS configures.
-_COUNTS = {
-    word: value
-    for words in (
-        "two three four five six seven eight nine ten eleven twelve",
-        "zwei drei vier fünf sechs sieben acht neun zehn elf zwölf",
+#: Counts written out, by ISO 639-1 code, as the value each word is. A
+#: language with no entry has its counts read in digits only.
+_COUNTED: dict[str, dict[str, int]] = {
+    language: {word: value for value, word in enumerate(words.split(), start=2)}
+    for language, words in (
+        ("en", "two three four five six seven eight nine ten eleven twelve"),
+        ("de", "zwei drei vier fünf sechs sieben acht neun zehn elf zwölf"),
     )
-    for value, word in enumerate(words.split(), start=2)
 }
+
+#: The same in whichever language, which is how the count rule reads them.
+_COUNTS = {word: value for table in _COUNTED.values() for word, value in table.items()}
 
 
 def _count(word: str) -> int | None:
@@ -936,8 +945,10 @@ def asserted(target: str, passages: Sequence[str], language: str | None) -> bool
     units = claim(target, language).units
     if not units:
         return True
-    found = {_folded(one) for one in vocabulary("\n".join(passages), language)}
-    return all(_folded(unit) in found for unit in units)
+    found = {
+        _folded(one, language) for one in vocabulary("\n".join(passages), language)
+    }
+    return all(_folded(unit, language) in found for unit in units)
 
 
 #: Shortest and longest explanation, as QUESTIONS_EXPLANATION_CHARS sets
@@ -1023,8 +1034,10 @@ def explains(
         return False
     units = _asserts(explanation, language)
     if units:
-        found = {_folded(one) for one in vocabulary("\n".join(passages), language)}
-        if not all(_folded(unit) in found for unit in units):
+        found = {
+            _folded(one, language) for one in vocabulary("\n".join(passages), language)
+        }
+        if not all(_folded(unit, language) in found for unit in units):
             return False
     said = content(explanation, language)
     if not said or not target:
@@ -1578,6 +1591,52 @@ def about(
     return share is None or share >= floor
 
 
+def _numbers(text: str, language: str | None) -> tuple[str, ...]:
+    """The units a text asserts, with the counts `like_num` does not mark.
+
+    `claim().units` reads a number off `like_num`, which `en_core_web_md`
+    sets on `two` and `de_core_news_md` does not set on `zwei`: a German key
+    written in words asserted no number, and agreed with any.
+    """
+    counted = _COUNTED.get((language or "").lower(), {})
+    written = tuple(
+        token.lower_ for token in pipeline(language)(text) if token.lower_ in counted
+    )
+    return claim(text, language).units + written
+
+
+def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
+    """The lemmas `agrees` compares a text on, for an answer of this form.
+
+    A value's verbs as well as its content lemmas. The verifier is told to
+    answer in the passage's words, so a key that names the passage's verb
+    as a noun - `a report` for `must be reported` - shares its lemma with
+    the recovery only once the verb is read.
+    """
+    lemmas = content(text, language)
+    if form != AnswerForm.VALUE:
+        return lemmas
+    return lemmas | frozenset(
+        token.lemma_.casefold()
+        for token in pipeline(language)(text)
+        if token.pos_ == "VERB"
+    )
+
+
+def recalled(
+    recovered: str, target: str, language: str | None, form: str = AnswerForm.VALUE
+) -> float | None:
+    """What share of the target's lemmas came back, as `agrees` reads them.
+
+    The reading the checker records beside the round trip's verdict. None
+    where the target has no lemma to share.
+    """
+    wanted = _compared(target, language, form)
+    if not wanted:
+        return None
+    return len(wanted & _compared(recovered, language, form)) / len(wanted)
+
+
 def agrees(
     recovered: str,
     target: str,
@@ -1591,18 +1650,21 @@ def agrees(
     Two tests, both of which have to pass.
 
     How the second is applied depends on the FORM the answer was asked to
-    take. A value is compared whole, because every word of one is the answer.
-    A list or an explanation is compared by how much of it came back: `it is
-    raised through the web form, and confirmed by email before work begins`
-    recovered as `raised through the web form and confirmed by email` is the
-    same answer, and asking for every lemma of prose to survive a paraphrase
-    refuses answers the verifier found. QUESTIONS_ANSWER_OVERLAP is where the
-    share is set.
+    take. A value is compared whole, because every word of one is the answer,
+    and on its verbs as well as its content lemmas: `a report` is what a
+    passage saying `must be reported` says. A list or an explanation is
+    compared by how much of it came back: `it is raised through the web
+    form, and confirmed by email before work begins` recovered as `raised
+    through the web form and confirmed by email` is the same answer, and
+    asking for every lemma of prose to survive a paraphrase refuses answers
+    the verifier found. QUESTIONS_ANSWER_OVERLAP is where the share is set.
 
     Every number and name the target asserts has to occur in what came back.
     That is extraction's `unsupported_addition` check pointed the other way,
     and it is what stops `4 hours` passing for `48 hours` - no measure of
-    likeness would, because the two are as alike as two answers get.
+    likeness would, because the two are as alike as two answers get. A count
+    written out is its figure, in either direction: `zehn Sekunden` is `10
+    Sekunden`, and neither is `11 Sekunden`.
 
     And what the target is ABOUT has to occur in what came back, compared on
     content lemmas. That half replaced string containment, which was refusing
@@ -1632,16 +1694,18 @@ def agrees(
     # and the two are one number written in two locales. Folding keeps the
     # comparison that matters - `4` is still not `48` - and drops the one
     # that never did.
-    found = {_folded(one) for one in vocabulary(recovered, language)}
-    units = claim(target, language).units
-    if units and not all(_folded(unit) in found for unit in units):
+    found = {_folded(one, language) for one in vocabulary(recovered, language)}
+    units = _numbers(target, language)
+    if units and not all(_folded(unit, language) in found for unit in units):
         return False
 
     wanted = content(target, language)
     if wanted:
         got = content(recovered, language)
         if form == AnswerForm.VALUE:
-            return wanted <= got
+            return _compared(target, language, form) <= _compared(
+                recovered, language, form
+            )
         # Measured over what the ANSWER adds, not over the question restated
         # inside it. A model asked for prose writes `Die Regionen, in die
         # chinesische Produkte exportiert werden, umfassen Südostasien und
@@ -1718,7 +1782,10 @@ def adds_up(answer: str, passages: Sequence[str]) -> bool | None:
         True when some combination of at most four of the figures in the
         passages sums to the answer, False when none does, and None when the
         answer is not a single figure - a total in words, a range, or a date -
-        which is not this check's to judge and falls back to the model.
+        or when the passages hold fewer than two figures. Neither is this
+        check's to judge, and both fall back to the model: two figures are
+        the least a sum is made of, and a count of what a passage lists in
+        words - four offences, no digit among them - is no sum at all.
     """
     wanted = figures(answer)
     if len(wanted) != 1:
@@ -1726,8 +1793,8 @@ def adds_up(answer: str, passages: Sequence[str]) -> bool | None:
     total = wanted[0]
 
     available = [one for text in passages for one in figures(text)][:_FIGURE_CAP]
-    if not available:
-        return False
+    if len(available) < 2:
+        return None
 
     # Stated outright is not an aggregation, but it is not wrong arithmetic
     # either; `_derived` is the gate that refuses a lookup wearing this name.

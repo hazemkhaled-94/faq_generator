@@ -4,8 +4,8 @@ Rows docs/bugs.md quotes, each beside the code re-verify has to store for it,
 and one sound row. A rule added to the checker's type gates that re-verify
 does not run leaves the stored release as it was.
 
-`LISTED_ROWS` is the exception: stored keys read as the round trip reads
-them, which re-verify does not repeat.
+`LISTED_ROWS` and `ROUND_TRIP_ROWS` are the exception: stored keys read as
+the round trip reads them, which re-verify does not repeat.
 """
 
 from __future__ import annotations
@@ -17,7 +17,14 @@ import pytest
 
 from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
 from question_generation.config import Settings
-from question_generation.gates import BOUNDS, fitting, incomplete, near_verdict
+from question_generation.gates import (
+    BOUNDS,
+    adds_up,
+    agrees,
+    fitting,
+    incomplete,
+    near_verdict,
+)
 from question_generation.models import JudgedQuestion, Neighbour
 from question_generation.service import _recheck
 from question_generation.types import spec
@@ -1134,3 +1141,68 @@ def test_a_stored_key_is_held_to_the_list_its_type_asked_for(
 
     assert failed is None
     assert incomplete(passage, key, language, form) is expected, form
+
+
+#: The sentence P441 holds, which Q1001 and Q1002 were written from. The
+#: verifier is told to answer in the passage's words, so this is the best
+#: recovery either could get.
+_P441 = (
+    "Any incident in which more than one unauthorised player from a team enters "
+    "the captain-only zone must be reported to the appropriate authorities after "
+    "the match"
+)
+
+#: Keys this corpus stored, against what the passage they cite gives back:
+#: (name, question, recovery, key, language). Each agrees.
+ROUND_TRIP_ROWS: tuple[tuple[str, str, str, str, str], ...] = (
+    (
+        "Q1001: a report for must be reported",
+        (
+            "What must happen after a match if more than one unauthorised player "
+            "from a team enters the captain-only zone?"
+        ),
+        _P441,
+        "a report to the appropriate authorities",
+        "en",
+    ),
+    (
+        "Q1002: a report for must be reported",
+        (
+            "What must happen after the match if more than one unauthorised "
+            "player from a team enters the captain-only zone?"
+        ),
+        _P441,
+        "a report to the appropriate authorities",
+        "en",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("question", "recovered", "key", "language"),
+    [row[1:] for row in ROUND_TRIP_ROWS],
+    ids=[row[0] for row in ROUND_TRIP_ROWS],
+)
+def test_a_stored_value_key_agrees_with_the_sentence_it_was_written_from(
+    question: str, recovered: str, key: str, language: str
+) -> None:
+    """A value compared on its verbs too meets the passage's own sentence."""
+    assert agrees(recovered, key, language, AnswerForm.VALUE, question=question)
+
+
+#: The passage Q117 and Q118 count from: four things a ball may rebound off,
+#: and not one figure.
+_P143 = (
+    "- sich einen Vorteil verschafft, indem er den Ball spielt oder einen Gegner "
+    "beeinflusst, nachdem der Ball:\n- von einem Torpfosten, der Querlatte, einem "
+    "Spieloffiziellen oder einem Gegner zurückgeprallt oder abgelenkt worden ist,\n"
+    "- bei einer absichtlichen Torverhinderungsaktion des Gegners abgewehrt wurde."
+)
+
+
+@pytest.mark.parametrize("name", ["Q117", "Q118"])
+def test_a_stored_count_of_what_a_passage_lists_is_left_to_the_model(
+    name: str,
+) -> None:
+    """`4` counts what P143 lists, which no sum of its figures could find."""
+    assert adds_up("4", [_P143]) is None, name

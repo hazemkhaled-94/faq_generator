@@ -1560,6 +1560,78 @@ def test_a_value_is_still_compared_whole() -> None:
     )
 
 
+def test_a_value_naming_the_passages_verb_as_a_noun_agrees() -> None:
+    """The verifier answers in the passage's words, and those say `reported`.
+
+    A value is compared on its verbs' lemmas as well as its nouns', so `a
+    report` meets `must be reported`. The figures stay exact: `4 hours` is
+    still not `48 hours`.
+    """
+    recovered = (
+        "Any delivery in which more than one parcel is damaged must be reported "
+        "to the insurer within 48 hours"
+    )
+
+    assert agrees(recovered, "a report to the insurer", "en", AnswerForm.VALUE)
+    assert not agrees(
+        recovered, "a report to the insurer within 4 hours", "en", AnswerForm.VALUE
+    )
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        ("two conditions", "2 conditions", "en"),
+        ("2 conditions", "two conditions", "en"),
+        ("ten seconds", "10 seconds", "en"),
+        ("zehn Sekunden", "10 Sekunden", "de"),
+        ("10 Sekunden", "zehn Sekunden", "de"),
+    ],
+)
+def test_a_count_written_out_is_the_count_in_digits(
+    recovered: str, target: str, language: str
+) -> None:
+    """`two` and `2` are one number written two ways, as `0,3` and `0.3` are."""
+    assert agrees(recovered, target, language, AnswerForm.VALUE)
+
+
+def test_a_count_written_out_is_still_a_different_number_from_another() -> None:
+    """`de_core_news_md` gives `zehn` no `like_num`, so it is read as a count."""
+    assert not agrees("11 Sekunden", "zehn Sekunden", "de", AnswerForm.VALUE)
+
+
+def test_a_refused_value_records_the_whole_it_was_held_to() -> None:
+    """A value is compared whole, so its recall reading is held to all of it.
+
+    Read against the share a list is held to, a value two-thirds recovered
+    read as passing on a row the gate had refused.
+    """
+    recording = Recording(recovers="a notice to the tenant")
+
+    result = build(recording).check(
+        candidate(
+            question_text="What must the landlord send before a rent increase?",
+            target_answer="a formal notice to the tenant",
+        )
+    )
+
+    recall = next(one for one in result.readings if one.gate == "recall")
+    assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
+    assert recall.value < recall.threshold == 1.0
+
+
+def test_a_value_recovered_whole_records_no_recall_margin() -> None:
+    """A whole comparison holds or refuses, so there is no room to record.
+
+    Its margin against all of itself is 0, and a row's confidence - the
+    weakest margin it has - would then be 0 for every value key accepted.
+    """
+    result = build(Recording(recovers="4 kg")).check(candidate())
+
+    assert result.accepted
+    assert "recall" not in {one.gate for one in result.readings}
+
+
 # ── The kind of question it was asked to be ───────────────────────────────
 
 

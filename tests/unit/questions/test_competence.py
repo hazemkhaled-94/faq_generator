@@ -276,6 +276,40 @@ class TestAnAggregationIsCheckedArithmetically:
         assert "computes" in recording.asked, "it should have fallen through"
         assert result.status == "accepted"
 
+    @pytest.mark.parametrize(
+        "listed",
+        [
+            "A card is blocked for fraud, unpaid fees, a court order or a theft report.",
+            (
+                "A card is blocked after 3 failed logins, unpaid fees, a court "
+                "order or a theft report."
+            ),
+        ],
+        ids=["no figure", "one figure"],
+    )
+    def test_a_count_of_what_a_passage_lists_goes_to_the_model(
+        self, listed: str
+    ) -> None:
+        """Four things listed, and fewer than two figures to add up.
+
+        A count is an aggregation too. Where the passage writes fewer than
+        two figures there is no total for the arithmetic to find, so it does
+        not judge the count; the model does.
+        """
+        recording = Recording(answer=True)
+
+        result = build(recording).check(
+            candidate(
+                question_text="How many reasons for blocking a card does the policy give?",
+                target_answer="4",
+                question_type=QuestionType.AGGREGATION,
+                facts=group(source(passage_text=listed)),
+            )
+        )
+
+        assert "computes" in recording.asked, "it was refused unasked"
+        assert result.status == "accepted"
+
     def test_a_figure_ending_a_sentence_is_still_a_figure(self) -> None:
         """A four-digit summand followed by a full stop.
 

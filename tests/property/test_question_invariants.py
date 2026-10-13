@@ -28,7 +28,7 @@ from question_generation.balance import (
     quota_of,
     shares,
 )
-from question_generation.gates import BOUNDS, figures, fitting, restates
+from question_generation.gates import BOUNDS, agrees, figures, fitting, restates
 from question_generation.models import band, criteria_of
 from question_generation.selection import spread, strided
 from question_generation.types import SPECS
@@ -352,3 +352,40 @@ def test_a_predicate_the_question_lacks_is_something_new(noun, verb) -> None:
     assert not restates(
         f"What happens to the {noun} in that case?", f"The {noun} is {verb}.", "en"
     )
+
+
+# ── A number, however it is written ──────────────────────────────────────
+
+#: Two to twelve written out, and what is counted, in the two configured
+#: languages. Written here rather than read off the gate, so the gate's own
+#: table is what is tested.
+WRITTEN = {
+    "en": ("two three four five six seven eight nine ten eleven twelve", "hours"),
+    "de": ("zwei drei vier fünf sechs sieben acht neun zehn elf zwölf", "Stunden"),
+}
+
+
+def _written(n: int, language: str, words: bool) -> str:
+    """`n` hours, in words where that is asked for and there is a word."""
+    counts, unit = WRITTEN[language]
+    spelled = counts.split()
+    number = spelled[n - 2] if words and 2 <= n <= len(spelled) + 1 else str(n)
+    return f"{number} {unit}"
+
+
+@pytest.mark.nlp
+@given(
+    n=st.integers(2, 12),
+    language=st.sampled_from(sorted(WRITTEN)),
+    recovered_in_words=st.booleans(),
+    target_in_words=st.booleans(),
+)
+def test_a_count_is_the_same_count_in_words_or_digits_and_no_other(
+    n, language, recovered_in_words, target_in_words
+) -> None:
+    """`zehn Stunden` is `10 Stunden`, and neither is `11 Stunden`."""
+    recovered = _written(n, language, recovered_in_words)
+
+    assert agrees(recovered, _written(n, language, target_in_words), language)
+    assert not agrees(recovered, _written(n + 1, language, target_in_words), language)
+    assert not agrees(_written(n + 1, language, target_in_words), recovered, language)

@@ -49,6 +49,7 @@ from collections.abc import Mapping, Sequence
 
 from confidence import Measurement
 from database.qa_generator import (
+    AnswerForm,
     Derivation,
     QuestionRejection,
     QuestionStatus,
@@ -75,6 +76,7 @@ from question_generation.gates import (
     moves_on,
     near_verdict,
     on_topic,
+    recalled,
     restates,
     rivals,
     same_material,
@@ -580,17 +582,23 @@ class QuestionChecker:
         if candidate.answerable:
             target = candidate.target_answer or ""
             # What the verifier got back, against what the key claims, on
-            # the same content lemmas `agrees` compares. Recorded whichever
-            # way the verdict went, because `agrees` has several branches
-            # and no single threshold - this is the reading a reviewer
-            # wants beside the verdict, not a restatement of it.
+            # the same lemmas `agrees` compares. Recorded whichever way the
+            # verdict went, because `agrees` has several branches and no
+            # single threshold - this is the reading a reviewer wants beside
+            # the verdict, not a restatement of it.
+            #
+            # Against the bar the form is held to. A value is compared
+            # whole, so its bar is all of it, and one that came back whole
+            # records nothing: its margin against all of itself is 0, which
+            # would make every value key the weakest reading of its row.
             if read.recovered is not None:
                 language = candidate.group.language
-                recall = shared_lemmas(
-                    target, content(read.recovered, language), language
-                )
-                if recall is not None:
-                    readings.append(Measurement("recall", recall, self._overlap))
+                recall = recalled(read.recovered, target, language, form)
+                if form != AnswerForm.VALUE:
+                    if recall is not None:
+                        readings.append(Measurement("recall", recall, self._overlap))
+                elif recall is not None and recall < 1.0:
+                    readings.append(Measurement("recall", recall, 1.0))
             if read.recovered is None:
                 if self._backed(candidate, target, readings):
                     return None
@@ -678,7 +686,8 @@ class QuestionChecker:
             # total has a right value rather than a likely one, and a model
             # asked whether two numbers come to a third is being asked to
             # agree. None is an answer this cannot read - a total in words, a
-            # range, a date - and falls through to the model below.
+            # range, a date, or a count of what passages holding fewer than
+            # two figures list - and falls through to the model below.
             computed = adds_up(target, candidate.group.passages)
             if computed is True:
                 return None
