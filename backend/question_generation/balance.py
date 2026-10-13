@@ -156,7 +156,7 @@ def choose(
     underneath it.
 
     That keeps the marginals in step for almost all of the draw and not for
-    the end of it, where three marginals cannot all reach zero together -
+    the end of it, where the marginals cannot all reach zero together -
     which is what `TOLERANCE` is for, in `largest` above. This reports what
     it could not fill and leaves that judgement there.
 
@@ -280,7 +280,7 @@ def choose(
 
 #: How far short of its own quota one bucket may come and still be taken,
 #: as a share of that quota. The target is "about a third each", not exactly
-#: a third: three marginals cannot all land on zero together out of a finite
+#: a third: the marginals cannot all land on zero together out of a finite
 #: pool, and the last few places are where it always fails.
 TOLERANCE = 0.10
 
@@ -319,7 +319,7 @@ def largest(
 
     The size a balanced set can reach is set by whichever bucket is furthest
     from being able to supply its share. Rather than working that bound out
-    for three interacting marginals, the choosing itself is the test, and
+    for four interacting marginals, the choosing itself is the test, and
     the largest size it fills to within `tolerance` is bisected for.
 
     What the release actually came out as is reported rather than assumed -

@@ -287,6 +287,8 @@ PAIRS: tuple[Pair, ...] = (
         None,
     ),
     Pair(
+        # Passes only because `interrogatives` reads no question word in
+        # `Wodurch`, so the question-word veto abstains: B21 territory.
         "Q254 near Q253, a follow-up repeating its parent's fact",
         "Wodurch unterscheiden sich ein Sieg und ein Unentschieden?",
         "Warum endet das Spiel unentschieden?",
@@ -374,7 +376,7 @@ PAIRS: tuple[Pair, ...] = (
         (60,),
         (15,),
         QuestionRejection.DUPLICATE,
-        "its question word differs in form, which lifts it to the near-identical bar",
+        "shares only a passage, below QUESTIONS_DUPLICATE_COSINE",
     ),
     Pair(
         "Q384 near Q382, a follow-up repeating the positioning rule",
@@ -389,7 +391,7 @@ PAIRS: tuple[Pair, ...] = (
         (1453, 1455),
         (372, 373, 376, 380),
         QuestionRejection.DUPLICATE,
-        "asks with another word, which lifts it to the near-identical bar",
+        "shares only a passage, below QUESTIONS_DUPLICATE_COSINE",
     ),
     Pair(
         "Q536 near Q401, where the assistant goes, each with half of the answer",

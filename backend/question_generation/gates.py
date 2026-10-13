@@ -705,8 +705,9 @@ def _unalike(threshold: float) -> float:
     """How close two questions have to be on the cosine's word alone.
 
     The bar for two that ask with different words, and for two that cite
-    nothing in common. Halfway from the threshold to identical, so it moves with the setting
-    rather than being a second number to keep in step with it: at the 0.93
+    nothing in common. Halfway from the threshold to identical, so it moves
+    with the setting rather than being a second number to keep in step with
+    it: at the 0.93
     QUESTIONS_DUPLICATE_COSINE ships with, a question asking something else
     has to reach 0.965 before it is a duplicate anyway.
     """

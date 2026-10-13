@@ -365,7 +365,9 @@ def test_the_balance_command_holds_every_share(written, engine) -> None:
     assert count == released(engine)
     # Within two of each other: a size that does not divide by three has to
     # give one band the remainder, largest-remainder is what decides which,
-    # and TOLERANCE lets a band come one place short of its quota.
+    # TOLERANCE lets a band come one place short of its quota, and a
+    # thread's turns are counted only after its root is drawn, so they can
+    # overdraw a band (B26).
     assert max(got.values()) - min(got.values()) <= 2
     assert set(got) == set(BANDS)
     assert unanswerable <= count * 0.1 + 1
