@@ -483,10 +483,11 @@ def rejudge(
     gives.
 
     Each verdict is written to the row's `gate_scores` as it is reached,
-    kept or rejected, and a question already carrying a `settles` verdict -
-    from an earlier run, or from the checker since it asks the same - is
-    not asked again. So a second run, or one after an interruption, pays
-    only for what no run has judged.
+    kept or rejected, and in one write with the rejection it decides. A
+    question already carrying a `settles` verdict - from an earlier run, or
+    from the checker since it asks the same - is not asked again. So a
+    second run, or one after an interruption, pays only for what no run has
+    judged.
 
     Returns:
         How many questions were rejected.
@@ -496,11 +497,14 @@ def rejudge(
         if question.reviewed_verdict == ReviewVerdict.ACCEPTED or question.judged:
             continue
         failed, opinions = _settled(catalog, settings, verifier, question)
-        catalog.opine(question.id, opinions)
-        if failed:
-            code, reason = failed
+        code, reason = failed or (None, "")
+        if code:
             log.info("rejecting question %d: %s (%s)", question.id, reason, code)
-            written += catalog.reject([(question.id, code)])
+        # The verdicts and the rejection they decide in one write: apart, a
+        # run dying between them left a settled row accepted and judged.
+        catalog.opine(question.id, opinions, rejected=code)
+        if code:
+            written += 1
     log.info("re-judged and rejected %d question(s)", written)
     return written
 

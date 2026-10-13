@@ -100,6 +100,16 @@ _ASSERTS = (
 AROUND = 2
 
 
+def _rejecting(code: str) -> dict[str, Any]:
+    """What a re-check writes to reject a question: out of the release too."""
+    return {
+        "status": QuestionStatus.REJECTED,
+        "rejected_reason": code,
+        "status_changed_at": func.now(),
+        "release_id": None,
+    }
+
+
 def _joined(query: Select) -> Select:
     """Joins everything a question is filtered by, placed by and named by.
 
@@ -856,28 +866,44 @@ class QuestionCatalog(Repository):
             )
         return found
 
-    def opine(self, question_id: int, opinions: Sequence[Measurement]) -> None:
-        """Adds a model's verdicts to one question's `gate_scores`.
+    def opine(
+        self,
+        question_id: int,
+        opinions: Sequence[Measurement],
+        rejected: str | None = None,
+    ) -> None:
+        """Adds a model's verdicts to one question's `gate_scores`, and rejects it.
 
         Opinions only. They carry no margin, so the row's confidence stays
         what its measurements made it and nothing here recomputes it; a
         measurement added this way would leave the two disagreeing.
+
+        `rejected` is the code the verdicts refuse it under, or None to keep
+        it. One transaction for both: a verdict written without the
+        rejection it decided reads as judged, and nothing asks it again.
+        The row is locked while its entries are read and written back, so a
+        concurrent write of the column waits rather than losing one.
 
         Raises:
             ValueError: If any of them is a measurement.
         """
         if any(not one.opinion for one in opinions):
             raise ValueError("only an opinion is added without its confidence")
-        if not opinions:
+        if not opinions and not rejected:
             return
         with self._session.begin() as session:
             stored = session.scalar(
-                select(Question.gate_scores).where(Question.id == question_id)
+                select(Question.gate_scores)
+                .where(Question.id == question_id)
+                .with_for_update()
             )
             session.execute(
                 update(Question)
                 .where(Question.id == question_id)
-                .values(gate_scores=[*(stored or ()), *scored(opinions)])
+                .values(
+                    gate_scores=[*(stored or ()), *scored(opinions)],
+                    **(_rejecting(rejected) if rejected else {}),
+                )
             )
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:
@@ -893,12 +919,7 @@ class QuestionCatalog(Repository):
                 session.execute(
                     update(Question)
                     .where(Question.id == question_id)
-                    .values(
-                        status=QuestionStatus.REJECTED,
-                        rejected_reason=code,
-                        status_changed_at=func.now(),
-                        release_id=None,
-                    )
+                    .values(**_rejecting(code))
                 )
         return len(verdicts)
 

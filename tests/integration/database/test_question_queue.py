@@ -409,6 +409,46 @@ def test_a_rejudged_question_keeps_its_verdict_and_its_confidence(
     assert held == 0.14
 
 
+def test_a_verdict_and_its_rejection_are_written_together_or_not_at_all(
+    corpus, engine
+) -> None:
+    """A rejection the table refuses takes the verdict down with it."""
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    from confidence import Measurement
+
+    written = corpus(topics=1, facts_per_topic=1)
+    (cited,) = written["facts"][written["topics"][0]]
+    with Session(engine) as session:
+        asked = question(status="accepted", answerable=False)
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=cited))
+        session.commit()
+        kept = asked.id
+    settled = [Measurement("settles", 0.0, 0.5, opinion=True)]
+    catalog = QuestionCatalog()
+
+    with pytest.raises(IntegrityError):
+        catalog.opine(kept, settled, rejected="not_a_gate")
+
+    assert not catalog.unanswered()[0].judged, "the verdict outlived its rejection"
+
+    catalog.opine(kept, settled, rejected="answerable_after_all")
+
+    with engine.connect() as connection:
+        status, reason, scores = connection.execute(
+            text(
+                "SELECT status, rejected_reason, gate_scores FROM questions "
+                "WHERE id = :q"
+            ),
+            {"q": kept},
+        ).one()
+    assert (status, reason) == ("rejected", "answerable_after_all")
+    assert [one["gate"] for one in scores] == ["settles"]
+
+
 # ── Storing what a topic produced ──────────────────────────────────────────
 
 

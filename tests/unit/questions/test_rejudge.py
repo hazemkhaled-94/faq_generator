@@ -53,6 +53,9 @@ class Catalog:
         self.probed: list[tuple] = []
         self.rejected: list[tuple[int, str]] = []
         self.opined: dict[int, list] = {}
+        #: Whether writing a rejection fails, as a write the database refuses
+        #: does: the whole of that write, verdicts included, is lost.
+        self.failing = False
 
     def unanswered(self, within=None):
         """Every accepted question written to have no answer, as stored now."""
@@ -62,19 +65,18 @@ class Catalog:
             if one.id not in {qid for qid, _ in self.rejected}
         ]
 
-    def opine(self, question_id, opinions):
-        """Records the verdicts written to one row's gate_scores."""
+    def opine(self, question_id, opinions, rejected=None):
+        """Records the verdicts and the rejection, both or neither."""
+        if rejected and self.failing:
+            raise RuntimeError("the rejection could not be written")
         self.opined.setdefault(question_id, []).extend(opinions)
+        if rejected:
+            self.rejected.append((question_id, rejected))
 
     def elsewhere(self, lemmas, language, skip, limit, embedding=None):
         """The uncited passages the probe hands the verifier."""
         self.probed.append((tuple(skip), limit, embedding))
         return [PROBED]
-
-    def reject(self, verdicts):
-        """Records the rejections."""
-        self.rejected.extend(verdicts)
-        return len(verdicts)
 
 
 def unanswered(**columns) -> Unanswered:
@@ -183,6 +185,29 @@ def test_a_second_run_asks_nothing_about_what_a_first_judged() -> None:
 
     assert again == 0
     assert len(client.shown) == asked, "a judged question was asked again"
+
+
+def test_a_rejection_that_fails_leaves_the_question_to_be_asked_again() -> None:
+    """The verdict and the rejection are one write.
+
+    Written apart, a run dying between them left a settled verdict on an
+    accepted row, and every later run skipped it as judged.
+    """
+    catalog = Catalog(unanswered())
+    catalog.failing = True
+    client = Client(CITED)
+
+    with pytest.raises(RuntimeError):
+        rejudge(catalog, SETTINGS, Verifier(client))
+
+    assert catalog.opined == {}
+    assert not catalog.unanswered()[0].judged
+    catalog.failing = False
+
+    rejudge(catalog, SETTINGS, Verifier(client))
+
+    assert len(client.shown) == 2, "asked again on the second run"
+    assert catalog.rejected == [(7, QuestionRejection.ANSWERABLE_AFTER_ALL)]
 
 
 def test_a_question_the_checker_already_judged_is_not_asked_again() -> None:
