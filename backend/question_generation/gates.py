@@ -66,7 +66,7 @@ def _bare(text: str) -> str:
     return normalised(text).rstrip("?.!")
 
 
-def _folded(token: str, language: str | None = None) -> str:
+def _folded(token: str) -> str:
     """Reads a token as the value it is, where it is one.
 
     `0,3` and `0.3` are one value; so are `1.033`, `1,033` and `1033`. The
@@ -89,16 +89,36 @@ def _folded(token: str, language: str | None = None) -> str:
     did: `U.S.A.` folded to `USA`, and a version like `1.2.3` folded to
     `123`.
 
-    A count written out is read as its figure in the language `_COUNTED`
-    holds it for: `two` is `2` and `zehn` is `10`, so a passage that lists
-    two conditions in words agrees with a key that says `2 conditions`. By
-    language, because `elf` is eleven in German and a word in English.
+    A count written out is `_written`'s, which reads the parse.
     """
     if _FIGURE.fullmatch(token) is None:
-        written = _COUNTED.get((language or "").lower(), {}).get(token.casefold())
-        return token if written is None else repr(float(written))
+        return token
     found = figures(token)
     return repr(found[0]) if len(found) == 1 else token
+
+
+def _written(text: str, language: str | None) -> dict[str, str]:
+    """Each count a text writes out, by its word, as the figure `_folded` gives.
+
+    `two` is `2` and `zehn` is `10`, so a passage that lists two conditions
+    in words agrees with a key that says `2 conditions`. In the language
+    `_COUNTED` holds the word for, because `elf` is eleven in German and a
+    word in English; and only a token tagged `NUM`, because `außer Acht` is
+    a phrase and `die Elf` a team, and both models tag those as nouns.
+    """
+    counted = _COUNTED.get((language or "").lower(), {})
+    return {
+        token.lower_: repr(float(counted[token.lower_]))
+        for token in pipeline(language)(text)
+        if token.pos_ == "NUM" and token.lower_ in counted
+    }
+
+
+def _values(text: str, language: str | None) -> frozenset[str]:
+    """Every form a text's words take, its figures and its counts as values."""
+    return frozenset(_folded(one) for one in vocabulary(text, language)) | frozenset(
+        _written(text, language).values()
+    )
 
 
 def _misfits(
@@ -981,10 +1001,9 @@ def asserted(target: str, passages: Sequence[str], language: str | None) -> bool
     units = claim(target, language).units
     if not units:
         return True
-    found = {
-        _folded(one, language) for one in vocabulary("\n".join(passages), language)
-    }
-    return all(_folded(unit, language) in found for unit in units)
+    found = _values("\n".join(passages), language)
+    written = _written(target, language)
+    return all(written.get(unit, _folded(unit)) in found for unit in units)
 
 
 #: Shortest and longest explanation, as QUESTIONS_EXPLANATION_CHARS sets
@@ -1070,10 +1089,8 @@ def explains(
         return False
     units = _asserts(explanation, language)
     if units:
-        found = {
-            _folded(one, language) for one in vocabulary("\n".join(passages), language)
-        }
-        if not all(_folded(unit, language) in found for unit in units):
+        found = _values("\n".join(passages), language)
+        if not all(_folded(unit) in found for unit in units):
             return False
     said = content(explanation, language)
     if not said or not target:
@@ -1632,18 +1649,17 @@ def about(
     return share is None or share >= floor
 
 
-def _numbers(text: str, language: str | None) -> tuple[str, ...]:
-    """The units a text asserts, with the counts `like_num` does not mark.
+def _numbers(text: str, language: str | None) -> frozenset[str]:
+    """The values a text asserts, with the counts `like_num` does not mark.
 
     `claim().units` reads a number off `like_num`, which `en_core_web_md`
     sets on `two` and `de_core_news_md` does not set on `zwei`: a German key
     written in words asserted no number, and agreed with any.
     """
-    counted = _COUNTED.get((language or "").lower(), {})
-    written = tuple(
-        token.lower_ for token in pipeline(language)(text) if token.lower_ in counted
-    )
-    return claim(text, language).units + written
+    written = _written(text, language)
+    return frozenset(
+        written.get(unit, _folded(unit)) for unit in claim(text, language).units
+    ) | frozenset(written.values())
 
 
 def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
@@ -1735,9 +1751,8 @@ def agrees(
     # and the two are one number written in two locales. Folding keeps the
     # comparison that matters - `4` is still not `48` - and drops the one
     # that never did.
-    found = {_folded(one, language) for one in vocabulary(recovered, language)}
     units = _numbers(target, language)
-    if units and not all(_folded(unit, language) in found for unit in units):
+    if units and not units <= _values(recovered, language):
         return False
 
     wanted = content(target, language)

@@ -28,6 +28,7 @@ from question_generation.gates import (
     anchored,
     asked_as,
     asks_for_an_agent,
+    asserted,
     compares,
     enumerates,
     explains,
@@ -1601,6 +1602,33 @@ def test_a_count_written_out_is_the_count_in_digits(
 ) -> None:
     """`two` and `2` are one number written two ways, as `0,3` and `0.3` are."""
     assert agrees(recovered, target, language, AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target"),
+    [
+        ("Diese Frist bleibt außer Acht.", "8 Fristen"),
+        ("Die Elf des Gastgebers hält die Frist ein.", "11 Fristen"),
+    ],
+    ids=["außer Acht", "die Elf"],
+)
+def test_a_word_spelled_like_a_count_is_not_one(recovered: str, target: str) -> None:
+    """`außer Acht` is a phrase and `die Elf` a team: neither is tagged NUM."""
+    assert not agrees(recovered, target, "de", AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(
+    ("passages", "target", "language"),
+    [
+        (["Es gelten zwei Fristen."], "2 Fristen", "de"),
+        (["Two deadlines apply."], "2 deadlines", "en"),
+    ],
+)
+def test_a_count_written_out_in_the_passages_is_its_figure(
+    passages: list[str], target: str, language: str
+) -> None:
+    """The entailment guard reads the passages' counts as `agrees` does."""
+    assert asserted(target, passages, language)
 
 
 def test_a_count_written_out_is_still_a_different_number_from_another() -> None:
