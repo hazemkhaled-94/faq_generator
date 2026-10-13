@@ -58,9 +58,38 @@ When it runs out, or a page cannot be parsed, Docling returns only the
 finished pages without raising; a conversion that did not end in success is
 failed with Docling's errors rather than stored as the whole document.
 
-### Step 4 — Repair the text
+### Step 4 — Remove struck-through words, then repair the text
 
-[`_mend`](pipelines/pdf.py) rewrites every string before anything reads it:
+A PDF marks a deletion with nothing but a line drawn through the word: no
+annotation, no font flag, no colour. The converter keeps the word, so
+"a maximum of six eight" reaches a passage where the page shows only
+"eight". [`_unstruck`](pipelines/pdf.py) reads the source again with
+pymupdf and finds every word a stroke deletes. A stroke qualifies when it:
+
+- is horizontal — a stroked path of nothing but one level line (rising or
+  falling less than 0.3 pt), or a filled bar — and longer than 2 pt
+- covers at least 60% of the word's width
+- sits, its own line width included, between 0.15 and 0.55 × the font size
+  above the word's baseline: through the x-height, in any colour
+
+So an underline below the baseline, a table rule above the capitals or below
+the descenders, and the frame of a highlight are not strikes. The struck
+words are removed from every text item and its `orig` — section headers
+included — and from every table cell, whose provenance box holds them. An
+item left with no text moves to the `invisible` content layer, so a struck
+bullet is not rendered as an empty one and a struck heading heads nothing;
+it stays in place, so no other item's reference moves. The
+converter's boxes may count up from the page foot and pymupdf's count down,
+so each box is turned to a top-left origin before it is matched. The string
+is aligned with the page word by word in reading order, so the same word
+printed unstruck elsewhere in it stays.
+
+A page that strikes nothing is never touched. A source pymupdf cannot open,
+or a page the two readers give different sizes, is left as converted, with a
+warning.
+
+[`_mend`](pipelines/pdf.py) then rewrites every string before anything reads
+it:
 
 - compose to NFC
 - rejoin words the page broke across two lines — both the soft-hyphen
@@ -176,6 +205,7 @@ the two buckets and Docling itself are stood in for.
 |---|---|
 | [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
+| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; underlines, table rules and partial strokes removing nothing; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | The repair is idempotent and leaves no control character |
@@ -203,3 +233,9 @@ not covered because neither exists.
 - **A failed parse can leave an object in the `parsed` bucket.** It is
   collected when the document is deleted.
 - **A duplicate by content costs a stored file and a failed row.**
+- **Only a drawn strike is read.** A deletion marked by a strikeout
+  annotation, by a font, or on a line of text that is not horizontal is kept
+  as text. So is a struck word the converter and pymupdf split or spell
+  differently, because the two are aligned word by word.
+- **A struck word is removed, not reported.** Nothing in the converted
+  document records that the page deleted it.

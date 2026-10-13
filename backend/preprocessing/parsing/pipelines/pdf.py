@@ -7,8 +7,10 @@ import logging
 import math
 import re
 import unicodedata
-from typing import ClassVar
+from difflib import SequenceMatcher
+from typing import ClassVar, NamedTuple, cast
 
+import pymupdf
 from docling.datamodel.backend_options import ThreadedDoclingParseBackendOptions
 from docling.datamodel.base_models import (
     ConversionStatus,
@@ -23,6 +25,8 @@ from docling.datamodel.pipeline_options import (
     TableStructureOptions,
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling_core.types.doc.base import BoundingBox
+from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.document import DoclingDocument
 
 from preprocessing.parsing.models import Conversion, SourceDocument
@@ -59,6 +63,27 @@ _BROKEN_WORD = re.compile(
 
 #: Every space that is not U+0020.
 _SPACES = re.compile(r"[\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]")
+
+#: Where a deletion stroke sits: above the baseline by this share of the font
+#: size, low and high. Through the x-height, so an underline below the
+#: baseline and a rule above the capitals are not strikes.
+_STRIKE_BAND = (0.15, 0.55)
+
+#: The least share of a word's width one stroke must cross to delete it.
+_STRIKE_COVER = 0.6
+
+#: The most a line may rise or fall, in points, and still be horizontal.
+_LEVEL = 0.3
+
+#: The shortest line, in points, that can strike a word.
+_SHORTEST = 2.0
+
+#: How far, in points, the two readers may disagree on a page's size before
+#: the page is left alone rather than matched in the wrong place.
+_PAGE_SLACK = 1.0
+
+#: One unit of a string, as the converter spaced it.
+_TOKEN = re.compile(r"\S+")
 
 
 class PdfPipeline(Pipeline):
@@ -107,7 +132,8 @@ class PdfPipeline(Pipeline):
             source: The stored file and what is known about it.
 
         Returns:
-            The mended document and its confidences.
+            The document, its struck-through words removed and its text
+            mended, and its confidences.
 
         Raises:
             ConversionFailed: If the document needs OCR, or if Docling cannot
@@ -138,7 +164,7 @@ class PdfPipeline(Pipeline):
                 f"the conversion ended {result.status.value}: {'; '.join(errors)}"
             )
         return Conversion(
-            document=_repaired(result.document),
+            document=_repaired(_unstruck(result.document, source.data)),
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
         )
@@ -226,6 +252,241 @@ def _repaired(document: DoclingDocument) -> DoclingDocument:
         for cell in table.data.table_cells:
             cell.text = _mend(cell.text)
     return document
+
+
+class _Word(NamedTuple):
+    """One word as pymupdf placed it, with a top-left origin."""
+
+    text: str
+    left: float
+    top: float
+    right: float
+    bottom: float
+    baseline: float
+    size: float
+
+
+def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
+    """Removes every word the page strikes through from a converted document.
+
+    A PDF marks a deletion with nothing but a drawn line, and no converter
+    reads drawn lines, so the struck word reaches the text beside the one
+    replacing it. The source is read again with pymupdf, every word a stroke
+    runs through is found, and it is removed from each text item, its
+    `orig`, and each table cell, whose box holds it. Section headers are
+    text items. An item left with no text leaves the body. A page that
+    strikes nothing is never touched.
+
+    Args:
+        document: The converted document, modified in place.
+        data: The PDF it was converted from.
+
+    Returns:
+        The same document.
+    """
+    try:
+        marked = _marked(data)
+    except Exception as exc:  # noqa: BLE001 - the conversion already succeeded
+        log.warning(
+            "struck-through words were not looked for: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return document
+
+    for number, (width, height, flagged) in marked.items():
+        page = document.pages.get(number)
+        if page is None or (
+            abs(page.size.width - width) > _PAGE_SLACK
+            or abs(page.size.height - height) > _PAGE_SLACK
+        ):
+            log.warning(
+                "struck-through words on page %d were left in: the converter "
+                "and pymupdf disagree on the page's size",
+                number,
+            )
+            continue
+        for item in document.texts:
+            words = [
+                word
+                for prov in item.prov
+                if prov.page_no == number
+                for word in _inside(flagged, prov.bbox, height)
+            ]
+            if any(struck for _, struck in words):
+                item.text = _without(item.text, words)
+                item.orig = _without(item.orig, words)
+                if not item.text.strip():
+                    # Out of the body, so a struck bullet renders as no
+                    # bullet and a struck heading heads nothing; in place,
+                    # so no other item's reference moves.
+                    item.content_layer = ContentLayer.INVISIBLE
+        for table in document.tables:
+            if not table.prov or table.prov[0].page_no != number:
+                continue
+            for cell in table.data.table_cells:
+                words = [] if cell.bbox is None else _inside(flagged, cell.bbox, height)
+                if any(struck for _, struck in words):
+                    cell.text = _without(cell.text, words)
+    return document
+
+
+def _marked(data: bytes) -> dict[int, tuple[float, float, list[tuple[_Word, bool]]]]:
+    """Reads every page that strikes a word through.
+
+    Args:
+        data: The PDF.
+
+    Returns:
+        By page number from 1: the page's width and height, and every word on
+        it in reading order, each flagged True when it is struck.
+    """
+    marked = {}
+    with pymupdf.open(stream=data, filetype="pdf") as pdf:
+        for number in range(1, pdf.page_count + 1):
+            page = pdf.load_page(number - 1)
+            strokes = _strokes(page)
+            if not strokes:
+                continue
+            flagged = [(word, _struck(word, strokes)) for word in _words(page)]
+            if any(struck for _, struck in flagged):
+                marked[number] = (page.rect.width, page.rect.height, flagged)
+    return marked
+
+
+def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
+    """Every horizontal stroke a page draws, as (left, right, top, bottom).
+
+    A stroked path made of nothing but one horizontal line, carrying its own
+    width; and any filled shape, which is how some writers draw a thin bar.
+    The edge of an outlined shape is not a stroke: a highlight's frame can
+    run through a line of text. Whether one strikes a word is `_struck`'s to
+    decide.
+    """
+    found = []
+    for path in page.get_drawings():
+        kind, shape = path.get("type") or "", path["rect"]
+        if shape.width <= _SHORTEST:
+            continue
+        if (
+            "s" in kind
+            and shape.height < _LEVEL
+            and all(item[0] == "l" for item in path["items"])
+        ):
+            middle, half = (shape.y0 + shape.y1) / 2, (path.get("width") or 0.0) / 2
+            found.append((shape.x0, shape.x1, middle - half, middle + half))
+        elif "f" in kind:
+            found.append((shape.x0, shape.x1, shape.y0, shape.y1))
+    return found
+
+
+def _words(page: pymupdf.Page) -> list[_Word]:
+    """Every word on a page's horizontal lines, in reading order."""
+    words: list[_Word] = []
+    # The layout as a dict, which the method's annotation does not say.
+    for block in cast(dict, page.get_text("rawdict"))["blocks"]:
+        for line in block.get("lines", ()):
+            if line["dir"] != (1, 0):
+                continue
+            run: list[tuple[dict, float]] = []
+            for span in line["spans"]:
+                for char in span["chars"]:
+                    if char["c"].isspace():
+                        words += _word(run)
+                        run = []
+                    else:
+                        run.append((char, span["size"]))
+            words += _word(run)
+    return words
+
+
+def _word(run: list[tuple[dict, float]]) -> list[_Word]:
+    """Joins a run of characters into the word they spell, if there is one."""
+    if not run:
+        return []
+    boxes = [char["bbox"] for char, _ in run]
+    return [
+        _Word(
+            text="".join(char["c"] for char, _ in run),
+            left=min(box[0] for box in boxes),
+            top=min(box[1] for box in boxes),
+            right=max(box[2] for box in boxes),
+            bottom=max(box[3] for box in boxes),
+            baseline=run[0][0]["origin"][1],
+            size=max(size for _, size in run),
+        )
+    ]
+
+
+def _struck(word: _Word, strokes: list[tuple[float, float, float, float]]) -> bool:
+    """Reports whether one stroke runs through a word's x-height, across most of it.
+
+    In any colour: the stroke's position is what marks a deletion.
+    """
+    low, high = _STRIKE_BAND
+    width = word.right - word.left
+    return any(
+        top >= word.baseline - high * word.size
+        and bottom <= word.baseline - low * word.size
+        and min(right, word.right) - max(left, word.left) >= _STRIKE_COVER * width
+        for left, right, top, bottom in strokes
+    )
+
+
+def _inside(
+    flagged: list[tuple[_Word, bool]], bbox: BoundingBox, height: float
+) -> list[tuple[_Word, bool]]:
+    """The words whose centre lies in one of the converter's boxes.
+
+    The converter's box may count up from the page foot; pymupdf's count down
+    from the top, so the box is turned to a top-left origin first.
+    """
+    box = bbox.to_top_left_origin(page_height=height)
+    return [
+        (word, struck)
+        for word, struck in flagged
+        if box.l <= (word.left + word.right) / 2 <= box.r
+        and box.t <= (word.top + word.bottom) / 2 <= box.b
+    ]
+
+
+def _without(text: str, words: list[tuple[_Word, bool]]) -> str:
+    """Drops the struck words from one string.
+
+    The string is aligned with the page word by word, in reading order, so
+    the same word printed unstruck elsewhere in it stays. A word the two
+    readers spell differently is not matched, and stays too.
+
+    Args:
+        text: The converter's string.
+        words: The page's words inside its box, flagged when struck.
+
+    Returns:
+        The string without them, each removed with the space before it.
+    """
+    tokens = list(_TOKEN.finditer(text))
+    matcher = SequenceMatcher(
+        None,
+        [unicodedata.normalize("NFKC", token.group()) for token in tokens],
+        [unicodedata.normalize("NFKC", word.text) for word, _ in words],
+        autojunk=False,
+    )
+    gone = {
+        block.a + offset
+        for block in matcher.get_matching_blocks()
+        for offset in range(block.size)
+        if words[block.b + offset][1]
+    }
+    if not gone:
+        return text
+    kept: list[str] = []
+    end = 0
+    for index, token in enumerate(tokens):
+        gap, end = text[end : token.start()], token.end()
+        if index not in gone:
+            # The first word kept takes the string's own leading space.
+            kept.append((gap if kept else text[: tokens[0].start()]) + token.group())
+    return "".join(kept) + text[end:]
 
 
 def _score(result: ConversionResult, name: str) -> float | None:
