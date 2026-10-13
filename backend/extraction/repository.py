@@ -347,6 +347,8 @@ class PassageQueue(RowQueue):
         self,
         embedding: list[float],
         excluding: int | None = None,
+        language: str | None = None,
+        kind: str | None = None,
     ) -> Twin | None:
         """The validated passage fact closest to this vector, or None.
 
@@ -355,6 +357,12 @@ class PassageQueue(RowQueue):
 
         `excluding` is a passage being read again: a fact citing it and no
         other passage is one its `store` replaces, so it is no twin.
+
+        `language` and `kind` narrow it to the candidate's own, None to any.
+        A fact's language is the one the passage it opens on was read in. A
+        translation is its own language's fact, and a summary or an outline
+        that repeats an atomic fact is caught beside it in its own passage:
+        across passages a digest and a claim are two kinds of thing.
         """
         distance = Fact.embedding.cosine_distance(embedding)
         query = (
@@ -367,6 +375,20 @@ class PassageQueue(RowQueue):
             .order_by(distance)
             .limit(1)
         )
+        if language is not None:
+            query = query.where(
+                Fact.id.in_(
+                    select(FactPassage.fact_id)
+                    .join(Passage, Passage.id == FactPassage.passage_id)
+                    .join(Document, Document.sha256 == Passage.doc_sha256)
+                    .where(
+                        FactPassage.position == 0,
+                        func.coalesce(Passage.language, Document.language) == language,
+                    )
+                )
+            )
+        if kind is not None:
+            query = query.where(Fact.kind == kind)
         if excluding is not None:
             query = query.where(
                 Fact.id.not_in(

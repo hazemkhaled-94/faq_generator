@@ -1209,6 +1209,45 @@ class TestTheEmbeddingBackfill:
 
         assert store.queue.nearest_fact([1.0] + [0.0] * 1023, excluding=first) is None
 
+    def test_a_fact_in_another_language_is_no_twin(
+        self, store, corpus, embedder
+    ) -> None:
+        """No dedup across languages: a translation is its language's own fact."""
+        from extraction.service import embed
+
+        first = corpus["a"][0]
+        store.store(first, checked(first, "A claim about it."))
+        embed(store.catalog, embedder)
+        probe = [1.0] + [0.0] * 1023
+
+        assert store.queue.nearest_fact(probe, language="de") is None
+        assert store.queue.nearest_fact(probe, language="en") is not None
+
+    def test_a_passage_too_short_to_tell_is_probed_in_its_document_s_language(
+        self, store, corpus, embedder
+    ) -> None:
+        """The language its candidates were read in, which is the document's."""
+        from extraction.service import embed
+
+        first = corpus["a"][0]
+        store.language_of(first, None)
+        store.store(first, checked(first, "A claim about it."))
+        embed(store.catalog, embedder)
+
+        assert store.queue.nearest_fact([1.0] + [0.0] * 1023, language="en")
+
+    def test_a_fact_of_another_kind_is_no_twin(self, store, corpus, embedder) -> None:
+        """A summary repeating an atomic fact is caught inside its passage only."""
+        from extraction.service import embed
+
+        first = corpus["a"][0]
+        store.store(first, checked(first, "A summary of it.", kind=FactKind.SUMMARY))
+        embed(store.catalog, embedder)
+        probe = [1.0] + [0.0] * 1023
+
+        assert store.queue.nearest_fact(probe, kind=FactKind.ATOMIC) is None
+        assert store.queue.nearest_fact(probe, kind=FactKind.SUMMARY) is not None
+
     def test_a_bridge_is_no_twin(self, store, corpus, embedder) -> None:
         """A passage fact refused as its duplicate would cite into the bridge."""
         from extraction.service import embed

@@ -317,6 +317,37 @@ class TestTheDedupGate:
             Rejection.OVER_CAP,
         ]
 
+    def test_the_corpus_is_probed_in_the_candidate_s_language_and_kind(self) -> None:
+        """A German summary is never the twin of an English atomic fact."""
+        run = Extraction(
+            passage(
+                "Das Gerät wiegt 4 kg. Es läuft 12 Stunden. Es kommt im März.",
+                language="de",
+            ),
+            facts={"facts": [{"sentences": [0], "statement": "Das Gerät wiegt 4 kg."}]},
+            digest={"summary": "Das Gerät läuft 12 Stunden.", "outline": []},
+            kinds=(FactKind.SUMMARY,),
+            duplicate_cosine=0.9,
+        )
+        run.next()
+
+        assert run.queue.probed == [("de", FactKind.ATOMIC), ("de", FactKind.SUMMARY)]
+
+    def test_a_near_restatement_below_the_configured_bar_is_kept(self) -> None:
+        """Bare statements on one subject score high; the bar sits near identity."""
+        from extraction.config import Settings
+
+        run = Extraction(
+            passage(), facts=ATOMIC, duplicate_cosine=Settings.load().duplicate_cosine
+        )
+        run.queue.twin = Twin(
+            fact_id=7, statement="The device has a weight of 4 kg.", similarity=0.96
+        )
+        run.next()
+
+        (stored,) = run.queue.stored[1]
+        assert stored.validated, stored.validation_error
+
     def test_a_twin_below_the_threshold_is_not_a_duplicate(self) -> None:
         """Sharing a subject is not saying the same thing."""
         run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9)

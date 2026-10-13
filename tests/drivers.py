@@ -309,6 +309,8 @@ class Queue:
         self.beats = 0
         #: What `nearest_fact` answers, or None for an empty corpus.
         self.twin: Twin | None = None
+        #: The language and kind each `nearest_fact` probe was narrowed to.
+        self.probed: list[tuple[str | None, str | None]] = []
 
     def claim(self) -> PassageToExtract | None:
         """Takes the next passage off the queue."""
@@ -325,8 +327,15 @@ class Queue:
         self.embeddings[passage_id] = embedding
         return len(facts)
 
-    def nearest_fact(self, embedding: list[float], excluding=None) -> Twin | None:
+    def nearest_fact(
+        self,
+        embedding: list[float],
+        excluding=None,
+        language: str | None = None,
+        kind: str | None = None,
+    ) -> Twin | None:
         """The stored fact this queue was told to answer with."""
+        self.probed.append((language, kind))
         return self.twin
 
     def fail(self, passage_id: int, error: str) -> None:

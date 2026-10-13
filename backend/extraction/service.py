@@ -928,7 +928,7 @@ class ExtractionService(StageService):
             if threshold <= 0 or not fact.validated:
                 checked.append(fact)
                 continue
-            twin = self._nearest(fact.statement, vector, written, passage_id, language)
+            twin = self._nearest(fact, vector, written, passage_id, language)
             if twin is not None:
                 # The only reading in this service that is a measurement:
                 # every other check is structural, and a citation resolves
@@ -958,7 +958,7 @@ class ExtractionService(StageService):
 
     def _nearest(
         self,
-        statement: str,
+        fact: CheckedFact,
         vector: list[float],
         written: Sequence[tuple[str, list[float]]],
         passage_id: int,
@@ -967,7 +967,9 @@ class ExtractionService(StageService):
         """The closest stored fact that could be this one's twin, or None.
 
         This passage's own kept facts included. Not one of the facts this
-        passage's last reading left, which `store` is about to replace.
+        passage's last reading left, which `store` is about to replace, and
+        from the rest of the corpus only one in this fact's language and of
+        its kind.
 
         Only a fact stating the statement's own numbers is a twin, on either
         probe: two statements naming different numbers are two claims however
@@ -976,7 +978,10 @@ class ExtractionService(StageService):
         """
         # ponytail: one index query per candidate. Upgrade: one batched
         # unnest + LATERAL probe per passage.
-        twin = self._repository.nearest_fact(vector, excluding=passage_id)
+        twin = self._repository.nearest_fact(
+            vector, excluding=passage_id, language=language, kind=fact.kind
+        )
+        statement = fact.statement
         if twin is not None and not _counted_alike(statement, twin.statement, language):
             twin = None
         for kept, other in written:
