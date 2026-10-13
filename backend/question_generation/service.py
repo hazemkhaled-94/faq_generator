@@ -25,6 +25,7 @@ from question_generation.checker import (
     REFUSED,
     QuestionChecker,
     annotation,
+    heard,
 )
 from question_generation.config import Settings
 from question_generation.gates import (
@@ -505,7 +506,13 @@ def _settled(
     question: Unanswered,
 ) -> tuple[str, str] | None:
     """Why the material answers a question written to have none, or None."""
-    settled = verifier.settles(question.question_text, question.passages)
+    # Read as the checker reads it, so a question it would keep is not
+    # rejected here on a quote that only says it back.
+    settled = heard(
+        verifier.settles(question.question_text, question.passages),
+        question.question_text,
+        question.language,
+    )
     if settled.verdict != Settling.SILENT:
         return (
             QuestionRejection.ANSWERABLE_AFTER_ALL,
@@ -522,7 +529,11 @@ def _settled(
     )
     if not probed:
         return None
-    settled = verifier.settles(question.question_text, probed)
+    settled = heard(
+        verifier.settles(question.question_text, probed),
+        question.question_text,
+        question.language,
+    )
     if settled.verdict != Settling.SILENT:
         return (
             QuestionRejection.ANSWERABLE_ELSEWHERE,

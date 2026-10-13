@@ -151,3 +151,27 @@ def test_every_way_of_settling_it_rejects_it(verdict: str) -> None:
     rejudge(catalog, SETTINGS, Verifier(Client(CITED, verdict)))
 
     assert catalog.rejected == [(7, QuestionRejection.ANSWERABLE_AFTER_ALL)]
+
+
+#: A rule, and a `why` it gives no reason for: quoted back, it restates it.
+RULE = "A senior officer must sign a transfer before it is released."
+WHY = "Why must a senior officer sign a transfer before it is released?"
+
+
+@pytest.mark.parametrize(
+    ("verdict", "rejected"),
+    [
+        (Settling.ANSWERS, []),
+        (Settling.REFUTES, [(7, QuestionRejection.ANSWERABLE_AFTER_ALL)]),
+        (Settling.RULE, [(7, QuestionRejection.ANSWERABLE_AFTER_ALL)]),
+    ],
+)
+def test_a_quote_that_only_says_the_question_back_is_read_as_the_checker_reads_it(
+    verdict: str, rejected: list
+) -> None:
+    """An `answers` that restates the question is silent; a rule is not."""
+    catalog = Catalog(unanswered(question_text=WHY, passages=(RULE,)))
+
+    rejudge(catalog, SETTINGS, Verifier(Client(RULE, verdict)))
+
+    assert catalog.rejected == rejected

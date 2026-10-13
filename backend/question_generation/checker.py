@@ -24,7 +24,8 @@ it:
                   used, so the conversation changed subject
   duplicate       one index probe against the questions already accepted
   answerable_after_all  the same probe, when an unanswerable question has a
-                  twin the corpus does answer; or the round trip
+                  twin the corpus does answer; or one call, when the
+                  passages it cites settle it
   leaks_source    free where the title is quoted, in the structural step;
                   the phrasing judge's otherwise
   unanchored      a question nobody could have asked without the passage
@@ -32,7 +33,7 @@ it:
   answer_incomplete  the key names much less than the round trip found
   answerable_elsewhere  one corpus-wide passage probe and a second call, on
                   the unanswerable share only: a passage it does not cite
-                  answers it. Cosine over passages.embedding where the corpus
+                  settles it. Cosine over passages.embedding where the corpus
                   has been embedded, shared lemmas where it has not
 
 The free ones are in `gates`, which imports no client; the calls are the
@@ -93,7 +94,7 @@ from question_generation.models import (
     Neighbour,
 )
 from question_generation.types import GATES, PASSED, REFUSED, annotation
-from question_generation.verifier import Reading, Verifier
+from question_generation.verifier import Reading, Settled, Settling, Verifier
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +102,34 @@ log = logging.getLogger(__name__)
 #: Declared in `types`, which loads neither the embedder nor the verifier,
 #: so the api can read a stored question's sequence.
 __all__ = ["GATES", "PASSED", "REFUSED", "QuestionChecker", "annotation"]
+
+
+def _reading(gate: str, settled: Settled) -> Measurement:
+    """A `settles` verdict as a reading: 1 where the passages settle nothing.
+
+    A verdict and not a measure, so it sits at either end of its scale; it
+    is stored so a row says what the verifier made of it, which a code and
+    a log line could not.
+    """
+    return Measurement(gate, 1.0 if settled.verdict == Settling.SILENT else 0.0, 0.5)
+
+
+def heard(settled: Settled, question: str, language: str | None) -> Settled:
+    """A `settles` verdict, silent where its answer only says the question back.
+
+    A `why` the passage gives no reason for comes back as the rule it asks
+    about, and declining that question is what a chatbot should do.
+    `restates` is the reading the key is held to the same way. Only an
+    `answers` verdict is read so: the quote of a `refutes` or a `rule` is
+    the rule itself, which is how those settle a question.
+    """
+    if (
+        settled.verdict == Settling.ANSWERS
+        and settled.quote is not None
+        and restates(question, settled.quote, language)
+    ):
+        return Settled(verdict=Settling.SILENT, quote=None)
+    return settled
 
 
 class QuestionChecker:
@@ -535,7 +564,12 @@ class QuestionChecker:
         refuses to let an extractor make alone. It is not asked here for the
         same reason, and asking it would buy nothing: a span it does not
         find falls through to the verifier regardless.
+
+        Nor is the verifier asked to read one: `settles` asks an
+        unanswerable question what it has to survive, in `_round_trip`.
         """
+        if not candidate.answerable:
+            return None
         if (
             self._extractive is not None
             and candidate.answerable
@@ -653,18 +687,24 @@ class QuestionChecker:
                 )
             return None
 
-        # A recovery that only says the question back is not an answer: a
-        # `why` the passage gives no reason for comes back as the rule it
-        # asks about, and declining that question is what a chatbot should
-        # do. `restates` is the reading the key is held to the same way.
-        if read.recovered is not None and not restates(
-            candidate.question_text, read.recovered, candidate.group.language
-        ):
+        # Not "do the passages state an answer": a question whose premise
+        # they refute, or whose case a list or a rule in them covers, is
+        # answered too, and a chatbot saying so is right.
+        settled = heard(
+            self._verifier.settles(candidate.question_text, candidate.group.passages),
+            candidate.question_text,
+            candidate.group.language,
+        )
+        readings.append(_reading("settles", settled))
+        if settled.verdict != Settling.SILENT:
             return (
                 QuestionRejection.ANSWERABLE_AFTER_ALL,
-                f"the cited passages answer it after all, with {read.recovered!r}",
+                (
+                    f"the cited passages settle it after all ({settled.verdict}), "
+                    f"with {settled.quote!r}"
+                ),
             )
-        return self._corpus(candidate, embedding)
+        return self._corpus(candidate, embedding, readings)
 
     def _computable(self, candidate: Candidate, target: str) -> tuple[str, str] | None:
         """Whether a derived answer follows from what the passages do state.
@@ -818,7 +858,10 @@ class QuestionChecker:
         return max((one.entailment for one in verdicts), default=0.0)
 
     def _corpus(
-        self, candidate: Candidate, embedding: list[float]
+        self,
+        candidate: Candidate,
+        embedding: list[float],
+        readings: list[Measurement],
     ) -> tuple[str, str] | None:
         """Asks whether the rest of the corpus answers what its passages do not.
 
@@ -846,14 +889,19 @@ class QuestionChecker:
             return None
         if not self._answered_elsewhere(candidate, passages):
             return None
-        read = self._verifier.read(candidate.question_text, passages, candidate.thread)
-        if read.recovered is None:
+        settled = heard(
+            self._verifier.settles(candidate.question_text, passages),
+            candidate.question_text,
+            language,
+        )
+        readings.append(_reading("settles_elsewhere", settled))
+        if settled.verdict == Settling.SILENT:
             return None
         return (
             QuestionRejection.ANSWERABLE_ELSEWHERE,
             (
-                f"a passage it does not cite answers it, with "
-                f"{read.recovered!r}, so the corpus is not silent about this"
+                f"a passage it does not cite settles it ({settled.verdict}), "
+                f"with {settled.quote!r}, so the corpus is not silent about this"
             ),
         )
 

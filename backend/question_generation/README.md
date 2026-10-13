@@ -268,12 +268,12 @@ its own document, runs in it too.
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
 | `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft of a slot whose earlier accepted draft was kept (`superseded` closes its `gates_ran`). How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
-| `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages answer it | the probe among answerable questions, the second of the two, or the round trip |
+| `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages settle it | the probe among answerable questions, the second of the two, or one `settles` call |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
 | `answer_incomplete` | has a `list` key naming far less than the verifier found | the same round trip |
-| `answerable_elsewhere` | was written to have no answer and a passage it does not cite answers it | a passage probe and a second call |
+| `answerable_elsewhere` | was written to have no answer and a passage it does not cite settles it | a passage probe and a second `settles` call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
 
 `questions.rejected_reason` holds exactly these. `source_changed` is the one
@@ -400,9 +400,26 @@ ceiling.
 
 | | |
 |---|---|
-| `answerable_after_all` | the corpus answers it after all. A recovery from its own passages that only says the question back is not an answer: a `why` the passage gives no reason for comes back as the rule itself |
-| `answerable_elsewhere` | a passage it does **not** cite answers it |
+| `answerable_after_all` | the passages it cites settle it after all |
+| `answerable_elsewhere` | a passage it does **not** cite settles it |
 | `off_topic` | it is about nothing the material mentions at all |
+
+**Settled, not stated.** Both are asked of `Verifier.settles`, not of the
+round trip's `read`: whether the passages state the answer, **refute its
+premise** (a closed list or an exception included), or cover its case with a
+**general rule** — `answers`, `refutes`, `rule` — or settle nothing,
+`silent`, which is the only verdict that keeps the question. First over the
+passages it cites, then over the probe: the `QUESTIONS_ELSEWHERE_PASSAGES`
+nearest by vector and the passages two ordinals either side of each cited
+one. Each verdict is stored as a reading, `settles` and `settles_elsewhere`,
+1 for silent and 0 for settled, so a row says what the verifier made of it.
+`make questions-rejudge` asks the same of the questions already accepted.
+
+A recovery or quote that only says the question back is not an answer: a
+`why` the passage gives no reason for comes back as the rule itself. So an
+`answers` whose quote `restates` the question reads as `silent`, here and in
+`make questions-rejudge`. A `refutes` or a `rule` is not read so, because its
+quote is the rule.
 
 Being near an accepted answerable question is not an answer by itself. A
 perturbation moves one detail of a fact out of reach, so it sits near the

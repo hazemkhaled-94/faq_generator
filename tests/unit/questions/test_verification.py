@@ -44,7 +44,7 @@ from question_generation.gates import (
     structural,
 )
 from question_generation.models import Neighbour
-from question_generation.verifier import Reading, Verifier
+from question_generation.verifier import Reading, Settled, Settling, Verifier
 
 pytestmark = pytest.mark.nlp
 
@@ -523,6 +523,13 @@ class Recording:
         self.threaded = tuple(thread)
         return Reading(recovered=self.recovers)
 
+    def settles(self, question: str, passages) -> Settled:
+        """Settles an unanswerable question wherever it would recover one."""
+        self.verified += 1
+        if self.recovers is None:
+            return Settled(verdict=Settling.SILENT, quote=None)
+        return Settled(verdict=Settling.ANSWERS, quote=self.recovers)
+
     def names_its_source(self, question: str) -> bool:
         """The residue judgement, for a question no rule settled."""
         self.phrased += 1
@@ -806,14 +813,15 @@ def test_an_unanswerable_question_the_passages_do_not_answer_is_accepted() -> No
         "A transfer is not released until a senior officer signs it.",
     ],
 )
-def test_a_recovery_that_only_restates_the_question_is_not_an_answer(
+def test_a_quote_that_only_restates_the_question_is_not_an_answer(
     recovered: str,
 ) -> None:
-    """A `why` the passage gives no reason for, read back as the rule itself.
+    """A `why` the passage gives no reason for, quoted back as the rule itself.
 
-    The recovery says what the question already said, so the passages did
-    not answer it, and a chatbot declining it is right. Its `not` is no
-    answer either: a `why` is not asked yes or no.
+    `settles` says `answers` with what the question already said, so the
+    passages did not answer it, and a chatbot declining it is right. Its
+    `not` is no answer either: a `why` is not asked yes or no. The verdict
+    is kept as the silence it is.
     """
     recording = Recording(recovers=recovered)
 
@@ -830,6 +838,26 @@ def test_a_recovery_that_only_restates_the_question_is_not_an_answer(
 
     assert "round_trip" in result.gates_ran
     assert result.rejected_reason != QuestionRejection.ANSWERABLE_AFTER_ALL
+    assert {one.gate: one.value for one in result.readings}["settles"] == 1.0
+
+
+def test_a_quote_giving_the_reason_still_answers_it() -> None:
+    """The same `why` and the same `answers`, with the reason it asked for."""
+    recording = Recording(recovers="So that no one person can move money alone.")
+
+    result = build(recording).check(
+        candidate(
+            question_text=(
+                "Why must a senior officer sign a transfer before it is released?"
+            ),
+            target_answer=None,
+            answerable=False,
+            question_type=QuestionType.REASON,
+        )
+    )
+
+    assert result.rejected_reason == QuestionRejection.ANSWERABLE_AFTER_ALL
+    assert {one.gate: one.value for one in result.readings}["settles"] == 0.0
 
 
 def test_a_duplicate_of_something_written_earlier_in_the_same_run_is_caught() -> None:
@@ -2502,12 +2530,14 @@ def test_a_span_found_elsewhere_still_goes_to_the_verifier() -> None:
     # uncited one answers.
     reader = Reader("4 kg", only_in="uncited note")
 
-    def read(question, passages, thread=()):
+    def settles(question, passages):
         recording.verified += 1
         found = any("uncited note" in passage for passage in passages)
-        return Reading(recovered="4 kg" if found else None)
+        if found:
+            return Settled(verdict=Settling.ANSWERS, quote="4 kg")
+        return Settled(verdict=Settling.SILENT, quote=None)
 
-    recording.read = read  # type: ignore[method-assign]
+    recording.settles = settles  # type: ignore[method-assign]
     checker = QuestionChecker(
         embedder=recording,
         verifier=recording,
