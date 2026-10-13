@@ -424,7 +424,9 @@ class QuestionCatalog(Repository):
 
         Ranked by cosine over `passages.embedding` when the question carries
         a vector and the corpus has been embedded, and by shared content
-        lemmas otherwise.
+        lemmas otherwise. On the vector path only, the passages within
+        `AROUND` ordinals of each cited one follow the nearest, on top of
+        `limit`; the lemma path adds none.
 
         The vectors matter more here than anywhere else this pair of
         measures is used. A lemma probe finds the passages that REPEAT the
@@ -442,12 +444,14 @@ class QuestionCatalog(Repository):
             language: Only passages written in this one.
             skip: Passages the question already cites, which the first
                 verifier pass has read.
-            limit: The most passages to hand back.
+            limit: The most passages to hand back by rank. The cited
+                passages' neighbours, on the vector path, are not counted
+                against it.
             embedding: The question's vector, when one was computed.
 
         Returns:
-            Their text, nearest first. Empty when the question names nothing
-            the corpus does.
+            Their text, nearest first, then the neighbours. Empty when the
+            question names nothing the corpus does.
         """
         if embedding is not None:
             found = self._nearest_passages(language, skip, limit, list(embedding))

@@ -415,8 +415,9 @@ premise** (a closed list or an exception included), or cover its case with a
 **general rule** — `answers`, `refutes`, `rule` — or settle nothing,
 `silent`, which is the only verdict that keeps the question. First over the
 passages it cites, then over the probe: the `QUESTIONS_ELSEWHERE_PASSAGES`
-nearest by vector and the passages two ordinals either side of each cited
-one. Each verdict is stored in `gate_scores`, `settles` and
+nearest by vector and, on top of them, the passages two ordinals either side
+of each cited one. A corpus with no vectors is probed by shared lemmas, with
+no neighbours. Each verdict is stored in `gate_scores`, `settles` and
 `settles_elsewhere`, 1 for silent and 0 for settled, so a row says what the
 verifier made of it. It is an **opinion**: kept with no margin, it moves no
 confidence.
@@ -689,7 +690,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_ANSWER_OVERLAP` | How much of a list or explanation has to come back. Numbers are always exact |
 | `QUESTIONS_UNANSWERABLE_SHARE` | What share are attempted with no answer in the corpus |
 | `QUESTIONS_OFF_TOPIC_OVERLAP` | Below this share of shared lemmas, an unanswerable question is off-topic. **Off** |
-| `QUESTIONS_ELSEWHERE_PASSAGES` | How many uncited passages, nearest by vector, the `answerable_elsewhere` probe reads. The passages two ordinals either side of each cited one are read on top |
+| `QUESTIONS_ELSEWHERE_PASSAGES` | How many uncited passages, nearest by vector, the `answerable_elsewhere` probe reads. On the vector path only, the passages two ordinals either side of each cited one are read on top |
 | `QUESTIONS_ENTAILMENT_OVERLAP` | How much of what a question asks about must occur in its passages before the entailment pass may rescue it. `0` turns the guard off |
 | `QUESTIONS_FOLLOWUP_SHARE` | What share of accepted answerable roots get a thread |
 | `QUESTIONS_MAX_FOLLOWUPS` | How far a thread may run past its root |
