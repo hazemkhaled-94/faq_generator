@@ -8,7 +8,7 @@ service with no pages.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any
 
 from factories import passage as build_passage
@@ -19,6 +19,7 @@ from extraction.models import (
     CheckedFact,
     Cited,
     PassageToExtract,
+    Refused,
     Twin,
 )
 from extraction.validation import FactChecker
@@ -361,6 +362,18 @@ class Queue:
         return [fact.kind for fact in self.facts]
 
 
+@dataclass(frozen=True)
+class Kept:
+    """One validated fact a dedup probe can find, as a catalogue holds it."""
+
+    fact_id: int
+    passage_id: int
+    statement: str
+    embedding: list[float]
+    language: str | None = "en"
+    kind: str = FactKind.ATOMIC
+
+
 class Catalogue:
     """A fact catalogue held in memory, for the bridge pass to write to."""
 
@@ -377,6 +390,14 @@ class Catalogue:
         self.narrowed: list[Any] = []
         self.stored: list[tuple[int, list[PassageToExtract], CandidateFact, str]] = []
         self.rejudged: list[list[tuple[int, CheckedFact]]] = []
+        #: The validated passage facts a dedup probe reads, and the refusals
+        #: the dedup replay re-decides.
+        self.kept_facts: list[Kept] = []
+        self.refusals: list[Refused] = []
+        self.given_back: list[int] = []
+        #: What `unfold` answers: facts unfolded, and facts left with folds.
+        self.folds: tuple[int, int] = (0, 0)
+        self.unfolded = 0
 
     def holding(self, *facts: tuple[int, list[PassageToExtract], CandidateFact, str]):
         """Fills the catalogue with facts a re-judgement will read back.
@@ -404,6 +425,76 @@ class Catalogue:
     def verdicts(self) -> list[tuple[int, CheckedFact]]:
         """Every re-judged fact, across the batches it was written in."""
         return [one for batch in self.rejudged for one in batch]
+
+    def holding_kept(self, *facts: Kept) -> Catalogue:
+        """Fills the catalogue with validated facts a probe can find."""
+        self.kept_facts += facts
+        return self
+
+    def refusing(self, *refusals: Refused) -> Catalogue:
+        """Fills the catalogue with `duplicate` refusals to re-decide."""
+        self.refusals += refusals
+        return self
+
+    def unfold(self, cited, within=None) -> tuple[int, int]:
+        """Records that the folds were taken out, before anything is probed."""
+        self.narrowed.append(within)
+        self.unfolded += 1
+        assert not self.given_back, "folds are taken out before any refusal moves"
+        return self.folds
+
+    def duplicates(self, within=None) -> list[Refused]:
+        """Every refusal still standing."""
+        self.narrowed.append(within)
+        return [one for one in self.refusals if one.fact_id not in self.given_back]
+
+    def nearest_fact(
+        self,
+        embedding: list[float],
+        excluding=None,
+        language: str | None = None,
+        kind: str | None = None,
+    ) -> Twin | None:
+        """The nearest kept fact of another passage, as the index answers."""
+        from nlp.embedding import cosine
+
+        found = [
+            Twin(one.fact_id, one.statement, cosine(embedding, one.embedding))
+            for one in self._validated()
+            if one.passage_id != excluding
+            and language in (None, one.language)
+            and kind in (None, one.kind)
+        ]
+        return max(found, key=lambda twin: twin.similarity, default=None)
+
+    def kept(self, passage_id: int) -> list[tuple[str, str, list[float]]]:
+        """The validated facts read from one passage."""
+        return [
+            (one.statement, one.kind, one.embedding)
+            for one in self._validated()
+            if one.passage_id == passage_id
+        ]
+
+    def give_back(self, fact_id: int) -> int:
+        """Records one refusal given back; it is a twin from now on."""
+        self.given_back.append(fact_id)
+        return 1
+
+    def _validated(self) -> list[Kept]:
+        """The kept facts, and every refusal given back since."""
+        back = [
+            Kept(
+                one.fact_id,
+                one.passage_id,
+                one.statement,
+                one.embedding,
+                one.language,
+                one.kind,
+            )
+            for one in self.refusals
+            if one.fact_id in self.given_back
+        ]
+        return self.kept_facts + back
 
     def by_topic(self, within=None):
         """Streams each topic's passages."""

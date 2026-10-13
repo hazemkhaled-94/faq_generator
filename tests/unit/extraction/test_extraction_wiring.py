@@ -167,7 +167,7 @@ class TestCommandLine:
         """The flags mirror the stage's HTTP surface one for one."""
         assert flag in usage, usage
 
-    @pytest.mark.parametrize("flag", ["--revalidate", "--bridge"])
+    @pytest.mark.parametrize("flag", ["--revalidate", "--bridge", "--dedup"])
     def test_this_stage_own_operations_are_offered(self, usage, flag) -> None:
         """Neither is a queue verb, and neither has a route."""
         assert flag in usage, usage

@@ -1228,3 +1228,166 @@ class TestTheEmbeddingBackfill:
         embed(store.catalog, embedder)
 
         assert store.queue.nearest_fact([1.0] + [0.0] * 1023) is None
+
+
+def _axis(at: int) -> list[float]:
+    """A unit vector along one axis of the column's width."""
+    return [1.0 if i == at else 0.0 for i in range(1024)]
+
+
+class TestTheDedupReplay:
+    """`make extract-dedup`, against the database it writes to."""
+
+    def test_a_fold_is_taken_out_and_the_evidence_rebuilt(self, store, corpus) -> None:
+        """The fact rests on its own passage again, citing its own text alone."""
+        from extraction.validation import _cited_text
+
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+        store.folded(survivor, other, "Requests may be raised by phone.")
+
+        assert store.catalog.unfold(_cited_text) == (1, 0)
+        assert store.links() == [(survivor, first, 0)]
+        assert store.rows("evidence_text") == [
+            ("Standard requests are answered within 48 hours.",)
+        ]
+
+    def test_a_bridge_keeps_every_passage_it_rests_on(self, store, corpus) -> None:
+        """A bridge's later positions are what it rests on, not folds."""
+        from extraction.validation import _cited_text
+
+        anchor, other = corpus["a"][0], corpus["b"][0]
+        store.bridges(
+            checked(
+                anchor, "A bridge.", kind=FactKind.BRIDGE, passage_ids=[anchor, other]
+            )
+        )
+        before = store.links()
+
+        assert store.catalog.unfold(_cited_text) == (0, 0)
+        assert store.links() == before
+
+    def test_a_fact_whose_own_citation_is_gone_keeps_its_folds(
+        self, store, corpus
+    ) -> None:
+        """Taking the rest out would delete it, and the questions on it."""
+        from extraction.validation import _cited_text
+
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+        store.folded(survivor, other)
+        store.store(first)
+
+        assert store.catalog.unfold(_cited_text) == (0, 1)
+        assert store.rows("id") == [(survivor,)]
+
+    def test_a_refusal_comes_back_with_its_passage_language_and_vector(
+        self, store, corpus
+    ) -> None:
+        """Everything the probe is asked again with."""
+        from extraction.models import Refused
+
+        other = corpus["b"][0]
+        store.store(
+            other,
+            checked(
+                other,
+                "Requests are answered in 48 hours.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                validation_error="says what fact 1 already says",
+                embedding=_axis(0),
+            ),
+        )
+        ((refused,),) = store.rows("id")
+
+        assert store.catalog.duplicates() == [
+            Refused(
+                fact_id=refused,
+                passage_id=other,
+                language="en",
+                kind=FactKind.ATOMIC,
+                statement="Requests are answered in 48 hours.",
+                embedding=_axis(0),
+            )
+        ]
+
+    def test_a_refusal_given_back_is_validated_under_this_configuration(
+        self, store, corpus
+    ) -> None:
+        """Stamped with the settings it moved under, as a recap stamps one."""
+        from extraction.repository import FactCatalog
+
+        other = corpus["b"][0]
+        store.store(
+            other,
+            checked(
+                other,
+                "Requests are answered in 48 hours.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                validation_error="says what fact 1 already says",
+            ),
+        )
+        ((refused,),) = store.rows("id")
+
+        assert FactCatalog(version="deduped").give_back(refused) == 1
+        assert store.rows(
+            "validated", "rejection_code", "validation_error", "settings_version"
+        ) == [(True, None, None, "deduped")]
+
+    def test_what_a_passage_keeps_is_read_with_its_kinds(self, store, corpus) -> None:
+        """The facts it validated, and not the ones it refused."""
+        first = corpus["a"][0]
+        store.store(
+            first,
+            checked(first, "A claim.", embedding=_axis(0)),
+            checked(first, "A summary.", kind=FactKind.SUMMARY, embedding=_axis(1)),
+            checked(
+                first,
+                "Refused.",
+                validated=False,
+                rejection_code=Rejection.COPIED,
+                embedding=_axis(2),
+            ),
+        )
+
+        assert store.catalog.kept(first) == [
+            ("A claim.", FactKind.ATOMIC, _axis(0)),
+            ("A summary.", FactKind.SUMMARY, _axis(1)),
+        ]
+
+    def test_the_replay_gives_back_a_different_rule_and_keeps_a_restatement(
+        self, store, corpus
+    ) -> None:
+        """Another number is another claim; the same one stays refused."""
+        from extraction.service import dedup
+
+        first, other, third = corpus["a"][0], corpus["b"][0], corpus["b"][1]
+        store.store(
+            first, checked(first, "The device weighs 7 kg.", embedding=_axis(0))
+        )
+        for passage_id, statement in (
+            (other, "The device weighs 4 kg."),
+            (third, "The device weighs 7 kg."),
+        ):
+            store.store(
+                passage_id,
+                checked(
+                    passage_id,
+                    statement,
+                    validated=False,
+                    rejection_code=Rejection.DUPLICATE,
+                    validation_error="says what fact 1 already says",
+                    embedding=_axis(0),
+                ),
+            )
+
+        assert dedup(store.catalog, 0.985) == 1
+        assert store.rows("statement", "rejection_code") == [
+            ("The device weighs 7 kg.", None),
+            ("The device weighs 4 kg.", None),
+            ("The device weighs 7 kg.", Rejection.DUPLICATE),
+        ]

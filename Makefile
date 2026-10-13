@@ -192,7 +192,7 @@ help:
         chunk-revocabulary \
         extract extract-status extract-start extract-stop extract-retry \
         extract-rerun extract-revalidate extract-bridge extract-recap \
-        extract-embed \
+        extract-dedup extract-embed \
         topics topics-status topics-discover topics-stop topics-delete \
         topics-retry topics-visualise topics-render \
         settings settings-set settings-unset \
@@ -756,6 +756,18 @@ extract-bridge:
 # `make extract-revalidate` run afterwards judges it with today's checks.
 extract-recap:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --recap $(ONLY)
+
+# Re-decide every stored `duplicate` refusal under today's dedup rule, and take
+# out the citations an earlier version's refusal added to the fact it
+# repeated. No model is called. A citation folded in counted the refused
+# passage towards every question asked of that fact; it goes, and the fact's
+# evidence is rebuilt from the citation it keeps. A refusal the rule would no
+# longer make - another number, another language or kind, a cosine under
+# EXTRACTION_DUPLICATE_COSINE - is given back as it was judged when
+# extracted. Run extract-revalidate and extract-recap after it, and
+# questions-rescore before questions-reverify.
+extract-dedup:
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --dedup $(ONLY)
 
 # Write the vectors onto passages and facts already stored. No model is
 # called - a vector is read off a statement that is already written - so a

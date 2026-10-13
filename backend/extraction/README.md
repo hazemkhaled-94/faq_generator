@@ -36,6 +36,8 @@ question first, and deletes nothing if the model does not answer.
 which is how a change to the checks reaches a corpus extracted before it. It
 leaves alone the `over_cap` and `duplicate` refusals, which no check
 reaches, and any fact whose citation recorded no sentence.
+`make extract-recap` re-applies the cap, and `make extract-dedup` re-decides
+the duplicates.
 
 ### Step 1 — Claim a passage
 
@@ -127,6 +129,10 @@ Two more refusals are the service refusing what the checks passed:
   stored fact it repeats and writes nothing onto it: the stored fact rests
   on its own passage alone, so a passage it was refused against never
   counts towards the scope of a question asked of it.
+  `make extract-dedup` re-decides every stored refusal under the rule as it
+  stands, giving back the ones it would no longer make, and takes out the
+  citations an earlier version's refusal added to its twin, rebuilding that
+  fact's evidence from the citation it keeps. No model is called.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which works out to a cap on the atomic
   ones. The facts asserting a number, date or name are kept first, and the
@@ -259,6 +265,7 @@ make extract-revalidate             # re-judge stored facts; no model call
 make extract-bridge                 # read every topic's groups for bridges
 make extract-bridge FORCE=1         # even over bridges accepted questions cite
 make extract-recap                  # re-apply the atomic cap; no model call
+make extract-dedup                  # re-decide the duplicate refusals; no model call
 make extract-embed                  # write vectors onto rows already stored
 
 make extract-retry PASSAGE=<id>     # any of them but extract, narrowed to one passage

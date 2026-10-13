@@ -14,7 +14,7 @@ from extraction import prompts
 from extraction.config import Settings
 from extraction.factory import build_bridge, build_service, models
 from extraction.repository import FactCatalog, PassageQueue
-from extraction.service import CitedBridges, bridge, embed, recap, revalidate
+from extraction.service import CitedBridges, bridge, dedup, embed, recap, revalidate
 from extraction.validation import FactChecker
 from llm.check import Unreachable, before_work
 from llm.config import Settings as ModelSettings
@@ -108,6 +108,11 @@ def main(argv: list[str] | None = None) -> int:
         _, settings, version = configured()
         return recap(FactCatalog(version=version), settings.atomic_cap, within)
 
+    def run_dedup(within) -> int:
+        """Re-decides every stored duplicate refusal under today's rule."""
+        _, settings, version = configured()
+        return dedup(FactCatalog(version=version), settings.duplicate_cosine, within)
+
     def run_embed(within) -> int:
         """Writes the vectors onto passages and facts already stored."""
         from nlp.embedding import Embedder
@@ -148,6 +153,11 @@ def main(argv: list[str] | None = None) -> int:
             "refuse the atomic facts over the cap, without calling the model",
             "refused",
             run_recap,
+        ),
+        "dedup": (
+            "re-decide every duplicate refusal, without calling the model",
+            "given back",
+            run_dedup,
         ),
         "embed": (
             "write the vectors onto stored rows, without calling the model",

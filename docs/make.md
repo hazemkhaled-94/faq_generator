@@ -200,12 +200,14 @@ expensive part:
 | `make chunk-revocabulary` | Re-read language and vocabulary. Only `passages.language` and `passages.lemmas` change |
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to |
+| `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, and take out the citations a refusal added to the fact it repeated. No model call |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
 | `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first and deletes nothing if it does not answer. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway |
 | `make confidence-recalibrate` | Take every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR` or `EXTRACTION_DUPLICATE_FLOOR`. No model call, and no verdict moves |
 
 `chunk-revocabulary` and `extract-revalidate` take `SHA`;
-`extract-revalidate`, `extract-recap` and `extract-embed` take `PASSAGE`;
+`extract-revalidate`, `extract-recap`, `extract-dedup` and `extract-embed` take
+`PASSAGE`;
 `questions-reverify` takes `TOPIC`.
 
 The alternative is destructive: `extract-rerun` calls the model again over

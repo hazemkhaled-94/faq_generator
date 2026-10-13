@@ -173,6 +173,68 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
     return written
 
 
+def dedup(catalog: FactCatalog, threshold: float, within=None) -> int:
+    """Re-decides every stored `duplicate` refusal, without calling the model.
+
+    The replay for this gate, as `recap` is for the cap: what the model wrote
+    is kept and only the verdict moves. Two steps, in this order:
+
+    1. Every citation an earlier version's refusal folded into the fact it
+       repeated is deleted, and that fact's evidence is rebuilt from the
+       citation it keeps. A refusal now writes nothing onto its twin, and a
+       fold counted the refused passage towards every question asked of it.
+    2. Every refusal is probed again as a candidate is in flight - the
+       corpus's facts of its language and kind read from other passages, and
+       what its own passage keeps - and is given back, validated as it was
+       judged when extracted, when no twin naming its numbers reaches
+       `threshold`. One at a time, so a refusal given back is a twin for the
+       ones after it and one claim refused twice comes back once.
+
+    A fact given back was judged by the checks of its own extraction and has
+    not been counted against the cap, which is why `make extract-revalidate`
+    and `make extract-recap` run after this.
+
+    Args:
+        catalog: Where the refusals are read from and written back to.
+        threshold: EXTRACTION_DUPLICATE_COSINE. 0 refuses nothing, so every
+            refusal is given back.
+        within: A condition narrowing which facts are read, or None.
+
+    Returns:
+        How many refusals were given back.
+    """
+    unfolded, left = catalog.unfold(_cited_text, within)
+    log.info("took the folded citations out of %d fact(s)", unfolded)
+    if left:
+        log.warning(
+            "left the folded citations on %d fact(s) whose own citation is gone: "
+            "their passage was read again, and taking the rest out would delete "
+            "them and the questions resting on them. `make extract-rerun` over "
+            "those passages replaces them.",
+            left,
+        )
+    given = 0
+    for refused in catalog.duplicates(within):
+        probed = catalog.nearest_fact(
+            refused.embedding,
+            excluding=refused.passage_id,
+            language=refused.language,
+            kind=refused.kind,
+        )
+        twin = _closest(
+            refused.statement,
+            refused.language,
+            refused.embedding,
+            probed,
+            catalog.kept(refused.passage_id),
+        )
+        if threshold > 0 and twin is not None and twin.similarity >= threshold:
+            continue
+        given += catalog.give_back(refused.fact_id)
+    log.info("gave back %d duplicate refusal(s) today's rule would not make", given)
+    return given
+
+
 def _uncitable(candidate) -> bool:
     """Whether a stored fact recorded no sentence to judge it against.
 
@@ -673,6 +735,37 @@ def _counted_alike(statement: str, twin: str, language: str | None) -> bool:
     return numbers(statement, language) == numbers(twin, language)
 
 
+def _closest(
+    statement: str,
+    language: str | None,
+    vector: Sequence[float],
+    probed: Twin | None,
+    kept: Sequence[tuple[str, str, Sequence[float]]],
+) -> Twin | None:
+    """The closest fact that could be this statement's twin, or None.
+
+    `probed` is what the index answered for the rest of the corpus, and
+    `kept` is what the statement's own passage keeps, as (statement, kind,
+    vector). One rule for the gate in flight and for `dedup`, which replays
+    it over the refusals already stored.
+
+    Only a fact stating the statement's own numbers is a twin, on either
+    probe: two statements naming different numbers are two claims however
+    near their vectors sit, and a bare statement scores high on a shared
+    subject alone.
+    """
+    twin = probed
+    if twin is not None and not _counted_alike(statement, twin.statement, language):
+        twin = None
+    for other_statement, _, other in kept:
+        if not _counted_alike(statement, other_statement, language):
+            continue
+        score = cosine(list(vector), list(other))
+        if twin is None or score > twin.similarity:
+            twin = Twin(fact_id=0, statement=other_statement, similarity=score)
+    return twin
+
+
 def _duplicate(fact: CheckedFact, twin: Twin, threshold: float) -> CheckedFact:
     """Marks one fact as a near twin of a fact already stored."""
     named = f"fact {twin.fact_id}" if twin.fact_id else "a fact this passage kept"
@@ -921,7 +1014,7 @@ class ExtractionService(StageService):
             [for_statement(fact.statement) for fact in facts]
         )
         threshold = self._duplicate_cosine
-        written: list[tuple[str, list[float]]] = []
+        written: list[tuple[str, str, list[float]]] = []
         checked: list[CheckedFact] = []
         refused = 0
         for fact, vector in zip(facts, vectors, strict=True):
@@ -951,7 +1044,7 @@ class ExtractionService(StageService):
                 refused += 1
                 checked.append(_duplicate(fact, twin, threshold))
                 continue
-            written.append((fact.statement, vector))
+            written.append((fact.statement, fact.kind, vector))
             checked.append(fact)
         if refused:
             current.set_attribute("extract.duplicates", refused)
@@ -961,7 +1054,7 @@ class ExtractionService(StageService):
         self,
         fact: CheckedFact,
         vector: list[float],
-        written: Sequence[tuple[str, list[float]]],
+        written: Sequence[tuple[str, str, list[float]]],
         passage_id: int,
         language: str | None,
     ) -> Twin | None:
@@ -971,27 +1064,13 @@ class ExtractionService(StageService):
         passage's last reading left, which `store` is about to replace, and
         from the rest of the corpus only one in this fact's language and of
         its kind.
-
-        Only a fact stating the statement's own numbers is a twin, on either
-        probe: two statements naming different numbers are two claims however
-        near their vectors sit, and a bare statement scores high on a shared
-        subject alone.
         """
         # ponytail: one index query per candidate. Upgrade: one batched
         # unnest + LATERAL probe per passage.
-        twin = self._repository.nearest_fact(
+        probed = self._repository.nearest_fact(
             vector, excluding=passage_id, language=language, kind=fact.kind
         )
-        statement = fact.statement
-        if twin is not None and not _counted_alike(statement, twin.statement, language):
-            twin = None
-        for kept, other in written:
-            if not _counted_alike(statement, kept, language):
-                continue
-            score = cosine(vector, other)
-            if twin is None or score > twin.similarity:
-                twin = Twin(fact_id=0, statement=kept, similarity=score)
-        return twin
+        return _closest(fact.statement, language, vector, probed, written)
 
     def _readers(self, passage: PassageToExtract, current) -> list:
         """Which extractors read one passage, in the order they are applied.

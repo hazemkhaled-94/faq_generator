@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from itertools import groupby
 from typing import ClassVar, cast
 
@@ -43,6 +43,7 @@ from extraction.models import (
     FactQuality,
     FactSource,
     PassageToExtract,
+    Refused,
     StoredFact,
     Twin,
 )
@@ -246,6 +247,78 @@ _SOURCES = (
 )
 
 
+def _nearest_fact(
+    session,
+    embedding: list[float],
+    excluding: int | None,
+    language: str | None,
+    kind: str | None,
+) -> Twin | None:
+    """The validated passage fact closest to this vector, or None.
+
+    Over the whole corpus, which is what dedup wants: a duplicate written
+    from another document is still a duplicate.
+
+    `excluding` is a passage being read again: a fact citing it and no
+    other passage is one its `store` replaces, so it is no twin.
+
+    `language` and `kind` narrow it to the candidate's own, None to any.
+    A fact's language is the one the passage it opens on was read in. A
+    translation is its own language's fact, and a summary or an outline
+    that repeats an atomic fact is caught beside it in its own passage:
+    across passages a digest and a claim are two kinds of thing.
+    """
+    distance = Fact.embedding.cosine_distance(embedding)
+    query = (
+        select(Fact.id, Fact.statement, distance.label("far"))
+        .where(
+            Fact.validated,
+            Fact.embedding.is_not(None),
+            Fact.kind != FactKind.BRIDGE,
+        )
+        .order_by(distance)
+        .limit(1)
+    )
+    if language is not None:
+        query = query.where(
+            Fact.id.in_(
+                select(FactPassage.fact_id)
+                .join(Passage, Passage.id == FactPassage.passage_id)
+                .join(Document, Document.sha256 == Passage.doc_sha256)
+                .where(
+                    FactPassage.position == 0,
+                    func.coalesce(Passage.language, Document.language) == language,
+                )
+            )
+        )
+    if kind is not None:
+        query = query.where(Fact.kind == kind)
+    if excluding is not None:
+        query = query.where(
+            Fact.id.not_in(
+                select(FactPassage.fact_id)
+                .where(
+                    FactPassage.fact_id.in_(
+                        select(FactPassage.fact_id).where(
+                            FactPassage.passage_id == excluding
+                        )
+                    )
+                )
+                .group_by(FactPassage.fact_id)
+                .having(func.count() == 1)
+            )
+        )
+    found = session.execute(query).one_or_none()
+    if found is None:
+        return None
+    # pgvector answers in cosine distance; the gate reads likeness.
+    return Twin(
+        fact_id=found.id,
+        statement=found.statement,
+        similarity=1.0 - float(found.far),
+    )
+
+
 class PassageQueue(RowQueue):
     """Reads the extraction queue and records what became of each passage.
 
@@ -347,68 +420,10 @@ class PassageQueue(RowQueue):
     ) -> Twin | None:
         """The validated passage fact closest to this vector, or None.
 
-        Over the whole corpus, which is what dedup wants: a duplicate written
-        from another document is still a duplicate.
-
-        `excluding` is a passage being read again: a fact citing it and no
-        other passage is one its `store` replaces, so it is no twin.
-
-        `language` and `kind` narrow it to the candidate's own, None to any.
-        A fact's language is the one the passage it opens on was read in. A
-        translation is its own language's fact, and a summary or an outline
-        that repeats an atomic fact is caught beside it in its own passage:
-        across passages a digest and a claim are two kinds of thing.
+        See `_nearest_fact`, which the dedup replay probes through as well.
         """
-        distance = Fact.embedding.cosine_distance(embedding)
-        query = (
-            select(Fact.id, Fact.statement, distance.label("far"))
-            .where(
-                Fact.validated,
-                Fact.embedding.is_not(None),
-                Fact.kind != FactKind.BRIDGE,
-            )
-            .order_by(distance)
-            .limit(1)
-        )
-        if language is not None:
-            query = query.where(
-                Fact.id.in_(
-                    select(FactPassage.fact_id)
-                    .join(Passage, Passage.id == FactPassage.passage_id)
-                    .join(Document, Document.sha256 == Passage.doc_sha256)
-                    .where(
-                        FactPassage.position == 0,
-                        func.coalesce(Passage.language, Document.language) == language,
-                    )
-                )
-            )
-        if kind is not None:
-            query = query.where(Fact.kind == kind)
-        if excluding is not None:
-            query = query.where(
-                Fact.id.not_in(
-                    select(FactPassage.fact_id)
-                    .where(
-                        FactPassage.fact_id.in_(
-                            select(FactPassage.fact_id).where(
-                                FactPassage.passage_id == excluding
-                            )
-                        )
-                    )
-                    .group_by(FactPassage.fact_id)
-                    .having(func.count() == 1)
-                )
-            )
         with self._session() as session:
-            found = session.execute(query).one_or_none()
-        if found is None:
-            return None
-        # pgvector answers in cosine distance; the gate reads likeness.
-        return Twin(
-            fact_id=found.id,
-            statement=found.statement,
-            similarity=1.0 - float(found.far),
-        )
+            return _nearest_fact(session, embedding, excluding, language, kind)
 
     def counts(self) -> dict[str, int]:
         """Reports what this service owns, for the status panel."""
@@ -629,6 +644,205 @@ class FactCatalog(Repository):
                 )
             ).rowcount
         return refused + returned
+
+    def nearest_fact(
+        self,
+        embedding: list[float],
+        excluding: int | None = None,
+        language: str | None = None,
+        kind: str | None = None,
+    ) -> Twin | None:
+        """The validated passage fact closest to this vector, as the queue probes."""
+        with self._session() as session:
+            return _nearest_fact(session, embedding, excluding, language, kind)
+
+    def duplicates(self, within=None) -> list[Refused]:
+        """Every stored `duplicate` refusal, as the dedup replay re-decides it.
+
+        Read off the passage each was read from, which is its citation at 0,
+        and in id order, which is the order they were refused in. Read whole
+        rather than streamed: the replay writes between reads.
+
+        Args:
+            within: A condition on Passage narrowing which are read, or None.
+
+        Returns:
+            The refusals carrying the vector they were refused on.
+        """
+        query = (
+            select(
+                Fact.id,
+                FactPassage.passage_id,
+                func.coalesce(Passage.language, Document.language).label("language"),
+                Fact.kind,
+                Fact.statement,
+                Fact.embedding,
+            )
+            .select_from(Fact)
+            .join(
+                FactPassage,
+                (FactPassage.fact_id == Fact.id) & (FactPassage.position == 0),
+            )
+            .join(Passage, Passage.id == FactPassage.passage_id)
+            .join(Document, Document.sha256 == Passage.doc_sha256)
+            .where(
+                Fact.rejection_code == Rejection.DUPLICATE,
+                Fact.kind != FactKind.BRIDGE,
+                Fact.embedding.is_not(None),
+            )
+            .order_by(Fact.id)
+        )
+        if within is not None:
+            query = query.where(_resting(within))
+        with self._session() as session:
+            return [
+                Refused(
+                    fact_id=row.id,
+                    passage_id=row.passage_id,
+                    language=row.language,
+                    kind=row.kind,
+                    statement=row.statement,
+                    embedding=[float(one) for one in row.embedding],
+                )
+                for row in session.execute(query)
+            ]
+
+    def kept(self, passage_id: int) -> list[tuple[str, str, list[float]]]:
+        """What one passage keeps, as (statement, kind, vector).
+
+        Its validated facts carrying a vector, read through their citation
+        at 0, in the order they were written: what `written` holds for a
+        passage in flight.
+        """
+        query = (
+            select(Fact.statement, Fact.kind, Fact.embedding)
+            .join(
+                FactPassage,
+                (FactPassage.fact_id == Fact.id) & (FactPassage.position == 0),
+            )
+            .where(
+                FactPassage.passage_id == passage_id,
+                Fact.validated,
+                Fact.kind != FactKind.BRIDGE,
+                Fact.embedding.is_not(None),
+            )
+            .order_by(Fact.id)
+        )
+        with self._session() as session:
+            return [
+                (row.statement, row.kind, [float(one) for one in row.embedding])
+                for row in session.execute(query)
+            ]
+
+    def give_back(self, fact_id: int) -> int:
+        """Validates one `duplicate` refusal again, as it was judged when read.
+
+        Only the verdict moves, stamped with the settings it moved under, as
+        a recap stamps one. Nothing where the fact is no longer a refusal.
+
+        Returns:
+            How many facts were given back: 1, or 0.
+        """
+        with self._session.begin() as session:
+            return session.execute(
+                update(Fact)
+                .where(Fact.id == fact_id, Fact.rejection_code == Rejection.DUPLICATE)
+                .values(
+                    validated=True,
+                    rejection_code=None,
+                    validation_error=None,
+                    settings_version=self._version,
+                )
+            ).rowcount
+
+    def unfold(
+        self, cited: Callable[[PassageToExtract, list[Sentence]], str], within=None
+    ) -> tuple[int, int]:
+        """Deletes the citations duplicate refusals folded into their twins.
+
+        A fold is a citation at position 1 or more on a fact other than a
+        bridge: `_write` gives such a fact one citation, at 0, and before a
+        refusal stopped citing its twin the refusal was the only thing that
+        added another. A bridge's later positions are what it rests on.
+
+        Each fact unfolded has its evidence rebuilt from the citation it
+        keeps, through `cited`, which is how the checker joins the sentences
+        a citation names.
+
+        A fact whose citation at 0 is gone - its own passage was read again
+        and it survived on a fold - keeps its folds: taking them out would
+        delete it, and the questions resting on it with it.
+
+        Args:
+            cited: The text a citation rests on, given its passage and the
+                sentences it names.
+            within: A condition on Passage narrowing which facts are read, or
+                None.
+
+        Returns:
+            How many facts were unfolded, and how many were left their folds.
+        """
+        opening = aliased(FactPassage)
+        anchored = (
+            select(opening.fact_id)
+            .where(opening.fact_id == FactPassage.fact_id, opening.position == 0)
+            .exists()
+        )
+        folded = (
+            select(FactPassage.fact_id, anchored.label("anchored"))
+            .join(Fact, Fact.id == FactPassage.fact_id)
+            .where(Fact.kind != FactKind.BRIDGE, FactPassage.position >= 1)
+            .distinct()
+        )
+        if within is not None:
+            folded = folded.where(_resting(within))
+        with self._session.begin() as session:
+            found = session.execute(folded).all()
+            unfolded = sorted(row.fact_id for row in found if row.anchored)
+            left = len({row.fact_id for row in found if not row.anchored})
+            if not unfolded:
+                return 0, left
+            session.execute(
+                delete(FactPassage).where(
+                    FactPassage.fact_id.in_(unfolded), FactPassage.position >= 1
+                )
+            )
+            kept = session.execute(
+                select(
+                    FactPassage.fact_id,
+                    FactPassage.sentence_ids,
+                    Passage.id,
+                    Passage.text,
+                    Passage.sentences,
+                )
+                .join(Passage, Passage.id == FactPassage.passage_id)
+                .where(FactPassage.fact_id.in_(unfolded))
+            )
+            evidence = []
+            for row in kept:
+                passage = PassageToExtract(
+                    id=row.id,
+                    text=row.text,
+                    section_path=None,
+                    block_type=None,
+                    language=None,
+                    sentences=_sentences(row.text, row.sentences),
+                )
+                named = [
+                    passage.sentences[at]
+                    for at in row.sentence_ids or ()
+                    if 0 <= at < len(passage.sentences)
+                ]
+                evidence.append(
+                    {
+                        "row": row.fact_id,
+                        "evidence_text": cited(passage, named) if named else "",
+                    }
+                )
+            session.execute(
+                update(_FACTS).where(_FACTS.c.id == bindparam("row")), evidence
+            )
+        return len(unfolded), left
 
     def unembedded(self, limit: int, within=None) -> list[tuple[int, str]]:
         """The next facts carrying no vector, as (id, statement).
