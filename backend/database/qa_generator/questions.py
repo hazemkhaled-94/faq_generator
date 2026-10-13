@@ -315,8 +315,10 @@ class Question(Base):
         ARRAY(Text),
         comment="Every gate that read this question, in the order they read it, "
         "the one that refused it last. question_generation.checker.GATES gives "
-        "each its fixed position. Two gates are conditional, so this cannot be "
-        "derived from rejected_reason and a fixed order. NULL for a question "
+        "each gate its fixed position. A draft another accepted draft of its slot "
+        "was kept over ends with `superseded`, which is not a gate and has no "
+        "position: no gate refused it. Two gates are conditional, so this cannot "
+        "be derived from rejected_reason and a fixed order. NULL for a question "
         "written before this column; empty means no gate ran.",
     )
     gates_abstained: Mapped[list[str] | None] = mapped_column(
@@ -340,9 +342,11 @@ class Question(Base):
         JSONB,
         comment="One entry per measuring gate that read this question: the gate, "
         "the value it measured, the threshold it was read against and the margin "
-        "between them. A gate that is a judgement rather than a measurement "
-        "records nothing here, because an opinion has no number behind it. NULL "
-        "for a question written before this column.",
+        "between them. A judgement records nothing here, because an opinion has "
+        "no number behind it, except the verifier's `settles` verdicts on a "
+        "question written to have no answer: those carry opinion true and no "
+        "margin, and feed no confidence. NULL for a question written before this "
+        "column.",
     )
     confidence: Mapped[float | None] = mapped_column(
         Float,
