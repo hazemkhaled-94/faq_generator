@@ -171,7 +171,8 @@ _LISTED = 3
 #: The same, for a type that asked for a list first: one comma will do. Its
 #: two items are a list because the type said a list is what it wants, and
 #: read as a value they never reach the completeness check `incomplete`
-#: makes of a list.
+#: makes of a list. Only for items carrying no verb: two clauses with verbs
+#: are an explanation where the type takes one, and a list where it does not.
 _LISTED_WHEN_ASKED = 2
 
 
@@ -222,7 +223,7 @@ def fitting(
     looks = _looks_like(
         answer,
         verbs,
-        _LISTED_WHEN_ASKED if asked == AnswerForm.LIST else _LISTED,
+        _LISTED_WHEN_ASKED if asked == AnswerForm.LIST and not verbs else _LISTED,
     )
     tried = (
         (looks, *(one for one in forms if one != looks)) if looks in forms else forms

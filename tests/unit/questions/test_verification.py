@@ -1976,6 +1976,34 @@ def test_two_items_are_a_list_where_the_type_asked_for_one() -> None:
     assert form == AnswerForm.LIST
 
 
+def test_two_clauses_carrying_verbs_stay_an_explanation_where_one_is_allowed() -> None:
+    """A `comparison` takes an explanation, and two clauses with verbs are one."""
+    form, failed = fitting(
+        "card payments settle at once, bank transfers take a working day",
+        (AnswerForm.LIST, AnswerForm.EXPLANATION),
+        BOUNDS,
+        "en",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.EXPLANATION
+
+
+def test_two_clauses_carrying_verbs_are_a_list_where_no_explanation_is_allowed() -> (
+    None
+):
+    """A `condition` takes no explanation, so its two conditions stay a list."""
+    form, failed = fitting(
+        "if the login fails, or if the card expires",
+        (AnswerForm.LIST, AnswerForm.VALUE),
+        BOUNDS,
+        "en",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.LIST
+
+
 def test_the_complaint_reported_is_the_asked_for_forms() -> None:
     """That is the form the writer was told to produce, so it is the one to show."""
     form, failed = fitting("x" * 700, (AnswerForm.VALUE, AnswerForm.LIST), BOUNDS, "en")

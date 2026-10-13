@@ -291,19 +291,21 @@ def test_reading_figures_never_raises_and_never_returns_a_nan(text) -> None:
 
 # ── The form an answer is read in ────────────────────────────────────────
 
-#: Two things a key may name, in a language NLP_MODELS configures.
+#: Two things a key may name, in a language NLP_MODELS configures. Noun
+#: phrases: two clauses carrying verbs are an explanation where the type
+#: takes one.
 ITEMS = st.sampled_from(
     [
         (
             "en",
-            ("card fraud", "a court order", "a failed login", "an unpaid balance"),
+            ("card fraud", "a court order", "a theft report", "an unpaid balance"),
         ),
         (
             "de",
             (
                 "ein Betrugsverdacht",
                 "eine Pfändung",
-                "eine fehlgeschlagene Anmeldung",
+                "eine Kontosperre",
                 "ein Gerichtsbeschluss",
             ),
         ),
