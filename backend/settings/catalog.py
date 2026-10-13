@@ -504,8 +504,9 @@ SETTINGS: tuple[Setting, ...] = (
         low=0,
         invalidates=("questions",),
         help="How many passages the corpus-wide probe shows the verifier "
-        "before an unanswerable question is accepted. 0 judges one against "
-        "its own passages alone.",
+        "before an unanswerable question is accepted, nearest first. The "
+        "passages either side of a cited one are shown on top of these. 0 "
+        "judges one against its own passages alone.",
     ),
     Setting(
         name="QUESTIONS_LONG_ANSWER_CHARS",

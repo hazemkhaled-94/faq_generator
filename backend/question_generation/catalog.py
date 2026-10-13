@@ -91,6 +91,12 @@ _ASSERTS = (
     .exists()
 )
 
+#: How many ordinals either side of a cited passage the vector probe also
+#: shows, in the cited passage's own document. A rule is often longer than
+#: one passage, and the answer to a question moved just out of reach of one
+#: sits beside it however the question's vector ranks it.
+AROUND = 2
+
 
 def _joined(query: Select) -> Select:
     """Joins everything a question is filtered by, placed by and named by.
@@ -478,12 +484,17 @@ class QuestionCatalog(Repository):
     ) -> list[str]:
         """The embedded passages of one language nearest this vector.
 
+        And then the passages within `AROUND` ordinals of each one it skips,
+        in that passage's document: the rest of the rule a cited passage
+        starts, which the vector ranks anywhere. `limit` counts the nearest
+        only, so the neighbours never crowd the corpus out.
+
         Empty when the corpus carries no vectors, which is what sends
         `elsewhere` back to its lemma probe rather than to nothing.
         """
         distance = Passage.embedding.cosine_distance(embedding)
         query = (
-            select(Passage.text)
+            select(Passage.id, Passage.text)
             .where(
                 Passage.language == language,
                 Passage.embedding.is_not(None),
@@ -499,7 +510,31 @@ class QuestionCatalog(Repository):
         if skip:
             query = query.where(Passage.id.notin_(skip))
         with self._session() as session:
-            return [row.text for row in session.execute(query)]
+            found = {row.id: row.text for row in session.execute(query)}
+            if not found or not skip:
+                return list(found.values())
+            cited = aliased(Passage)
+            beside = (
+                select(cited.id)
+                .where(
+                    cited.id.in_(skip),
+                    cited.doc_sha256 == Passage.doc_sha256,
+                    func.abs(cited.ordinal - Passage.ordinal) <= AROUND,
+                )
+                .exists()
+            )
+            for row in session.execute(
+                select(Passage.id, Passage.text)
+                .where(
+                    beside,
+                    Passage.id.notin_(skip),
+                    Passage.language == language,
+                    _ASSERTS,
+                )
+                .order_by(Passage.doc_sha256, Passage.ordinal)
+            ):
+                found.setdefault(row.id, row.text)
+        return list(found.values())
 
     def nearest(
         self,

@@ -1618,6 +1618,52 @@ class TestFindingThePassageThatAnswersItAnyway:
 
         assert found == ["A defect is present in the build."]
 
+    def test_the_passages_either_side_of_a_cited_one_are_shown_too(
+        self, engine, database
+    ) -> None:
+        """A rule runs on past its passage, wherever the vector ranks the next.
+
+        Two ordinals either side, in the cited passage's own document; the
+        nearest by vector still come back beside them.
+        """
+        self.corpus(
+            engine,
+            axes={
+                "Ordinal one.": 9,
+                "Ordinal two.": 9,
+                "Ordinal three, the cited one.": 9,
+                "Ordinal four.": 9,
+                "Ordinal five.": 9,
+                "Ordinal six.": 9,
+                "Nearest by vector.": 3,
+            },
+        )
+        with Session(engine) as session:
+            other = digest("b")
+            session.add(document(other))
+            session.flush()
+            elsewhere = passage(other, ordinal=2, text="Other file.", language="en")
+            elsewhere.embedding = [1.0 if i == 9 else 0.0 for i in range(1024)]
+            session.add(elsewhere)
+            session.flush()
+            drawn = fact(elsewhere.id, statement="Claim about another file.")
+            session.add(drawn)
+            session.commit()
+        with engine.connect() as connection:
+            cited = connection.execute(
+                text(
+                    "SELECT id FROM passages WHERE ordinal = 3 AND text LIKE 'Ordinal%'"
+                )
+            ).scalar_one()
+        asked = [1.0 if i == 3 else 0.0 for i in range(1024)]
+
+        found = QuestionCatalog().elsewhere([], "en", [cited], 1, asked)
+
+        assert found[0] == "Nearest by vector."
+        assert sorted(found[1:]) == sorted(
+            ["Ordinal one.", "Ordinal two.", "Ordinal four.", "Ordinal five."]
+        )
+
     def test_a_passage_carrying_no_fact_is_never_offered(
         self, engine, database
     ) -> None:

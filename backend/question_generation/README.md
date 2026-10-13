@@ -662,7 +662,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_ANSWER_OVERLAP` | How much of a list or explanation has to come back. Numbers are always exact |
 | `QUESTIONS_UNANSWERABLE_SHARE` | What share are attempted with no answer in the corpus |
 | `QUESTIONS_OFF_TOPIC_OVERLAP` | Below this share of shared lemmas, an unanswerable question is off-topic. **Off** |
-| `QUESTIONS_ELSEWHERE_PASSAGES` | How many uncited passages the `answerable_elsewhere` probe reads |
+| `QUESTIONS_ELSEWHERE_PASSAGES` | How many uncited passages, nearest by vector, the `answerable_elsewhere` probe reads. The passages two ordinals either side of each cited one are read on top |
 | `QUESTIONS_ENTAILMENT_OVERLAP` | How much of what a question asks about must occur in its passages before the entailment pass may rescue it. `0` turns the guard off |
 | `QUESTIONS_FOLLOWUP_SHARE` | What share of accepted answerable roots get a thread |
 | `QUESTIONS_MAX_FOLLOWUPS` | How far a thread may run past its root |
