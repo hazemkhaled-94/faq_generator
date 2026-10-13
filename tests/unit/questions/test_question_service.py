@@ -892,7 +892,7 @@ def test_a_gate_the_writer_could_have_satisfied_is_worth_asking_again() -> None:
         rejected_reason=QuestionRejection.COMPOUND,
     )
 
-    assert again(refused, easy_plan(), _NARROW) is not None
+    assert again(refused) is not None
 
 
 def test_an_unanswerable_question_answered_after_all_is_not_told_to_swap_parties() -> (
@@ -912,7 +912,7 @@ def test_an_unanswerable_question_answered_after_all_is_not_told_to_swap_parties
         rejected_reason=QuestionRejection.ANSWERABLE_AFTER_ALL,
     )
 
-    note = again(refused, easy_plan(), _NARROW)
+    note = again(refused)
 
     assert note is not None
     assert "party" not in note
@@ -961,14 +961,14 @@ def test_a_duplicate_is_not_worth_asking_again() -> None:
         rejected_reason=QuestionRejection.DUPLICATE,
     )
 
-    assert again(refused, easy_plan(), _NARROW) is None
+    assert again(refused) is None
 
 
 def test_a_question_that_stood_is_left_alone() -> None:
     """Nothing to fix, and a second call would only risk the first draft."""
     from question_generation.service import again
 
-    assert again(accepted_question(), easy_plan(), _NARROW) is None
+    assert again(accepted_question()) is None
 
 
 def test_an_honest_narrow_draft_is_not_asked_to_weld_facts_that_do_not_meet() -> None:
@@ -980,17 +980,7 @@ def test_an_honest_narrow_draft_is_not_asked_to_weld_facts_that_do_not_meet() ->
     rules forbid, and the accepted retry used to replace the honest draft.
     """
     from question_generation.service import again
-    from question_generation.types import SPECS
 
-    refunds = source(
-        1, document="a", passage_id=1, statement="Refunds are paid within 14 days."
-    )
-    cable = source(
-        2,
-        document="a",
-        passage_id=2,
-        statement="The device ships with a charging cable.",
-    )
     narrow = replace(
         accepted_question(band=Difficulty.EASY),
         question_type=QuestionType.APPLICATION,
@@ -1001,13 +991,11 @@ def test_an_honest_narrow_draft_is_not_asked_to_weld_facts_that_do_not_meet() ->
         # medium and the slot's band was within reach.
         criteria=replace(accepted_question().criteria, answer_chars=72),
     )
-    slot = replace(wide_plan(), spec=SPECS[QuestionType.APPLICATION])
 
-    assert again(narrow, slot, FactGroup((refunds, cable))) is None
+    assert again(narrow) is None
 
 
-#: A sample dealt from one passage, and one dealt across two documents.
-_NARROW = FactGroup((source(1, document="a", passage_id=1),))
+#: A sample dealt across two documents.
 _WIDE = FactGroup(
     (source(1, document="a", passage_id=1), source(2, document="b", passage_id=2))
 )
@@ -1036,34 +1024,6 @@ def accepted_question(band: str = Difficulty.EASY) -> CheckedQuestion:
         question_type=QuestionType.FACTOID,
         answer_form="value",
         planned_difficulty=band,
-    )
-
-
-def easy_plan():
-    """A slot asking for one passage, which cannot come out narrower."""
-    from question_generation.planning import Plan
-    from question_generation.selection import Shape
-    from question_generation.types import SPECS
-
-    return Plan(
-        spec=SPECS[QuestionType.FACTOID],
-        band=Difficulty.EASY,
-        shape=Shape.SINGLE,
-        answerable=True,
-    )
-
-
-def wide_plan():
-    """A slot asking for two passages and the medium band."""
-    from question_generation.planning import Plan
-    from question_generation.selection import Shape
-    from question_generation.types import SPECS
-
-    return Plan(
-        spec=SPECS[QuestionType.FACTOID],
-        band=Difficulty.MEDIUM,
-        shape=Shape.CROSS,
-        answerable=True,
     )
 
 
@@ -1246,7 +1206,7 @@ def test_an_accepted_draft_is_kept_over_a_retry_accepted_after_it(monkeypatch) -
     monkeypatch.setattr(
         module,
         "again",
-        lambda checked, plan, sample: (
+        lambda checked: (
             "again" if checked.question_text.startswith("draft 1") else None
         ),
     )
@@ -1289,7 +1249,7 @@ def test_a_draft_a_retry_replaced_does_not_blame_a_gate_it_passed(monkeypatch) -
     monkeypatch.setattr(
         module,
         "again",
-        lambda checked, plan, sample: "again" if checked.attempt == 1 else None,
+        lambda checked: "again" if checked.attempt == 1 else None,
     )
     service, _ = build(
         topic(),

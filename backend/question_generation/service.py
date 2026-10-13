@@ -556,7 +556,7 @@ def _settled(
     return None, opinions
 
 
-def again(checked: CheckedQuestion, plan: Plan, sample: FactGroup) -> str | None:
+def again(checked: CheckedQuestion) -> str | None:
     """What to tell the writer about this draft, or None to keep it as it is.
 
     Only a gate refusing it, and only a gate the writer could have satisfied.
@@ -1032,7 +1032,7 @@ class QuestionGenerationService(StageService):
         # without it a topic would happily write the same question twice.
         drafts = [self._checked(self._writer.write(sample, plan), accepted)]
         for _ in range(self._settings.retries):
-            note = again(drafts[-1], plan, sample)
+            note = again(drafts[-1])
             if note is None:
                 break
             log.info("asking again for %r: %s", drafts[-1].question_text, note)
