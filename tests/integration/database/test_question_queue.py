@@ -2066,3 +2066,50 @@ def test_a_rescore_carries_a_lost_citation_into_the_stored_band(
             )
         ).one()
     assert tuple(row) == ("accepted", "single_passage", "easy", "medium")
+
+
+def test_a_question_on_a_fact_left_only_its_fold_is_left_to_re_verify(
+    engine, database
+) -> None:
+    """Its fact's own citation is gone, so its fold is all that holds it.
+
+    The rescore leaves the stored scope alone, and re-verify rejects it.
+    """
+    from question_generation.service import rescore, reverify
+
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        own = passage(digest("a"), ordinal=1, language="en")
+        folded = passage(digest("a"), ordinal=2, language="en")
+        session.add_all([own, folded])
+        session.flush()
+        cited = fact(own.id, folded.id, statement="The device weighs 4 kg.")
+        session.add(cited)
+        session.flush()
+        asked = question(
+            target_answer="4 kg",
+            status="accepted",
+            passage_scope="multi_passage",
+            document_scope="single_document",
+            topic_scope="single_topic",
+            difficulty="medium",
+        )
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=cited.id))
+        session.commit()
+        fact_id = cited.id
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM fact_passages WHERE fact_id = :id AND position = 0"),
+            {"id": fact_id},
+        )
+
+    assert rescore(QuestionCatalog(), _settings()) == 0
+    assert reverify(QuestionCatalog(), _settings()) == 1
+    with engine.connect() as connection:
+        row = connection.execute(
+            text("SELECT status, rejected_reason, passage_scope FROM questions")
+        ).one()
+    assert tuple(row) == ("rejected", "source_changed", "multi_passage")

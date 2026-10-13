@@ -567,6 +567,10 @@ class JudgedQuestion:
     #: nearness probe compares.
     fact_ids: tuple[int, ...] = ()
     passage_ids: tuple[int, ...] = ()
+    #: Whether a fact it cites rests only on a citation a duplicate refusal
+    #: folded in, its own being gone. Its spread then counts a passage the
+    #: fact was only refused against.
+    stranded: bool = False
 
 
 @dataclass(frozen=True)

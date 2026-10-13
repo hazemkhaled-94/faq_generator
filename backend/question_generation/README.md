@@ -258,7 +258,9 @@ rejects a question whose passage or document scope no longer matches its
 citations. `make questions-rescore` rewrites the four from what each
 question cites now, with no model call; run it first when a citation moved
 for a reason the question did not, as `make extract-dedup` taking out a
-citation a duplicate refusal had folded into a fact.
+citation a duplicate refusal had folded into a fact. A question citing a
+fact that rests only on such a citation, its own being gone, is left as it
+is, and re-verify rejects it.
 
 ## The gates
 

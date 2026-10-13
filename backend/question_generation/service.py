@@ -191,7 +191,9 @@ def rescore(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     with. Only the four columns move; the verdict is `reverify`'s.
 
     Every question, a rejected one included: the columns describe the row,
-    whatever became of it.
+    whatever became of it. Bar one citing a fact that rests only on a fold,
+    its own citation gone: its spread counts a passage the fact was only
+    refused against, so the stored scope is left for `reverify` to compare.
 
     Args:
         catalog: Where the questions are read from and written back to.
@@ -203,6 +205,8 @@ def rescore(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     """
     moved: list[tuple[int, Criteria]] = []
     for question in catalog.judged(within):
+        if question.stranded:
+            continue
         now = _cited(question, settings)
         if (
             question.passage_scope,

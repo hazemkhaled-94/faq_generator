@@ -111,3 +111,18 @@ def test_re_verify_does_not_reject_a_row_that_was_only_rescored() -> None:
 
     assert before is not None and before[0] == QuestionRejection.SOURCE_CHANGED
     assert _recheck(None, settings, rescored) is None  # type: ignore[arg-type]
+
+
+def test_a_question_on_a_fact_left_only_its_fold_is_not_rescored() -> None:
+    """Its fact lost its own citation; the fold `unfold` cannot take out remains.
+
+    Rescoring would band it by a passage its fact was only refused against,
+    so it is left for re-verify, which rejects it as `source_changed`.
+    """
+    stranded = _stored(stranded=True)
+    catalog = _Catalog(stranded)
+
+    assert rescore(catalog, Settings.load()) == 0  # type: ignore[arg-type]
+    assert catalog.written == []
+    failed = _recheck(None, Settings.load(), stranded)  # type: ignore[arg-type]
+    assert failed is not None and failed[0] == QuestionRejection.SOURCE_CHANGED

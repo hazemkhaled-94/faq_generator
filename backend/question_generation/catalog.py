@@ -31,6 +31,7 @@ from confidence import Measurement, scored
 from database.qa_generator import (
     Document,
     Fact,
+    FactKind,
     FactPassage,
     Passage,
     Question,
@@ -109,6 +110,18 @@ def _rejecting(code: str) -> dict[str, Any]:
         "status_changed_at": func.now(),
         "release_id": None,
     }
+
+
+#: A fact other than a bridge whose own citation, at position 0, is gone: its
+#: passage was read again and it survives on a citation an earlier version's
+#: duplicate refusal folded in, which `make extract-dedup` leaves in place.
+_OPENING = aliased(FactPassage)
+_STRANDED = and_(
+    Fact.kind != FactKind.BRIDGE,
+    ~select(_OPENING.fact_id)
+    .where(_OPENING.fact_id == Fact.id, _OPENING.position == 0)
+    .exists(),
+)
 
 
 def _joined(query: Select) -> Select:
@@ -773,6 +786,7 @@ class QuestionCatalog(Repository):
                     Question.question_type,
                     Question.answer_form,
                     func.coalesce(func.bool_and(HOLDS), False).label("facts_validated"),
+                    func.coalesce(func.bool_or(_STRANDED), False).label("stranded"),
                     func.count(func.distinct(Passage.doc_sha256)).label("documents"),
                     func.count(func.distinct(Passage.id)).label("passages"),
                     func.count(func.distinct(DOMINANT.c.topic_id)).label("topics"),
