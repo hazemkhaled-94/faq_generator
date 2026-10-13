@@ -310,6 +310,43 @@ class TestAnAggregationIsCheckedArithmetically:
         assert "computes" in recording.asked, "it was refused unasked"
         assert result.status == "accepted"
 
+    @pytest.mark.parametrize(
+        ("question", "passage", "language"),
+        [
+            (
+                "How many charging ports does the device have?",
+                "The device is 1.5 m wide and weighs 5 kg.",
+                "en",
+            ),
+            (
+                "Wie viele Ladeanschlüsse hat das Gerät?",
+                "Das Gerät ist 1,5 m breit und wiegt 5 kg.",
+                "de",
+            ),
+        ],
+    )
+    def test_a_count_over_figures_of_other_things_goes_to_the_model(
+        self, question: str, passage: str, language: str
+    ) -> None:
+        """Metres and kilograms are figures, and no sum of them counts ports.
+
+        The arithmetic still judges a count whose figures count what is
+        asked, which is the people this class's own sites employ.
+        """
+        recording = Recording(answer=True)
+
+        result = build(recording).check(
+            candidate(
+                question_text=question,
+                target_answer="4",
+                question_type=QuestionType.AGGREGATION,
+                facts=group(source(passage_text=passage, language=language)),
+            )
+        )
+
+        assert "computes" in recording.asked, "it was refused unasked"
+        assert result.status == "accepted"
+
     def test_a_figure_ending_a_sentence_is_still_a_figure(self) -> None:
         """A four-digit summand followed by a full stop.
 

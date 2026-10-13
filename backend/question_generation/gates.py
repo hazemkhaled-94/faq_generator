@@ -1840,6 +1840,41 @@ def adds_up(answer: str, passages: Sequence[str]) -> bool | None:
     )
 
 
+def counts_something_else(
+    question: str, passages: Sequence[str], language: str | None
+) -> bool:
+    """Whether every figure a count question's passages hold counts another thing.
+
+    `How many corner flagposts ...?` over `at least 1.5 m (5 ft) high`: both
+    figures count a length, so no sum of them counts flagposts and the
+    arithmetic has nothing to say. A figure counting what is asked - `40
+    people` for `How many people` - or counting nothing named - `employs
+    1200` - leaves the total to `adds_up`. Read off the parse: the noun the
+    `_ASKS_HOW_MANY` phrase modifies, and the noun each figure `adds_up`
+    reads does.
+    """
+    asks = _ASKS_HOW_MANY.get((language or "").lower())
+    found = re.search(asks, question, re.IGNORECASE) if asks else None
+    if found is None:
+        return False
+    read = pipeline(language)(question)
+    span = read.char_span(found.start(), found.end(), alignment_mode="expand")
+    counted = span[-1].head if span else None
+    if counted is None or counted.pos_ not in ("NOUN", "PROPN"):
+        return False
+    heads = []
+    for text in passages:
+        starts = {figure.start() for figure in _FIGURE.finditer(text)}
+        heads.extend(
+            token.head for token in pipeline(language)(text) if token.idx in starts
+        )
+    return bool(heads) and all(
+        head.pos_ in ("NOUN", "PROPN")
+        and head.lemma_.casefold() != counted.lemma_.casefold()
+        for head in heads
+    )
+
+
 def _summed_years(combination: tuple[float, ...], size: int) -> bool:
     """Whether a total is two or more years added together.
 

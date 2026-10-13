@@ -191,7 +191,8 @@ of their own — `arithmetic`, for `aggregation`, asks whether the figures
 come to the total, and `entailment`, for the two in bold, whether the
 conclusion follows from the premises. Where the passages hold fewer than two
 figures there is no total to compute, so a count of what they list is asked
-of the model rather than refused.
+of the model rather than refused. So is a count whose passages' figures all
+count something else: `How many corner flagposts …?` over a height in metres.
 
 `GET /questions/quality` also reports `cognitive_level_checked`, how many
 accepted questions are of a type a rule settles. Only six of the thirteen

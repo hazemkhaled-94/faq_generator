@@ -70,6 +70,7 @@ from question_generation.gates import (
     anchored,
     asserted,
     cites_source,
+    counts_something_else,
     deciding,
     explains,
     incomplete,
@@ -687,8 +688,17 @@ class QuestionChecker:
             # asked whether two numbers come to a third is being asked to
             # agree. None is an answer this cannot read - a total in words, a
             # range, a date, or a count of what passages holding fewer than
-            # two figures list - and falls through to the model below.
-            computed = adds_up(target, candidate.group.passages)
+            # two figures list - and falls through to the model below, as a
+            # count does whose passages' figures all count something else.
+            computed = (
+                None
+                if counts_something_else(
+                    candidate.question_text,
+                    candidate.group.passages,
+                    candidate.group.language,
+                )
+                else adds_up(target, candidate.group.passages)
+            )
             if computed is True:
                 return None
             if computed is False:

@@ -21,6 +21,7 @@ from question_generation.gates import (
     BOUNDS,
     adds_up,
     agrees,
+    counts_something_else,
     fitting,
     incomplete,
     near_verdict,
@@ -1333,3 +1334,20 @@ def test_a_stored_question_with_an_embedded_question_word_is_not_compound(
     )
 
     assert (failed[0] if failed else None) != QuestionRejection.COMPOUND, failed
+
+
+#: The passage Q1296 cites: a height and a distance, in metres and in feet.
+_P469 = (
+    "A flagpost, at least 1.5 m (5 ft) high, with a non-pointed top and a flag "
+    "must be placed at each corner.\nFlagposts may be placed at each end of the "
+    "halfway line, at least 1m (1yd) outside the touchline."
+)
+
+
+def test_a_stored_count_over_figures_of_something_else_is_left_to_the_model() -> None:
+    """Q1296 counts corner flagposts, and P469's figures count metres and feet."""
+    assert counts_something_else(
+        "How many corner flagposts must be placed around the field of play?",
+        [_P469],
+        "en",
+    )
