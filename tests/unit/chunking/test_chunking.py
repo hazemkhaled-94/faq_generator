@@ -13,16 +13,14 @@ import os
 from typing import Any
 
 import pytest
-from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
-from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.labels import DocItemLabel
-from factories import chunked
+from factories import Words, chunked, word_chunker
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from preprocessing.chunking.models import Chunking
-from preprocessing.chunking.passages import NoPassages, _Markdown, lead_ins_kept
+from preprocessing.chunking.passages import NoPassages, lead_ins_kept
 
 
 def test_every_chunk_is_stored_and_numbered() -> None:
@@ -60,36 +58,9 @@ def test_a_document_yielding_no_chunk_fails() -> None:
 # ── A list keeps its lead-in ─────────────────────────────────────────────
 
 
-class _Words(BaseTokenizer):
-    """Counts a word as a token, so a budget is a word count."""
-
-    max_tokens: int
-
-    def count_tokens(self, text: str) -> int:
-        """The number of whitespace-separated words."""
-        return len(text.split())
-
-    def get_max_tokens(self) -> int:
-        """The budget."""
-        return self.max_tokens
-
-    def get_tokenizer(self) -> Any:
-        """What the plain-text splitter counts with."""
-        return self.count_tokens
-
-
-def chunker(budget: int, *, merge_peers: bool = True) -> HybridChunker:
-    """The builder's chunker, counting words."""
-    return HybridChunker(
-        tokenizer=_Words(max_tokens=budget),
-        merge_peers=merge_peers,
-        serializer_provider=_Markdown(),
-    )
-
-
 def cut(document: DoclingDocument, budget: int, **options: Any) -> list:
     """The chunks the builder hands to the reader."""
-    cutting = chunker(budget, **options)
+    cutting = word_chunker(budget, **options)
     return lead_ins_kept(list(cutting.chunk(document)), cutting, document)
 
 
@@ -129,7 +100,7 @@ def listed(
 
 def cut_after_the_lead_in(document: DoclingDocument, budget: int) -> None:
     """Asserts the chunker alone closes a chunk on the lead-in."""
-    *_, before, after = chunker(budget).chunk(document)
+    *_, before, after = word_chunker(budget).chunk(document)
     assert before.text.endswith(LEAD_IN), "the chunker no longer cuts here"
     assert after.text.startswith("- "), "the chunker no longer cuts here"
 
@@ -245,7 +216,7 @@ def test_no_passage_opens_on_a_list_cut_from_its_lead_in(document, budget) -> No
         assert lead_in.self_ref in refs(holding) or (
             holding.meta.headings and holding.meta.headings[-1] == lead_in.text
         ), (holding.text, holding.meta.headings)
-    assert all(_Words(max_tokens=budget).count_tokens(c.text) <= budget for c in chunks)
+    assert all(Words(max_tokens=budget).count_tokens(c.text) <= budget for c in chunks)
 
 
 @pytest.mark.nlp

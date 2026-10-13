@@ -5,10 +5,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
+from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
+
 from database.qa_generator import Difficulty, FactKind, QuestionType
 from extraction.models import PassageToExtract
 from preprocessing.chunking.models import Chunking
-from preprocessing.chunking.passages import chunking_of
+from preprocessing.chunking.passages import _Markdown, chunking_of
 from question_generation.models import (
     Candidate,
     FactGroup,
@@ -206,4 +209,31 @@ def chunked(texts: Iterable[str], max_tokens: int = 10) -> Chunking:
         max_tokens=max_tokens,
         count_tokens=lambda text: len(text.split()),
         to_passage=_numbered,
+    )
+
+
+class Words(BaseTokenizer):
+    """Counts a word as a token, so a budget is a word count."""
+
+    max_tokens: int
+
+    def count_tokens(self, text: str) -> int:
+        """The number of whitespace-separated words."""
+        return len(text.split())
+
+    def get_max_tokens(self) -> int:
+        """The budget."""
+        return self.max_tokens
+
+    def get_tokenizer(self) -> Any:
+        """What the plain-text splitter counts with."""
+        return self.count_tokens
+
+
+def word_chunker(budget: int, *, merge_peers: bool = True) -> HybridChunker:
+    """The passage builder's chunker, counting words, so no model is loaded."""
+    return HybridChunker(
+        tokenizer=Words(max_tokens=budget),
+        merge_peers=merge_peers,
+        serializer_provider=_Markdown(),
     )

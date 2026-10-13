@@ -68,6 +68,55 @@ Out: the stripped text (the string every offset indexes), the heading trail,
 the block type, the converter's item references, one bounding box per page
 spanned normalised to a top-left origin, and the cell grid of every table.
 
+**The heading trail starts in its own chapter.** The converter's heading
+tree misses a chapter that opens on a decorative title, so the last numbered
+heading of the chapter before heads every passage of the next. The page's
+running heads and feet name the chapter, and
+[`furniture.py`](furniture.py) reads them before the cut, from the
+document's own `page_header` and `page_footer` items:
+
+- each is split into fields — on its bars when it has any, otherwise on tabs
+  and runs of spaces
+- a field that numbers pages is dropped: one with no letter, and every field
+  of a shape, its numerals masked, that no two pages print alike ("Page 3 of
+  12", "iv")
+- a field printed on every page that prints any is dropped: the title, the
+  edition
+- a field printed on a single page is dropped: a stray header, or a guide
+  word naming its own page
+- what is left, printed on a run of pages and changing from one run to the
+  next, is the chapter label; a page printing only the title is in the
+  chapter of the last page that printed one
+- a page printing only single-page fields is in the chapter printed either
+  side of it when both sides print the same one, as a facing page's topic
+  is; between two different chapters, or after the last, it is in none — a
+  chapter headed on a single page — and its passages keep today's trail,
+  with no chapter prefix and no reset
+
+Fields are compared with whitespace removed and case folded, so a word the
+converter split is the same field. If a field comes back after another took
+over, as on pages whose heads alternate between title and chapter, the heads
+do not name chapters and none is read.
+
+A title naming the chapter is put before the chapter's first block, so the
+chunker starts it with an empty trail and never merges across it. The
+chapter's fields then lead the trail, replacing any leading segments that
+already repeat them. The title is appended to the document's texts, so no
+stored item reference moves.
+
+**Debris is not passage text.** A paragraph that starts with one of the
+document's running heads or feet, field for field with whitespace removed,
+is the converter reading furniture as body text; a paragraph that is one
+letter, when the next text starts with that letter in either case, is a
+glossary's index divider. Both move to the furniture layer before the cut. A
+lone letter followed by anything else is content — an energy class, a part
+marker — and stays. A trail segment that holds no letter or digit, such as an
+ellipsis, is dropped, and so is one that is a lone conjunction — a single
+stop word the language's spaCy pipeline tags as one — unless it is written in
+capitals, as a manual heads its section on the OR gate.
+
+A document with no running head or foot is cut with today's trail.
+
 A table is rendered into the passage text as Markdown rows, and the grid is
 kept separately because the rendering loses the header flags, positions and
 spans. Each data row is paired with the rendered line that shows it, matched
@@ -126,7 +175,7 @@ moving them would point every citation in the corpus at different text.
 
 ## spaCy here
 
-Used in exactly three places, and the medium models are required:
+Used in exactly four places, and the medium models are required:
 `de_core_news_sm` does not tag a German modal as a finite verb.
 
 - **Sentence segmentation**, once per passage batch. The offsets it produces
@@ -138,6 +187,8 @@ Used in exactly three places, and the medium models are required:
   heading or caption.
 - **Content lemmas**, written here so one segmentation serves both stages and
   a fit reads a column instead of re-tokenising the corpus.
+- **A lone conjunction in the heading trail**, one segment at a time, in the
+  document's language.
 
 Everything else in `nlp/analysis.py` belongs to extraction and question
 generation, bar `normalised`, which parsing hashes the body with. Both models
@@ -218,7 +269,7 @@ and `chunking_of` directly.
 |---|---|
 | [`test_intake_chunking.py`](../../../tests/unit/intake/test_intake_chunking.py) | Numbering, the token budget, block-type labelling, the row-to-line pairing, the cell grids, the bounding boxes, the failure paths and the re-read |
 | [`test_intake_surface.py`](../../../tests/unit/intake/test_intake_surface.py) | The spaCy-backed reading with real pipelines: per-passage language, sentence offsets, predicate counts, table rows, and what becomes vocabulary |
-| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, nowhere across a sub-heading; and, as a property, that no passage opens on a list cut from its lead-in or exceeds the budget |
+| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, nowhere across a sub-heading; and, as a property, that no passage opens on a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under none, and a facing page's own topic kept in its chapter |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | Every non-blank chunk is stored, ordinals run from 1 without a gap, `oversized` never exceeds the passages stored |
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes, the transactional replacement and its cascade, and every listing filter |
@@ -243,6 +294,24 @@ corpus, which is a property of the model rather than of this code.
   passage before and becomes the last segment of the list passage's
   `section_path`. A lead-in that does not end in ":", or one split across
   two chunks, is not carried.
+- **A chapter is only as good as its running heads.** One whose opening
+  pages print none is in the chapter before until its first page that does.
+  Heads that come back out of order name no chapter at all. A field printed
+  on one page only is no chapter field, so heads that differ on every page
+  name no chapter — read as page numbers when they share a shape once their
+  numerals are masked, dropped as single-page fields when they do not — and
+  neither does a chapter whose running head is printed on a single page: its
+  passages keep today's trail, unprefixed and not reset. So does the last
+  right-hand page of a chapter whose facing pages head a topic of their own,
+  since the next chapter's label follows it. A
+  page whose head carries an extra field printed on several pages — another
+  document's foot printed over its own — starts a chapter of its own.
+- **A running foot is recognised by the document's own.** A foot the
+  converter read as body text is dropped only when it repeats one the
+  document prints as furniture; another document's foot printed over the
+  page is kept as text.
+- **A lone conjunction is told by the language's pipeline.** In a language
+  with none, only a segment with no letter or digit leaves the trail.
 - **`revocabulary` does not renumber sentences.** A change to how sentences
   are split reaches the corpus only through a re-chunk.
 - **`start` and `rerun` skip a document parsing has not finished.** This is

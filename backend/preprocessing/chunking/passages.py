@@ -27,6 +27,7 @@ from nlp.analysis import read
 from nlp.language import detect
 from nlp.models import Sentence
 from nlp.windows import reserved
+from preprocessing.chunking.furniture import furniture_of, headed, tidied
 from preprocessing.chunking.models import Chunk, Chunking
 
 
@@ -78,6 +79,33 @@ def chunking_of(
         1 for passage in passages if count_tokens(passage.text) > max_tokens
     )
     return Chunking(passages=passages, oversized=oversized)
+
+
+def chunks_of(
+    document: DoclingDocument, chunker: HybridChunker, language: str | None
+) -> tuple[DoclingDocument, list[DocChunk]]:
+    """Cuts a document into chunks, chapter by chapter.
+
+    The document's running heads and feet are read first: debris they show
+    the converter left in the body comes out, and each chapter they name
+    starts with an empty heading trail and leads every trail in it. Then
+    every list is kept beside its lead-in.
+
+    Args:
+        document: The converted document, which is not modified.
+        chunker: The chunker.
+        language: The document's language.
+
+    Returns:
+        The document the chunks were cut from, which is `document` itself
+        unless its furniture changed something, and the chunks.
+    """
+    furniture = furniture_of(document)
+    tidy, titles = tidied(document, furniture)
+    chunks = headed(
+        cast(list[DocChunk], list(chunker.chunk(tidy))), furniture, titles, language
+    )
+    return tidy, lead_ins_kept(chunks, chunker, tidy)
 
 
 #: What a lead-in is: a paragraph, as the converter labels one.
@@ -272,12 +300,12 @@ class PassageBuilder:
         Raises:
             NoPassages: If the document yielded nothing but whitespace.
         """
-        chunks = cast(list[DocChunk], list(self._chunker.chunk(document)))
+        tidy, chunks = chunks_of(document, self._chunker, language)
         chunking = chunking_of(
-            lead_ins_kept(chunks, self._chunker, document),
+            chunks,
             max_tokens=self._max_tokens,
             count_tokens=self._tokenizer.count_tokens,
-            to_passage=lambda ordinal, chunk: self._passage(document, ordinal, chunk),
+            to_passage=lambda ordinal, chunk: self._passage(tidy, ordinal, chunk),
         )
         return replace(chunking, passages=self._read(chunking.passages, language))
 
