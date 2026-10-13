@@ -3021,6 +3021,7 @@ def test_a_comparative_standing_between_the_two_subjects_passes(
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="Each side gives its own subject's value on the axis the question "
     "names, so the sides share no lemma the question lacks. That is the "
     "question-subtraction rule in gates._contrasts, deferred until it is "
@@ -3195,6 +3196,41 @@ def test_a_count_a_cited_fact_states_is_not_the_prompt_counted(
             statements=statements,
         )
         is None
+    )
+
+
+#: Seven facts about a device that say how many of nothing.
+_SEVEN_SETTINGS = tuple(
+    f"Das Gerät sperrt die Einstellung {name} nach einem Update."
+    for name in ("Netz", "Anzeige", "Ton", "Sprache", "Zeit", "Ort", "Konto")
+)
+
+
+@pytest.mark.parametrize(
+    ("eighth", "expected"),
+    [
+        (
+            "Die Einstellung Akku lässt das Gerät außer Acht.",
+            QuestionRejection.MALFORMED,
+        ),
+        ("Das Gerät sperrt nach einem Update acht Einstellungen.", None),
+    ],
+    ids=["außer Acht", "acht Einstellungen"],
+)
+def test_a_word_spelled_like_a_count_states_no_count(
+    eighth: str, expected: str | None
+) -> None:
+    """`außer Acht` is a phrase, so it does not state the eight this counts."""
+    assert (
+        code(
+            checked(
+                question_text="Wie viele Einstellungen sperrt das Gerät?",
+                target_answer="acht Einstellungen",
+                language="de",
+                statements=(*_SEVEN_SETTINGS, eighth),
+            )
+        )
+        == expected
     )
 
 

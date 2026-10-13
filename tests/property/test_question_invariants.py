@@ -291,9 +291,11 @@ def test_reading_figures_never_raises_and_never_returns_a_nan(text) -> None:
 
 # ── The form an answer is read in ────────────────────────────────────────
 
-#: Two things a key may name, in a language NLP_MODELS configures. Noun
-#: phrases: two clauses carrying verbs are an explanation where the type
-#: takes one.
+#: Two things a key may name, in a language NLP_MODELS configures: noun
+#: phrases carrying no verb, which is what the property covers. A verb on
+#: either side - and a participle inside a noun phrase is one, `a failed
+#: login` tags `failed` VERB - makes the pair an explanation wherever the
+#: type takes that form.
 ITEMS = st.sampled_from(
     [
         (
@@ -331,7 +333,7 @@ def test_a_two_item_answer_to_a_list_first_type_is_read_as_a_list(
 
     The shape hint wants three items before it calls an answer a list, so
     `Berlin, 2025` is a value where a value was asked for. A type that asked
-    for a list first is taken at its word for two.
+    for a list first is taken at its word for two that carry no verb.
     """
     language, first, second = items
 

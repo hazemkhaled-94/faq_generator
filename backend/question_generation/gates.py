@@ -206,7 +206,7 @@ def _looks_like(answer: str, verbs: bool, listed: int = _LISTED) -> str:
     form the answer actually has first, where its type allows that form.
 
     `listed` is how many items make a list, which `fitting` lowers for a
-    type whose first form is one.
+    type whose first form is one, where the answer carries no verb.
     """
     if len(_ITEMS.split(answer)) >= listed:
         return AnswerForm.LIST
@@ -296,14 +296,12 @@ def _count(word: str) -> int | None:
 def _stated(count: int, statements: Sequence[str], language: str | None) -> bool:
     """Whether a cited statement states this count, in digits or in words.
 
-    Read off every form a statement's words take rather than off
-    `claim().units`, because `de_core_news_md` gives `zwei` no `like_num`.
+    Read off `_values` rather than off `claim().units`, because
+    `de_core_news_md` gives `zwei` no `like_num`; and so a word only where
+    it is tagged NUM, because `außer Acht` states no eight.
     """
-    return any(
-        _count(form) == count
-        for statement in statements
-        for form in vocabulary(statement, language)
-    )
+    figure = repr(float(count))
+    return any(figure in _values(statement, language) for statement in statements)
 
 
 def _asks(question: str, language: str | None) -> tuple[str, ...]:

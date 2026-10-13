@@ -286,9 +286,11 @@ rather than abstaining.
 
 The form is the one the answer fits among those its type takes, and only a
 `list` is then checked for completeness. Three items punctuated apart make a
-list; two do where the type asks for a list first, so a `condition` answered
-with two of the passage's conditions is held to `answer_incomplete` rather
-than compared as a value.
+list; two carrying no verb do where the type asks for a list first, so a
+`condition` answered with two of the passage's conditions is held to
+`answer_incomplete` rather than compared as a value. Two clauses carrying
+verbs are an explanation where the type takes one, and a list where it does
+not.
 
 Three things about it are load-bearing. The verifier is meant to be a
 **different** model, because a model marking its own work recovers what it

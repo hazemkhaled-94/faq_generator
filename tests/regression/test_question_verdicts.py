@@ -1569,7 +1569,9 @@ MISJUDGED_ROWS: tuple[tuple[str, str, str, str, str, str, str | None, str], ...]
     ("question", "answer", "language", "kind", "form", "expected"),
     [
         pytest.param(
-            *row[1:7], id=row[0], marks=pytest.mark.xfail(strict=True, reason=row[7])
+            *row[1:7],
+            id=row[0],
+            marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=row[7]),
         )
         for row in MISJUDGED_ROWS
     ],
