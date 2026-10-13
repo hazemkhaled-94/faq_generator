@@ -72,6 +72,7 @@ from question_generation.gates import (
     explains,
     incomplete,
     moves_on,
+    near_bar,
     near_verdict,
     on_topic,
     same_material,
@@ -108,6 +109,7 @@ class QuestionChecker:
         nearest,
         threshold: float,
         floor: float = 0.0,
+        shared_threshold: float | None = None,
         judge_phrasing: bool = True,
         bounds: Mapping[str, tuple[int, int]] | None = None,
         explanation_chars: tuple[int, int] = EXPLANATION_CHARS,
@@ -146,6 +148,9 @@ class QuestionChecker:
         already cites and a limit. A callable and not the catalogue, for the
         same reason `nearest` is one. None, or a limit of 0, leaves an
         unanswerable question judged against its own passages alone.
+
+        `shared_threshold` is the duplicate bar for two questions resting on
+        the same fact, or None to hold them to `threshold`.
         """
         self._embedder = embedder
         self._verifier = verifier
@@ -158,6 +163,7 @@ class QuestionChecker:
         self._coverage = coverage
         self._long_answer_chars = long_answer_chars
         self._threshold = threshold
+        self._shared_threshold = shared_threshold
         self._elsewhere = elsewhere
         self._elsewhere_passages = elsewhere_passages
         self._off_topic_overlap = off_topic_overlap
@@ -281,30 +287,35 @@ class QuestionChecker:
         ran.append("near_duplicate")
         embedding = self._embedder.embed(candidate.question_text)
         near = self._near(embedding, seen)
-        if near is not None:
+        probed = {
+            "answerable": candidate.answerable,
+            "threshold": self._threshold,
+            "shared_threshold": self._shared_threshold,
+            "question": candidate.question_text,
+            "language": candidate.group.language,
+            "passages": [passage.id for passage in candidate.group.resting],
+            "facts": [fact.id for fact in candidate.group.facts],
+        }
+        bar = None if near is None else near_bar(near, **probed)
+        if near is not None and bar is not None:
             # High is what refuses here: a question near an accepted one is
             # the duplicate. The first question of a run has no neighbour
-            # and so no reading, which is an abstention and not a 1.0.
+            # and so no reading, which is an abstention and not a 1.0, and
+            # neither does one whose neighbour cannot refuse it.
             #
-            # Measured from the floor two unrelated questions score, not
-            # from 0, which no pair of embeddings reaches.
+            # Against the bar that applied to this pair, which what the two
+            # cite decides. Measured from the floor two unrelated questions
+            # score, not from 0, which no pair of embeddings reaches.
             readings.append(
                 Measurement(
                     "near_duplicate",
                     near.similarity,
-                    self._threshold,
+                    bar,
                     high_is_safe=False,
                     safe_end=self._floor,
                 )
             )
-        failed = near_verdict(
-            near,
-            answerable=candidate.answerable,
-            threshold=self._threshold,
-            question=candidate.question_text,
-            language=candidate.group.language,
-            facts=[fact.id for fact in candidate.group.facts],
-        )
+        failed = near_verdict(near, **probed)
         if failed:
             return done(failed, embedding)
 
@@ -867,6 +878,7 @@ class QuestionChecker:
                     score,
                     fact_ids=frozenset(other.fact_ids),
                     language=other.language,
+                    passage_ids=frozenset(other.passage_ids),
                 )
         return near
 

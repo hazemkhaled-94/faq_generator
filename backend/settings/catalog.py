@@ -523,7 +523,19 @@ SETTINGS: tuple[Setting, ...] = (
         high=1,
         invalidates=("questions",),
         help="How close two question embeddings may be before the later one "
-        "is refused as already asked.",
+        "is refused as already asked, when the two share a cited passage but "
+        "no fact. Sharing nothing, or asking with different question words, "
+        "holds a pair to halfway from this to identical.",
+    ),
+    Setting(
+        name="QUESTIONS_DUPLICATE_SHARED_COSINE",
+        service="questions",
+        kind="decimal",
+        low=0,
+        high=1,
+        invalidates=("questions",),
+        help="How close two questions resting on the same cited fact may be "
+        "before the later one is refused as already asked.",
     ),
     Setting(
         name="QUESTIONS_DUPLICATE_FLOOR",

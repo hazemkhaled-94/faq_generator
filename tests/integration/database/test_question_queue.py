@@ -484,8 +484,8 @@ def test_the_probe_looks_only_at_questions_of_the_language_asked_for(
 ) -> None:
     """There is no twin across languages, so none is offered.
 
-    And the one it finds names its language and the facts it cites, which
-    is what the gates read it against.
+    And the one it finds names itself, its language, the facts it cites and
+    the passages they rest on, which is what the gates read it against.
     """
     with Session(engine) as session:
         session.add(document(digest("a")))
@@ -510,7 +510,7 @@ def test_the_probe_looks_only_at_questions_of_the_language_asked_for(
         session.flush()
         session.add(QuestionFact(question_id=english.id, fact_id=cited.id))
         session.commit()
-        fact_id = cited.id
+        fact_id, passage_id, english_id = cited.id, here.id, english.id
 
     found = QuestionCatalog().nearest([1.0] + [0.0] * 1023, language="en")
 
@@ -520,6 +520,7 @@ def test_the_probe_looks_only_at_questions_of_the_language_asked_for(
         "en",
     )
     assert found.fact_ids == {fact_id}
+    assert (found.id, found.passage_ids) == (english_id, {passage_id})
     assert QuestionCatalog().nearest([0.0] * 1023 + [1.0], language="fr") is None
 
 

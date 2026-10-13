@@ -175,7 +175,10 @@ def test_a_near_twin_of_an_accepted_question_is_a_duplicate() -> None:
 def test_a_near_twin_asking_with_the_same_word_is_a_duplicate() -> None:
     """The veto needs the question words to differ."""
     near = Neighbour(
-        "Why must a request be confirmed in writing?", answerable=True, similarity=0.95
+        "Why must a request be confirmed in writing?",
+        answerable=True,
+        similarity=0.95,
+        passage_ids=frozenset({1}),
     )
 
     assert code(
@@ -185,8 +188,81 @@ def test_a_near_twin_asking_with_the_same_word_is_a_duplicate() -> None:
             threshold=0.93,
             question="Why does a request have to be confirmed in writing?",
             language="en",
+            passages=(1,),
         )
     ) == (QuestionRejection.DUPLICATE)
+
+
+def _twin(similarity: float, **cited) -> tuple[str, str] | None:
+    """A neighbour asking with the same word, against what the two cite.
+
+    `cited` takes `facts` and `passages`, which the candidate and the
+    neighbour both cite: the candidate fact 1 and passage 1 besides.
+    """
+    facts, passages = cited.get("facts", ()), cited.get("passages", ())
+    near = Neighbour(
+        "What does the device weigh?",
+        answerable=True,
+        similarity=similarity,
+        fact_ids=frozenset(facts),
+        passage_ids=frozenset(passages),
+    )
+    return near_verdict(
+        near,
+        answerable=True,
+        threshold=0.93,
+        shared_threshold=0.88,
+        question="What is the weight of the device?",
+        language="en",
+        facts=(9, *facts),
+        passages=(9, *passages),
+    )
+
+
+def test_two_questions_on_one_fact_are_twins_at_the_lower_bar() -> None:
+    """Resting on the same fact is the strongest sign two ask the same thing."""
+    assert code(_twin(0.90, facts=(1,), passages=(1,))) == QuestionRejection.DUPLICATE
+    assert _twin(0.87, facts=(1,), passages=(1,)) is None
+
+
+def test_a_shared_passage_alone_holds_a_pair_to_the_duplicate_bar() -> None:
+    """A passage carries several claims, so sharing one says less."""
+    assert _twin(0.90, passages=(1,)) is None
+    assert code(_twin(0.94, passages=(1,))) == QuestionRejection.DUPLICATE
+
+
+def test_two_questions_citing_nothing_in_common_are_twins_only_near_identical() -> None:
+    """The cosine is the only evidence, so only a restatement is refused.
+
+    The path a question rewritten from another passage or another document
+    takes, which fact dedup leaves to this gate.
+    """
+    assert _twin(0.95) is None
+    assert code(_twin(0.97)) == QuestionRejection.DUPLICATE
+
+
+def test_a_different_question_word_lifts_even_a_shared_fact_to_the_highest_bar() -> (
+    None
+):
+    """`When` and then `why` about one fact is what a thread is."""
+    near = Neighbour(
+        "When must a request be confirmed in writing?",
+        answerable=True,
+        similarity=0.95,
+        fact_ids=frozenset({1}),
+    )
+
+    got = near_verdict(
+        near,
+        answerable=True,
+        threshold=0.93,
+        shared_threshold=0.88,
+        question="Why must a request be confirmed in writing?",
+        language="en",
+        facts=(1,),
+    )
+
+    assert got is None
 
 
 def test_a_twin_asking_another_thing_is_a_duplicate_above_the_higher_bar() -> None:
@@ -278,11 +354,16 @@ def test_a_question_in_another_language_is_not_a_twin() -> None:
 
 def test_two_unanswerable_near_twins_are_only_duplicates() -> None:
     """Neither of them is evidence the corpus answers anything."""
-    near = Neighbour("What about on Mars?", answerable=False, similarity=0.96)
-
-    assert code(near_verdict(near, answerable=False, threshold=0.93)) == (
-        QuestionRejection.DUPLICATE
+    near = Neighbour(
+        "What about on Mars?",
+        answerable=False,
+        similarity=0.96,
+        passage_ids=frozenset({1}),
     )
+
+    assert code(
+        near_verdict(near, answerable=False, threshold=0.93, passages=(1,))
+    ) == (QuestionRejection.DUPLICATE)
 
 
 # ── Agreement between the verifier and the target ──────────────────────────
@@ -496,6 +577,37 @@ def test_a_malformed_question_never_reaches_the_embedder_or_the_verifier() -> No
 
     assert result.rejected_reason == QuestionRejection.MALFORMED
     assert (recording.embedded, recording.verified) == (0, 0)
+
+
+def test_the_duplicate_reading_is_taken_against_the_bar_that_applied() -> None:
+    """A pair on one fact is held to the lower bar, and the margin says so.
+
+    Read against QUESTIONS_DUPLICATE_COSINE instead, a question refused at
+    the lower bar would carry a reading below its own threshold, and a
+    reader of the row could not see why it went.
+    """
+    recording = Recording()
+    near = Neighbour(
+        "What is the weight?",
+        answerable=True,
+        similarity=0.90,
+        fact_ids=frozenset({1}),
+    )
+    checker = QuestionChecker(
+        embedder=recording,
+        verifier=recording,
+        nearest=lambda embedding: near,
+        threshold=0.93,
+        shared_threshold=0.88,
+        phrasing=recording,
+    )
+
+    result = checker.check(candidate(question_text="What is the weight of the device?"))
+
+    assert result.rejected_reason == QuestionRejection.DUPLICATE
+    assert [
+        one.threshold for one in result.readings if one.gate == "near_duplicate"
+    ] == [0.88]
 
 
 def test_a_duplicate_never_reaches_the_verifier() -> None:

@@ -501,6 +501,10 @@ class Neighbour:
     fact_ids: frozenset[int] = frozenset()
     #: The language it is written in, or None where nobody read it.
     language: str | None = None
+    #: Its id, or None for one this run wrote and has not stored yet.
+    id: int | None = None
+    #: The passages its facts rest on. Empty, like `fact_ids`, shares none.
+    passage_ids: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -534,8 +538,10 @@ class JudgedQuestion:
     question_type: str | None = None
     answer_form: str | None = None
     reviewed_verdict: str | None = None
-    #: The facts it cites, which the nearness probe compares.
+    #: The facts it cites, and the passages they rest on, which the
+    #: nearness probe compares.
     fact_ids: tuple[int, ...] = ()
+    passage_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -233,7 +233,7 @@ its own document, runs in it too.
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure the passages do not, or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
-| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft a retry replaced | one index probe |
+| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft a retry replaced. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe |
 | `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages answer it | the same probe, or the round trip |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
@@ -583,7 +583,8 @@ stored, so changing one needs a restart.
 | `QUESTIONS_FOLLOWUP_TYPES` | The kinds the turns of a thread take, cycled |
 | `QUESTIONS_RETRIES` | How many further attempts a root question gets when a gate a rewrite can answer refuses it, or it comes out below its planned band. Every attempt is stored |
 | `QUESTIONS_LONG_ANSWER_CHARS` | Where an answer starts counting towards the band. Not a gate |
-| `QUESTIONS_DUPLICATE_COSINE` | How alike two questions must be before the later one is dropped |
+| `QUESTIONS_DUPLICATE_COSINE` | How alike two questions sharing a cited passage but no fact must be before the later one is dropped. Halfway from it to identical is the bar for two citing nothing in common, or asking with different question words |
+| `QUESTIONS_DUPLICATE_SHARED_COSINE` | How alike two questions resting on the same fact must be before the later one is dropped |
 | `QUESTIONS_DUPLICATE_FLOOR` | The cosine two unrelated questions score, which a question's stored confidence is measured from. Moves no verdict |
 | `QUESTIONS_RELEASE_SIZE` | How many to draw. `0` is the largest the pool can fill |
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |

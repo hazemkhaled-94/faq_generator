@@ -547,16 +547,26 @@ class QuestionCatalog(Repository):
                 return None
             # Asked apart from the probe, which an aggregate over the join
             # would take off the index.
-            cited = session.scalars(
-                select(QuestionFact.fact_id).where(QuestionFact.question_id == found.id)
+            cited = session.execute(
+                select(QuestionFact.fact_id, FactPassage.passage_id)
+                .join(
+                    FactPassage,
+                    FactPassage.fact_id == QuestionFact.fact_id,
+                    isouter=True,
+                )
+                .where(QuestionFact.question_id == found.id)
             ).all()
         return Neighbour(
             question_text=found.question_text,
             answerable=found.answerable,
             # pgvector answers in cosine distance; the gates read likeness.
             similarity=1.0 - float(found.far),
-            fact_ids=frozenset(cited),
+            fact_ids=frozenset(row.fact_id for row in cited),
             language=found.language,
+            id=found.id,
+            passage_ids=frozenset(
+                row.passage_id for row in cited if row.passage_id is not None
+            ),
         )
 
     def judged(self, within=None) -> Iterator[JudgedQuestion]:
@@ -591,6 +601,7 @@ class QuestionCatalog(Repository):
                     func.array_agg(func.distinct(QuestionFact.fact_id)).label(
                         "fact_ids"
                     ),
+                    func.array_agg(func.distinct(Passage.id)).label("passage_ids"),
                 )
             )
             .group_by(Question.id)
@@ -612,6 +623,9 @@ class QuestionCatalog(Repository):
                         ),
                         "fact_ids": tuple(
                             one for one in row.fact_ids or () if one is not None
+                        ),
+                        "passage_ids": tuple(
+                            one for one in row.passage_ids or () if one is not None
                         ),
                     }
                 )

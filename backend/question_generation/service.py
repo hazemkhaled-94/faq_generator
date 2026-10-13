@@ -267,8 +267,10 @@ def _recheck(
         ),
         answerable=question.answerable,
         threshold=settings.duplicate_cosine,
+        shared_threshold=settings.duplicate_shared_cosine,
         question=question.question_text,
         language=question.language,
+        passages=question.passage_ids,
         facts=question.fact_ids,
     )
 

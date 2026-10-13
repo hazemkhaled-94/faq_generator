@@ -702,9 +702,10 @@ def asks_the_same(first: str, second: str, language: str | None) -> bool:
 
 
 def _unalike(threshold: float) -> float:
-    """How close two questions asking DIFFERENT things have to be.
+    """How close two questions have to be on the cosine's word alone.
 
-    Halfway from the threshold to identical, so it moves with the setting
+    The bar for two that ask with different words, and for two that cite
+    nothing in common. Halfway from the threshold to identical, so it moves with the setting
     rather than being a second number to keep in step with it: at the 0.93
     QUESTIONS_DUPLICATE_COSINE ships with, a question asking something else
     has to reach 0.965 before it is a duplicate anyway.
@@ -712,13 +713,72 @@ def _unalike(threshold: float) -> float:
     return threshold + (1.0 - threshold) / 2
 
 
+def near_bar(
+    near: Neighbour,
+    *,
+    answerable: bool,
+    threshold: float,
+    shared_threshold: float | None = None,
+    question: str = "",
+    language: str | None = None,
+    passages: Sequence[int] = (),
+    facts: Sequence[int] = (),
+) -> float | None:
+    """The cosine at which this neighbour refuses this question, or None.
+
+    None where it cannot refuse it at all: a question in another language,
+    or an answerable and an unanswerable question that rest on no fact in
+    common. A question and its translation are one item each in a bilingual
+    set. And an answerable question is never a duplicate of an unanswerable
+    one: refusing it would keep the claim that there is no answer and drop
+    the question that has one, and whether the unanswerable one is wrong is
+    the unanswerable checks' to say.
+
+    For a duplicate, the bar is set by what the two cite, because a cosine
+    over the question text alone does not tell a twin from a neighbour: two
+    questions about one subject sit close whatever they ask for. Resting on
+    the same fact is the strongest sign they ask the same thing, so it
+    takes the lower `shared_threshold`. A shared passage alone is weaker,
+    since a passage carries several claims, and takes `threshold`. Sharing
+    nothing leaves the cosine as the only evidence, so only a near-identical
+    pair is refused - halfway from `threshold` to identical, which is what
+    still catches a question restated from another passage or document.
+
+    `asks_the_same` lifts any of these to that last bar. Two questions
+    asking with different words want different answers often enough - a
+    `when` and then a `why` about one fact is what a thread is - that a
+    different word is evidence against a twin, and not proof.
+
+    The unanswerable half takes `threshold` and no veto: an answered
+    question resting on the same fact answers this one whatever either asks
+    with.
+    """
+    if language and near.language and near.language != language:
+        return None
+    shares_fact = bool(near.fact_ids & set(facts))
+    if near.answerable != answerable:
+        return threshold if near.answerable and shares_fact else None
+    unalike = _unalike(threshold)
+    if shares_fact:
+        bar = threshold if shared_threshold is None else shared_threshold
+    elif near.passage_ids & set(passages):
+        bar = threshold
+    else:
+        bar = unalike
+    if question and not asks_the_same(question, near.question_text, language):
+        bar = max(bar, unalike)
+    return bar
+
+
 def near_verdict(
     near: Neighbour | None,
     *,
     answerable: bool,
     threshold: float,
+    shared_threshold: float | None = None,
     question: str = "",
     language: str | None = None,
+    passages: Sequence[int] = (),
     facts: Sequence[int] = (),
 ) -> tuple[str, str] | None:
     """What the nearest accepted question says about this one.
@@ -734,47 +794,39 @@ def near_verdict(
     Two questions resting on one fact are reading the same claim; anything
     else is left to the checks that read the passages.
 
-    The probe is a measurement and `asks_the_same` is the veto on it, which
-    is the shape the phrasing gates already use. Only the duplicate half is
-    vetoed: `answerable_after_all` says the corpus answers something this
-    close, and that holds whatever the two questions ask for.
-
-    Neither half reaches across languages: a question and its translation
-    are one item each in a bilingual set. And an answerable question is
-    never a duplicate of an unanswerable one. Refusing it would keep the
-    claim that there is no answer and drop the question that has one; the
-    two ask a chatbot for different things, and whether the unanswerable
-    one is wrong is the unanswerable checks' to say.
-
-    `facts` are what this question cites, read against the neighbour's.
+    How near is near is `near_bar`'s: `passages` and `facts` are what this
+    question cites, read against what the neighbour cites.
     """
-    if near is None or near.similarity < threshold:
+    if near is None:
         return None
-    if language and near.language and near.language != language:
+    bar = near_bar(
+        near,
+        answerable=answerable,
+        threshold=threshold,
+        shared_threshold=shared_threshold,
+        question=question,
+        language=language,
+        passages=passages,
+        facts=facts,
+    )
+    if bar is None or near.similarity < bar:
         return None
+    named = f"{near.id} " if near.id is not None else ""
     if near.answerable != answerable:
-        if not near.answerable or not near.fact_ids & set(facts):
-            return None
         return (
             QuestionRejection.ANSWERABLE_AFTER_ALL,
             (
                 f"the corpus answers this: it is {near.similarity:.2f} from the "
-                f"accepted question {near.question_text!r}"
+                f"accepted question {named}{near.question_text!r}, which rests on "
+                f"the same fact"
             ),
         )
-    # Asking something else is not refused outright, it is held to a higher
-    # bar. Two question words can want the same answer - `How heavy is the
-    # device?` against `What is the weight?` - so a different one is
-    # evidence and not proof.
-    if (
-        question
-        and near.similarity < _unalike(threshold)
-        and not asks_the_same(question, near.question_text, language)
-    ):
-        return None
     return (
         QuestionRejection.DUPLICATE,
-        f"{near.similarity:.2f} from the accepted question {near.question_text!r}",
+        (
+            f"{near.similarity:.2f} from the accepted question "
+            f"{named}{near.question_text!r}, against a bar of {bar:.3f}"
+        ),
     )
 
 

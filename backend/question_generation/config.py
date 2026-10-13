@@ -253,6 +253,9 @@ class Settings:
     #: How a release spreads over the languages, or None for every language
     #: the accepted pool holds, weighed alike.
     release_languages: dict[str, int] | None = None
+    #: How alike two questions resting on the same fact must be to be one,
+    #: or None to hold them to duplicate_cosine.
+    duplicate_shared_cosine: float | None = None
 
     @classmethod
     def load(cls, source: Source = None) -> Settings:
@@ -306,6 +309,9 @@ class Settings:
             elsewhere_passages=integer("QUESTIONS_ELSEWHERE_PASSAGES", source),
             long_answer_chars=integer("QUESTIONS_LONG_ANSWER_CHARS", source),
             duplicate_cosine=decimal("QUESTIONS_DUPLICATE_COSINE", source),
+            duplicate_shared_cosine=decimal(
+                "QUESTIONS_DUPLICATE_SHARED_COSINE", source
+            ),
             duplicate_floor=decimal("QUESTIONS_DUPLICATE_FLOOR", source),
             boilerplate_cosine=decimal("QUESTIONS_BOILERPLATE_COSINE", source),
             release_size=integer("QUESTIONS_RELEASE_SIZE", source),

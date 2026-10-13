@@ -171,6 +171,7 @@ settings (`NLP_MODELS`, `NLP_DEFAULT_LANGUAGE`, `NLP_CAPITALISED_NOUNS`,
 | What a fact may be, and the caps on each kind | `configs/env/backend.env`, "Extraction" |
 | How many topics, and how they are fitted | `configs/env/backend.env`, "Topic modelling", and [`backend/topic_modelling/`](../backend/topic_modelling/README.md) |
 | What a run costs, and what it writes | `configs/env/backend.env`, "Question generation", and [`backend/question_generation/`](../backend/question_generation/README.md) |
+| When two questions count as one | `configs/env/backend.env`, `QUESTIONS_DUPLICATE_COSINE` and `QUESTIONS_DUPLICATE_SHARED_COSINE` |
 | Which of the accepted questions ship | `configs/env/backend.env`, "The balanced release" |
 | Whether the judge runs, and who judges | `.env`; which artefacts and how many, `configs/env/backend.env` |
 | A port, an address, a role name | `configs/env/deployment.env` |
