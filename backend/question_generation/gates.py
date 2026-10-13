@@ -1352,18 +1352,21 @@ def compares(question: str, answer: str, language: str | None) -> bool:
 def _contrasts(question: str, answer: str, language: str | None) -> bool:
     """Whether a comparison answer states a difference between its two sides.
 
-    The sides are read either side of the seam between the two subjects the
-    question names: a `;`, `,` or conjunction with, on each side, a content
-    lemma of the question the other side lacks. The first such seam in that
-    order wins, except that a comma opening a subordinate clause comes after
+    A split divides the two subjects the question names where each side of
+    it holds a content lemma of the question the other side lacks.
+
+    True where a comparative divides them: `Card payments settle faster
+    than bank transfers`, `Card payments are faster, while bank transfers
+    take a day`. A comparative with both subjects before it, or neither
+    after it, describes one side and compares it with nothing: `excessive
+    force is using more force than is necessary` is a definition.
+
+    Otherwise the sides are read either side of a seam - a `;`, `,` or
+    conjunction - and the answer holds when they share a content lemma the
+    question did not supply. The first seam dividing the subjects wins, in
+    that order, except that a comma opening a subordinate clause comes after
     a conjunction: `beim Anstoss und ... des Elfmeters, wenn der Ball ...`
     compares at the `und`.
-
-    True where each side carries a comparative of its own - `less formal`,
-    `more formal` - or where the two sides share a content lemma the
-    question did not supply. One comparative inside one side describes that
-    side and compares it with nothing: `excessive force is using more force
-    than is necessary` is a definition.
 
     False where the answer has no seam, so no two sides. False too where no
     seam divides the subjects and one side names a subject while the other
@@ -1376,37 +1379,30 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
     Kerne`); the upgrade is to deal comparison facts that share an attribute.
     """
     read = pipeline(language)(answer)
+    asked = content(question, language)
+
+    def split(at: int) -> tuple[frozenset[str], frozenset[str], bool]:
+        """Either side of one token, and whether it divides the subjects."""
+        left = content(read[:at].text, language)
+        right = content(read[at + 1 :].text, language)
+        return left, right, bool((left & asked) - right and (right & asked) - left)
+
+    if any(
+        split(token.i)[2] for token in read if "Cmp" in token.morph.get("Degree", [])
+    ):
+        return True
     seams = [
         token.i for token in read if token.text in (";", ",") or token.pos_ == "CCONJ"
     ]
     if not seams:
         return False
-    asked = content(question, language)
-    sides = {
-        seam: (
-            content(read[:seam].text, language),
-            content(read[seam + 1 :].text, language),
-        )
-        for seam in seams
-    }
-    # The question's lemmas each side holds and the other does not.
-    named = {
-        seam: ((left & asked) - right, (right & asked) - left)
-        for seam, (left, right) in sides.items()
-    }
-    dividing = [seam for seam in seams if all(named[seam])]
-    if dividing:
-        seam = min(dividing, key=lambda one: (_seam_rank(read, one), one))
-        if all(
-            any("Cmp" in token.morph.get("Degree", []) for token in side)
-            for side in (read[:seam], read[seam + 1 :])
-        ):
-            return True
-    else:
-        seam = min(seams, key=lambda one: (_seam_rank(read, one), one))
-        if any(named[seam]):
-            return False
-    left, right = sides[seam]
+    sides = {seam: split(seam) for seam in seams}
+    dividing = [seam for seam in seams if sides[seam][2]]
+    seam = min(dividing or seams, key=lambda one: (_seam_rank(read, one), one))
+    left, right, divides = sides[seam]
+    # One side naming a subject and the other naming none answers for one.
+    if not divides and ((left & asked) - right or (right & asked) - left):
+        return False
     return bool((left & right) - asked)
 
 

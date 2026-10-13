@@ -2884,6 +2884,45 @@ def test_a_comparative_inside_one_side_is_not_a_difference() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            "How do card payments and bank transfers differ in speed?",
+            "Card payments settle faster than bank transfers",
+            "en",
+        ),
+        (
+            "Wie unterscheiden sich Überweisung und Lastschrift in der Dauer?",
+            "Eine Überweisung dauert länger als eine Lastschrift.",
+            "de",
+        ),
+        (
+            "How do card payments and bank transfers differ in speed?",
+            "Card payments are faster, while bank transfers take a day",
+            "en",
+        ),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen in der Dauer?",
+            "Kartenzahlungen sind schneller, während Überweisungen einen Tag dauern",
+            "de",
+        ),
+    ],
+)
+def test_a_comparative_standing_between_the_two_subjects_passes(
+    question: str, answer: str, language: str
+) -> None:
+    """One subject before the comparative and the other after it.
+
+    `than` and `als` are prepositions to the tagger, so the first two have
+    no seam at all; the last two name the second subject in a `while` clause
+    that carries no comparative of its own. The German sentence keeps its
+    full stop: without one `de_core_news_md` chunks `eine Lastschrift` into
+    no noun phrase, and `compares` counts phrases before it reads anything.
+    """
+    assert compares(question, answer, language)
+
+
 @pytest.mark.xfail(
     strict=True,
     reason="Each side gives its own subject's value on the axis the question "

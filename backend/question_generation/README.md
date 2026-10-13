@@ -230,7 +230,7 @@ its own document, runs in it too.
 | `answer_too_long` | answers past its form's ceiling | nothing |
 | `wrong_form` | answers in the wrong shape | nothing |
 | `off_topic` | was written to have no answer and is about nothing the material mentions. **Off** as shipped — see [Unanswerable questions](#unanswerable-questions) | nothing |
-| `wrong_type` | is not the kind it was planned as, where a rule can say so. A `comparison` has to answer with two sides, split where they divide the two subjects it names, and state a difference: a comparative on each side, or a word both sides share and the question does not | nothing |
+| `wrong_type` | is not the kind it was planned as, where a rule can say so. A `comparison` has to state a difference between the two subjects it names: a comparative with one subject before it and the other after, or two sides, split where they divide the subjects, sharing a word the question does not | nothing |
 | `restates_question` | is answered with almost no word the question did not already carry, counting nouns, adjectives, verbs and adverbs. An answer with a number, one saying yes or no where the question did not, and a `comparison`, are not read | nothing |
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure or a name the passages do not — every proper noun it carries counts as a name — or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
