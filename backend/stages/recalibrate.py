@@ -70,8 +70,11 @@ def recalibrate(model, floor: float) -> int:
     """
     written = 0
     with sessions().begin() as session:
+        # Locked while read and written back, as `opine` locks the row it
+        # adds a verdict to, so a `questions-rejudge` running beside this
+        # waits rather than having its entry written over.
         rows = session.scalars(
-            select(model).where(model.gate_scores.is_not(None))
+            select(model).where(model.gate_scores.is_not(None)).with_for_update()
         ).all()
         for row in rows:
             stored = list(row.gate_scores or ())

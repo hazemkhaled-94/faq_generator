@@ -339,10 +339,11 @@ the dataset, not a retriever.
 judgement per call. Each is a judgement rather than a measurement — an
 **opinion**, as the verifier's `settles` verdicts behind
 `answerable_after_all` and `answerable_elsewhere` are too — and these two are
-the phrasing model's, so the factory turns them off when the phrasing model
-is the writer's own, and then they are not asked for at all: a verdict that
-may not reject is a call per question buying a log line. The rule half of `leaks_source` still fires, because a pattern is a
-measurement. Recoverability stays on regardless.
+the phrasing model's, so the factory turns them off when the phrasing model is
+the writer's own, and then they are not asked for at all: a verdict that may
+not reject is a call per question buying a log line. The rule half of
+`leaks_source` still fires, because a pattern is a measurement. Recoverability
+stays on regardless.
 
 `unanchored` covers two ways of failing to stand alone: naming too little,
 which `anchored()` counts, and naming plenty while **pointing outward**. The

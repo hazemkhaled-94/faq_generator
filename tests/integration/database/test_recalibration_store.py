@@ -129,6 +129,67 @@ def test_a_fact_is_recalibrated_by_the_same_arithmetic(engine, stored) -> None:
         assert row.confidence == pytest.approx(0.35, abs=1e-2)
 
 
+def test_a_verdict_written_while_it_runs_is_not_written_over(engine, stored) -> None:
+    """A `questions-rejudge` beside it adds an entry the rewrite keeps.
+
+    The row is held while the recalibration starts, as `opine` holds it,
+    and gets its verdict before it is let go. Read without a lock, the
+    recalibration would write back what it read before the verdict.
+    """
+    import json
+    import threading
+    import time
+
+    from sqlalchemy import text
+
+    verdict = {
+        "gate": "settles",
+        "value": 1.0,
+        "threshold": 0.5,
+        "margin": None,
+        "opinion": True,
+    }
+    written: list[int] = []
+    holder = engine.connect()
+    holder.begin()
+    holder.execute(text("SELECT id FROM questions FOR UPDATE"))
+    running = threading.Thread(
+        target=lambda: written.append(recalibrate(Question, floor=0.75))
+    )
+    running.start()
+    try:
+        with engine.connect() as watching:
+            for _ in range(200):
+                waiting = watching.execute(
+                    text(
+                        "SELECT count(*) FROM pg_stat_activity "
+                        "WHERE wait_event_type = 'Lock' "
+                        "AND datname = current_database()"
+                    )
+                ).scalar()
+                if waiting:
+                    break
+                time.sleep(0.05)
+        assert waiting, "the recalibration never reached the held row"
+        holder.execute(
+            text(
+                "UPDATE questions SET gate_scores = gate_scores || "
+                "CAST(:verdict AS jsonb)"
+            ),
+            {"verdict": json.dumps([verdict])},
+        )
+        holder.commit()
+    finally:
+        holder.close()
+        running.join(timeout=10)
+
+    assert written == [1]
+    with Session(engine) as session:
+        scores = session.scalars(select_one(Question)).one().gate_scores
+    assert [one["gate"] for one in scores] == ["near_duplicate", "settles"]
+    assert scores[0]["margin"] == pytest.approx(0.2778, abs=1e-3)
+
+
 def select_one(model):
     """Every row of one table, which the fixture wrote exactly one of."""
     return select(model)

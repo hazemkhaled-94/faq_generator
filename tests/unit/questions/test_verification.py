@@ -2227,15 +2227,10 @@ def test_an_answer_to_a_different_question_is_not_rescued() -> None:
 
 
 class Reader:
-    """An extractive reader answering with one span, or with none.
+    """An extractive reader answering with one span, or with none."""
 
-    `only_in` narrows it to passages carrying that text, which is how a
-    test tells the cited passages from the ones the corpus probe found.
-    """
-
-    def __init__(self, text: str | None, only_in: str | None = None) -> None:
+    def __init__(self, text: str | None) -> None:
         self.text = text
-        self.only_in = only_in
         self.asked = 0
 
     def answer(self, question: str, passages, confidence: float):
@@ -2244,10 +2239,6 @@ class Reader:
 
         self.asked += 1
         if self.text is None:
-            return None
-        if self.only_in is not None and not any(
-            self.only_in in passage for passage in passages
-        ):
             return None
         return Span(self.text, 0.95)
 

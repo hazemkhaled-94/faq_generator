@@ -274,7 +274,9 @@ A row written before `gate_scores` recorded a direction takes it from
 
 An entry marked `opinion` - a model's verdict kept beside the readings, such
 as `settles` - has no margin and is rebuilt as one, so it never enters a
-recalculated confidence.
+recalculated confidence. The rows are locked while they are read and written
+back, so a `make questions-rejudge` adding one at the same time waits rather
+than having its entry written over.
 
 ## Configuration
 
