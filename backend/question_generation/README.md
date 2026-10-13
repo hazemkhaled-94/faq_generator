@@ -232,7 +232,7 @@ its own document, runs in it too.
 | `off_topic` | was written to have no answer and is about nothing the material mentions. **Off** as shipped — see [Unanswerable questions](#unanswerable-questions) | nothing |
 | `wrong_type` | is not the kind it was planned as, where a rule can say so. A `comparison` has to answer with two sides, split where they divide the two subjects it names, and state a difference: a comparative on each side, or a word both sides share and the question does not | nothing |
 | `restates_question` | is answered with almost no word the question did not already carry, counting nouns, adjectives, verbs and adverbs. An answer with a number, one saying yes or no where the question did not, and a `comparison`, are not read | nothing |
-| `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure the passages do not, or only restates the key | nothing |
+| `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure or a name the passages do not — every proper noun it carries counts as a name — or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
 | `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft a retry replaced. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
