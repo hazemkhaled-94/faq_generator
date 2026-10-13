@@ -516,7 +516,12 @@ class QuestionCatalog(Repository):
         """
         distance = Question.embedding.cosine_distance(embedding)
         query = (
-            select(Question.question_text, Question.answerable, distance.label("far"))
+            select(
+                Question.id,
+                Question.question_text,
+                Question.answerable,
+                distance.label("far"),
+            )
             .where(
                 Question.status == QuestionStatus.ACCEPTED,
                 Question.embedding.is_not(None),
@@ -530,13 +535,19 @@ class QuestionCatalog(Repository):
             query = query.where(Question.id.notin_(list(excluding)))
         with self._session() as session:
             found = session.execute(query).one_or_none()
-        if found is None:
-            return None
+            if found is None:
+                return None
+            # Asked apart from the probe, which an aggregate over the join
+            # would take off the index.
+            cited = session.scalars(
+                select(QuestionFact.fact_id).where(QuestionFact.question_id == found.id)
+            ).all()
         return Neighbour(
             question_text=found.question_text,
             answerable=found.answerable,
             # pgvector answers in cosine distance; the gates read likeness.
             similarity=1.0 - float(found.far),
+            fact_ids=frozenset(cited),
         )
 
     def judged(self, within=None) -> Iterator[JudgedQuestion]:
@@ -568,6 +579,9 @@ class QuestionCatalog(Repository):
                     func.count(func.distinct(Passage.id)).label("passages"),
                     func.count(func.distinct(DOMINANT.c.topic_id)).label("topics"),
                     func.array_agg(func.distinct(Fact.statement)).label("statements"),
+                    func.array_agg(func.distinct(QuestionFact.fact_id)).label(
+                        "fact_ids"
+                    ),
                 )
             )
             .group_by(Question.id)
@@ -586,6 +600,9 @@ class QuestionCatalog(Repository):
                         else None,
                         "statements": tuple(
                             one for one in row.statements or () if one is not None
+                        ),
+                        "fact_ids": tuple(
+                            one for one in row.fact_ids or () if one is not None
                         ),
                     }
                 )

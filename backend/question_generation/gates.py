@@ -719,22 +719,33 @@ def near_verdict(
     threshold: float,
     question: str = "",
     language: str | None = None,
+    facts: Sequence[int] = (),
 ) -> tuple[str, str] | None:
     """What the nearest accepted question says about this one.
 
     One probe answering two gates. A near twin of an accepted question is a
     duplicate and adds nothing to the benchmark; a near twin of an accepted
-    *answerable* question, when this one is meant to be unanswerable, is a
-    question the corpus demonstrably does answer.
+    *answerable* question resting on the same fact, when this one is meant
+    to be unanswerable, is a question the corpus demonstrably does answer.
+
+    Nearness alone is not that answer. A perturbation moves one detail of a
+    fact out of reach, so it sits near the answerable question about that
+    fact by construction, whatever the material says about the detail moved.
+    Two questions resting on one fact are reading the same claim; anything
+    else is left to the checks that read the passages.
 
     The probe is a measurement and `asks_the_same` is the veto on it, which
     is the shape the phrasing gates already use. Only the duplicate half is
     vetoed: `answerable_after_all` says the corpus answers something this
     close, and that holds whatever the two questions ask for.
+
+    `facts` are what this question cites, read against the neighbour's.
     """
     if near is None or near.similarity < threshold:
         return None
     if near.answerable and not answerable:
+        if not near.fact_ids & set(facts):
+            return None
         return (
             QuestionRejection.ANSWERABLE_AFTER_ALL,
             (

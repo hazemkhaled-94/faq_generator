@@ -303,6 +303,7 @@ class QuestionChecker:
             threshold=self._threshold,
             question=candidate.question_text,
             language=candidate.group.language,
+            facts=[fact.id for fact in candidate.group.facts],
         )
         if failed:
             return done(failed, embedding)
@@ -860,7 +861,12 @@ class QuestionChecker:
                 continue
             score = cosine(embedding, other.embedding)
             if near is None or score > near.similarity:
-                near = Neighbour(other.question_text, other.answerable, score)
+                near = Neighbour(
+                    other.question_text,
+                    other.answerable,
+                    score,
+                    fact_ids=frozenset(other.fact_ids),
+                )
         return near
 
     @staticmethod

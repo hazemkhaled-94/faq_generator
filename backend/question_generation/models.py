@@ -496,6 +496,9 @@ class Neighbour:
     question_text: str
     answerable: bool
     similarity: float
+    #: The facts it cites. Empty where nobody read them, which says the two
+    #: share none.
+    fact_ids: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -529,6 +532,8 @@ class JudgedQuestion:
     question_type: str | None = None
     answer_form: str | None = None
     reviewed_verdict: str | None = None
+    #: The facts it cites, which the nearness probe compares.
+    fact_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

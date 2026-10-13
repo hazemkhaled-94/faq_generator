@@ -774,6 +774,76 @@ def test_a_re_check_does_not_call_a_question_a_twin_of_one_it_is_rejecting(
     assert rows[kept] is None, "rejected as a twin of a question being rejected"
 
 
+def test_a_re_check_reads_an_answered_twin_as_an_answer_only_on_its_own_fact(
+    engine, database
+) -> None:
+    """Nearness to an answered question is not an answer by itself.
+
+    Two unanswerable questions sit on top of the answered one. The one
+    resting on the same fact is answered by it; the other rests on a
+    different fact, and a vector that close says only that it is about the
+    same subject.
+    """
+    from question_generation.service import reverify
+
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        here = passage(digest("a"), ordinal=1, language="en")
+        session.add(here)
+        session.flush()
+        weight = fact(here.id, statement="The device weighs 4 kg.")
+        colour = fact(here.id, statement="The device is grey.")
+        session.add_all([weight, colour])
+        session.flush()
+        common = {
+            "status": "accepted",
+            "difficulty": "easy",
+            "passage_scope": "single_passage",
+            "document_scope": "single_document",
+            "topic_scope": "single_topic",
+            "embedding": [1.0] + [0.0] * 1023,
+        }
+        answered = question(
+            question_text="What does the device weigh?",
+            target_answer="4 kg",
+            answer_chars=4,
+            **common,
+        )
+        same = question(
+            question_text="What does the device weigh on the moon?",
+            answerable=False,
+            **common,
+        )
+        other = question(
+            question_text="What colour is the device at night?",
+            answerable=False,
+            **common,
+        )
+        session.add_all([answered, same, other])
+        session.flush()
+        session.add_all(
+            [
+                QuestionFact(question_id=answered.id, fact_id=weight.id),
+                QuestionFact(question_id=same.id, fact_id=weight.id),
+                QuestionFact(question_id=other.id, fact_id=colour.id),
+            ]
+        )
+        session.commit()
+        ids = (same.id, other.id)
+
+    reverify(QuestionCatalog(), _settings())
+
+    with engine.connect() as connection:
+        rows = dict(
+            connection.execute(
+                text("SELECT id, rejected_reason FROM questions ORDER BY id")
+            ).all()
+        )
+    assert rows[ids[0]] == "answerable_after_all"
+    assert rows[ids[1]] is None, "refused for being near an answered question"
+
+
 def test_a_re_check_rejects_a_question_resting_on_a_fact_a_person_rejected(
     engine, database
 ) -> None:

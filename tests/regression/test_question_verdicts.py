@@ -13,6 +13,7 @@ import pytest
 
 from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
 from question_generation.config import Settings
+from question_generation.gates import near_verdict
 from question_generation.models import JudgedQuestion, Neighbour
 from question_generation.service import _recheck
 
@@ -104,6 +105,143 @@ def test_a_twin_asking_another_thing_is_not_a_duplicate_on_re_check() -> None:
     )
 
     assert _recheck(_Nearest(twin), Settings.load(), stored) is None  # type: ignore[arg-type]
+
+
+#: Unanswerable questions probed against the accepted answerable question
+#: nearest them, at the cosine the gate read, with the facts each cites:
+#: (name, question, neighbour, cosine, its facts, the neighbour's).
+NEARNESS: tuple[tuple[str, str, str, float, tuple[int, ...], tuple[int, ...]], ...] = (
+    (
+        "Q183, a temporary concussion substitute, near the permanent one",
+        "Was ist eine vorübergehende Auswechslung wegen Gehirnerschütterung?",
+        (
+            "Wie erfolgt eine zusätzliche dauerhafte Auswechslung wegen "
+            "Gehirnerschütterung?"
+        ),
+        0.9484,
+        (206,),
+        (192,),
+    ),
+    (
+        "Q235, why a goalkeeper in the shoot-out, near reducing the numbers",
+        "Warum muss bei einem Elfmeterschießen jedes Team einen Torhüter haben?",
+        (
+            "Warum muss ein Team beim Elfmeterschiessen seine Spielerzahl an die des "
+            "Gegners anpassen, wenn es mehr Spieler hat?"
+        ),
+        0.9387,
+        (309,),
+        (308, 608),
+    ),
+    (
+        "Q542, offside before a touch, near taking part in play",
+        (
+            "Warum darf ein Angreifer in Abseitsstellung schon vor einer "
+            "Ballberührung bestraft werden, wenn kein Mitspieler mehr die "
+            "Möglichkeit hat, den Ball zu spielen?"
+        ),
+        (
+            "Warum wird ein Spieler in Abseitsstellung nur bestraft, wenn er aktiv "
+            "am Spiel teilnimmt?"
+        ),
+        0.9316,
+        (1590,),
+        (632, 636),
+    ),
+    (
+        "Q543, offside past a dummy, near taking part in play",
+        (
+            "Warum darf ein Angreifer in Abseitsstellung bestraft werden, wenn ein "
+            "Mitspieler den Ball absichtlich durchlässt?"
+        ),
+        (
+            "Warum wird ein Spieler in Abseitsstellung nur bestraft, wenn er aktiv "
+            "am Spiel teilnimmt?"
+        ),
+        0.9380,
+        (1590,),
+        (632, 636),
+    ),
+)
+
+#: The two the cosine path refused rightly, which reviewers confirmed the
+#: corpus answers. Neither rests on its neighbour's fact, so nearness no
+#: longer says so: the passage read has to.
+ANSWERED: tuple[tuple[str, str, str, float, tuple[int, ...], tuple[int, ...]], ...] = (
+    (
+        "Q635, the languages the rules are published in",
+        (
+            "Welche weiteren Sprachen neben Deutsch, Englisch, Französisch und "
+            "Spanisch veröffentlicht der IFAB für die Spielregeln?"
+        ),
+        (
+            "Welche Sprachen verwendet der IFAB insgesamt für die Veröffentlichung "
+            "der Spielregeln?"
+        ),
+        0.9734,
+        (30,),
+        (22, 27),
+    ),
+    (
+        "Q422, when the assistant raises the flag for a goal",
+        "Wann hebt der Schiedsrichterassistent bei einer Torentscheidung die Fahne?",
+        "Wann muss ein Schiedsrichterassistent die Fahne heben?",
+        0.9574,
+        (1553,),
+        (937, 1479),
+    ),
+)
+
+
+def _probed(question, neighbour, cosine, facts, theirs) -> tuple[str, str] | None:
+    """The verdict an unanswerable question gets against its neighbour."""
+    return near_verdict(
+        Neighbour(neighbour, True, similarity=cosine, fact_ids=frozenset(theirs)),
+        answerable=False,
+        threshold=Settings.load().duplicate_cosine,
+        question=question,
+        language="de",
+        facts=facts,
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "neighbour", "cosine", "facts", "theirs"),
+    [row[1:] for row in NEARNESS],
+    ids=[row[0] for row in NEARNESS],
+)
+def test_nearness_to_an_answered_question_is_not_an_answer(
+    question, neighbour, cosine, facts, theirs
+) -> None:
+    """A perturbation of a fact is near the question about it by design."""
+    assert _probed(question, neighbour, cosine, facts, theirs) is None
+
+
+@pytest.mark.parametrize(
+    ("question", "neighbour", "cosine", "facts", "theirs"),
+    [
+        pytest.param(
+            *row[1:],
+            id=row[0],
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason="answerable, but resting on no fact its neighbour "
+                "cites, so the nearness gate no longer refuses it. The "
+                "unanswerable checks that read passages are what must; "
+                "remove this marker when they do it here.",
+            ),
+        )
+        for row in ANSWERED
+    ],
+)
+def test_an_unanswerable_question_the_corpus_answers_is_still_refused(
+    question, neighbour, cosine, facts, theirs
+) -> None:
+    """What the cosine path got right, and a shared-fact rule cannot see."""
+    got = _probed(question, neighbour, cosine, facts, theirs)
+
+    assert (got[0] if got else None) == QuestionRejection.ANSWERABLE_AFTER_ALL
 
 
 def _stored(question: str, answer: str, kind: str, form: str) -> JudgedQuestion:

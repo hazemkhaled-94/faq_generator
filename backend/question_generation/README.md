@@ -234,7 +234,7 @@ its own document, runs in it too.
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
 | `duplicate` | is a near twin of one already accepted, or is an accepted draft a retry replaced | one index probe |
-| `answerable_after_all` | was written to have no answer and turns out to have one | the same probe, or the round trip |
+| `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages answer it | the same probe, or the round trip |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
@@ -334,6 +334,12 @@ ceiling.
 | `answerable_after_all` | the corpus answers it after all |
 | `answerable_elsewhere` | a passage it does **not** cite answers it |
 | `off_topic` | it is about nothing the material mentions at all |
+
+Being near an accepted answerable question is not an answer by itself. A
+perturbation moves one detail of a fact out of reach, so it sits near the
+question about that fact by construction. The probe refuses it only when
+the two rest on the same fact; otherwise the checks that read passages
+decide.
 
 The last matters more than it looks: a chatbot refusing *"What is the capital
 of Mars?"* has demonstrated nothing about whether it knows the limits of

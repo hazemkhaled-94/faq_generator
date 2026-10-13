@@ -264,6 +264,7 @@ def _recheck(
         threshold=settings.duplicate_cosine,
         question=question.question_text,
         language=question.language,
+        facts=question.fact_ids,
     )
 
 

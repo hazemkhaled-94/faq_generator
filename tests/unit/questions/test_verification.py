@@ -211,14 +211,39 @@ def test_a_twin_asking_another_thing_is_a_duplicate_above_the_higher_bar() -> No
 def test_an_unanswerable_twin_of_an_answered_question_is_answerable_after_all() -> None:
     """One probe, two gates.
 
-    If the corpus already answers a question this close, this one is not
-    unanswerable, whatever the perturbation prompt intended.
+    If the corpus already answers a question this close, resting on the
+    same fact, this one is not unanswerable, whatever the perturbation
+    prompt intended.
     """
-    near = Neighbour("What does the device weigh?", answerable=True, similarity=0.96)
+    near = Neighbour(
+        "What does the device weigh?",
+        answerable=True,
+        similarity=0.96,
+        fact_ids=frozenset({1}),
+    )
 
-    assert code(near_verdict(near, answerable=False, threshold=0.93)) == (
+    assert code(near_verdict(near, answerable=False, threshold=0.93, facts=(1,))) == (
         QuestionRejection.ANSWERABLE_AFTER_ALL
     )
+
+
+def test_nearness_alone_to_an_answered_question_is_not_an_answer() -> None:
+    """A perturbation sits near the question about its own fact by design.
+
+    `What does the device weigh on the moon?` is written by moving `4 kg`
+    just out of reach, so it is close to `What does the device weigh?`
+    whatever the material says about the moon. Only a neighbour resting on
+    the same fact says the corpus answers it; any other is left to the
+    passage read.
+    """
+    near = Neighbour(
+        "What does the device weigh?",
+        answerable=True,
+        similarity=0.96,
+        fact_ids=frozenset({2}),
+    )
+
+    assert near_verdict(near, answerable=False, threshold=0.93, facts=(1,)) is None
 
 
 def test_two_unanswerable_near_twins_are_only_duplicates() -> None:
