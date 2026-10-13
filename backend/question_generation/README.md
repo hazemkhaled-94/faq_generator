@@ -156,15 +156,20 @@ rule sits in, and never told to use two.
 
 A `reason` is only as good as the reason the material states: dealt a rule,
 the writer returns the rule restated or a reason it invented, and no gate
-tells either from a sound one. So an answerable `reason` slot is dealt only a
-fact whose **evidence** carries a purpose marker — `um … zu`, `damit`,
-`Zweck`, `weil`; `to prevent`, `so that`, `because`, `in order to` — read as
-lemmas and tokens in [`gates.py`](gates.py), so `For the purposes of` is not
-one. Where the topic has none left, the slot is written as another kind of
-the mix that does not span, cycled as the unanswerable swap is, and skipped
-if the mix has none. A `reason` follow-up turn on material with no marker
-takes the next kind in `QUESTIONS_FOLLOWUP_TYPES`. It is a filter on what is
-dealt, not a gate, and a language with no markers is dealt as before.
+tells either from a sound one. So an answerable `reason` slot is dealt from
+a passage holding a fact whose **evidence** carries a purpose marker —
+`um … zu`, `damit`, `Zweck` (not under `für`), `weil`; `to prevent`,
+`so that`, `because`, `in order to` — read as lemmas and tokens in
+[`gates.py`](gates.py), so `For the purposes of` is not one. Those facts are
+offered first; the rest of the sample is filled as any slot's is, so it may
+carry unmarked facts beside them, and which ones the question cites is still
+the writer's answer. Where no passage left holds one, the slot is written as
+another kind of the mix that does not span, cycled as the unanswerable swap
+is, and skipped with a warning if the mix has none. A thread whose material
+states no reason drops `reason` from its `QUESTIONS_FOLLOWUP_TYPES` cycle,
+and is not followed, with a warning, if no other kind is left. It is a
+preference over what is dealt, not a gate, and a language with no markers is
+dealt as before.
 
 ### The answer form
 
