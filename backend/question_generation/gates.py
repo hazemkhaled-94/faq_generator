@@ -1170,10 +1170,15 @@ def asked_as(question: str, kind: str) -> bool:
 
 
 #: How the material says WHY, by language: each marker a run of words read
-#: as lemmas or tokens, and a word may name the part of speech it has to be.
+#: as lemmas or tokens. A word may name the part of speech it has to be
+#: (`/SCONJ`), or a preposition that must not govern it (`!für`).
 #:
 #: English carries no `purpose`: `For the purposes of this section` names a
-#: scope and gives no reason. German `um` counts only as the conjunction
+#: scope and gives no reason. Nor does German `Zweck` under `für`, the same
+#: scope in German (`Für die Zwecke dieser Regel`), where `zu diesem Zweck`
+#: and `Der Zweck ... ist` state one. A `!for` guard would not do for an
+#: English `purpose`: `for the purpose of preventing` states one under the
+#: same preposition. German `um` counts only as the conjunction
 #: opening `um ... zu`, which the tagger reads off the infinitive however it
 #: is spelled (`zu verhindern`, `einzuhalten`), and not as the preposition of
 #: `um 9 Uhr`; `damit` only as the conjunction, not the adverb of `damit ist
@@ -1186,7 +1191,7 @@ def asked_as(question: str, kind: str) -> bool:
 #: is not read at all, so its `reason` slots are dealt as they always were.
 #: Upgrade: a per-language setting.
 _PURPOSE: dict[str, tuple[tuple[str, ...], ...]] = {
-    "de": (("um/SCONJ",), ("damit/SCONJ",), ("zweck",), ("weil",)),
+    "de": (("um/SCONJ",), ("damit/SCONJ",), ("zweck!für",), ("weil",)),
     "en": (("to", "prevent"), ("so", "that"), ("because",), ("in", "order", "to")),
 }
 
@@ -1201,10 +1206,7 @@ def states_a_reason(text: str, language: str | None) -> bool | None:
     markers = _PURPOSE.get((language or "").strip().lower())
     if not markers:
         return None
-    read = [
-        (token.lemma_.casefold(), token.lower_, token.pos_)
-        for token in pipeline(language)(text)
-    ]
+    read = list(pipeline(language)(text))
     return any(
         all(_reads_as(read[at + offset], step) for offset, step in enumerate(marker))
         for marker in markers
@@ -1212,11 +1214,22 @@ def states_a_reason(text: str, language: str | None) -> bool | None:
     )
 
 
-def _reads_as(token: tuple[str, str, str], step: str) -> bool:
-    """Whether one token is the word a marker step names, as it names it."""
-    lemma, form, pos = token
-    word, _, tag = step.partition("/")
-    return word in (lemma, form) and (not tag or pos == tag)
+def _reads_as(token, step: str) -> bool:
+    """Whether one token is the word a marker step names, as it names it.
+
+    The governing preposition is the token's head or one of its children,
+    whichever way the language's parser attaches a noun to its preposition.
+    """
+    named, _, unless = step.partition("!")
+    word, _, tag = named.partition("/")
+    if word not in (token.lemma_.casefold(), token.lower_):
+        return False
+    if tag and token.pos_ != tag:
+        return False
+    governing = [token.head, *token.children]
+    return not unless or not any(
+        one.pos_ == "ADP" and one.lemma_.casefold() == unless for one in governing
+    )
 
 
 #: The fewest items an enumeration answers with. Its own directive says "if

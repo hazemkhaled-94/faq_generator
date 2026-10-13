@@ -26,6 +26,7 @@ pytestmark = pytest.mark.nlp
         ("Der Antrag wird geprüft, um die Frist einzuhalten.", "de"),
         ("Die Karte wird gesperrt, damit niemand sie benutzen kann.", "de"),
         ("Der Zweck der Sperre ist der Schutz des Kontos.", "de"),
+        ("Zu diesem Zweck wird die Karte gesperrt.", "de"),
         ("Die Lieferung verzögert sich, weil das Lager geschlossen ist.", "de"),
     ],
 )
@@ -43,6 +44,9 @@ def test_a_stated_purpose_is_read_as_a_reason(text: str, language: str) -> None:
         # `um` as a preposition, and `damit` as an adverb, state no purpose.
         ("Die Filiale öffnet um 9 Uhr zu den üblichen Zeiten.", "de"),
         ("Damit ist das Girokonto gemeint.", "de"),
+        # The German twin of `For the purposes of`: a scope, not a purpose.
+        ("Für die Zwecke dieser Regel gilt jedes Konto als Girokonto.", "de"),
+        ("Für Zwecke der Abrechnung gilt der Monat als dreissig Tage.", "de"),
         ("Eine Standardanfrage wird innerhalb von 48 Stunden beantwortet.", "de"),
     ],
 )
