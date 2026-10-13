@@ -555,18 +555,11 @@ class QuestionChecker:
         marks a correct chatbot wrong - a verdict an extractor should not
         make alone. It is not asked here for that reason, and asking it
         would buy nothing: a span it does not find falls through to the
-        verifier regardless.
-
-        Nor is the verifier asked to read one: `settles` asks an
-        unanswerable question what it has to survive, in `_round_trip`.
+        verifier regardless. Nor is the verifier asked to read one:
+        `_round_trip` asks an unanswerable question whether the passages
+        settle it, and never calls this.
         """
-        if not candidate.answerable:
-            return None
-        if (
-            self._extractive is not None
-            and candidate.answerable
-            and not candidate.thread
-        ):
+        if self._extractive is not None and not candidate.thread:
             found = self._extractive.answer(
                 candidate.question_text,
                 candidate.group.passages,
@@ -604,9 +597,8 @@ class QuestionChecker:
         if candidate.answerable and candidate.spec.derived:
             return self._computable(candidate, candidate.target_answer or "")
 
-        read = Reading(recovered=self._recovered(candidate))
-
         if candidate.answerable:
+            read = Reading(recovered=self._recovered(candidate))
             target = candidate.target_answer or ""
             # What the verifier got back, against what the key claims, on
             # the same lemmas `agrees` compares. Recorded whichever way the
