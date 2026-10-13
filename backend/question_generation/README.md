@@ -72,6 +72,9 @@ cited, so a question that narrowed bands as what it is, and stands: nothing
 asks it to widen.
 
 A reading type is offered the condensed facts first; a `value` type is not.
+An answerable `reason` slot is dealt the next passage holding a fact whose
+evidence states a reason, and offered that fact first — see
+[The thirteen kinds](#the-thirteen-kinds).
 `QUESTIONS_MEETS_FLOOR` would narrow the sample where the second passage
 meets nothing, and ships off — the sweep found no threshold that removes
 the welds without throwing away sound questions. It weighs the fact the first
@@ -150,6 +153,18 @@ exception and declares a **floor** of its own: it needs one passage, but the
 case it puts the rule to is not in the material. Its band is that work, not a
 wider sample: at `medium` and `hard` it is still dealt the one passage its
 rule sits in, and never told to use two.
+
+A `reason` is only as good as the reason the material states: dealt a rule,
+the writer returns the rule restated or a reason it invented, and no gate
+tells either from a sound one. So an answerable `reason` slot is dealt only a
+fact whose **evidence** carries a purpose marker — `um … zu`, `damit`,
+`Zweck`, `weil`; `to prevent`, `so that`, `because`, `in order to` — read as
+lemmas and tokens in [`gates.py`](gates.py), so `For the purposes of` is not
+one. Where the topic has none left, the slot is written as another kind of
+the mix that does not span, cycled as the unanswerable swap is, and skipped
+if the mix has none. A `reason` follow-up turn on material with no marker
+takes the next kind in `QUESTIONS_FOLLOWUP_TYPES`. It is a filter on what is
+dealt, not a gate, and a language with no markers is dealt as before.
 
 ### The answer form
 

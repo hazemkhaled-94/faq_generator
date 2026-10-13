@@ -14,6 +14,7 @@ from database.qa_generator import (
     AnswerForm,
     QuestionRejection,
     QuestionStatus,
+    QuestionType,
     ReviewVerdict,
 )
 from question_generation.balance import choose, composition, largest, quota_of
@@ -31,6 +32,7 @@ from question_generation.gates import (
     near_bar,
     near_verdict,
     rivals,
+    states_a_reason,
     structural,
     typed,
 )
@@ -44,7 +46,7 @@ from question_generation.models import (
     TopicToCover,
     criteria_of,
 )
-from question_generation.planning import Plan, plans
+from question_generation.planning import Plan, instead, plans
 from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
 from question_generation.selection import Deal, spread
@@ -504,6 +506,9 @@ class QuestionGenerationService(StageService):
         # client is one HTTP connection and the batch spans topics, so a
         # topic writing nine questions does not cost a call of its own.
         self._evaluations = Evaluations()
+        #: Whether each fact read so far says why, by fact id. A parse per
+        #: fact, and the deal asks again for every `reason` slot.
+        self._reasons: dict[int, bool] = {}
 
     def process_next(self) -> int | None:
         """Writes the questions for one queued topic and stores them."""
@@ -601,12 +606,30 @@ class QuestionGenerationService(StageService):
         #: share is a share OF. Counted here rather than taken from `accepted`, which
         #: a follow-up joins as soon as it is kept.
         roots = 0
+        swapped = 0
         for plan in planned:
+            prefer = None
+            if plan.answerable and plan.spec.name == QuestionType.REASON:
+                # Only material that says why can answer a why: dealt a
+                # rule, the writer returns the rule restated or a reason it
+                # invented, and no gate tells either from a sound one. Where
+                # nothing left states one, the slot is swapped, as an
+                # unanswerable one is in the plan.
+                if deal.holds(self._reasoned):
+                    prefer = self._reasoned
+                else:
+                    other = instead(plan, self._settings.type_mix, swapped)
+                    swapped += 1
+                    if other is None:
+                        continue
+                    plan = other
             # A reading is written from a passage condensed, a value from
             # the claim carrying the number. Which facts are offered first
             # follows from that, and it is what the weld responds to.
             sample = deal.sample(
-                plan.shape, condensed=plan.spec.form != AnswerForm.VALUE
+                plan.shape,
+                condensed=plan.spec.form != AnswerForm.VALUE,
+                prefer=prefer,
             )
             if sample is None:
                 # The topic ran out of passages before the plan ran out of
@@ -671,6 +694,20 @@ class QuestionGenerationService(StageService):
             if not seen[anchor.id]:
                 kept.append(fact)
         return kept
+
+    def _reasoned(self, fact: SourceFact) -> bool:
+        """Whether this fact's evidence says why, or its language cannot say.
+
+        The evidence rather than the statement, which may have condensed the
+        clause away. A language `states_a_reason` has no markers for counts,
+        so its `reason` slots are dealt as they always were.
+        """
+        if fact.id not in self._reasons:
+            self._reasons[fact.id] = (
+                states_a_reason(fact.evidence or fact.statement, fact.language)
+                is not False
+            )
+        return self._reasons[fact.id]
 
     def _checked(
         self, candidate: Candidate, accepted: list[CheckedQuestion]
@@ -958,11 +995,22 @@ class QuestionGenerationService(StageService):
         previous = root.passage_ids
         for turn in range(self._settings.max_followups):
             names = self._settings.followup_types
+            name = names[(followed + turn) % len(names)]
+            if name == QuestionType.REASON and not any(
+                self._reasoned(one) for one in sample.facts
+            ):
+                # The filter a root `reason` slot gets: a thread asks why
+                # only where the material it is on says why, and takes the
+                # next kind in the cycle otherwise.
+                others = [one for one in names if one != QuestionType.REASON]
+                if not others:
+                    break
+                name = others[(followed + turn) % len(others)]
             candidate = self._writer.follow_up(
                 sample,
                 tuple(turns),
                 Plan(
-                    spec=SPECS[names[(followed + turn) % len(names)]],
+                    spec=SPECS[name],
                     band=plan.band,
                     shape=plan.shape,
                     answerable=True,

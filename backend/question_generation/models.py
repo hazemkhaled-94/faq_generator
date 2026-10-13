@@ -195,6 +195,10 @@ class SourceFact:
     #: written it. What `meets` prefers to a lemma overlap. None on a corpus
     #: extracted before the column existed.
     embedding: tuple[float, ...] | None = None
+    #: The sentences it was cited from, as extraction stored them. What says
+    #: whether the material states a REASON, which a statement condensed
+    #: from them may have dropped. Empty where none was carried.
+    evidence: str = ""
 
     @property
     def anchor(self) -> SourcePassage:

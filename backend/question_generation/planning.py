@@ -113,9 +113,7 @@ def plans(
     if not typed or not banded:
         return []
 
-    alone = [
-        name for name, weight in types.items() if weight > 0 and not SPECS[name].spans
-    ]
+    alone = _alone(types)
     planned = []
     perturbed = 0
     for index, name in enumerate(typed):
@@ -124,12 +122,43 @@ def plans(
         if not answerable and alone:
             name = alone[perturbed % len(alone)]
             perturbed += 1
-        spec = SPECS[name]
-        if band == Difficulty.EASY:
-            band = spec.floor
-        if not answerable:
-            band = Difficulty.EASY
-        single = not answerable or (spec.least is not None and not spec.spans)
-        shape = Shape.SINGLE if single else SHAPES[band]
-        planned.append(Plan(spec=spec, band=band, shape=shape, answerable=answerable))
+        planned.append(_slot(name, band, answerable))
     return planned
+
+
+def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
+    """The same slot as another kind, for a kind the topic cannot supply.
+
+    What a `reason` slot becomes where no fact left in the topic states a
+    reason. The swap the unanswerable slots get, for the same reason: the
+    slot was planned before the material was read, and writing the kind
+    anyway gets a question its material cannot answer. Cycled over the
+    mix's other kinds that do not span, by `turn`, with the slot's band.
+
+    None where the mix holds no other such kind. A slot asking for what the
+    topic does not have is then not written: unlike an unanswerable one, a
+    reason with nothing to rest on is a question with no right answer.
+    """
+    others = [name for name in _alone(types) if name != plan.spec.name]
+    if not others:
+        return None
+    return _slot(others[turn % len(others)], plan.band, plan.answerable)
+
+
+def _alone(types: Mapping[str, int]) -> list[str]:
+    """The kinds of the mix that do not span, in mix order."""
+    return [
+        name for name, weight in types.items() if weight > 0 and not SPECS[name].spans
+    ]
+
+
+def _slot(name: str, band: str, answerable: bool) -> Plan:
+    """One slot of a kind, its band raised to the kind's floor and shaped."""
+    spec = SPECS[name]
+    if band == Difficulty.EASY:
+        band = spec.floor
+    if not answerable:
+        band = Difficulty.EASY
+    single = not answerable or (spec.least is not None and not spec.spans)
+    shape = Shape.SINGLE if single else SHAPES[band]
+    return Plan(spec=spec, band=band, shape=shape, answerable=answerable)

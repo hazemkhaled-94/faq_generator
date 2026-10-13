@@ -169,6 +169,7 @@ _SOURCE = (
         Fact.kind,
         Fact.units_statement,
         Fact.embedding,
+        Fact.evidence_text,
     )
     .select_from(Fact)
     .join(FactPassage, (FactPassage.fact_id == Fact.id) & (FactPassage.position == 0))
@@ -250,6 +251,7 @@ def _fact(row: Any, resting: tuple[SourcePassage, ...]) -> SourceFact:
         passages=resting,
         units=tuple(row.units_statement or ()),
         embedding=_vector(row.embedding),
+        evidence=row.evidence_text or "",
     )
 
 

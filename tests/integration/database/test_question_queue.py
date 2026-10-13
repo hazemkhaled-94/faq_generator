@@ -213,6 +213,25 @@ def test_a_topic_reads_the_facts_of_the_passages_it_is_strongest_in(corpus) -> N
     assert {one.id for one in facts} == set(written["facts"][written["topics"][0]])
 
 
+def test_a_fact_carries_the_evidence_it_was_cited_from(corpus, engine) -> None:
+    """What says whether the material states a reason.
+
+    A statement condensed from the evidence may have dropped the clause.
+    """
+    written = corpus(topics=1, facts_per_topic=1)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE facts SET evidence_text = "
+                "'The device is sealed so that water cannot enter.'"
+            )
+        )
+
+    (found,) = QuestionQueue().facts(written["topics"][0])
+
+    assert found.evidence == "The device is sealed so that water cannot enter."
+
+
 def test_a_rejected_fact_is_never_written_about(corpus) -> None:
     """Only facts that passed every check are usable here."""
     written = corpus(topics=1, validated=False)

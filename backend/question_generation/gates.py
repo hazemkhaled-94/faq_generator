@@ -1169,6 +1169,56 @@ def asked_as(question: str, kind: str) -> bool:
     return True
 
 
+#: How the material says WHY, by language: each marker a run of words read
+#: as lemmas or tokens, and a word may name the part of speech it has to be.
+#:
+#: English carries no `purpose`: `For the purposes of this section` names a
+#: scope and gives no reason. German `um` counts only as the conjunction
+#: opening `um ... zu`, which the tagger reads off the infinitive however it
+#: is spelled (`zu verhindern`, `einzuhalten`), and not as the preposition of
+#: `um 9 Uhr`; `damit` only as the conjunction, not the adverb of `damit ist
+#: gemeint`.
+#:
+#: A planning filter rather than a gate: it decides what a `reason` slot is
+#: dealt, and refuses nothing written.
+#:
+#: ponytail: the two languages NLP_MODELS configures. A language missing here
+#: is not read at all, so its `reason` slots are dealt as they always were.
+#: Upgrade: a per-language setting.
+_PURPOSE: dict[str, tuple[tuple[str, ...], ...]] = {
+    "de": (("um/SCONJ",), ("damit/SCONJ",), ("zweck",), ("weil",)),
+    "en": (("to", "prevent"), ("so", "that"), ("because",), ("in", "order", "to")),
+}
+
+
+def states_a_reason(text: str, language: str | None) -> bool | None:
+    """Whether this text says why something is so, or None where unknown.
+
+    None is a language `_PURPOSE` has no markers for, which a caller reads
+    as "do not filter": nothing is known about how it states a reason, and
+    treating every one of its facts as reasonless would turn the kind off.
+    """
+    markers = _PURPOSE.get((language or "").strip().lower())
+    if not markers:
+        return None
+    read = [
+        (token.lemma_.casefold(), token.lower_, token.pos_)
+        for token in pipeline(language)(text)
+    ]
+    return any(
+        all(_reads_as(read[at + offset], step) for offset, step in enumerate(marker))
+        for marker in markers
+        for at in range(len(read) - len(marker) + 1)
+    )
+
+
+def _reads_as(token: tuple[str, str, str], step: str) -> bool:
+    """Whether one token is the word a marker step names, as it names it."""
+    lemma, form, pos = token
+    word, _, tag = step.partition("/")
+    return word in (lemma, form) and (not tag or pos == tag)
+
+
 #: The fewest items an enumeration answers with. Its own directive says "if
 #: there is only one item, you asked the wrong question for this kind", and
 #: nothing enforced it.

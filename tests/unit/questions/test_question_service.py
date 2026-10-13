@@ -530,7 +530,10 @@ def test_the_turns_of_a_thread_take_the_kinds_they_were_configured_to() -> None:
     always at the first type, so a list longer than QUESTIONS_MAX_FOLLOWUPS
     is a rotation and not a prefix with a dead tail.
     """
-    facts = [source(n, document="a", passage_id=n) for n in range(8)]
+    # Every fact states a reason, so a `reason` turn always has one to ask.
+    facts = [
+        source(n, document="a", passage_id=n, statement=REASONED) for n in range(8)
+    ]
     writer = StubWriter()
     service, queue = build(topic(), facts, writer=writer)
 
@@ -560,7 +563,9 @@ def test_every_configured_follow_up_kind_is_reached_over_a_run() -> None:
     # other slot and the unanswerable ones are never followed, so a topic of
     # four reaches one thread and rotates nothing.
     settings = replace(SETTINGS, followup_types=names, max_followups=2, per_topic=12)
-    facts = [source(n, document="a", passage_id=n) for n in range(40)]
+    facts = [
+        source(n, document="a", passage_id=n, statement=REASONED) for n in range(40)
+    ]
     service, queue = build(topic(), facts, writer=StubWriter(), settings=settings)
 
     service.process_next()
@@ -569,6 +574,156 @@ def test_every_configured_follow_up_kind_is_reached_over_a_run() -> None:
         one.question_type for thread in queue.stored[0] for one in thread if one.follows
     }
     assert set(names) <= written, f"never wrote {set(names) - written}"
+
+
+# ── A reason, which only material that states one can answer ──────────────
+
+#: A fact whose evidence says why, and one that only states a rule.
+REASONED = "Requests are confirmed in writing so that the agreed time can be evidenced."
+RULES = (
+    "A standard request is answered within 48 hours.",
+    "An urgent request is answered within 4 hours.",
+    "A request left unconfirmed for five days is closed.",
+    "The site manager approves every change to the shift plan.",
+    "A request may be raised by phone.",
+)
+
+
+class Handed(StubWriter):
+    """Records the sample each slot was handed beside its plan."""
+
+    def __init__(self) -> None:
+        """Initialises the writer with nothing handed yet."""
+        super().__init__()
+        self.handed: list[tuple[FactGroup, object]] = []
+
+    def write(self, group, plan):
+        """Keeps what this slot was dealt, then writes as scripted."""
+        self.handed.append((group, plan))
+        return super().write(group, plan)
+
+
+def reasons_only(**changes) -> Settings:
+    """Root slots that are all `reason`, one fact each and no thread."""
+    return replace(
+        SETTINGS,
+        **{
+            "per_topic": 6,
+            "sample_size": 1,
+            "type_mix": {QuestionType.REASON: 1},
+            "difficulty_mix": {Difficulty.EASY: 1},
+            "unanswerable_share": 0.0,
+            "followup_share": 0.0,
+            **changes,
+        },
+    )
+
+
+def test_a_reason_slot_is_never_handed_a_sample_that_states_no_reason() -> None:
+    """Five passages state rules and one states why; that one is dealt.
+
+    A why question written from a rule has a circular key or an invented
+    one, and no gate can tell either from a sound reason.
+    """
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, statement=text)
+        for n, text in enumerate([*RULES, REASONED])
+    ]
+    writer = Handed()
+    service, _ = build(topic(), facts, writer=writer, settings=reasons_only())
+
+    service.process_next()
+
+    reasons = [
+        [one.statement for one in group.facts]
+        for group, plan in writer.handed
+        if plan.spec.name == QuestionType.REASON
+    ]
+    assert reasons == [[REASONED]]
+
+
+def test_a_reason_slot_the_topic_cannot_supply_is_written_as_another_kind() -> None:
+    """Swapped as an unanswerable slot is, to a kind that does not span."""
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, statement=text)
+        for n, text in enumerate(RULES)
+    ]
+    writer = Handed()
+    settings = reasons_only(
+        type_mix={QuestionType.REASON: 1, QuestionType.FACTOID: 1}, per_topic=4
+    )
+    service, _ = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    kinds = [plan.spec.name for _, plan in writer.handed]
+    assert len(kinds) == 4, "a slot was dropped rather than swapped"
+    assert set(kinds) == {QuestionType.FACTOID}
+
+
+def test_a_language_with_no_markers_deals_a_reason_slot_as_before() -> None:
+    """Nothing is known about how it states a reason, so nothing is filtered."""
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, language="es", statement=text)
+        for n, text in enumerate(RULES)
+    ]
+    writer = Handed()
+    service, _ = build(topic(), facts, writer=writer, settings=reasons_only())
+
+    service.process_next()
+
+    kinds = [plan.spec.name for _, plan in writer.handed]
+    assert kinds == [QuestionType.REASON] * len(RULES)
+
+
+def test_a_reason_turn_with_no_reason_to_ask_takes_the_next_kind() -> None:
+    """A thread asks why only where the material it is on says why."""
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, statement=text)
+        for n, text in enumerate(RULES)
+    ]
+    writer = StubWriter()
+    settings = replace(
+        SETTINGS,
+        type_mix={QuestionType.FACTOID: 1},
+        followup_types=(QuestionType.REASON, QuestionType.CONDITION),
+        followup_share=1.0,
+        max_followups=1,
+        unanswerable_share=0.0,
+    )
+    service, queue = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    turns = [one.question_type for thread in queue.stored[0] for one in thread[1:]]
+    assert turns, "no thread was followed"
+    assert QuestionType.REASON not in turns
+
+
+def test_a_reason_turn_on_material_that_says_why_is_still_asked() -> None:
+    """The filter narrows what is asked; it does not turn the kind off."""
+    facts = [
+        source(1, document="a", passage_id=1, statement=RULES[0]),
+        source(2, document="a", passage_id=1, statement=REASONED),
+    ]
+    settings = replace(
+        SETTINGS,
+        per_topic=1,
+        sample_size=1,
+        type_mix={QuestionType.FACTOID: 1},
+        difficulty_mix={Difficulty.EASY: 1},
+        followup_types=(QuestionType.REASON,),
+        followup_share=1.0,
+        max_followups=1,
+        unanswerable_share=0.0,
+    )
+    service, queue = build(topic(), facts, settings=settings)
+
+    service.process_next()
+
+    (root, turn), *_ = queue.stored[0]
+    assert root.question_type == QuestionType.FACTOID
+    assert turn.question_type == QuestionType.REASON
 
 
 # ── The plan, which is what makes the set configurable ────────────────────

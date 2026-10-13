@@ -17,7 +17,7 @@ asked about across all of it.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from enum import StrEnum
 from functools import lru_cache
 from itertools import groupby, zip_longest
@@ -198,6 +198,24 @@ def condensed_first(facts: Sequence[SourceFact]) -> list[SourceFact]:
     return sorted(facts, key=lambda one: one.kind not in CONDENSED)
 
 
+def _ordered(
+    facts: Sequence[SourceFact],
+    condensed: bool,
+    prefer: Callable[[SourceFact], bool] | None,
+) -> list[SourceFact]:
+    """A passage's unspent facts in the order a sample offers them.
+
+    The condensed ones first for a reading, and ahead of either half the
+    ones `prefer` accepts. Stable throughout, so `ranked`'s order survives
+    inside each part. Only the head's order is read: the second passage's
+    share is re-ranked by what the head offered.
+    """
+    ordered = condensed_first(facts) if condensed else list(facts)
+    if prefer is None:
+        return ordered
+    return sorted(ordered, key=lambda one: not prefer(one))
+
+
 def ranked(facts: Iterable[SourceFact]) -> list[SourceFact]:
     """One passage's facts, its kinds interleaved and each kind's best first.
 
@@ -310,7 +328,10 @@ class Deal:
         self._floor = floor
 
     def sample(
-        self, shape: str = Shape.SINGLE, condensed: bool = False
+        self,
+        shape: str = Shape.SINGLE,
+        condensed: bool = False,
+        prefer: Callable[[SourceFact], bool] | None = None,
     ) -> FactGroup | None:
         """The next sample of the shape asked for, or None when none is left.
 
@@ -323,8 +344,11 @@ class Deal:
         the single claims - see `condensed_first`. Set from the answer form
         the plan asked for, because a value wants the claim carrying a number
         and a reading wants the paragraph.
+
+        `prefer` deals the next passage still holding a fact it accepts, and
+        offers those facts first. `holds` is what asks whether one is left.
         """
-        head = self._next()
+        head = self._next(prefer)
         if head is None:
             return None
         if shape == Shape.SINGLE or head[0].spans:
@@ -332,19 +356,33 @@ class Deal:
             # alone: it satisfies a wide shape by itself, and pairing it with
             # a second passage would put the sample over the budget and make
             # what the question is about impossible to read off.
-            return self._group([head], condensed=condensed)
+            return self._group([head], condensed=condensed, prefer=prefer)
 
         partner = self._bridge(head) if shape == Shape.BRIDGE else self._cross(head)
-        if partner and not self._clears(head, partner, condensed):
+        if partner and not self._clears(head, partner, condensed, prefer):
             # Nothing in the second passage meets the first well enough to
             # be worth offering. The span rules already tell the writer to
             # narrow in this case; this narrows for it, and the question
             # bands as the single-passage question it actually is.
             partner = None
-        return self._group([head, partner] if partner else [head], condensed=condensed)
+        return self._group(
+            [head, partner] if partner else [head], condensed=condensed, prefer=prefer
+        )
+
+    def holds(self, prefer: Callable[[SourceFact], bool]) -> bool:
+        """Whether a passage still to be dealt holds a fact `prefer` accepts.
+
+        Asked before a sample is dealt with it, so a slot the topic cannot
+        supply is answered by the caller and spends nothing.
+        """
+        return self._next(prefer) is not None
 
     def _clears(
-        self, head: list[SourceFact], partner: list[SourceFact], condensed: bool
+        self,
+        head: list[SourceFact],
+        partner: list[SourceFact],
+        condensed: bool,
+        prefer: Callable[[SourceFact], bool] | None = None,
     ) -> bool:
         """Whether the partner holds a fact close enough to the head to offer.
 
@@ -353,9 +391,9 @@ class Deal:
         reading `meets` makes of a sample already part-chosen.
 
         Weighed against the head's fact `_group` will offer first, which
-        `condensed` decides. The first in rank order is an atomic claim
-        that a reading is never offered, so the floor would pass a pair on
-        a fact the writer never sees.
+        `condensed` and `prefer` decide. The first in rank order is an
+        atomic claim that a reading is never offered, so the floor would
+        pass a pair on a fact the writer never sees.
 
         Abstains where either side has nothing left, because a measurement
         with nothing to measure is not evidence - the same bargain
@@ -363,8 +401,7 @@ class Deal:
         """
         if self._floor <= 0:
             return True
-        left = self._left(head)
-        offered = (condensed_first(left) if condensed else left)[:1]
+        offered = _ordered(self._left(head), condensed, prefer)[:1]
         candidates = self._left(partner)
         if not offered or not candidates:
             return True
@@ -419,10 +456,17 @@ class Deal:
             self._left(passage)
         )
 
-    def _next(self) -> list[SourceFact] | None:
-        """The next passage with something still to be written from."""
+    def _next(
+        self, prefer: Callable[[SourceFact], bool] | None = None
+    ) -> list[SourceFact] | None:
+        """The next passage with something still to be written from.
+
+        With `prefer`, the next one holding an unspent fact it accepts.
+        """
         for passage in self._order:
-            if not self._taken(passage):
+            if not self._taken(passage) and (
+                prefer is None or any(prefer(one) for one in self._left(passage))
+            ):
                 return passage
         return None
 
@@ -515,7 +559,10 @@ class Deal:
         )
 
     def _group(
-        self, passages: list[list[SourceFact]], condensed: bool = False
+        self,
+        passages: list[list[SourceFact]],
+        condensed: bool = False,
+        prefer: Callable[[SourceFact], bool] | None = None,
     ) -> FactGroup:
         """Counts a round against these passages and offers unspent facts.
 
@@ -546,10 +593,8 @@ class Deal:
         for passage in passages:
             pid = passage[0].passage_id
             self._offered[pid] = self._offered.get(pid, 0) + 1
-            left = self._left(passage)
-            facts.extend(
-                closest(facts, condensed_first(left) if condensed else left, each)
-            )
+            left = _ordered(self._left(passage), condensed, prefer)
+            facts.extend(closest(facts, left, each))
         for fact in facts:
             self._spent.add(fact.id)
             for one in fact.passages:
