@@ -95,27 +95,10 @@ def test_both_models_are_held_to_the_same_patience() -> None:
 # ── What a question's citations make it ───────────────────────────────────
 #
 # The three scopes, and the band they add up to, are read off every passage
-# the cited facts rest on. An atomic fact rests on the passage it was read
-# from; it counted a second one only through the citation a duplicate
-# refusal used to fold into it, which `make extract-dedup` takes out.
-
-
-def test_an_atomic_fact_is_one_passage_once_its_fold_is_gone() -> None:
-    """One claim, one lookup: single passage, single topic, easy."""
-    from factories import source
-
-    from database.qa_generator import Difficulty, PassageScope, TopicScope
-    from question_generation.models import FactGroup
-
-    fact = source(7, passage_id=3, topic_id=3)
-
-    read = FactGroup((fact,)).criteria(answer_chars=len("4 kg"))
-
-    assert (read.passage_scope, read.topic_scope, read.difficulty) == (
-        PassageScope.SINGLE,
-        TopicScope.SINGLE,
-        Difficulty.EASY,
-    )
+# the cited facts rest on, so a real second citation spreads a question. The
+# fold a duplicate refusal used to add is data, not something this reading
+# can tell apart: tests/integration/database/test_question_queue.py follows
+# one from `make extract-dedup` through to the band.
 
 
 def test_a_second_passage_counts_through_a_real_citation() -> None:

@@ -2113,3 +2113,50 @@ def test_a_question_on_a_fact_left_only_its_fold_is_left_to_re_verify(
             text("SELECT status, rejected_reason, passage_scope FROM questions")
         ).one()
     assert tuple(row) == ("rejected", "source_changed", "multi_passage")
+
+
+def test_a_fold_taken_out_carries_through_rescore_and_re_verify(
+    engine, database
+) -> None:
+    """extract-dedup, then questions-rescore, then questions-reverify.
+
+    The fold spread the question over two passages; once it is gone the
+    rescore bands it by its one passage and re-verify keeps it accepted.
+    """
+    from extraction.repository import FactCatalog
+    from extraction.service import dedup
+    from question_generation.service import rescore, reverify
+
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        own = passage(digest("a"), ordinal=1, language="en")
+        folded = passage(digest("a"), ordinal=2, language="en")
+        session.add_all([own, folded])
+        session.flush()
+        cited = fact(own.id, folded.id, statement="The device weighs 4 kg.")
+        session.add(cited)
+        session.flush()
+        asked = question(
+            target_answer="4 kg",
+            status="accepted",
+            passage_scope="multi_passage",
+            document_scope="single_document",
+            topic_scope="single_topic",
+            difficulty="easy",
+        )
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=cited.id))
+        session.commit()
+
+    assert dedup(FactCatalog(), 0.985) == 0, "nothing was refused"
+    assert rescore(QuestionCatalog(), _settings()) == 1
+    assert reverify(QuestionCatalog(), _settings()) == 0
+    with engine.connect() as connection:
+        links = connection.execute(text("SELECT count(*) FROM fact_passages")).one()
+        row = connection.execute(
+            text("SELECT status, passage_scope, difficulty FROM questions")
+        ).one()
+    assert tuple(links) == (1,)
+    assert tuple(row) == ("accepted", "single_passage", "easy")
