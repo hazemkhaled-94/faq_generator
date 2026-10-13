@@ -883,6 +883,144 @@ STORED_ROWS: tuple[
         AnswerForm.EXPLANATION,
         QuestionRejection.WRONG_TYPE,
     ),
+    (
+        "Q987: `cautioned` decides it",
+        (
+            "What does a referee do if a player refuses to comply with an order to "
+            "remove dangerous or unauthorised equipment?"
+        ),
+        "The player must be cautioned.",
+        "en",
+        (),
+        QuestionType.DEFINITION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q1021: `permitted` decides it",
+        "What are sports spectacles treated as in the rules on equipment?",
+        "Sports spectacles are permitted.",
+        "en",
+        (),
+        QuestionType.DEFINITION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q1256: `caution` decides it",
+        (
+            "What action must a referee take if a player kicks or carries the ball "
+            "away to delay the restart of play?"
+        ),
+        "The referee must caution the player.",
+        "en",
+        (),
+        QuestionType.IMPLICATION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q1269: `recorded as missed` decides it",
+        (
+            "What happens to a penalty shoot-out kick if the ball hits the kicker's "
+            "non-kicking foot or leg immediately after the kick and still does not "
+            "enter the goal?"
+        ),
+        "The kick is recorded as missed.",
+        "en",
+        (),
+        QuestionType.CONSEQUENCE,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q1142: `retaken` decides it",
+        (
+            "How is a free kick restarted if an opponent is too close when the ball is "
+            "kicked and clearly moves?"
+        ),
+        "The kick is retaken.",
+        "en",
+        (),
+        QuestionType.APPLICATION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q1110: `disallowed` decides it",
+        (
+            "What happens to a goal once play has restarted after the kick-off that "
+            "begins the next half or restarts play after a goal?"
+        ),
+        "The goal cannot be disallowed after play has restarted.",
+        "en",
+        (),
+        QuestionType.DEFINITION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q965: `assist` decides it",
+        "How do other match officials relate to the referee on the field of play?",
+        "They assist the referee, who operates on the field of play.",
+        "en",
+        (),
+        QuestionType.IMPLICATION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q889: `decide` decides it",
+        (
+            "What happens with reporting to the appropriate authorities when a player "
+            "receives a temporary dismissal instead of a caution?"
+        ),
+        (
+            "Competitions will decide whether temporary dismissals must be reported to "
+            "the appropriate authorities."
+        ),
+        "en",
+        (),
+        QuestionType.CONSEQUENCE,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q502: `wiederholt` decides it",
+        (
+            "Was geschieht bei einem Strafstoss, wenn eine Drittperson den Ball "
+            "während seiner Vorwärtsbewegung berührt?"
+        ),
+        "Der Strafstoss wird wiederholt.",
+        "de",
+        (),
+        QuestionType.DEFINITION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q654: `respektvoll und angemessen` decides it",
+        "Wie müssen sich die Kapitäne dem Schiedsrichter gegenüber verhalten?",
+        (
+            "Die Kapitäne müssen sich dem Schiedsrichter gegenüber respektvoll und "
+            "angemessen verhalten."
+        ),
+        "de",
+        (),
+        QuestionType.IMPLICATION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "Q226: `rechtwinklig` decides it",
+        "Wie verlaufen die beiden Linien des Torraums zur Torlinie?",
+        "rechtwinklig zur Torlinie",
+        "de",
+        (),
+        QuestionType.FACTOID,
+        AnswerForm.VALUE,
+        None,
+    ),
 )
 
 

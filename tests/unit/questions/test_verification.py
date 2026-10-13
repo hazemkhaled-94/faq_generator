@@ -2535,6 +2535,45 @@ def test_an_answer_asserting_a_number_is_exempt() -> None:
     )
 
 
+def test_an_answer_whose_verb_decides_it_does_not_restate() -> None:
+    """`cancelled` is the answer, and it is a verb the question lacks."""
+    assert not restates(
+        "What does the bank do if a customer refuses to confirm a transfer?",
+        "The transfer must be cancelled.",
+        "en",
+    )
+
+
+def test_a_predicative_adjective_tagged_as_an_adverb_is_new() -> None:
+    """`de_core_news_md` tags a predicative `rechtwinklig` ADV, and it is the answer."""
+    assert not restates(
+        "Wie verlaufen die beiden Kanten des Gehäuses zur Grundplatte?",
+        "rechtwinklig zur Grundplatte",
+        "de",
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        ("Is the device waterproof?", "No, the device is not waterproof.", "en"),
+        ("Ist das Gerät wasserdicht?", "Ja, das Gerät ist wasserdicht.", "de"),
+    ],
+)
+def test_a_yes_or_no_answer_does_not_restate(
+    question: str, answer: str, language: str
+) -> None:
+    """Its polarity is the answer, and every other word was in the question."""
+    assert not restates(question, answer, language)
+
+
+def test_a_polarity_the_question_already_had_is_still_an_echo() -> None:
+    """`not` asked and `not` answered adds nothing."""
+    assert restates(
+        "Why is the device not waterproof?", "the device is not waterproof", "en"
+    )
+
+
 # ── The key that names less than the passages gave ─────────────────────────
 
 

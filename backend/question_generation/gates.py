@@ -1125,6 +1125,55 @@ def enumerates(answer: str, language: str | None) -> bool:
 #: The least share of an answer's content lemmas the question did not carry.
 _NEW = 0.25
 
+#: The parts of speech `restates` reads as saying something. Wider than
+#: `content`'s nouns and adjectives, because the word that answers is as
+#: often a verb (`The transfer must be cancelled.`) or a predicative
+#: adjective `de_core_news_md` tags as an adverb (`rechtwinklig`). AUX is
+#: left out: `must be` says nothing a question did not.
+_SAYS = frozenset({"NOUN", "PROPN", "ADJ", "VERB", "ADV", "INTJ"})
+
+#: Words that answer a yes-or-no question by their polarity, affirmative and
+#: then negative, by ISO 639-1 code. `No, the device is not waterproof.`
+#: repeats its question but for `no` and `not`, and those are the answer. A
+#: list rather than a feature, because the pipelines disagree:
+#: `en_core_web_md` marks `not` with `Polarity=Neg`, `de_core_news_md` marks
+#: `nicht` with nothing, and neither marks `yes` or `ja`. A language with no
+#: entry has no exemption.
+_POLARITY: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    "en": (
+        frozenset({"yes"}),
+        frozenset({"no", "not", "never", "none", "neither", "nor"}),
+    ),
+    "de": (
+        frozenset({"ja"}),
+        frozenset({"nein", "nicht", "kein", "nie", "niemals", "weder"}),
+    ),
+}
+
+
+def _says(read) -> frozenset[str]:
+    """The lemmas of a parse that say something, by `_SAYS`, minus stop words."""
+    return frozenset(
+        token.lemma_.casefold()
+        for token in read
+        if token.pos_ in _SAYS
+        and not token.is_stop
+        and any(char.isalpha() for char in token.lemma_)
+    )
+
+
+def _polarity(read, language: str | None) -> frozenset[bool]:
+    """Which polarities a parse states by `_POLARITY`: True for yes, False for no.
+
+    The polarity and not the word, so `nicht verwenden` asked and `keine
+    verwenden` answered is one polarity said back.
+    """
+    yes, no = _POLARITY.get((language or "").lower(), (frozenset(), frozenset()))
+    forms = {form for token in read for form in (token.lower_, token.lemma_.casefold())}
+    return frozenset(
+        sign for sign, words in ((True, yes), (False, no)) if forms & words
+    )
+
 
 def restates(question: str, answer: str, language: str | None) -> bool:
     """Whether the answer adds almost no content word the question did not have.
@@ -1134,9 +1183,16 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     every word of the answer was in the question, so a chatbot that echoes
     the question back scores full marks.
 
-    Fewer than `_NEW` of the answer's content lemmas new to the question:
+    Read on `_SAYS` on both sides - nouns, proper nouns, adjectives, verbs,
+    adverbs and interjections, less stop words - and not on `content`, which
+    the gates comparing an answer with a recovery read and which keeps nouns
+    and adjectives only. On `content`, `The player must be cautioned.` added
+    nothing to the question it answered, because `cautioned` is the answer
+    and a verb.
+
+    Fewer than `_NEW` of the answer's lemmas new to the question:
     `accurate test metrics for exploratory testing sessions can be
-    challenging to determine` adds one in six. There IS no gate here for
+    challenging to determine` adds one in eight. There IS no gate here for
     "the question is its own fact rearranged" and that is deliberate - it
     was written twice, and both formulations refused `Wie hoch war die
     Arbeitslosenquote im August 2025?` answered
@@ -1146,7 +1202,7 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     subject, but that it adds almost nothing to it.
 
     An answer carrying a NUMBER is exempt, and that exemption is what makes
-    the gate usable. `content` drops numerals, so `In wie viele Kategorien
+    the gate usable. `_SAYS` holds no numerals, so `In wie viele Kategorien
     werden Schlüsselwörter eingeteilt?` answered `zwei Kategorien` scores as
     fully contained - the answer is `zwei` and the measure cannot see it.
     Those are the most unambiguously scoreable answers there are, which is
@@ -1160,14 +1216,22 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     and not on English ones - in a corpus that is German. `NUM` is a
     Universal Dependencies part of speech, so every tagset marks it, which
     is the same argument `PronType=Dem` rests on in `phrasing`.
+
+    An answer stating a polarity its question did not is exempt too: `Ja,
+    das Gerät ist wasserdicht.` is the answer to `Ist das Gerät
+    wasserdicht?`, and `ja` is what it says. A polarity the question already
+    had is no answer - `not` asked and `not` said back is an echo.
     """
-    said = content(answer, language)
+    read = pipeline(language)(answer)
+    said = _says(read)
     if not said:
         return False
-    read = pipeline(language)(answer)
     if any(token.pos_ == "NUM" or token.like_num for token in read):
         return False
-    return len(said - content(question, language)) / len(said) < _NEW
+    asked = pipeline(language)(question)
+    if _polarity(read, language) - _polarity(asked, language):
+        return False
+    return len(said - _says(asked)) / len(said) < _NEW
 
 
 #: How much of what the verifier independently recovered may be missing from

@@ -28,7 +28,7 @@ from question_generation.balance import (
     quota_of,
     shares,
 )
-from question_generation.gates import BOUNDS, figures, fitting
+from question_generation.gates import BOUNDS, figures, fitting, restates
 from question_generation.models import band, criteria_of
 from question_generation.selection import spread, strided
 from question_generation.types import SPECS
@@ -337,3 +337,18 @@ def test_a_two_item_answer_to_a_list_first_type_is_read_as_a_list(
 
     assert failed is None
     assert form == AnswerForm.LIST
+
+
+# ── The answer that only says the question again ─────────────────────────
+
+
+@pytest.mark.nlp
+@given(
+    noun=st.sampled_from(["device", "transfer", "account", "request", "card"]),
+    verb=st.sampled_from(["cancelled", "approved", "rejected", "shipped", "refunded"]),
+)
+def test_a_predicate_the_question_lacks_is_something_new(noun, verb) -> None:
+    """`The card is cancelled.` answers `What happens to the card?` with its verb."""
+    assert not restates(
+        f"What happens to the {noun} in that case?", f"The {noun} is {verb}.", "en"
+    )
