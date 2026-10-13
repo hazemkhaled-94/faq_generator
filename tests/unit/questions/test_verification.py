@@ -798,6 +798,31 @@ def test_an_unanswerable_question_the_passages_do_not_answer_is_accepted() -> No
     assert result.accepted
 
 
+def test_a_recovery_that_only_restates_the_question_is_not_an_answer() -> None:
+    """A `why` the passage gives no reason for, read back as the rule itself.
+
+    The recovery says what the question already said, so the passages did
+    not answer it, and a chatbot declining it is right.
+    """
+    recording = Recording(
+        recovers="A senior officer must sign a transfer before it is released."
+    )
+
+    result = build(recording).check(
+        candidate(
+            question_text=(
+                "Why must a senior officer sign a transfer before it is released?"
+            ),
+            target_answer=None,
+            answerable=False,
+            question_type=QuestionType.REASON,
+        )
+    )
+
+    assert "round_trip" in result.gates_ran
+    assert result.rejected_reason != QuestionRejection.ANSWERABLE_AFTER_ALL
+
+
 def test_a_duplicate_of_something_written_earlier_in_the_same_run_is_caught() -> None:
     """Nothing is stored until the topic is finished.
 

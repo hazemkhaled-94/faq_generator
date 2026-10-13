@@ -75,6 +75,7 @@ from question_generation.gates import (
     moves_on,
     near_verdict,
     on_topic,
+    restates,
     rivals,
     same_material,
     shared_lemmas,
@@ -636,7 +637,13 @@ class QuestionChecker:
                 )
             return None
 
-        if read.recovered is not None:
+        # A recovery that only says the question back is not an answer: a
+        # `why` the passage gives no reason for comes back as the rule it
+        # asks about, and declining that question is what a chatbot should
+        # do. `restates` is the reading the key is held to the same way.
+        if read.recovered is not None and not restates(
+            candidate.question_text, read.recovered, candidate.group.language
+        ):
             return (
                 QuestionRejection.ANSWERABLE_AFTER_ALL,
                 f"the cited passages answer it after all, with {read.recovered!r}",

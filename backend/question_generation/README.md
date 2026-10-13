@@ -337,7 +337,7 @@ ceiling.
 
 | | |
 |---|---|
-| `answerable_after_all` | the corpus answers it after all |
+| `answerable_after_all` | the corpus answers it after all. A recovery from its own passages that only says the question back is not an answer: a `why` the passage gives no reason for comes back as the rule itself |
 | `answerable_elsewhere` | a passage it does **not** cite answers it |
 | `off_topic` | it is about nothing the material mentions at all |
 
