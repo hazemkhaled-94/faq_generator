@@ -326,6 +326,17 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         "language",
         "language",
     )
+    # The other way round from `_supplied`'s warning: a language the pool
+    # holds and the setting gives no weight is left out whole, which is
+    # what the setting asks for and worth saying all the same.
+    unweighted = sorted({row.language for row in pool} - set(languages))
+    if settings.release_languages and unweighted:
+        log.warning(
+            "the pool holds questions in %s, which QUESTIONS_RELEASE_LANGUAGES "
+            "gives no weight, so the release holds none of %s.",
+            ", ".join(unweighted),
+            "them" if len(unweighted) > 1 else "it",
+        )
     if not bands or not types or not languages:
         log.warning("nothing accepted can fill any quota; no release was drawn")
         catalog.release([])

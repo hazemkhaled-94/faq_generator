@@ -1143,3 +1143,67 @@ def test_two_same_language_near_twins_are_not_both_released() -> None:
     drawn = set(catalog.drawn)
     assert len(drawn & {1, 2}) == 1, drawn
     assert {3, 4} <= drawn, drawn
+
+
+def test_a_language_the_release_weighs_nothing_is_said_to_be_left_out(caplog) -> None:
+    """QUESTIONS_RELEASE_LANGUAGES naming two of three leaves the third out whole.
+
+    Which is what it says to do, and the draw says that it did, as it says
+    so of a weight naming a language the pool has none of.
+    """
+    from uuid import uuid4
+
+    from question_generation.balance import Row
+    from question_generation.service import balance
+
+    pool = [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=Difficulty.EASY,
+            question_type=QuestionType.FACTOID,
+            language=language,
+        )
+        for at, language in enumerate(["de"] * 10 + ["en"] * 10 + ["fr"] * 10, 1)
+    ]
+
+    class Catalog:
+        """Offers the pool and keeps what was drawn."""
+
+        drawn: tuple[int, ...] = ()
+
+        def judged(self, within=None):
+            return []
+
+        def reject(self, verdicts):
+            return 0
+
+        def releasable(self, within=None):
+            return pool
+
+        def twins(self, floor):
+            return []
+
+        def release(self, ids):
+            self.drawn = tuple(ids)
+            return uuid4(), len(self.drawn)
+
+    catalog = Catalog()
+    with caplog.at_level("WARNING", logger="question_generation.service"):
+        balance(
+            catalog,
+            replace(
+                SETTINGS,
+                release_size=10,
+                release_difficulty={Difficulty.EASY: 1},
+                release_unanswerable=0.0,
+                release_types={QuestionType.FACTOID: 1},
+                release_languages={"de": 1, "en": 1},
+            ),
+        )
+
+    assert {pool[at - 1].language for at in catalog.drawn} == {"de", "en"}
+    assert any(
+        "fr" in line and "QUESTIONS_RELEASE_LANGUAGES" in line
+        for line in caplog.messages
+    ), caplog.messages
