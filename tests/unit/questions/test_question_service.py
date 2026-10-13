@@ -977,6 +977,9 @@ def test_a_release_spreads_over_its_own_kinds() -> None:
         def releasable(self, within=None):
             return pool
 
+        def twins(self, floor):
+            return []
+
         def release(self, ids):
             self.drawn = tuple(ids)
             return uuid4(), len(self.drawn)
@@ -1035,6 +1038,9 @@ def test_a_release_holds_and_reports_the_languages_its_pool_holds(caplog) -> Non
         def releasable(self, within=None):
             return pool
 
+        def twins(self, floor):
+            return []
+
         def release(self, ids):
             self.drawn = tuple(ids)
             return uuid4(), len(self.drawn)
@@ -1059,3 +1065,81 @@ def test_a_release_holds_and_reports_the_languages_its_pool_holds(caplog) -> Non
         "language" in line and "de 10" in line and "en 10" in line
         for line in caplog.messages
     ), caplog.messages
+
+
+def test_two_same_language_near_twins_are_not_both_released() -> None:
+    """The release reads twins by the duplicate gate's own rule.
+
+    Questions 1 and 2 rest on one fact and ask with one word, so they are
+    twins. Questions 3 and 4 are as close and share only a passage, below
+    QUESTIONS_DUPLICATE_COSINE, so they are two questions and both go out.
+    """
+    from uuid import uuid4
+
+    from question_generation.balance import Row
+    from question_generation.models import Neighbour
+    from question_generation.service import balance
+
+    pool = [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=Difficulty.EASY,
+            question_type=QuestionType.FACTOID,
+            language="en",
+        )
+        for at in range(1, 5)
+    ]
+
+    def side(at: int, similarity: float, **cited) -> Neighbour:
+        return Neighbour(
+            "What does the device weigh?",
+            answerable=True,
+            similarity=similarity,
+            language="en",
+            id=at,
+            **cited,
+        )
+
+    class Catalog:
+        """Offers the pool and two pairs, and keeps what was drawn."""
+
+        drawn: tuple[int, ...] = ()
+
+        def judged(self, within=None):
+            return []
+
+        def reject(self, verdicts):
+            return 0
+
+        def releasable(self, within=None):
+            return pool
+
+        def twins(self, floor):
+            on_one_fact = {"fact_ids": frozenset({7}), "passage_ids": frozenset({7})}
+            on_one_passage = {"fact_ids": frozenset(), "passage_ids": frozenset({8})}
+            return [
+                (side(1, 0.90, **on_one_fact), side(2, 0.90, **on_one_fact)),
+                (side(3, 0.90, **on_one_passage), side(4, 0.90, **on_one_passage)),
+            ]
+
+        def release(self, ids):
+            self.drawn = tuple(ids)
+            return uuid4(), len(self.drawn)
+
+    catalog = Catalog()
+    balance(
+        catalog,
+        replace(
+            SETTINGS,
+            release_size=4,
+            release_difficulty={Difficulty.EASY: 1},
+            release_unanswerable=0.0,
+            release_types={QuestionType.FACTOID: 1},
+            duplicate_shared_cosine=0.88,
+        ),
+    )
+
+    drawn = set(catalog.drawn)
+    assert len(drawn & {1, 2}) == 1, drawn
+    assert {3, 4} <= drawn, drawn

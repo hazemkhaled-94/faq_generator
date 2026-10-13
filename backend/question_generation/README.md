@@ -420,6 +420,14 @@ topics before the next, so an id-order draw released whatever was written
 first. The hash is as reproducible: the same pool and settings draw the same
 release twice.
 
+A release holds one question of each twin group. Twins are read by the
+`duplicate` gate's own rule, over every accepted pair of one language rather
+than over the one neighbour the gate probed, so a twin the gate let past
+behind a closer question is caught here. A root whose twin is already in is
+skipped, a thread ends at a turn that twins what is already in, and of a
+group the question the gates were surest of, by `confidence`, is the one
+kept where it fits.
+
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota. The command reports what it drew, the yield,
 its spread over every share, the languages included, and any quota the pool

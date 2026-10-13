@@ -24,6 +24,7 @@ from sqlalchemy import (
     select,
     update,
 )
+from sqlalchemy.orm import aliased
 
 from database.qa_generator import (
     Document,
@@ -342,6 +343,7 @@ class QuestionCatalog(Repository):
             Question.question_type,
             Question.follows_id,
             Question.language,
+            Question.confidence,
         ).where(
             Question.status == QuestionStatus.ACCEPTED,
             Question.difficulty.is_not(None),
@@ -358,6 +360,7 @@ class QuestionCatalog(Repository):
                     question_type=row.question_type,
                     follows_id=row.follows_id,
                     language=row.language,
+                    confidence=row.confidence or 0.0,
                 )
                 for row in session.execute(query.order_by(Question.id))
             ]
@@ -568,6 +571,90 @@ class QuestionCatalog(Repository):
                 row.passage_id for row in cited if row.passage_id is not None
             ),
         )
+
+    def twins(self, floor: float) -> list[tuple[Neighbour, Neighbour]]:
+        """Every pair of accepted questions at least this alike, in one language.
+
+        What the release reads twins off: `nearest` answers one neighbour
+        per question, so a twin behind a closer question that is not one
+        gets past the gate, and the release is where it is caught. Pairs of
+        one answerability only, because an answerable question is never the
+        twin of an unanswerable one. Each side carries what it cites, so the
+        caller can hold the pair to the duplicate gate's own rule, and
+        `floor` is the lowest bar that rule has.
+
+        ponytail: a self-join over every accepted pair, which pgvector reads
+        without its index. Upgrade: a lateral join over the k nearest of
+        each question once a corpus is large enough for this to show.
+        """
+        first, second = aliased(Question), aliased(Question)
+        distance = first.embedding.cosine_distance(second.embedding)
+        pairs = select(
+            first.id.label("first"), second.id.label("second"), distance.label("far")
+        ).where(
+            first.id < second.id,
+            first.status == QuestionStatus.ACCEPTED,
+            second.status == QuestionStatus.ACCEPTED,
+            first.embedding.is_not(None),
+            second.embedding.is_not(None),
+            first.language == second.language,
+            first.answerable == second.answerable,
+            distance <= 1.0 - floor,
+        )
+        with self._session() as session:
+            found = session.execute(pairs.order_by(first.id, second.id)).all()
+            ids = {row.first for row in found} | {row.second for row in found}
+            if not ids:
+                return []
+            asked = {
+                row.id: row
+                for row in session.execute(
+                    select(
+                        Question.id,
+                        Question.question_text,
+                        Question.answerable,
+                        Question.language,
+                    ).where(Question.id.in_(ids))
+                )
+            }
+            cited = session.execute(
+                select(
+                    QuestionFact.question_id,
+                    QuestionFact.fact_id,
+                    FactPassage.passage_id,
+                )
+                .join(
+                    FactPassage,
+                    FactPassage.fact_id == QuestionFact.fact_id,
+                    isouter=True,
+                )
+                .where(QuestionFact.question_id.in_(ids))
+            ).all()
+        facts: dict[int, set[int]] = {}
+        passages: dict[int, set[int]] = {}
+        for row in cited:
+            facts.setdefault(row.question_id, set()).add(row.fact_id)
+            if row.passage_id is not None:
+                passages.setdefault(row.question_id, set()).add(row.passage_id)
+
+        def side(question_id: int, similarity: float) -> Neighbour:
+            """One half of a pair, as the duplicate gate reads a neighbour."""
+            row = asked[question_id]
+            return Neighbour(
+                question_text=row.question_text,
+                answerable=row.answerable,
+                similarity=similarity,
+                fact_ids=frozenset(facts.get(question_id, ())),
+                language=row.language,
+                id=question_id,
+                passage_ids=frozenset(passages.get(question_id, ())),
+            )
+
+        # pgvector answers in cosine distance; the gates read likeness.
+        return [
+            (side(row.first, 1.0 - row.far), side(row.second, 1.0 - row.far))
+            for row in found
+        ]
 
     def judged(self, within=None) -> Iterator[JudgedQuestion]:
         """Streams every stored question with what a re-check needs.

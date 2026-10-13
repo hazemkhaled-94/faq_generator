@@ -112,6 +112,77 @@ def test_a_question_is_offered_with_its_language(written, engine) -> None:
     assert offered == {ids[0]: "de", ids[1]: "en"}
 
 
+def test_a_question_is_offered_with_the_confidence_the_gates_left_it(
+    written, engine
+) -> None:
+    """Of two twins the release keeps the one the gates were surer of."""
+    ids = written([("easy", "factoid", True, "accepted")])
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE questions SET confidence = 0.75"))
+
+    assert [(one.id, one.confidence) for one in QuestionCatalog().releasable()] == [
+        (ids[0], 0.75)
+    ]
+
+
+def test_the_twins_are_the_pairs_of_accepted_questions_of_one_language(
+    engine, database
+) -> None:
+    """Close enough, in one language, both accepted, and alike in answerability.
+
+    Each side names what it cites, so the rule the duplicate gate applies can
+    be read over the pair.
+    """
+    one = [1.0] + [0.0] * 1023
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        at = passage(digest("a"), ordinal=1, language="en")
+        session.add(at)
+        session.flush()
+        drawn = fact(at.id, statement="The device weighs 4 kg.")
+        session.add(drawn)
+        session.flush()
+        accepted = {"status": "accepted", "embedding": one}
+        rows = [
+            question(question_text="What does the device weigh?", **accepted),
+            question(question_text="How heavy is the device?", **accepted),
+            question(question_text="Wie schwer ist es?", language="de", **accepted),
+            question(question_text="Is it heavy?", answerable=False, **accepted),
+            question(
+                question_text="What did it weigh?",
+                embedding=one,
+                status="rejected",
+                rejected_reason="duplicate",
+            ),
+            question(
+                question_text="Who built it?",
+                status="accepted",
+                embedding=[0.0] * 1023 + [1.0],
+            ),
+        ]
+        session.add_all(rows)
+        session.flush()
+        session.add_all(
+            QuestionFact(question_id=row.id, fact_id=drawn.id) for row in rows
+        )
+        session.commit()
+        ids, fact_id, passage_id = [row.id for row in rows], drawn.id, at.id
+
+    found = QuestionCatalog().twins(0.88)
+
+    assert [(first.id, second.id) for first, second in found] == [(ids[0], ids[1])]
+    first, second = found[0]
+    assert second.similarity == pytest.approx(1.0, abs=1e-5)
+    assert (first.question_text, first.language, first.answerable) == (
+        "What does the device weigh?",
+        "en",
+        True,
+    )
+    assert first.fact_ids == second.fact_ids == {fact_id}
+    assert first.passage_ids == second.passage_ids == {passage_id}
+
+
 def test_the_draw_writes_one_id_on_what_it_chose(written, engine) -> None:
     """A release is a column on the rows already there."""
     ids = written([("easy", "factoid", True, "accepted")] * 3)

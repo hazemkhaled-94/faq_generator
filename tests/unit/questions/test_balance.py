@@ -464,3 +464,73 @@ def test_a_draw_does_not_favour_what_was_written_first() -> None:
     assert len(drawn) == 20
     assert 5 <= early <= 15, drawn
     assert choose(held, quota).ids == drawn
+
+
+# ── Twins ──────────────────────────────────────────────────────────────────
+
+
+def ranked(id: int, confidence: float, kind: str = QuestionType.FACTOID) -> Row:
+    """One accepted easy question of this kind, held with this confidence."""
+    return Row(
+        id=id,
+        answerable=True,
+        difficulty=Difficulty.EASY,
+        question_type=kind,
+        confidence=confidence,
+    )
+
+
+def test_twins_in_one_cell_release_one_of_them() -> None:
+    """A set that asks the same thing twice weights it twice."""
+    held = [ranked(1, 0.5), ranked(2, 0.5), ranked(3, 0.5)]
+    quota = quota_of(3, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+
+    drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
+
+    assert len(drawn) == 2
+    assert 3 in drawn and len(drawn & {1, 2}) == 1, drawn
+
+
+def test_twins_in_different_cells_release_one_of_them() -> None:
+    """Two kinds asking one thing are still one thing asked."""
+    held = [
+        ranked(1, 0.5),
+        ranked(2, 0.5, QuestionType.REASON),
+        ranked(3, 0.5),
+        ranked(4, 0.5, QuestionType.REASON),
+    ]
+    quota = quota_of(4, {Difficulty.EASY: 1}, TYPES, 0.0)
+
+    drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
+
+    assert len(drawn & {1, 2}) == 1, drawn
+
+
+def test_a_thread_is_cut_at_a_turn_that_twins_what_is_already_in() -> None:
+    """A follow-up asking its root's question again ends the thread there.
+
+    The turns before it stay: they are a conversation, and the rest of it
+    reads only after the turn that was cut.
+    """
+    held = [
+        ranked(1, 0.5),
+        Row(2, True, Difficulty.EASY, QuestionType.REASON, follows_id=1),
+        Row(3, True, Difficulty.EASY, QuestionType.REASON, follows_id=2),
+        Row(4, True, Difficulty.EASY, QuestionType.REASON, follows_id=3),
+    ]
+    quota = quota_of(4, {Difficulty.EASY: 1}, TYPES, 0.0)
+
+    drawn = choose(held, quota, twins={1: {3}, 3: {1}}).ids
+
+    assert drawn == [1, 2]
+
+
+def test_of_two_twins_the_better_held_one_is_kept() -> None:
+    """The one the gates were surer of, whichever the hash reaches first."""
+    for low, high in ((1, 2), (2, 1)):
+        held = [ranked(low, 0.1), ranked(high, 0.9), ranked(3, 0.5)]
+        quota = quota_of(2, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+
+        drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
+
+        assert high in drawn and low not in drawn, drawn

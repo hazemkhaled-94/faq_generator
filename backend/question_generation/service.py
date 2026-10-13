@@ -26,7 +26,13 @@ from question_generation.checker import (
     annotation,
 )
 from question_generation.config import Settings
-from question_generation.gates import names_parties, near_verdict, structural, typed
+from question_generation.gates import (
+    names_parties,
+    near_bar,
+    near_verdict,
+    structural,
+    typed,
+)
 from question_generation.generation import QuestionWriter
 from question_generation.models import (
     Candidate,
@@ -312,6 +318,7 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         log.warning("nothing accepted can fill any quota; no release was drawn")
         catalog.release([])
         return 0
+    twins = _twins(catalog, settings, pool)
 
     if settings.release_size:
         release = choose(
@@ -323,15 +330,63 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
                 settings.release_unanswerable,
                 languages,
             ),
+            twins,
         )
     else:
         release = largest(
-            pool, bands, types, settings.release_unanswerable, languages=languages
+            pool,
+            bands,
+            types,
+            settings.release_unanswerable,
+            languages=languages,
+            twins=twins,
         )
 
     drawn, written = catalog.release(release.ids)
     _report(pool, release, drawn, written)
     return written
+
+
+def _twins(catalog: QuestionCatalog, settings: Settings, pool) -> dict[int, set[int]]:
+    """Which accepted questions the release may hold only one of.
+
+    The duplicate gate's own rule, read over every pair rather than over the
+    one neighbour the gate probed: a twin behind a closer question that is
+    not one got past it.
+    """
+    shared = settings.duplicate_shared_cosine
+    floor = (
+        settings.duplicate_cosine
+        if shared is None
+        else min(shared, settings.duplicate_cosine)
+    )
+    offered = {row.id for row in pool}
+    held: dict[int, set[int]] = {}
+    for first, second in catalog.twins(floor):
+        if first.id is None or second.id is None:
+            continue
+        if first.id not in offered or second.id not in offered:
+            continue
+        bar = near_bar(
+            second,
+            answerable=first.answerable,
+            threshold=settings.duplicate_cosine,
+            shared_threshold=shared,
+            question=first.question_text,
+            language=first.language,
+            passages=tuple(first.passage_ids),
+            facts=tuple(first.fact_ids),
+        )
+        if bar is not None and second.similarity >= bar:
+            held.setdefault(first.id, set()).add(second.id)
+            held.setdefault(second.id, set()).add(first.id)
+    if held:
+        log.info(
+            "%d accepted question(s) have a twin in the pool; the release holds "
+            "one of each",
+            len(held),
+        )
+    return held
 
 
 def _supplied(pool, weights, what: str, attribute: str) -> dict[str, int]:

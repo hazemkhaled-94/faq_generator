@@ -42,6 +42,8 @@ class Row:
     follows_id: int | None = None
     #: The language it is written in, which a release holds a share of.
     language: str = ""
+    #: How sure the gates were of it, which decides which of two twins stays.
+    confidence: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -137,7 +139,11 @@ def _celled(pool: Sequence[Row]) -> dict[tuple[bool, str, str, str], list[Row]]:
     return held
 
 
-def choose(pool: Sequence[Row], quota: Quota) -> Release:
+def choose(
+    pool: Sequence[Row],
+    quota: Quota,
+    twins: Mapping[int, set[int]] | None = None,
+) -> Release:
     """The questions filling this quota, and whatever it could not fill.
 
     Largest deficit first. A question spends a place in four buckets at
@@ -159,7 +165,16 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
     Threads are drawn whole: only a root is chosen, and it brings every turn
     under it, each counted against its own buckets. A follow-up whose root
     is not in the pool is never drawn.
+
+    `twins` names, for a question, the others the release must not hold
+    beside it: a set that asks one thing twice weights it twice. A root
+    whose twin is in is skipped. A thread ends at a turn that twins what is
+    already in, its own earlier turns included, and the turns after it go
+    with it, because they read only after it. And a twin group is visited
+    best first: where the next root has twins still waiting that fit, the
+    one the gates were surest of is taken in its place.
     """
+    alike: Mapping[int, set[int]] = twins or {}
     bands = dict(quota.difficulty)
     types = dict(quota.types)
     languages = dict(quota.languages)
@@ -168,11 +183,26 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
     places = {True: quota.size - held, False: held}
     left = dict(places)
     cells = _celled([row for row in pool if row.follows_id is None])
+    waiting = {row.id: (key, row) for key, rows in cells.items() for row in rows}
     turns: dict[int, list[Row]] = {}
     for row in sorted(pool, key=lambda one: one.id):
         if row.follows_id is not None:
             turns.setdefault(row.follows_id, []).append(row)
     chosen: list[int] = []
+
+    def fits(row: Row) -> bool:
+        """Whether every bucket this question spends a place in has one."""
+        return (
+            left[row.answerable] > 0
+            and bands.get(row.difficulty, 0) > 0
+            and types.get(row.question_type, 0) > 0
+            and (not quota.languages or languages.get(row.language, 0) > 0)
+        )
+
+    def taken(row: Row) -> None:
+        """Takes a root out of its cell."""
+        key, _ = waiting.pop(row.id)
+        cells[key] = [one for one in cells[key] if one.id != row.id]
 
     while len(chosen) < quota.size:
         best: tuple[float, str, tuple[bool, str, str, str]] | None = None
@@ -199,11 +229,28 @@ def choose(pool: Sequence[Row], quota: Quota) -> Release:
                 best = (share, head, key)
         if best is None:
             break
-        # ponytail: pop(0) shifts the cell each draw. Upgrade: deque.popleft().
-        thread = [cells[best[2]].pop(0)]
+        first = cells[best[2]][0]
+        rivals = [
+            waiting[twin][1]
+            for twin in alike.get(first.id, set())
+            if twin in waiting and fits(waiting[twin][1])
+        ]
+        root = min([first, *rivals], key=lambda one: (-one.confidence, _rank(one)))
+        # ponytail: a cell is rebuilt to take one row out. Upgrade: a deque
+        # per cell, and a set of the ids taken out of turn.
+        taken(root)
+        thread = [root]
+        within = {root.id}
         for turn in thread:
-            thread.extend(turns.get(turn.id, ()))
+            for follow in turns.get(turn.id, ()):
+                if alike.get(follow.id, set()) & (within | set(chosen)):
+                    continue
+                thread.append(follow)
+                within.add(follow.id)
         for turn in thread:
+            for twin in alike.get(turn.id, set()):
+                if twin in waiting:
+                    taken(waiting[twin][1])
             chosen.append(turn.id)
             left[turn.answerable] -= 1
             bands[turn.difficulty] = bands.get(turn.difficulty, 0) - 1
@@ -254,6 +301,7 @@ def largest(
     unanswerable: float,
     tolerance: float = TOLERANCE,
     languages: Mapping[str, int] | None = None,
+    twins: Mapping[int, set[int]] | None = None,
 ) -> Release:
     """The biggest release this pool fills, near enough, found by bisection.
 
@@ -279,7 +327,9 @@ def largest(
     best, most = empty, empty
     while low <= high:
         size = (low + high) // 2
-        release = choose(pool, quota_of(size, bands, types, unanswerable, languages))
+        release = choose(
+            pool, quota_of(size, bands, types, unanswerable, languages), twins
+        )
         if release.size > most.size:
             most = release
         if close_enough(release, tolerance):
