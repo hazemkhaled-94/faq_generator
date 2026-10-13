@@ -1081,24 +1081,23 @@ class QuestionGenerationService(StageService):
         # because a thread is allowed to walk from one passage to the next.
         cited = root.fact_ids
         previous = root.passage_ids
+        names = self._settings.followup_types
+        if QuestionType.REASON in names and not any(
+            self._reasoned(one) for one in sample.facts
+        ):
+            # The filter a root `reason` slot gets: a thread asks why only
+            # where the material it is on says why. Decided once for the
+            # thread, whose material does not change, so the cycle runs over
+            # the other kinds and never repeats one in a reason's place.
+            names = tuple(one for one in names if one != QuestionType.REASON)
+            if not names:
+                return []
         for turn in range(self._settings.max_followups):
-            names = self._settings.followup_types
-            name = names[(followed + turn) % len(names)]
-            if name == QuestionType.REASON and not any(
-                self._reasoned(one) for one in sample.facts
-            ):
-                # The filter a root `reason` slot gets: a thread asks why
-                # only where the material it is on says why, and takes the
-                # next kind in the cycle otherwise.
-                others = [one for one in names if one != QuestionType.REASON]
-                if not others:
-                    break
-                name = others[(followed + turn) % len(others)]
             candidate = self._writer.follow_up(
                 sample,
                 tuple(turns),
                 Plan(
-                    spec=SPECS[name],
+                    spec=SPECS[names[(followed + turn) % len(names)]],
                     band=plan.band,
                     shape=plan.shape,
                     answerable=True,

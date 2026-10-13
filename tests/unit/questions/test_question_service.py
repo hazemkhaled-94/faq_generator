@@ -701,6 +701,42 @@ def test_a_reason_turn_with_no_reason_to_ask_takes_the_next_kind() -> None:
     assert QuestionType.REASON not in turns
 
 
+def test_a_thread_without_a_reason_to_ask_never_repeats_a_kind() -> None:
+    """The reason turn drops out of the cycle, not into another kind's place.
+
+    Swapped turn by turn, the second thread took `comparison` for its reason
+    turn and then `comparison` again as its own next turn.
+    """
+    facts = [
+        source(n + 1, document="a", passage_id=n + 1, statement=RULES[n % len(RULES)])
+        for n in range(12)
+    ]
+    settings = replace(
+        SETTINGS,
+        per_topic=4,
+        type_mix={QuestionType.FACTOID: 1},
+        followup_types=(
+            QuestionType.CONDITION,
+            QuestionType.REASON,
+            QuestionType.COMPARISON,
+        ),
+        followup_share=1.0,
+        max_followups=2,
+        unanswerable_share=0.0,
+    )
+    service, queue = build(topic(), facts, settings=settings)
+
+    service.process_next()
+
+    threads = [
+        [one.question_type for one in thread[1:]]
+        for thread in queue.stored[0]
+        if len(thread) > 2
+    ]
+    assert len(threads) >= 2, "too few threads reached a second turn"
+    assert all(len(set(turns)) == len(turns) for turns in threads), threads
+
+
 def test_a_reason_turn_on_material_that_says_why_is_still_asked() -> None:
     """The filter narrows what is asked; it does not turn the kind off."""
     facts = [
