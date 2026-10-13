@@ -119,7 +119,9 @@ Two more refusals are the service refusing what the checks passed:
   probed through the HNSW index against every validated passage fact in the
   corpus that carries a vector, bar those citing only the passage being
   re-read, **and** against the facts this passage already kept. A bridge is
-  never its twin. The refused fact's citation is added to the stored fact it
+  never its twin, and nor is a fact naming other numbers - another value,
+  or the same one a different number of times, a number word read as the
+  value it names. The refused fact's citation is added to the stored fact it
   repeats, with its evidence.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which works out to a cap on the atomic

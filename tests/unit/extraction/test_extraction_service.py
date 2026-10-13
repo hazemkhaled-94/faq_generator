@@ -245,13 +245,43 @@ class TestTheDedupGate:
     def test_a_statement_already_in_the_corpus_is_refused(self) -> None:
         """What the HNSW probe answers is what the gate reads."""
         run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9)
-        run.queue.twin = Twin(fact_id=7, statement="Already said.", similarity=0.99)
+        run.queue.twin = Twin(
+            fact_id=7, statement="The device weighs 4 kg.", similarity=0.99
+        )
         run.next()
 
         stored = run.queue.stored[1]
         assert stored[0].rejection_code == Rejection.DUPLICATE
         assert "fact 7" in (stored[0].validation_error or "")
         assert stored[0].twin_id == 7, "its citation is recorded on fact 7"
+
+    def test_a_twin_stating_other_numbers_is_not_a_duplicate(self) -> None:
+        """4 kg and 7 kg share every word but one, and are two claims."""
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9)
+        run.queue.twin = Twin(
+            fact_id=7, statement="The device weighs 7 kg.", similarity=0.99
+        )
+        run.next()
+
+        (stored,) = run.queue.stored[1]
+        assert stored.validated, stored.validation_error
+
+    def test_a_number_written_as_a_word_is_the_same_number(self) -> None:
+        """A count written out restates its digits: the guard reads values."""
+        run = Extraction(
+            passage("The device has two ports and weighs 4 kg."),
+            facts={
+                "facts": [{"sentences": [0], "statement": "The device has two ports."}]
+            },
+            duplicate_cosine=0.9,
+        )
+        run.queue.twin = Twin(
+            fact_id=7, statement="The device has 2 ports.", similarity=0.99
+        )
+        run.next()
+
+        (stored,) = run.queue.stored[1]
+        assert stored.rejection_code == Rejection.DUPLICATE, stored.validation_error
 
     def test_a_duplicate_takes_no_place_under_the_atomic_cap(self) -> None:
         """Dedup first, then the cap over what is left."""

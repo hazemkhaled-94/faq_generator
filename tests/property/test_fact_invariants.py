@@ -7,12 +7,12 @@ These say what must hold for a document nobody has seen yet.
 from __future__ import annotations
 
 import pytest
-from drivers import DIGEST_SHARE, Checker, group, passage
-from hypothesis import given, settings
+from drivers import DIGEST_SHARE, Checker, Extraction, group, passage
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from database.qa_generator import FactKind, Rejection
-from extraction.models import BULLET, MIN_POINTS, CandidateFact, Cited
+from extraction.models import BULLET, MIN_POINTS, CandidateFact, Cited, Twin
 from extraction.service import grouped
 from extraction.validation import FactChecker
 
@@ -168,3 +168,50 @@ def test_an_outline_is_refused_on_its_shape_before_anything_else(points) -> None
     checked = checker.raw_outline(written)
     if written.count(BULLET) < MIN_POINTS:
         assert checked.rejection_code == Rejection.NOT_LISTED
+
+
+#: A statement with two counts in it, per language, and how each language
+#: spells the counts from two up, which both grammars put before a plural.
+_COUNTED = {
+    "en": "The parcel holds {} boxes and {} bags.",
+    "de": "Das Paket enthält {} Kisten und {} Beutel.",
+}
+_SPELLED = {
+    "en": {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"},
+    "de": {2: "zwei", 3: "drei", 4: "vier", 5: "fünf", 6: "sechs"},
+}
+
+
+@st.composite
+def _counts(draw, language: str) -> tuple[tuple[int, int], str]:
+    """Two counts, and the statement naming them as digits or as words."""
+    values = draw(st.tuples(st.integers(0, 6), st.integers(0, 6)))
+    written = [
+        draw(st.sampled_from((str(value), _SPELLED[language].get(value, str(value)))))
+        for value in values
+    ]
+    return values, _COUNTED[language].format(*written)
+
+
+@given(data=st.data(), language=st.sampled_from(sorted(_COUNTED)))
+@settings(deadline=None)
+@pytest.mark.nlp
+def test_statements_naming_different_numbers_are_never_duplicates(
+    data, language
+) -> None:
+    """However close their vectors, a different count is a different claim."""
+    values, statement = data.draw(_counts(language))
+    others, twin = data.draw(_counts(language))
+    assume(sorted(values) != sorted(others))
+    read = passage(statement, language=language)
+    cited = [one.index for one in read.sentences]
+    run = Extraction(
+        read,
+        facts={"facts": [{"sentences": cited, "statement": statement}]},
+        duplicate_cosine=0.9,
+    )
+    run.queue.twin = Twin(fact_id=7, statement=twin, similarity=1.0)
+    run.next()
+
+    (stored,) = run.queue.stored[1]
+    assert stored.validated, (statement, twin, stored.validation_error)

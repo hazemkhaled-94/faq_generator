@@ -215,6 +215,71 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
     return tuple(sorted(found))
 
 
+def _valued(words: str, start: int = 0) -> dict[str, str]:
+    """Number words, spaced and in order, each mapped to the digits of its value."""
+    return {word: str(value) for value, word in enumerate(words.split(), start)}
+
+
+#: Number words by ISO 639-1 code, as the digits each names. What lets "two
+#: ports" restate "2 ports" and keeps "zwei" and "drei" apart: spaCy's
+#: `like_num` knows English number words and no German one, so a German count
+#: written out is otherwise no number at all.
+#:
+#: An ordinal reads as the digits a written one carries: `2nd`, and German
+#: `2.` once `_bare` has dropped its full stop. German ordinals are listed in
+#: every ending they take.
+#:
+#: ponytail: German and English, nought to twelve and their ordinals. A
+#: language missing here reads its digits and whatever `like_num` says, as
+#: written. Upgrade: a table per language, as a setting.
+_NUMBER_WORDS: dict[str, dict[str, str]] = {
+    "en": _valued("zero one two three four five six seven eight nine ten")
+    | _valued("eleven twelve", start=11)
+    | _valued("first second third fourth fifth sixth", start=1)
+    | _valued("seventh eighth ninth tenth eleventh twelfth", start=7),
+    "de": _valued("null eins zwei drei vier fünf sechs sieben acht neun")
+    | _valued("zehn elf zwölf", start=10)
+    | {
+        f"{stem}e{ending}": value
+        for stem, value in (
+            _valued("erst zweit dritt viert fünft sechst", start=1)
+            | _valued("siebt acht neunt zehnt elft zwölft", start=7)
+        ).items()
+        for ending in ("", "n", "r", "s", "m")
+    },
+}
+
+#: A run of digits, with the decimal or thousands marks inside it. Read off a
+#: token rather than off `like_num`, so a figure glued to its unit - `45m` -
+#: or written as a time - `08:00` - is still a number.
+_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
+
+
+def numbers(text: str, language: str | None) -> tuple[str, ...]:
+    """The numbers a text states, each as often as it states it, sorted.
+
+    What the extraction dedup gate compares before it reads a cosine: two
+    statements naming different numbers state different claims however alike
+    their words are - 68 cm and 70 cm, the 5,5 m line and the 16,5 m one.
+
+    A multiset rather than a set, so "2 EUR and 2 EUR" is not "2 EUR". A digit
+    keeps its surface form, as `_units` reads one, so `12,5` and `12.5` stay
+    two values; a number word reads as the digits it names where the
+    language has a row in `_NUMBER_WORDS`, and as written where it does not.
+    """
+    spelled = _NUMBER_WORDS.get((language or "").strip().lower(), {})
+    found: list[str] = []
+    for token in _read(text, language):
+        written = token.text.casefold()
+        if written in spelled:
+            found.append(spelled[written])
+        elif digits := _DIGITS.findall(token.text):
+            found += digits
+        elif token.like_num:
+            found.append(written)
+    return tuple(sorted(found))
+
+
 #: Dependency labels for a pronoun that stands in for no antecedent: German
 #: `ph` (Platzhalter) and `ep` (expletive es), and English `expl`. "Es gibt
 #: Best Practices", "Es besteht Potenzial" and "There is potential" name

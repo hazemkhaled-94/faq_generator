@@ -20,7 +20,7 @@ from extraction.extractors import (
 from extraction.models import CheckedFact, PassageToExtract, Twin
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
-from nlp.analysis import claim, normalised
+from nlp.analysis import claim, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
@@ -667,6 +667,11 @@ def _refuse(fact: CheckedFact, cap: int) -> CheckedFact:
     )
 
 
+def _counted_alike(statement: str, twin: str, language: str | None) -> bool:
+    """Whether two statements name the same numbers, as often as each other."""
+    return numbers(statement, language) == numbers(twin, language)
+
+
 def _duplicate(fact: CheckedFact, twin: Twin, threshold: float) -> CheckedFact:
     """Marks one fact as a near twin of a fact already stored."""
     named = f"fact {twin.fact_id}" if twin.fact_id else "a fact this passage kept"
@@ -764,7 +769,8 @@ class ExtractionService(StageService):
             try:
                 facts = self._passage(passage, current)
                 facts = self._capped(
-                    self._deduplicated(facts, current, passage.id), current
+                    self._deduplicated(facts, current, passage.id, passage.language),
+                    current,
                 )
                 stored = self._repository.store(
                     passage.id, facts, self._embedded(passage)
@@ -889,7 +895,11 @@ class ExtractionService(StageService):
         return self._embedder.embed(for_passage(passage.text))
 
     def _deduplicated(
-        self, facts: list[CheckedFact], current, passage_id: int
+        self,
+        facts: list[CheckedFact],
+        current,
+        passage_id: int,
+        language: str | None,
     ) -> list[CheckedFact]:
         """Embeds every fact and refuses the ones already in the corpus.
 
@@ -918,7 +928,7 @@ class ExtractionService(StageService):
             if threshold <= 0 or not fact.validated:
                 checked.append(fact)
                 continue
-            twin = self._nearest(vector, written, passage_id)
+            twin = self._nearest(fact.statement, vector, written, passage_id, language)
             if twin is not None:
                 # The only reading in this service that is a measurement:
                 # every other check is structural, and a citation resolves
@@ -948,22 +958,33 @@ class ExtractionService(StageService):
 
     def _nearest(
         self,
+        statement: str,
         vector: list[float],
         written: Sequence[tuple[str, list[float]]],
         passage_id: int,
+        language: str | None,
     ) -> Twin | None:
-        """The closest stored fact, this passage's own kept facts included.
+        """The closest stored fact that could be this one's twin, or None.
 
-        Not one of the facts this passage's last reading left, which `store`
-        is about to replace.
+        This passage's own kept facts included. Not one of the facts this
+        passage's last reading left, which `store` is about to replace.
+
+        Only a fact stating the statement's own numbers is a twin, on either
+        probe: two statements naming different numbers are two claims however
+        near their vectors sit, and a bare statement scores high on a shared
+        subject alone.
         """
         # ponytail: one index query per candidate. Upgrade: one batched
         # unnest + LATERAL probe per passage.
         twin = self._repository.nearest_fact(vector, excluding=passage_id)
-        for statement, other in written:
+        if twin is not None and not _counted_alike(statement, twin.statement, language):
+            twin = None
+        for kept, other in written:
+            if not _counted_alike(statement, kept, language):
+                continue
             score = cosine(vector, other)
             if twin is None or score > twin.similarity:
-                twin = Twin(fact_id=0, statement=statement, similarity=score)
+                twin = Twin(fact_id=0, statement=kept, similarity=score)
         return twin
 
     def _readers(self, passage: PassageToExtract, current) -> list:

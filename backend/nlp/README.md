@@ -132,12 +132,13 @@ that gate **silently never fires** for it — no error, no log.
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
 | `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing | `Lehrplan`, `syllabus` |
+| `_NUMBER_WORDS` | same | Number words and ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 
 None is read as a substring: `_DIVISIONS`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
-by the word as written, `_AGENTS` by the word as written, the openings off
+by the word as written, `_AGENTS` and `_NUMBER_WORDS` by the word as written, the openings off
 the start of the question, `_COUNTS` against an answer's first word and
 `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
@@ -223,12 +224,13 @@ poetry run pytest tests/unit/nlp -m nlp
 | [`test_claims.py`](../../tests/unit/nlp/test_claims.py) | How many claims a sentence reads as |
 | [`test_language.py`](../../tests/unit/nlp/test_language.py) | Reading the language a passage is written in |
 | [`test_pointing.py`](../../tests/unit/nlp/test_pointing.py) | What a claim points at, and what it does not |
+| [`test_numbers.py`](../../tests/unit/nlp/test_numbers.py) | The numbers a statement states, a number word read as its value |
 | [`test_entailment.py`](../../tests/unit/nlp/test_entailment.py) | A verdict read off the label, and the refusal of a head that is not an NLI model's |
 | [`test_qa.py`](../../tests/unit/nlp/test_qa.py) | The span decode, the no-answer head, and the window that slides |
 | [`test_embedding.py`](../../tests/unit/nlp/test_embedding.py) | The vector, when `EMBEDDING_MODEL` is already cached |
 | [`test_parses_are_remembered.py`](../../tests/unit/nlp/test_parses_are_remembered.py) | One text read several ways is parsed once |
 
-`test_sentences`, `test_claims`, `test_pointing`, `test_entailment`,
+`test_sentences`, `test_claims`, `test_pointing`, `test_numbers`, `test_entailment`,
 `test_parses_are_remembered` and the model tests in `test_embedding` carry
 the `nlp` marker, and `make test-fast` excludes them. Only `test_embedding`
 loads encoder weights, and only when they are already cached.
