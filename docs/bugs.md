@@ -310,7 +310,8 @@ and [`checker.py`](../backend/question_generation/checker.py):
 - nearness to an answered question counts only when the two rest on the same
   fact;
 - `make questions-rejudge` asks `settles` of the questions already accepted,
-  and records each verdict.
+  rejects those the material settles, released ones included, and records
+  each verdict. A question a person accepted is left alone.
 
 Calibrated with `azure/gpt-4.1` over the 158 stored accepted unanswerables
 against the reviewers' verdicts, `settles` refuses 29 of the 76 answerable
