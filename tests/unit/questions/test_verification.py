@@ -1689,6 +1689,32 @@ def test_a_count_written_out_is_still_a_different_number_from_another() -> None:
     assert not agrees("11 Sekunden", "zehn Sekunden", "de", AnswerForm.VALUE)
 
 
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        ("1 replacement card", "one replacement card", "en"),
+        ("one replacement card", "1 replacement card", "en"),
+    ],
+)
+def test_one_written_out_is_the_figure_1(
+    recovered: str, target: str, language: str
+) -> None:
+    """The gates read the same cardinals the fact dedup does, from zero up."""
+    assert agrees(recovered, target, language, AnswerForm.VALUE)
+
+
+def test_an_ordinal_is_not_read_as_a_count_of_the_facts_cited() -> None:
+    """`second half` names which half; it counts nothing, two facts cited or not."""
+    assert (
+        checked(
+            question_text="Which half of the billing year does the fee apply to?",
+            target_answer="second half",
+            statements=_DEVICE_FACTS,
+        )
+        is None
+    )
+
+
 def test_a_refused_value_records_the_whole_it_was_held_to() -> None:
     """A value is compared whole, so its recall reading is held to all of it.
 

@@ -220,26 +220,29 @@ def _valued(words: str, start: int = 0) -> dict[str, str]:
     return {word: str(value) for value, word in enumerate(words.split(), start)}
 
 
-#: Number words by ISO 639-1 code, as the digits each names. What lets "two
-#: ports" restate "2 ports" and keeps "zwei" and "drei" apart: spaCy's
-#: `like_num` knows English number words and no German one, so a German count
-#: written out is otherwise no number at all.
+#: Cardinals by ISO 639-1 code, nought to twelve, each as the value it names.
+#: The one table every reader of a count written out holds: `numbers` below,
+#: and the question gates, which read the cardinals alone, so an ordinal -
+#: `second half` - never counts anything there.
 #:
-#: An ordinal reads as the digits a written one carries: `2nd`, and German
-#: `2.` once `_bare` has dropped its full stop. German ordinals are listed in
-#: every ending they take.
-#:
-#: ponytail: German and English, nought to twelve and their ordinals. A
-#: language missing here reads its digits and whatever `like_num` says, as
-#: written. Upgrade: a table per language, as a setting.
-_NUMBER_WORDS: dict[str, dict[str, str]] = {
-    "en": _valued("zero one two three four five six seven eight nine ten")
-    | _valued("eleven twelve", start=11)
-    | _valued("first second third fourth fifth sixth", start=1)
+#: ponytail: German and English, nought to twelve. A language missing here
+#: reads its digits and whatever `like_num` says, as written. Upgrade: a
+#: table per language, as a setting.
+CARDINALS: dict[str, dict[str, int]] = {
+    language: {word: value for value, word in enumerate(words.split())}
+    for language, words in (
+        ("en", "zero one two three four five six seven eight nine ten eleven twelve"),
+        ("de", "null eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf"),
+    )
+}
+
+#: Ordinals by ISO 639-1 code, as the digits a written one carries: `2nd`,
+#: and German `2.` once `_bare` has dropped its full stop. German ordinals
+#: are listed in every ending they take.
+_ORDINALS: dict[str, dict[str, str]] = {
+    "en": _valued("first second third fourth fifth sixth", start=1)
     | _valued("seventh eighth ninth tenth eleventh twelfth", start=7),
-    "de": _valued("null eins zwei drei vier fünf sechs sieben acht neun")
-    | _valued("zehn elf zwölf", start=10)
-    | {
+    "de": {
         f"{stem}e{ending}": value
         for stem, value in (
             _valued("erst zweit dritt viert fünft sechst", start=1)
@@ -247,6 +250,16 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
         ).items()
         for ending in ("", "n", "r", "s", "m")
     },
+}
+
+#: Number words by ISO 639-1 code, as the digits each names: the cardinals
+#: and the ordinals. What lets "two ports" restate "2 ports" and keeps "zwei"
+#: and "drei" apart: spaCy's `like_num` knows English number words and no
+#: German one, so a German count written out is otherwise no number at all.
+_NUMBER_WORDS: dict[str, dict[str, str]] = {
+    language: {word: str(value) for word, value in cardinals.items()}
+    | _ORDINALS.get(language, {})
+    for language, cardinals in CARDINALS.items()
 }
 
 #: A run of digits, with the decimal or thousands marks inside it. Read off a

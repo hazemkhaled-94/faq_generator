@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
 from nlp.analysis import (
+    CARDINALS,
     claim,
     content,
     interrogatives,
@@ -279,15 +280,10 @@ _ASKS_HOW_MANY: dict[str, str] = {
 #: `zwei`, `2 Fälle`.
 _BARE_COUNT = 2
 
-#: Counts written out, by ISO 639-1 code, as the value each word is. A
-#: language with no entry has its counts read in digits only.
-_COUNTED: dict[str, dict[str, int]] = {
-    language: {word: value for value, word in enumerate(words.split(), start=2)}
-    for language, words in (
-        ("en", "two three four five six seven eight nine ten eleven twelve"),
-        ("de", "zwei drei vier fünf sechs sieben acht neun zehn elf zwölf"),
-    )
-}
+#: Counts written out, by ISO 639-1 code, as the value each word is: the
+#: cardinals the fact dedup reads too, and no ordinal. A language with no
+#: entry has its counts read in digits only.
+_COUNTED: dict[str, dict[str, int]] = CARDINALS
 
 #: The same in whichever language, which is how the count rule reads them.
 _COUNTS = {word: value for table in _COUNTED.values() for word, value in table.items()}
@@ -437,7 +433,7 @@ def structural(
     # Vorgaben werden genannt?` answered `zwei`. A count a cited statement
     # states is the material's, and is kept.
     #
-    # ponytail: digits, or a word from two to twelve in German or English; a
+    # ponytail: digits, or a word up to twelve in German or English; a
     # third language or a larger written count passes, and a language with
     # no `_ASKS_HOW_MANY` entry is read at its opening alone. Upgrade: read
     # number words off the parse.

@@ -127,12 +127,13 @@ that gate **silently never fires** for it — no error, no log.
 | `_ATTRIBUTIONS` | same | Words that attribute what follows to a source | `laut`, `according` |
 | `_AGENTS` | same | The interrogatives that ask after a **party** rather than a thing | `wer`, `who` |
 | `_HOW_MANY` | same | The opening of a question asking for a count | `wie viele`, `how many` |
-| `_COUNTS` | same | Counts written out | `zwei`, `two` |
+| `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
 | `_ASKED_FOR` | same | Question openings, and the kinds each asks for | `warum`, `why` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
 | `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing | `Lehrplan`, `syllabus` |
-| `_NUMBER_WORDS` | same | Number words and ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
+| `CARDINALS` | same | Cardinals from nought to twelve, each as the value it names: the one count table the fact dedup gate and the question gates both read | `zwei`, `one` |
+| `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
