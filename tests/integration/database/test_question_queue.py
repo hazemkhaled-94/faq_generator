@@ -2250,3 +2250,89 @@ def test_a_rejudge_narrowed_to_a_topic_reads_every_passage_a_question_cites(
 
     assert found.id == kept
     assert len(found.passage_ids) == 2
+
+
+def _indexed() -> None:
+    """Makes every connection the catalogue opens read through the HNSW index.
+
+    A table this small is read by a scan, or by the status index, and
+    sorted, which is exact, so without this the index's own limit never
+    shows. The engine is released after the test, and the listener with it.
+    """
+    from sqlalchemy import event
+
+    from database.qa_generator.engine import engine as connect
+
+    @event.listens_for(connect(), "connect")
+    def off(dbapi_connection, _record) -> None:
+        with dbapi_connection.cursor() as cursor:
+            cursor.execute("SET enable_seqscan = off")
+            cursor.execute("SET enable_sort = off")
+        dbapi_connection.commit()
+
+
+def _turned(angle: float) -> list[float]:
+    """A unit vector turned this far from the first axis towards the second."""
+    from math import cos, sin
+
+    return [cos(angle), sin(angle)] + [0.0] * 1022
+
+
+#: More rejected questions than one index scan hands back, each nearer both
+#: of two accepted questions than they are to each other: spread between
+#: them, so the index links its way from either to the other through them.
+_CROWD = 45
+
+
+def _crowded(engine, accepted: dict[str, float]) -> None:
+    """The crowd, and accepted questions this far along it: 0 one end, 1 the other.
+
+    The ends are 0.95 alike, and every one of the crowd nearer each end than
+    the other end is.
+    """
+    from math import acos
+
+    apart = acos(0.95)
+    with Session(engine) as session:
+        session.add_all(
+            question(
+                question_text=f"Refused {at}?",
+                embedding=_turned(apart * at / (_CROWD + 1)),
+                status="rejected",
+                rejected_reason="duplicate",
+            )
+            for at in range(1, _CROWD + 1)
+        )
+        session.add_all(
+            question(
+                question_text=text, embedding=_turned(apart * at), status="accepted"
+            )
+            for text, at in accepted.items()
+        )
+        session.commit()
+
+
+def test_the_probe_finds_a_twin_behind_more_rejected_questions_than_one_scan_holds(
+    engine, database
+) -> None:
+    """The filters run over the index scan, which keeps scanning until one passes."""
+    _crowded(engine, {"The twin?": 1.0})
+    _indexed()
+
+    found = QuestionCatalog().nearest(_turned(0.0))
+
+    assert found is not None and found.question_text == "The twin?"
+
+
+def test_the_twins_are_found_behind_more_rejected_questions_than_one_scan_holds(
+    engine, database
+) -> None:
+    """Each of the pair has the crowd closer to it than the other is."""
+    _crowded(engine, {"One?": 0.0, "Two?": 1.0})
+    _indexed()
+
+    found = QuestionCatalog().twins(0.9)
+
+    assert [(one.question_text, two.question_text) for one, two in found] == [
+        ("One?", "Two?")
+    ]

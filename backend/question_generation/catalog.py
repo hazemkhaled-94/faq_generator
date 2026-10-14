@@ -22,6 +22,7 @@ from sqlalchemy import (
     distinct,
     func,
     select,
+    text,
     true,
     update,
 )
@@ -81,6 +82,15 @@ _BATCH = 500
 #: so a few cover one without reading the whole pool per question. Below
 #: `hnsw.ef_search`, which caps what one index scan returns.
 TWIN_NEIGHBOURS = 5
+
+#: Lets an HNSW scan keep going past the rows its filters drop. The filters
+#: on status, language and answerability apply over what one scan returns,
+#: `hnsw.ef_search` rows, so a question behind that many closer rejected
+#: drafts was otherwise not found at all. Strict rather than relaxed order,
+#: because `nearest` takes one row and that row has to be the nearest. Local
+#: to the transaction it is set in, so no other query on the connection is
+#: read this way. pgvector 0.8 or later.
+_PAST_THE_FILTERS = text("SET LOCAL hnsw.iterative_scan = strict_order")
 
 #: Only passages the corpus makes a checkable claim from. Without it a probe
 #: comes back with tables of contents and indexes, which carry every term in
@@ -611,13 +621,11 @@ class QuestionCatalog(Repository):
 
         The HNSW index serves the ordering, and every filter here - status,
         language, answerability, `before` - is applied over the candidates
-        its scan returns, which number `hnsw.ef_search`. So the filters can
-        leave nothing: a language holding a small share of the questions,
-        or an answerability that is the rarer one, may have no question
-        among the scan's nearest and come back empty although it has a near
-        one further down. At this corpus's size the scan reaches everything;
-        one large enough to under-return is one to raise `hnsw.ef_search`
-        for, or to run with pgvector's iterative scans.
+        its scan returns, which number `hnsw.ef_search`. So the scan is
+        iterative: where the filters leave nothing among those, it reads on,
+        and a language holding a small share of the questions, an
+        answerability that is the rarer one, or a question behind many closer
+        rejected drafts is still found.
         """
         distance = Question.embedding.cosine_distance(embedding)
         query = (
@@ -644,6 +652,7 @@ class QuestionCatalog(Repository):
         if answerable is not None:
             query = query.where(Question.answerable == answerable)
         with self._session() as session:
+            session.execute(_PAST_THE_FILTERS)
             found = session.execute(query).one_or_none()
             if found is None:
                 return None
@@ -687,7 +696,7 @@ class QuestionCatalog(Repository):
         each question in it. A pair either side holds among its nearest is
         found, so a twin is missed only behind as many closer questions of
         the same language and answerability on both sides. The filters
-        apply over the index scan, as in `nearest`.
+        apply over an iterative index scan, as in `nearest`.
         """
         asked, other = aliased(Question), aliased(Question)
         distance = other.embedding.cosine_distance(asked.embedding)
@@ -753,6 +762,7 @@ class QuestionCatalog(Repository):
             )
         query = query.select_from(pairs).order_by(pairs.c.first, pairs.c.second)
         with self._session() as session:
+            session.execute(_PAST_THE_FILTERS)
             found = session.execute(query).all()
 
         def side(row: Any, name: str) -> Neighbour:
