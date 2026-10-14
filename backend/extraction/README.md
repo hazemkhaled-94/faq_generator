@@ -142,9 +142,15 @@ Two more refusals are the service refusing what the checks passed:
   Nothing ties a stored fact to the passages refused against it, so
   deleting its document leaves each repeat refused against a fact that is
   gone. `make delete` and `make delete-derived` therefore run
-  `extract-dedup`, which gives the repeat back, then `extract-revalidate`
-  and `extract-recap`. A deletion through the API or the UI does not, so
-  run `make extract-dedup` and those two after it.
+  `extract-dedup`, which gives the repeat back. A deletion through the API
+  or the UI does not, so run `make extract-dedup` after it; it is also the
+  recovery when the replay of a `make delete` fails, since the document is
+  gone by then. The passages of the refusals it gives back, and no others,
+  are then judged again and re-capped, as `make extract-revalidate` and
+  `make extract-recap` would: a fact given back was judged when it was
+  extracted and never counted against the cap. `extract-dedup`,
+  `extract-revalidate` and `extract-recap` each refuse to run while the
+  `extract-worker` container drains the queue.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which works out to a cap on the atomic
   ones. A passage's cap is never below what it states, its sentences - a
@@ -294,7 +300,7 @@ make extract-revalidate             # re-judge stored facts; no model call
 make extract-bridge                 # read every topic's groups for bridges
 make extract-bridge FORCE=1         # even over bridges accepted questions cite
 make extract-recap                  # re-apply the atomic cap; no model call
-make extract-dedup                  # re-decide the duplicate refusals; no model call
+make extract-dedup                  # re-decide the duplicate refusals, then re-judge and re-cap what moved; no model call
 make extract-embed                  # write vectors onto rows already stored
 
 make extract-retry PASSAGE=<id>     # any of them but extract, narrowed to one passage

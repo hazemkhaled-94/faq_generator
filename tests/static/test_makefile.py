@@ -32,6 +32,14 @@ DRAINS = {
     "assess-rerun": "assess-worker",
 }
 
+#: Every target that rewrites stored verdicts across the corpus on the host,
+#: and the container worker writing verdicts beside it.
+REWRITES = {
+    "extract-dedup": "extract-worker",
+    "extract-revalidate": "extract-worker",
+    "extract-recap": "extract-worker",
+}
+
 
 def printed(*arguments: str, **environment: str) -> list[str]:
     """What `make -n` prints for the arguments, one command per line."""
@@ -50,11 +58,11 @@ def printed(*arguments: str, **environment: str) -> list[str]:
     ).stdout.splitlines()
 
 
-@pytest.mark.parametrize(("target", "worker"), DRAINS.items())
+@pytest.mark.parametrize(("target", "worker"), [*DRAINS.items(), *REWRITES.items()])
 def test_a_host_drain_asks_whether_its_worker_runs_first(
     target: str, worker: str
 ) -> None:
-    """The guard naming the stage's own worker comes before the drain."""
+    """The guard naming the stage's own worker comes before the drain or rewrite."""
     lines = printed(target)
     guards = [at for at, line in enumerate(lines) if f"ps -q {worker} " in line]
     drains = [at for at, line in enumerate(lines) if "python -m" in line]
@@ -116,19 +124,18 @@ def test_the_bridge_pass_is_forced_only_when_asked(
 def test_a_deletion_is_followed_by_the_dedup_replay_over_the_whole_corpus(
     target: str,
 ) -> None:
-    """A refusal whose twin went with the document is in another document."""
+    """A refusal whose twin went with the document is in another document.
+
+    The dedup alone: it re-judges and re-caps the passages of what it gives
+    back itself, and nothing else in the corpus is touched.
+    """
     ran = [
         line.split("python -m ", 1)[1].strip()
         for line in printed(target, "SHA=abc")
         if "python -m" in line
     ]
 
-    assert ran == [
-        f"ingestion.run --{target} abc",
-        "extraction.run --dedup",
-        "extraction.run --revalidate",
-        "extraction.run --recap",
-    ], ran
+    assert ran == [f"ingestion.run --{target} abc", "extraction.run --dedup"], ran
 
 
 def test_the_corpus_reports_the_topics_and_never_fits_them() -> None:

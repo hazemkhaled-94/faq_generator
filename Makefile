@@ -733,6 +733,7 @@ extract-rerun:
 # and no statement changes: only what the checks read off one. This is what
 # applies a change to the checks without re-extracting the corpus.
 extract-revalidate:
+	@$(call IDLE,extract-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --revalidate $(ONLY)
 
 # Read every topic's passage groups for the claims that need more than one of
@@ -758,6 +759,7 @@ extract-bridge:
 # lower cap refused is given back as it was judged when extracted, and
 # `make extract-revalidate` run afterwards judges it with today's checks.
 extract-recap:
+	@$(call IDLE,extract-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --recap $(ONLY)
 
 # Re-decide every stored `duplicate` refusal under today's dedup rule, and take
@@ -767,9 +769,14 @@ extract-recap:
 # evidence is rebuilt from the citation it keeps. A refusal the rule would no
 # longer make - another number, another language or kind, a cosine under
 # EXTRACTION_DUPLICATE_COSINE - is given back as it was judged when
-# extracted. Run extract-revalidate and extract-recap after it, and
-# questions-rescore before questions-reverify.
+# extracted, and the passages of the ones given back, and no others, are
+# then judged again and re-capped as extract-revalidate and extract-recap
+# would. Run questions-rescore before questions-reverify.
+#
+# This, extract-revalidate and extract-recap write verdicts across the
+# corpus, so each refuses to run while extract-worker writes them too.
 extract-dedup:
+	@$(call IDLE,extract-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --dedup $(ONLY)
 
 # Write the vectors onto passages and facts already stored. No model is
@@ -1241,20 +1248,19 @@ documents:
 # stays, and so does a question that also rests on another document's
 # facts, rejected as `source_changed`.
 #
-# Then extract-dedup, extract-revalidate and extract-recap, which call no
-# model. A duplicate refusal cites only its own passage, so a fact another
-# document repeats rests on this one alone, and deleting it leaves the
-# repeat refused against a fact that is gone. The replay gives it back.
+# Then extract-dedup, which calls no model. A duplicate refusal cites only
+# its own passage, so a fact another document repeats rests on this one
+# alone, and deleting it leaves the repeat refused against a fact that is
+# gone. The dedup gives it back, and re-judges and re-caps its passage.
 # Over the whole corpus, SHA cleared, because the repeat is in another
-# document. A deletion through the API or the UI runs none of it: run
-# `make extract-dedup` and the other two after one.
+# document. A deletion through the API or the UI does not run it: run
+# `make extract-dedup` after one. Nor can this resume a replay that failed,
+# since the document is gone by then: `make extract-dedup` is the recovery.
 #   make delete SHA=<sha256>
 delete:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete SHA=<sha256>"; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete $(SHA)
 	$(MAKE) extract-dedup SHA=
-	$(MAKE) extract-revalidate SHA=
-	$(MAKE) extract-recap SHA=
 
 # Empty the corpus: every document, every file, every converted form, and
 # with them by cascade every passage, membership, fact and question. Then the
@@ -1335,15 +1341,13 @@ dagster-wipe:
 # follow-ups and the assessments of each. A question that also rests on
 # another document's facts stays, rejected as `source_changed`. The document
 # and its file stay, and chunking goes back to `new`, so the next run
-# rebuilds them once somebody starts it. Then the replay `make delete` runs,
-# for the same reason.
+# rebuilds them once somebody starts it. Then extract-dedup, as `make delete`
+# runs it and for the same reason, with the same recovery.
 #   make delete-derived SHA=<sha256>
 delete-derived:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete-derived SHA=<sha256>"; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-derived $(SHA)
 	$(MAKE) extract-dedup SHA=
-	$(MAKE) extract-revalidate SHA=
-	$(MAKE) extract-recap SHA=
 
 # ── Archive ────────────────────────────────────────────────────────────────
 #

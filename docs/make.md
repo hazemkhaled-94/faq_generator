@@ -148,7 +148,9 @@ Each is the same operation as the route beside it.
 A drain here — the bare target, every `-rerun` and `topics-discover` —
 **refuses while that stage's container worker is running**, and prints the
 `podman compose … stop <worker>` that stops it. With no container engine
-answering, or the stack down, it drains as before.
+answering, or the stack down, it drains as before. `extract-dedup`,
+`extract-revalidate` and `extract-recap`, which rewrite stored verdicts
+across the corpus, refuse beside `extract-worker` the same way.
 
 `assess-start` also **enrols**: nothing upstream creates an assessment, so it
 creates the rows as well as queuing them.
@@ -201,7 +203,7 @@ expensive part:
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make questions-rescore` | Rewrite every stored question's scopes and difficulty from what it cites now. Run it before `questions-reverify` after a citation moved |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own sentences and list items |
-| `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, and take out the citations a refusal added to the fact it repeated. No model call |
+| `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, and take out the citations a refusal added to the fact it repeated. The passages of the refusals given back, and no others, are then re-judged and re-capped. No model call |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
 | `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first and deletes nothing if it does not answer. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway |
 | `make confidence-recalibrate` | Take every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR` or `EXTRACTION_DUPLICATE_FLOOR`. No model call, and no verdict moves |
@@ -322,7 +324,7 @@ Documents are ingestion's, not a stage's. **All of these are irreversible.**
 | Target | Does |
 |---|---|
 | `make documents` | List every document with its parse state |
-| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed`. Then `extract-dedup`, `extract-revalidate` and `extract-recap` over the whole corpus, which give back a fact another document repeats and had refused as a duplicate of this one's |
+| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed`. Then `extract-dedup` over the whole corpus, which gives back a fact another document repeats and had refused as a duplicate of this one's. If that fails, the document is already gone: run `make extract-dedup` |
 | `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Then the same replay as `make delete` |
 | `make wipe` | Every document, the topics, and the four services that describe them. Waits 5 seconds first |
 | `make wipe-all` | The same, then the archive. The one command for "leave nothing" |

@@ -109,13 +109,19 @@ def main(argv: list[str] | None = None) -> int:
         return recap(FactCatalog(version=version), settings.atomic_cap, within)
 
     def run_dedup(within) -> int:
-        """Re-decides every stored duplicate refusal under today's rule."""
+        """Re-decides every stored duplicate refusal under today's rule.
+
+        Then re-judges and re-caps the passages of the ones it gave back,
+        under the same settings.
+        """
         _, settings, version = configured()
         return dedup(
             FactCatalog(version=version),
             settings.duplicate_cosine,
             within,
             floor=settings.duplicate_floor,
+            checker=FactChecker(settings.digest_share),
+            cap=settings.atomic_cap,
         )
 
     def run_embed(within) -> int:

@@ -167,6 +167,59 @@ def test_the_gate_off_gives_every_refusal_back() -> None:
     assert dedup(catalog, 0.0) == 1  # type: ignore[arg-type]
 
 
+def _passages(condition) -> tuple[str, list]:
+    """A narrowing as Postgres is asked it, and the values bound into it."""
+    from sqlalchemy.dialects import postgresql
+
+    compiled = condition.compile(dialect=postgresql.dialect())
+    return str(compiled), list(compiled.params.values())
+
+
+def test_the_replay_re_judges_and_re_caps_only_the_passages_it_gave_back() -> None:
+    """Not the corpus: a replay after a deletion re-stamps what it moved alone."""
+    from drivers import DIGEST_SHARE
+
+    from extraction.validation import FactChecker
+
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 1, "The device weighs 4 kg.", at(0.99)))
+        .refusing(
+            refusal("The device has a weight of 4 kg.", fact_id=10, passage_id=2),
+            refusal("The device weighs 7 kg.", fact_id=11, passage_id=3),
+        )
+    )
+
+    given = dedup(  # type: ignore[arg-type]
+        catalog, BAR, checker=FactChecker(DIGEST_SHARE), cap=4
+    )
+
+    narrowed = ("passages.id = ANY (%(moved)s::BIGINT[])", [[3]])
+    assert given == 1
+    assert _passages(catalog.narrowed[-1]) == narrowed, "re-judged"
+    assert [(cap, _passages(within)) for cap, within in catalog.recapped] == [
+        (4, narrowed)
+    ]
+
+
+def test_a_replay_giving_nothing_back_re_judges_nothing() -> None:
+    """Every refusal still stands, so no verdict was moved for the checks to read."""
+    from drivers import DIGEST_SHARE
+
+    from extraction.validation import FactChecker
+
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 1, "The device weighs 4 kg.", at(0.99)))
+        .refusing(refusal("The device has a weight of 4 kg."))
+    )
+
+    dedup(catalog, BAR, checker=FactChecker(DIGEST_SHARE), cap=4)  # type: ignore[arg-type]
+
+    assert catalog.narrowed == [None, None], "folds and refusals read, nothing else"
+    assert catalog.recapped == []
+
+
 def test_the_folds_are_taken_out_first_and_narrowed_alike() -> None:
     """Every fold goes before any refusal moves, under the same narrowing."""
     catalog = Catalogue().refusing(refusal("The device weighs 4 kg."))

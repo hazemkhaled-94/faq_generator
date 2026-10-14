@@ -110,8 +110,8 @@ two-by-two hex fanout is not cosmetic: the filer keys its metadata on
 | `GET /documents` | The corpus, with each document's stage statuses and passage counts |
 | `GET /documents/names` | Digests and filenames, for the pickers |
 | `GET /documents/{sha256}/file` | The stored bytes back |
-| `DELETE /documents/{sha256}` | Remove the document and everything derived from it |
-| `DELETE /documents/{sha256}/derived` | Remove the passages and what cascades, keep both objects |
+| `DELETE /documents/{sha256}` | Remove the document and everything derived from it. Run `make extract-dedup` after it: a fact another document repeats was refused as a duplicate of this one's and is given back only by that replay, which `make delete` runs itself |
+| `DELETE /documents/{sha256}/derived` | Remove the passages and what cascades, keep both objects. Run `make extract-dedup` after it, as after a deletion; `make delete-derived` runs it itself |
 
 **Command line:** `make documents`, `make delete SHA=…`,
 `make delete-derived SHA=…`, `make wipe`.

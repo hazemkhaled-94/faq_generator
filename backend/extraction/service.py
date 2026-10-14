@@ -9,8 +9,10 @@ from dataclasses import replace
 from itertools import zip_longest
 from typing import ClassVar
 
+from sqlalchemy import ARRAY, BigInteger, any_, bindparam
+
 from confidence import Measurement, confidence, scored
-from database.qa_generator import FactKind, Rejection
+from database.qa_generator import FactKind, Passage, Rejection
 from extraction.extractors import (
     BridgeExtractor,
     DigestExtractor,
@@ -181,7 +183,13 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
 
 
 def dedup(
-    catalog: FactCatalog, threshold: float, within=None, floor: float = 0.0
+    catalog: FactCatalog,
+    threshold: float,
+    within=None,
+    floor: float = 0.0,
+    *,
+    checker: FactChecker | None = None,
+    cap: int | None = None,
 ) -> int:
     """Re-decides every stored `duplicate` refusal, without calling the model.
 
@@ -200,11 +208,13 @@ def dedup(
        ones after it and one claim refused twice comes back once.
 
     A fact given back was judged by the checks of its own extraction and has
-    not been counted against the cap, which is why `make extract-revalidate`
-    and `make extract-recap` run after this. Its stored reading is replaced
-    by the one this probe took, against this bar, as a fact read in flight
-    would carry; with no twin left it carries none. The refusal's own margin
-    is never left on a validated fact.
+    not been counted against the cap, so with a `checker` the passages of
+    the facts given back are then re-judged, as `revalidate` judges, and
+    re-capped, as `recap` caps - those passages and no others, so a replay
+    after a deletion re-stamps what it moved rather than the corpus. Its
+    stored reading is replaced by the one this probe took, against this
+    bar, as a fact read in flight would carry; with no twin left it carries
+    none. The refusal's own margin is never left on a validated fact.
 
     Args:
         catalog: Where the refusals are read from and written back to.
@@ -213,6 +223,10 @@ def dedup(
         within: A condition narrowing which facts are read, or None.
         floor: EXTRACTION_DUPLICATE_FLOOR, which a reading's margin is
             measured down to.
+        checker: What re-judges the passages of the facts given back, or
+            None to leave them as given back.
+        cap: The cap those passages are re-capped to, as `recap` takes it.
+            Read only with a `checker`.
 
     Returns:
         How many refusals were given back.
@@ -228,6 +242,7 @@ def dedup(
             left,
         )
     given = 0
+    moved: set[int] = set()
     for refused in catalog.duplicates(within):
         probed = catalog.nearest_fact(
             refused.embedding,
@@ -245,15 +260,26 @@ def dedup(
             catalog.kept(refused.passage_id),
         )
         if threshold <= 0 or twin is None:
-            given += catalog.give_back(refused.fact_id)
+            back = catalog.give_back(refused.fact_id)
+        elif twin.similarity >= threshold:
             continue
-        if twin.similarity >= threshold:
-            continue
-        reading = _measured(twin, threshold, floor)
-        given += catalog.give_back(
-            refused.fact_id, scored([reading]), confidence([reading])
-        )
+        else:
+            reading = _measured(twin, threshold, floor)
+            back = catalog.give_back(
+                refused.fact_id, scored([reading]), confidence([reading])
+            )
+        given += back
+        if back:
+            moved.add(refused.passage_id)
     log.info("gave back %d duplicate refusal(s) today's rule would not make", given)
+    if checker is not None and moved:
+        # One array rather than a parameter per passage, which a replay over
+        # a large corpus could give back more of than a statement may bind.
+        narrowed = Passage.id == any_(
+            bindparam("moved", sorted(moved), type_=ARRAY(BigInteger))
+        )
+        revalidate(catalog, checker, narrowed)
+        recap(catalog, cap, narrowed)
     return given
 
 

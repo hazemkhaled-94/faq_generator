@@ -207,20 +207,28 @@ def test_a_claim_another_document_repeats_is_given_back_by_the_replay(
     A refusal cites only its own passage, so nothing ties the stored fact to
     the document repeating it, and the refusal outlives it. The dedup
     replay `make delete` and `make delete-derived` run afterwards gives it
-    back.
+    back, and re-judges and re-caps its passage, as `make extract-dedup`
+    wires it.
     """
     from database.qa_generator import Rejection
     from extraction.repository import FactCatalog
     from extraction.service import dedup
+    from extraction.validation import FactChecker
 
     gone, repeating = digest("e"), digest("f")
     vector = [1.0] + [0.0] * 1023
+    # A sentence the re-judgement can read the citation against.
+    said = "Packed for shipping, the device weighs 4 kg."
+    sentences = [{"i": 0, "start": 0, "end": len(said), "predicates": 1}]
     with Session(engine) as session:
         session.add_all(
             [document(gone, language="en"), document(repeating, language="en")]
         )
         session.flush()
-        first, second = passage(gone), passage(repeating)
+        first, second = (
+            passage(gone, text=said, sentences=sentences),
+            passage(repeating, text=said, sentences=sentences),
+        )
         session.add_all([first, second])
         session.flush()
         session.add(fact(first.id, embedding=vector))
@@ -248,7 +256,7 @@ def test_a_claim_another_document_repeats_is_given_back_by_the_replay(
             ]
 
     assert verdicts() == [(False, Rejection.DUPLICATE)], "the refusal outlives it"
-    assert dedup(FactCatalog(), 0.985) == 1
+    assert dedup(FactCatalog(), 0.985, checker=FactChecker(0.6), cap=4) == 1
     assert verdicts() == [(True, None)]
 
 

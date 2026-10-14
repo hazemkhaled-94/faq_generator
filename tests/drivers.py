@@ -408,6 +408,8 @@ class Catalogue:
         #: What `unfold` answers: facts unfolded, and facts left with folds.
         self.folds: tuple[int, int] = (0, 0)
         self.unfolded = 0
+        #: The cap and the narrowing of every recap asked for.
+        self.recapped: list[tuple[int | None, Any]] = []
 
     def holding(self, *facts: tuple[int, list[PassageToExtract], CandidateFact, str]):
         """Fills the catalogue with facts a re-judgement will read back.
@@ -430,6 +432,11 @@ class Catalogue:
         """Records one batch of re-judged facts."""
         self.rejudged.append(list(verdicts))
         return len(verdicts)
+
+    def recap(self, cap: int | None, reason: str, within=None) -> int:
+        """Records one recap, which moves nothing here."""
+        self.recapped.append((cap, within))
+        return 0
 
     @property
     def verdicts(self) -> list[tuple[int, CheckedFact]]:

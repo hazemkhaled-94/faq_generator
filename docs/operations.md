@@ -230,7 +230,7 @@ commands that call no model come first:
 
 | Command | Calls a model | What it carries into stored rows |
 |---|---|---|
-| `make extract-dedup` | no | Duplicate refusals the new rule would not make are given back, and fold citations come off the facts they were written onto |
+| `make extract-dedup` | no | Duplicate refusals the new rule would not make are given back, with their passages re-judged and re-capped, and fold citations come off the facts they were written onto |
 | `make extract-revalidate` | no | Facts refused for a pronoun their own statement resolves are validated |
 | `make extract-recap` | no | The atomic cap, now never below a passage's sentences plus list items |
 | `make questions-rescore` | no | Each question's scope and difficulty, from the facts it cites now. Run it before re-verify |
@@ -308,7 +308,13 @@ A claim two documents share rests on one of them only. The second copy is
 stored as a `duplicate` refusal that names the first and cites only its own
 passage. Deleting the first document therefore takes the claim with it,
 and leaves the second copy refused. `make delete` and `make delete-derived`
-then run `make extract-dedup`, `make extract-revalidate` and
-`make extract-recap` over the whole corpus. None of them calls a model, and
-together they give that copy back. A deletion through the API or the UI
-runs none of them, so run the three yourself afterwards, in that order.
+then run `make extract-dedup` over the whole corpus. It calls no model,
+gives that copy back, and re-judges and re-caps the passages of what it gave
+back, and no others. A deletion through the API or the UI does not run it,
+so run `make extract-dedup` yourself afterwards.
+
+The deletion and the replay are two steps. If the replay fails - the
+`extract-worker` container is draining the queue, say, and the command
+refuses to run beside it - the document is already gone, and running
+`make delete SHA=…` again finds nothing to delete. The recovery is
+`make extract-dedup`, once whatever stopped it is out of the way.
