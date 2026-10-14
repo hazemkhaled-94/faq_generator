@@ -38,6 +38,11 @@ def test_a_number_word_reads_as_the_value_it_names(word, digit, language) -> Non
         ),
         ("Das Gerät hat zwei Anschlüsse.", "Das Gerät hat drei Anschlüsse.", "de"),
         ("The fee is 2 EUR and 2 EUR.", "The fee is 2 EUR.", "en"),
+        (
+            "Die Pause dauert zwanzig Minuten.",
+            "Die Pause dauert dreißig Minuten.",
+            "de",
+        ),
     ],
 )
 def test_two_different_values_read_differently(first, second, language) -> None:
@@ -45,6 +50,7 @@ def test_two_different_values_read_differently(first, second, language) -> None:
     from nlp.analysis import numbers
 
     assert numbers(first, language) != numbers(second, language)
+    assert numbers(first, language) and numbers(second, language)
 
 
 @pytest.mark.parametrize(

@@ -284,8 +284,8 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     A multiset rather than a set, so "2 EUR and 2 EUR" is not "2 EUR". A digit
     keeps its surface form, as `_units` reads one, so `12,5` and `12.5` stay
     two values; a number word reads as the digits it names where the
-    language has a row in `_NUMBER_WORDS`, and as written where it does not,
-    and only where it is tagged as a numeral.
+    language has a row in `_NUMBER_WORDS` for it, and as written where it
+    does not, and only where it is tagged as a numeral.
     """
     spelled = _NUMBER_WORDS.get((language or "").strip().lower(), {})
     found: list[str] = []
@@ -297,7 +297,9 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
             continue
         elif written in spelled:
             found.append(spelled[written])
-        elif token.like_num:
+        # A count past the table is read as written: `de_core_news_md` gives
+        # `zwanzig` no `like_num`, and it still differs from `dreißig`.
+        elif token.like_num or token.pos_ == "NUM":
             found.append(written)
     return tuple(sorted(found))
 
