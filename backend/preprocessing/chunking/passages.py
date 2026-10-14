@@ -123,8 +123,12 @@ def lead_ins_kept(
     ends on such a lead-in and the next, under the same headings, opens with
     a list item, the lead-in moves into the next chunk if that still fits
     the budget, and otherwise is appended to its heading trail, which both
-    model stages are shown. A list cut from its lead-in by a sub-heading is
-    left as it is: its own heading says what it is under.
+    model stages are shown. A list longer than one chunk goes on carrying
+    it: each chunk after, under the same headings, that opens with a list
+    item and follows a chunk ending on one has the lead-in of that list
+    appended to its trail, wherever the lead-in itself was kept. A list cut
+    from its lead-in by a sub-heading is left as it is: its own heading says
+    what it is under.
 
     Args:
         chunks: What the chunker returned, in order.
@@ -139,14 +143,17 @@ def lead_ins_kept(
     # As the chunker cut them: a trail extended below is not a new heading.
     trails = [chunk.meta.headings for chunk in chunks]
     kept: list[DocChunk] = []
+    # The lead-in of the list the last chunk kept closes on.
+    carried: str | None = None
     for index, chunk in enumerate(chunks):
-        lead = (
-            _lead_in(kept[-1], document)
-            if kept and trails[index - 1] == trails[index] and _opens_a_list(chunk)
-            else None
+        continued = (
+            bool(kept) and trails[index - 1] == trails[index] and _opens_a_list(chunk)
         )
+        lead = _lead_in(kept[-1], document) if continued else None
+        given = None
         if lead is not None:
             item, text = lead
+            given = text
             moved = chunk.model_copy(
                 update={
                     "text": text + chunker.delim + chunk.text,
@@ -174,31 +181,65 @@ def lead_ins_kept(
                     )
                 chunk = moved
             else:
-                chunk = chunk.model_copy(
-                    update={
-                        "meta": chunk.meta.model_copy(
-                            update={"headings": [*(chunk.meta.headings or []), text]}
-                        )
-                    }
-                )
+                chunk = _headed(chunk, text)
+        elif continued and carried is not None:
+            given = carried
+            chunk = _headed(chunk, carried)
+        carried = _introduced(chunk, document, given)
         kept.append(chunk)
     return kept
 
 
-def _lead_in(chunk: DocChunk, document: DoclingDocument) -> tuple[DocItem, str] | None:
-    """The paragraph ending in ":" a chunk closes on, and its text, or None.
+def _headed(chunk: DocChunk, text: str) -> DocChunk:
+    """A chunk with one more entry at the end of its heading trail."""
+    return chunk.model_copy(
+        update={
+            "meta": chunk.meta.model_copy(
+                update={"headings": [*(chunk.meta.headings or []), text]}
+            )
+        }
+    )
+
+
+def _lead_text(item: DocItem, document: DoclingDocument) -> str | None:
+    """The text of a paragraph ending in ":", or None for any other item.
 
     The chunker hands its items over as bare copies, so the text is read
     off the document the reference names.
     """
-    last = chunk.meta.doc_items[-1] if chunk.meta.doc_items else None
-    if last is None or last.label not in _PROSE:
+    if item.label not in _PROSE:
         return None
-    item = RefItem.model_validate({"$ref": last.self_ref}).resolve(document)
-    text = item.text.strip() if isinstance(item, TextItem) else ""
-    if text.endswith(":") and chunk.text.rstrip().endswith(text):
+    found = RefItem.model_validate({"$ref": item.self_ref}).resolve(document)
+    text = found.text.strip() if isinstance(found, TextItem) else ""
+    return text if text.endswith(":") else None
+
+
+def _lead_in(chunk: DocChunk, document: DoclingDocument) -> tuple[DocItem, str] | None:
+    """The paragraph ending in ":" a chunk closes on, and its text, or None."""
+    last = chunk.meta.doc_items[-1] if chunk.meta.doc_items else None
+    text = None if last is None else _lead_text(last, document)
+    if last is not None and text is not None and chunk.text.rstrip().endswith(text):
         return last, text
     return None
+
+
+def _introduced(
+    chunk: DocChunk, document: DoclingDocument, given: str | None
+) -> str | None:
+    """The lead-in of the list a chunk closes on, or None.
+
+    The paragraph ending in ":" right before the list items the chunk ends
+    on, or, where it is list items from the top, `given`: the lead-in it
+    was handed. None where it does not end on a list item, or where its list
+    has no lead-in.
+    """
+    items = chunk.meta.doc_items
+    run = len(items)
+    while run and items[run - 1].label == DocItemLabel.LIST_ITEM:
+        run -= 1
+    if run == len(items):
+        return None
+    return given if run == 0 else _lead_text(items[run - 1], document)
 
 
 def _opens_a_list(chunk: DocChunk) -> bool:

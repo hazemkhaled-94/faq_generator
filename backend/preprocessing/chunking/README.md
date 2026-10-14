@@ -50,8 +50,11 @@ followed, under the same headings, by a chunk opening with a list item. The
 lead-in moves into the list's chunk when the two fit the budget together,
 measured as the chunker measures; otherwise it is appended to that chunk's
 heading trail, which extraction and question generation both show the
-model. A list cut from its lead-in by a sub-heading is left as it is: its
-own heading says what it is under.
+model. A list longer than one chunk carries its lead-in on: every chunk
+after, under the same headings, that opens with a list item and follows a
+chunk ending on one has the lead-in appended to its trail, wherever the
+lead-in itself was kept. A list cut from its lead-in by a sub-heading is
+left as it is: its own heading says what it is under.
 
 ### Step 2 — Number and count
 
@@ -269,7 +272,7 @@ and `chunking_of` directly.
 |---|---|
 | [`test_intake_chunking.py`](../../../tests/unit/intake/test_intake_chunking.py) | Numbering, the token budget, block-type labelling, the row-to-line pairing, the cell grids, the bounding boxes, the failure paths and the re-read |
 | [`test_intake_surface.py`](../../../tests/unit/intake/test_intake_surface.py) | The spaCy-backed reading with real pipelines: per-passage language, sentence offsets, predicate counts, table rows, and what becomes vocabulary |
-| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, nowhere across a sub-heading; and, as a property, that no passage opens on a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under none, and a facing page's own topic kept in its chapter |
+| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, onto every later chunk of a list longer than one, nowhere across a sub-heading; and, as a property, that no passage holds part of a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under none, and a facing page's own topic kept in its chapter |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | Every non-blank chunk is stored, ordinals run from 1 without a gap, `oversized` never exceeds the passages stored |
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes, the transactional replacement and its cascade, and every listing filter |
@@ -292,8 +295,8 @@ corpus, which is a property of the model rather than of this code.
 - **A lead-in that cannot travel with its list is repeated as a heading.**
   When the two do not fit one budget, the lead-in stays at the end of the
   passage before and becomes the last segment of the list passage's
-  `section_path`. A lead-in that does not end in ":", or one split across
-  two chunks, is not carried.
+  `section_path`, and of every later passage of the same list. A lead-in
+  that does not end in ":", or one split across two chunks, is not carried.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed

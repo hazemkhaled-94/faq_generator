@@ -137,6 +137,35 @@ def test_a_lead_in_moves_when_every_block_is_its_own_chunk() -> None:
     assert second.text.startswith(f"{LEAD_IN}\n- ")
 
 
+#: A list three passages long at a budget of 24 words.
+MANY_ITEMS = tuple(
+    f"the {ordinal} card pays a fee"
+    for ordinal in (
+        "first",
+        "second",
+        "third",
+        "fourth",
+        "fifth",
+        "sixth",
+        "seventh",
+        "eighth",
+        "ninth",
+    )
+)
+
+
+def test_a_list_longer_than_a_passage_carries_its_lead_in_on_every_passage() -> None:
+    """Each item after the first passage is as conditional as the first."""
+    as_cut = [chunk.text for chunk in word_chunker(24).chunk(listed(MANY_ITEMS))]
+    assert len(as_cut) == 4, "the chunker no longer cuts the list in three"
+
+    first, *rest = cut(listed(MANY_ITEMS), budget=24)
+
+    assert first.text == f"{PROSE}\n{LEAD_IN}"
+    assert len(rest) == 3, [chunk.text for chunk in rest]
+    assert [chunk.meta.headings for chunk in rest] == [["Card fees", LEAD_IN]] * 3
+
+
 def test_a_list_under_a_sub_heading_is_left_as_cut() -> None:
     """Its own heading says what it is under; the lead-in ends the section."""
     document = listed(sub_heading="Debit cards")
@@ -169,8 +198,12 @@ def documents(draw) -> DoclingDocument:
         if kind == "list":
             group = document.add_list_group()
             for item in draw(
+                # Up to twelve items: a list longer than the budget is cut
+                # across passages.
                 st.lists(
-                    st.lists(VOCABULARY, min_size=1, max_size=8), min_size=1, max_size=4
+                    st.lists(VOCABULARY, min_size=1, max_size=8),
+                    min_size=1,
+                    max_size=12,
                 )
             ):
                 document.add_list_item(text=" ".join(item), parent=group)
@@ -189,9 +222,9 @@ def documents(draw) -> DoclingDocument:
     return document
 
 
-def _lead_ins(document: DoclingDocument) -> list[tuple[Any, Any]]:
-    """Every lead-in ending in ":" with the first item of the list right after it."""
-    found = []
+def _lead_ins(document: DoclingDocument) -> list[tuple[Any, list[str]]]:
+    """Every lead-in ending in ":" with the items of the list right after it."""
+    found: list[tuple[Any, list[str]]] = []
     previous = None
     for item, _ in document.iterate_items():
         if (
@@ -200,22 +233,27 @@ def _lead_ins(document: DoclingDocument) -> list[tuple[Any, Any]]:
             and previous.label == DocItemLabel.TEXT
             and previous.text.endswith(":")
         ):
-            found.append((previous, item))
+            found.append(
+                (
+                    previous,
+                    [child.cref for child in item.parent.resolve(document).children],
+                )
+            )
         previous = None if item.label == DocItemLabel.LIST_ITEM else item
     return found
 
 
 @given(document=documents(), budget=st.integers(14, 40))
 @settings(deadline=None)
-def test_no_passage_opens_on_a_list_cut_from_its_lead_in(document, budget) -> None:
-    """Its lead-in is in the passage or at the end of its heading trail."""
+def test_no_passage_holds_a_list_cut_from_its_lead_in(document, budget) -> None:
+    """Every passage of the list holds its lead-in or ends its trail with it."""
     chunks = cut(document, budget)
 
-    for lead_in, first in _lead_ins(document):
-        (holding,) = [c for c in chunks if first.self_ref in refs(c)]
-        assert lead_in.self_ref in refs(holding) or (
-            holding.meta.headings and holding.meta.headings[-1] == lead_in.text
-        ), (holding.text, holding.meta.headings)
+    for lead_in, items in _lead_ins(document):
+        for holding in [c for c in chunks if set(items) & set(refs(c))]:
+            assert lead_in.self_ref in refs(holding) or (
+                holding.meta.headings and holding.meta.headings[-1] == lead_in.text
+            ), (holding.text, holding.meta.headings)
     assert all(Words(max_tokens=budget).count_tokens(c.text) <= budget for c in chunks)
 
 

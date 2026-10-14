@@ -417,7 +417,9 @@ The chunker's token budget closed a passage right after a lead-in ending in
 **Fixed in v0.2.2**, in [`passages.py`](../backend/preprocessing/chunking/passages.py).
 A lead-in cut from its list moves into the list's passage when the two fit
 the budget. When they don't, it joins that passage's heading trail, which
-both model stages are shown. Stored passages change only with a re-chunk.
+both model stages are shown. A list longer than one passage carries its
+lead-in in the heading trail of every passage after the first. Stored
+passages change only with a re-chunk.
 
 ## Stale section paths, running feet and index letters
 
