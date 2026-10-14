@@ -3006,6 +3006,22 @@ def test_a_comparison_is_split_between_its_subjects_not_at_a_subordinate_comma()
     )
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Card payments take one day while bank transfers take three days",
+        "Card payments take one day, while bank transfers take three days",
+        "Card payments take one day whereas bank transfers take three days",
+    ],
+    ids=["while", "comma while", "whereas"],
+)
+def test_a_comparison_joined_by_a_subordinator_is_split_there(answer: str) -> None:
+    """`while` opens the second side with or without a comma before it."""
+    assert compares(
+        "How do card payments and bank transfers differ in speed?", answer, "en"
+    )
+
+
 def test_a_comparison_is_split_at_its_and_not_at_a_relative_which() -> None:
     """`en_core_web_md` marks `which` WDT and gives it no `PronType=Rel`."""
     assert compares(

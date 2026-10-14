@@ -1437,7 +1437,7 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
 
     A split divides the two subjects the question names where each side of
     it holds a content lemma of the question the other side lacks. A seam
-    is a `;`, `,` or conjunction.
+    is a `;`, `,` or conjunction, coordinating or subordinating.
 
     True where a comparative divides the subjects within its own stretch,
     the seam-free run of tokens around it: `Card payments settle faster than
@@ -1483,7 +1483,9 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
         return any("Cmp" in token.morph.get("Degree", []) for token in side)
 
     seams = [
-        token.i for token in read if token.text in (";", ",") or token.pos_ == "CCONJ"
+        token.i
+        for token in read
+        if token.text in (";", ",") or token.pos_ in ("CCONJ", "SCONJ")
     ]
     for token in read:
         if compared([token]):
@@ -1521,11 +1523,15 @@ def _seam_rank(read, seam: int) -> int:
     pronoun the morphology marks `PronType=Rel`, or a Penn W-word. The last
     because `en_core_web_md` gives a relative `which` no `PronType`. A
     relative the tagger reads as something else - `de_core_news_md` tags a
-    relative `die` after a comma as an article - is not seen.
+    relative `die` after a comma as an article - is not seen. A
+    subordinating conjunction with no comma before it opens one too: `Card
+    payments take one day while bank transfers take three`.
     """
     token = read[seam]
     if token.text == ";":
         return 0
+    if token.pos_ == "SCONJ":
+        return _SUBORDINATE_SEAM
     if token.text != ",":
         return 2
     after = read[seam + 1] if seam + 1 < len(read) else None
