@@ -7,13 +7,13 @@ from itertools import groupby
 from typing import ClassVar, cast
 
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
     ColumnElement,
     Integer,
     Select,
     Table,
     bindparam,
-    column,
     delete,
     func,
     insert,
@@ -21,7 +21,6 @@ from sqlalchemy import (
     select,
     true,
     update,
-    values,
 )
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
@@ -324,15 +323,25 @@ def _nearest_fact(
 
 
 def _room(session, cap: int, passages: Select):
-    """Each passage's room under `cap`, as a VALUES table, or None for none.
+    """Each passage's room under `cap`, as a table, or None for none.
 
     Read off each passage in Python, through `PassageToExtract.room`, so the
     cap a recap applies and the one a passage in flight is held to are one
     reading rather than two that could drift.
+
+    Bound as two arrays and unnested, not as a VALUES row per passage: a
+    statement binds at most 65,535 parameters, which a pair per passage
+    outgrows on a corpus of 32,768.
     """
-    rows = [
-        (
-            row.id,
+    ids: list[int] = []
+    rooms: list[int | None] = []
+    for row in session.execute(
+        select(Passage.id, Passage.text, Passage.sentences).where(
+            Passage.id.in_(passages)
+        )
+    ):
+        ids.append(row.id)
+        rooms.append(
             PassageToExtract(
                 id=row.id,
                 text=row.text,
@@ -340,19 +349,14 @@ def _room(session, cap: int, passages: Select):
                 block_type=None,
                 language=None,
                 sentences=_sentences(row.text, row.sentences),
-            ).room(cap),
+            ).room(cap)
         )
-        for row in session.execute(
-            select(Passage.id, Passage.text, Passage.sentences).where(
-                Passage.id.in_(passages)
-            )
-        )
-    ]
-    if not rows:
+    if not ids:
         return None
-    return values(
-        column("passage_id", BigInteger), column("room", Integer), name="room"
-    ).data(rows)
+    return select(
+        func.unnest(bindparam("ids", ids, type_=ARRAY(BigInteger))).label("passage_id"),
+        func.unnest(bindparam("rooms", rooms, type_=ARRAY(Integer))).label("room"),
+    ).subquery("room")
 
 
 class PassageQueue(RowQueue):

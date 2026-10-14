@@ -186,6 +186,35 @@ def test_the_service_keeps_a_fact_per_item_of_a_long_list() -> None:
     assert not refused, refused
 
 
+def test_a_recap_binds_two_parameters_however_many_passages_it_reads() -> None:
+    """A statement may bind no more than 65,535, and a corpus has more passages.
+
+    The rooms reach the recap as one table of passages and rooms. Bound a
+    pair per passage, it outgrows the cap past 32,767 of them.
+    """
+    from types import SimpleNamespace
+
+    from sqlalchemy import select
+    from sqlalchemy.dialects import postgresql
+
+    from extraction.repository import _room
+
+    class Session:
+        def execute(self, query):
+            return [
+                SimpleNamespace(id=at, text="A fee is charged.", sentences=None)
+                for at in range(40_000)
+            ]
+
+    room = _room(Session(), 4, select())
+
+    assert room is not None
+    compiled = select(room.c.passage_id, room.c.room).compile(
+        dialect=postgresql.dialect()
+    )
+    assert len(compiled.params) == 2, len(compiled.params)
+
+
 # ── Which facts it refuses ─────────────────────────────────────────────────
 
 
