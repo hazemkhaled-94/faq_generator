@@ -197,7 +197,9 @@ and [`extraction/repository.py`](../backend/extraction/repository.py):
 
 Two new commands repair a corpus extracted before v0.2.2 without calling a
 model. `make extract-dedup` re-decides every stored duplicate refusal, gives
-back the ones the new rule would not make, and removes the fold links.
+back the ones the new rule would not make, and removes the fold links. A fact
+whose own citation is gone keeps its folds, and the command names it for
+`make extract-rerun`.
 `make questions-rescore` then rewrites each question's scope and difficulty
 from the facts it now cites, so `make questions-reverify` does not reject
 them as `source_changed`.
