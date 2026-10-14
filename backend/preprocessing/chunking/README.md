@@ -115,9 +115,13 @@ letter, when the next text starts with that letter in either case, is a
 glossary's index divider. Both move to the furniture layer before the cut. A
 lone letter followed by anything else is content — an energy class, a part
 marker — and stays. So does every such letter of a document holding only
-one, or whose letters repeat or run backwards: an index has two or more, in
-ascending order, and a class "A" over a line that happens to start with an
-A is a value. A trail segment that holds no letter or digit, such as an
+one, or whose letters repeat or run backwards: an index has two or more,
+each after the one before in code-point order once case is folded, and a
+class "A" over a line that happens to start with an A is a value. One
+letter out of that order keeps every index letter of the document as text,
+which is the safe side to fall on: an index whose language files a letter
+outside code-point order, as Swedish files Å before Ä, keeps its dividers
+rather than losing a value. A trail segment that holds no letter or digit, such as an
 ellipsis, is dropped, and so is one that is a lone conjunction — a single
 stop word the language's spaCy pipeline tags as one — unless it is written in
 capitals, as a manual heads its section on the OR gate.
