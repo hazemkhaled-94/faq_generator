@@ -177,6 +177,8 @@ def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
         ("Der Kredit wird gekündigt, wenn sie ihn nicht bedient.", "de", "sie"),
         ("The card is blocked if this is reported stolen.", "en", "this"),
         ("The customer must return it within 14 days.", "en", "it"),
+        ("The customer has the right to return it within 14 days.", "en", "it"),
+        ("Der Kunde hat das Recht, ihn zurückzugeben.", "de", "ihn"),
         ("The account holder must inform him within three days.", "en", "him"),
         ("Der Kunde muss ihn informieren.", "de", "ihn"),
         ("The customer must return hers.", "en", "hers"),

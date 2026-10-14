@@ -172,7 +172,9 @@ language marks them, or that is a subject or an object where it does not -
 "The card is blocked if it is reported stolen" - and a German `es` standing
 beside the object or clause it anticipates, under a verb that does not agree
 with it in number. A noun of the pronoun's own clause never resolves it:
-"The customer must return it" points outside. A possessive determiner may
+"The customer must return it" points outside, and so does "The customer has
+the right to return it", since a to-infinitive has no subject of its own and
+reads as the clause it hangs in. A possessive determiner may
 name one, as in "The bank replaces its cards"; a standalone possessive,
 "hers", may not. A demonstrative, and a pronoun opening its statement with
 no noun before it, are refused as before.

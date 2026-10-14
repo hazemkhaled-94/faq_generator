@@ -374,19 +374,37 @@ _POSSESSIVE_TAGS = frozenset({"PPOSAT"})
 _SUBORDINATOR = frozenset({"mark", "cp"})
 _EMBEDDED = frozenset({"advcl", "relcl", "acl", "acl:relcl", "rc"})
 
+#: How an auxiliary or a copula hangs off the verb it carries the tense of,
+#: in English and in Universal Dependencies.
+_CARRIERS = frozenset({"aux", "auxpass", "aux:pass", "cop"})
+
+
+def _finite(verb) -> bool:
+    """Whether a verb, or an auxiliary or copula under it, is finite."""
+    return any(
+        "Fin" in one.morph.get("VerbForm", [])
+        for one in (
+            verb,
+            *(child for child in verb.children if child.dep_ in _CARRIERS),
+        )
+    )
+
 
 def _clause(token) -> int:
     """Where the clause a token sits in is headed, as a token index.
 
-    The nearest head above the token that carries a subordinator or hangs off
-    its own head as an adverbial or relative clause; failing one, the root of
-    its sentence, so two sentences' main clauses are two clauses. Read off the
-    labels rather than the part of speech: a tagger that calls the verb of a
-    `wenn` clause an adverb still hangs the `wenn` from it.
+    The nearest head above the token that carries a subordinator, or that
+    hangs off its own head as an adverbial or relative clause with a finite
+    verb; failing one, the root of its sentence, so two sentences' main
+    clauses are two clauses. Read off the labels rather than the part of
+    speech: a tagger that calls the verb of a `wenn` clause an adverb still
+    hangs the `wenn` from it. Finite, because a to-infinitive hung off a noun
+    has no subject of its own: `it` in "The customer has the right to return
+    it" sits in the customer's clause, and is not resolved by the customer.
     """
     at = token.head
     while True:
-        if at.dep_ in _EMBEDDED or any(
+        if (at.dep_ in _EMBEDDED and _finite(at)) or any(
             child.dep_ in _SUBORDINATOR for child in at.children
         ):
             return at.i
