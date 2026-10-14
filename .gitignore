@@ -266,3 +266,6 @@ figures/
 
 # Local findings files
 /*-FINDINGS.md
+
+# uv's lock file. The project locks with poetry; a uv run writes this beside it.
+/uv.lock
