@@ -438,8 +438,10 @@ a row that already carries one.
 
 A recovery or quote that only says the question back is not an answer: a
 `why` the passage gives no reason for comes back as the rule itself. So an
-`answers` whose quote `restates` the question reads as `silent`, here and in
-`make questions-rejudge`. A `refutes` or a `rule` is not read so, because its
+`answers` whose quote `restates` a question asked with a question word reads
+as `silent`, here and in `make questions-rejudge`. A yes-or-no question is not
+read so: `Ist das Gerät wasserdicht?` said back as `Das Gerät ist
+wasserdicht.` is answered yes. Nor is a `refutes` or a `rule`, because its
 quote is the rule.
 
 Being near an accepted answerable question is not an answer by itself. A

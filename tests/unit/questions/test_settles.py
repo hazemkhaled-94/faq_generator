@@ -210,6 +210,49 @@ def test_an_answers_that_only_says_the_question_back_settles_nothing() -> None:
     assert len(client.systems) == 2, "the probe is asked, as after any silence"
 
 
+def test_a_yes_no_question_its_passage_states_is_answerable_after_all() -> None:
+    """Asked with no question word, the statement said back is the yes."""
+    from database.qa_generator import QuestionRejection
+
+    client = Gating(CITED, Settling.ANSWERS)
+
+    result = checked(client, question="Are refunds only paid to account holders?")
+
+    assert result.rejected_reason == QuestionRejection.ANSWERABLE_AFTER_ALL
+    assert len(client.systems) == 1, "the corpus is not asked once it is settled"
+
+
+@pytest.mark.parametrize(
+    ("question", "quote", "language", "verdict"),
+    [
+        ("May a card be used abroad?", "A card may be used abroad.", "en", "answers"),
+        ("Ist das Gerät wasserdicht?", "Das Gerät ist wasserdicht.", "de", "answers"),
+        (
+            "When may a card be used abroad?",
+            "A card may be used abroad.",
+            "en",
+            "silent",
+        ),
+        (
+            "Wann ist das Gerät wasserdicht?",
+            "Das Gerät ist wasserdicht.",
+            "de",
+            "silent",
+        ),
+    ],
+)
+def test_only_a_question_word_turns_its_statement_said_back_silent(
+    question: str, quote: str, language: str, verdict: str
+) -> None:
+    """A yes or no is answered by the statement; a `when` is not."""
+    from question_generation.checker import heard
+    from question_generation.verifier import Settled
+
+    settled = heard(Settled(verdict=Settling.ANSWERS, quote=quote), question, language)
+
+    assert settled.verdict == verdict
+
+
 @pytest.mark.parametrize("verdict", [Settling.ANSWERS, Settling.REFUTES, Settling.RULE])
 def test_settled_by_a_passage_it_does_not_cite_is_answerable_elsewhere(
     verdict: str,

@@ -55,7 +55,7 @@ from database.qa_generator import (
     QuestionRejection,
     QuestionStatus,
 )
-from nlp.analysis import content, pointing
+from nlp.analysis import content, interrogatives, pointing
 from nlp.embedding import Embedder, cosine
 from question_generation.gates import (
     BOUNDS,
@@ -116,7 +116,9 @@ def heard(
     about, and declining that question is what a chatbot should do.
     `restates` is the reading the key is held to the same way. Only an
     `answers` verdict is read so: the quote of a `refutes` or a `rule` is
-    the rule itself, which is how those settle a question.
+    the rule itself, which is how those settle a question. And only one
+    asked with a question word: `May a card be used abroad?` is answered yes
+    by `A card may be used abroad.`, which says it back and is the answer.
 
     The silenced quote is logged, with the question's id where it has one,
     because the row keeps only the silence.
@@ -124,6 +126,7 @@ def heard(
     if (
         settled.verdict == Settling.ANSWERS
         and settled.quote is not None
+        and interrogatives(question, language)
         and restates(question, settled.quote, language)
     ):
         log.info(
