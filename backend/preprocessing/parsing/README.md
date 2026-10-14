@@ -66,11 +66,17 @@ annotation, no font flag, no colour. The converter keeps the word, so
 "eight". [`_unstruck`](pipelines/pdf.py) reads the source again with
 pymupdf and finds every word a stroke deletes. A stroke qualifies when it:
 
-- is horizontal — a stroked path of nothing but one level line (rising or
-  falling less than 0.3 pt), or a filled bar — and longer than 2 pt
+- is horizontal — a line of a stroked path made of nothing but level lines
+  (each rising or falling less than 0.3 pt), or a filled bar — and longer
+  than 2 pt
 - covers at least 60% of the word's width
 - sits, its own line width included, between 0.15 and 0.55 × the font size
   above the word's baseline: through the x-height, in any colour
+
+One path may draw many strokes, so each of its lines, and each rectangle of
+a filled path made of rectangles alone, is read on its own. A path striking
+two words of a line keeps the word between them, and one striking a word on
+each of two lines strikes both.
 
 So an underline below the baseline, a table rule above the capitals or below
 the descenders, and the frame of a highlight are not strikes. The struck
@@ -205,7 +211,7 @@ the two buckets and Docling itself are stood in for.
 |---|---|
 | [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
-| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; underlines, table rules and partial strokes removing nothing; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
+| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge and partial strokes removing nothing; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | The repair is idempotent and leaves no control character |

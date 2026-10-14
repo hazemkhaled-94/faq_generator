@@ -13,6 +13,7 @@ import logging
 from typing import Any
 
 import pymupdf
+import pytest
 from docling.datamodel.base_models import ConfidenceReport, ConversionStatus
 from docling.datamodel.document import ConversionResult
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
@@ -203,6 +204,71 @@ def test_every_word_a_stroke_runs_through_goes() -> None:
         unstruck(pdf, paragraph(page, text)).texts[0].text
         == "Refunds are paid of the request."
     )
+
+
+def strokes(page, *struck: tuple[str, float], filled: bool = False) -> None:
+    """Draws one deletion per (word, baseline), all of them as one path."""
+    path = page.new_shape()
+    for text, baseline in struck:
+        box, height = word(page, text, baseline), baseline - 0.33 * FONT
+        if filled:
+            path.draw_rect(pymupdf.Rect(box.x0, height - 0.4, box.x1, height + 0.4))
+        else:
+            path.draw_line((box.x0, height), (box.x1, height))
+    if filled:
+        path.finish(color=None, fill=INK)
+    else:
+        path.finish(color=INK, width=1)
+    path.commit()
+
+
+@pytest.mark.parametrize("filled", [False, True])
+def test_one_path_through_two_words_keeps_the_word_between(filled: bool) -> None:
+    """Each line of a path is a stroke, not the box around all of them."""
+    text = "Each charger supports six seven eight devices."
+    pdf, page = printed((LEFT, BASELINE, text))
+    strokes(page, ("six", BASELINE), ("eight", BASELINE), filled=filled)
+
+    assert (
+        unstruck(pdf, paragraph(page, text)).texts[0].text
+        == "Each charger supports seven devices."
+    )
+
+
+def test_one_path_through_two_lines_strikes_a_word_on_each() -> None:
+    """The box around both lines is a line's height tall and strikes nothing."""
+    first, second = "The fee is six euros.", "The cap is nine euros."
+    pdf, page = printed((LEFT, BASELINE, first), (LEFT, BASELINE + 14, second))
+    strokes(page, ("six", BASELINE), ("nine", BASELINE + 14))
+    converted = document()
+    for text, line in ((first, BASELINE), (second, BASELINE + 14)):
+        converted.add_text(
+            label=DocItemLabel.TEXT, text=text, prov=provenance(box(page, text, line))
+        )
+
+    texts = [item.text for item in unstruck(pdf, converted).texts]
+
+    assert texts == ["The fee is euros.", "The cap is euros."]
+
+
+def test_the_edge_of_an_outlined_shape_strikes_nothing() -> None:
+    """A frame's top can run through the x-height of the line it frames."""
+    text = "Transfers settle within two business days."
+    pdf, page = printed((LEFT, BASELINE, text))
+    height = BASELINE - 0.33 * FONT
+    frame = page.new_shape()
+    frame.draw_polyline(
+        [
+            (40, BASELINE + 6),
+            (40, height),
+            (WIDTH - 40, height),
+            (WIDTH - 40, BASELINE + 6),
+        ]
+    )
+    frame.finish(color=INK, width=1)
+    frame.commit()
+
+    assert unstruck(pdf, paragraph(page, text)).texts[0].text == text
 
 
 def test_a_wholly_struck_item_leaves_the_body() -> None:

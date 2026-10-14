@@ -357,27 +357,41 @@ def _marked(data: bytes) -> dict[int, tuple[float, float, list[tuple[_Word, bool
 def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
     """Every horizontal stroke a page draws, as (left, right, top, bottom).
 
-    A stroked path made of nothing but one horizontal line, carrying its own
-    width; and any filled shape, which is how some writers draw a thin bar.
-    The edge of an outlined shape is not a stroke: a highlight's frame can
-    run through a line of text. Whether one strikes a word is `_struck`'s to
-    decide.
+    Each line of a stroked path made of nothing but horizontal lines,
+    carrying the path's width; each rectangle of a filled path made of
+    nothing but rectangles, which is how some writers draw a thin bar; and
+    any other filled shape whole. One per line or rectangle rather than one
+    per path: a writer may draw every deletion on a line, or on a page, as
+    one path, and the box around them all runs through the words between
+    them, or stands two lines tall and strikes nothing. The edge of an
+    outlined shape is not a stroke: a highlight's frame can run through a
+    line of text. Whether one strikes a word is `_struck`'s to decide.
     """
     found = []
     for path in page.get_drawings():
-        kind, shape = path.get("type") or "", path["rect"]
-        if shape.width <= _SHORTEST:
-            continue
-        if (
-            "s" in kind
-            and shape.height < _LEVEL
-            and all(item[0] == "l" for item in path["items"])
+        kind, items = path.get("type") or "", path["items"]
+        if "s" in kind and all(
+            item[0] == "l" and abs(item[2].y - item[1].y) < _LEVEL for item in items
         ):
-            middle, half = (shape.y0 + shape.y1) / 2, (path.get("width") or 0.0) / 2
-            found.append((shape.x0, shape.x1, middle - half, middle + half))
+            half = (path.get("width") or 0.0) / 2
+            for _, start, end in items:
+                middle = (start.y + end.y) / 2
+                found.append(
+                    (
+                        min(start.x, end.x),
+                        max(start.x, end.x),
+                        middle - half,
+                        middle + half,
+                    )
+                )
         elif "f" in kind:
-            found.append((shape.x0, shape.x1, shape.y0, shape.y1))
-    return found
+            shapes = (
+                [item[1] for item in items]
+                if items and all(item[0] == "re" for item in items)
+                else [path["rect"]]
+            )
+            found += [(shape.x0, shape.x1, shape.y0, shape.y1) for shape in shapes]
+    return [stroke for stroke in found if stroke[1] - stroke[0] > _SHORTEST]
 
 
 def _words(page: pymupdf.Page) -> list[_Word]:
