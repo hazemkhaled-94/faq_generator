@@ -350,3 +350,48 @@ def test_a_question_the_model_will_not_answer_is_left_for_the_next_run(
     assert not next(one for one in catalog.unanswered() if one.id == 7).judged
     assert any("question 7" in one for one in caplog.messages)
     assert "1 the model would not answer" in caplog.messages[-1]
+
+
+class Dead(Client):
+    """A served model that answers nothing: bad credentials, an unknown model."""
+
+    def __init__(self) -> None:
+        """Initialises with no call made."""
+        super().__init__(None)
+        self.calls = 0
+
+    def answer(self, *, system, user, shape, prompt_version=None):
+        """Raises as the client does for every failure, whatever its cause."""
+        from llm.client import ModelUnavailable
+
+        self.calls += 1
+        raise ModelUnavailable("AuthenticationError: the key was refused")
+
+
+def test_a_verifier_that_never_answers_stops_the_run() -> None:
+    """Five refusals in a row is a dead model, not a filter: the run fails."""
+    from llm.client import ModelUnavailable
+
+    catalog = Catalog(*(unanswered(id=qid) for qid in range(1, 21)))
+    client = Dead()
+
+    with pytest.raises(ModelUnavailable, match="the key was refused"):
+        rejudge(catalog, SETTINGS, Verifier(client))
+
+    assert client.calls == 5
+    assert catalog.opined == {}
+
+
+def test_an_answered_question_between_refusals_keeps_the_run_going() -> None:
+    """Only refusals in a row count, so a filter on a few ids stops nothing."""
+    refused = "When is a guest refunded?"
+    catalog = Catalog(
+        *(unanswered(id=qid, question_text=refused) for qid in range(1, 5)),
+        unanswered(id=5),
+        *(unanswered(id=qid, question_text=refused) for qid in range(6, 10)),
+    )
+
+    rejected = rejudge(catalog, SETTINGS, Verifier(Refusing(refused)))
+
+    assert rejected == 1
+    assert catalog.rejected == [(5, QuestionRejection.ANSWERABLE_AFTER_ALL)]

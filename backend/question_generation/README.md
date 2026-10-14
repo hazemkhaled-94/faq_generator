@@ -440,7 +440,10 @@ confidence.
 writes its verdicts on each row the same way, and does not ask again about
 a row that already carries one. A question the model will not answer about
 is logged, counted in the last line, and written nothing, so the run goes on
-and the next one asks it again.
+and the next one asks it again. Five in a row stop the run with the last
+error: the client raises the same for a refused key or an unknown model as
+for a content filter, and a model that answers nothing would otherwise walk
+every question and exit 0.
 
 A recovery or quote that only says the question back is not an answer: a
 `why` the passage gives no reason for comes back as the rule itself. So an

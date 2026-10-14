@@ -69,6 +69,9 @@ span = tracer(__name__)
 #: How many re-checked questions to write at once.
 _RECHECK_BATCH = 500
 
+#: More refusals in a row than a filter's few neighbouring ids, so a dead model stops.
+_GIVE_UP = 5
+
 #: What to tell the writer about a draft a gate refused, by the gate that
 #: refused it. Only the gates a second attempt can do anything about are
 #: here: each of these is the writer having written the question badly
@@ -550,13 +553,20 @@ def rejudge(
 
     A question the model will not answer about - a passage a content filter
     always refuses - is logged and counted, and written nothing, so the run
-    goes on past it and the next run asks it again.
+    goes on past it and the next run asks it again. `_GIVE_UP` of them in a
+    row is a model that answers nothing - the client raises the same for a
+    refused key or an unknown model - and the run stops on the last error.
 
     Returns:
         How many questions were rejected.
+
+    Raises:
+        ModelUnavailable: If the verifier refused `_GIVE_UP` questions in a
+            row.
     """
     written = 0
     unanswered = 0
+    in_a_row = 0
     for question in catalog.unanswered(within):
         if question.reviewed_verdict == ReviewVerdict.ACCEPTED or question.judged:
             continue
@@ -569,7 +579,11 @@ def rejudge(
                 exc,
             )
             unanswered += 1
+            in_a_row += 1
+            if in_a_row >= _GIVE_UP:
+                raise
             continue
+        in_a_row = 0
         code, reason = failed or (None, "")
         if code:
             log.info("rejecting question %d: %s (%s)", question.id, reason, code)
