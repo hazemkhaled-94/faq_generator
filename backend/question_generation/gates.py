@@ -269,8 +269,10 @@ _HOW_MANY = r"^(how many|wie viele)\b"
 
 #: How a question asks for a count anywhere in it, by ISO 639-1 code. The
 #: German dative asks too: `In wie vielen Fällen` is `Wie viele` after a
-#: preposition. A language with no entry is read at its opening by
-#: `_HOW_MANY`, as before.
+#: preposition. A language with no entry is read only against `_HOW_MANY`,
+#: whose openings are English and German, so a count asked in it is never
+#: read as one; `tests/static/test_language_tables.py` holds every language
+#: NLP_MODELS names to a row here.
 _ASKS_HOW_MANY: dict[str, str] = {
     "en": r"\bhow many\b",
     "de": r"\bwie vielen?\b",
@@ -434,9 +436,9 @@ def structural(
     # states is the material's, and is kept.
     #
     # ponytail: digits, or a word up to twelve in German or English; a
-    # third language or a larger written count passes, and a language with
-    # no `_ASKS_HOW_MANY` entry is read at its opening alone. Upgrade: read
-    # number words off the parse.
+    # larger written count passes, and so does any count asked in a language
+    # with no `_ASKS_HOW_MANY` entry, since `_HOW_MANY` opens in English and
+    # German only. Upgrade: read number words off the parse.
     leading = re.match(r"\s*(\w+)", target_answer or "")
     word = leading.group(1).lower() if leading else ""
     said = _count(word)

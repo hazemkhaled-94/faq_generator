@@ -207,5 +207,6 @@ pins the pair.
 |---|---|
 | `tests/static/test_env_files.py` | One name, one file. Every `${...}` compose interpolates is declared, and one with no fallback is actually set. `.env.example` holds a placeholder for every secret. The image bakes the pipelines `NLP_MODELS` loads |
 | `tests/static/test_settings_documented.py` | Every setting the code reads is named in a file that declares it |
+| `tests/static/test_language_tables.py` | Every word table keyed by language holds a row for each language `NLP_MODELS` names |
 | `tests/static/test_settings_catalogued.py` | Every setting the code reads is described in `settings/catalog.py`, and every description is read |
 | `tests/static/test_doc_links.py` | Every relative link in a README resolves |

@@ -118,7 +118,10 @@ finite verb, which silently changes what `not_atomic` means.
 ### 2. Add the language to the word lists, and name it
 
 These are the readings no feature marks. A language missing from one means
-that gate **silently never fires** for it — no error, no log.
+that gate **silently never fires** for it — no error, no log. The tables
+keyed by language code are held to `NLP_MODELS` by
+[`test_language_tables.py`](../../tests/static/test_language_tables.py), so a
+language added there without its rows fails that test, naming each table.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
@@ -129,6 +132,9 @@ that gate **silently never fires** for it — no error, no log.
 | `_HOW_MANY` | same | The opening of a question asking for a count | `wie viele`, `how many` |
 | `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
 | `_ASKED_FOR` | same | Question openings, and the kinds each asks for | `warum`, `why` |
+| `_ASKS_HOW_MANY` | same | How a question asks for a count anywhere in it, by language | `wie vielen`, `how many` |
+| `_POLARITY` | same | Words answering a yes-or-no question by their polarity, by language | `nein`, `not` |
+| `_PURPOSE` | same | How the material says why, by language: what a `reason` slot is dealt | `damit`, `so that` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
 | `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing | `Lehrplan`, `syllabus` |
