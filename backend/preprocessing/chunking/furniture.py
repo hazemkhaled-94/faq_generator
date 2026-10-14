@@ -236,7 +236,8 @@ def tidied(
     A paragraph that starts with a running head or foot, field for field and
     with whitespace removed, is the converter reading furniture as body
     text. A paragraph of one letter, followed by entries under that letter,
-    is a glossary's index divider. Both move to the furniture layer. Before
+    is a glossary's index divider, where the document holds two or more in
+    ascending order. Both move to the furniture layer. Before
     the first block of each chapter goes a title naming it, which empties
     the heading trail the chunker would otherwise carry over from the
     chapter before.
@@ -283,21 +284,28 @@ def _dividers(document: DoclingDocument) -> set[str]:
 
     One letter, and the next text in the body starts with it, in either
     case. A lone letter followed by anything else is content: an energy
-    class, a part marker.
+    class, a part marker. And an index has two letters or more, each after
+    the one before as its character code is, so a document whose letters are
+    one, or come back or run backwards, is giving values - a class "A" over
+    a line that happens to start with an A - and none is dropped.
     """
     texts = [
         item
         for item, _ in document.iterate_items()
         if isinstance(item, TextItem) and item.text.strip()
     ]
-    return {
-        item.self_ref
+    found = [
+        (item.self_ref, letter.casefold())
         for item, following in pairwise(texts)
         if item.label in _PROSE
         and len(letter := item.text.strip()) == 1
         and letter.isalpha()
         and following.text.strip()[0].casefold() == letter.casefold()
-    }
+    ]
+    letters = [letter for _, letter in found]
+    if len(found) < 2 or any(a >= b for a, b in pairwise(letters)):
+        return set()
+    return {reference for reference, _ in found}
 
 
 def _repeats(text: str, running: frozenset[tuple[str, ...]]) -> bool:

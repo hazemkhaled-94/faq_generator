@@ -164,9 +164,13 @@ def test_a_one_letter_paragraph_is_not_passage_text() -> None:
     """A glossary's index letter is a divider, not part of the entry before it."""
     document = DoclingDocument(name="glossary")
     document.add_heading(text="Glossary", level=1)
-    document.add_text(label=DocItemLabel.TEXT, text="Overdraft: a negative balance.")
-    document.add_text(label=DocItemLabel.TEXT, text="P")
-    document.add_text(label=DocItemLabel.TEXT, text="Payee: whoever is paid.")
+    for text in (
+        "O",
+        "Overdraft: a negative balance.",
+        "P",
+        "Payee: whoever is paid.",
+    ):
+        document.add_text(label=DocItemLabel.TEXT, text=text)
 
     assert trails(document) == [
         ("Overdraft: a negative balance.\nPayee: whoever is paid.", ["Glossary"])
@@ -183,6 +187,32 @@ def test_a_lone_letter_that_heads_nothing_is_content() -> None:
     assert trails(document) == [
         ("Energy class\nA\nThe fridge uses 150 kWh a year.", ["Fridge"])
     ]
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ("Energy class", "A", "Annual consumption: 150 kWh."),
+        (
+            "Energy class",
+            "C",
+            "Consumption: 150 kWh a year.",
+            "Noise class",
+            "B",
+            "Built-in width: 60 cm.",
+        ),
+    ],
+)
+def test_a_value_of_one_letter_is_content_whatever_the_line_after_it(
+    lines: tuple[str, ...],
+) -> None:
+    """An index has two letters or more, and they run in alphabetical order."""
+    document = DoclingDocument(name="sheet")
+    document.add_heading(text="Fridge", level=1)
+    for text in lines:
+        document.add_text(label=DocItemLabel.TEXT, text=text)
+
+    assert trails(document) == [("\n".join(lines), ["Fridge"])]
 
 
 @pytest.mark.parametrize("segment", ["(…)", "...", "–"])

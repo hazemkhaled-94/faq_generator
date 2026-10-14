@@ -433,7 +433,8 @@ Chunking reads each page's chapter from the document's own running heads and
 feet. It leaves out fields printed on every page, page numbers, and fields
 printed on a single page. A new chapter starts with an empty heading trail,
 and its label leads every trail in it. Running feet read as body text,
-an index letter that heads the entries under it, and heading segments that
+an index letter that heads the entries under it, where the document's index
+letters are two or more in ascending order, and heading segments that
 are a lone conjunction or no word at all are dropped. A document with no
 running heads gets today's paths.
 
