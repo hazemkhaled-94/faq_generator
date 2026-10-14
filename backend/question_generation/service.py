@@ -318,12 +318,15 @@ def _recheck(
         "facts": question.fact_ids,
     }
     # One probe per kind of question that can refuse this one, as the
-    # checker probes: see `gates.rivals`.
+    # checker probes: see `gates.rivals`. Earlier questions only among its
+    # own kind, which is what keeps one of two duplicates rather than
+    # neither; an answered question on its fact answers it whenever it was
+    # written.
     found = deciding(
         [
             catalog.nearest(
                 question.embedding,
-                before=question.id,
+                before=question.id if answerable == question.answerable else None,
                 excluding=pending,
                 language=question.language,
                 answerable=answerable,

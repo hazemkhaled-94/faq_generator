@@ -125,3 +125,55 @@ class _Rejected:
 def test_a_rejected_question_is_not_checked_again() -> None:
     """It can only be rejected, so the parse and the probe are skipped."""
     assert reverify(_Rejected(), Settings.load()) == 0  # type: ignore[arg-type]
+
+
+class _Stored:
+    """A catalogue of accepted questions whose probe honours what it is asked."""
+
+    def __init__(self, *stored: Neighbour) -> None:
+        self.stored = stored
+
+    def nearest(self, embedding, before=None, excluding=(), language=None, **asked):
+        """The nearest stored question that is earlier, kept and of this kind."""
+        answerable = asked.get("answerable")
+        fitting = [
+            one
+            for one in self.stored
+            if (before is None or (one.id or 0) < before)
+            and one.id not in excluding
+            and language in (None, one.language)
+            and answerable in (None, one.answerable)
+        ]
+        return max(fitting, key=lambda one: one.similarity, default=None)
+
+
+@pytest.mark.parametrize(("unanswerable", "answerable"), [(10, 20), (20, 10)])
+def test_an_answered_twin_rejects_an_unanswerable_question_whichever_came_first(
+    unanswerable: int, answerable: int
+) -> None:
+    """Nearness to an answered question on its own fact is an answer.
+
+    Not a duplicate, so the earlier-only rule that keeps one of two twins
+    has nothing to decide: the answered one refuses it however the two
+    were ordered when written.
+    """
+    answered = Neighbour(
+        "What does the device weigh?",
+        True,
+        similarity=0.95,
+        fact_ids=frozenset({1}),
+        language="en",
+        id=answerable,
+    )
+    asked = _stored(
+        id=unanswerable,
+        question_text="What does the device weigh on the moon?",
+        target_answer=None,
+        answerable=False,
+        embedding=[1.0],
+        fact_ids=(1,),
+    )
+
+    failed = _recheck(_Stored(answered), Settings.load(), asked)  # type: ignore[arg-type]
+
+    assert failed is not None and failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
