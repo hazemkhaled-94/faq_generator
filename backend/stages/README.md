@@ -150,8 +150,9 @@ python -m question_generation.run --rerun --only topic=7
 
 A stage with an operation nobody else has declares it as one `Extra` and the
 parser grows a flag for it — `--revocabulary` on chunking, `--revalidate`,
-`--bridge`, `--recap` and `--embed` on extraction, `--reverify` and
-`--balance` on question generation, `--enrol` on assessment.
+`--bridge`, `--recap`, `--dedup` and `--embed` on extraction, `--reverify`,
+`--rescore`, `--rejudge` and `--balance` on question generation, `--enrol` on
+assessment.
 
 Topic modelling builds its parser from actions of its own rather than the
 shared ones plus extras, because it has no `start` and no `rerun` to extend.

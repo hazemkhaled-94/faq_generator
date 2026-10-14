@@ -230,8 +230,8 @@ commands that call no model come first:
 
 | Command | Calls a model | What it carries into stored rows |
 |---|---|---|
-| `make extract-revalidate` | no | Facts refused for a pronoun their own statement resolves are validated |
 | `make extract-dedup` | no | Duplicate refusals the new rule would not make are given back, and fold citations come off the facts they were written onto |
+| `make extract-revalidate` | no | Facts refused for a pronoun their own statement resolves are validated |
 | `make extract-recap` | no | The atomic cap, now never below a passage's sentences plus list items |
 | `make questions-rescore` | no | Each question's scope and difficulty, from the facts it cites now. Run it before re-verify |
 | `make questions-reverify` | no | The new gates, on every accepted question. It only rejects |
