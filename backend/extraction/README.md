@@ -137,6 +137,12 @@ Two more refusals are the service refusing what the checks passed:
   taken against today's bar, or none, and takes out the
   citations an earlier version's refusal added to its twin, rebuilding that
   fact's evidence from the citation it keeps. No model is called.
+  Nothing ties a stored fact to the passages refused against it, so
+  deleting its document leaves each repeat refused against a fact that is
+  gone. `make delete` and `make delete-derived` therefore run
+  `extract-dedup`, which gives the repeat back, then `extract-revalidate`
+  and `extract-recap`. A deletion through the API or the UI does not, so
+  run `make extract-dedup` and those two after it.
 - `over_cap` — `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which works out to a cap on the atomic
   ones. A passage's cap is never below what it states, its sentences - a

@@ -624,6 +624,15 @@ citations moved 6 accepted questions from one passage or document to several.
 Re-verification rejects a question whose stored scope no longer matches its
 citations as `source_changed`. That is re-verify working as designed, and it
 cost 6 sound questions.
+**Changed in v0.2.2:** a fact cites its own passage alone. `make extract-dedup`
+takes out every citation after the first on a fact other than a bridge, and
+these citations are among them. A claim two documents hold is now a fact on
+one and a `duplicate` refusal on the other, so deleting the first document
+took the claim with it and left the refusal standing.
+`make delete` and `make delete-derived` now run `extract-dedup`,
+`extract-revalidate` and `extract-recap` afterwards, and the dedup gives
+the refusal back. A deletion through the API or the UI needs those three
+run after it, in that order.
 
 **The written-count gate has the digit rule's blind spot.** Of the 3 accepted
 rows it moved, 2 were sound: `zwei Lernziele` (question 4255) and `zwei

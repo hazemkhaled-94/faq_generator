@@ -198,6 +198,60 @@ def test_deleting_one_document_leaves_the_other_alone(
     }
 
 
+@pytest.mark.parametrize("removal", ["delete", "delete_derived"])
+def test_a_claim_another_document_repeats_is_given_back_by_the_replay(
+    service, database, buckets, engine, removal: str
+) -> None:
+    """The repeat was refused against the fact the deletion took.
+
+    A refusal cites only its own passage, so nothing ties the stored fact to
+    the document repeating it, and the refusal outlives it. The dedup
+    replay `make delete` and `make delete-derived` run afterwards gives it
+    back.
+    """
+    from database.qa_generator import Rejection
+    from extraction.repository import FactCatalog
+    from extraction.service import dedup
+
+    gone, repeating = digest("e"), digest("f")
+    vector = [1.0] + [0.0] * 1023
+    with Session(engine) as session:
+        session.add_all(
+            [document(gone, language="en"), document(repeating, language="en")]
+        )
+        session.flush()
+        first, second = passage(gone), passage(repeating)
+        session.add_all([first, second])
+        session.flush()
+        session.add(fact(first.id, embedding=vector))
+        session.flush()
+        session.add(
+            fact(
+                second.id,
+                embedding=vector,
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                validation_error="says what the other document's fact says",
+            )
+        )
+        session.commit()
+
+    getattr(service, removal)(gone)
+
+    def verdicts() -> list[tuple[bool, str | None]]:
+        with engine.connect() as connection:
+            return [
+                (row.validated, row.rejection_code)
+                for row in connection.execute(
+                    text("SELECT validated, rejection_code FROM facts")
+                )
+            ]
+
+    assert verdicts() == [(False, Rejection.DUPLICATE)], "the refusal outlives it"
+    assert dedup(FactCatalog(), 0.985) == 1
+    assert verdicts() == [(True, None)]
+
+
 def test_the_upload_record_survives_a_deletion(service, held, database, engine) -> None:
     """ingest_events is the history of what was submitted, not of what is held."""
     from seed import event

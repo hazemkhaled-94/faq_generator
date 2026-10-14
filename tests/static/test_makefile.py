@@ -112,6 +112,25 @@ def test_the_bridge_pass_is_forced_only_when_asked(
     assert ("--force" in bridging) is forced, bridging
 
 
+@pytest.mark.parametrize("target", ["delete", "delete-derived"])
+def test_a_deletion_is_followed_by_the_dedup_replay_over_the_whole_corpus(
+    target: str,
+) -> None:
+    """A refusal whose twin went with the document is in another document."""
+    ran = [
+        line.split("python -m ", 1)[1].strip()
+        for line in printed(target, "SHA=abc")
+        if "python -m" in line
+    ]
+
+    assert ran == [
+        f"ingestion.run --{target} abc",
+        "extraction.run --dedup",
+        "extraction.run --revalidate",
+        "extraction.run --recap",
+    ], ran
+
+
 def test_the_corpus_reports_the_topics_and_never_fits_them() -> None:
     """`topics-discover` is the refit, asked for on its own."""
     topics = [line for line in printed("corpus") if "topic_modelling.run" in line]

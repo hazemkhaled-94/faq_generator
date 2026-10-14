@@ -322,8 +322,8 @@ Documents are ingestion's, not a stage's. **All of these are irreversible.**
 | Target | Does |
 |---|---|
 | `make documents` | List every document with its parse state |
-| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed` |
-| `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments |
+| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed`. Then `extract-dedup`, `extract-revalidate` and `extract-recap` over the whole corpus, which give back a fact another document repeats and had refused as a duplicate of this one's |
+| `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Then the same replay as `make delete` |
 | `make wipe` | Every document, the topics, and the four services that describe them. Waits 5 seconds first |
 | `make wipe-all` | The same, then the archive. The one command for "leave nothing" |
 | `make wipe KEEP=golden,runs` | Spare the Phoenix datasets and the Dagster run history |

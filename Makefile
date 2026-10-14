@@ -1240,10 +1240,21 @@ documents:
 # ingest_events is kept. A fact another document's passage also cites
 # stays, and so does a question that also rests on another document's
 # facts, rejected as `source_changed`.
+#
+# Then extract-dedup, extract-revalidate and extract-recap, which call no
+# model. A duplicate refusal cites only its own passage, so a fact another
+# document repeats rests on this one alone, and deleting it leaves the
+# repeat refused against a fact that is gone. The replay gives it back.
+# Over the whole corpus, SHA cleared, because the repeat is in another
+# document. A deletion through the API or the UI runs none of it: run
+# `make extract-dedup` and the other two after one.
 #   make delete SHA=<sha256>
 delete:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete SHA=<sha256>"; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete $(SHA)
+	$(MAKE) extract-dedup SHA=
+	$(MAKE) extract-revalidate SHA=
+	$(MAKE) extract-recap SHA=
 
 # Empty the corpus: every document, every file, every converted form, and
 # with them by cascade every passage, membership, fact and question. Then the
@@ -1324,11 +1335,15 @@ dagster-wipe:
 # follow-ups and the assessments of each. A question that also rests on
 # another document's facts stays, rejected as `source_changed`. The document
 # and its file stay, and chunking goes back to `new`, so the next run
-# rebuilds them once somebody starts it.
+# rebuilds them once somebody starts it. Then the replay `make delete` runs,
+# for the same reason.
 #   make delete-derived SHA=<sha256>
 delete-derived:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete-derived SHA=<sha256>"; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-derived $(SHA)
+	$(MAKE) extract-dedup SHA=
+	$(MAKE) extract-revalidate SHA=
+	$(MAKE) extract-recap SHA=
 
 # ── Archive ────────────────────────────────────────────────────────────────
 #
