@@ -317,7 +317,11 @@ corpus, which is a property of the model rather than of this code.
   stays in their chapter: one opening a chapter on less than the pages
   after it print starts a chapter that they then start again, and one
   between two pages printing the whole label breaks the run of the field
-  it leaves out, so the heads name no chapter at all.
+  it leaves out, so the heads name no chapter at all. The rule reads only
+  the fields, not which chapter a page opens: an opening page whose fields
+  all sit inside the previous chapter's label, such as ("Part 1",) after
+  ("Part 1", "Chapter A"), is filed into that previous chapter, and the
+  chapter it opens starts on the page after it.
 - **A running foot is recognised by the document's own.** A foot the
   converter read as body text is dropped only when it repeats one the
   document prints as furniture; another document's foot printed over the
