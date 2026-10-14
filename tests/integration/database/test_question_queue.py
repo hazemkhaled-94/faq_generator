@@ -449,6 +449,43 @@ def test_a_verdict_and_its_rejection_are_written_together_or_not_at_all(
     assert [one["gate"] for one in scores] == ["settles"]
 
 
+def test_a_person_accepting_during_a_rejudge_is_not_overruled(corpus, engine) -> None:
+    """The accept lands after the run read the row, and the rejection does not.
+
+    The verdict is still kept beside it, so nothing asks the question again.
+    """
+    from confidence import Measurement
+    from database.qa_generator import QuestionStatus
+
+    written = corpus(topics=1, facts_per_topic=1)
+    (cited,) = written["facts"][written["topics"][0]]
+    with Session(engine) as session:
+        asked = question(status="accepted", answerable=False)
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=cited))
+        session.commit()
+        kept = asked.id
+    catalog = QuestionCatalog()
+    (read,) = catalog.unanswered()
+    assert read.reviewed_verdict is None
+    catalog.decide(kept, QuestionStatus.ACCEPTED)
+
+    settled = [Measurement("settles", 0.0, 0.5, opinion=True)]
+    assert not catalog.opine(kept, settled, rejected="answerable_after_all")
+
+    with engine.connect() as connection:
+        status, verdict, scores = connection.execute(
+            text(
+                "SELECT status, reviewed_verdict, gate_scores FROM questions "
+                "WHERE id = :q"
+            ),
+            {"q": kept},
+        ).one()
+    assert (status, verdict) == ("accepted", "accepted")
+    assert [one["gate"] for one in scores] == ["settles"]
+
+
 # ── Storing what a topic produced ──────────────────────────────────────────
 
 

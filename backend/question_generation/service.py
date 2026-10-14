@@ -528,7 +528,8 @@ def rejudge(
     It only ever rejects, as `reverify` does, and a released question goes
     with the rest: one the material answers marks a correct chatbot wrong.
     A question a person accepted is left alone, for the reason `_recheck`
-    gives.
+    gives, and so is one a person decides while the run is asking about it:
+    `opine` reads the row again before it rejects.
 
     Each verdict is written to the row's `gate_scores` as it is reached,
     kept or rejected, and in one write with the rejection it decides. A
@@ -550,8 +551,7 @@ def rejudge(
             log.info("rejecting question %d: %s (%s)", question.id, reason, code)
         # The verdicts and the rejection they decide in one write: apart, a
         # run dying between them left a settled row accepted and judged.
-        catalog.opine(question.id, opinions, rejected=code)
-        if code:
+        if catalog.opine(question.id, opinions, rejected=code):
             written += 1
     log.info("re-judged and rejected %d question(s)", written)
     return written

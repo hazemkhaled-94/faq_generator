@@ -72,6 +72,7 @@ class Catalog:
         self.opined.setdefault(question_id, []).extend(opinions)
         if rejected:
             self.rejected.append((question_id, rejected))
+        return bool(rejected)
 
     def elsewhere(self, lemmas, language, skip, limit, embedding=None):
         """The uncited passages the probe hands the verifier."""

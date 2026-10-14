@@ -37,6 +37,7 @@ from database.qa_generator import (
     Question,
     QuestionFact,
     QuestionStatus,
+    ReviewVerdict,
     Status,
     Topic,
 )
@@ -899,7 +900,7 @@ class QuestionCatalog(Repository):
         question_id: int,
         opinions: Sequence[Measurement],
         rejected: str | None = None,
-    ) -> None:
+    ) -> bool:
         """Adds a model's verdicts to one question's `gate_scores`, and rejects it.
 
         Opinions only. They carry no margin, so the row's confidence stays
@@ -912,27 +913,42 @@ class QuestionCatalog(Repository):
         The row is locked while its entries are read and written back, so a
         concurrent write of the column waits rather than losing one.
 
+        The rejection is applied only to a row still accepted that no person
+        accepted, read under the same lock: the caller decided on a reading
+        taken before the call, and a person accepting or rejecting it since
+        is not overruled. The verdicts are kept either way.
+
+        Returns:
+            Whether the question was rejected.
+
         Raises:
             ValueError: If any of them is a measurement.
         """
         if any(not one.opinion for one in opinions):
             raise ValueError("only an opinion is added without its confidence")
         if not opinions and not rejected:
-            return
+            return False
         with self._session.begin() as session:
-            stored = session.scalar(
-                select(Question.gate_scores)
+            stored = session.execute(
+                select(Question.gate_scores, Question.status, Question.reviewed_verdict)
                 .where(Question.id == question_id)
                 .with_for_update()
+            ).one_or_none()
+            if stored is None:
+                return False
+            rejecting = bool(rejected) and (
+                stored.status == QuestionStatus.ACCEPTED
+                and stored.reviewed_verdict != ReviewVerdict.ACCEPTED
             )
             session.execute(
                 update(Question)
                 .where(Question.id == question_id)
                 .values(
-                    gate_scores=[*(stored or ()), *scored(opinions)],
-                    **(_rejecting(rejected) if rejected else {}),
+                    gate_scores=[*(stored.gate_scores or ()), *scored(opinions)],
+                    **(_rejecting(rejected) if rejected and rejecting else {}),
                 )
             )
+        return rejecting
 
     def rescore(self, rows: Sequence[tuple[int, Criteria]]) -> int:
         """Writes the scopes and the band a rescore read, one row per question.
