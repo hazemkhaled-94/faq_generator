@@ -208,6 +208,33 @@ def test_a_pronoun_its_statement_does_not_resolve_is_still_refused(
 
 
 @pytest.mark.parametrize(
+    ("statement", "reason"),
+    [
+        (
+            "The card issued by it is valid for three years.",
+            "a participle opens no clause, so `it` sits in the card's own",
+        ),
+        (
+            "To renew the card, the customer returns it to the bank.",
+            "a to-infinitive opens no clause, so the card sits in `it`'s own",
+        ),
+    ],
+)
+def test_a_pronoun_beside_a_non_finite_clause_is_refused(statement, reason) -> None:
+    """Refused, as the safe direction, whether or not a reader would resolve it.
+
+    The second names the card plainly. Only a finite clause is read as one
+    of its own, which is what refuses "The customer has the right to return
+    it", and the price is a statement like this one refused as dangling: one
+    fact lost, rather than one let through that cannot be read alone.
+    """
+    judged = Checker(passage(statement, language="en")).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNRESOLVED_REFERENCE, reason
+    assert "it" in judged.unresolved_references, reason
+
+
+@pytest.mark.parametrize(
     ("statement", "language", "pointer"),
     [
         (
