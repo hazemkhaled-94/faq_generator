@@ -2160,3 +2160,56 @@ def test_a_fold_taken_out_carries_through_rescore_and_re_verify(
         ).one()
     assert tuple(links) == (1,)
     assert tuple(row) == ("accepted", "single_passage", "easy")
+
+
+def _across(corpus, engine, **columns) -> tuple[int, int]:
+    """One question citing a fact in each of two topics: its id and the first."""
+    written = corpus(topics=2, facts_per_topic=1)
+    here, there = written["topics"]
+    with Session(engine) as session:
+        asked = question(**columns)
+        session.add(asked)
+        session.flush()
+        for topic_id in (here, there):
+            (cited,) = written["facts"][topic_id]
+            session.add(QuestionFact(question_id=asked.id, fact_id=cited))
+        session.commit()
+        return asked.id, here
+
+
+def test_a_rescore_narrowed_to_a_topic_reads_all_a_question_cites(
+    corpus, engine
+) -> None:
+    """Its other topic's passage still counts, so its band does not move.
+
+    Narrowed on the joined rows, the other topic's were dropped before they
+    were counted, and the question was banded as one passage in one topic,
+    which the next full re-verify rejected as source_changed.
+    """
+    from question_generation.service import rescore, reverify
+
+    _, here = _across(corpus, engine, target_answer="4 kg", status="accepted")
+    rescore(QuestionCatalog(), _settings())
+    within = QuestionQueue().narrowed("topic", str(here))
+
+    assert rescore(QuestionCatalog(), _settings(), within) == 0
+    assert reverify(QuestionCatalog(), _settings()) == 0
+    with engine.connect() as connection:
+        row = connection.execute(
+            text("SELECT status, passage_scope, topic_scope FROM questions")
+        ).one()
+    assert tuple(row) == ("accepted", "multi_passage", "multi_topic")
+
+
+def test_a_rejudge_narrowed_to_a_topic_reads_every_passage_a_question_cites(
+    corpus, engine
+) -> None:
+    """The verifier is shown what the question rests on, not the topic's share."""
+    kept, here = _across(corpus, engine, status="accepted", answerable=False)
+
+    (found,) = QuestionCatalog().unanswered(
+        QuestionQueue().narrowed("topic", str(here))
+    )
+
+    assert found.id == kept
+    assert len(found.passage_ids) == 2

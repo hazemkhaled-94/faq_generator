@@ -233,6 +233,21 @@ def _ids(
     ).distinct()
 
 
+def _narrowed(query: Select, within) -> Select:
+    """Narrows a grouped query to the questions a condition selects, whole.
+
+    By id, as `_ids` selects them, and not on the joined rows: a WHERE is
+    applied before the GROUP BY, so `topic=7` there would drop the passages
+    a question cites in another topic before they were counted. Uncorrelated,
+    for the reason `QuestionCatalog.citations` gives.
+    """
+    if within is None:
+        return query
+    return query.where(
+        Question.id.in_(_joined(select(Question.id)).where(within).correlate(None))
+    )
+
+
 def _listing() -> Select:
     """One question per row, with what it cites and where that sits.
 
@@ -801,8 +816,7 @@ class QuestionCatalog(Repository):
             .order_by(Question.id)
             .execution_options(yield_per=_BATCH)
         )
-        if within is not None:
-            query = query.where(within)
+        query = _narrowed(query, within)
         with self._session() as session:
             for row in session.execute(query):
                 yield JudgedQuestion(
@@ -849,8 +863,7 @@ class QuestionCatalog(Repository):
             .group_by(Question.id)
             .order_by(Question.id)
         )
-        if within is not None:
-            query = query.where(within)
+        query = _narrowed(query, within)
         with self._session() as session:
             rows = session.execute(query).all()
             cited = {one for row in rows for one in row.passage_ids or () if one}
