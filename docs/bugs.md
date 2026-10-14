@@ -432,7 +432,9 @@ text, and the glossary's index letters, were glued into passage text.
 Chunking reads each page's chapter from the document's own running heads and
 feet. It leaves out fields printed on every page, page numbers, and fields
 printed on a single page. A new chapter starts with an empty heading trail,
-and its label leads every trail in it. Running feet read as body text,
+and its label leads every trail in it. A page printing only part of its
+chapter's label, after pages printing all of it, stays in that chapter.
+Running feet read as body text,
 an index letter that heads the entries under it, where the document's index
 letters are two or more in ascending order, and heading segments that
 are a lone conjunction or no word at all are dropped. A document with no

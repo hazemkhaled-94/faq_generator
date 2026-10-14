@@ -107,8 +107,9 @@ def furniture_of(document: DoclingDocument) -> Furniture:
     header, or a guide word naming its own page. What is left, printed on a
     run of pages and changing from one run to the next, is the chapter
     label. A page printing only the title is in the chapter of the page
-    before. So is a page printing only single-page fields, when the same
-    label is printed either side of it; otherwise it is in none. When one of
+    before, and so is one printing only some of that chapter's fields. So
+    is a page printing only single-page fields, when the same label is
+    printed either side of it; otherwise it is in none. When one of
     those fields comes back after another has taken over,
     as on pages whose heads alternate between title and chapter, the heads
     do not name chapters and none is read.
@@ -191,6 +192,10 @@ def furniture_of(document: DoclingDocument) -> Furniture:
         if not label and (
             by_page[page].keys() <= constant or following[page] == before
         ):
+            continue
+        # A page printing only part of its chapter's label, its number
+        # without its title, is still in it.
+        if label and set(label) <= set(before):
             continue
         if label != before:
             starts.append(page)

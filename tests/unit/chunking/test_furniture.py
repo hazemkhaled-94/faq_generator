@@ -430,3 +430,26 @@ def test_a_facing_page_with_a_topic_of_its_own_stays_in_its_chapter() -> None:
     ]
     inserted = [item.text for item in tidy.texts if item.label == DocItemLabel.TITLE]
     assert len(inserted) == 2, inserted
+
+
+def test_a_page_printing_part_of_its_chapter_s_label_stays_in_the_chapter() -> None:
+    """A page heading only its chapter's number opens no chapter of its own."""
+    full, cards = f"{GUIDE} | Chapter 3 | Fees", f"{GUIDE} | Chapter 4 | Cards"
+    document = paged(5)
+    for page, printed in enumerate(
+        (full, full, f"{GUIDE} | Chapter 3", cards, cards), 1
+    ):
+        head(document, page, printed)
+    document.add_heading(text="3.1 Account fees", level=1, prov=on(1, 60))
+    for page in (1, 2, 3):
+        say(document, page, f"A fee rule printed on page {page}.")
+    document.add_heading(text="4.1 Debit cards", level=1, prov=on(4, 60))
+    for page in (4, 5):
+        say(document, page, f"A card rule printed on page {page}.")
+
+    tidy, chunks = chunks_of(document, word_chunker(200), None)
+
+    inserted = [item.text for item in tidy.texts if item.label == DocItemLabel.TITLE]
+    assert inserted == ["Chapter 3 | Fees", "Chapter 4 | Cards"], inserted
+    (third,) = [chunk for chunk in chunks if "page 3." in chunk.text]
+    assert third.meta.headings == ["Chapter 3", "Fees", "3.1 Account fees"]
