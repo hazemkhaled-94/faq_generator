@@ -57,6 +57,7 @@ lists.
 | [`explanation_unusable` reads any proper noun as a name](#explanation_unusable-reads-any-proper-noun-as-a-name) | 0 (3 lost) | [`gates.py`](../backend/question_generation/gates.py) | no |
 | [A refusal used as a key](#a-refusal-used-as-a-key) | 0 | [`gates.py`](../backend/question_generation/gates.py) | no |
 | [`asks_nothing_new` on outline facts](#asks_nothing_new-on-outline-facts) | 0 | [`selection.py`](../backend/question_generation/selection.py) | no |
+| [A refused model call fails its whole topic](#a-refused-model-call-fails-its-whole-topic) | 1 topic | [`service.py`](../backend/question_generation/service.py) | no |
 
 On the earlier corpus, 15 of the 1,015 release rows — **1.5%** — carried at
 least one of the first two defects. On the 2026-10-13 run, 49% of the
@@ -599,6 +600,30 @@ works as specified; the deal offers it those facts.
 
 **Not fixed.** Keeping outline and summary facts out of follow-up deals is
 the proposed fix.
+
+## A refused model call fails its whole topic
+
+Found on the v0.2.2 rebuild of **2026-10-14**, which ran the same corpus
+again through every stage on `azure/gpt-5.4` (writer) and `azure/gpt-4.1`
+(verifier, phrasing, extraction, topics). One of the 20 topics, the English
+*Referee decisions and goal incidents*, ended `failed` with no questions. Its
+writer had an unanswerable question refused as `answerable_elsewhere` and was
+asked again, and Azure refused that retry prompt three times over: its
+content filter returned every harm category as safe and **jailbreak detected**
+(Prompt Shields). First drafts from the same material passed, so what the
+shield most likely reads as an attempt to override instructions is the retry
+note telling the writer to ask for something the corpus leaves unanswered.
+The client reports the refusal as `ModelUnavailable`, and
+question generation fails the whole topic on it. A retry fails the same way:
+the same slot sends the same prompt.
+
+**Not fixed.** `make questions-rejudge` already logs and skips a question the
+model will not answer about; question generation should do the same with
+one slot, keeping the rest of the topic, and the retry note can be worded so
+it does not read as an instruction to override. Until then, a topic a
+provider's prompt shield refuses gets no questions; a deployment can turn the
+shield down for that deployment, or point the writer at a provider without
+one.
 
 ## Measured limitations
 
