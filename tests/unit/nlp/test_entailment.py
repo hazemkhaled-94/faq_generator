@@ -92,6 +92,30 @@ def test_nothing_to_judge_costs_no_forward_pass() -> None:
     assert Entailment("a/checkpoint-that-does-not-exist").judge_all([]) == []
 
 
+def test_the_weights_are_loaded_in_full_precision(monkeypatch) -> None:
+    """Whatever precision the checkpoint was saved in.
+
+    A checkpoint saved in half precision loads in it unless asked otherwise,
+    and on a CPU that runs many times slower for the same scores.
+    """
+    import torch
+    import transformers.pipelines
+
+    asked: dict = {}
+
+    def pipeline(task, **options):
+        asked.update(options)
+        return type("Built", (), {"tokenizer": Tokenizer(512)})()
+
+    # Where `from transformers import pipeline` finds it once the lazy
+    # package has resolved the name.
+    monkeypatch.setattr(transformers.pipelines, "pipeline", pipeline)
+
+    Entailment("a/checkpoint")._loaded  # noqa: B018 - loading is the act
+
+    assert asked["dtype"] is torch.float32
+
+
 def test_only_the_premise_is_cut_to_fit_the_window() -> None:
     """The hypothesis is the answer being judged, so it is kept whole."""
     asked: dict = {}

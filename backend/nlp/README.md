@@ -91,6 +91,10 @@ Two-way heads are read beside three-way ones, and the shipped
 `mDeBERTa-v3-base-xnli`'s does, and a premise here is a passage already sized
 to `EMBEDDING_MAX_TOKENS`.
 
+The weights always load in full precision. `bge-m3-zeroshot-v2.0` is saved in
+half precision, and loaded that way on a CPU it runs many times slower for the
+same scores.
+
 What the encoder returns is a **probability**, so a deployment can decide how
 sure it wants a gate to be. `NLI_ENTAILMENT_THRESHOLD` is that decision, and
 `QA_ANSWER_CONFIDENCE` is the same for the extractive reader.

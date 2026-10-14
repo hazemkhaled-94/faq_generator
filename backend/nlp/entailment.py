@@ -130,7 +130,12 @@ class Entailment:
         A pair is cut to the tokenizer's `model_max_length`, 512 for the
         shipped model; `ENCODER_MAX_TOKENS` does not apply unless set below
         that.
+
+        The weights load in full precision whatever the checkpoint was saved
+        in: one saved in half precision would otherwise load in it, and on a
+        CPU that runs many times slower for the same scores.
         """
+        import torch
         from transformers import pipeline
 
         log.info("loading %s", self._model_name)
@@ -139,6 +144,7 @@ class Entailment:
             model=self._model_name,
             top_k=None,
             function_to_apply="softmax",
+            dtype=torch.float32,
         )
         self._max_tokens = window(built.tokenizer, self._max_tokens)
         return built
