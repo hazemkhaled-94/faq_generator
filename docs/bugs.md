@@ -490,7 +490,8 @@ and [`checker.py`](../backend/question_generation/checker.py). Value keys
 compare on verbs as well. Number words read as their figures, where the
 tagger marks them numbers. A count question goes to the model when every
 figure in its passages counts some other noun. The `recall` reading records
-the bar actually applied. One question (1296) stays refused by arithmetic.
+the bar actually applied. Question 1296 goes to the model too: its passage's
+figures count a height, not flagposts.
 
 ## An embedded question word read as a second question
 
