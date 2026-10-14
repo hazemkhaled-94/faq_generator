@@ -310,6 +310,9 @@ corpus, which is a property of the model rather than of this code.
   converter read as body text is dropped only when it repeats one the
   document prints as furniture; another document's foot printed over the
   page is kept as text.
+- **Text printed inside a picture is passage text.** A diagram whose labels
+  the converter reads as body text keeps them, so a passage can hold a run of
+  short, verbless labels. Nothing filters text inside a detected picture yet.
 - **A lone conjunction is told by the language's pipeline.** In a language
   with none, only a segment with no letter or digit leaves the trail.
 - **`revocabulary` does not renumber sentences.** A change to how sentences

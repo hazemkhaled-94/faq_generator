@@ -779,6 +779,11 @@ poetry run pytest tests/integration/database/test_release.py
   which includes a fact a person rejected.
 - **A corpus of one document gets no boilerplate filtering.** There is no
   second document for a copyright notice to repeat into.
+- **A translation can read as furniture.** The boilerplate filter compares a
+  passage with every other document's, whatever their language, so in a
+  corpus whose documents translate each other a passage close enough to its
+  own translation is never offered. Requiring the same language would turn the
+  filter off for such a corpus, and let its real furniture back in.
 - **`planned_difficulty` disagreeing with `difficulty` is not a fault.** The
   writer cited fewer facts than it was offered.
 - **`QUESTIONS_PER_TOPIC` is what a run costs, twice over.** Each candidate
