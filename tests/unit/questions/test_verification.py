@@ -1659,6 +1659,31 @@ def test_a_count_written_out_in_the_passages_is_its_figure(
     assert asserted(target, passages, language)
 
 
+@pytest.mark.parametrize(
+    ("passages", "target", "language"),
+    [
+        (["Der Vorgang dauert höchstens 6 Sekunden."], "zehn Sekunden", "de"),
+        (["The process takes at most 6 seconds."], "ten seconds", "en"),
+    ],
+)
+def test_a_count_the_key_writes_out_is_a_number_the_passages_must_carry(
+    passages: list[str], target: str, language: str
+) -> None:
+    """`de_core_news_md` gives `zehn` no `like_num`, so the guard reads it too."""
+    assert not asserted(target, passages, language)
+
+
+@pytest.mark.parametrize(
+    "passages",
+    [["Der Vorgang dauert höchstens zehn Sekunden."], ["Er dauert 10 Sekunden."]],
+)
+def test_a_count_the_key_writes_out_passes_where_the_passages_state_it(
+    passages: list[str],
+) -> None:
+    """In words or in digits."""
+    assert asserted("zehn Sekunden", passages, "de")
+
+
 def test_a_count_written_out_is_still_a_different_number_from_another() -> None:
     """`de_core_news_md` gives `zehn` no `like_num`, so it is read as a count."""
     assert not agrees("11 Sekunden", "zehn Sekunden", "de", AnswerForm.VALUE)

@@ -1000,13 +1000,12 @@ def asserted(target: str, passages: Sequence[str], language: str | None) -> bool
     Extraction's `unsupported_addition` check, pointed at an answer instead
     of a statement, and read against the passages rather than against what
     came back - which is the whole point here, because nothing came back.
+
+    The key's numbers are read as `agrees` reads them, by `_numbers`, so a
+    count it writes out is one: `de_core_news_md` gives `zehn` no `like_num`.
     """
-    units = claim(target, language).units
-    if not units:
-        return True
-    found = _values("\n".join(passages), language)
-    written = _written(target, language)
-    return all(written.get(unit, _folded(unit)) in found for unit in units)
+    units = _numbers(target, language)
+    return not units or units <= _values("\n".join(passages), language)
 
 
 #: Shortest and longest explanation, as QUESTIONS_EXPLANATION_CHARS sets
