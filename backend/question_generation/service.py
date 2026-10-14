@@ -436,16 +436,20 @@ def _twins(catalog: QuestionCatalog, settings: Settings, pool) -> dict[int, set[
             continue
         if first.id not in offered or second.id not in offered:
             continue
-        bar = near_bar(
-            second,
-            answerable=first.answerable,
-            threshold=settings.duplicate_cosine,
-            shared_threshold=shared,
-            question=first.question_text,
-            language=first.language,
-            passages=tuple(first.passage_ids),
-            facts=tuple(first.fact_ids),
-        )
+        probed = {
+            "answerable": first.answerable,
+            "threshold": settings.duplicate_cosine,
+            "shared_threshold": shared,
+            "language": first.language,
+            "passages": tuple(first.passage_ids),
+            "facts": tuple(first.fact_ids),
+        }
+        # The bar before the question words are read, which can only raise
+        # it: a pair already under it is no twin, so it is not parsed.
+        bar = near_bar(second, **probed)
+        if bar is None or second.similarity < bar:
+            continue
+        bar = near_bar(second, question=first.question_text, **probed)
         if bar is not None and second.similarity >= bar:
             held.setdefault(first.id, set()).add(second.id)
             held.setdefault(second.id, set()).add(first.id)

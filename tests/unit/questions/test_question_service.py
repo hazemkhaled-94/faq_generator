@@ -1468,6 +1468,52 @@ def test_two_same_language_near_twins_are_not_both_released() -> None:
     assert {3, 4} <= drawn, drawn
 
 
+def test_a_pair_below_its_bar_is_not_parsed_for_its_question_words(
+    monkeypatch,
+) -> None:
+    """The words can only raise the bar, so under the lowest one they decide nothing.
+
+    A pair on one fact at 0.85, under the 0.88 a shared fact sets, is no twin
+    whatever words it asks with; one at 0.90 is read as before.
+    """
+    from question_generation import gates
+    from question_generation.models import Neighbour
+    from question_generation.service import _twins
+
+    read: list[str] = []
+    compared = gates.asks_the_same
+
+    def counted(first: str, second: str, language: str | None) -> bool:
+        read.append(first)
+        return compared(first, second, language)
+
+    monkeypatch.setattr(gates, "asks_the_same", counted)
+
+    def side(at: int, similarity: float) -> Neighbour:
+        return Neighbour(
+            f"What does device {at} weigh?",
+            answerable=True,
+            similarity=similarity,
+            language="en",
+            id=at,
+            fact_ids=frozenset({7}),
+            passage_ids=frozenset({7}),
+        )
+
+    class Catalog:
+        def twins(self, floor):
+            return [(side(1, 0.85), side(2, 0.85)), (side(3, 0.90), side(4, 0.90))]
+
+    held = _twins(
+        Catalog(),  # type: ignore[arg-type]
+        replace(SETTINGS, duplicate_shared_cosine=0.88),
+        _spoken({"en": 4}),
+    )
+
+    assert held == {3: {4}, 4: {3}}
+    assert read == ["What does device 3 weigh?"]
+
+
 def test_a_language_the_release_weighs_nothing_is_said_to_be_left_out(caplog) -> None:
     """QUESTIONS_RELEASE_LANGUAGES naming two of three leaves the third out whole.
 
