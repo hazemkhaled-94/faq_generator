@@ -992,11 +992,12 @@ questions-rejudge:
 # job and still leave a set lopsided towards the unanswerable and the easy,
 # because what survives a filter is whatever the material happened to offer.
 #
-# Holds three shares at once: how much of the release has no answer, how it
-# spreads over the difficulty bands, and how it spreads over the kinds -
-# QUESTIONS_RELEASE_UNANSWERABLE, _DIFFICULTY and _TYPES in backend.env. A
-# column on the rows already there, so nothing is deleted, the questions left
-# out stay queryable, and running it again replaces the draw. Reports the
+# Holds four shares at once: how much of the release has no answer, how it
+# spreads over the difficulty bands, over the kinds and over the languages -
+# QUESTIONS_RELEASE_UNANSWERABLE, _DIFFICULTY, _TYPES and _LANGUAGES in
+# backend.env - and one question of each twin group. A column on the rows
+# already there, so nothing is deleted, the questions left out stay
+# queryable, and running it again replaces the draw. Reports the
 # yield - how much of the accepted pool made it in - and names any quota the
 # pool could not fill. Always over every topic: TOPIC= does not narrow it.
 questions-balance:
