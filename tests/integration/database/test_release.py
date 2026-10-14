@@ -112,19 +112,6 @@ def test_a_question_is_offered_with_its_language(written, engine) -> None:
     assert offered == {ids[0]: "de", ids[1]: "en"}
 
 
-def test_a_question_is_offered_with_the_confidence_the_gates_left_it(
-    written, engine
-) -> None:
-    """Of two twins the release keeps the one the gates were surer of."""
-    ids = written([("easy", "factoid", True, "accepted")])
-    with engine.begin() as connection:
-        connection.execute(text("UPDATE questions SET confidence = 0.75"))
-
-    assert [(one.id, one.confidence) for one in QuestionCatalog().releasable()] == [
-        (ids[0], 0.75)
-    ]
-
-
 def test_the_twins_are_the_pairs_of_accepted_questions_of_one_language(
     engine, database
 ) -> None:

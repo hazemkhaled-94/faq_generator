@@ -546,8 +546,9 @@ A release holds one question of each twin group. Twins are read by the
 its language and answerability rather than over the one neighbour the gate
 probed, so a twin the gate let past behind a closer question is caught here.
 A root whose twin is already in is skipped, a thread ends at a turn that
-twins what is already in, and of a group the question the gates were surest
-of, by `confidence`, is the one kept where it fits.
+twins what is already in, and of a group the question the draw's hash ranks
+first is the one kept where it fits, so creation order does not decide which
+twin stays.
 
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota. The command reports what it drew, the yield,

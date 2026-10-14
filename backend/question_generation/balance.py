@@ -42,9 +42,6 @@ class Row:
     follows_id: int | None = None
     #: The language it is written in, which a release holds a share of.
     language: str = ""
-    #: How sure the gates were of it, which decides which of two twins stays.
-    #: None where none was recorded, which ranks below any reading.
-    confidence: float | None = None
 
 
 @dataclass(frozen=True)
@@ -172,8 +169,11 @@ def choose(
     whose twin is in is skipped. A thread ends at a turn that twins what is
     already in, its own earlier turns included, and the turns after it go
     with it, because they read only after it. And a twin group is visited
-    best first: where the next root has twins still waiting that fit, the
-    one the gates were surest of is taken in its place.
+    in `_rank` order: where the next root has twins still waiting that fit,
+    the one ranked first is taken in its place. Not the one the gates were
+    surest of: a later twin's weakest margin is its `near_duplicate` reading
+    against the earlier one, so that kept the earlier twin nearly always and
+    let creation order back into the draw.
     """
     alike: Mapping[int, set[int]] = twins or {}
     bands = dict(quota.difficulty)
@@ -238,14 +238,7 @@ def choose(
             for twin in alike.get(first.id, set())
             if twin in waiting and fits(waiting[twin][1])
         ]
-        root = min(
-            [first, *rivals],
-            key=lambda one: (
-                one.confidence is None,
-                -(one.confidence or 0.0),
-                _rank(one),
-            ),
-        )
+        root = min([first, *rivals], key=_rank)
         # ponytail: a cell is rebuilt to take one row out. Upgrade: a deque
         # per cell, and a set of the ids taken out of turn.
         taken(root)

@@ -166,8 +166,8 @@ Only questions in the same language, and of an answerability that can refuse
 the candidate, are compared, so a translation is never a duplicate. An
 answerable question is never the duplicate of an unanswerable one. The
 release now keeps one question of each twin group, read by the same rule
-among each question's nearest neighbours, and prefers the twin with the
-higher recorded confidence.
+among each question's nearest neighbours, and keeps the twin the draw's
+hash ranks first, so creation order does not decide which one stays.
 
 **Still open.** Most of the twins the reviewers named share only a passage
 and sit below 0.93, or ask with a different question word. No rule built on

@@ -469,20 +469,14 @@ def test_a_draw_does_not_favour_what_was_written_first() -> None:
 # ── Twins ──────────────────────────────────────────────────────────────────
 
 
-def ranked(id: int, confidence: float | None, kind: str = QuestionType.FACTOID) -> Row:
-    """One accepted easy question of this kind, held with this confidence."""
-    return Row(
-        id=id,
-        answerable=True,
-        difficulty=Difficulty.EASY,
-        question_type=kind,
-        confidence=confidence,
-    )
+def ranked(id: int, kind: str = QuestionType.FACTOID) -> Row:
+    """One accepted easy question of this kind."""
+    return Row(id=id, answerable=True, difficulty=Difficulty.EASY, question_type=kind)
 
 
 def test_twins_in_one_cell_release_one_of_them() -> None:
     """A set that asks the same thing twice weights it twice."""
-    held = [ranked(1, 0.5), ranked(2, 0.5), ranked(3, 0.5)]
+    held = [ranked(1), ranked(2), ranked(3)]
     quota = quota_of(3, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
 
     drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
@@ -494,10 +488,10 @@ def test_twins_in_one_cell_release_one_of_them() -> None:
 def test_twins_in_different_cells_release_one_of_them() -> None:
     """Two kinds asking one thing are still one thing asked."""
     held = [
-        ranked(1, 0.5),
-        ranked(2, 0.5, QuestionType.REASON),
-        ranked(3, 0.5),
-        ranked(4, 0.5, QuestionType.REASON),
+        ranked(1),
+        ranked(2, QuestionType.REASON),
+        ranked(3),
+        ranked(4, QuestionType.REASON),
     ]
     quota = quota_of(4, {Difficulty.EASY: 1}, TYPES, 0.0)
 
@@ -513,7 +507,7 @@ def test_a_thread_is_cut_at_a_turn_that_twins_what_is_already_in() -> None:
     reads only after the turn that was cut.
     """
     held = [
-        ranked(1, 0.5),
+        ranked(1),
         Row(2, True, Difficulty.EASY, QuestionType.REASON, follows_id=1),
         Row(3, True, Difficulty.EASY, QuestionType.REASON, follows_id=2),
         Row(4, True, Difficulty.EASY, QuestionType.REASON, follows_id=3),
@@ -525,23 +519,16 @@ def test_a_thread_is_cut_at_a_turn_that_twins_what_is_already_in() -> None:
     assert drawn == [1, 2]
 
 
-def test_of_two_twins_the_better_held_one_is_kept() -> None:
-    """The one the gates were surer of, whichever the hash reaches first."""
-    for low, high in ((1, 2), (2, 1)):
-        held = [ranked(low, 0.1), ranked(high, 0.9), ranked(3, 0.5)]
-        quota = quota_of(2, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+def test_of_two_twins_the_one_the_draw_ranks_first_is_kept() -> None:
+    """Whichever was written first: 6 ranks first, by the hash the draw reads.
 
-        drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
+    Not the one the gates were surer of. The later twin's weakest margin is
+    its `near_duplicate` reading against the earlier one, held near 0, so
+    that kept the earlier twin nearly every time.
+    """
+    held = [ranked(5), ranked(6), ranked(3)]
+    quota = quota_of(2, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
 
-        assert high in drawn and low not in drawn, drawn
+    drawn = set(choose(held, quota, twins={5: {6}, 6: {5}}).ids)
 
-
-def test_a_twin_with_no_confidence_recorded_ranks_below_one_with_any() -> None:
-    """None is no reading, so it is not taken for a reading of nothing."""
-    for unread, read in ((1, 2), (2, 1)):
-        held = [ranked(unread, None), ranked(read, 0.0), ranked(3, 0.5)]
-        quota = quota_of(2, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
-
-        drawn = set(choose(held, quota, twins={1: {2}, 2: {1}}).ids)
-
-        assert read in drawn and unread not in drawn, drawn
+    assert 6 in drawn and 5 not in drawn, drawn
