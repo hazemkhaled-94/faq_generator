@@ -256,9 +256,11 @@ two disagree when the writer cited fewer facts than it was offered.
 All four are stored, and read again by `make questions-reverify`, which
 rejects a question whose passage or document scope no longer matches its
 citations. `make questions-rescore` rewrites the four from what each
-question cites now, with no model call; run it first when a citation moved
-for a reason the question did not, as `make extract-dedup` taking out a
-citation a duplicate refusal had folded into a fact. A question citing a
+question cites now, with no model call; run it before re-verify after `make
+extract-dedup` only, which takes out citations a duplicate refusal had folded
+into a fact, a move the question did not make. After a re-extraction or a
+deletion it would make the scope of a question that lost a fact current, and
+re-verify could no longer reject it as `source_changed`. A question citing a
 fact that rests only on such a citation, its own being gone, is left as it
 is, and re-verify rejects it.
 

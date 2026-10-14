@@ -233,7 +233,7 @@ commands that call no model come first:
 | `make extract-dedup` | no | Duplicate refusals the new rule would not make are given back, with their passages re-judged and re-capped, and fold citations come off the facts they were written onto |
 | `make extract-revalidate` | no | Facts refused for a pronoun their own statement resolves are validated |
 | `make extract-recap` | no | The atomic cap, now never below a passage's sentences plus list items |
-| `make questions-rescore` | no | Each question's scope and difficulty, from the facts it cites now. Run it before re-verify |
+| `make questions-rescore` | no | Each question's scope and difficulty, from the facts it cites now. Run it after `extract-dedup` and before re-verify, and not after any other re-run: there it would hide a question that lost a fact |
 | `make questions-reverify` | no | The new gates, on every accepted question. It only rejects |
 | `make questions-rejudge` | yes, the verifier | The `settles` judgement, on every accepted unanswerable question |
 | `make questions-balance` | no | A release with the language share, hash order and twin check |
