@@ -218,7 +218,7 @@ the file keeps its old values until it takes the new ones:
 | `EXTRACTION_DUPLICATE_COSINE` | 0.95 | 0.985 |
 | `QUESTIONS_OFF_TOPIC_OVERLAP` | 0.3 | 0, which turns the gate off |
 | `QUESTIONS_ELSEWHERE_PASSAGES` | 4 | 10 |
-| `QUESTIONS_DUPLICATE_SHARED_COSINE` | — | 0.88, new |
+| `QUESTIONS_DUPLICATE_SHARED_COSINE` | — | 0.88, new; optional, and unset holds a shared fact to `QUESTIONS_DUPLICATE_COSINE` |
 | `QUESTIONS_RELEASE_LANGUAGES` | — | optional, new; unset weighs the pool's languages equally |
 
 Three prompts changed, so the runs after the upgrade record new prompt

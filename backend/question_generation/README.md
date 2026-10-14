@@ -718,7 +718,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_RETRIES` | How many further attempts a root question gets when a gate a rewrite can answer refuses it. An accepted draft is never asked again. Every attempt is stored |
 | `QUESTIONS_LONG_ANSWER_CHARS` | Where an answer starts counting towards the band. Not a gate |
 | `QUESTIONS_DUPLICATE_COSINE` | How alike two questions sharing a cited passage but no fact must be before the later one is dropped. Halfway from it to identical is the bar for two citing nothing in common, or asking with different question words |
-| `QUESTIONS_DUPLICATE_SHARED_COSINE` | How alike two questions resting on the same fact must be before the later one is dropped |
+| `QUESTIONS_DUPLICATE_SHARED_COSINE` | How alike two questions resting on the same fact must be before the later one is dropped. Unset holds them to `QUESTIONS_DUPLICATE_COSINE` |
 | `QUESTIONS_DUPLICATE_FLOOR` | The cosine two unrelated questions score, which a question's stored confidence is measured from. Moves no verdict |
 | `QUESTIONS_RELEASE_SIZE` | How many to draw. `0` is the largest the pool can fill |
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |

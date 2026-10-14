@@ -539,9 +539,11 @@ SETTINGS: tuple[Setting, ...] = (
         kind="decimal",
         low=0,
         high=1,
+        optional=True,
         invalidates=("questions",),
         help="How close two questions resting on the same cited fact may be "
-        "before the later one is refused as already asked.",
+        "before the later one is refused as already asked. Absent holds them "
+        "to QUESTIONS_DUPLICATE_COSINE.",
     ),
     Setting(
         name="QUESTIONS_DUPLICATE_FLOOR",

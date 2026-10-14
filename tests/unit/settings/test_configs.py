@@ -233,6 +233,45 @@ def test_the_bounds_that_ship_are_read_the_way_round_they_are_written() -> None:
     assert loaded.explanation_chars[0] < loaded.explanation_chars[1]
 
 
+@pytest.mark.parametrize("value", [None, ""])
+def test_an_unset_shared_fact_bar_holds_a_shared_fact_to_the_duplicate_bar(
+    value: str | None,
+) -> None:
+    """A backend.env from before the setting existed still loads.
+
+    And two questions on one fact are then held to QUESTIONS_DUPLICATE_COSINE,
+    as a shared passage is.
+    """
+    import os
+
+    from question_generation.config import Settings
+    from question_generation.gates import near_bar
+    from question_generation.models import Neighbour
+
+    source = {
+        name: held
+        for name, held in os.environ.items()
+        if name != "QUESTIONS_DUPLICATE_SHARED_COSINE"
+    }
+    if value is not None:
+        source["QUESTIONS_DUPLICATE_SHARED_COSINE"] = value
+
+    loaded = Settings.load(source)
+
+    assert loaded.duplicate_shared_cosine is None
+    near = Neighbour("Q?", True, 0.9, fact_ids=frozenset({1}))
+    assert (
+        near_bar(
+            near,
+            answerable=True,
+            threshold=loaded.duplicate_cosine,
+            shared_threshold=loaded.duplicate_shared_cosine,
+            facts=(1,),
+        )
+        == loaded.duplicate_cosine
+    )
+
+
 def test_a_fact_kind_this_stage_cannot_use_is_refused_at_start_up() -> None:
     """Rather than selecting nothing and writing no questions at all.
 

@@ -309,8 +309,12 @@ class Settings:
             elsewhere_passages=integer("QUESTIONS_ELSEWHERE_PASSAGES", source),
             long_answer_chars=integer("QUESTIONS_LONG_ANSWER_CHARS", source),
             duplicate_cosine=decimal("QUESTIONS_DUPLICATE_COSINE", source),
-            duplicate_shared_cosine=decimal(
-                "QUESTIONS_DUPLICATE_SHARED_COSINE", source
+            # Absent holds a shared fact to QUESTIONS_DUPLICATE_COSINE, so a
+            # backend.env written before the setting existed still loads.
+            duplicate_shared_cosine=(
+                decimal("QUESTIONS_DUPLICATE_SHARED_COSINE", source)
+                if optional("QUESTIONS_DUPLICATE_SHARED_COSINE", source)
+                else None
             ),
             duplicate_floor=decimal("QUESTIONS_DUPLICATE_FLOOR", source),
             boilerplate_cosine=decimal("QUESTIONS_BOILERPLATE_COSINE", source),
