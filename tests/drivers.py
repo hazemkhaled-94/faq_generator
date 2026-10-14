@@ -337,10 +337,13 @@ class Queue:
         excluding=None,
         language: str | None = None,
         kind: str | None = None,
+        alike=None,
     ) -> Twin | None:
-        """The stored fact this queue was told to answer with."""
+        """The stored fact this queue was told to answer with, if it is taken."""
         self.probed.append((language, kind))
         if self.twin_kind not in (None, kind):
+            return None
+        if self.twin is not None and alike is not None and not alike(self.twin):
             return None
         return self.twin
 
@@ -461,8 +464,12 @@ class Catalogue:
         excluding=None,
         language: str | None = None,
         kind: str | None = None,
+        alike=None,
     ) -> Twin | None:
-        """The nearest kept fact of another passage, as the index answers."""
+        """The nearest kept fact of another passage it takes, as the index answers.
+
+        Among the five nearest, as the repository reads them.
+        """
         from nlp.embedding import cosine
 
         found = [
@@ -472,7 +479,8 @@ class Catalogue:
             and language in (None, one.language)
             and kind in (None, one.kind)
         ]
-        return max(found, key=lambda twin: twin.similarity, default=None)
+        nearest = sorted(found, key=lambda twin: -twin.similarity)[:5]
+        return next((one for one in nearest if alike is None or alike(one)), None)
 
     def kept(self, passage_id: int) -> list[tuple[str, str, list[float]]]:
         """The validated facts read from one passage."""

@@ -79,6 +79,11 @@ DEFAULT_FIELD = "both"
 #: How many facts to hold at once while re-judging them.
 _BATCH = 500
 
+#: How many of the nearest facts a dedup probe reads for its caller to
+#: choose among: the nearest may name other numbers where one a little
+#: further off names the candidate's own.
+_PROBED = 5
+
 #: The facts table itself, for the bulk update a re-judgement writes.
 _FACTS = cast("Table", Fact.__table__)
 
@@ -256,6 +261,7 @@ def _nearest_fact(
     excluding: int | None,
     language: str | None,
     kind: str | None,
+    alike: Callable[[Twin], bool] | None = None,
 ) -> Twin | None:
     """The validated passage fact closest to this vector, or None.
 
@@ -270,6 +276,11 @@ def _nearest_fact(
     translation is its own language's fact, and a summary or an outline
     that repeats an atomic fact is caught beside it in its own passage:
     across passages a digest and a claim are two kinds of thing.
+
+    `alike` is what the caller would take as a twin, None for any: the
+    closest of the `_PROBED` nearest it takes. The dedup gate turns down a
+    fact naming other numbers, and taking the nearest alone would let a
+    nearer fee of another amount hide the one that repeats this one.
     """
     distance = Fact.embedding.cosine_distance(embedding)
     query = (
@@ -280,7 +291,7 @@ def _nearest_fact(
             Fact.kind != FactKind.BRIDGE,
         )
         .order_by(distance)
-        .limit(1)
+        .limit(_PROBED)
     )
     if language is not None:
         query = query.where(
@@ -311,15 +322,16 @@ def _nearest_fact(
                 .having(func.count() == 1)
             )
         )
-    found = session.execute(query).one_or_none()
-    if found is None:
-        return None
-    # pgvector answers in cosine distance; the gate reads likeness.
-    return Twin(
-        fact_id=found.id,
-        statement=found.statement,
-        similarity=1.0 - float(found.far),
-    )
+    for found in session.execute(query):
+        # pgvector answers in cosine distance; the gate reads likeness.
+        twin = Twin(
+            fact_id=found.id,
+            statement=found.statement,
+            similarity=1.0 - float(found.far),
+        )
+        if alike is None or alike(twin):
+            return twin
+    return None
 
 
 def _room(session, cap: int, passages: Select):
@@ -457,13 +469,14 @@ class PassageQueue(RowQueue):
         excluding: int | None = None,
         language: str | None = None,
         kind: str | None = None,
+        alike: Callable[[Twin], bool] | None = None,
     ) -> Twin | None:
         """The validated passage fact closest to this vector, or None.
 
         See `_nearest_fact`, which the dedup replay probes through as well.
         """
         with self._session() as session:
-            return _nearest_fact(session, embedding, excluding, language, kind)
+            return _nearest_fact(session, embedding, excluding, language, kind, alike)
 
     def counts(self) -> dict[str, int]:
         """Reports what this service owns, for the status panel."""
@@ -702,10 +715,11 @@ class FactCatalog(Repository):
         excluding: int | None = None,
         language: str | None = None,
         kind: str | None = None,
+        alike: Callable[[Twin], bool] | None = None,
     ) -> Twin | None:
         """The validated passage fact closest to this vector, as the queue probes."""
         with self._session() as session:
-            return _nearest_fact(session, embedding, excluding, language, kind)
+            return _nearest_fact(session, embedding, excluding, language, kind, alike)
 
     def duplicates(self, within=None) -> list[Refused]:
         """Every stored `duplicate` refusal, as the dedup replay re-decides it.

@@ -190,7 +190,8 @@ as spanning passages they did not use. 36 of them were released.
 and [`extraction/repository.py`](../backend/extraction/repository.py):
 
 - two statements whose numbers differ are never duplicates, and a number
-  written as a word counts as that number;
+  written as a word counts as that number. The probe reads the five nearest
+  facts, so a nearer fact naming other numbers does not hide a repeat;
 - the probe reads only facts of the candidate's own language and kind;
 - `EXTRACTION_DUPLICATE_COSINE` is now 0.985;
 - a refusal names the fact it repeats and writes nothing onto it.

@@ -126,12 +126,14 @@ Two more refusals are the service refusing what the checks passed:
   twins: two items of a list, two conditions, a least and a most differ by
   a word and are two claims. A bridge is never its twin, and nor is a fact
   naming other numbers - another value, or the same one a different number
-  of times, a number word read as the value it names. The bar sits near
-  identity: the vector is read off the bare statement, and two statements
-  about one subject score high on the subject alone. The refusal names the
-  stored fact it repeats and writes nothing onto it: the stored fact rests
-  on its own passage alone, so a passage it was refused against never
-  counts towards the scope of a question asked of it.
+  of times, a number word read as the value it names. The index is read
+  for the five nearest and the closest naming the candidate's numbers is
+  taken, so a nearer fact of another value does not hide a repeat. The bar
+  sits near identity: the vector is read off the bare statement, and two
+  statements about one subject score high on the subject alone. The
+  refusal names the stored fact it repeats and writes nothing onto it: the
+  stored fact rests on its own passage alone, so a passage it was refused
+  against never counts towards the scope of a question asked of it.
   `make extract-dedup` re-decides every stored refusal under the rule as it
   stands, giving back the ones it would no longer make with the reading
   taken against today's bar, or none, and takes out the

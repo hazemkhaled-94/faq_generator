@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from itertools import zip_longest
 from typing import ClassVar
@@ -234,6 +234,7 @@ def dedup(
             excluding=refused.passage_id,
             language=refused.language,
             kind=refused.kind,
+            alike=_naming(refused.statement, refused.language),
         )
         twin = _closest(
             refused.statement,
@@ -771,6 +772,14 @@ def _counted_alike(statement: str, twin: str, language: str | None) -> bool:
     return numbers(statement, language) == numbers(twin, language)
 
 
+def _naming(statement: str, language: str | None) -> Callable[[Twin], bool]:
+    """What a probe for this statement takes as a twin: one naming its numbers.
+
+    Handed to the index probe, which reads past a nearer fact naming others.
+    """
+    return lambda twin: _counted_alike(statement, twin.statement, language)
+
+
 def _closest(
     statement: str,
     kind: str,
@@ -1113,7 +1122,11 @@ class ExtractionService(StageService):
         # ponytail: one index query per candidate. Upgrade: one batched
         # unnest + LATERAL probe per passage.
         probed = self._repository.nearest_fact(
-            vector, excluding=passage_id, language=language, kind=fact.kind
+            vector,
+            excluding=passage_id,
+            language=language,
+            kind=fact.kind,
+            alike=_naming(fact.statement, language),
         )
         return _closest(fact.statement, fact.kind, language, vector, probed, written)
 

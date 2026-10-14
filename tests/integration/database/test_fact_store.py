@@ -1251,6 +1251,44 @@ def _axis(at: int) -> list[float]:
     return [1.0 if i == at else 0.0 for i in range(1024)]
 
 
+def _tilted(towards: int, angle: float) -> list[float]:
+    """A unit vector `angle` radians off the first axis, towards another."""
+    import math
+
+    vector = _axis(0)
+    vector[0], vector[towards] = math.cos(angle), math.sin(angle)
+    return vector
+
+
+def _nearer_names_another_number(store, corpus) -> int:
+    """Two stored fees near "25 EUR": the nearer says 10 EUR, the other 25 Euro.
+
+    Returns:
+        The id of the one naming 25.
+    """
+    first, other = corpus["a"]
+    store.store(first, checked(first, "The fee is 10 EUR.", embedding=_tilted(1, 0.03)))
+    store.store(other, checked(other, "The fee is 25 Euro.", embedding=_tilted(2, 0.1)))
+    ((named,),) = store.rows("id", where="statement = 'The fee is 25 Euro.'")
+    return named
+
+
+def test_the_probe_reads_past_a_nearer_fact_naming_other_numbers(store, corpus) -> None:
+    """The number guard chooses among the nearest few, not from the nearest one."""
+    from extraction.service import _counted_alike
+
+    named = _nearer_names_another_number(store, corpus)
+
+    twin = store.queue.nearest_fact(
+        _axis(0),
+        alike=lambda one: _counted_alike("The fee is 25 EUR.", one.statement, "en"),
+    )
+
+    assert twin is not None
+    assert (twin.fact_id, twin.statement) == (named, "The fee is 25 Euro.")
+    assert twin.similarity > 0.99
+
+
 class TestTheDedupReplay:
     """`make extract-dedup`, against the database it writes to."""
 
@@ -1417,3 +1455,28 @@ class TestTheDedupReplay:
             ("The device weighs 7 kg.", Rejection.DUPLICATE, 0.0),
         ]
         assert dedup(store.catalog, 0.985) == 0, "a second run gives nothing back"
+
+    def test_a_twin_naming_its_numbers_past_a_nearer_one_keeps_it_refused(
+        self, store, corpus
+    ) -> None:
+        """The nearest stored fee says 10 EUR; the next says 25 Euro, as it does."""
+        from extraction.service import dedup
+
+        _nearer_names_another_number(store, corpus)
+        third = corpus["b"][0]
+        store.store(
+            third,
+            checked(
+                third,
+                "The fee is 25 EUR.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                validation_error="says what the 25 Euro fact already says",
+                embedding=_axis(0),
+            ),
+        )
+
+        assert dedup(store.catalog, 0.985) == 0
+        assert store.rows(
+            "rejection_code", where="statement = 'The fee is 25 EUR.'"
+        ) == [(Rejection.DUPLICATE,)]
