@@ -317,13 +317,15 @@ if what comes back carries every number, name and date the target asserts,
 and enough of what it is about. A `value` is compared whole, on its verbs as
 well as its nouns and adjectives, so `a report` is what a passage saying
 `must be reported` says; a `list` or an `explanation` by overlap —
-`QUESTIONS_ANSWER_OVERLAP`. Numbers are always exact, so `4 hours` never
+`QUESTIONS_ANSWER_OVERLAP` — over what it adds to the question, so a key
+that restates the question before it answers is not held to the restatement.
+Numbers are always exact, so `4 hours` never
 passes for `48 hours`, and a count written out is its figure: `two
 conditions` is `2 conditions` and `zehn Sekunden` is `10 Sekunden`, for the
 languages whose number words the gates hold.
 
-The `recall` reading stored beside the verdict is held to the bar the form
-was: all of it for a `value`, which records a reading only where it fell
+The `recall` reading stored beside the verdict is the share the verdict
+read, held to the bar the form was: all of it for a `value`, which records a reading only where it fell
 short, and `QUESTIONS_ANSWER_OVERLAP` otherwise. So a `value` whose recovery
 fell short and which the entailment pass then rescued carries a confidence of
 0, and a `list` or `explanation` whose recovery holds no content word reads 0

@@ -637,7 +637,9 @@ class QuestionChecker:
             # for and none came back.
             if read.recovered is not None:
                 language = candidate.group.language
-                recall = recalled(read.recovered, target, language, form)
+                recall = recalled(
+                    read.recovered, target, language, form, candidate.question_text
+                )
                 if form != AnswerForm.VALUE:
                     if recall is not None:
                         readings.append(Measurement("recall", recall, self._overlap))

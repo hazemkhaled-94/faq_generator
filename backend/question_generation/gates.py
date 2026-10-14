@@ -1766,14 +1766,23 @@ def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
 
 
 def recalled(
-    recovered: str, target: str, language: str | None, form: str = AnswerForm.VALUE
+    recovered: str,
+    target: str,
+    language: str | None,
+    form: str = AnswerForm.VALUE,
+    question: str = "",
 ) -> float | None:
     """What share of the target's lemmas came back, as `agrees` reads them.
 
-    The reading the checker records beside the round trip's verdict. None
-    where the target has no lemma to share.
+    The reading the checker records beside the round trip's verdict, and the
+    share `agrees` holds a list or an explanation to, so the two cannot
+    drift apart. For those forms it is measured over what the answer adds to
+    the question, where it adds anything. None where the target has no lemma
+    to share.
     """
     wanted = _compared(target, language, form)
+    if form != AnswerForm.VALUE and question:
+        wanted = (wanted - content(question, language)) or wanted
     if not wanted:
         return None
     return len(wanted & _compared(recovered, language, form)) / len(wanted)
@@ -1856,7 +1865,8 @@ def agrees(
         answered = wanted - content(question, language) if question else wanted
         if not answered:
             return bool(wanted & got)
-        return len(answered & got) / len(answered) >= overlap
+        share = recalled(recovered, target, language, form, question)
+        return share is not None and share >= overlap
 
     left, right = normalised(recovered), normalised(target)
     return bool(left) and (left in right or right in left)

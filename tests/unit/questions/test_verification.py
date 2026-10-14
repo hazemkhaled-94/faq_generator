@@ -39,6 +39,7 @@ from question_generation.gates import (
     near_verdict,
     on_topic,
     periods,
+    recalled,
     restates,
     same_material,
     structural,
@@ -1960,6 +1961,12 @@ def test_the_target_answer_may_restate_the_question_without_disagreeing() -> Non
         OVERLAP,
         question,
     )
+    assert (
+        recalled(
+            "Südostasien, Afrika und Europa", target, "de", AnswerForm.LIST, question
+        )
+        >= OVERLAP
+    ), "the recorded recall reads the key as the verdict did"
 
 
 # ── The measurement behind the phrasing opinion ───────────────────────────
