@@ -532,3 +532,23 @@ def test_of_two_twins_the_one_the_draw_ranks_first_is_kept() -> None:
     drawn = set(choose(held, quota, twins={5: {6}, 6: {5}}).ids)
 
     assert 6 in drawn and 5 not in drawn, drawn
+
+
+def test_each_question_is_ranked_once_however_long_the_draw(monkeypatch) -> None:
+    """The hash is read off a table, not taken again on every step."""
+    from question_generation import balance
+
+    taken: list[int] = []
+    hashed = balance._rank
+
+    def counted(one: Row) -> str:
+        taken.append(one.id)
+        return hashed(one)
+
+    monkeypatch.setattr(balance, "_rank", counted)
+    held = written_in(("de", "en"), per_cell=5)
+
+    drawn = choose(held, quota_of(30, BANDS, TYPES, 0.0, LANGUAGES))
+
+    assert drawn.size == 30
+    assert len(taken) == len(held), len(taken)

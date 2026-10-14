@@ -124,13 +124,16 @@ def _rank(row: Row) -> str:
     return hashlib.md5(str(row.id).encode()).hexdigest()
 
 
-def _celled(pool: Sequence[Row]) -> dict[tuple[bool, str, str, str], list[Row]]:
+def _celled(
+    pool: Sequence[Row], rank: Mapping[int, str]
+) -> dict[tuple[bool, str, str, str], list[Row]]:
     """The pool grouped by the cell a question would spend its places in.
 
-    Each in `_rank` order, so the same pool draws the same release twice.
+    Each in `_rank` order, read off `rank`, so the same pool draws the same
+    release twice.
     """
     held: dict[tuple[bool, str, str, str], list[Row]] = {}
-    for row in sorted(pool, key=_rank):
+    for row in sorted(pool, key=lambda one: rank[one.id]):
         held.setdefault(
             (row.answerable, row.difficulty, row.question_type, row.language), []
         ).append(row)
@@ -183,7 +186,9 @@ def choose(
     held = min(quota.unanswerable, sum(not row.answerable for row in pool))
     places = {True: quota.size - held, False: held}
     left = dict(places)
-    cells = _celled([row for row in pool if row.follows_id is None])
+    # Each question's hash taken once: every step below compares them.
+    rank = {row.id: _rank(row) for row in pool}
+    cells = _celled([row for row in pool if row.follows_id is None], rank)
     waiting = {row.id: (key, row) for key, rows in cells.items() for row in rows}
     turns: dict[int, list[Row]] = {}
     for row in sorted(pool, key=lambda one: one.id):
@@ -227,7 +232,7 @@ def choose(
             share += left[answerable] / max(places[answerable], 1)
             if quota.languages:
                 share += languages[language] / max(quota.languages[language], 1)
-            head = _rank(rows[0])
+            head = rank[rows[0].id]
             if best is None or share > best[0] or (share == best[0] and head < best[1]):
                 best = (share, head, key)
         if best is None:
@@ -238,7 +243,7 @@ def choose(
             for twin in alike.get(first.id, set())
             if twin in waiting and fits(waiting[twin][1])
         ]
-        root = min([first, *rivals], key=_rank)
+        root = min([first, *rivals], key=lambda one: rank[one.id])
         # ponytail: a cell is rebuilt to take one row out. Upgrade: a deque
         # per cell, and a set of the ids taken out of turn.
         taken(root)
@@ -247,7 +252,9 @@ def choose(
         for turn in thread:
             for follow in turns.get(turn.id, ()):
                 twinned = alike.get(follow.id)
-                if twinned and not twinned.isdisjoint(within | held_ids):
+                if twinned and not (
+                    twinned.isdisjoint(within) and twinned.isdisjoint(held_ids)
+                ):
                     continue
                 thread.append(follow)
                 within.add(follow.id)
