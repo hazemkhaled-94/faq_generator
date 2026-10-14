@@ -395,3 +395,25 @@ def test_an_answered_question_between_refusals_keeps_the_run_going() -> None:
 
     assert rejected == 1
     assert catalog.rejected == [(5, QuestionRejection.ANSWERABLE_AFTER_ALL)]
+
+
+class Decided(Catalog):
+    """A catalogue where a person accepts every question while it is asked."""
+
+    def opine(self, question_id, opinions, rejected=None):
+        """Keeps the verdicts and declines the rejection, as the row lock does."""
+        self.opined.setdefault(question_id, []).extend(opinions)
+        return False
+
+
+def test_a_question_a_person_accepted_mid_run_is_logged_as_kept(caplog) -> None:
+    """The log says what the write did, not what the verdict asked for."""
+    catalog = Decided(unanswered())
+
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        rejected = rejudge(catalog, SETTINGS, Verifier(Client(CITED)))
+
+    assert rejected == 0
+    assert not any(one.startswith("rejecting ") for one in caplog.messages)
+    (line,) = [one for one in caplog.messages if "question 7" in one]
+    assert line.startswith("kept question 7")

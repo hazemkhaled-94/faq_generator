@@ -585,12 +585,19 @@ def rejudge(
             continue
         in_a_row = 0
         code, reason = failed or (None, "")
-        if code:
-            log.info("rejecting question %d: %s (%s)", question.id, reason, code)
         # The verdicts and the rejection they decide in one write: apart, a
         # run dying between them left a settled row accepted and judged.
         if catalog.opine(question.id, opinions, rejected=code):
+            log.info("rejecting question %d: %s (%s)", question.id, reason, code)
             written += 1
+        elif code:
+            log.info(
+                "kept question %d, which a person decided while it was asked, "
+                "though %s (%s)",
+                question.id,
+                reason,
+                code,
+            )
     log.info(
         "re-judged and rejected %d question(s), and left %d the model would not "
         "answer about to the next run",
