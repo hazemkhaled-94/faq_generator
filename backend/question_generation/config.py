@@ -250,8 +250,8 @@ class Settings:
     encoder_max_tokens: int = 512
     #: How a release spreads over the kinds, or None for type_mix.
     release_types: dict[str, int] | None = None
-    #: How a release spreads over the languages, or None for every language
-    #: the accepted pool holds, weighed alike.
+    #: How a release spreads over the languages, or None for the accepted
+    #: pool's own language split.
     release_languages: dict[str, int] | None = None
     #: How alike two questions resting on the same fact must be to be one,
     #: or None to hold them to duplicate_cosine.

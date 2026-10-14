@@ -219,7 +219,7 @@ the file keeps its old values until it takes the new ones:
 | `QUESTIONS_OFF_TOPIC_OVERLAP` | 0.3 | 0, which turns the gate off |
 | `QUESTIONS_ELSEWHERE_PASSAGES` | 4 | 10 |
 | `QUESTIONS_DUPLICATE_SHARED_COSINE` | — | 0.88, new; optional, and unset holds a shared fact to `QUESTIONS_DUPLICATE_COSINE` |
-| `QUESTIONS_RELEASE_LANGUAGES` | — | optional, new; unset weighs the pool's languages equally |
+| `QUESTIONS_RELEASE_LANGUAGES` | — | optional, new; unset follows the pool's own language split |
 
 Three prompts changed, so the runs after the upgrade record new prompt
 versions: question writing 12, the verifier 3 and atomic extraction 10.
@@ -267,7 +267,7 @@ question.
 | A p99 climbing towards `LLM_TIMEOUT_SECONDS` | Calls about to time out, be tried again and fail their rows. Raise the timeout |
 | A scanned PDF is refused rather than parsed | OCR is not enabled |
 | `make questions-reverify` rejects many questions as `source_changed` after `make extract-dedup` | Their stored scope still counts the fold citations the dedup removed. Run `make questions-rescore` first |
-| The release report warns that a language in the pool has no weight | `QUESTIONS_RELEASE_LANGUAGES` leaves it out, so none of it is drawn. Name it, or unset the setting to weigh every language equally |
+| The release report warns that a language in the pool has no weight | `QUESTIONS_RELEASE_LANGUAGES` leaves it out, so none of it is drawn. Name it, or unset the setting to follow the pool's own language split |
 
 ## Deleting things
 

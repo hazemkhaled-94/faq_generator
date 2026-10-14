@@ -137,13 +137,11 @@ English topics written last had nothing released at all.
 
 **Fixed in v0.2.2.** The release now holds a share of each language
 alongside its other three shares, in
-[`balance.py`](../backend/question_generation/balance.py). The language
-shares are equal over the languages the pool holds, unless
-`QUESTIONS_RELEASE_LANGUAGES` weighs them. Each bucket is drawn in the order
-of an md5 of the question id, which is reproducible but not tied to the
-order things were written. The release report logs a language line. A
-re-draw over the stored pool gives a release of about 214–224 rows, split
-evenly between the two languages.
+[`balance.py`](../backend/question_generation/balance.py). Unset, the
+language shares follow the pool's own language split, unless
+`QUESTIONS_RELEASE_LANGUAGES` weighs them otherwise. Each bucket is drawn in
+the order of an md5 of the question id, which is reproducible but not tied
+to the order things were written. The release report logs a language line.
 
 ## Near-twin questions decided on one cosine
 

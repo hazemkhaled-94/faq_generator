@@ -247,6 +247,77 @@ def test_every_language_that_can_fill_its_share_is_released_at_it(
         assert abs(got[language] - quota.languages[language]) <= 1, (language, got)
 
 
+@given(
+    counts=st.fixed_dictionaries(
+        {language: st.integers(0, 40) for language in _LANGUAGES}
+    ).filter(lambda held: any(held.values())),
+    size=st.integers(1, 40),
+)
+def test_an_unset_language_share_holds_each_language_to_its_share_of_the_pool(
+    counts, size
+) -> None:
+    """QUESTIONS_RELEASE_LANGUAGES unset: the pool's own split is the share.
+
+    Each language comes out within a place of the release size times its
+    part of the pool, however lopsided the pool is.
+    """
+    from dataclasses import replace
+    from uuid import uuid4
+
+    from unit.questions.test_question_service import SETTINGS
+
+    from question_generation.service import balance
+
+    written = [language for language, count in counts.items() for _ in range(count)]
+    rows = [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=Difficulty.EASY,
+            question_type=QuestionType.FACTOID,
+            language=language,
+        )
+        for at, language in enumerate(written, 1)
+    ]
+    size = min(size, len(rows))
+    drawn: list[int] = []
+
+    class Catalog:
+        """Offers the rows, holds no twin, and keeps what was drawn."""
+
+        def judged(self, within=None):
+            return []
+
+        def reject(self, verdicts):
+            return 0
+
+        def releasable(self, within=None):
+            return rows
+
+        def twins(self, floor):
+            return []
+
+        def release(self, ids):
+            drawn[:] = ids
+            return uuid4(), len(drawn)
+
+    balance(
+        Catalog(),
+        replace(
+            SETTINGS,
+            release_size=size,
+            release_difficulty={Difficulty.EASY: 1},
+            release_unanswerable=0.0,
+            release_types={QuestionType.FACTOID: 1},
+            release_languages=None,
+        ),
+    )
+
+    got = composition(rows, drawn)["language"]
+    for language, count in counts.items():
+        assert abs(got[language] - size * count / len(rows)) <= 1, (language, got)
+
+
 def test_an_empty_quota_draws_an_empty_release() -> None:
     """A pool with nothing in it is not an error."""
     assert choose([], Quota(size=5, unanswerable=1, difficulty={}, types={})).ids == []

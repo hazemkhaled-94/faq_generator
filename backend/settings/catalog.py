@@ -652,7 +652,7 @@ SETTINGS: tuple[Setting, ...] = (
         optional=True,
         invalidates=("questions",),
         help="How a release spreads over the languages, by ISO 639-1 code. "
-        "Absent weighs every language the accepted pool holds alike.",
+        "Absent follows the pool's own language split.",
     ),
     Setting(
         name="QUESTIONS_MODEL",

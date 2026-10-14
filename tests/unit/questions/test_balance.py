@@ -343,7 +343,7 @@ def test_unanswerable_places_the_pool_cannot_fill_go_to_answerable_rows() -> Non
 # ── Languages ──────────────────────────────────────────────────────────────
 
 #: Equal weight on two languages, which is what an unset
-#: QUESTIONS_RELEASE_LANGUAGES gives a pool holding both.
+#: QUESTIONS_RELEASE_LANGUAGES gives a pool holding as many of each.
 LANGUAGES = {"de": 1, "en": 1}
 
 

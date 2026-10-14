@@ -532,7 +532,7 @@ So the run overgenerates and the composition is chosen afterwards.
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of the release that may have no answer. A ceiling |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands |
 | `QUESTIONS_RELEASE_TYPES` | How it spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
-| `QUESTIONS_RELEASE_LANGUAGES` | How it spreads over the languages. Unset weighs every language the pool holds alike |
+| `QUESTIONS_RELEASE_LANGUAGES` | How it spreads over the languages. Unset follows the pool's own language split |
 
 They are **marginals, not a joint distribution**: an even spread of kinds
 within each band is not reachable, because a `factoid` answers with a value
@@ -725,7 +725,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How a release spreads over the bands |
 | `QUESTIONS_RELEASE_TYPES` | How a release spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
-| `QUESTIONS_RELEASE_LANGUAGES` | How a release spreads over the languages, by ISO 639-1 code. Unset weighs every language the pool holds alike |
+| `QUESTIONS_RELEASE_LANGUAGES` | How a release spreads over the languages, by ISO 639-1 code. Unset follows the pool's own language split, so a corpus mostly in one language releases in proportion; set it for any other split, an equal one included |
 | `QUESTIONS_MODEL` | A different writer. Unset means `LLM_MODEL` |
 | `QUESTIONS_VERIFIER_MODEL` | The second model. Unset means `LLM_MODEL`. Where it comes out the writer's own, the entailment pass is off, and so are the opinion gates while `QUESTIONS_PHRASING_MODEL` is unset |
 | `QUESTIONS_PHRASING_MODEL` | The model asked what a question's wording amounts to. Never sees a passage. Unset means the verifier's. Where it comes out the writer's own, the opinion gates are off |

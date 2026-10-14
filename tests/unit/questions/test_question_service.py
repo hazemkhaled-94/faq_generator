@@ -1241,7 +1241,7 @@ def test_a_release_spreads_over_its_own_kinds() -> None:
 
 
 def test_a_release_holds_and_reports_the_languages_its_pool_holds(caplog) -> None:
-    """Unset QUESTIONS_RELEASE_LANGUAGES weighs every language present alike.
+    """Unset QUESTIONS_RELEASE_LANGUAGES follows the pool: an even one, evenly.
 
     And the report says what came out, so a release that is mostly one
     language is visible in `make questions-balance` rather than only in a
@@ -1304,6 +1304,90 @@ def test_a_release_holds_and_reports_the_languages_its_pool_holds(caplog) -> Non
         "language" in line and "de 10" in line and "en 10" in line
         for line in caplog.messages
     ), caplog.messages
+
+
+class _Pool:
+    """A catalogue offering one pool, holding no twin, and keeping what was drawn."""
+
+    def __init__(self, pool) -> None:
+        """Holds the pool; nothing drawn yet."""
+        self.pool = pool
+        self.drawn: tuple[int, ...] = ()
+
+    def judged(self, within=None):
+        """Nothing to re-check."""
+        return []
+
+    def reject(self, verdicts):
+        """Nothing rejected."""
+        return 0
+
+    def releasable(self, within=None):
+        """The pool."""
+        return self.pool
+
+    def twins(self, floor):
+        """No twins."""
+        return []
+
+    def release(self, ids):
+        """Keeps the draw."""
+        from uuid import uuid4
+
+        self.drawn = tuple(ids)
+        return uuid4(), len(self.drawn)
+
+
+def _spoken(counts: dict[str, int]):
+    """Easy answerable factoids, this many in each language, one block each."""
+    from question_generation.balance import Row
+
+    languages = [language for language, count in counts.items() for _ in range(count)]
+    return [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=Difficulty.EASY,
+            question_type=QuestionType.FACTOID,
+            language=language,
+        )
+        for at, language in enumerate(languages, start=1)
+    ]
+
+
+#: One band, one kind and no unanswerable share, so the language is the
+#: only quota that can bind.
+_ONE_BUCKET = {
+    "release_difficulty": {Difficulty.EASY: 1},
+    "release_unanswerable": 0.0,
+    "release_types": {QuestionType.FACTOID: 1},
+}
+
+
+def test_an_unset_language_share_follows_the_pool_s_own_split() -> None:
+    """A pool of 20,000 in one language and 400 in another releases about so."""
+    from question_generation.service import balance
+
+    catalog = _Pool(_spoken({"en": 20_000, "de": 400}))
+
+    balance(catalog, replace(SETTINGS, release_size=510, **_ONE_BUCKET))
+
+    german = sum(catalog.pool[at - 1].language == "de" for at in catalog.drawn)
+    assert len(catalog.drawn) == 510
+    assert abs(german - 10) <= 1, german
+
+
+def test_an_unset_language_share_is_not_capped_at_twice_the_smaller_language() -> None:
+    """The largest release the pool fills takes nearly all of it, not 2 x 20."""
+    from question_generation.service import balance
+
+    catalog = _Pool(_spoken({"en": 1_000, "de": 20}))
+
+    balance(catalog, replace(SETTINGS, release_size=0, **_ONE_BUCKET))
+
+    german = sum(catalog.pool[at - 1].language == "de" for at in catalog.drawn)
+    assert len(catalog.drawn) > 900, len(catalog.drawn)
+    assert abs(german - len(catalog.drawn) * 20 / 1_020) <= 1, german
 
 
 def test_two_same_language_near_twins_are_not_both_released() -> None:

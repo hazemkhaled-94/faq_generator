@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import replace
 from typing import ClassVar
@@ -358,12 +359,13 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     types = _supplied(
         pool, settings.release_types or settings.type_mix, "kind", "question_type"
     )
-    # Unset weighs every language the pool holds alike, so a corpus in a
-    # third language is held to a third without anybody naming it.
+    # Unset follows the pool's own language split, so a corpus mostly in one
+    # language releases in proportion rather than at a multiple of its
+    # smallest, and a third language is held to its share without anybody
+    # naming it.
     languages = _supplied(
         pool,
-        settings.release_languages
-        or dict.fromkeys(sorted({row.language for row in pool}), 1),
+        settings.release_languages or dict(Counter(row.language for row in pool)),
         "language",
         "language",
     )
