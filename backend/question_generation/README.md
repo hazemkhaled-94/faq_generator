@@ -335,7 +335,8 @@ list; two carrying no verb do where the type asks for a list first, so a
 `condition` answered with two of the passage's conditions is held to
 `answer_incomplete` rather than compared as a value. Two clauses carrying
 verbs are an explanation where the type takes one, and a list where it does
-not.
+not. A comma between two digits separates no items, so `49,90 €` is one
+amount.
 
 Three things about it are load-bearing. The verifier is meant to be a
 **different** model, because a model marking its own work recovers what it

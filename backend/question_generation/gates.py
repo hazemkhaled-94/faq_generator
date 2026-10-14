@@ -185,8 +185,9 @@ def _misfits(
 #: a per-language list, and nothing else in this stage holds one. A two-item
 #: list joined by a bare conjunction is therefore read as a value, which
 #: costs it the looser comparison and not the question - the entailment pass
-#: is what catches those.
-_ITEMS = re.compile(r"[,;]")
+#: is what catches those. A comma between two digits is a decimal comma, so
+#: `49,90 €` stays one amount.
+_ITEMS = re.compile(r";|(?<!\d),|,(?!\d)")
 
 #: How many items punctuation has to separate before an answer is taken for a
 #: list. Two commas, so `A, B and C` is a list and `Berlin, 2025` is not.

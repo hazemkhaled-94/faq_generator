@@ -2032,6 +2032,21 @@ def test_two_items_are_a_list_where_the_type_asked_for_one() -> None:
     assert form == AnswerForm.LIST
 
 
+@pytest.mark.parametrize(
+    ("answer", "forms"),
+    [
+        ("ab einem Bestellwert von 49,90 €", (AnswerForm.LIST, AnswerForm.VALUE)),
+        ("von 6,4 % auf 6,1 %", (AnswerForm.VALUE, AnswerForm.LIST)),
+    ],
+)
+def test_a_decimal_comma_separates_no_items(answer: str, forms) -> None:
+    """`49,90 €` is one amount, where a type asked for a list first as well."""
+    form, failed = fitting(answer, forms, BOUNDS, "de")
+
+    assert failed is None
+    assert form == AnswerForm.VALUE
+
+
 def test_two_clauses_carrying_verbs_stay_an_explanation_where_one_is_allowed() -> None:
     """A `comparison` takes an explanation, and two clauses with verbs are one."""
     form, failed = fitting(
