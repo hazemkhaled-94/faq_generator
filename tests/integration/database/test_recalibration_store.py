@@ -167,6 +167,9 @@ def test_a_verdict_written_while_it_runs_is_not_written_over(engine, stored) -> 
                         "AND datname = current_database()"
                     )
                 ).scalar()
+                # pg_stat_activity is read once per transaction, so each
+                # poll ends its own or it would keep seeing the first look.
+                watching.rollback()
                 if waiting:
                     break
                 time.sleep(0.05)
