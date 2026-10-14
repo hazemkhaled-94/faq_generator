@@ -360,10 +360,10 @@ _CORRELATES: dict[str, frozenset[str]] = {"de": frozenset({"es"})}
 _BESIDE = frozenset({"oa", "oc", "re"})
 
 #: How a possessive determiner is attached - "its cards", "his address" - in
-#: English, Universal Dependencies and German. A standalone possessive, "hers",
-#: is an object like any other pronoun.
+#: English and Universal Dependencies. A standalone possessive, "hers", is an
+#: object like any other pronoun. German needs no entry: `de_core_news_md`
+#: tags `sein` and `ihre` as determiners, which are never read as pronouns.
 _POSSESSIVE_DEPS = frozenset({"poss", "nmod:poss"})
-_POSSESSIVE_TAGS = frozenset({"PPOSAT"})
 
 #: What opens a clause of its own beneath another: a subordinator on its verb,
 #: or the verb hung off its head as an adverbial or a relative clause. English
@@ -479,7 +479,7 @@ def _resolved(token) -> bool:
         return False
     if _correlate(token):
         return True
-    if token.dep_ not in _POSSESSIVE_DEPS and token.tag_ not in _POSSESSIVE_TAGS:
+    if token.dep_ not in _POSSESSIVE_DEPS:
         own = _clause(token)
         earlier = [noun for noun in earlier if _clause(noun) != own]
     return any(_agrees(token, noun) for noun in earlier)

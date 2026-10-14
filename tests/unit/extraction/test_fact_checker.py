@@ -146,6 +146,7 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
         ("If the card is reported stolen, it is blocked.", "en"),
         ("The bank replaces the card when its chip fails.", "en"),
         ("The bank replaces its cards every year.", "en"),
+        ("Die Bank ersetzt ihre Karten jedes Jahr.", "de"),
         ("Der Kredit wird gekündigt, wenn er nicht bedient wird.", "de"),
         (
             (
