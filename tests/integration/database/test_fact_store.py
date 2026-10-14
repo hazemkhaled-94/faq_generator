@@ -1289,6 +1289,64 @@ def test_the_probe_reads_past_a_nearer_fact_naming_other_numbers(store, corpus) 
     assert twin.similarity > 0.99
 
 
+def _indexed() -> None:
+    """Makes every connection the repository opens read through the HNSW index.
+
+    A table this small is read by a scan and sorted, which is exact, so
+    without this the index's own limit never shows. The engine is released
+    after the test, and the listener with it.
+    """
+    from sqlalchemy import event
+
+    from database.qa_generator.engine import engine as connect
+
+    @event.listens_for(connect(), "connect")
+    def off(dbapi_connection, _record) -> None:
+        with dbapi_connection.cursor() as cursor:
+            cursor.execute("SET enable_seqscan = off")
+            cursor.execute("SET enable_sort = off")
+        dbapi_connection.commit()
+
+
+#: More facts than one index scan hands back, which is `hnsw.ef_search`.
+_CROWD = 45
+
+
+@pytest.mark.parametrize("crowd", ["language", "kind"])
+def test_the_probe_finds_a_twin_behind_more_facts_than_one_scan_holds(
+    store, crowd: str
+) -> None:
+    """The language and kind filters run over the index scan, which keeps scanning.
+
+    Every one of the crowd is nearer the probe than the twin, and of another
+    language or another kind than the one asked for. Indexed before the
+    first write, because the repository's pool keeps the connection it
+    writes on and the probe reads on it.
+    """
+    _indexed()
+    (written,) = store.corpus(
+        ("a", [f"Claim {at}." for at in range(_CROWD + 1)])
+    ).values()
+    *crowded, own = written
+    for at, passage_id in enumerate(crowded, 1):
+        if crowd == "language":
+            store.language_of(passage_id, "de")
+        store.store(
+            passage_id,
+            checked(
+                passage_id,
+                f"Claim {at}.",
+                kind=FactKind.SUMMARY if crowd == "kind" else FactKind.ATOMIC,
+                embedding=_tilted(1, 0.001 * at),
+            ),
+        )
+    store.store(own, checked(own, "The fee is 25 EUR.", embedding=_tilted(1, 0.5)))
+
+    twin = store.queue.nearest_fact(_axis(0), language="en", kind=FactKind.ATOMIC)
+
+    assert twin is not None and twin.statement == "The fee is 25 EUR."
+
+
 class TestTheDedupReplay:
     """`make extract-dedup`, against the database it writes to."""
 

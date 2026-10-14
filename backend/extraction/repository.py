@@ -19,6 +19,7 @@ from sqlalchemy import (
     insert,
     or_,
     select,
+    text,
     true,
     update,
 )
@@ -83,6 +84,14 @@ _BATCH = 500
 #: choose among: the nearest may name other numbers where one a little
 #: further off names the candidate's own.
 _PROBED = 5
+
+#: Lets the dedup probe's HNSW scan keep going past the rows its filters
+#: drop. The filters on language, kind and the passage read again apply over
+#: what one scan returns, `hnsw.ef_search` rows, so a fact behind that many
+#: closer facts of another language or kind was otherwise not found at all.
+#: Strict order, because the caller takes the closest it would call a twin.
+#: Local to the transaction. pgvector 0.8 or later.
+_PAST_THE_FILTERS = text("SET LOCAL hnsw.iterative_scan = strict_order")
 
 #: The facts table itself, for the bulk update a re-judgement writes.
 _FACTS = cast("Table", Fact.__table__)
@@ -322,6 +331,7 @@ def _nearest_fact(
                 .having(func.count() == 1)
             )
         )
+    session.execute(_PAST_THE_FILTERS)
     for found in session.execute(query):
         # pgvector answers in cosine distance; the gate reads likeness.
         twin = Twin(

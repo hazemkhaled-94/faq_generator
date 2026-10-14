@@ -128,7 +128,9 @@ Two more refusals are the service refusing what the checks passed:
   naming other numbers - another value, or the same one a different number
   of times, a number word read as the value it names. The index is read
   for the five nearest and the closest naming the candidate's numbers is
-  taken, so a nearer fact of another value does not hide a repeat. The bar
+  taken, so a nearer fact of another value does not hide a repeat. Its scan
+  reads on past the facts of another language or kind, so a language
+  holding a small share of the corpus is probed as fully as the rest. The bar
   sits near identity: the vector is read off the bare statement, and two
   statements about one subject score high on the subject alone. The
   refusal names the stored fact it repeats and writes nothing onto it: the
