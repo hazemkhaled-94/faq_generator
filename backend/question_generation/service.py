@@ -55,7 +55,7 @@ from question_generation.planning import Plan, instead, plans
 from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
 from question_generation.selection import Deal, spread
-from question_generation.types import PROMPT_VERSION, SPECS, SUPERSEDED, spec
+from question_generation.types import PROMPT_VERSION, SPECS, spec
 from question_generation.verifier import Verifier
 from settings.runs import run_id
 from stages import StageService
@@ -1077,8 +1077,8 @@ class QuestionGenerationService(StageService):
         better than it is while hiding what the retry cost.
 
         A retry can only improve the outcome. Only a refused draft is asked
-        again, so the first draft a gate let through is the one kept: a
-        later draft the gates passed as well is not traded for it.
+        again, so the drafts before the last were all refused, and the last
+        is the one kept, accepted or not.
         """
         # Checked against what this run has accepted as well as what the
         # database holds: nothing is stored until the topic is finished, so
@@ -1089,35 +1089,15 @@ class QuestionGenerationService(StageService):
             if note is None:
                 break
             log.info("asking again for %r: %s", drafts[-1].question_text, note)
-            # Numbered as it is written, not as it is stored: the best draft
-            # is moved to the end below, so a row's position in this list
-            # stops saying which attempt produced it the moment it moves.
+            # Numbered as it is written, so a stored row says which attempt
+            # produced it.
             drafts.append(
                 replace(
                     self._checked(self._writer.write(sample, plan, note), accepted),
                     attempt=len(drafts) + 1,
                 )
             )
-        best = next(
-            (at for at, one in enumerate(drafts) if one.accepted), len(drafts) - 1
-        )
-        kept = drafts.pop(best)
-        # One sample keeps one accepted question: any other accepted draft
-        # is refused, as the duplicate it is of the kept one. No gate refused
-        # it, so the marker goes after the gates it passed - lineage reads
-        # the last entry as what set a rejected question aside.
-        drafts = [
-            replace(
-                one,
-                status=QuestionStatus.REJECTED,
-                rejected_reason=QuestionRejection.DUPLICATE,
-                gates_ran=(*one.gates_ran, SUPERSEDED),
-            )
-            if one.accepted
-            else one
-            for one in drafts
-        ]
-        return [*drafts, kept]
+        return drafts
 
     def _followups(
         self,

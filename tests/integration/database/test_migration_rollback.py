@@ -32,7 +32,7 @@ BUDGETED = "2871990b2443"
 RESOLVED = "6c1d0e4b9a27"
 UNREAD = "9e2b7c41d058"
 REFITTED = "f6f7b1880b23"
-SUPERSEDED = "f7bba722de8e"
+OPINED = "f7bba722de8e"
 UNFOLDED = "3c5a9d2e7b14"
 FLOORED = "7d4e1f2a9c63"
 #: Every revision after the previous head, oldest first.
@@ -49,7 +49,7 @@ LATER = (
     RESOLVED,
     UNREAD,
     REFITTED,
-    SUPERSEDED,
+    OPINED,
     UNFOLDED,
     FLOORED,
 )

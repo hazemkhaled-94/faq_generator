@@ -1,6 +1,5 @@
-"""Two comments say a superseded draft and a settles verdict are what they are.
+"""The gate_scores comment says a settles verdict is kept as an opinion.
 
-`gates_ran` can end with `superseded`, a marker with no gate position, and
 `gate_scores` can carry the verifier's `settles` verdicts as opinions with
 no margin. Comment only.
 
@@ -23,14 +22,6 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 _COLUMNS = (
-    (
-        "questions",
-        "gates_ran",
-        postgresql.ARRAY(sa.Text()),
-        True,
-        "Every gate that read this question, in the order they read it, the one that refused it last. question_generation.checker.GATES gives each its fixed position. Two gates are conditional, so this cannot be derived from rejected_reason and a fixed order. NULL for a question written before this column; empty means no gate ran.",
-        "Every gate that read this question, in the order they read it, the one that refused it last. question_generation.checker.GATES gives each gate its fixed position. A draft another accepted draft of its slot was kept over ends with `superseded`, which is not a gate and has no position: no gate refused it. Two gates are conditional, so this cannot be derived from rejected_reason and a fixed order. NULL for a question written before this column; empty means no gate ran.",
-    ),
     (
         "questions",
         "gate_scores",

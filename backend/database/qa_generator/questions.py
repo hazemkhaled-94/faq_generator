@@ -315,10 +315,8 @@ class Question(Base):
         ARRAY(Text),
         comment="Every gate that read this question, in the order they read it, "
         "the one that refused it last. question_generation.checker.GATES gives "
-        "each gate its fixed position. A draft another accepted draft of its slot "
-        "was kept over ends with `superseded`, which is not a gate and has no "
-        "position: no gate refused it. Two gates are conditional, so this cannot "
-        "be derived from rejected_reason and a fixed order. NULL for a question "
+        "each its fixed position. Two gates are conditional, so this cannot be "
+        "derived from rejected_reason and a fixed order. NULL for a question "
         "written before this column; empty means no gate ran.",
     )
     gates_abstained: Mapped[list[str] | None] = mapped_column(

@@ -151,33 +151,6 @@ def test_a_question_reports_every_gate_that_read_it(client, corpus) -> None:
     ]
 
 
-def test_a_draft_a_retry_superseded_shows_no_gate_refusing_it(
-    client, corpus, engine
-) -> None:
-    """It cleared every gate; what set it aside is the marker after them."""
-    with Session(engine) as session:
-        superseded = QuestionRow(
-            question_text="How long do requests take to answer?",
-            target_answer="48 hours",
-            answerable=True,
-            language="en",
-            status="rejected",
-            rejected_reason="duplicate",
-            gates_ran=["structural", "near_duplicate", "phrasing", "round_trip"]
-            + ["superseded"],
-        )
-        session.add(superseded)
-        session.flush()
-        session.add(QuestionFact(question_id=superseded.id, fact_id=corpus["fact"]))
-        session.commit()
-        asked = superseded.id
-
-    chain = client.get(f"/lineage/question/{asked}").json()
-
-    refused = [one["name"] for one in chain["gates"] if not one["passed"]]
-    assert refused == ["superseded"]
-
-
 def test_a_document_is_the_root_of_its_own_chain(client, corpus) -> None:
     """Nothing produced it, so it is the only step and there are no gates."""
     chain = client.get(f"/lineage/document/{corpus['document']}").json()

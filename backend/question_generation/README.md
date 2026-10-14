@@ -113,9 +113,8 @@ together, its source named, an answer of the wrong shape — is written again
 with a note saying what went wrong, up to `QUESTIONS_RETRIES` times. An
 accepted draft is never asked again, however narrow it came out: asking it
 to cite every passage it was offered asks for the weld the span rules
-forbid. Every draft is stored; should two drafts of one slot both be
-accepted, the first is kept and the other is stored as `duplicate` with
-`superseded` after the gates it passed in `gates_ran`.
+forbid. Every draft is stored, and the last is the one kept: every draft
+before it was refused.
 
 ### Step 4 — Gate it
 
@@ -283,7 +282,7 @@ its own document, runs in it too.
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure or a name the passages do not — every proper noun it carries counts as a name — or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
 | `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
-| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability, or is an accepted draft of a slot whose earlier accepted draft was kept (`superseded` closes its `gates_ran`). How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
+| `duplicate` | is a near twin of one already accepted in its own language and of its own answerability. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
 | `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages settle it | the probe among answerable questions, the second of the two, or one `settles` call |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |

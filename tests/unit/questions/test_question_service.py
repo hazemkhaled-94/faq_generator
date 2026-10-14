@@ -995,12 +995,6 @@ def test_an_honest_narrow_draft_is_not_asked_to_weld_facts_that_do_not_meet() ->
     assert again(narrow) is None
 
 
-#: A sample dealt across two documents.
-_WIDE = FactGroup(
-    (source(1, document="a", passage_id=1), source(2, document="b", passage_id=2))
-)
-
-
 def accepted_question(band: str = Difficulty.EASY) -> CheckedQuestion:
     """One accepted question, banded as a test asks."""
     from question_generation.models import Criteria
@@ -1192,89 +1186,6 @@ def test_a_retry_is_numbered_by_the_draft_that_wrote_it() -> None:
     # The accepted one is stored last, so position and attempt disagree -
     # which is the whole reason the column exists.
     assert drafts[-1][0] == 2
-
-
-def test_an_accepted_draft_is_kept_over_a_retry_accepted_after_it(monkeypatch) -> None:
-    """One sample, one accepted question: the LATER draft is the one refused.
-
-    No note follows an accepted draft today, so this pins the policy for any
-    that does: the draft that stood is not traded for a second one the same
-    gates happened to pass too.
-    """
-    from question_generation import service as module
-
-    monkeypatch.setattr(
-        module,
-        "again",
-        lambda checked: (
-            "again" if checked.question_text.startswith("draft 1") else None
-        ),
-    )
-    service, queue = build(
-        topic(),
-        [source(1, passage_id=1, language="en")],
-        writer=RetryingWriter(),
-        settings=replace(SETTINGS, retries=1, per_topic=1, followup_share=0.0),
-    )
-
-    service.process_next()
-
-    drafts = {
-        one.question_text[:7]: (one.status, one.rejected_reason)
-        for one in queue.written
-        if one.question_text.startswith("draft ")
-    }
-    assert drafts["draft 1"] == ("accepted", None)
-    assert drafts["draft 2"] == ("rejected", QuestionRejection.DUPLICATE)
-    assert queue.written[-1].question_text.startswith("draft 1"), "kept is last"
-
-
-def test_a_draft_a_retry_replaced_does_not_blame_a_gate_it_passed(monkeypatch) -> None:
-    """What GET /lineage reads as the refusing gate is the last one that ran.
-
-    A superseded draft cleared every gate, so the last entry names why it was
-    set aside rather than the round trip it passed.
-    """
-    from question_generation import service as module
-
-    ran = ("structural", "kind_and_thread", "near_duplicate", "phrasing", "round_trip")
-
-    class PassesEverything(StubChecker):
-        """Accepts every draft, having run every gate."""
-
-        def check(self, candidate, seen=()) -> CheckedQuestion:
-            """The stub's verdict, with the full gate sequence on it."""
-            return replace(super().check(candidate, seen), gates_ran=ran)
-
-    monkeypatch.setattr(
-        module,
-        "again",
-        lambda checked: "again" if checked.attempt == 1 else None,
-    )
-    service, _ = build(
-        topic(),
-        writer=RetryingWriter(),
-        checker=PassesEverything(),
-        settings=replace(SETTINGS, retries=1),
-    )
-    from question_generation.planning import Plan
-    from question_generation.selection import Shape
-    from question_generation.types import SPECS
-
-    superseded, kept = service._attempt(
-        _WIDE,
-        Plan(
-            spec=SPECS[QuestionType.FACTOID],
-            band=Difficulty.MEDIUM,
-            shape=Shape.CROSS,
-            answerable=True,
-        ),
-        [],
-    )
-
-    assert kept.accepted and kept.attempt == 1
-    assert superseded.rejected_reason == QuestionRejection.DUPLICATE
-    assert superseded.gates_ran == (*ran, "superseded")
 
 
 def test_a_release_spreads_over_its_own_kinds() -> None:

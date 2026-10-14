@@ -216,9 +216,7 @@ had passed.
 
 **Fixed in v0.2.2.** The widen retry is gone, in
 [`service.py`](../backend/question_generation/service.py). An accepted draft
-is never asked again. If two drafts of one slot are both accepted, the first
-is kept, and the other carries `superseded` after the gates it passed, so
-lineage blames none of them.
+is never asked again.
 
 ## The count rule misread stated counts
 
