@@ -313,3 +313,40 @@ def test_the_rejudge_settles_a_question_as_the_checker_does(
     by_checker = [one for one in caplog.messages if one.startswith("rejected ")]
     by_rejudge = [one for one in caplog.messages if one.startswith("rejecting ")]
     assert by_checker[-1].split(": ", 1)[1] == by_rejudge[-1].split(": ", 1)[1]
+
+
+class Refusing(Client):
+    """A served model that will not answer about one question, as a filter does."""
+
+    def __init__(self, refused: str, settled_by: str | None = CITED) -> None:
+        """Initialises with the question it refuses, and what settles the rest."""
+        super().__init__(settled_by)
+        self.refused = refused
+
+    def answer(self, *, system, user, shape, prompt_version=None):
+        """Raises for the refused question; settles the others as before."""
+        if self.refused in user:
+            from llm.client import ModelUnavailable
+
+            raise ModelUnavailable("the content filter refused the request")
+        return super().answer(
+            system=system, user=user, shape=shape, prompt_version=prompt_version
+        )
+
+
+def test_a_question_the_model_will_not_answer_is_left_for_the_next_run(
+    caplog,
+) -> None:
+    """The others are judged; that one is written nothing, so it is asked again."""
+    refused = "When is a guest refunded?"
+    catalog = Catalog(unanswered(question_text=refused), unanswered(id=8))
+
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        rejected = rejudge(catalog, SETTINGS, Verifier(Refusing(refused)))
+
+    assert rejected == 1
+    assert catalog.rejected == [(8, QuestionRejection.ANSWERABLE_AFTER_ALL)]
+    assert 7 not in catalog.opined
+    assert not next(one for one in catalog.unanswered() if one.id == 7).judged
+    assert any("question 7" in one for one in caplog.messages)
+    assert "1 the model would not answer" in caplog.messages[-1]

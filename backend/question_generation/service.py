@@ -17,6 +17,7 @@ from database.qa_generator import (
     QuestionType,
     ReviewVerdict,
 )
+from llm.client import ModelUnavailable
 from nlp.analysis import content
 from question_generation.balance import choose, composition, largest, quota_of
 from question_generation.catalog import QuestionCatalog
@@ -538,14 +539,28 @@ def rejudge(
     second run, or one after an interruption, pays only for what no run has
     judged.
 
+    A question the model will not answer about - a passage a content filter
+    always refuses - is logged and counted, and written nothing, so the run
+    goes on past it and the next run asks it again.
+
     Returns:
         How many questions were rejected.
     """
     written = 0
+    unanswered = 0
     for question in catalog.unanswered(within):
         if question.reviewed_verdict == ReviewVerdict.ACCEPTED or question.judged:
             continue
-        failed, opinions = _settled(catalog, settings, verifier, question)
+        try:
+            failed, opinions = _settled(catalog, settings, verifier, question)
+        except ModelUnavailable as exc:
+            log.warning(
+                "left question %d unjudged: the verifier would not answer (%s)",
+                question.id,
+                exc,
+            )
+            unanswered += 1
+            continue
         code, reason = failed or (None, "")
         if code:
             log.info("rejecting question %d: %s (%s)", question.id, reason, code)
@@ -553,7 +568,12 @@ def rejudge(
         # run dying between them left a settled row accepted and judged.
         if catalog.opine(question.id, opinions, rejected=code):
             written += 1
-    log.info("re-judged and rejected %d question(s)", written)
+    log.info(
+        "re-judged and rejected %d question(s), and left %d the model would not "
+        "answer about to the next run",
+        written,
+        unanswered,
+    )
     return written
 
 

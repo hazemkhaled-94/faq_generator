@@ -437,7 +437,9 @@ verifier made of it. It is an **opinion**: kept with no margin, it moves no
 confidence.
 `make questions-rejudge` asks the same of the questions already accepted,
 writes its verdicts on each row the same way, and does not ask again about
-a row that already carries one.
+a row that already carries one. A question the model will not answer about
+is logged, counted in the last line, and written nothing, so the run goes on
+and the next one asks it again.
 
 A recovery or quote that only says the question back is not an answer: a
 `why` the passage gives no reason for comes back as the rule itself. So an
