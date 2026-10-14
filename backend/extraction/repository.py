@@ -767,7 +767,9 @@ class FactCatalog(Repository):
                     language=row.language,
                     kind=row.kind,
                     statement=row.statement,
-                    embedding=[float(one) for one in row.embedding],
+                    # As pgvector reads it, which is a list of floats
+                    # already, rather than built again element by element.
+                    embedding=row.embedding,
                 )
                 for row in session.execute(query)
             ]
