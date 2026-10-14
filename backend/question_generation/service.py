@@ -25,7 +25,7 @@ from question_generation.checker import (
     REFUSED,
     QuestionChecker,
     annotation,
-    heard,
+    settle,
 )
 from question_generation.config import Settings
 from question_generation.gates import (
@@ -55,7 +55,7 @@ from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
 from question_generation.selection import Deal, spread
 from question_generation.types import PROMPT_VERSION, SPECS, SUPERSEDED, spec
-from question_generation.verifier import Settling, Verifier
+from question_generation.verifier import Verifier
 from settings.runs import run_id
 from stages import StageService
 from telemetry import tracer, working
@@ -565,49 +565,28 @@ def _settled(
 ) -> tuple[tuple[str, str] | None, list[Measurement]]:
     """Why the material answers a question written to have none, or None.
 
-    Beside it, the verdicts that decided it, as the row keeps them.
+    Beside it, the verdicts that decided it, as the row keeps them. Read as
+    the checker reads it, by `settle`, over the probe the checker reads.
     """
-    # Read as the checker reads it, so a question it would keep is not
-    # rejected here on a quote that only says it back.
-    settled = heard(
-        verifier.settles(question.question_text, question.passages),
+
+    def probe() -> Sequence[str]:
+        """The passages it does not cite, as the checker probes for them."""
+        return catalog.elsewhere(
+            sorted(content(question.question_text, question.language)),
+            question.language,
+            question.passage_ids,
+            settings.elsewhere_passages,
+            question.embedding,
+        )
+
+    return settle(
+        verifier,
         question.question_text,
         question.language,
+        question.passages,
+        probe if settings.elsewhere_passages > 0 else None,
         question.id,
     )
-    opinions = [settled.reading("settles")]
-    if settled.verdict != Settling.SILENT:
-        return (
-            QuestionRejection.ANSWERABLE_AFTER_ALL,
-            f"its own passages settle it ({settled.verdict}): {settled.quote!r}",
-        ), opinions
-    if settings.elsewhere_passages <= 0:
-        return None, opinions
-    probed = catalog.elsewhere(
-        sorted(content(question.question_text, question.language)),
-        question.language,
-        question.passage_ids,
-        settings.elsewhere_passages,
-        question.embedding,
-    )
-    if not probed:
-        return None, opinions
-    settled = heard(
-        verifier.settles(question.question_text, probed),
-        question.question_text,
-        question.language,
-        question.id,
-    )
-    opinions.append(settled.reading("settles_elsewhere"))
-    if settled.verdict != Settling.SILENT:
-        return (
-            QuestionRejection.ANSWERABLE_ELSEWHERE,
-            (
-                f"a passage it does not cite settles it ({settled.verdict}): "
-                f"{settled.quote!r}"
-            ),
-        ), opinions
-    return None, opinions
 
 
 def again(checked: CheckedQuestion) -> str | None:

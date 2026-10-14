@@ -46,7 +46,7 @@ and a resolved pronoun all survive it where a threshold would not.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from confidence import Measurement
 from database.qa_generator import (
@@ -138,6 +138,58 @@ def heard(
         )
         return Settled(verdict=Settling.SILENT, quote=None)
     return settled
+
+
+def settle(
+    verifier: Verifier,
+    question: str,
+    language: str | None,
+    passages: Sequence[str],
+    probe: Callable[[], Sequence[str]] | None,
+    question_id: int | None = None,
+) -> tuple[tuple[str, str] | None, list[Measurement]]:
+    """Whether the material settles a question written to have no answer.
+
+    Not "do the passages state an answer": a question whose premise they
+    refute, or whose case a list or a rule in them covers, is answered too,
+    and a chatbot saying so is right. First over the passages it cites, then,
+    where those are silent, over what `probe` hands back: the corpus beyond
+    them, called only then because it costs a query. None for no probe.
+
+    The one sequence the checker and `make questions-rejudge` both run, so
+    the two cannot read one verdict two ways. Returns the code and reason it
+    refuses the question under, or None, and beside them the verdicts as the
+    row keeps them.
+    """
+    settled = heard(
+        verifier.settles(question, passages), question, language, question_id
+    )
+    opinions = [settled.reading("settles")]
+    if settled.verdict != Settling.SILENT:
+        return (
+            QuestionRejection.ANSWERABLE_AFTER_ALL,
+            (
+                f"the cited passages settle it after all ({settled.verdict}), "
+                f"with {settled.quote!r}"
+            ),
+        ), opinions
+    probed = probe() if probe is not None else ()
+    if not probed:
+        return None, opinions
+    # Not filtered by the extractive reader first: it finds where an answer
+    # is stated, and a refuted premise or a general rule that settles the
+    # question is not a span it could find.
+    settled = heard(verifier.settles(question, probed), question, language, question_id)
+    opinions.append(settled.reading("settles_elsewhere"))
+    if settled.verdict == Settling.SILENT:
+        return None, opinions
+    return (
+        QuestionRejection.ANSWERABLE_ELSEWHERE,
+        (
+            f"a passage it does not cite settles it ({settled.verdict}), "
+            f"with {settled.quote!r}, so the corpus is not silent about this"
+        ),
+    ), opinions
 
 
 class QuestionChecker:
@@ -691,24 +743,15 @@ class QuestionChecker:
                 )
             return None
 
-        # Not "do the passages state an answer": a question whose premise
-        # they refute, or whose case a list or a rule in them covers, is
-        # answered too, and a chatbot saying so is right.
-        settled = heard(
-            self._verifier.settles(candidate.question_text, candidate.group.passages),
+        failed, opinions = settle(
+            self._verifier,
             candidate.question_text,
             candidate.group.language,
+            candidate.group.passages,
+            self._corpus(candidate, embedding),
         )
-        readings.append(settled.reading("settles"))
-        if settled.verdict != Settling.SILENT:
-            return (
-                QuestionRejection.ANSWERABLE_AFTER_ALL,
-                (
-                    f"the cited passages settle it after all ({settled.verdict}), "
-                    f"with {settled.quote!r}"
-                ),
-            )
-        return self._corpus(candidate, embedding, readings)
+        readings.extend(opinions)
+        return failed
 
     def _computable(self, candidate: Candidate, target: str) -> tuple[str, str] | None:
         """Whether a derived answer follows from what the passages do state.
@@ -862,12 +905,9 @@ class QuestionChecker:
         return max((one.entailment for one in verdicts), default=0.0)
 
     def _corpus(
-        self,
-        candidate: Candidate,
-        embedding: list[float],
-        readings: list[Measurement],
-    ) -> tuple[str, str] | None:
-        """Asks whether the rest of the corpus answers what its passages do not.
+        self, candidate: Candidate, embedding: list[float]
+    ) -> Callable[[], Sequence[str]] | None:
+        """The probe of the rest of the corpus, for what its passages do not settle.
 
         The one claim in this dataset that is about the whole corpus rather
         than about the passages a question cites. Every other gate is right
@@ -877,38 +917,25 @@ class QuestionChecker:
         marks a correct chatbot wrong, which is the one failure the gates
         exist to stop.
 
-        Costs one probe and one call, on the unanswerable share only.
+        Costs one probe and one call, on the unanswerable share only. None
+        where no probe is configured.
         """
         if self._elsewhere is None or self._elsewhere_passages <= 0:
             return None
+        elsewhere = self._elsewhere
         language = candidate.group.language
-        passages = self._elsewhere(
-            sorted(content(candidate.question_text, language)),
-            language,
-            [passage.id for passage in candidate.group.resting],
-            self._elsewhere_passages,
-            embedding,
-        )
-        if not passages:
-            return None
-        # Not filtered by the extractive reader first: it finds where an
-        # answer is stated, and a refuted premise or a general rule that
-        # settles the question is not a span it could find.
-        settled = heard(
-            self._verifier.settles(candidate.question_text, passages),
-            candidate.question_text,
-            language,
-        )
-        readings.append(settled.reading("settles_elsewhere"))
-        if settled.verdict == Settling.SILENT:
-            return None
-        return (
-            QuestionRejection.ANSWERABLE_ELSEWHERE,
-            (
-                f"a passage it does not cite settles it ({settled.verdict}), "
-                f"with {settled.quote!r}, so the corpus is not silent about this"
-            ),
-        )
+
+        def probe() -> Sequence[str]:
+            """The passages the question does not cite, nearest first."""
+            return elsewhere(
+                sorted(content(candidate.question_text, language)),
+                language,
+                [passage.id for passage in candidate.group.resting],
+                self._elsewhere_passages,
+                embedding,
+            )
+
+        return probe
 
     def _near(
         self,

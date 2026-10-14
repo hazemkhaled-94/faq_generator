@@ -265,3 +265,51 @@ def test_a_quote_read_as_silent_is_logged_with_the_question(caplog) -> None:
 
     (line,) = [one for one in caplog.messages if "as silent" in one]
     assert "question 7" in line and RULE in line
+
+
+@pytest.mark.parametrize(
+    ("settled_by", "rejection"),
+    [
+        (CITED, QuestionRejection.ANSWERABLE_AFTER_ALL),
+        (PROBED, QuestionRejection.ANSWERABLE_ELSEWHERE),
+    ],
+)
+def test_the_rejudge_settles_a_question_as_the_checker_does(
+    caplog, settled_by: str, rejection: str
+) -> None:
+    """One sequence for both, so the two give one reason for one verdict."""
+    from factories import candidate, group, source
+    from unit.questions.test_verification import Recording
+
+    from question_generation.checker import QuestionChecker
+
+    stand_in = Recording(recovers=None)
+    checked = QuestionChecker(
+        embedder=stand_in,
+        verifier=Verifier(Client(settled_by)),
+        nearest=lambda embedding, **_: None,
+        threshold=0.93,
+        phrasing=stand_in,
+        elsewhere=lambda *a, **k: [PROBED],
+        elsewhere_passages=10,
+    )
+    with caplog.at_level("INFO", logger="question_generation.checker"):
+        written = checked.check(
+            candidate(
+                question_text="When is a visitor refunded?",
+                target_answer=None,
+                answerable=False,
+                facts=group(source(1, statement=CITED, passage_text=CITED)),
+            )
+        )
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        rejudge(
+            Catalog(unanswered()),
+            replace(SETTINGS, elsewhere_passages=10),
+            Verifier(Client(settled_by)),
+        )
+
+    assert written.rejected_reason == rejection
+    by_checker = [one for one in caplog.messages if one.startswith("rejected ")]
+    by_rejudge = [one for one in caplog.messages if one.startswith("rejecting ")]
+    assert by_checker[-1].split(": ", 1)[1] == by_rejudge[-1].split(": ", 1)[1]
