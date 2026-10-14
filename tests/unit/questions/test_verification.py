@@ -748,6 +748,47 @@ def test_a_question_this_run_wrote_in_another_language_hides_no_twin() -> None:
     assert _probed(_Probe(_TWIN), seen=(german,)) == QuestionRejection.DUPLICATE
 
 
+def test_a_twin_this_run_wrote_behind_a_closer_question_on_another_fact_is_found() -> (
+    None
+):
+    """Every earlier question that could refuse it is read, not only the closest.
+
+    The closer one rests on another fact and is held to the near-identity
+    bar, which it does not reach; the farther one rests on this one's fact
+    and is over the bar a shared fact sets.
+    """
+    from math import sqrt
+
+    from question_generation.models import CheckedQuestion, Criteria
+
+    def written(text: str, fact: int, alike: float, axis: int) -> CheckedQuestion:
+        """An accepted question of this run, this alike to the candidate."""
+        vector = [0.0] * 1024
+        vector[0], vector[axis] = alike, sqrt(1.0 - alike * alike)
+        return CheckedQuestion(
+            question_text=text,
+            target_answer="4 kg",
+            answerable=True,
+            criteria=Criteria(
+                passage_scope="single_passage",
+                document_scope="single_document",
+                topic_scope="single_topic",
+                answer_chars=4,
+                difficulty="easy",
+            ),
+            language="en",
+            status="accepted",
+            rejected_reason=None,
+            fact_ids=(fact,),
+            embedding=vector,
+        )
+
+    closer = written("How heavy is the frame of the device?", 2, 0.95, 1)
+    twin = written("How heavy is the device from Hamburg?", 1, 0.90, 2)
+
+    assert _probed(_Probe(), seen=(closer, twin)) == QuestionRejection.DUPLICATE
+
+
 def test_a_duplicate_never_reaches_the_verifier() -> None:
     """An index probe is cheap and a model call is not."""
     recording = Recording()

@@ -943,21 +943,31 @@ class QuestionChecker:
         seen: Sequence[CheckedQuestion],
         candidate: Candidate,
     ) -> list[Neighbour]:
-        """The nearest accepted question of each kind that can refuse this one.
+        """The accepted questions of each kind that can refuse this one.
 
         Stored or written earlier in this run, in the candidate's language,
-        one per answerability `rivals` names. Probed for apart, because the
+        for each answerability `rivals` names. Probed for apart, because the
         nearest question of any kind is often one that cannot refuse this
         one, and it would hide the one that can.
+
+        The nearest of each kind, and beside it every question this run
+        wrote that is over the lowest bar a pair can be held to. The bar is
+        set by what the two cite, so a closer question on another fact can
+        sit under its bar while a farther one on this question's own fact is
+        over its own: `deciding` reads them all. The stored questions are
+        probed for the nearest alone.
 
         ponytail: every candidate is scored against everything `seen`, so a
         topic costs O(n^2) cosines. Upgrade: hold `seen` as one matrix and
         score it in one product.
         """
         language = candidate.group.language
+        shared = self._shared_threshold
+        lowest = self._threshold if shared is None else min(self._threshold, shared)
         found: list[Neighbour] = []
         for answerable in rivals(candidate.answerable):
             near = self._nearest(embedding, language=language, answerable=answerable)
+            over: list[Neighbour] = []
             for other in seen:
                 if (
                     other.embedding is None
@@ -966,17 +976,23 @@ class QuestionChecker:
                 ):
                     continue
                 score = cosine(embedding, other.embedding)
+                written = Neighbour(
+                    other.question_text,
+                    other.answerable,
+                    score,
+                    fact_ids=frozenset(other.fact_ids),
+                    language=other.language,
+                    passage_ids=frozenset(other.passage_ids),
+                )
                 if near is None or score > near.similarity:
-                    near = Neighbour(
-                        other.question_text,
-                        other.answerable,
-                        score,
-                        fact_ids=frozenset(other.fact_ids),
-                        language=other.language,
-                        passage_ids=frozenset(other.passage_ids),
-                    )
+                    if near is not None and near.similarity >= lowest:
+                        over.append(near)
+                    near = written
+                elif score >= lowest:
+                    over.append(written)
             if near is not None:
                 found.append(near)
+            found.extend(over)
         return found
 
     @staticmethod
