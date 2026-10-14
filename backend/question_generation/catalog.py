@@ -543,6 +543,10 @@ class QuestionCatalog(Repository):
         starts, which the vector ranks anywhere. `limit` counts the nearest
         only, so the neighbours never crowd the corpus out.
 
+        The language, `_ASSERTS` and `skip` apply over an iterative index
+        scan, as in `nearest`, so a language holding a small share of the
+        passages still gets its `limit`.
+
         Empty when the corpus carries no vectors, which is what sends
         `elsewhere` back to its lemma probe rather than to nothing.
         """
@@ -564,6 +568,7 @@ class QuestionCatalog(Repository):
         if skip:
             query = query.where(Passage.id.notin_(skip))
         with self._session() as session:
+            session.execute(_PAST_THE_FILTERS)
             found = {row.id: row.text for row in session.execute(query)}
             if not found or not skip:
                 return list(found.values())

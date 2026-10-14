@@ -1831,6 +1831,31 @@ class TestFindingThePassageThatAnswersItAnyway:
 
         assert "Contents" not in found
 
+    def test_a_passage_behind_more_of_another_language_than_one_scan_holds_is_found(
+        self, engine, database
+    ) -> None:
+        """The language filter runs over the index scan, which keeps scanning."""
+        with Session(engine) as session:
+            sha = digest("a")
+            session.add(document(sha))
+            session.flush()
+            for at in range(1, _CROWD + 2):
+                english = at == _CROWD + 1
+                body = "The refund is paid." if english else f"Satz {at}."
+                held = passage(
+                    sha, ordinal=at, text=body, language="en" if english else "de"
+                )
+                held.embedding = _turned(0.5 if english else 0.001 * at)
+                session.add(held)
+                session.flush()
+                session.add(fact(held.id, statement=body))
+            session.commit()
+        _indexed()
+
+        found = QuestionCatalog().elsewhere([], "en", [], 1, _turned(0.0))
+
+        assert found == ["The refund is paid."]
+
 
 # ── The corpus's own furniture ─────────────────────────────────────────────
 
