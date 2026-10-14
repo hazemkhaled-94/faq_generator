@@ -311,7 +311,8 @@ and leaves the second copy refused. `make delete` and `make delete-derived`
 then run `make extract-dedup` over the whole corpus. It calls no model,
 gives that copy back, and re-judges and re-caps the passages of what it gave
 back, and no others. A deletion through the API or the UI does not run it,
-so run `make extract-dedup` yourself afterwards.
+so run `make extract-dedup` yourself afterwards. No `make questions-rescore` follows
+a deletion: the questions that rested on the deleted facts went with them.
 
 The deletion and the replay are two steps. If the replay fails - the
 `extract-worker` container is draining the queue, say, and the command

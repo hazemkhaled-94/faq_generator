@@ -948,12 +948,13 @@ questions-reverify:
 
 # Rewrite every stored question's passage, document and topic scope and its
 # difficulty from the facts it cites now, as generation bands a new one. No
-# model is called and no verdict moves. For after make extract-dedup only,
-# and before questions-reverify: the fold citations it takes out leave a
-# stored scope describing evidence the question never rested on, which
-# questions-reverify would reject as source_changed. After any other change
-# to a citation - a re-extraction, a deleted document - leave it out: the
-# question lost a fact it rested on, and source_changed is right.
+# model is called and no verdict moves. For after the make extract-dedup that
+# takes out an earlier version's fold citations - the v0.2.2 upgrade - and
+# before questions-reverify: those citations leave a stored scope describing
+# evidence the question never rested on, which questions-reverify would
+# reject as source_changed. After any other change to a citation - a
+# re-extraction, a deleted document, the extract-dedup a deletion runs - leave
+# it out: the question lost a fact it rested on, and source_changed is right.
 questions-rescore:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --rescore $(ONLY)
 
