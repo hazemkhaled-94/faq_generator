@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Iterator
 from functools import lru_cache
-from itertools import takewhile
+from itertools import pairwise, takewhile
 
 from spacy.tokens import Doc, Span
 
@@ -1038,8 +1038,91 @@ def _lemmas(document: Doc) -> list[str]:
     ]
 
 
+#: Characters that join two words with no space between them: a sentence
+#: never ends inside "Anspucken/Spucken" or "Ball-im-Spiel".
+_JOINERS = "/-"
+
+#: Characters that carry the sentence before them on: a clause opened by a
+#: comma or a closing bracket is not a sentence of its own.
+_CONTINUING = ",;:)"
+
+#: Abbreviations that end in a full stop and end no sentence when a
+#: lower-case word follows, by ISO 639-1 code, case-folded, as the tokenizer
+#: cuts them ("z. B." is two).
+_ABBREVIATIONS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "etc.",
+            "usw.",
+            "bzw.",
+            "z.",
+            "b.",
+            "d.",
+            "h.",
+            "ca.",
+            "nr.",
+            "vgl.",
+            "inkl.",
+            "evtl.",
+            "ggf.",
+            "u.",
+            "a.",
+            "sog.",
+            "abs.",
+        }
+    ),
+    "en": frozenset({"etc.", "e.g.", "i.e.", "approx.", "no.", "vs.", "cf.", "incl."}),
+}
+
+#: An item's number alone at the start of its line: "2.", "b)", "(iv)", or
+#: one behind a bullet.
+_ENUMERATOR = re.compile(r"[-–•*]?\s*\(?(?:\d{1,3}|[a-zA-Z]|[ivxIVX]{1,4})[.)]")
+
+
+def _boundaries(document: Doc) -> list[int]:
+    """Where each sentence starts, by token, the parser's cuts corrected.
+
+    The parser cuts where a statement would not: inside a word joined by a
+    slash, before a clause opened by a comma, after an abbreviation followed
+    by a lower-case word, and between an item's number and the item, leaving
+    the number at the end of the item before. A citation resolves against
+    these sentences, so a cut there leaves a fact's evidence half a rule.
+    A cut is dropped in the first three cases and moved to the number in
+    the last. Only ever drops or moves a cut the parser made: a full stop
+    with no space after it still ends a sentence, as it does in a PDF that
+    lost its spaces.
+    """
+    spans = list(document.sents)
+    starts = [spans[0].start] if spans else []
+    abbreviations = _ABBREVIATIONS.get(document.lang_, frozenset())
+    for previous, sentence in pairwise(spans):
+        left, right = previous.text.rstrip(), sentence.text.lstrip()
+        if not left or not right:
+            starts.append(sentence.start)
+            continue
+        spaced = previous.text != left or sentence.text != right
+        last_word = left.split()[-1].casefold()
+        if (
+            (not spaced and (left[-1] in _JOINERS or right[0] in _JOINERS))
+            or right[0] in _CONTINUING
+            or (last_word in abbreviations and right[0].islower())
+        ):
+            continue
+        line = left[left.rfind("\n") + 1 :]
+        if _ENUMERATOR.fullmatch(line.strip()):
+            numbered = previous.start_char + len(left) - len(line.lstrip())
+            token = next(one for one in previous if one.idx >= numbered)
+            if token.i > starts[-1]:
+                starts.append(token.i)
+            continue
+        starts.append(sentence.start)
+    return starts
+
+
 def _sentences(document: Doc) -> list[Sentence]:
     """Reads the sentences out of a parsed document."""
+    starts = _boundaries(document)
+    spans = [document[start:end] for start, end in pairwise([*starts, len(document)])]
     return [
         Sentence(
             index=index,
@@ -1048,7 +1131,7 @@ def _sentences(document: Doc) -> list[Sentence]:
             text=sentence.text,
             predicates=_predicates(sentence),
         )
-        for index, sentence in enumerate(document.sents)
+        for index, sentence in enumerate(spans)
     ]
 
 
