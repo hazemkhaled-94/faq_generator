@@ -1832,6 +1832,43 @@ class TestFindingThePassageThatAnswersItAnyway:
             ["Ordinal one.", "Ordinal two.", "Ordinal four.", "Ordinal five."]
         )
 
+    def test_a_passage_sharing_the_question_s_words_ranks_beside_the_nearest(
+        self, engine, database
+    ) -> None:
+        """The two rankings fused: neither alone finds what both together do.
+
+        The passage that answers an unanswerable question after all may repeat
+        its words and sit far from it in the space, or the other way round.
+        """
+        self.corpus(
+            engine,
+            axes={
+                "Nearest by vector.": 3,
+                "Second by vector.": 4,
+                "The refund for a defect is paid by card.": 9,
+            },
+        )
+        with engine.connect() as connection:
+            connection.execute(
+                text(
+                    "UPDATE passages SET lemmas = ARRAY['refund','defect','card'] "
+                    "WHERE text LIKE 'The refund%'"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE passages SET embedding = :near WHERE text = 'Second by vector.'"
+                ),
+                {"near": str([0.8 if i == 3 else 0.6 if i == 4 else 0.0 for i in range(1024)])},
+            )
+            connection.commit()
+        asked = [1.0 if i == 3 else 0.0 for i in range(1024)]
+
+        found = QuestionCatalog().elsewhere(["refund", "defect", "card"], "en", [], 2, asked)
+
+        assert "The refund for a defect is paid by card." in found
+        assert "Nearest by vector." in found
+
     def test_a_passage_carrying_no_fact_is_never_offered(
         self, engine, database
     ) -> None:

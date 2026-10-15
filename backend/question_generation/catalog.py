@@ -388,6 +388,23 @@ _COVERAGE = select(
 )
 
 
+#: The constant reciprocal rank fusion is usually run with: large enough
+#: that a first place in one ranking does not outweigh two good places.
+_FUSION = 60
+
+
+def _fused(*rankings: list[int]) -> list[int]:
+    """Ids ranked by reciprocal rank fusion over several rankings, best first.
+
+    Ties go to the lower id, so the same corpus answers the same way twice.
+    """
+    score: dict[int, float] = {}
+    for ranking in rankings:
+        for rank, one in enumerate(ranking, 1):
+            score[one] = score.get(one, 0.0) + 1 / (_FUSION + rank)
+    return sorted(score, key=lambda one: (-score[one], one))
+
+
 class QuestionCatalog(Repository):
     """Reads back the questions, and records what a person decided about one.
 
@@ -502,9 +519,20 @@ class QuestionCatalog(Repository):
             question names nothing the corpus does.
         """
         if embedding is not None:
-            found = self._nearest_passages(language, skip, limit, list(embedding))
+            found = self._nearest_passages(
+                language, skip, limit, list(embedding), lemmas
+            )
             if found:
                 return found
+        return [text for _, text in self._sharing(lemmas, language, skip, limit)]
+
+    def _sharing(
+        self, lemmas: Sequence[str], language: str, skip: Sequence[int], limit: int
+    ) -> list[tuple[int, str]]:
+        """The passages of one language sharing most of these content lemmas.
+
+        By id and text, most shared first. Empty for no lemmas.
+        """
         if not lemmas:
             return []
         wanted = cast(list(lemmas), ARRAY(Text))
@@ -519,7 +547,7 @@ class QuestionCatalog(Repository):
             )
         )
         query = (
-            select(Passage.text)
+            select(Passage.id, Passage.text)
             .where(
                 Passage.language == language,
                 Passage.lemmas.op("&&")(wanted),
@@ -531,12 +559,24 @@ class QuestionCatalog(Repository):
         if skip:
             query = query.where(Passage.id.notin_(skip))
         with self._session() as session:
-            return [row.text for row in session.execute(query)]
+            return [(row.id, row.text) for row in session.execute(query)]
 
     def _nearest_passages(
-        self, language: str, skip: Sequence[int], limit: int, embedding: list[float]
+        self,
+        language: str,
+        skip: Sequence[int],
+        limit: int,
+        embedding: list[float],
+        lemmas: Sequence[str] = (),
     ) -> list[str]:
         """The embedded passages of one language nearest this vector.
+
+        Fused with the passages sharing most of the question's content
+        lemmas, by reciprocal rank: the passage that answers a question after
+        all may repeat its words and sit far from it in the space, or sit
+        close and share none of them, and each ranking alone misses the
+        other half. Each is read twice as deep as `limit` before the fusion
+        keeps `limit`.
 
         And then the passages within `AROUND` ordinals of each one it skips,
         in that passage's document: the rest of the rule a cited passage
@@ -563,15 +603,21 @@ class QuestionCatalog(Repository):
                 _ASSERTS,
             )
             .order_by(distance)
-            .limit(limit)
+            .limit(2 * limit)
         )
         if skip:
             query = query.where(Passage.id.notin_(skip))
         with self._session() as session:
             session.execute(_PAST_THE_FILTERS)
-            found = {row.id: row.text for row in session.execute(query)}
-            if not found or not skip:
-                return list(found.values())
+            near = {row.id: row.text for row in session.execute(query)}
+        if not near:
+            return []
+        sharing = dict(self._sharing(lemmas, language, skip, 2 * limit))
+        texts = near | sharing
+        found = {one: texts[one] for one in _fused(list(near), list(sharing))[:limit]}
+        if not skip:
+            return list(found.values())
+        with self._session() as session:
             cited = aliased(Passage)
             beside = (
                 select(cited.id)
