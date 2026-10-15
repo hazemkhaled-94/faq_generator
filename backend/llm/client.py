@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections.abc import Iterator
 from typing import Any, TypeVar
 
 import instructor
@@ -17,7 +18,7 @@ from pydantic import BaseModel
 from tenacity import (
     RetryCallState,
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -33,9 +34,12 @@ _NEAR_WINDOW = 0.8
 
 #: Failures worth another attempt here, and the only retries there are: the
 #: call asks litellm and the provider's SDK for none. An authentication
-#: failure, an unknown model or a malformed schema is none of these and is
-#: raised at once. A rate limit waits as long as its Retry-After asks; see
-#: `_waited`.
+#: failure, an unknown model, a refused prompt or a malformed request is none
+#: of these and is raised at once. A rate limit waits as long as its
+#: Retry-After asks; see `_waited`. An `InstructorRetryException` is here
+#: because a schema the model failed to fill is worth asking again, but
+#: instructor also wraps what the provider refused, and `_retryable` takes
+#: those back out.
 _TRANSIENT = (
     litellm.exceptions.APIConnectionError,
     litellm.exceptions.Timeout,
@@ -44,6 +48,45 @@ _TRANSIENT = (
     litellm.exceptions.RateLimitError,
     InstructorRetryException,
 )
+
+#: What a provider says when the request itself is the trouble. Asking again
+#: sends the same request. A content-policy refusal is a `BadRequestError`.
+_REJECTED = (
+    litellm.exceptions.BadRequestError,
+    litellm.exceptions.AuthenticationError,
+    litellm.exceptions.NotFoundError,
+    litellm.exceptions.PermissionDeniedError,
+)
+
+
+def _causes(failure: BaseException) -> Iterator[BaseException]:
+    """The failure and every exception behind it, nearest first."""
+    seen: set[int] = set()
+    while failure is not None and id(failure) not in seen:
+        seen.add(id(failure))
+        yield failure
+        failure = failure.__cause__ or failure.__context__
+
+
+def _refused(failure: BaseException) -> bool:
+    """Whether the provider refused the prompt under its content policy."""
+    return any(
+        isinstance(cause, litellm.exceptions.ContentPolicyViolationError)
+        for cause in _causes(failure)
+    )
+
+
+def _retryable(failure: BaseException) -> bool:
+    """Whether asking again could end differently.
+
+    A transient type, except an instructor failure with a rejected request
+    behind it: instructor wraps whatever its last attempt raised, so a
+    refused prompt arrives looking like a schema the model could not fill.
+    """
+    if not isinstance(failure, _TRANSIENT):
+        return False
+    return not any(isinstance(cause, _REJECTED) for cause in _causes(failure))
+
 
 #: The wait between attempts when the failure says nothing of its own.
 _BACKOFF = wait_exponential(multiplier=1, min=1, max=10)
@@ -136,6 +179,10 @@ class ModelUnavailable(Exception):
     """Raised when the model could not be reached or would not answer."""
 
 
+class ModelRefused(ModelUnavailable):
+    """Raised when the provider refused the prompt itself, for what it says."""
+
+
 def spend(completion: Any) -> dict[str, Any]:
     """What one answer consumed, as the fields it is logged under.
 
@@ -217,10 +264,10 @@ class Client:
         self._client: Any = instructor.from_litellm(
             answering(litellm.completion), mode=mode(settings.structured_mode)
         )
-        # Only _TRANSIENT: retrying a bad model name or schema costs the
-        # backoff on every call and buries the real error.
+        # Only `_retryable`: retrying a bad model name, a refused prompt or a
+        # schema costs the backoff on every call and buries the real error.
         self._attempt = retry(
-            retry=retry_if_exception_type(_TRANSIENT),
+            retry=retry_if_exception(_retryable),
             stop=stop_after_attempt(settings.max_attempts),
             wait=_waited,
             reraise=True,
@@ -260,6 +307,8 @@ class Client:
         version it does not have.
 
         Raises:
+            ModelRefused: If the provider refused the prompt under its
+                content policy. Not retried.
             ModelUnavailable: If it could not be reached, or did not return
                 the requested shape after every attempt.
         """
@@ -288,7 +337,8 @@ class Client:
                 self._settings.model,
                 extra=about | {"llm.duration_ms": self._since(started)},
             )
-            raise ModelUnavailable(f"{type(exc).__name__}: {exc}") from exc
+            refusal = ModelRefused if _refused(exc) else ModelUnavailable
+            raise refusal(f"{type(exc).__name__}: {exc}") from exc
 
         elapsed = self._since(started)
         spent = spend(completion)

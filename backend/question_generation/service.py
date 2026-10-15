@@ -18,7 +18,7 @@ from database.qa_generator import (
     QuestionType,
     ReviewVerdict,
 )
-from llm.client import ModelUnavailable
+from llm.client import ModelRefused, ModelUnavailable
 from nlp.analysis import content
 from question_generation.balance import choose, composition, largest, quota_of
 from question_generation.catalog import QuestionCatalog
@@ -749,6 +749,11 @@ class QuestionGenerationService(StageService):
         question is written to whatever came back. A topic sitting in one
         document has no cross-document question in it, and asking for one is
         not a reason to write nothing about that topic.
+
+        A slot whose prompt the provider refuses is logged and skipped, and
+        the topic goes on with the next. `_GIVE_UP` refusals in a row are
+        a provider that refuses everything, and the topic fails as it does
+        for any model that will not answer.
         """
         if not topic.include_in_coverage:
             # Finished with nothing written, not left `new`: somebody said
@@ -786,6 +791,7 @@ class QuestionGenerationService(StageService):
         #: a follow-up joins as soon as it is kept.
         roots = 0
         swapped = 0
+        refused = 0
         for plan in planned:
             prefer = None
             if plan.answerable and plan.spec.name == QuestionType.REASON:
@@ -835,7 +841,22 @@ class QuestionGenerationService(StageService):
                 # slots. Everything it had has been asked about once.
                 break
             written += 1
-            drafts = self._attempt(sample, plan, accepted)
+            try:
+                drafts = self._attempt(sample, plan, accepted)
+            except ModelRefused as exc:
+                refused += 1
+                log.warning(
+                    "topic %d: a %s slot is skipped because the provider "
+                    "refused the prompt (%s)",
+                    topic.id,
+                    plan.spec.name,
+                    exc,
+                    extra={"topic.id": topic.id},
+                )
+                if refused >= _GIVE_UP:
+                    raise
+                continue
+            refused = 0
             # Every draft but the kept one goes in on its own, not as a turn
             # of the thread: a thread links each row to the one before it,
             # and a discarded attempt is drop-rate evidence rather than a
@@ -1109,6 +1130,10 @@ class QuestionGenerationService(StageService):
         A retry can only improve the outcome. Only a refused draft is asked
         again, so the drafts before the last were all refused, and the last
         is the one kept, accepted or not.
+
+        A provider that refuses the first prompt raises `ModelRefused` and
+        the slot has nothing. One that refuses a retry ends the retries
+        instead, and the drafts already written are returned.
         """
         # Checked against what this run has accepted as well as what the
         # database holds: nothing is stored until the topic is finished, so
@@ -1119,14 +1144,22 @@ class QuestionGenerationService(StageService):
             if note is None:
                 break
             log.info("asking again for %r: %s", drafts[-1].question_text, note)
-            # Numbered as it is written, so a stored row says which attempt
-            # produced it.
-            drafts.append(
-                replace(
-                    self._checked(self._writer.write(sample, plan, note), accepted),
-                    attempt=len(drafts) + 1,
+            try:
+                # Numbered as it is written, so a stored row says which
+                # attempt produced it.
+                drafts.append(
+                    replace(
+                        self._checked(self._writer.write(sample, plan, note), accepted),
+                        attempt=len(drafts) + 1,
+                    )
                 )
-            )
+            except ModelRefused as exc:
+                log.warning(
+                    "not asking again for %r: the provider refused the prompt (%s)",
+                    drafts[-1].question_text,
+                    exc,
+                )
+                break
         return drafts
 
     def _followups(
@@ -1161,7 +1194,9 @@ class QuestionGenerationService(StageService):
         Stops at the first follow-up a gate refuses. The refused one is
         stored, because it is drop-rate evidence like any other, but nothing
         is written after it: a third turn following a second that was thrown
-        out is a conversation with a hole in it.
+        out is a conversation with a hole in it. A follow-up the provider
+        refuses to write or to check ends the thread the same way, keeping
+        the turns already written.
         """
         if not root.answerable or not self._settings.followup_types:
             return []
@@ -1192,19 +1227,29 @@ class QuestionGenerationService(StageService):
                 )
                 return []
         for turn in range(self._settings.max_followups):
-            candidate = self._writer.follow_up(
-                sample,
-                tuple(turns),
-                Plan(
-                    spec=SPECS[names[(followed + turn) % len(names)]],
-                    band=plan.band,
-                    shape=plan.shape,
-                    answerable=True,
-                ),
-                root_facts=cited,
-                parent_passages=previous,
-            )
-            checked = self._checked(candidate, accepted)
+            try:
+                candidate = self._writer.follow_up(
+                    sample,
+                    tuple(turns),
+                    Plan(
+                        spec=SPECS[names[(followed + turn) % len(names)]],
+                        band=plan.band,
+                        shape=plan.shape,
+                        answerable=True,
+                    ),
+                    root_facts=cited,
+                    parent_passages=previous,
+                )
+                checked = self._checked(candidate, accepted)
+            except ModelRefused as exc:
+                log.warning(
+                    "topic %d: a thread ends early because the provider "
+                    "refused the prompt (%s)",
+                    topic_id,
+                    exc,
+                    extra={"topic.id": topic_id},
+                )
+                break
             written.append(checked)
             if not checked.accepted:
                 break

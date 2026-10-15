@@ -179,6 +179,93 @@ def test_a_failure_this_module_does_not_retry_is_raised_at_once(
     assert len(attempts) == 1, attempts
 
 
+def refused() -> Exception:
+    """A provider's content filter turning the prompt away."""
+    return litellm.exceptions.ContentPolicyViolationError(
+        message="The response was filtered due to the content management policy",
+        model="test-model",
+        llm_provider="azure",
+    )
+
+
+def wrapped(cause: Exception | None) -> Exception:
+    """What instructor raises when its own attempts end, around their cause."""
+    from instructor.core import InstructorRetryException
+
+    failure = InstructorRetryException("gave up", n_attempts=1, total_usage=0)
+    failure.__cause__ = cause
+    return failure
+
+
+@pytest.mark.parametrize(
+    "failure", [refused, lambda: wrapped(refused())], ids=["bare", "wrapped"]
+)
+def test_a_refused_prompt_is_raised_as_refused_without_a_retry(
+    monkeypatch, failure
+) -> None:
+    """The same prompt would be refused again, so it is sent once."""
+    from llm.client import ModelRefused
+
+    attempts = []
+
+    def filtered(self, system, user, shape):
+        """Turned away by the provider."""
+        attempts.append(user)
+        raise failure()
+
+    monkeypatch.setattr(Client, "_ask", filtered)
+    with pytest.raises(ModelRefused):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert len(attempts) == 1, attempts
+
+
+def test_a_refusal_is_a_kind_of_unavailable_model() -> None:
+    """A caller that catches only ModelUnavailable still catches a refusal."""
+    from llm.client import ModelRefused
+
+    assert issubclass(ModelRefused, ModelUnavailable)
+
+
+def test_a_wrapped_bad_request_is_raised_at_once(monkeypatch) -> None:
+    """Instructor's wrapper does not make a malformed request worth retrying."""
+    from llm.client import ModelRefused
+
+    attempts = []
+    bad = litellm.exceptions.BadRequestError(
+        message="bad", model="test-model", llm_provider="azure"
+    )
+
+    def malformed(self, system, user, shape):
+        """Rejected by the provider for what was sent."""
+        attempts.append(user)
+        raise wrapped(bad)
+
+    monkeypatch.setattr(Client, "_ask", malformed)
+    with pytest.raises(ModelUnavailable) as raised:
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert not isinstance(raised.value, ModelRefused)
+    assert len(attempts) == 1, attempts
+
+
+def test_an_answer_that_missed_its_shape_is_still_retried(monkeypatch) -> None:
+    """A schema the model got wrong once it may get right the next time."""
+    attempts = []
+
+    def misshapen(self, system, user, shape):
+        """Answers, but never in the shape."""
+        attempts.append(user)
+        raise wrapped(None)
+
+    monkeypatch.setattr(Client, "_ask", misshapen)
+    monkeypatch.setattr("tenacity.nap.time.sleep", lambda _: None)
+    with pytest.raises(ModelUnavailable):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert len(attempts) == 3, attempts
+
+
 def test_the_failure_is_rewrapped_with_its_type_and_message(monkeypatch) -> None:
     """One line for the row, with the cause kept on the exception."""
     monkeypatch.setattr(

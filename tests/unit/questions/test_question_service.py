@@ -315,6 +315,108 @@ def test_a_model_that_will_not_answer_fails_the_topic(caplog) -> None:
     assert "did not answer" in error
 
 
+class RefusesOnCalls(StubWriter):
+    """A writer whose provider turns away the prompts of the calls named."""
+
+    def __init__(self, *calls: int) -> None:
+        """Initialises the writer with the calls to refuse, all when none."""
+        super().__init__()
+        self._refused = set(calls)
+
+    def write(self, group, plan, note: str = ""):
+        """Refuses as a content filter does, or writes."""
+        if not self._refused or self.calls + 1 in self._refused:
+            from llm.client import ModelRefused
+
+            self.calls += 1
+            raise ModelRefused("ContentPolicyViolationError: filtered")
+        return super().write(group, plan)
+
+    def follow_up(self, group, thread, plan, root_facts=(), parent_passages=()):
+        """Refuses every follow-up, so a thread stops at its root."""
+        from llm.client import ModelRefused
+
+        self.calls += 1
+        raise ModelRefused("ContentPolicyViolationError: filtered")
+
+
+def test_a_refused_prompt_skips_its_slot_and_keeps_the_topic(caplog) -> None:
+    """One prompt a content filter turns away costs one question, not the topic."""
+    facts = [source(n, document="a", passage_id=n) for n in range(6)]
+    service, queue = build(
+        topic(),
+        facts,
+        writer=RefusesOnCalls(1),
+        settings=replace(SETTINGS, per_topic=3, followup_share=0.0),
+    )
+
+    service.process_next()
+
+    assert queue.failed == [], "one refused prompt failed the whole topic"
+    assert len(queue.written) == 2, queue.written
+    assert "refused" in caplog.text.lower()
+
+
+def test_a_refused_retry_keeps_the_draft_it_was_retrying() -> None:
+    """The draft a gate refused is stored even when its retry is turned away."""
+
+    class RefusesRetries(RetryingWriter):
+        def write(self, group, plan, note: str = ""):
+            if note:
+                from llm.client import ModelRefused
+
+                raise ModelRefused("ContentPolicyViolationError: filtered")
+            return super().write(group, plan, note)
+
+    service, queue = build(
+        topic(),
+        [source(1, passage_id=1, language="en")],
+        writer=RefusesRetries(),
+        checker=RefusesTheFirstDraft(),
+        settings=replace(SETTINGS, retries=1, per_topic=1, followup_share=0.0),
+    )
+
+    service.process_next()
+
+    assert queue.failed == []
+    assert [one.status for one in queue.written] == ["rejected"]
+
+
+def test_a_refused_follow_up_ends_its_thread_and_keeps_its_root() -> None:
+    """A thread whose next turn is turned away is the root alone."""
+
+    class RefusesFollowUps(StubWriter):
+        def follow_up(self, group, thread, plan, root_facts=(), parent_passages=()):
+            from llm.client import ModelRefused
+
+            raise ModelRefused("ContentPolicyViolationError: filtered")
+
+    facts = [source(n, document="a", passage_id=n) for n in range(8)]
+    service, queue = build(topic(), facts, writer=RefusesFollowUps())
+
+    service.process_next()
+
+    assert queue.failed == []
+    assert all(len(thread) == 1 for thread in queue.stored[0])
+
+
+def test_a_provider_that_refuses_everything_still_fails_the_topic() -> None:
+    """A run of refusals is a model answering nothing, and the row says so."""
+    facts = [source(n, document="a", passage_id=n) for n in range(12)]
+    service, queue = build(
+        topic(),
+        facts,
+        writer=RefusesOnCalls(),
+        settings=replace(SETTINGS, per_topic=10, followup_share=0.0),
+    )
+
+    service.process_next()
+
+    assert queue.stored == []
+    assert len(queue.failed) == 1
+    assert "ContentPolicyViolationError" in queue.failed[0][1]
+
+
 def test_a_failure_names_the_kind_of_error_it_was() -> None:
     """One line on the row; the traceback goes to the log."""
     service, queue = build(
