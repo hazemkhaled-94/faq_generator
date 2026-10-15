@@ -235,11 +235,14 @@ class Twin:
         fact_id: Which fact it is, so a rejection can name it.
         statement: What that fact says.
         similarity: Cosine likeness in [-1, 1]. 1 is the same vector.
+        context: The text and heading trail of the passage it was read
+            from, or empty where the probe did not read them.
     """
 
     fact_id: int
     statement: str
     similarity: float
+    context: str = ""
 
 
 @dataclass(frozen=True)
@@ -253,6 +256,8 @@ class Refused:
         kind: Which reading it is.
         statement: What it says.
         embedding: The vector the gate refused it on.
+        context: The text and heading trail of the passage it was read
+            from, or empty.
     """
 
     fact_id: int
@@ -261,6 +266,7 @@ class Refused:
     kind: str
     statement: str
     embedding: list[float]
+    context: str = ""
 
 
 @dataclass(frozen=True)

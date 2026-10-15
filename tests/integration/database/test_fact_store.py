@@ -7,6 +7,7 @@ count when they are filtered the same way.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -1415,16 +1416,17 @@ class TestTheDedupReplay:
         )
         ((refused,),) = store.rows("id")
 
-        assert store.catalog.duplicates() == [
-            Refused(
-                fact_id=refused,
-                passage_id=other,
-                language="en",
-                kind=FactKind.ATOMIC,
-                statement="Requests are answered in 48 hours.",
-                embedding=_axis(0),
-            )
-        ]
+        (found,) = store.catalog.duplicates()
+
+        assert replace(found, context="") == Refused(
+            fact_id=refused,
+            passage_id=other,
+            language="en",
+            kind=FactKind.ATOMIC,
+            statement="Requests are answered in 48 hours.",
+            embedding=_axis(0),
+        )
+        assert found.context, "the passage dedup reads its situation off"
 
     def test_a_refusal_given_back_is_validated_under_this_configuration(
         self, store, corpus
@@ -1526,7 +1528,7 @@ class TestTheDedupReplay:
             third,
             checked(
                 third,
-                "The fee is 25 EUR.",
+                "The fee is 25 Euro.",
                 validated=False,
                 rejection_code=Rejection.DUPLICATE,
                 validation_error="says what the 25 Euro fact already says",
@@ -1536,5 +1538,6 @@ class TestTheDedupReplay:
 
         assert dedup(store.catalog, 0.985) == 0
         assert store.rows(
-            "rejection_code", where="statement = 'The fee is 25 EUR.'"
+            "rejection_code",
+            where="statement = 'The fee is 25 Euro.' AND NOT validated",
         ) == [(Rejection.DUPLICATE,)]
