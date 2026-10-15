@@ -434,17 +434,22 @@ ceiling.
 round trip's `read`: whether the passages state the answer, **refute its
 premise** (a closed list or an exception included), or cover its case with a
 **general rule** — `answers`, `refutes`, `rule` — or settle nothing,
-`silent`, which is the only verdict that keeps the question. First over the
-passages it cites, then over the probe: the `QUESTIONS_ELSEWHERE_PASSAGES`
-nearest by vector and, on top of them, the passages two ordinals either side
-of each cited one. A corpus with no vectors is probed by shared lemmas, with
-no neighbours. Each verdict is stored in `gate_scores`, `settles` and
-`settles_elsewhere`, 1 for silent and 0 for settled, so a row says what the
-verifier made of it. It is an **opinion**: kept with no margin, it moves no
-confidence.
+`silent`, which is the only verdict that keeps the question. The verifier
+writes the reply a careful chatbot would give before its verdict, because a
+model asked only to classify leans to `silent`, and its quote has to be
+words the passages it was shown carry: one from memory reads as `silent`.
+First over the passages it cites, then over the probe: the
+`QUESTIONS_ELSEWHERE_PASSAGES` passages nearest by vector fused, by
+reciprocal rank, with those sharing most of its content lemmas, and on top
+of them the passages two ordinals either side of each cited one. A corpus
+with no vectors is probed by shared lemmas, with no neighbours. Each verdict
+is stored in `gate_scores`, `settles` and `settles_elsewhere`, 1 for silent
+and 0 for settled, with the verifier's prompt version, so a row says what
+the verifier made of it and under which prompt. It is an **opinion**: kept
+with no margin, it moves no confidence.
 `make questions-rejudge` asks the same of the questions already accepted,
 writes its verdicts on each row the same way, and does not ask again about
-a row that already carries one. A question the model will not answer about
+a row that already carries one given under the current prompt. A question the model will not answer about
 is logged, counted in the last line, and written nothing, so the run goes on
 and the next one asks it again. Five in a row stop the run with the last
 error: the client raises the same for a refused key or an unknown model as
@@ -722,7 +727,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_ANSWER_OVERLAP` | How much of a list or explanation has to come back. Numbers are always exact |
 | `QUESTIONS_UNANSWERABLE_SHARE` | What share are attempted with no answer in the corpus |
 | `QUESTIONS_OFF_TOPIC_OVERLAP` | Below this share of shared lemmas, an unanswerable question is off-topic. **Off** |
-| `QUESTIONS_ELSEWHERE_PASSAGES` | How many uncited passages, nearest by vector, the `answerable_elsewhere` probe reads. On the vector path only, the passages two ordinals either side of each cited one are read on top |
+| `QUESTIONS_ELSEWHERE_PASSAGES` | How many uncited passages, nearest by vector fused with those sharing most words, the `answerable_elsewhere` probe reads. On the vector path only, the passages two ordinals either side of each cited one are read on top |
 | `QUESTIONS_ENTAILMENT_OVERLAP` | How much of what a question asks about must occur in its passages before the entailment pass may rescue it. `0` turns the guard off |
 | `QUESTIONS_FOLLOWUP_SHARE` | What share of accepted answerable roots get a thread |
 | `QUESTIONS_MAX_FOLLOWUPS` | How far a thread may run past its root |
