@@ -191,6 +191,37 @@ def meets(chosen: Sequence[SourceFact], candidate: SourceFact) -> float:
     return len(subject & other) / len(subject | other)
 
 
+#: The most facts one sample offers when it offers a list whole. Past about
+#: this many the writer starts picking facts that have nothing between them.
+_GROUP_CEILING = 8
+
+
+def _with_siblings(
+    chosen: Sequence[SourceFact], left: Sequence[SourceFact], room: int
+) -> list[SourceFact]:
+    """The chosen facts and the other items of their lists, up to `room`.
+
+    The items of one list are cited from the sentence that holds the list,
+    so an unspent claim citing the same evidence as a chosen one is another
+    item of its list. Offered two of five, the writer asks for the set and
+    keys it with the two, which marks a chatbot naming all five wrong.
+    """
+    found = list(chosen)
+    for one in chosen:
+        if one.kind != FactKind.ATOMIC or not one.evidence:
+            continue
+        for other in left:
+            if len(found) >= room:
+                return found
+            if (
+                other not in found
+                and other.kind == FactKind.ATOMIC
+                and other.evidence == one.evidence
+            ):
+                found.append(other)
+    return found
+
+
 def closest(
     chosen: Sequence[SourceFact], candidates: Sequence[SourceFact], wanted: int
 ) -> list[SourceFact]:
@@ -649,7 +680,14 @@ class Deal:
             pid = passage[0].passage_id
             self._offered[pid] = self._offered.get(pid, 0) + 1
             left = _ordered(self._left(passage), condensed, prefer)
-            facts.extend(closest(facts, left, each))
+            chosen = closest(facts, left, each)
+            if condensed:
+                # A reading asks for the whole of what a passage says, so a
+                # list is one unit against the cap rather than its items.
+                chosen = _with_siblings(
+                    chosen, left, max(len(chosen), _GROUP_CEILING - len(facts))
+                )
+            facts.extend(chosen)
         for fact in facts:
             self._spent.add(fact.id)
             for one in fact.passages:

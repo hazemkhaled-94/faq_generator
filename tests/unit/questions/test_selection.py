@@ -954,3 +954,66 @@ def test_a_clause_repeated_in_a_sibling_document_is_not_its_partner() -> None:
     pairs = _pairs_dealt(Deal(facts, wanted=23, size=2, share=0.02))
 
     assert not any(pair <= {1, 2, 3} for pair in pairs), pairs
+
+
+# ── A list is one unit ─────────────────────────────────────────────────────
+
+
+def _listed(count: int, passage_id: int = 1) -> list:
+    """One passage holding a list: `count` items cited from one sentence, then a rule."""
+    from dataclasses import replace
+
+    lead_in = "To open an account you need: " + ", ".join(
+        f"document {at}" for at in range(count)
+    )
+    items = [
+        replace(
+            source(
+                passage_id * 100 + at,
+                passage_id=passage_id,
+                statement=f"To open an account you need document {at}.",
+            ),
+            evidence=lead_in,
+        )
+        for at in range(count)
+    ]
+    rule = replace(
+        source(passage_id * 100 + 99, passage_id=passage_id, statement="Accounts are free."),
+        evidence="Accounts are free.",
+    )
+    return [*items, rule]
+
+
+def test_a_reading_is_offered_a_whole_list_as_one_unit() -> None:
+    """Two items of a five-item list is the key that names two of five.
+
+    A list's items share the sentence they were cited from, and a question
+    asking for the set needs every one of them in front of the writer.
+    """
+    facts = _listed(5)
+    deal = Deal(facts, wanted=1, size=2)
+
+    offered = deal.sample(Shape.SINGLE, condensed=True)
+
+    assert offered is not None
+    assert {fact.id for fact in offered.facts} >= {100, 101, 102, 103, 104}
+
+
+def test_a_value_is_offered_one_item_of_a_list_as_before() -> None:
+    """A value asks for one thing, and a whole list spent on it reaches nothing."""
+    deal = Deal(_listed(5), wanted=1, size=2)
+
+    offered = deal.sample(Shape.SINGLE, condensed=False)
+
+    assert offered is not None
+    assert len(offered.facts) <= 2
+
+
+def test_a_long_list_is_offered_no_more_than_the_writer_can_hold() -> None:
+    """Past a handful of facts the writer starts picking unrelated ones."""
+    deal = Deal(_listed(12), wanted=1, size=2)
+
+    offered = deal.sample(Shape.SINGLE, condensed=True)
+
+    assert offered is not None
+    assert len(offered.facts) == 8
