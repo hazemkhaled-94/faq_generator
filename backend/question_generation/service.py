@@ -56,7 +56,7 @@ from question_generation.models import (
 from question_generation.planning import Plan, instead, plans
 from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
-from question_generation.selection import Deal, spread
+from question_generation.selection import Deal, derivative, spread
 from question_generation.types import PROMPT_VERSION, SPECS, spec
 from question_generation.verifier import Verifier
 from settings.runs import run_id
@@ -72,6 +72,12 @@ _RECHECK_BATCH = 500
 
 #: More refusals in a row than a filter's few neighbouring ids, so a dead model stops.
 _GIVE_UP = 5
+
+#: The kinds whose answer is the whole of a list or a rule: dealt a passage
+#: quoting another with parts elided, they are keyed with what it kept.
+_WHOLE = frozenset(
+    {QuestionType.ENUMERATION, QuestionType.PROCEDURE, QuestionType.CONDITION}
+)
 
 #: What to tell the writer about a draft a gate refused, by the gate that
 #: refused it. Only the gates a second attempt can do anything about are
@@ -876,6 +882,12 @@ class QuestionGenerationService(StageService):
                         extra={"topic.id": topic.id},
                     )
                     plan = other
+            if (
+                plan.answerable
+                and plan.spec.name in _WHOLE
+                and deal.holds(self._primary)
+            ):
+                prefer = self._primary
             # A reading is written from a passage condensed, a value from
             # the claim carrying the number. Which facts are offered first
             # follows from that, and it is what the weld responds to. An
@@ -966,6 +978,11 @@ class QuestionGenerationService(StageService):
             if not seen[anchor.id]:
                 kept.append(fact)
         return kept
+
+    @staticmethod
+    def _primary(fact: SourceFact) -> bool:
+        """Whether this fact's passage states its text in full rather than quoting it."""
+        return not derivative(fact)
 
     def _reasoned(self, fact: SourceFact) -> bool:
         """Whether this fact's evidence says why, or its language cannot say.

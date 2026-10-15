@@ -17,6 +17,7 @@ asked about across all of it.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterable, Sequence
 from enum import StrEnum
 from functools import lru_cache
@@ -189,6 +190,23 @@ def meets(chosen: Sequence[SourceFact], candidate: SourceFact) -> float:
     if not subject or not other:
         return 0.0
     return len(subject & other) / len(subject | other)
+
+
+#: A bracketed ellipsis: text left out of a quotation. The typographic
+#: convention German, English, French and Spanish share, and the full-width
+#: one of CJK text.
+_ELIDED = re.compile(r"[(\[（]\s*(?:…+|\.{3})\s*[)\]）]")
+
+
+def derivative(fact: SourceFact) -> bool:
+    """Whether a fact's passage quotes another with parts left out.
+
+    A change log, an amendment or a summary of revisions restates the rule
+    it changes with the unchanged parts elided, so a list asked of it is
+    keyed with only the items it kept, and its notes about edits read as
+    rules. The primary passage says the same in full.
+    """
+    return bool(_ELIDED.search(fact.anchor.text))
 
 
 #: The most facts one sample offers when it offers a list whole. Past about
@@ -390,7 +408,12 @@ class Deal:
         """
         facts = list(facts)
         bridges = list(bridges)
-        self._order = strided(interleaved(by_passage(facts)), wanted)
+        order = strided(interleaved(by_passage(facts)), wanted)
+        # A passage quoting another with parts elided is the worse source of
+        # the two, so it is dealt only once the rest have been.
+        self._order = [one for one in order if not derivative(one[0])] + [
+            one for one in order if derivative(one[0])
+        ]
         self._bridges = interleaved(by_passage(bridges))
         #: Every passage this topic can offer, by id. `widen` reaches a
         #: passage by name rather than by turn, and a bridge's passages are

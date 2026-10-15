@@ -1017,3 +1017,37 @@ def test_a_long_list_is_offered_no_more_than_the_writer_can_hold() -> None:
 
     assert offered is not None
     assert len(offered.facts) == 8
+
+
+# ── Elided copies come last ───────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Section 4 now reads: (…) the fee is waived for students.", True),
+        ("Section 4 now reads: (...) the fee is waived.", True),
+        ("Clause 2 [...] applies to every account.", True),
+        ("The fee is waived (see Section 4).", False),
+        ("Fees, charges and so on...", False),
+    ],
+)
+def test_an_elision_mark_says_a_passage_quotes_another(text, expected) -> None:
+    """A bracketed ellipsis marks text left out of a quotation, in any language."""
+    from question_generation.selection import derivative
+
+    assert derivative(source(1, passage_text=text)) is expected
+
+
+def test_an_elided_passage_is_dealt_after_the_passages_it_quotes() -> None:
+    """A change log restating a rule with gaps is the worse source of the two."""
+    facts = [
+        source(1, passage_id=1, passage_text="Clause 2 now reads: (…) fees are waived."),
+        source(2, passage_id=2, statement="Fees are waived for students."),
+        source(3, passage_id=3, statement="Cards are replaced for free."),
+    ]
+    deal = Deal(facts, wanted=3, size=1)
+
+    dealt = [deal.sample(Shape.SINGLE).resting[0].id for _ in range(3)]
+
+    assert dealt[-1] == 1, dealt

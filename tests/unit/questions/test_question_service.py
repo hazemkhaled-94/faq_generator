@@ -706,6 +706,34 @@ class Handed(StubWriter):
         return super().write(group, plan)
 
 
+def test_a_list_slot_is_not_dealt_an_elided_passage() -> None:
+    """A list asked of a copy with gaps in it is keyed with the items it kept."""
+    facts = [
+        source(
+            1,
+            document="a",
+            passage_id=1,
+            passage_text="The required documents are now: (…) a passport.",
+        ),
+        source(2, document="a", passage_id=2, statement="A passport is required."),
+    ]
+    writer = Handed()
+    settings = replace(
+        SETTINGS,
+        per_topic=1,
+        sample_size=1,
+        type_mix={QuestionType.ENUMERATION: 1},
+        unanswerable_share=0.0,
+        followup_share=0.0,
+    )
+    service, _ = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    ((dealt, _slot),) = writer.handed
+    assert [one.passage_id for one in dealt.facts] == [2]
+
+
 def reasons_only(**changes) -> Settings:
     """Root slots that are all `reason`, one fact each and no thread."""
     return replace(
