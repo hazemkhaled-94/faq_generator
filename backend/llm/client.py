@@ -62,10 +62,11 @@ _REJECTED = (
 def _causes(failure: BaseException) -> Iterator[BaseException]:
     """The failure and every exception behind it, nearest first."""
     seen: set[int] = set()
-    while failure is not None and id(failure) not in seen:
-        seen.add(id(failure))
-        yield failure
-        failure = failure.__cause__ or failure.__context__
+    at: BaseException | None = failure
+    while at is not None and id(at) not in seen:
+        seen.add(id(at))
+        yield at
+        at = at.__cause__ or at.__context__
 
 
 def _refused(failure: BaseException) -> bool:
