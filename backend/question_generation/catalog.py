@@ -851,12 +851,16 @@ class QuestionCatalog(Repository):
                     }
                 )
 
-    def unanswered(self, within=None) -> list[Unanswered]:
+    def unanswered(self, within=None, version: str | None = None) -> list[Unanswered]:
         """Every accepted question written to have no answer, with its passages.
 
         What `make questions-rejudge` reads. Released ones included: the
         release is a subset of the accepted, and a released question the
         material answers is the one that marks a correct chatbot wrong.
+
+        `version` is the verifier's prompt version: a question reads as
+        judged only when it carries a `settles` verdict given under it, so a
+        rewritten prompt asks every question again. None reads any verdict.
         """
         query = (
             _joined(
@@ -902,7 +906,9 @@ class QuestionCatalog(Repository):
                     passage_ids=ids,
                     passages=tuple(texts[one] for one in ids),
                     judged=any(
-                        one.get("gate") == "settles" for one in row.gate_scores or ()
+                        one.get("gate") == "settles"
+                        and (version is None or one.get("version") == version)
+                        for one in row.gate_scores or ()
                     ),
                 )
             )

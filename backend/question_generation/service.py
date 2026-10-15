@@ -58,6 +58,7 @@ from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
 from question_generation.selection import Deal, derivative, spread
 from question_generation.types import PROMPT_VERSION, SPECS, spec
+from question_generation.verifier import PROMPT_VERSION as VERIFIER_VERSION
 from question_generation.verifier import Verifier
 from settings.runs import run_id
 from stages import StageService
@@ -615,7 +616,7 @@ def rejudge(
     written = 0
     unanswered = 0
     in_a_row = 0
-    for question in catalog.unanswered(within):
+    for question in catalog.unanswered(within, version=VERIFIER_VERSION):
         if question.reviewed_verdict == ReviewVerdict.ACCEPTED or question.judged:
             continue
         try:

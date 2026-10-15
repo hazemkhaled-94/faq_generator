@@ -57,7 +57,7 @@ class Catalog:
         #: does: the whole of that write, verdicts included, is lost.
         self.failing = False
 
-    def unanswered(self, within=None):
+    def unanswered(self, within=None, version=None):
         """Every accepted question written to have no answer, as stored now."""
         return [
             replace(one, judged=one.judged or one.id in self.opined)

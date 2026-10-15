@@ -54,6 +54,9 @@ class Measurement:
         opinion: Whether this is a model's verdict rather than a number a
             gate measured. Recorded with no margin, and left out of
             `confidence`.
+        version: The prompt version an opinion was given under, or None.
+            A rewritten prompt is a new judgement, and this is how a re-run
+            tells the verdicts it still has to ask for from the ones it has.
     """
 
     gate: str
@@ -62,6 +65,7 @@ class Measurement:
     high_is_safe: bool = True
     safe_end: float | None = None
     opinion: bool = False
+    version: str | None = None
 
     @property
     def _safest(self) -> float:
@@ -115,6 +119,8 @@ class Measurement:
         }
         if self.opinion:
             recorded["opinion"] = True
+        if self.version is not None:
+            recorded["version"] = self.version
         return recorded
 
 

@@ -388,7 +388,11 @@ class Settled:
         of it, which a code and a log line could not.
         """
         return Measurement(
-            gate, 1.0 if self.verdict == Settling.SILENT else 0.0, 0.5, opinion=True
+            gate,
+            1.0 if self.verdict == Settling.SILENT else 0.0,
+            0.5,
+            opinion=True,
+            version=PROMPT_VERSION,
         )
 
 

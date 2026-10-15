@@ -409,6 +409,27 @@ def test_a_rejudged_question_keeps_its_verdict_and_its_confidence(
     assert held == 0.14
 
 
+def test_a_verdict_given_under_another_prompt_is_asked_again(corpus, engine) -> None:
+    """A rewritten `settles` prompt is a new judgement, so old verdicts are re-asked."""
+    from confidence import Measurement
+
+    written = corpus(topics=1, facts_per_topic=1)
+    (cited,) = written["facts"][written["topics"][0]]
+    with Session(engine) as session:
+        asked = question(status="accepted", answerable=False)
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=cited))
+        session.commit()
+        kept = asked.id
+    catalog = QuestionCatalog()
+    catalog.opine(kept, [Measurement("settles", 1.0, 0.5, opinion=True, version="3")])
+
+    assert not catalog.unanswered(version="4")[0].judged
+    assert catalog.unanswered(version="3")[0].judged
+    assert catalog.unanswered()[0].judged
+
+
 def test_a_verdict_and_its_rejection_are_written_together_or_not_at_all(
     corpus, engine
 ) -> None:

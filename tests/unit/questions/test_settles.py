@@ -362,3 +362,12 @@ def test_a_quote_the_passages_hold_however_spaced_still_settles(passage) -> None
 
     assert failed is not None
     assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
+
+
+def test_a_verdict_is_recorded_with_the_prompt_it_was_given_under() -> None:
+    """So a rewritten prompt's rejudge can tell its verdicts from the old ones."""
+    from question_generation.verifier import Settled
+
+    recorded = Settled(verdict=Settling.SILENT, quote=None).reading("settles").recorded()
+
+    assert recorded["version"] == PROMPT_VERSION
