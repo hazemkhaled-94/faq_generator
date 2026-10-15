@@ -46,20 +46,25 @@ def test_the_prompt_asks_whether_the_passages_refute_or_settle_it() -> None:
         assert re.search(asked, system, re.IGNORECASE), asked
 
 
-def test_the_prompt_says_a_rule_that_does_not_decide_the_case_is_silent() -> None:
-    """Both ways of being wrong, and no word on what either verdict costs.
+def test_the_prompt_asks_for_the_reply_before_the_verdict() -> None:
+    """Asked to classify, a model leans to "not answered"; asked to answer, it finds it.
 
-    A prompt that only warns against keeping an answered question teaches
-    the model to settle open ones; one that says which verdict keeps the
-    question tells it what the caller wants to hear.
+    And the prompt says which mistake costs more: a question the material
+    settles marks a correct chatbot wrong, where a lost question costs one
+    test. Nothing in it tells the model that `silent` is the safe verdict.
     """
+    from question_generation.verifier import _Settled
+
     client = Client()
 
     Verifier(client).settles("When are refunds paid to visitors?", ["Text."])
 
     system = " ".join(client.asked[-1][0].split())
+    assert list(_Settled.model_fields)[0] == "reply"
     assert "does not decide this case is `silent`" in system
-    assert "keeps the question" not in system
+    assert "marked WRONG for a correct reply" in system
+    for anchor in ("throws away a sound test", "A correct answer whenever it is true"):
+        assert anchor not in system
 
 
 @pytest.mark.parametrize("verdict", list(Settling))
