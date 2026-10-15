@@ -109,6 +109,204 @@ GERMAN_ATOMIC: tuple[tuple[str, str, int, str | None], ...] = (
     ),
 )
 
+#: (name, language, the cited excerpt, statement, expected code or None):
+#: stored rules kept whole with their exception, refused as `not_atomic`
+#: when the parser hung "es sei denn" or "außer" beside the main verb as a
+#: second clause. A rule and the case it leaves out are one claim. Three move
+#: on to the pronoun reading, which is its own row; the rest are two claims
+#: and stay refused.
+KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
+    (
+        "a restart and the case it leaves out (F4383)",
+        "de",
+        (
+            "Wenn der ausführende Spieler bei einer erneuten Berührung jedoch ein "
+            "Handspielvergehen begeht:\n- wird ein direkter Freistoss verhängt,\n"
+            "- wird ein Strafstoss verhängt, wenn das Vergehen innerhalb des "
+            "Strafraums des ausführenden Spielers erfolgte, es sei denn, der "
+            "ausführende Spieler war der Torhüter."
+        ),
+        (
+            "Ein Strafstoss wird verhängt, wenn das Handspielvergehen des "
+            "ausführenden Spielers innerhalb seines eigenen Strafraums erfolgt, "
+            "es sei denn, der ausführende Spieler war der Torhüter."
+        ),
+        None,
+    ),
+    (
+        "the same rule with its clauses the other way round (F4541)",
+        "de",
+        (
+            "Wenn der ausführende Spieler bei der erneuten Berührung jedoch ein "
+            "Handspielvergehen begeht:\n- wird ein direkter Freistoss verhängt,\n"
+            "- wird ein Strafstoss verhängt, wenn das Vergehen innerhalb des "
+            "Strafraums des ausführenden Spielers erfolgte, es sei denn, der "
+            "ausführende Spieler war der Torhüter."
+        ),
+        (
+            "Ein Strafstoss wird verhängt, wenn das Handspielvergehen des "
+            "ausführenden Spielers innerhalb seines Strafraums erfolgt, es sei "
+            "denn, der ausführende Spieler war der Torhüter."
+        ),
+        None,
+    ),
+    (
+        "and in the order it was validated in (F4517)",
+        "de",
+        (
+            "Wenn der ausführende Spieler bei der erneuten Berührung jedoch ein "
+            "Handspielvergehen begeht:\n- wird ein direkter Freistoss verhängt,\n"
+            "- wird ein Strafstoss verhängt, wenn das Vergehen innerhalb des "
+            "Strafraums des ausführenden Spielers erfolgte, es sei denn, der "
+            "ausführende Spieler war der Torhüter."
+        ),
+        (
+            "Wenn das Handspielvergehen des ausführenden Spielers innerhalb seines "
+            "Strafraums erfolgt, wird ein Strafstoss verhängt, es sei denn, der "
+            "ausführende Spieler war der Torhüter."
+        ),
+        None,
+    ),
+    (
+        "an exception opened by außer (F4346)",
+        "de",
+        (
+            "Wenn der Schiedsrichter das Spiel aufgrund eines Vergehens eines "
+            "Spielers inner- oder ausserhalb des Spielfelds gegen eine Drittperson "
+            "unterbricht, wird das Spiel mit einem Schiedsrichterball fortgesetzt, "
+            "es sei denn, das Vergehen wird mit einem indirekten Freistoss "
+            "geahndet, weil der Spieler das Spielfeld ohne die Erlaubnis des "
+            "Schiedsrichters verlassen hat."
+        ),
+        (
+            "Wenn der Schiedsrichter das Spiel wegen eines Vergehens eines Spielers "
+            "gegen eine Drittperson unterbricht, wird das Spiel mit einem "
+            "Schiedsrichterball fortgesetzt, außer das Vergehen wird mit einem "
+            "indirekten Freistoss geahndet, weil der Spieler das Spielfeld ohne "
+            "Erlaubnis verlassen hat."
+        ),
+        None,
+    ),
+    (
+        "a list item kept with the lead-in's only (F5861)",
+        "en",
+        (
+            "- if a player who is to be substituted refuses to leave, play "
+            "continues\nThe substitute only enters:\n- during a stoppage in play\n"
+            "- at the halfway line\n- after the player being replaced has left\n"
+            "- after receiving a signal from the referee\nThe substitution is "
+            "completed when a substitute enters the field of play; from that "
+            "moment, the replaced player becomes a substituted player and the "
+            "substitute becomes a player and can take any restart.\n"
+        ),
+        "A substitute only enters after the player being replaced has left.",
+        None,
+    ),
+    (
+        "an exception whose es the pronoun reading then refuses (F4210)",
+        "de",
+        (
+            "Bei grobem Foulspiel, einer Tätlichkeit oder einem zweiten "
+            "verwarnungswürdigen Vergehen sollte nicht auf Vorteil entschieden "
+            "werden, es sei denn, es ergibt sich eine offensichtliche Torchance."
+        ),
+        (
+            "Bei grobem Foulspiel, einer Tätlichkeit oder einem zweiten "
+            "verwarnungswürdigen Vergehen sollte nicht auf Vorteil entschieden "
+            "werden, ausser es ergibt sich eine offensichtliche Torchance."
+        ),
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "a repeated free kick and its exception (F4375)",
+        "de",
+        (
+            "Wenn ein Gegner bei einem Freistoss den erforderlichen Abstand zum "
+            "Ball nicht einhält, wird der Freistoss wiederholt, es sei denn, es "
+            "kann auf Vorteil entschieden werden."
+        ),
+        (
+            "Ein Freistoss wird wiederholt, wenn ein Gegner den erforderlichen "
+            "Abstand zum Ball nicht einhält, es sei denn, es kann auf Vorteil "
+            "entschieden werden."
+        ),
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "a place and the case that moves it (F4862)",
+        "de",
+        (
+            "Der Schiedsrichterball erfolgt an der Stelle, an der sich der Ball "
+            "zum Zeitpunkt der Spielunterbrechung befand, es sei denn, er hat "
+            "einen Spieloffiziellen oder eine Drittperson getroffen."
+        ),
+        (
+            "Der Schiedsrichterball erfolgt an der Stelle, an der sich der Ball "
+            "zum Zeitpunkt der Spielunterbrechung befand, es sei denn, der Ball "
+            "hat einen Spieloffiziellen oder eine Drittperson getroffen."
+        ),
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "two duties of one subject are two claims (F3757)",
+        "de",
+        (
+            "Der Schiedsrichter:\n- setzt die Spielregeln durch,\n- leitet das "
+            "Spiel zusammen mit den weiteren Spieloffiziellen,\n- fungiert als "
+            "Zeitnehmer, macht Aufzeichnungen über das Spiel und lässt den "
+            "zuständigen Instanzen einen Spielbericht zukommen, einschliesslich "
+            "Angaben zu Disziplinarmassnahmen oder sonstigen Zwischenfällen vor, "
+            "während oder nach dem Spiel,\n- überwacht die Fortsetzung des Spiels "
+            "und/oder zeigt diese an,"
+        ),
+        (
+            "Der Schiedsrichter macht Aufzeichnungen über das Spiel und lässt den "
+            "zuständigen Instanzen einen Spielbericht zukommen."
+        ),
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "taking a measure and restarting play are two claims (F4663)",
+        "de",
+        (
+            "- Der Schiedsrichter ergreift/ändert/annulliert alle nötigen "
+            "Disziplinarmassnahmen und setzt das Spiel gemäss Spielregeln fort."
+        ),
+        (
+            "Der Schiedsrichter ergreift, ändert oder annulliert alle nötigen "
+            "Disziplinarmaßnahmen und setzt das Spiel gemäss Spielregeln fort."
+        ),
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "a width and a ceiling on it are two claims (F5740)",
+        "en",
+        "All lines must be of the same width, which must not be more than 12cm (5ins).",
+        (
+            "All field markings lines must be of the same width and must not be "
+            "more than 12 centimetres (5 inches)."
+        ),
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "a provided-clause the parser still counts: what the rule misses (F5531)",
+        "en",
+        (
+            "A player is not required to leave the field of play for one minute "
+            "when:\n- the player:\n- indicates that they do not require medical "
+            "attention, except where play was stopped for the injury; or\n"
+            "- voluntarily leaves the field during play or a stoppage, provided "
+            "that this does not delay the restart"
+        ),
+        (
+            "A player is not required to leave the field for one minute if they "
+            "voluntarily leave during play or a stoppage, provided this does not "
+            "delay the restart."
+        ),
+        Rejection.NOT_ATOMIC,
+    ),
+)
+
 #: (name, the cited excerpt, statement, expected code or None): stored German
 #: claims whose pronoun points back inside the statement, to the subject the
 #: condition is about. Refused as dangling before the reading looked behind
@@ -284,6 +482,20 @@ def test_a_german_candidate_reaches_its_recorded_verdict(
 ) -> None:
     """The other language, where the parser behaves differently enough."""
     assert verdict(german.atomic(statement, cited)) == expected
+
+
+@pytest.mark.parametrize(
+    ("language", "excerpt", "statement", "expected"),
+    [row[1:] for row in KEPT_WHOLE],
+    ids=[row[0] for row in KEPT_WHOLE],
+)
+def test_a_rule_kept_with_its_exception_reaches_its_verdict(
+    language, excerpt, statement, expected
+) -> None:
+    """An exception or an alternative is part of the claim it qualifies."""
+    checked = Checker(passage(excerpt, language=language)).atomic(statement, 0)
+
+    assert verdict(checked) == expected, checked.validation_error
 
 
 @pytest.mark.parametrize(

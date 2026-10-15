@@ -119,24 +119,117 @@ def _dependent(token) -> bool:
     )
 
 
+#: Dependency labels that join one clause to another as an equal, in Universal
+#: Dependencies and in the TIGER scheme. A clause reaching the root through
+#: these alone stands beside the rest; any other attachment embeds it.
+_COORDINATION = frozenset({"conj", "cj", "cd", "parataxis"})
+
+#: Word runs that open an exception or a condition without a subordinator in
+#: the parse, keyed by ISO language. "es sei denn" carries a finite verb of
+#: its own, and the clause it opens only restricts the rule before it.
+_EXCEPTIVE: dict[str, tuple[tuple[str, ...], ...]] = {
+    "de": (("es", "sei", "denn"), ("außer",), ("ausser",), ("ausgenommen",)),
+    "en": (("unless",), ("except",), ("provided",), ("providing",)),
+}
+
+#: Coordinators that offer alternatives, keyed by ISO language. "A or B" does
+#: not entail A, so a conjunct joined by one is not a claim of its own.
+_DISJUNCTIVE: dict[str, frozenset[str]] = {
+    "de": frozenset({"oder", "bzw.", "beziehungsweise", "noch"}),
+    "en": frozenset({"or", "nor"}),
+}
+
+
+def _clause_verb(token):
+    """Climbs from an auxiliary or copula to the verb whose clause it is in."""
+    while token.dep_ in _CARRIERS and token.head.i != token.i:
+        token = token.head
+    return token
+
+
+def _coordinated_to_root(token) -> bool:
+    """Whether a token's clause reaches the sentence root through coordination alone."""
+    token = _clause_verb(token)
+    while token.head.i != token.i:
+        if token.dep_ not in _COORDINATION:
+            return False
+        token = token.head
+    return True
+
+
+def _exceptive_tokens(doc: Doc) -> tuple[set[int], set[int]]:
+    """Indices of exceptive-run tokens, and of the token right after each run."""
+    words = [token.text.casefold() for token in doc]
+    inside: set[int] = set()
+    after: set[int] = set()
+    for run in _EXCEPTIVE.get(doc.lang_, ()):
+        for start in range(len(words) - len(run) + 1):
+            if tuple(words[start : start + len(run)]) != run:
+                continue
+            inside.update(range(start, start + len(run)))
+            end = start + len(run)
+            while end < len(doc) and doc[end].is_punct:
+                end += 1
+            after.add(end)
+    return inside, after
+
+
+def _coordinator_words(token) -> set[str]:
+    """The case-folded words joining a token's clause to the one before it."""
+    verb = _clause_verb(token)
+    words = [child for child in verb.children if child.dep_ == "cc"]
+    if verb.head.dep_ == "cd":
+        words.append(verb.head)
+    if verb.dep_ == "conj":
+        # English hangs the cc on the first conjunct, ahead of this one.
+        words += [
+            child
+            for child in verb.head.children
+            if child.dep_ == "cc" and child.i < verb.i
+        ]
+    return {word.text.casefold() for word in words}
+
+
 def _predicates(span: Doc | Span) -> int:
     """Counts the claims a span makes, as its independent finite verbs.
 
-    A finite verb inside a relative or other subordinate clause is a
-    modifier of something already said rather than a second thing said:
-    "TPI NEXT gehört zu den Prozessmodellen, die die Testprozessverbesserung
-    unterstützen" carries two finite verbs and one claim. Coordination is
-    the other case and does count: two main clauses joined by "und" are two
-    claims.
+    A finite verb counts as a claim of its own only when its clause stands
+    beside the main one: it reaches the sentence root through coordination
+    alone, whatever else the parse hangs it from. A relative, a reported or
+    a conditional clause is a modifier of something already said rather than
+    a second thing said: "TPI NEXT gehört zu den Prozessmodellen, die die
+    Testprozessverbesserung unterstützen" carries two finite verbs and one
+    claim. Two main clauses joined by "und" are two claims.
+
+    A rule with its exception is one claim, not two: the verb of "unless"
+    or "es sei denn", and of the clause it opens, only restricts what the
+    first clause says. So are two alternatives: "the card is blocked or the
+    account is closed" does not entail either half, so a clause joined by
+    "or" is no claim of its own. A language with no entry in the exception
+    and alternative tables falls back to the attachment rule alone.
 
     A span carrying a finite verb makes at least one claim. A parse that
     hangs every clause off something else has mis-read the sentence, which
     is not the same as a sentence that asserts nothing.
     """
     finite = [token for token in span if "Fin" in token.morph.get("VerbForm", [])]
-    return len([token for token in finite if not _dependent(token)]) or int(
-        bool(finite)
-    )
+    if not finite:
+        return 0
+    doc = span.doc
+    inside, after = _exceptive_tokens(doc)
+    disjunctive = _DISJUNCTIVE.get(doc.lang_, frozenset())
+    claims = 0
+    for token in finite:
+        if not _coordinated_to_root(token) or token.i in inside:
+            continue
+        verb = _clause_verb(token)
+        start = min(one.i for one in verb.subtree)
+        if start in inside or start in after:
+            continue
+        if verb.dep_ in _COORDINATION and _coordinator_words(token) & disjunctive:
+            continue
+        claims += 1
+    return claims or 1
 
 
 def _verbs(span: Doc | Span) -> int:
