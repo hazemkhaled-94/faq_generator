@@ -185,6 +185,13 @@ What `nothing invented` compares is **numbers and proper nouns only** — both
 are things a writer reports rather than chooses. A number keeps its surface
 form; a proper noun is lemmatised.
 
+An atomic fact is read against the sentences it cites, the passage's section
+path and the document's title, since a heading or a title names what a
+sentence under it calls "the card" or "the bank". A sentence of the passage it
+did not cite does not count: a name or number found only there is still an
+addition. A number is read in any spelling, so `1st` and `1 st`, or `two` and
+`2`, are the same number.
+
 ### Step 6 — Store
 
 One transaction. The passage's existing citations are deleted and the new

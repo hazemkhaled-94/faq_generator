@@ -58,6 +58,8 @@ class PassageToExtract:
         table_cells: The cell grids behind a table passage.
         doc_sha256: The document it was cut from, or None.
         embedding: Its vector, or None where nothing has embedded it.
+        title: The document's title, which names what the whole document is
+            about, or None.
     """
 
     id: int
@@ -72,6 +74,8 @@ class PassageToExtract:
     #: pass to pair a passage with the one it most nearly meets, and None
     #: for a corpus extracted before the column existed.
     embedding: tuple[float, ...] | None = None
+    #: The document's title, which names what the whole document is about.
+    title: str | None = None
 
     @property
     def claims(self) -> int:

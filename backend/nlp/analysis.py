@@ -7,6 +7,7 @@ from collections.abc import Iterable, Iterator
 from functools import lru_cache
 from itertools import pairwise, takewhile
 
+from spacy.pipeline import Lemmatizer
 from spacy.tokens import Doc, Span
 
 from nlp.language import URL
@@ -297,14 +298,24 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
     sentence it was drawn from.
 
     A number keeps its surface form, because 12,5 and 12.5 are different
-    values. A proper noun is lemmatised, so an inflection is not an addition.
+    values. A proper noun is lemmatised, so an inflection is not an addition,
+    and loses the sentence punctuation the tagger left on it ("m."). In a
+    language that capitalises its nouns, a word the tagger calls a proper noun
+    yet writes in lower case ("gelten") is no name and no unit.
     """
     found = set()
+    capitalising = span.doc.lang_ in _capitalises_nouns()
     for token in span:
         if token.like_num:
             found.add(_bare(token.text).casefold())
         elif token.pos_ == "PROPN":
-            found.add(token.lemma_.casefold())
+            if (
+                capitalising
+                and token.text[:1].islower()
+                and not any(letter.isupper() for letter in token.text[1:])
+            ):
+                continue
+            found.add(_bare(token.lemma_.casefold()))
     return tuple(sorted(found))
 
 
@@ -395,6 +406,34 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
         elif token.like_num or token.pos_ == "NUM":
             found.append(written)
     return tuple(sorted(found))
+
+
+def numerals(text: str, language: str | None) -> frozenset[str]:
+    """The digit runs and number-word values a text carries, in any spelling."""
+    spelled = _NUMBER_WORDS.get((language or "").strip().lower(), {})
+    found: set[str] = set()
+    for token in _read(text, language):
+        if digits := _DIGITS.findall(token.text):
+            found.update(digits)
+        elif token.pos_ in _NUMERAL and token.text.casefold() in spelled:
+            found.add(spelled[token.text.casefold()])
+    return frozenset(found)
+
+
+def as_noun(word: str, language: str | None) -> frozenset[str]:
+    """The lemmas the language's rule lemmatizer gives a word read as a common noun.
+
+    Empty where the pipeline has no lemmatizer in "rule" mode.
+    """
+    nlp = pipeline(language)
+    if "lemmatizer" not in nlp.pipe_names:
+        return frozenset()
+    lemmatizer = nlp.get_pipe("lemmatizer")
+    if not isinstance(lemmatizer, Lemmatizer) or lemmatizer.mode != "rule":
+        return frozenset()
+    token = Doc(nlp.vocab, words=[word.lower()])[0]
+    token.pos_ = "NOUN"
+    return frozenset(form.casefold() for form in lemmatizer.rule_lemmatize(token))
 
 
 #: Dependency labels for a pronoun that stands in for no antecedent: German

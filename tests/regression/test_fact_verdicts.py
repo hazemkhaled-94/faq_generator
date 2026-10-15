@@ -522,6 +522,86 @@ MISTAGGED_VERBS: tuple[tuple[str, str, str, str, str | None], ...] = (
     ),
 )
 
+#: (name, language, the cited excerpt, its section path, statement, expected
+#: code or None): stored claims refused as `unsupported_addition` for a name
+#: the section path carries, a superscript ordinal parsed apart from its
+#: number, or a unit the tagger wrote with a full stop. The last row is a
+#: number word the rule still reads as added.
+UNITS_READ_RIGHT: tuple[tuple[str, str, str, str, str, str | None], ...] = (
+    (
+        "a room the section path names (F3504)",
+        "de",
+        (
+            "Im VOR arbeiten der Video-Schiedsrichterassistent (VAR), der "
+            "Assistent des VAR (AVAR) und der Replay-Operateur (RO)."
+        ),
+        (
+            "Regel 1 > Spielfeld > 14. Video-Schiedsrichterassistenten (VAR) > "
+            "Video Operation Room (VOR)"
+        ),
+        (
+            "Im Video Operation Room (VOR) arbeiten der Video-"
+            "Schiedsrichterassistent (VAR), der Assistent des VAR (AVAR) und der "
+            "Replay-Operateur (RO)."
+        ),
+        None,
+    ),
+    (
+        "a standard the section path names (F4692)",
+        "de",
+        (
+            "Bei den Tests für diesen Standard wird geprüft, ob grundlegende "
+            "Kriterien bezüglich Leistungsfähigkeit, Präzision, Sicherheit und "
+            "Langlebigkeit im Fussball erfüllt sind."
+        ),
+        "4. Vorgehen > FIFAQualitätsprogramm > FIFA Basic*",
+        (
+            "Die Tests für den FIFA Basic Standard prüfen grundlegende Kriterien "
+            "bezüglich Leistungsfähigkeit, Präzision, Sicherheit und Langlebigkeit "
+            "im Fussball."
+        ),
+        None,
+    ),
+    (
+        "an ordinal parsed apart from its number (F5382)",
+        "en",
+        "Effective from 1 st July 2026\n",
+        "Laws of the Game 26/27 > The International Football Association Board",
+        "The Laws of the Game 2026/27 are effective from 1st July 2026.",
+        None,
+    ),
+    (
+        "a unit the tagger wrote with its full stop (F3490)",
+        "de",
+        "Der Abstand zwischen den Innenseiten der Torpfosten beträgt 7,32 m (8 yds).",
+        "Regel 1 > Spielfeld > 10. Tore",
+        "Der Abstand zwischen den Innenseiten der Torpfosten beträgt 7,32 m.",
+        None,
+    ),
+    (
+        "a season the section path abbreviates (F3074)",
+        "de",
+        "Gültig ab 1. Juli 2026\n",
+        "Spielregeln 26/27",
+        "Die Spielregeln 2026/27 sind ab dem 1. Juli 2026 gültig.",
+        None,
+    ),
+    (
+        "a count written as a word the evidence never states (F5710)",
+        "en",
+        (
+            "These lines extend into the field of play for 5.5 m (6yds) and are "
+            "joined by a line drawn parallel with the goal line."
+        ),
+        "Law 1 > The Field of Play > 5. The goal area",
+        (
+            "The two lines of the goal area are joined by a line drawn parallel "
+            "with the goal line."
+        ),
+        Rejection.UNSUPPORTED_ADDITION,
+    ),
+)
+
 #: (name, the cited excerpt, statement, expected code or None): stored German
 #: claims whose pronoun points back inside the statement, to the subject the
 #: condition is about. Refused as dangling before the reading looked behind
@@ -740,6 +820,22 @@ def test_a_claim_whose_verb_the_tagger_misread_reaches_its_verdict(
     """A verb the tagger read as a bare form still makes its sentence a claim."""
     read = passage(excerpt, language=language)
     checked = Checker(read).atomic(statement, 0)
+
+    assert verdict(checked) == expected, checked.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "excerpt", "section", "statement", "expected"),
+    [row[1:] for row in UNITS_READ_RIGHT],
+    ids=[row[0] for row in UNITS_READ_RIGHT],
+)
+def test_a_unit_its_heading_or_spelling_supports_reaches_its_verdict(
+    language, excerpt, section, statement, expected
+) -> None:
+    """A name the heading trail carries, or a number spelled another way, is no addition."""
+    read = passage(excerpt, language=language, section_path=section)
+    cited = tuple(sentence.index for sentence in read.sentences)
+    checked = Checker(read).atomic(statement, cited)
 
     assert verdict(checked) == expected, checked.validation_error
 

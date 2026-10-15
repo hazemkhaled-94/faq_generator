@@ -660,3 +660,67 @@ def test_one_passage_cited_twice_is_one_citation() -> None:
 
     assert [one.passage_id for one in bridged.citations] == [11]
     assert bridged.rejection_code == Rejection.NOT_BRIDGING
+
+
+def test_a_name_the_section_path_carries_is_no_addition() -> None:
+    """The heading trail is where a passage names what it is about."""
+    read = passage(
+        "The card is free for students.", section_path="Current account > Visa Debit"
+    )
+
+    judged = Checker(read).atomic("The Visa Debit card is free for students.", 0)
+
+    assert judged.validated, judged.validation_error
+
+
+def test_a_name_the_document_title_carries_is_no_addition() -> None:
+    """A bank's terms name the bank in their title and say "the bank" after."""
+    from dataclasses import replace
+
+    read = replace(
+        passage("The bank waives the fee for students."),
+        title="Northbank Terms and Conditions",
+    )
+
+    judged = Checker(read).atomic("Northbank waives the fee for students.", 0)
+
+    assert judged.validated, judged.validation_error
+
+
+def test_a_name_from_an_uncited_sentence_is_still_an_addition() -> None:
+    """Named elsewhere in the passage is not said by the sentence cited."""
+    read = passage(
+        "The fee applies to all cards. Mastercard holders receive a monthly statement."
+    )
+
+    judged = Checker(read).atomic("The fee applies to Mastercard.", 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
+
+
+def test_a_lead_in_figure_is_supported_only_when_cited() -> None:
+    """A figure restated from a lead-in is the lead-in's to support."""
+    read = passage(
+        "Orders over EUR 50 are delivered free. Delivery to Austria takes two days."
+    )
+    statement = "Orders over EUR 50 are delivered free to Austria."
+
+    alone = Checker(read).atomic(statement, 1)
+    with_lead_in = Checker(read).atomic(statement, (0, 1))
+
+    assert alone.rejection_code == Rejection.UNSUPPORTED_ADDITION
+    assert with_lead_in.validated, with_lead_in.validation_error
+
+
+@pytest.mark.parametrize(
+    ("excerpt", "statement"),
+    [
+        ("The new tariff applies from 1 st July 2026.", "The new tariff applies from 1st July 2026."),
+        ("Each player has a ten-second limit.", "Each player has a ten-second limit to restart."),
+    ],
+)
+def test_a_number_written_another_way_is_no_addition(excerpt, statement) -> None:
+    """An ordinal parsed apart from its number is the same number."""
+    judged = Checker(passage(excerpt)).atomic(statement, 0)
+
+    assert judged.validated, judged.validation_error

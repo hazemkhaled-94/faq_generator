@@ -22,7 +22,7 @@ from extraction.models import (
     PassageToExtract,
     Provenance,
 )
-from nlp.analysis import claim, normalised, vocabulary
+from nlp.analysis import as_noun, claim, normalised, numerals, vocabulary
 from nlp.models import Claim, Sentence
 from nlp.pipelines import name as pipeline_name
 from nlp.pipelines import version as pipeline_version
@@ -69,6 +69,9 @@ class Judged:
         claim: What the statement itself asserts.
         evidence_vocabulary: Every form a word of the evidence appears in,
             over every passage the candidate rests on.
+        supported: Units of the statement read as present in the evidence
+            though no form of them is: a number spelled another way, a
+            hyphenated unit of words it holds, a name it holds as a noun.
         citations: One entry per passage the candidate rests on, in the order
             the model was shown them.
     """
@@ -78,13 +81,20 @@ class Judged:
     evidence_predicates: int
     claim: Claim
     evidence_vocabulary: frozenset[str]
+    supported: frozenset[str] = frozenset()
     citations: tuple[Citation, ...] = field(default=())
 
     @property
     def added(self) -> tuple[str, ...]:
-        """Units the statement asserts that do not occur in its evidence."""
+        """Units the statement asserts that its evidence does not carry.
+
+        Carried is a form in the vocabulary, or a unit read as supported: the
+        one place that decides what is added.
+        """
         return tuple(
-            unit for unit in self.claim.units if unit not in self.evidence_vocabulary
+            unit
+            for unit in self.claim.units
+            if unit not in self.evidence_vocabulary and unit not in self.supported
         )
 
 
@@ -395,15 +405,50 @@ class FactChecker:
     def _judge(
         passage: PassageToExtract, candidate: CandidateFact, cited: list
     ) -> Judged:
-        """Reads what the statement and its cited sentences each assert."""
+        """Reads what the statement and its cited sentences each assert.
+
+        What the evidence carries is the cited sentences, the passage's
+        section path and its document's title: the heading trail and the title
+        name what a sentence under them leaves as "the card" or "the bank".
+        The rest of the passage is not evidence, so a name or a number from a
+        sentence the candidate did not cite is still added. A number is read in
+        any spelling ("1st" is "1 st"), a hyphenated unit by its parts, and a
+        name the tagger took for a proper noun by the common noun it is.
+        """
         start, end = cited[0].start, cited[-1].end
         evidence = _cited_text(passage, cited)
+        language = passage.language
+        headings = "\n".join(
+            part for part in (passage.section_path, passage.title) if part
+        )
+        statement = candidate.statement.strip()
+        said = claim(statement, language)
+        known = vocabulary(evidence, language)
+        numbers = numerals(evidence, language)
+        if headings:
+            known |= vocabulary(headings, language)
+            numbers |= numerals(headings, language)
+        known |= numbers
+        supported = set()
+        for unit in said.units:
+            if unit in known:
+                continue
+            if figures := numerals(unit, language):
+                if figures <= numbers:
+                    supported.add(unit)
+            elif "-" in unit:
+                parts = [part for part in unit.split("-") if part]
+                if all(part in known for part in parts):
+                    supported.add(unit)
+            elif as_noun(unit, language) & known:
+                supported.add(unit)
         return Judged(
-            statement=candidate.statement.strip(),
+            statement=statement,
             evidence=evidence,
             evidence_predicates=sum(sentence.predicates for sentence in cited),
-            claim=claim(candidate.statement.strip(), passage.language),
-            evidence_vocabulary=vocabulary(evidence, passage.language),
+            claim=said,
+            evidence_vocabulary=known,
+            supported=frozenset(supported),
             citations=(
                 Citation(
                     passage_id=passage.id,

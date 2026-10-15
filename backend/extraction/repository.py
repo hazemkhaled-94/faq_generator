@@ -131,12 +131,13 @@ def _sentences(text: str, stored: list[dict] | None) -> list[Sentence]:
     ]
 
 
-def _passage(row, language: str | None) -> PassageToExtract:
+def _passage(row, language: str | None, title: str | None = None) -> PassageToExtract:
     """Reads one row of `_PASSAGE_COLUMNS` as a passage to extract from.
 
     Args:
         row: The selected columns.
         language: The document's language, which is the fallback.
+        title: The document's title, or None where it has none.
 
     Returns:
         The passage, reading in its own language where it has one. Chunking
@@ -155,6 +156,7 @@ def _passage(row, language: str | None) -> PassageToExtract:
         table_cells=row.table_cells or [],
         doc_sha256=row.doc_sha256,
         embedding=tuple(row.embedding) if row.embedding is not None else None,
+        title=title,
     )
 
 
@@ -419,15 +421,17 @@ class PassageQueue(RowQueue):
         claimed = self._claim(*_PASSAGE_COLUMNS)
         if claimed is None:
             return None
-        if claimed.language:
-            return _passage(claimed, None)
-        # Only for a passage too short to tell its own language. Asked here
-        # rather than joined into the claim, which is an UPDATE.
+        # Asked here rather than joined into the claim, which is an UPDATE.
+        # The language only for a passage too short to tell its own; the
+        # title for every passage, which is what the document is about.
         with self._session() as session:
-            language = session.scalar(
-                select(Document.language).where(Document.sha256 == claimed.doc_sha256)
-            )
-        return _passage(claimed, language)
+            document = session.execute(
+                select(Document.language, Document.title).where(
+                    Document.sha256 == claimed.doc_sha256
+                )
+            ).one_or_none()
+        language, title = document if document else (None, None)
+        return _passage(claimed, language, title)
 
     def store(
         self,
@@ -607,6 +611,7 @@ class FactCatalog(Repository):
                 # passage's own and two `language` keys in one row is one
                 # key too few.
                 Document.language.label("document_language"),
+                Document.title.label("document_title"),
                 DOMINANT.c.topic_id,
             )
             .select_from(Passage)
@@ -622,7 +627,13 @@ class FactCatalog(Repository):
             for topic_id, rows in groupby(
                 session.execute(query), key=lambda row: row.topic_id
             ):
-                yield topic_id, [_passage(row, row.document_language) for row in rows]
+                yield (
+                    topic_id,
+                    [
+                        _passage(row, row.document_language, row.document_title)
+                        for row in rows
+                    ],
+                )
 
     def recap(self, cap: int | None, reason: str, within=None) -> int:
         """Refuses the atomic facts already stored above the cap.
@@ -1060,6 +1071,7 @@ class FactCatalog(Repository):
                 FactPassage.sentence_ids,
                 *_PASSAGE_COLUMNS,
                 Document.language.label("document_language"),
+                Document.title.label("document_title"),
             )
             .select_from(Fact)
             .join(FactPassage, FactPassage.fact_id == Fact.id)
@@ -1093,7 +1105,10 @@ class FactCatalog(Repository):
                 rows = list(found)
                 yield (
                     fact_id,
-                    [_passage(row, row.document_language) for row in rows],
+                    [
+                        _passage(row, row.document_language, row.document_title)
+                        for row in rows
+                    ],
                     CandidateFact(
                         statement=rows[0].statement,
                         sentences=tuple(rows[0].sentence_ids or ()),
