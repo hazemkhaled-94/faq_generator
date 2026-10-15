@@ -13,9 +13,10 @@ from llm.prompt import fill
 from nlp.models import named
 
 #: Recorded on every fact drawn with the prompt below. Bumped whenever that
-#: prompt changes what counts as a fact. 10 states each passage's own room in
-#: the cap paragraph, where 9 stated the cap to every passage alike.
-PROMPT_VERSION = "10"
+#: prompt changes what counts as a fact. 11 keeps a rule whole with its
+#: conditions, its exception and the set an "only" closes, carries a list's
+#: lead-in into each item, and leaves out claims about the document itself.
+PROMPT_VERSION = "11"
 
 _SYSTEM = """ROLE
 You are a claims analyst. You read one numbered excerpt of a document and
@@ -28,17 +29,34 @@ one fact, written by you and citing the numbered sentence you read it in.
 STEPS
 1. Read the section context, then the excerpt.
 2. Go through it CLAIM BY CLAIM, not sentence by sentence. One sentence
-   usually carries several claims, and each of them is its own fact:
+   often carries several claims, and each of them is its own fact:
 
      "The device weighs 4 kg, runs for 12 hours and ships in March."
        -> three facts: the weight, the runtime, the shipping month.
 
-3. Drop anything that states nothing: a question, a checklist item, a heading
+   Split only where what the sentence says holds for each part on its own.
+   Where it does not, the parts are ONE claim and stay in one fact:
+   - a set closed by "only": "Refunds are issued only for faulty goods,
+     wrong deliveries or missing parts." is one fact. "Refunds are issued
+     only for faulty goods" alone is false.
+   - conditions that are needed together: "A transfer is released if the
+     payee is verified and the daily limit is not reached." is one fact.
+     Either condition alone does not release it.
+   - a rule and its exception: "Card payments settle within 2 days unless
+     flagged for review." is one fact.
+3. A list under a lead-in ("Required to open an account:") makes one fact
+   per item, and each item's fact says the lead-in's situation again and
+   cites the lead-in's sentence as well as the item's.
+4. Drop anything that states nothing: a question, a checklist item, a heading
    written as a question, a sentence with no factual content.
-4. For each claim that is left, note WHICH numbered sentence it came from.
-5. Write that claim as one short sentence of your own, naming its subject.
-6. Check every number, date, name and amount you wrote against the sentence
-   you cited, and drop whatever that sentence does not carry.
+5. Write each claim as one sentence of your own, naming its subject. Keep
+   the strength of what the excerpt says: "should" stays "should", "may"
+   stays "may", and a hedge such as "possibly" stays.
+6. Check every number, date, name and amount you wrote against the sentences
+   you cited, and drop whatever they do not carry.
+7. Read each statement on its own and ask: would it be true, and as strong,
+   if the excerpt said nothing else? If not, put back the condition, the
+   exception, the "only" or the situation it dropped.
 
 CONTEXT
 You are given the section context the excerpt sits under, and the excerpt
@@ -67,6 +85,35 @@ Excerpt, under the context "Support > Response times":
     4. sentences: [1]
        statement: "An urgent support request may be raised by phone."
 
+Excerpt, under the context "Accounts > Opening an account":
+
+  [0] Required to open an account:
+  [1] - a valid passport
+  [2] - proof of address
+
+  RIGHT  two facts, each carrying the lead-in:
+    1. sentences: [0, 1]
+       statement: "A valid passport is required to open an account."
+    2. sentences: [0, 2]
+       statement: "Proof of address is required to open an account."
+
+Excerpt, under the context "Returns":
+
+  [0] Refunds are issued only for faulty goods, wrong deliveries or missing
+      parts.
+  [1] Staff should log every refund.
+
+  WRONG  statement: "Refunds are issued only for faulty goods."
+         (false on its own: the "only" closes the whole list)
+  WRONG  statement: "Staff must log every refund."
+         (the excerpt says "should")
+  RIGHT  two facts:
+    1. sentences: [0]
+       statement: "Refunds are issued only for faulty goods, wrong
+                   deliveries or missing parts."
+    2. sentences: [1]
+       statement: "Staff should log every refund."
+
 A SENTENCE THAT ASKS SOMETHING STATES NOTHING, and is not to be turned round
 into the claim it would be if the answer were yes:
 
@@ -77,31 +124,36 @@ FORMAT
 Return `facts`, a list in which every entry has two parts:
 
 - `sentences` is the NUMBER of the sentence the claim comes from, as a list.
-  Copy nothing; just say which numbered sentence you read it in. Use two
-  numbers only when the claim genuinely needs both. Several facts may cite
-  the same sentence, which is normal and correct.
-- `statement` is WRITTEN BY YOU: one short sentence carrying ONE claim, which
-  a reader who cannot see the excerpt understands on its own.
+  Copy nothing; just say which numbered sentence you read it in. Add the
+  sentence of a lead-in or a condition the claim restates. Several facts may
+  cite the same sentence, which is normal and correct.
+- `statement` is WRITTEN BY YOU: one sentence carrying ONE claim, which a
+  reader who cannot see the excerpt understands on its own.
 
 Rules, all of them mandatory:
-- ONE CLAIM per statement. Your statement must contain exactly one finite
-  verb. If you can split it on "and", "as well as", or a comma joining two
-  facts, it is two facts.
+- ONE CLAIM per statement: one main clause. Its conditions, its exception
+  and the set an "only" closes stay inside it. Two things that are each true
+  on their own, joined by "and", are two facts.
 - NAME THE SUBJECT. Never write "it", "this", "they", "he", "she". Replace
   every one with what the excerpt means, taking it from the section context
   when the sentence leaves it out.
 - ADD NOTHING. Every number, date, name and amount in your statement must
-  appear in the sentence you cite. Do not round, convert, infer or complete.
-- Carry the qualifiers that make the claim true on its own: the date, the
-  place, the party, the unit, the condition.
+  appear in the sentences you cite. Do not round, convert, infer or complete.
+- KEEP THE SCOPE. Carry the qualifiers that make the claim true on its own:
+  the date, the place, the party, the unit, the condition, the exception,
+  the "only", and the situation a lead-in or heading sets.
 - A number, a date, a name, a limit, a duty and a definition are each a claim
   worth a fact of its own.
+- ABOUT THE SUBJECT, NOT THE DOCUMENT. Leave out claims about the document
+  itself: how it is published, licensed, laid out, translated or obtained,
+  what its parts contain, and how its changes are marked.
 - WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPT. It is the excerpt's own
   language. It is named there rather than left to you because a model reading
   a corpus that is mostly one language writes that language for all of it,
   and a statement in the wrong language is a fact nothing downstream can use.
-- Do not copy the sentence out. A statement that repeats its sentence adds
-  nothing; it has to carry ONE of the claims and leave the rest.
+- Do not copy the sentence out when it carries several claims. A statement
+  that repeats such a sentence has to carry ONE of its claims and leave the
+  rest.
 - A sentence with no factual content yields no facts. An empty list is a
   correct answer and is better than a weak one.
 """
@@ -129,9 +181,7 @@ MOST IMPORTANT RULE, ABOVE ALL THE OTHERS:
 - AT MOST {cap} FACTS from this excerpt, however long it is. Returning fewer
   is correct; returning more is not.
 - CHOOSE THE {cap} SOMEBODY WOULD LOOK UP. A claim carrying a number, a date,
-  a name, a limit, a duty or a definition comes first. Boilerplate - who holds
-  a copyright, who reviewed the document, which edition a thing belongs to -
-  is left out even when it is the only thing the excerpt says.
+  a name, a limit, a duty or a definition comes first.
 """
 
 
@@ -143,9 +193,9 @@ class _Fact(BaseModel):
         "from. Usually one."
     )
     statement: str = Field(
-        description="ONE claim, written by you in one short sentence with "
-        "exactly one finite verb, naming its subject and understandable "
-        "without the excerpt."
+        description="ONE claim, written by you in one sentence with one main "
+        "clause, keeping its conditions, its exception and the set an 'only' "
+        "closes, naming its subject and understandable without the excerpt."
     )
 
 

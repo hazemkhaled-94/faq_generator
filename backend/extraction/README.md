@@ -79,6 +79,15 @@ Routed by block type:
   sentences it came from. The evidence is resolved from the numbers
   afterwards; nothing is copied.
 
+A fact is the smallest statement that is as true, and as strong, on its own
+as it is in the passage. So a sentence is split only where what it says holds
+for each part: a set closed by "only", conditions needed together, and a rule
+with its exception each stay one fact, because any one part alone says
+something the passage does not. Each item of a list says its lead-in's
+situation again and cites the lead-in's sentence too. "Should" stays
+"should". Claims about the document itself - how it is published, laid out
+or obtained, and how its changes are marked - are left out.
+
 A table passage that also carries prose outside its grid gets both: the
 deterministic reader for the grid, and the model shown only the prose lines
 that carry a finite verb.
@@ -350,9 +359,10 @@ make test-eval          # needs LLM_MODEL and LLM_BASE_URL; never gates
 
 ## Limits
 
-- **A spelled-out number counts as a unit.** spaCy's `like_num` is true of
-  *one* and *two*, so a statement saying `two parties` drawn from a source
-  writing `2 parties` is refused as an unsupported addition.
+- **A number word the table does not name counts as a unit.** A number is
+  read in any spelling the per-language number-word table holds, so `two
+  parties` drawn from `2 parties` is supported; a word outside that table is
+  still read as written.
 - **A bridge cannot aggregate.** A total, difference or average appears in no
   passage, so it is refused. Bridges relate what is written.
 - **An outline is checked on its shape, not its grammar.** The parser cannot
