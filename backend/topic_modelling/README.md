@@ -17,6 +17,9 @@ sections of this README.
 ## What it does
 
 Chunking has already stored each passage's language and its content lemmas.
+Only the passages carrying a validated fact are fitted, where a language has
+any: a heading, a page number or a contents page extraction found nothing in
+still has lemmas, and fitted with the rest it padded topics and named them.
 For each language separately this service builds a vocabulary, drops the
 terms too rare or too common to distinguish anything, weights the rest by
 tf-idf, and factorises the passage-by-term matrix into a small number of

@@ -167,15 +167,29 @@ class TopicQueue(StageQueue):
     def passages(self, language: str) -> Iterator[PassageVocabulary]:
         """Streams one language's passages by id, in batches of `_BATCH`.
 
+        Only the passages carrying a validated fact, where the language has
+        any: a heading, a page number or a contents page extraction found
+        nothing in still has lemmas, and fitted with the rest it pads topics
+        and names them. A language with no fact yet is fitted whole, as the
+        label pre-check reads it too.
+
         Yields:
             Each passage's id and the lemmas chunking stored for it.
         """
+        bearing = (
+            select(FactPassage.passage_id)
+            .join(Fact, Fact.id == FactPassage.fact_id)
+            .where(Fact.validated, FactPassage.passage_id == Passage.id)
+            .exists()
+        )
         with self._session() as session:
+            query = select(Passage.id, Passage.lemmas).where(
+                Passage.language == language
+            )
+            if session.scalar(select(query.where(bearing).exists())):
+                query = query.where(bearing)
             rows = session.execute(
-                select(Passage.id, Passage.lemmas)
-                .where(Passage.language == language)
-                .order_by(Passage.id)
-                .execution_options(yield_per=_BATCH)
+                query.order_by(Passage.id).execution_options(yield_per=_BATCH)
             )
             for row in rows:
                 yield PassageVocabulary(id=row.id, lemmas=list(row.lemmas or []))

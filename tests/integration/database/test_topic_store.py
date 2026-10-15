@@ -556,6 +556,27 @@ def test_the_passages_bearing_a_fact_are_those_with_a_validated_one(store) -> No
     assert store.queue.bearing_facts([]) == set()
 
 
+def test_a_fit_reads_only_the_passages_carrying_a_fact(store) -> None:
+    """A heading, a page number or a contents page extraction found nothing in.
+
+    It still has lemmas, and fitted with the rest it pads topics and names
+    them; a passage the corpus says nothing about has no subject to model.
+    """
+    store.given_passages(de=3)
+    first, second, third = store.passages["de"]
+    store.given_facts(first, validated=1)
+    store.given_facts(second, validated=0, rejected=2)
+
+    assert [one.id for one in store.queue.passages("de")] == [first]
+
+
+def test_a_language_with_no_fact_yet_is_fitted_whole(store) -> None:
+    """Before extraction has run, the passages are all there is to model."""
+    store.given_passages(de=2)
+
+    assert len(list(store.queue.passages("de"))) == 2
+
+
 def test_the_topics_come_back_ordered_by_language_then_index(store) -> None:
     """The table on the page is drawn in this order."""
     store.given_passages(de=1, en=1)
