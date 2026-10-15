@@ -403,23 +403,104 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
 #: nothing and leave nothing dangling.
 _EXPLETIVE = frozenset({"ph", "ep", "expl"})
 
+#: Word runs whose pronoun is part of a fixed phrase and stands for nothing,
+#: by ISO 639-1 code: German "es sei denn", "unless". The tagger reads its
+#: `es` as an ordinary pronoun.
+_EXPLETIVE_RUNS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "de": (("es", "sei", "denn"),),
+    "en": (),
+}
+
+#: Dependency labels of a verb's subject, German and English.
+_SUBJECTS = frozenset({"sb", "sbp", "nsubj", "nsubjpass", "nsubj:pass", "csubj"})
+
+#: How a verb is coordinated with the one before it, German and English.
+_CONJUNCT = frozenset({"conj", "cj"})
+
+
+def _fixed_expletive(token) -> bool:
+    """Whether a token opens one of its language's fixed expletive runs."""
+    runs = _EXPLETIVE_RUNS.get(token.doc.lang_, ())
+    return any(
+        tuple(t.text.casefold() for t in token.doc[token.i : token.i + len(run)]) == run
+        for run in runs
+    )
+
+
+def _clausal_correlate(token) -> bool:
+    """Whether a neuter singular pronoun anticipates a clause of its verb.
+
+    "Es ist wichtig, den Vertrag zu lesen" and "It is important to read the
+    contract": the pronoun is a placeholder for the infinitive or the
+    complement clause that its head, or the verb chain under it, governs
+    later. Read off the structure, so no word list is involved.
+
+    Only a subject, and only before a complement: an object pronoun before a
+    purpose clause, "The bank asks it to confirm the transfer" or "Der Kunde
+    muss es zurückgeben, um eine Erstattung zu erhalten", still points at
+    something the statement never named.
+    """
+    if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
+        return False
+    if "Neut" not in token.morph.get("Gender") and token.doc.lang_ != "en":
+        return False
+    if "Sing" not in token.morph.get("Number"):
+        return False
+    chain, frontier = [token.head], [token.head]
+    while frontier:
+        frontier = [
+            child
+            for one in frontier
+            for child in one.children
+            if (child.dep_ in _CARRIERS or child.dep_ in {"oc", "pd", "acomp", "attr"})
+            and child.pos_ in {"VERB", "AUX", "ADJ", "ADV"}
+        ]
+        chain += frontier
+    return any(
+        child.i > token.i
+        and child.dep_ in {"oc", "ccomp", "xcomp", "re", "csubj"}
+        and any(
+            t.tag_ in {"PTKZU", "TO"} or t.dep_ in _SUBORDINATOR for t in child.subtree
+        )
+        for child in (c for one in chain for c in one.children)
+    )
+
 
 def _refers(token) -> bool:
     """Reports whether a pronoun points at something outside the statement.
 
     A reflexive belongs to its own verb - `sich` in `ergibt sich aus` - and an
     expletive stands in for no antecedent, so neither leaves a reader without
-    a subject.
+    a subject. Nor does the `es` of a fixed phrase, "es sei denn", or an
+    `it` or `es` that anticipates the infinitive or clause its verb governs
+    further on, "It is easy to close the account".
     """
     if token.pos_ != "PRON" or token.dep_ in _EXPLETIVE:
         return False
     if "Yes" in token.morph.get("Reflex"):
+        return False
+    if _fixed_expletive(token) or _clausal_correlate(token):
         return False
     return "3" in token.morph.get("Person") or "Dem" in token.morph.get("PronType")
 
 
 #: What a pronoun and a noun it stands for agree in, where both carry it.
 _AGREEMENT = ("Gender", "Number")
+
+#: Pronouns that stand for one person as well as several, by ISO 639-1 code:
+#: English "The account holder may use their card".
+_SINGULAR_THEY: dict[str, frozenset[str]] = {
+    "en": frozenset({"they", "them", "their", "theirs", "themselves", "themself"}),
+    "de": frozenset(),
+}
+
+#: Languages whose plural pronouns carry no gender, so a plural is compared
+#: on number alone.
+_PLURAL_GENDERLESS = frozenset({"de", "en", "nl", "sv", "da", "nb"})
+
+#: Languages whose feminine singular and plural pronoun forms coincide: German
+#: `sie`, `ihre`.
+_SYNCRETIC_FEMININE = frozenset({"de"})
 
 #: Dependency labels for a subject or an object, German and English: what a
 #: noun is read as an antecedent by when the morphology says nothing.
@@ -467,6 +548,10 @@ _POSSESSIVE_DEPS = frozenset({"poss", "nmod:poss"})
 _SUBORDINATOR = frozenset({"mark", "cp"})
 _EMBEDDED = frozenset({"advcl", "relcl", "acl", "acl:relcl", "rc"})
 
+#: How a relative clause hangs off its noun, German and English. It opens a
+#: clause whatever its verb is tagged.
+_RELATIVE = frozenset({"rc", "relcl", "acl:relcl"})
+
 #: How an auxiliary or a copula hangs off the verb it carries the tense of,
 #: in English and in Universal Dependencies.
 _CARRIERS = frozenset({"aux", "auxpass", "aux:pass", "cop"})
@@ -494,11 +579,16 @@ def _clause(token) -> int:
     hangs the `wenn` from it. Finite, because a to-infinitive hung off a noun
     has no subject of its own: `it` in "The customer has the right to return
     it" sits in the customer's clause, and is not resolved by the customer.
+    A relative clause needs no finite verb: the German tagger reads the verb
+    of "Filialen, die ihre Kunden bedienen" as an infinitive, the third person
+    plural being spelled like one.
     """
     at = token.head
     while True:
-        if (at.dep_ in _EMBEDDED and _finite(at)) or any(
-            child.dep_ in _SUBORDINATOR for child in at.children
+        if (
+            at.dep_ in _RELATIVE
+            or (at.dep_ in _EMBEDDED and _finite(at))
+            or any(child.dep_ in _SUBORDINATOR for child in at.children)
         ):
             return at.i
         if at.head.i == at.i:
@@ -513,13 +603,41 @@ def _agrees(pronoun, noun) -> bool:
     gender, so `it` agrees with any singular noun, and German `er` with a
     masculine singular one. Where they share none, the noun has to be a
     subject or an object, which is all the parse has to say.
+
+    Three things the grammar says about the pronoun are read first. A plural
+    has no gender in most languages, so gender is compared only where both
+    are singular. A feminine pronoun whose singular and plural forms coincide,
+    German `sie`, stands for a singular or a plural noun. And a pronoun such
+    as English `their` may stand for one person as well as several.
     """
-    shared = [
-        one for one in _AGREEMENT if pronoun.morph.get(one) and noun.morph.get(one)
-    ]
+    lang = pronoun.doc.lang_
+    features = _AGREEMENT
+    if lang in _PLURAL_GENDERLESS and (
+        "Plur" in pronoun.morph.get("Number") or "Plur" in noun.morph.get("Number")
+    ):
+        features = tuple(one for one in features if one != "Gender")
+
+    def values(token, feature: str) -> set[str]:
+        got = set(token.morph.get(feature))
+        if token is not pronoun:
+            return got
+        if lang in _SYNCRETIC_FEMININE:
+            if feature == "Number" and (
+                "Plur" in got or "Fem" in pronoun.morph.get("Gender")
+            ):
+                got = {"Sing", "Plur"}
+            if feature == "Gender" and "Plur" in noun.morph.get("Number"):
+                return set()
+        if feature == "Number" and token.text.casefold() in _SINGULAR_THEY.get(
+            lang, frozenset()
+        ):
+            got = {"Sing", "Plur"}
+        return got
+
+    shared = [one for one in features if values(pronoun, one) and values(noun, one)]
     if not shared:
         return noun.dep_ in _ARGUMENTS
-    return all(set(pronoun.morph.get(one)) & set(noun.morph.get(one)) for one in shared)
+    return all(values(pronoun, one) & values(noun, one) for one in shared)
 
 
 def _correlate(token) -> bool:
@@ -547,8 +665,82 @@ def _correlate(token) -> bool:
     )
 
 
+#: Languages whose demonstrative pronouns ordinarily point back to a noun,
+#: German `der`, `dieser`; also gates the propositional neuter demonstrative.
+_NOUN_ANAPHORIC_DEMONSTRATIVES = frozenset({"de"})
+
+#: Words that read as the same thing again rather than as a pointer, by ISO
+#: 639-1 code: German `derselbe`, "the same", opens a statement with no
+#: reference to anything before it.
+_IDENTITY: dict[str, frozenset[str]] = {
+    "de": frozenset({"derselbe", "dieselbe", "dasselbe"}),
+    "en": frozenset(),
+}
+
+
+def _propositional(token) -> bool:
+    """Whether a neuter demonstrative stands for an earlier clause of the statement.
+
+    "Wenn die Karte gesperrt ist, gilt dies als Kündigung": `dies` is the
+    finite clause before it, which is not the pronoun's own.
+    """
+    if token.doc.lang_ not in _NOUN_ANAPHORIC_DEMONSTRATIVES:
+        return False
+    if not ("Dem" in token.morph.get("PronType") and token.pos_ == "PRON"):
+        return False
+    if "Plur" in token.morph.get("Number") or token.morph.get("Gender") not in (
+        [],
+        ["Neut"],
+    ):
+        return False
+    own = _clause(token)
+    return any(
+        "Fin" in one.morph.get("VerbForm", []) and _clause(one) != own and one.i != own
+        for one in token.doc[: token.i]
+    )
+
+
+def _predicate_verb(token):
+    """The verb whose predicate a token belongs to, a carried tense looked through."""
+    at = token.head if token.head.i != token.i else token
+    while at.pos_ not in {"VERB", "AUX"} and at.head.i != at.i:
+        at = at.head
+    while (
+        (at.dep_ in _CARRIERS or at.dep_ == "oc")
+        and at.pos_ == "AUX"
+        and at.head.i != at.i
+    ):
+        at = at.head
+    return at
+
+
+def _conjuncts(verb) -> list:
+    """The verbs coordinated with a verb, itself included."""
+    top = verb
+    while top.dep_ in _CONJUNCT:
+        top = top.head.head if top.head.dep_ == "cd" else top.head
+    found, stack = [], [top]
+    while stack:
+        one = stack.pop()
+        found.append(one)
+        for child in one.children:
+            if child.dep_ in _CONJUNCT:
+                stack.append(child)
+            if child.dep_ == "cd":
+                stack += [c for c in child.children if c.dep_ == "cj"]
+    return found
+
+
+def _other_conjunct(token, noun) -> bool:
+    """Whether a non-subject noun hangs off another verb coordinated with the token's."""
+    if noun.dep_ in _SUBJECTS:
+        return False
+    own, other = _predicate_verb(token), _predicate_verb(noun)
+    return own.i != other.i and other in _conjuncts(own)
+
+
 def _resolved(token) -> bool:
-    """Whether a personal pronoun names something earlier in its own statement.
+    """Whether a pronoun names something earlier in its own statement.
 
     "The card is blocked if it is reported stolen": `it` is the card, and
     refusing the statement throws its condition away. Resolved by a noun
@@ -559,13 +751,26 @@ def _resolved(token) -> bool:
     customer must return it" is something the passage named before. A
     possessive determiner is the exception - "The bank replaces its cards" -
     because English has no reflexive possessive to take its place; a
-    standalone one, "The customer must return hers", is not.
+    standalone one, "The customer must return hers", is not. Nor is a noun
+    of another verb coordinated with the pronoun's own, unless it is that
+    verb's subject: in "The bank blocks the card and informs it", the card is
+    outside the pronoun's predicate.
 
-    A demonstrative is never resolved here, and nor is a pronoun opening its
-    statement, with no noun before it to stand for: both are what a reader
-    without the passage cannot place.
+    A demonstrative pronoun is read like a personal one in the languages
+    whose demonstratives ordinarily point back to a noun, German `der` and
+    `dieser`; there a neuter `dies` may also stand for a finite clause before
+    it. Elsewhere a demonstrative is never resolved here, and nor is a pronoun
+    opening its statement, with no noun before it to stand for: both are what
+    a reader without the passage cannot place.
     """
-    if "Prs" not in token.morph.get("PronType"):
+    if _propositional(token):
+        return True
+    demonstrative = (
+        "Dem" in token.morph.get("PronType")
+        and token.pos_ == "PRON"
+        and token.doc.lang_ in _NOUN_ANAPHORIC_DEMONSTRATIVES
+    )
+    if "Prs" not in token.morph.get("PronType") and not demonstrative:
         return False
     earlier = [one for one in token.doc[: token.i] if one.pos_ in _NOMINAL]
     if not earlier:
@@ -574,7 +779,13 @@ def _resolved(token) -> bool:
         return True
     if token.dep_ not in _POSSESSIVE_DEPS:
         own = _clause(token)
-        earlier = [noun for noun in earlier if _clause(noun) != own]
+        kept = [noun for noun in earlier if _clause(noun) != own]
+        kept += [
+            noun
+            for noun in earlier
+            if noun not in kept and _other_conjunct(token, noun)
+        ]
+        earlier = kept
     return any(_agrees(token, noun) for noun in earlier)
 
 
@@ -605,8 +816,11 @@ def _opens(token) -> bool:
 
     A demonstrative determiner, `Diese Bibliotheken`, unless it names the
     source document, `Dieser Lehrplan`; or a German pronominal adverb,
-    `Hierfür`.
+    `Hierfür`. Not an identity determiner, `Derselbe Kunde`, which says the
+    same thing again without pointing at anything.
     """
+    if token.lemma_.casefold() in _IDENTITY.get(token.doc.lang_, frozenset()):
+        return False
     return (
         token.pos_ == "DET"
         and "Dem" in token.morph.get("PronType", [])

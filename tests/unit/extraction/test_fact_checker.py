@@ -155,6 +155,14 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
             ),
             "de",
         ),
+        ("The account holder may use their card abroad.", "en"),
+        ("A customer who moves must give their new address.", "en"),
+        ("Die Rückgabe ist kostenlos, es sei denn, die Ware ist beschädigt.", "de"),
+        ("It is easy to close the account online.", "en"),
+        (
+            "Die Filialen tragen Schilder, durch die sie sich voneinander unterscheiden.",
+            "de",
+        ),
     ],
 )
 def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
@@ -183,6 +191,8 @@ def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
         ("The account holder must inform him within three days.", "en", "him"),
         ("Der Kunde muss ihn informieren.", "de", "ihn"),
         ("The customer must return hers.", "en", "hers"),
+        ("The bank asks it to confirm the transfer.", "en", "it"),
+        ("Der Kunde muss es zurückgeben, um eine Erstattung zu erhalten.", "de", "es"),
         (
             "Der Nutzer muss den Akku laden, bevor es den Ruhemodus verlässt.",
             "de",

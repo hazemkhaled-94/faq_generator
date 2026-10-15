@@ -112,9 +112,9 @@ GERMAN_ATOMIC: tuple[tuple[str, str, int, str | None], ...] = (
 #: (name, language, the cited excerpt, statement, expected code or None):
 #: stored rules kept whole with their exception, refused as `not_atomic`
 #: when the parser hung "es sei denn" or "außer" beside the main verb as a
-#: second clause. A rule and the case it leaves out are one claim. Three move
-#: on to the pronoun reading, which is its own row; the rest are two claims
-#: and stay refused.
+#: second clause. A rule and the case it leaves out are one claim. The "es"
+#: of "es kann auf Vorteil entschieden werden" still reads as a pronoun; the
+#: rows read as two claims stay refused.
 KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
     (
         "a restart and the case it leaves out (F4383)",
@@ -203,7 +203,7 @@ KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
         None,
     ),
     (
-        "an exception whose es the pronoun reading then refuses (F4210)",
+        "an exception whose es is part of es sei denn (F4210)",
         "de",
         (
             "Bei grobem Foulspiel, einer Tätlichkeit oder einem zweiten "
@@ -215,10 +215,10 @@ KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
             "verwarnungswürdigen Vergehen sollte nicht auf Vorteil entschieden "
             "werden, ausser es ergibt sich eine offensichtliche Torchance."
         ),
-        Rejection.UNRESOLVED_REFERENCE,
+        None,
     ),
     (
-        "a repeated free kick and its exception (F4375)",
+        "an impersonal es the pronoun reading still refuses (F4375)",
         "de",
         (
             "Wenn ein Gegner bei einem Freistoss den erforderlichen Abstand zum "
@@ -245,7 +245,7 @@ KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
             "zum Zeitpunkt der Spielunterbrechung befand, es sei denn, der Ball "
             "hat einen Spieloffiziellen oder eine Drittperson getroffen."
         ),
-        Rejection.UNRESOLVED_REFERENCE,
+        None,
     ),
     (
         "two duties of one subject are two claims (F3757)",
@@ -304,6 +304,124 @@ KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
             "delay the restart."
         ),
         Rejection.NOT_ATOMIC,
+    ),
+)
+
+#: (name, language, the cited excerpt, statement, expected code or None):
+#: stored claims refused as `unresolved_reference` although their own words
+#: name what the pronoun points to: a singular "their", the "es" of "es sei
+#: denn", a "sie" agreeing with a plural or a feminine noun, a relative
+#: clause the tagger read without a finite verb. The last three are pronouns
+#: that point outside the statement and stay refused.
+RESOLVED_BY_GRAMMAR: tuple[tuple[str, str, str, str, str | None], ...] = (
+    (
+        "a singular their (F5541)",
+        "en",
+        (
+            "When the referee determines that a throw-in/goal kick is being "
+            "deliberately delayed by the team taking the restart:\n- The referee "
+            "may use their whistle and/or voice to indicate that the player "
+            "should hurry up/not delay the restart."
+        ),
+        (
+            "The referee may use their whistle or voice to indicate that the "
+            "player should hurry up or not delay the restart when a throw-in or "
+            "goal kick is being deliberately delayed."
+        ),
+        None,
+    ),
+    (
+        "the es of es sei denn (F4237)",
+        "de",
+        (
+            "- ein Handspiel begeht, um einen aussichtsreichen Angriff zu "
+            "verhindern oder zu unterbinden, es sei denn, der Schiedsrichter "
+            "entscheidet auf Strafstoss für ein unabsichtliches "
+            "Handspielvergehen,"
+        ),
+        (
+            "Ein Spieler wird verwarnt, wenn er ein Handspiel begeht, um einen "
+            "aussichtsreichen Angriff zu verhindern oder zu unterbinden, es sei "
+            "denn, der Schiedsrichter entscheidet auf Strafstoss für ein "
+            "unabsichtliches Handspielvergehen."
+        ),
+        None,
+    ),
+    (
+        "a relative clause the tagger read without a finite verb (F3659)",
+        "de",
+        (
+            "- Die beiden Teams tragen Farben, durch die sie sich klar "
+            "voneinander sowie von den Spieloffiziellen unterscheiden.\n"
+        ),
+        "Die beiden Teams tragen Farben, durch die sie sich klar voneinander unterscheiden.",
+        None,
+    ),
+    (
+        "a plural sie naming the officials before it (F4644)",
+        "de",
+        (
+            "Die übrigen Spieloffiziellen dürfen sich die TV-Bilder nur ansehen, "
+            "wenn sie der Schiedsrichter - in Ausnahmefällen - darum bittet."
+        ),
+        (
+            "Die übrigen Spieloffiziellen dürfen sich die TV-Bilder nur ansehen, "
+            "wenn sie der Schiedsrichter in Ausnahmefällen darum bittet."
+        ),
+        None,
+    ),
+    (
+        "a demonstrative naming the official before it (F4711)",
+        "de",
+        (
+            '"Die\nWettbewerbsbestimmungen müssen eindeutig festhalten, wer einen '
+            "Spieloffiziellen ersetzt, wenn dieser das Spiel nicht beginnen oder "
+            'fortsetzen kann, einschliesslich der damit verbundenen Wechsel."'
+        ),
+        (
+            "Die Wettbewerbsbestimmungen müssen eindeutig festlegen, wer einen "
+            "Spieloffiziellen ersetzt, wenn dieser das Spiel nicht beginnen oder "
+            "fortsetzen kann."
+        ),
+        None,
+    ),
+    (
+        "a this-rule naming a rule the statement never states (F3347)",
+        "de",
+        (
+            "- Wenn eine Zeitstrafe am Ende der ersten Halbzeit noch nicht "
+            "abgelaufen ist, muss der Rest zu Beginn der zweiten Halbzeit "
+            "verbüsst werden (dies gilt auch für eine etwaige Verlängerung).\n"
+        ),
+        "Diese Regel gilt auch für eine etwaige Verlängerung.",
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "these lines, named only in the passage (F3422)",
+        "de",
+        (
+            "Diese Linien erstrecken sich 5,5 m (6 yds) in das Spielfeld hinein "
+            "und sind durch eine zur Torlinie parallel verlaufende Linie "
+            "miteinander verbunden."
+        ),
+        "Diese Linien erstrecken sich 5,5 m in das Spielfeld hinein.",
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "these competitions, named only in the passage (F5581)",
+        "en",
+        (
+            "Temporary dismissals (sin bins) for all or some cautionable (YC) "
+            "offences are an option in youth, veterans, disability and "
+            "grassroots football competitions, subject to the approval of the "
+            "competition's national FA, confederation or FIFA (whichever is "
+            "appropriate).\n"
+        ),
+        (
+            "The use of temporary dismissals in these competitions is subject to "
+            "approval by the competition's national FA, confederation or FIFA."
+        ),
+        Rejection.UNRESOLVED_REFERENCE,
     ),
 )
 
@@ -494,6 +612,22 @@ def test_a_rule_kept_with_its_exception_reaches_its_verdict(
 ) -> None:
     """An exception or an alternative is part of the claim it qualifies."""
     checked = Checker(passage(excerpt, language=language)).atomic(statement, 0)
+
+    assert verdict(checked) == expected, checked.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "excerpt", "statement", "expected"),
+    [row[1:] for row in RESOLVED_BY_GRAMMAR],
+    ids=[row[0] for row in RESOLVED_BY_GRAMMAR],
+)
+def test_a_pronoun_the_grammar_resolves_reaches_its_verdict(
+    language, excerpt, statement, expected
+) -> None:
+    """Agreement read as the language marks it, not as one feature list for all."""
+    read = passage(excerpt, language=language)
+    cited = tuple(sentence.index for sentence in read.sentences)
+    checked = Checker(read).atomic(statement, cited)
 
     assert verdict(checked) == expected, checked.validation_error
 
