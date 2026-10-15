@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import replace
@@ -132,6 +133,38 @@ _NOTES: dict[str, str] = {
         "detail of the same subject that the material leaves open."
     ),
 }
+
+#: The gates that read the answer as well as the question. A retry keeping
+#: the question but changing its answer has changed what these read.
+_READS_KEY = frozenset(
+    {
+        QuestionRejection.NOT_RECOVERABLE,
+        QuestionRejection.WRONG_FORM,
+        QuestionRejection.ANSWER_TOO_SHORT,
+        QuestionRejection.ANSWER_TOO_LONG,
+    }
+)
+
+
+def _words(text: str | None) -> tuple[str, ...]:
+    """A text's words, case-folded, without the spacing and punctuation."""
+    return tuple(re.findall(r"\w+", (text or "").casefold()))
+
+
+def unchanged(refused: CheckedQuestion, retry: Candidate) -> bool:
+    """Whether a retry left alone everything the gate refusing its draft read.
+
+    The question, for a gate that reads the question; the answer too, for
+    one that reads the answer. The same words meet the same gate, so
+    checking them again spends the calls and stores a second copy of a
+    verdict already on record.
+    """
+    if _words(refused.question_text) != _words(retry.question_text):
+        return False
+    return refused.rejected_reason not in _READS_KEY or _words(
+        refused.target_answer
+    ) == _words(retry.target_answer)
+
 
 def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     """Puts every stored question through the gates that need no model.
@@ -1151,13 +1184,17 @@ class QuestionGenerationService(StageService):
                 break
             log.info("asking again for %r: %s", drafts[-1].question_text, note)
             try:
+                retry = self._writer.write(sample, plan, note)
+                if unchanged(drafts[-1], retry):
+                    log.info(
+                        "not asking again for %r: the retry came back unchanged",
+                        drafts[-1].question_text,
+                    )
+                    break
                 # Numbered as it is written, so a stored row says which
                 # attempt produced it.
                 drafts.append(
-                    replace(
-                        self._checked(self._writer.write(sample, plan, note), accepted),
-                        attempt=len(drafts) + 1,
-                    )
+                    replace(self._checked(retry, accepted), attempt=len(drafts) + 1)
                 )
             except ModelRefused as exc:
                 log.warning(

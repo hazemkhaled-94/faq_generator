@@ -1721,3 +1721,29 @@ def test_a_language_the_release_weighs_nothing_is_said_to_be_left_out(caplog) ->
         "fr" in line and "QUESTIONS_RELEASE_LANGUAGES" in line
         for line in caplog.messages
     ), caplog.messages
+
+
+class EchoingWriter(RetryingWriter):
+    """A writer that hands back its refused draft word for word when retried."""
+
+    def write(self, group, plan, note: str = ""):
+        """The first draft, again, whatever the note said."""
+        written = super().write(group, plan, note)
+        return replace(written, question_text="draft 1: Question 1?")
+
+
+def test_a_retry_that_returns_the_refused_draft_unchanged_is_not_kept() -> None:
+    """The same words meet the same gate: storing them twice proves nothing new."""
+    writer = EchoingWriter()
+    service, queue = build(
+        topic(),
+        [source(1, passage_id=1, language="en")],
+        writer=writer,
+        checker=RefusesTheFirstDraft(),
+        settings=replace(SETTINGS, retries=2, per_topic=1, followup_share=0.0),
+    )
+
+    service.process_next()
+
+    assert [(one.attempt, one.status) for one in queue.written] == [(1, "rejected")]
+    assert len(writer.notes) == 2, "the retries went on after an unchanged draft"
