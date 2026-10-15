@@ -1025,6 +1025,25 @@ class FactCatalog(Repository):
                 delete(Fact).where(Fact.id.in_(_bridges(within)))
             ).rowcount
 
+    def bridged_topics(self, within=None) -> frozenset[int]:
+        """The topics a bridge already rests in, by the passages it rests on.
+
+        Args:
+            within: A condition on Passage narrowing which topics are read,
+                as `by_topic` takes it, or None for the corpus.
+        """
+        query = (
+            select(DOMINANT.c.topic_id)
+            .join(FactPassage, FactPassage.passage_id == DOMINANT.c.passage_id)
+            .join(Fact, Fact.id == FactPassage.fact_id)
+            .where(Fact.kind == FactKind.BRIDGE)
+            .distinct()
+        )
+        if within is not None:
+            query = query.where(DOMINANT.c.topic_id.in_(_topics(within)))
+        with self._session() as session:
+            return frozenset(session.scalars(query))
+
     def accepted_on_bridges(self, within=None) -> int:
         """Counts the accepted questions citing a bridge `clear_bridges` deletes.
 

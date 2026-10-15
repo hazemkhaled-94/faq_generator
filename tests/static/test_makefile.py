@@ -146,6 +146,26 @@ def test_the_corpus_reports_the_topics_and_never_fits_them() -> None:
     assert all(line.endswith("topic_modelling.run --status") for line in topics), topics
 
 
+def test_the_corpus_writes_the_bridges_its_topics_are_missing() -> None:
+    """After the topics are known and before a question is written from them.
+
+    For the topics holding none only, so a second run over a corpus whose
+    questions already cite its bridges neither deletes them nor stops.
+    """
+    lines = printed("corpus")
+    bridged = [at for at, line in enumerate(lines) if "extraction.run --bridge" in line]
+    topics = [
+        at for at, line in enumerate(lines) if "topic_modelling.run --status" in line
+    ]
+    questions = [
+        at for at, line in enumerate(lines) if "question_generation.run" in line
+    ]
+
+    assert bridged, "the corpus never writes a bridge"
+    assert topics[0] < bridged[0] < questions[0]
+    assert "--missing" in lines[bridged[0]]
+
+
 def test_a_command_line_value_is_named_for_the_store_to_give_way_to() -> None:
     """A stored row for a name given on the command line is not applied."""
     lines = printed("topics-discover", "TOPIC_PASSES=20")

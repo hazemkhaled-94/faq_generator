@@ -742,11 +742,14 @@ extract-revalidate:
 # Re-running replaces the bridges it wrote last time instead of adding to
 # them. It refuses, deleting nothing, while an accepted question cites one
 # of those bridges, and says how many; FORCE=1 replaces them anyway, and
-# those questions are rejected or deleted with them.
+# those questions are rejected or deleted with them. MISSING=1 deletes nothing
+# and reads only the topics holding no bridge yet, which is what `corpus`
+# runs, so a second build neither replaces nor stops on cited bridges.
 #
 #   make extract-bridge FORCE=1
+#   make extract-bridge MISSING=1
 extract-bridge:
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --bridge $(if $(filter 1,$(FORCE)),--force) $(ONLY)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --bridge $(if $(filter 1,$(FORCE)),--force) $(if $(filter 1,$(MISSING)),--missing) $(ONLY)
 
 # Refuse the atomic facts a passage yielded above the cap
 # EXTRACTION_MIN_OTHER_SHARE works out to, or above the passage's own
@@ -1825,6 +1828,7 @@ corpus:
 	$(MAKE) chunk-start     && $(MAKE) chunk
 	$(MAKE) extract-start   && $(MAKE) extract
 	$(MAKE) topics-status
+	$(MAKE) extract-bridge MISSING=1
 	$(MAKE) questions-start && $(MAKE) questions
 	$(MAKE) questions-balance
 	$(MAKE) assess-start    && $(MAKE) assess

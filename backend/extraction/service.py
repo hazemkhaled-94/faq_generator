@@ -454,11 +454,16 @@ def bridge(
     size: int,
     within=None,
     force: bool = False,
+    missing: bool = False,
 ) -> int:
     """Writes the bridge facts a corpus's topics offer.
 
     One model call per group. Every bridge in scope is deleted first, so a
     second run replaces what the first wrote instead of adding to it.
+
+    With `missing`, nothing is deleted and only the topics holding no bridge
+    are read: what a whole-corpus run asks for, so a second one neither
+    replaces bridges that accepted questions cite nor stops on them.
 
     Args:
         catalog: Where the groups are read from and the facts written to.
@@ -469,6 +474,7 @@ def bridge(
         within: A condition selecting the topics to read, or None.
         force: Delete the bridges in scope even where an accepted question
             cites one.
+        missing: Read only the topics holding no bridge, and delete nothing.
 
     Returns:
         How many bridge facts were stored, refused ones included.
@@ -480,12 +486,17 @@ def bridge(
     # ponytail: counted and deleted in two transactions, so a question
     # accepted between them is not counted. Upgrade: count and delete in one
     # transaction holding a lock on the bridges.
-    if not force and (cited := catalog.accepted_on_bridges(within)):
+    done: frozenset[int] = frozenset()
+    if missing:
+        done = catalog.bridged_topics(within)
+        log.info("leaving the %d topic(s) that already hold a bridge", len(done))
+    elif not force and (cited := catalog.accepted_on_bridges(within)):
         raise CitedBridges(
             f"{cited} accepted question(s) cite a bridge this pass would delete, "
             "and would be rejected or deleted with it"
         )
-    log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
+    if not missing:
+        log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
     written = 0
     # Groups the model could not be asked about. Counted because skipping
     # one and carrying on is right - a batch over many groups must
@@ -495,6 +506,8 @@ def bridge(
     # between the two was invisible.
     dropped = 0
     for topic_id, passages in catalog.by_topic(within):
+        if topic_id in done:
+            continue
         # The same gate the per-passage stage applies, so the two cannot
         # drift. Without it a group is spent on a table of contents or a
         # heading: `by_topic` asks only that a passage was segmented.

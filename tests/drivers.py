@@ -540,6 +540,16 @@ class Catalogue:
         """No question cites a bridge here."""
         return 0
 
+    def holding_bridges(self, *topics: int) -> Catalogue:
+        """Marks topics, by the id `by_topic` gives them, as already bridged."""
+        self.bridged = frozenset(topics)
+        return self
+
+    def bridged_topics(self, within=None) -> frozenset[int]:
+        """The topics a bridge already rests in."""
+        self.narrowed.append(within)
+        return getattr(self, "bridged", frozenset())
+
     def clear_bridges(self, within=None) -> int:
         """Records that the previous pass's bridges were replaced."""
         self.cleared += 1

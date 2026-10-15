@@ -29,7 +29,10 @@ the topic model put together. `make extract-bridge` walks every topic, forms
 groups, and writes what they yield. Topics must be fitted first. A second
 pass replaces the bridges in scope, so it refuses, deleting nothing, while an
 accepted question cites one of them; `FORCE=1` replaces them anyway, and
-those questions are rejected or deleted with them. It asks the model one
+those questions are rejected or deleted with them. `MISSING=1` deletes
+nothing and reads only the topics holding no bridge yet: `make corpus` runs it
+that way after the topics are known, so a rebuild writes bridges and a second
+one leaves cited ones alone. It asks the model one
 question first, and deletes nothing if the model does not answer.
 
 `make extract-revalidate` re-judges stored facts without calling a model,
@@ -319,6 +322,7 @@ make extract-rerun                  # read every passage again
 make extract-revalidate             # re-judge stored facts; no model call
 make extract-bridge                 # read every topic's groups for bridges
 make extract-bridge FORCE=1         # even over bridges accepted questions cite
+make extract-bridge MISSING=1       # only the topics holding no bridge yet
 make extract-recap                  # re-apply the atomic cap; no model call
 make extract-dedup                  # re-decide the duplicate refusals, then re-judge and re-cap what moved; no model call
 make extract-embed                  # write vectors onto rows already stored

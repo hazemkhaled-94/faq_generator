@@ -180,3 +180,22 @@ def test_the_narrowing_reaches_both_the_clear_and_the_read() -> None:
     )
 
     assert catalog.narrowed == ["a-condition"]
+
+
+def test_a_pass_for_the_missing_reads_only_the_topics_holding_no_bridge() -> None:
+    """What a whole-corpus run asks for: nothing replaced, nothing a question cites lost."""
+    catalog = Catalogue(support=pair(), billing=pair()).holding_bridges(1)
+    model = Model(ANSWER)
+
+    written = bridge(
+        catalog,  # type: ignore[arg-type]
+        BridgeExtractor(model),  # type: ignore[arg-type]
+        FactChecker(DIGEST_SHARE),
+        5,
+        2,
+        missing=True,
+    )
+
+    assert written == 1
+    assert model.calls == 1, "a bridged topic was read again"
+    assert catalog.cleared == 0, "a pass for the missing deleted bridges"

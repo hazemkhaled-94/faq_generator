@@ -491,6 +491,20 @@ class TestReplacingCitedBridges:
         assert bridge(store.catalog, UNREAD, UNREAD, 5, 2) == 0
         assert store.count() == 0
 
+    def test_a_pass_for_the_missing_leaves_a_cited_bridge_and_its_question(
+        self, store, corpus, cited
+    ) -> None:
+        """What `make corpus` runs: a topic already bridged is not read again."""
+        from extraction.service import bridge
+
+        topic_id = store.topic("Support", corpus["a"][0], corpus["b"][0])
+        cited("accepted")
+
+        assert store.catalog.bridged_topics() == frozenset({topic_id})
+        assert bridge(store.catalog, UNREAD, UNREAD, 5, 2, missing=True) == 0
+        assert store.count() == 1
+        assert store.count("questions") == 1
+
 
 class TestGroups:
     """Which passages the bridge pass is offered."""

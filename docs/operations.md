@@ -240,8 +240,8 @@ commands that call no model come first:
 
 Struck-through text, list lead-ins and chapter-aware section paths change
 the passages themselves. They reach stored rows only through a rebuild:
-`make parse-rerun`, `make chunk-rerun`, then extraction, topics and questions
-again, all of which call models. A fresh question generation also carries
+`make parse-rerun`, `make chunk-rerun`, then extraction, topics, the bridge
+pass (`make extract-bridge`) and questions again, all of which call models. A fresh question generation also carries
 the fixes that live in how questions are written: the widen retry, the deal,
 the reason and application slots, the perturbation prompt, and the gates that
 only ever rejected. `make questions-reverify` never gives back a rejected

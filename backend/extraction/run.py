@@ -2,7 +2,7 @@
 
 Every queue flag is the same operation as the route beside it under
 /extraction. `--revalidate` and `--bridge` are this stage's own, and
-`--force` is `--bridge`'s. Run with --help for the list.
+`--force` and `--missing` are `--bridge`'s. Run with --help for the list.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     # any action accepts it. Upgrade: let queue_main take a stage's own
     # arguments beside its own actions.
     force = "--force" in argv
+    missing = "--missing" in argv
 
     def configured() -> tuple[ModelSettings, Settings, str]:
         """Reads the settings as they stand, and what that configuration is.
@@ -87,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
                 settings.bridge_passages,
                 within,
                 force,
+                missing,
             )
         except CitedBridges as refusal:
             raise SystemExit(
@@ -182,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         module="extraction.run",
         repository=PassageQueue,
         build_service=build,
-        argv=[one for one in argv if one != "--force"],
+        argv=[one for one in argv if one not in ("--force", "--missing")],
         extra=extra,
         preflight=preflight,
         prompts=record_prompts,
