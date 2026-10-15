@@ -448,7 +448,7 @@ def test_a_page_with_no_strike_comes_out_unchanged(words, underlined, rules) -> 
     assert unstruck(pdf, converted).export_to_dict() == before
 
 
-# ── Superscripts, through the whole pipeline ─────────────────────────────
+# ── Part of a word, and a word spelled with other quotes ──────────────────
 
 
 def converted(pdf, converted_document: DoclingDocument) -> DoclingDocument:
@@ -465,6 +465,105 @@ def converted(pdf, converted_document: DoclingDocument) -> DoclingDocument:
     ).document
 
 
+def test_a_struck_word_spelled_with_a_curly_apostrophe_goes() -> None:
+    """The converter writes a straight apostrophe where the page prints a curly one.
+
+    Drawn with MuPDF's built-in Unicode fonts: the base-14 Helvetica the
+    other tests print with cannot encode the curly apostrophe.
+    """
+    text = "Read FIFA’s handbook and the IFAB guide."
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=WIDTH, height=HEIGHT)
+    page.insert_htmlbox(pymupdf.Rect(LEFT, 360, WIDTH - LEFT, 400), text)
+    line = next(
+        line
+        for block in page.get_text("rawdict")["blocks"]
+        for line in block.get("lines", ())
+    )
+    baseline = line["spans"][0]["chars"][0]["origin"][1]
+    size = line["spans"][0]["size"]
+    target = word(page, "FIFA’s", baseline - 1)
+    height = baseline - 0.33 * size
+    page.draw_line((target.x0, height), (target.x1, height), color=INK, width=1)
+    reading = document()
+    reading.add_text(
+        label=DocItemLabel.TEXT,
+        text="Read FIFA's handbook and the IFAB guide.",
+        prov=provenance((LEFT - 1, 355, WIDTH - LEFT, 405)),
+    )
+
+    assert converted(pdf, reading).texts[0].text == "Read handbook and the IFAB guide."
+
+
+def test_unstruck_punctuation_beside_a_struck_word_stays() -> None:
+    """A bracket printed beside a deleted word was not deleted with it."""
+    text = "Refunds (not credits) are paid."
+    pdf, page = printed((LEFT, BASELINE, text))
+    found = word(page, "(not")
+    bracket = pymupdf.get_text_length("(", fontsize=FONT)
+    height = BASELINE - 0.33 * FONT
+    page.draw_line((found.x0 + bracket, height), (found.x1, height), color=INK, width=1)
+
+    assert (
+        converted(pdf, paragraph(page, text)).texts[0].text
+        == "Refunds (credits) are paid."
+    )
+
+
+def test_the_struck_half_of_a_slash_joined_word_goes() -> None:
+    """A deleted "six" before "/eight" keeps the alternative printed beside it."""
+    text = "Each charger supports six/eight devices."
+    pdf, page = printed((LEFT, BASELINE, text))
+    found = word(page, "six/eight")
+    six = pymupdf.get_text_length("six", fontsize=FONT)
+    height = BASELINE - 0.33 * FONT
+    page.draw_line((found.x0, height), (found.x0 + six, height), color=INK, width=1)
+
+    result = converted(pdf, paragraph(page, text)).texts[0].text
+
+    assert "six" not in result
+    assert "eight devices." in result
+
+
+# ── Text the page does not paint ───────────────────────────────────────────
+
+
+def test_text_the_page_clips_out_of_view_is_dropped() -> None:
+    """A diagram's hidden layer reaches the converter, but no reader sees it.
+
+    The page's whole content is drawn under a clip path covering its top
+    half, so the label printed in the bottom half is in the content stream
+    and shows nowhere.
+    """
+    pdf, page = printed((LEFT, 200, "Card fees"), (LEFT, 500, "HIDDEN LABEL"))
+    shown, hidden = box(page, "Card fees", 200), box(page, "HIDDEN LABEL", 500)
+    streams = page.get_contents()
+    clip = b"q 0 %d %d %d re W n\n" % (int(HEIGHT) - 300, int(WIDTH), 300)
+    pdf.update_stream(streams[0], clip + pdf.xref_stream(streams[0]))
+    pdf.update_stream(streams[-1], pdf.xref_stream(streams[-1]) + b"\nQ")
+    reading = document()
+    reading.add_text(label=DocItemLabel.TEXT, text="Card fees", prov=provenance(shown))
+    reading.add_text(
+        label=DocItemLabel.TEXT, text="HIDDEN LABEL", prov=provenance(hidden)
+    )
+
+    texts = [one.text for one in converted(pdf, reading).texts if one.text.strip()]
+
+    assert texts == ["Card fees"]
+
+
+def test_an_ocr_layer_drawn_invisible_is_kept() -> None:
+    """A scan's text layer is invisible by design, and it is the only text there is."""
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=WIDTH, height=HEIGHT)
+    page.insert_text((LEFT, BASELINE), PRINTED, fontsize=FONT, render_mode=3)
+
+    assert converted(pdf, paragraph(page)).texts[0].text == PRINTED
+
+
+# ── Superscripts ───────────────────────────────────────────────────────────
+
+
 def raised(page, before: str, suffix: str, after: str, baseline: float = BASELINE):
     """Prints `before`, then `suffix` raised and smaller, then `after`."""
     page.insert_text((LEFT, baseline), before, fontsize=FONT, color=INK)
@@ -475,7 +574,7 @@ def raised(page, before: str, suffix: str, after: str, baseline: float = BASELIN
 
 
 def test_a_superscript_ordinal_joins_its_number() -> None:
-    """ "1 st" is how a converter writes a raised "st"; the page prints "1st"."""
+    """A converter writes a raised "st" as "1 st"; the page prints "1st"."""
     pdf = pymupdf.open()
     page = pdf.new_page(width=WIDTH, height=HEIGHT)
     raised(page, "Effective from 1", "st", "July 2026")

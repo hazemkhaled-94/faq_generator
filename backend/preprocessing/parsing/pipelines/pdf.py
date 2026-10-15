@@ -73,6 +73,32 @@ _STRIKE_BAND = (0.15, 0.55)
 #: The least share of a word's width one stroke must cross to delete it.
 _STRIKE_COVER = 0.6
 
+#: The least share of a punctuation mark's width one stroke must cross to
+#: delete it.
+_PUNCTUATION_COVER = 0.5
+
+#: Typographic marks and what they are compared as: curly apostrophes and
+#: quotes as the straight ones, every dash as a hyphen. For matching only.
+_FOLDED = str.maketrans(
+    {
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201a": "'",
+        "\u201b": "'",
+        "\u2032": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u201e": '"',
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2015": "-",
+        "\u2212": "-",
+    }
+)
+
 #: The most a line may rise or fall, in points, and still be horizontal.
 _LEVEL = 0.3
 
@@ -82,6 +108,10 @@ _SHORTEST = 2.0
 #: How far, in points, the two readers may disagree on a page's size before
 #: the page is left alone rather than matched in the wrong place.
 _PAGE_SLACK = 1.0
+
+#: What pymupdf extracts when the page's clip is not applied, so text a clip
+#: path hides is returned.
+_UNCLIPPED = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_MEDIABOX_CLIP
 
 #: One unit of a string, as the converter spaced it.
 _TOKEN = re.compile(r"\S+")
@@ -268,18 +298,27 @@ class _Word(NamedTuple):
     bottom: float
     baseline: float
     size: float
+    #: Each character as (character, left, right, top, bottom).
+    chars: tuple[tuple[str, float, float, float, float], ...]
+
+
+#: A page word with a flag per character, True when it is struck or hidden.
+_Marked = tuple[_Word, tuple[bool, ...]]
 
 
 def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
-    """Removes every word the page strikes through from a converted document.
+    """Removes every word the page does not show from a converted document.
 
     A PDF marks a deletion with nothing but a drawn line, and no converter
     reads drawn lines, so the struck word reaches the text beside the one
-    replacing it. The source is read again with pymupdf, every word a stroke
-    runs through is found, and it is removed from each text item, its
-    `orig`, and each table cell, whose box holds it. Section headers are
-    text items. An item left with no text leaves the body. A page that
-    strikes nothing is never touched.
+    replacing it. A diagram's label layer drawn under a clip reaches the
+    converter too, although no reader sees it. The source is read again with
+    pymupdf, every word a stroke runs through and every word a clip hides is
+    found, and each is removed from each text item, its `orig`, and each
+    table cell, whose box holds it. Section headers are text items. An item
+    left with no text leaves the body. Invisible text is not hidden: a
+    scanned page's OCR layer is drawn invisible and is the only text there
+    is. A page that strikes and hides nothing is never touched.
 
     Args:
         document: The converted document, modified in place.
@@ -317,7 +356,7 @@ def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
                 if prov.page_no == number
                 for word in _inside(flagged, prov.bbox, height)
             ]
-            if any(struck for _, struck in words):
+            if any(any(struck) for _, struck in words):
                 item.text = _without(item.text, words)
                 item.orig = _without(item.orig, words)
                 if not item.text.strip():
@@ -330,30 +369,45 @@ def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
                 continue
             for cell in table.data.table_cells:
                 words = [] if cell.bbox is None else _inside(flagged, cell.bbox, height)
-                if any(struck for _, struck in words):
+                if any(any(struck) for _, struck in words):
                     cell.text = _without(cell.text, words)
     return document
 
 
-def _marked(data: bytes) -> dict[int, tuple[float, float, list[tuple[_Word, bool]]]]:
-    """Reads every page that strikes a word through.
+def _marked(data: bytes) -> dict[int, tuple[float, float, list[_Marked]]]:
+    """Reads every page that strikes a word through or hides one.
+
+    A page's characters are read twice: as a reader sees them, with the
+    page's clip applied, and as the converter may, without it. A word of the
+    second read none of whose characters sits where the first read has one
+    is hidden, and every one of its characters is flagged as a struck one is. Text drawn invisible is
+    returned by both reads, so it is not hidden: a scanned page's OCR layer
+    is drawn that way.
 
     Args:
         data: The PDF.
 
     Returns:
         By page number from 1: the page's width and height, and every word on
-        it in reading order, each flagged True when it is struck.
+        it in reading order, each with a flag per character, True when it is struck or hidden.
     """
     marked = {}
     with pymupdf.open(stream=data, filetype="pdf") as pdf:
         for number in range(1, pdf.page_count + 1):
             page = pdf.load_page(number - 1)
             strokes = _strokes(page)
-            if not strokes:
-                continue
-            flagged = [(word, _struck(word, strokes)) for word in _words(page)]
-            if any(struck for _, struck in flagged):
+            words = _words(page, _UNCLIPPED)
+            hidden = _hidden(words, _words(page, None))
+            flagged = [
+                (
+                    word,
+                    (True,) * len(word.chars)
+                    if gone
+                    else _struck_segments(word, strokes),
+                )
+                for word, gone in zip(words, hidden, strict=True)
+            ]
+            if any(any(struck) for _, struck in flagged):
                 marked[number] = (page.rect.width, page.rect.height, flagged)
     return marked
 
@@ -369,7 +423,7 @@ def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
     one path, and the box around them all runs through the words between
     them, or stands two lines tall and strikes nothing. The edge of an
     outlined shape is not a stroke: a highlight's frame can run through a
-    line of text. Whether one strikes a word is `_struck`'s to decide.
+    line of text. Whether one strikes a word is `_struck_segments`'s to decide.
     """
     found = []
     for path in page.get_drawings():
@@ -398,11 +452,36 @@ def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
     return [stroke for stroke in found if stroke[1] - stroke[0] > _SHORTEST]
 
 
-def _words(page: pymupdf.Page) -> list[_Word]:
-    """Every word on a page's horizontal lines, in reading order."""
+def _hidden(words: list[_Word], shown: list[_Word]) -> list[bool]:
+    """Flags each of `words` True when none of its characters is among `shown`.
+
+    A character is among them when its centre lies in the box of one.
+    """
+    if [word.text for word in words] == [word.text for word in shown]:
+        return [False] * len(words)
+    boxes = [box[1:] for word in shown for box in word.chars]
+    return [
+        not any(
+            left <= (c_left + c_right) / 2 <= right
+            and top <= (c_top + c_bottom) / 2 <= bottom
+            for _, c_left, c_right, c_top, c_bottom in word.chars
+            for left, right, top, bottom in boxes
+        )
+        for word in words
+    ]
+
+
+def _words(page: pymupdf.Page, flags: int | None) -> list[_Word]:
+    """Every word on a page's horizontal lines, in reading order.
+
+    Args:
+        page: The page.
+        flags: What pymupdf extracts, or None for its default, which clips
+            text to the page.
+    """
     words: list[_Word] = []
     # The layout as a dict, which the method's annotation does not say.
-    for block in cast(dict, page.get_text("rawdict"))["blocks"]:
+    for block in cast(dict, page.get_text("rawdict", flags=flags))["blocks"]:
         for line in block.get("lines", ()):
             if line["dir"] != (1, 0):
                 continue
@@ -432,28 +511,60 @@ def _word(run: list[tuple[dict, float]]) -> list[_Word]:
             bottom=max(box[3] for box in boxes),
             baseline=run[0][0]["origin"][1],
             size=max(size for _, size in run),
+            chars=tuple(
+                (char["c"], box[0], box[2], box[1], box[3])
+                for (char, _), box in zip(run, boxes, strict=True)
+            ),
         )
     ]
 
 
-def _struck(word: _Word, strokes: list[tuple[float, float, float, float]]) -> bool:
-    """Reports whether one stroke runs through a word's x-height, across most of it.
+def _struck_segments(
+    word: _Word, strokes: list[tuple[float, float, float, float]]
+) -> tuple[bool, ...]:
+    """Flags each character of a word True when a stroke deletes its segment.
 
-    In any colour: the stroke's position is what marks a deletion.
+    A word is cut into segments: each maximal run of letters or digits, and
+    each other character on its own. A run is struck when one stroke through
+    the x-height crosses at least `_STRIKE_COVER` of its width; a punctuation
+    mark when one crosses at least `_PUNCTUATION_COVER` of its width. So a
+    stroke through "six" in "six/eight", or through "not" in "(not", leaves
+    the rest of the word standing, while a stroke across part of a run
+    removes nothing. In any colour: the stroke's position is what marks a
+    deletion.
+
+    Returns:
+        One flag per character of `word.chars`, all False when nothing in
+        the word is struck.
     """
     low, high = _STRIKE_BAND
-    width = word.right - word.left
-    return any(
-        top >= word.baseline - high * word.size
-        and bottom <= word.baseline - low * word.size
-        and min(right, word.right) - max(left, word.left) >= _STRIKE_COVER * width
+    level = [
+        (left, right)
         for left, right, top, bottom in strokes
-    )
+        if top >= word.baseline - high * word.size
+        and bottom <= word.baseline - low * word.size
+    ]
+    flags: list[bool] = []
+    start = 0
+    while start < len(word.chars):
+        end = start + 1
+        solid = word.chars[start][0].isalnum()
+        while solid and end < len(word.chars) and word.chars[end][0].isalnum():
+            end += 1
+        left, right = word.chars[start][1], word.chars[end - 1][2]
+        cover = _STRIKE_COVER if solid else _PUNCTUATION_COVER
+        flags += [
+            any(
+                min(stroke_right, right) - max(stroke_left, left)
+                >= cover * (right - left)
+                for stroke_left, stroke_right in level
+            )
+        ] * (end - start)
+        start = end
+    return tuple(flags)
 
 
-def _inside(
-    flagged: list[tuple[_Word, bool]], bbox: BoundingBox, height: float
-) -> list[tuple[_Word, bool]]:
+def _inside(flagged: list[_Marked], bbox: BoundingBox, height: float) -> list[_Marked]:
     """The words whose centre lies in one of the converter's boxes.
 
     The converter's box may count up from the page foot; pymupdf's count down
@@ -468,42 +579,116 @@ def _inside(
     ]
 
 
-def _without(text: str, words: list[tuple[_Word, bool]]) -> str:
-    """Drops the struck words from one string.
+def _folded(text: str) -> str:
+    """Spells text so two readers' typography compares equal.
+
+    NFKC, then curly quotes as straight ones and every dash as a hyphen.
+    """
+    return unicodedata.normalize("NFKC", text).translate(_FOLDED)
+
+
+def _remainder(
+    token: str, word: _Word, struck: tuple[bool, ...]
+) -> tuple[str, bool, bool]:
+    """What stays of one converter token whose page word is partly struck.
+
+    The struck flags are laid one to one over the token's characters when the
+    two have the same length after NFKC; when they differ, the whole token
+    goes if the struck characters cross `_STRIKE_COVER` of the word's width,
+    and stays if not.
+
+    Returns:
+        The characters kept, whether the first kept one had struck characters
+        before it, and whether struck characters follow the last kept one.
+        Nothing is kept when every character is struck.
+    """
+    letters = [
+        flag
+        for (char, *_), flag in zip(word.chars, struck, strict=True)
+        for _ in unicodedata.normalize("NFKC", char)
+    ]
+    if len(token) != len(unicodedata.normalize("NFKC", token)) or len(token) != len(
+        letters
+    ):
+        width = sum(right - left for _, left, right, _, _ in word.chars)
+        crossed = sum(
+            right - left
+            for (_, left, right, _, _), flag in zip(word.chars, struck, strict=True)
+            if flag
+        )
+        return (
+            ("", False, False)
+            if crossed >= _STRIKE_COVER * width
+            else (token, False, False)
+        )
+    kept = [index for index, flag in enumerate(letters) if not flag]
+    if not kept:
+        return "", False, False
+    return (
+        "".join(token[index] for index in kept),
+        kept[0] > 0,
+        kept[-1] < len(token) - 1,
+    )
+
+
+def _without(text: str, words: list[_Marked]) -> str:
+    """Drops the struck words, and the struck parts of words, from one string.
 
     The string is aligned with the page word by word, in reading order, so
-    the same word printed unstruck elsewhere in it stays. A word the two
-    readers spell differently is not matched, and stays too.
+    the same word printed unstruck elsewhere in it stays. Words are compared
+    with typographic marks folded (a curly apostrophe is a straight one, any
+    dash a hyphen), because converters respell them; the string keeps its own
+    characters. A word the two readers still spell differently is not
+    matched, and stays.
+
+    A word every segment of which is struck is removed with the space before
+    it. A word struck in part keeps its unstruck characters, so the bracket
+    beside a deleted word stays, and so does the half of "six/eight" that was
+    not deleted. What remains takes no space before it when it starts with
+    punctuation after struck characters, and the next word takes none after
+    it when it ends with an opening bracket or quote whose struck characters
+    follow, so "(not credits)" with "not" struck reads "(credits)".
 
     Args:
         text: The converter's string.
-        words: The page's words inside its box, flagged when struck.
+        words: The page's words inside its box, each with a flag per
+            character, True when struck.
 
     Returns:
-        The string without them, each removed with the space before it.
+        The string without them.
     """
     tokens = list(_TOKEN.finditer(text))
     matcher = SequenceMatcher(
         None,
-        [unicodedata.normalize("NFKC", token.group()) for token in tokens],
-        [unicodedata.normalize("NFKC", word.text) for word, _ in words],
+        [_folded(token.group()) for token in tokens],
+        [_folded(word.text) for word, _ in words],
         autojunk=False,
     )
-    gone = {
-        block.a + offset
-        for block in matcher.get_matching_blocks()
-        for offset in range(block.size)
-        if words[block.b + offset][1]
-    }
-    if not gone:
+    cut = {}
+    for block in matcher.get_matching_blocks():
+        for offset in range(block.size):
+            word, struck = words[block.b + offset]
+            if any(struck):
+                cut[block.a + offset] = _remainder(
+                    tokens[block.a + offset].group(), word, struck
+                )
+    if not cut:
         return text
     kept: list[str] = []
     end = 0
+    joined = False
     for index, token in enumerate(tokens):
         gap, end = text[end : token.start()], token.end()
-        if index not in gone:
+        remainder, head, tail = cut.get(index, (token.group(), False, False))
+        if not remainder:
+            continue
+        if not kept:
             # The first word kept takes the string's own leading space.
-            kept.append((gap if kept else text[: tokens[0].start()]) + token.group())
+            gap = text[: tokens[0].start()]
+        elif joined or (head and not remainder[0].isalnum()):
+            gap = ""
+        kept.append(gap + remainder)
+        joined = tail and unicodedata.category(remainder[-1]) in ("Ps", "Pi")
     return "".join(kept) + text[end:]
 
 
