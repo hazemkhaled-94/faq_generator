@@ -66,7 +66,7 @@ RECORDED = {
     ("questions", "verifier: follows"): ("5", "9941c681a2936bc1"),
     ("questions", "verifier: settles"): ("5", "6599e13b065e85ab"),
     ("extraction", "atomic"): ("11+cap4", "a855ad279eaee08d"),
-    ("extraction", "digest"): ("3", "f7003be75e42b82e"),
+    ("extraction", "digest"): ("4", "ab0e93b11858a0e8"),
     ("extraction", "bridge"): ("4", "d93f5daae44104bb"),
     ("topics", "label"): ("1", "744885b5f08d5066"),
     ("assessment", "fact: hallucination"): ("2", "ab72d40652bc51c4"),

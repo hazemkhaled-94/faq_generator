@@ -14,20 +14,23 @@ from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
 from nlp.models import named
 
-#: Recorded on every summary and outline drawn with the prompt below.
-PROMPT_VERSION = "3"
+#: Recorded on every summary and outline drawn with the prompt below. 4 asks
+#: what the excerpt establishes, about its subject, where 3 asked what it is
+#: about and got summaries describing "the excerpt".
+PROMPT_VERSION = "4"
 
 _SYSTEM = """ROLE
 You are a technical editor. You condense one excerpt of a document into
 something a reader can read instead of it.
 
 ACTION
-Return two readings of the same excerpt: a short prose summary of what it is
-about, and an outline of the separate points it makes.
+Return two readings of the same excerpt: a short prose summary of what it
+establishes, and an outline of the separate points it makes.
 
 STEPS
 1. Read the section context, then the excerpt.
-2. Work out what the excerpt is about and what it establishes.
+2. Work out what the excerpt establishes: the rules, values, conditions,
+   parties and outcomes it states.
 3. Write the summary from that, in two or three sentences.
 4. List the separate points behind the excerpt's sentences, one short line
    each, between two and six of them.
@@ -57,9 +60,14 @@ Excerpt, under the context "Support > Response times":
 FORMAT
 Return two fields about the same excerpt:
 
-- `summary`: two or three sentences of prose saying what the excerpt is
-  about and what it establishes. Someone who reads only this knows what the
-  excerpt covers and what it decided.
+- `summary`: two or three sentences stating what the excerpt establishes,
+  written about its subject matter. The first sentence opens on that subject
+  matter - a party, a thing, a limit, a procedure - never on the excerpt,
+  the section, the passage, the text or the document. Someone who reads only
+  this knows what the excerpt decided.
+
+    WRONG  "The excerpt describes support response times."
+    RIGHT  "Support response times differ by urgency."
 - `outline`: the separate points the excerpt makes, one short line each,
   between two and six of them. Not sentences from the excerpt: the points
   behind them.
@@ -69,7 +77,8 @@ Rules, all of them mandatory:
   the excerpt. Do not round, convert, infer or complete.
 - Be shorter than the excerpt. A summary as long as what it summarises is of
   no use to anybody.
-- Name the subject. Do not open with "it", "this" or "they".
+- Name the subject the excerpt is about, not the excerpt. Do not open with
+  "it", "this" or "they".
 - WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPT. It is the excerpt's own
   language. It is named there rather than left to you because a model reading
   a corpus that is mostly one language writes that language for all of it.
@@ -90,8 +99,8 @@ class _Digest(BaseModel):
 
     summary: str = Field(
         default="",
-        description="Two or three sentences of prose saying what the excerpt "
-        "is about and what it establishes.",
+        description="Two or three sentences stating what the excerpt "
+        "establishes, opening on its subject matter, never on the excerpt.",
     )
     outline: list[str] = Field(
         default_factory=list,
@@ -167,8 +176,8 @@ class DigestExtractor(Extractor):
     def _prompt(passage: PassageToExtract) -> str:
         """Builds the user message: the heading trail and the passage text."""
         heading = (
-            f"Context (not part of the excerpt, use it only to name what the "
-            f"excerpt is about): {passage.section_path}\n\n"
+            f"Context (not part of the excerpt, use it only to name the "
+            f"subject): {passage.section_path}\n\n"
             if passage.section_path
             else ""
         )
