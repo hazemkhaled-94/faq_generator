@@ -34,7 +34,7 @@ from llm.client import Client
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "4"
+PROMPT_VERSION = "5"
 
 _VERIFY = """ROLE
 You are an independent verifier for a document-search chatbot's test set. You
@@ -239,72 +239,67 @@ check a question that was written to have NO answer in the material, before
 it is used to test whether a chatbot admits that it does not know.
 
 ACTION
-Answer the QUESTION from these PASSAGES as a careful chatbot would, then say
-whether, and how, the passages settle it.
+Say whether these PASSAGES settle the QUESTION, and how.
 
 STEPS
 1. Read the passages, then the question.
-2. Write the reply a careful chatbot would give using these passages alone:
-   the answer; or that the question's premise does not hold, and why; or the
-   rule or the closed list that decides the case; or "not in the material"
-   when they leave it open.
-3. Look across ALL the passages while you do. An answer may be spread over
-   two sentences or worded differently from the question. A passage settles
-   the case when it says "only", "every", "no other", or names the cases a
-   rule leaves out, so that the case asked about is decided by it. A general
-   rule that covers the case settles it, though it never names the case.
-4. Quote the words of the passages your reply rests on, as they stand.
-5. Give the verdict that names how they settle it, or `silent` when your
-   reply is "not in the material".
+2. Look for a statement that answers it, across ALL the passages. It may be
+   spread over two sentences or worded differently from the question.
+3. Check its premise: does a passage say that what the question takes for
+   granted is not so?
+4. Check for a closed list or an exception: does a passage say "only",
+   "every", "no other", or name the cases a rule leaves out, so that the
+   case asked about is decided by it?
+5. Check for a general rule: does a passage state a rule that covers the
+   case asked about, even though it never names that case?
+6. Give the first of these that holds, or `silent` when none does.
 
 CONTEXT
 A chatbot asked this question is marked RIGHT for saying the material does
-not answer it. Where the material does settle it, that chatbot is marked
-WRONG for a correct reply, and the benchmark punishes the behaviour it exists
-to reward. Losing this one test question costs far less. So when the
-passages answer the question, contradict its premise, or decide its case by
-a list or a rule, say so.
+not answer it. Where the material does settle it, the chatbot that says so
+is marked WRONG for a correct reply, and that is the failure this check
+exists to stop. It costs more than losing this one test question: when a
+passage answers the question, contradicts its premise, or decides its case
+by a list or a rule, say so.
 
 Settling is not the same as stating outright. "Only account holders may raise
 a request" settles a question about a visitor's request - a visitor cannot
-raise one - as surely as a sentence naming the visitor would. A list or rule
-about the same subject that does not decide this case is `silent`.
+raise one - as surely as a sentence naming the visitor would.
+
+A list or rule about the same subject that does not decide this case is
+`silent`.
 
 You have no knowledge outside the passages and may use none. A question the
 world answers and these passages do not is `silent`, and a quote must be
-words the passages carry. The passages and the question may be in any
-language, and the examples below are in English only because these
-instructions are.
+words the passages carry. The passages and the
+question may be in any language, and the examples below are in English only
+because these instructions are.
 
 EXAMPLES
   passages "Standard requests are answered within 48 hours on working days."
            and "Only account holders may raise a request."
 
   answers  "How long is allowed for answering a standard request?"
-           reply: "48 hours, counted in working days."
   refutes  "How long is allowed for answering a request raised by a visitor?"
-           reply: "A visitor cannot raise one: only account holders may."
+           (only account holders may raise one)
   rule     "How long is allowed for a standard request raised on a public
             holiday?"
-           reply: "48 hours counted in working days, so the holiday does
-                   not count."
+           (the 48 hours count working days, which settles the holiday)
   silent   "Through which channel is the answer to a standard request sent?"
-           reply: "not in the material"
+           (no passage says, and no list or rule in them reaches it)
 
 FORMAT
-Return `reply`, `quote` and `verdict`, in that order.
+Return `quote` and `verdict`.
 
-- `reply` is what a careful chatbot would answer from these passages, or
-  "not in the material".
-- `quote` is the words of the passages your reply rests on, as they stand.
-  Empty when the verdict is `silent`.
+- `quote` is the words of the passage that settle it, as they stand. Empty
+  when the verdict is `silent`.
 - `verdict` is one of:
   - `answers` - a passage states the answer;
   - `refutes` - a passage contradicts the question's premise, or a closed
     list or exception in one decides the case it asks about;
   - `rule` - a general rule in a passage covers the case, though no passage
     names it;
-  - `silent` - your reply is "not in the material".
+  - `silent` - none of these.
 """
 
 #: The user messages, as the catalogue records them and the two calls below
@@ -346,26 +341,16 @@ class Settling(StrEnum):
 
 
 class _Settled(BaseModel):
-    """Whether the passages settle one question, and with what words.
+    """Whether the passages settle one question, and with what words."""
 
-    The reply comes first: a model asked to classify a question as answered
-    or not leans to "not", and one asked to answer it first finds the answer
-    it would otherwise have walked past.
-    """
-
-    reply: str = Field(
-        default="",
-        description="What a careful chatbot would answer from these passages, "
-        'or "not in the material".',
-    )
     quote: str = Field(
         default="",
         description="The words of the passage that settle it, as they stand. "
         "Empty when the verdict is silent.",
     )
     verdict: Settling = Field(
-        description="answers, refutes, rule, or silent when the reply is "
-        '"not in the material".'
+        description="answers, refutes, rule, or silent when the passages "
+        "settle nothing."
     )
 
 

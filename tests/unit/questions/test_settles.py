@@ -46,21 +46,18 @@ def test_the_prompt_asks_whether_the_passages_refute_or_settle_it() -> None:
         assert re.search(asked, system, re.IGNORECASE), asked
 
 
-def test_the_prompt_asks_for_the_reply_before_the_verdict() -> None:
-    """Asked to classify, a model leans to "not answered"; asked to answer, it finds it.
+def test_the_prompt_says_which_mistake_costs_more() -> None:
+    """A question the material settles marks a correct chatbot wrong.
 
-    And the prompt says which mistake costs more: a question the material
-    settles marks a correct chatbot wrong, where a lost question costs one
-    test. Nothing in it tells the model that `silent` is the safe verdict.
+    That costs more than losing one test question, and the prompt says so.
+    Nothing in it tells the model `silent` is the safe verdict: those anchors
+    held it to "silent" on questions its own passages answer.
     """
-    from question_generation.verifier import _Settled
-
     client = Client()
 
     Verifier(client).settles("When are refunds paid to visitors?", ["Text."])
 
     system = " ".join(client.asked[-1][0].split())
-    assert list(_Settled.model_fields)[0] == "reply"
     assert "does not decide this case is `silent`" in system
     assert "marked WRONG for a correct reply" in system
     for anchor in ("throws away a sound test", "A correct answer whenever it is true"):
