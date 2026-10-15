@@ -425,6 +425,103 @@ RESOLVED_BY_GRAMMAR: tuple[tuple[str, str, str, str, str | None], ...] = (
     ),
 )
 
+#: (name, language, the cited excerpt, statement, expected code or None):
+#: stored claims refused as `asserts_nothing` because the tagger read their
+#: one verb as an infinitive or a bare form: English after a plural or a
+#: name, German where the third person plural is spelled as the infinitive.
+#: A heading still asserts nothing.
+MISTAGGED_VERBS: tuple[tuple[str, str, str, str, str | None], ...] = (
+    (
+        "a verb after a name read as its bare form (F5643)",
+        "en",
+        (
+            "Following approval at the 131 st Annual General Meeting of The IFAB "
+            "held in London on 3 rd March 2017, the Laws of the Game permit the "
+            "use of return substitutes in youth, veterans, disability and "
+            "grassroots football, subject to the approval of the competition's "
+            "national FA, confederation or FIFA, whichever is appropriate.\n"
+        ),
+        (
+            "The Laws of the Game permit the use of return substitutes in youth "
+            "football, veterans football, disability football, and grassroots "
+            "football."
+        ),
+        None,
+    ),
+    (
+        "a verb after a plural subject read as its bare form (F5673)",
+        "en",
+        (
+            "However, if a team makes a 'normal substitution' at the same time "
+            "as a 'concussion substitution', this will count as one of its "
+            "'normal substitution' opportunities.\n"
+        ),
+        (
+            "A normal substitution made simultaneously with a concussion "
+            "substitution counts as a normal substitution opportunity."
+        ),
+        None,
+    ),
+    (
+        "a third person plural read as the infinitive (F3325)",
+        "de",
+        (
+            "- Die Wettbewerbsorganisatoren oder nationalen Fussballverbände "
+            "entscheiden, ob Zeitstrafen den zuständigen Instanzen zu melden "
+            "sind und weitere Disziplinarmassnahmen verhängt werden (z. B. "
+            "Sperre bei einer bestimmten Anzahl Zeitstrafen wie bei "
+            "Verwarnungen)."
+        ),
+        (
+            "Die Wettbewerbsorganisatoren oder nationalen Fussballverbände "
+            "entscheiden, ob weitere Disziplinarmassnahmen verhängt werden."
+        ),
+        None,
+    ),
+    (
+        "a modal in the plural read as the infinitive (F3544)",
+        "de",
+        (
+            "Die nationalen Fussballverbände können bei ihren Wettbewerben "
+            "verlangen, dass ausschliesslich Bälle eingesetzt werden, die eines "
+            "dieser Gütesiegel tragen.\n"
+        ),
+        (
+            "Nationale Fussballverbände können verlangen, dass bei ihren "
+            "Wettbewerben nur Bälle mit einem Gütesiegel eingesetzt werden."
+        ),
+        None,
+    ),
+    (
+        "a heading of a returns policy",
+        "en",
+        "Returns and refunds. Goods may be returned within 30 days.",
+        "Returns and refunds",
+        Rejection.ASSERTS_NOTHING,
+    ),
+    (
+        "a German heading of a fee schedule",
+        "de",
+        "Gebühren und Entgelte. Die Kontoführung kostet 5 Euro im Monat.",
+        "Gebühren und Entgelte",
+        Rejection.ASSERTS_NOTHING,
+    ),
+    (
+        "a German heading ending on its infinitive",
+        "de",
+        "Konto online eröffnen. Die Eröffnung dauert zehn Minuten.",
+        "Konto online eröffnen",
+        Rejection.ASSERTS_NOTHING,
+    ),
+    (
+        "a German heading ending on a verb chain",
+        "de",
+        "Karte sperren lassen. Die Sperre gilt sofort.",
+        "Karte sperren lassen",
+        Rejection.ASSERTS_NOTHING,
+    ),
+)
+
 #: (name, the cited excerpt, statement, expected code or None): stored German
 #: claims whose pronoun points back inside the statement, to the subject the
 #: condition is about. Refused as dangling before the reading looked behind
@@ -628,6 +725,21 @@ def test_a_pronoun_the_grammar_resolves_reaches_its_verdict(
     read = passage(excerpt, language=language)
     cited = tuple(sentence.index for sentence in read.sentences)
     checked = Checker(read).atomic(statement, cited)
+
+    assert verdict(checked) == expected, checked.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "excerpt", "statement", "expected"),
+    [row[1:] for row in MISTAGGED_VERBS],
+    ids=[row[0] for row in MISTAGGED_VERBS],
+)
+def test_a_claim_whose_verb_the_tagger_misread_reaches_its_verdict(
+    language, excerpt, statement, expected
+) -> None:
+    """A verb the tagger read as a bare form still makes its sentence a claim."""
+    read = passage(excerpt, language=language)
+    checked = Checker(read).atomic(statement, 0)
 
     assert verdict(checked) == expected, checked.validation_error
 

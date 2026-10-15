@@ -1087,11 +1087,57 @@ def content(text: str, language: str | None) -> frozenset[str]:
     return frozenset(_lemmas(_read(text, language)))
 
 
+#: Languages whose third person plural is spelled as the infinitive, and
+#: whose statements put the finite verb second, with more of the sentence
+#: after it, where a heading built on an infinitive ends on it.
+_INFINITIVE_IS_PLURAL = frozenset({"de", "nl"})
+
+#: Tags of the particle that marks a verb as an infinitive, German and English.
+_INFINITIVE_MARKERS = frozenset({"PTKZU", "TO"})
+
+
+def _untagged_claim(span: Doc | Span) -> bool:
+    """Tells whether a statement says something the tagger read as no finite verb.
+
+    A tagger reads the one verb of a short written statement as a bare form
+    or an infinitive often enough that the statement would count as saying
+    nothing. It is a claim all the same when a sentence root, a verb or an
+    auxiliary, has a subject, an expletive included. In a language that spells
+    its third person plural as the infinitive, a root infinitive with no
+    infinitive marker beside it is that plural verb when it stands where a
+    finite verb does, with words before and after it: "Die Verbände
+    entscheiden, ob …" says something, and the heading "Konto online
+    eröffnen", which ends on its verb, does not.
+    """
+    language = span.doc.lang_
+    for root in (token for token in span if token.head == token):
+        if root.pos_ not in ("VERB", "AUX"):
+            continue
+        children = list(root.children)
+        if any(child.dep_ in _SUBJECTS | {"expl", "ep"} for child in children):
+            return True
+        words = [token.i for token in span if not token.is_punct]
+        if (
+            language in _INFINITIVE_IS_PLURAL
+            and "Inf" in root.morph.get("VerbForm", [])
+            and not any(child.tag_ in _INFINITIVE_MARKERS for child in children)
+            and words[0] < root.i < words[-1]
+        ):
+            return True
+    return False
+
+
 def claim(text: str, language: str | None) -> Claim:
-    """Reads what one written statement asserts."""
+    """Reads what one written statement asserts.
+
+    A statement the tagger read without a finite verb still counts as one
+    claim when its root verb has a subject, so that a statement is not
+    refused as asserting nothing for the tagger's slip. The sentences a
+    passage is chunked into keep the tagger's own reading.
+    """
     document = _read(text, language)
     return Claim(
-        predicates=_predicates(document),
+        predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document),
         references=_references(document),
         verbs=_verbs(document),
