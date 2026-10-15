@@ -593,6 +593,16 @@ SETTINGS: tuple[Setting, ...] = (
         "all. 0 offers one whatever it holds. Off by default.",
     ),
     Setting(
+        name="QUESTIONS_MEETS_SHARE",
+        service="questions",
+        kind="decimal",
+        low=0,
+        high=1,
+        invalidates=("questions",),
+        help="The share of a topic's closest cross-passage fact pairs a second "
+        "passage must be among before it is offered. 0 sets no relative floor.",
+    ),
+    Setting(
         name="QUESTIONS_BOILERPLATE_COSINE",
         service="questions",
         kind="decimal",

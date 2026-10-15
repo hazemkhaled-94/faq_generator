@@ -257,6 +257,10 @@ class Settings:
     #: How alike two questions resting on the same fact must be to be one,
     #: or None to hold them to duplicate_cosine.
     duplicate_shared_cosine: float | None = None
+    #: The share of a topic's closest cross-passage fact pairs a second
+    #: passage must be among before it is offered. Read off the topic's own
+    #: vectors, so no cosine is tuned to a corpus. 0 sets no relative floor.
+    meets_share: float = 0.0
 
     @classmethod
     def load(cls, source: Source = None) -> Settings:
@@ -306,6 +310,7 @@ class Settings:
             answer_coverage=decimal("QUESTIONS_ANSWER_COVERAGE", source),
             party_density=decimal("QUESTIONS_PARTY_DENSITY", source),
             meets_floor=decimal("QUESTIONS_MEETS_FLOOR", source),
+            meets_share=decimal("QUESTIONS_MEETS_SHARE", source),
             off_topic_overlap=decimal("QUESTIONS_OFF_TOPIC_OVERLAP", source),
             elsewhere_passages=integer("QUESTIONS_ELSEWHERE_PASSAGES", source),
             long_answer_chars=integer("QUESTIONS_LONG_ANSWER_CHARS", source),

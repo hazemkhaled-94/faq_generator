@@ -844,9 +844,11 @@ def test_the_floor_measures_the_fact_the_deal_actually_offers() -> None:
 
 def test_a_floor_a_related_passage_clears_still_offers_two() -> None:
     """The floor must not simply make every question single-passage."""
-    shared = "The device weighs 4 kg and ships from the plant."
     deal = Deal(
-        facts_of(1, "a", statement=shared) + facts_of(2, "b", statement=shared),
+        facts_of(1, "a", statement="The device weighs 4 kg and ships from the plant.")
+        + facts_of(
+            2, "b", statement="The device weighs 4 kg and ships in a padded case."
+        ),
         wanted=2,
         size=4,
         floor=0.5,
@@ -856,3 +858,99 @@ def test_a_floor_a_related_passage_clears_still_offers_two() -> None:
 
     assert offered is not None
     assert len(offered.resting) == 2
+
+
+# ── A floor relative to the topic ─────────────────────────────────────────
+
+
+def _pairs_dealt(deal: Deal) -> list[frozenset[int]]:
+    """The passages of every two-passage sample, dealt until the topic runs out."""
+    pairs = []
+    while (offered := deal.sample(Shape.CROSS)) is not None:
+        if len(offered.resting) == 2:
+            pairs.append(frozenset(one.id for one in offered.resting))
+    return pairs
+
+
+def test_a_share_offers_a_second_passage_only_for_the_topics_closest_pairs() -> None:
+    """Ten passages, one pair of them about the same thing, the rest unrelated.
+
+    A floor read off the topic's own pairs needs no number tuned to a corpus:
+    whatever the cosines of this one, only its closest pairs clear it.
+    """
+    facts = [
+        source(
+            1,
+            document="a",
+            passage_id=1,
+            statement="Refunds take 14 days.",
+            axis=0,
+            passage_axis=0,
+        ),
+        source(
+            2,
+            document="b",
+            passage_id=2,
+            statement="Refunds of faulty goods take 14 days.",
+            axis=0,
+            passage_axis=0,
+        ),
+    ] + [
+        source(
+            at,
+            document="c",
+            passage_id=at,
+            statement=f"Clause {at} applies to savings accounts.",
+            axis=at,
+            passage_axis=at,
+        )
+        for at in range(3, 11)
+    ]
+
+    pairs = _pairs_dealt(Deal(facts, wanted=10, size=2, share=0.02))
+
+    assert pairs == [frozenset({1, 2})], pairs
+
+
+def test_a_share_sets_no_floor_where_no_fact_carries_a_vector() -> None:
+    """Nothing to rank by is not evidence, so the deal pairs as it always has."""
+    deal = Deal(
+        facts_of(1, "a", statement="The device weighs 4 kg.")
+        + facts_of(2, "b", statement="Quarterly dividends resumed in Lisbon."),
+        wanted=2,
+        size=4,
+        share=0.02,
+    )
+
+    offered = deal.sample(Shape.CROSS)
+
+    assert offered is not None
+    assert len(offered.resting) == 2
+
+
+def test_a_clause_repeated_in_a_sibling_document_is_not_its_partner() -> None:
+    """A bank prints one clause in every product's terms; a copy answers nothing new.
+
+    The copy is the closest fact the topic holds, so a floor alone would pair
+    them; a question citing both is answered by either one.
+    """
+    clause = "Card fees are waived for students under 25."
+    facts = [
+        source(1, document="current", passage_id=1, statement=clause, axis=7, passage_axis=7),
+        source(2, document="savings", passage_id=2, statement=clause, axis=7, passage_axis=7),
+        source(3, document="credit", passage_id=3, statement=clause, axis=7, passage_axis=7),
+    ] + [
+        source(
+            at,
+            document="other",
+            passage_id=at,
+            statement=f"Clause {at} applies to savings accounts.",
+            axis=at,
+            passage_axis=at,
+        )
+        for at in range(10, 30)
+    ]
+
+    pairs = _pairs_dealt(Deal(facts, wanted=23, size=2, share=0.02))
+
+    assert not any(pair <= {1, 2, 3} for pair in pairs), pairs

@@ -79,6 +79,12 @@ evidence states a reason, and offered that fact first — see
 meets nothing, and ships off — the sweep found no threshold that removes
 the welds without throwing away sound questions. It weighs the fact the first
 passage offers first, so for a reading type that is the condensed one.
+The deal uses a relative floor instead, `QUESTIONS_MEETS_SHARE`: a second
+passage is offered only when its best fact is among that share of the topic's
+closest cross-passage fact pairs. The bar is read off the topic's own vectors,
+so no cosine is tuned to a corpus or a language, and the closest pair always
+clears it. A passage whose fact restates the head's word for word is never
+offered, since it answers nothing the head does not.
 
 **The corpus's own furniture is never offered.** A copyright notice, contents
 page or revision table is real text a fact extracts from cleanly and no gate
@@ -709,6 +715,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |
+| `QUESTIONS_MEETS_SHARE` | The share of a topic's closest cross-passage fact pairs a second passage must be among before it is offered; a passage restating the head's fact is never offered. `0` sets no relative floor. **0.02** |
 | `QUESTIONS_MEETS_FLOOR` | How much a candidate fact must share with the fact the head of its sample offers first before a second passage is offered. **Off** |
 | `QUESTIONS_EXPLANATION_CHARS` | Shortest and longest `answer_explanation` |
 | `QUESTIONS_BOILERPLATE_COSINE` | How alike a passage must be to one in another document before it is read as furniture. `0` turns it off |

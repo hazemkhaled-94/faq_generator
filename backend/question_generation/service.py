@@ -824,6 +824,7 @@ class QuestionGenerationService(StageService):
             size=self._settings.sample_size,
             rounds=self._settings.samples_per_passage,
             floor=self._settings.meets_floor,
+            share=self._settings.meets_share,
         )
         planned = plans(
             wanted=self._settings.per_topic,

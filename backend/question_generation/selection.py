@@ -22,8 +22,10 @@ from enum import StrEnum
 from functools import lru_cache
 from itertools import groupby, zip_longest
 
+import numpy as np
+
 from database.qa_generator import FactKind
-from nlp.analysis import content
+from nlp.analysis import content, numbers
 from nlp.embedding import cosine
 from question_generation.models import FactGroup, SourceFact
 
@@ -112,6 +114,45 @@ def _words(statement: str, language: str | None) -> frozenset[str]:
     of its facts is weighed against every candidate on the other side.
     """
     return content(statement, language)
+
+
+def _restates(one: SourceFact, other: SourceFact) -> bool:
+    """Whether two facts say the same thing, down to the words and the numbers.
+
+    A copy of the same clause in a sibling document is the closest fact a
+    topic holds and answers nothing the head does not. Differing numbers or
+    words are different claims, so only the same content lemmas carrying the
+    same numbers count.
+    """
+    return _words(one.statement, one.language) == _words(
+        other.statement, other.language
+    ) and numbers(one.statement, one.language) == numbers(
+        other.statement, other.language
+    )
+
+
+def _relative_floor(facts: Sequence[SourceFact], share: float) -> float:
+    """The cosine a second passage's fact must reach, read off the topic itself.
+
+    The `share` closest pairs of facts from different passages mark where
+    "close" sits in this topic's own vectors, so no cosine has to be tuned to
+    a corpus or a language: a dense topic and a sparse one each set their own
+    bar. The closest pair always clears it, so even a small topic keeps a
+    pair. 0.0 where `share` is not positive or the topic holds no pair of
+    embedded facts from different passages.
+    """
+    if share <= 0:
+        return 0.0
+    embedded = [fact for fact in facts if fact.embedding]
+    if len(embedded) < 2:
+        return 0.0
+    vectors = np.array([fact.embedding for fact in embedded], dtype=float)
+    ids = np.array([fact.passage_id for fact in embedded])
+    pairs = np.triu(ids[:, None] != ids[None, :], k=1)
+    if not pairs.any():
+        return 0.0
+    cosines = np.clip((vectors @ vectors.T)[pairs], 0.0, 1.0)
+    return float(np.quantile(cosines, 1 - share))
 
 
 def meets(chosen: Sequence[SourceFact], candidate: SourceFact) -> float:
@@ -306,13 +347,18 @@ class Deal:
         size: int,
         rounds: int = 1,
         floor: float = 0.0,
+        share: float = 0.0,
     ) -> None:
         """Deals one topic's facts, strided over the whole of it.
 
         `floor` is QUESTIONS_MEETS_FLOOR: how much the second passage's best
         fact must have in common with the head before a second passage is
-        offered at all. 0 offers one whatever it holds.
+        offered at all. 0 offers one whatever it holds. `share` is
+        QUESTIONS_MEETS_SHARE, the share of the topic's closest cross-passage
+        fact pairs a second passage must be among; 0 sets no relative floor.
         """
+        facts = list(facts)
+        bridges = list(bridges)
         self._order = strided(interleaved(by_passage(facts)), wanted)
         self._bridges = interleaved(by_passage(bridges))
         #: Every passage this topic can offer, by id. `widen` reaches a
@@ -325,7 +371,9 @@ class Deal:
         self._rounds = max(rounds, 1)
         self._offered: dict[int, int] = {}
         self._spent: set[int] = set()
-        self._floor = floor
+        self._floor = max(floor, _relative_floor([*facts, *bridges], share))
+        #: Whether a floor is in force, which is when copies are refused too.
+        self._ceiling = floor > 0 or share > 0
 
     def sample(
         self,
@@ -386,6 +434,9 @@ class Deal:
     ) -> bool:
         """Whether the partner holds a fact close enough to the head to offer.
 
+        Where a floor is in force, facts that only restate the head's are set
+        aside first, and a partner holding nothing else is refused.
+
         Read off the BEST the partner can do rather than its average: one
         fact meeting the head is what a question spans, which is the same
         reading `meets` makes of a sample already part-chosen.
@@ -399,11 +450,15 @@ class Deal:
         with nothing to measure is not evidence - the same bargain
         `on_topic` and `about` make.
         """
-        if self._floor <= 0:
-            return True
         offered = _ordered(self._left(head), condensed, prefer)[:1]
         candidates = self._left(partner)
         if not offered or not candidates:
+            return True
+        if self._ceiling:
+            candidates = [one for one in candidates if not _restates(offered[0], one)]
+            if not candidates:
+                return False
+        if self._floor <= 0:
             return True
         return max(meets(offered, one) for one in candidates) >= self._floor
 
