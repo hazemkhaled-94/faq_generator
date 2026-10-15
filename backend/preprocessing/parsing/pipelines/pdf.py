@@ -8,6 +8,7 @@ import math
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from itertools import pairwise
 from typing import ClassVar, NamedTuple, cast
 
 import pymupdf
@@ -132,8 +133,9 @@ class PdfPipeline(Pipeline):
             source: The stored file and what is known about it.
 
         Returns:
-            The document, its struck-through words removed and its text
-            mended, and its confidences.
+            The document, its struck-through words removed, its raised
+            ordinal suffixes rejoined and its text mended, and its
+            confidences.
 
         Raises:
             ConversionFailed: If the document needs OCR, or if Docling cannot
@@ -164,7 +166,9 @@ class PdfPipeline(Pipeline):
                 f"the conversion ended {result.status.value}: {'; '.join(errors)}"
             )
         return Conversion(
-            document=_repaired(_unstruck(result.document, source.data)),
+            document=_repaired(
+                _rejoined(_unstruck(result.document, source.data), source.data)
+            ),
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
         )
@@ -501,6 +505,109 @@ def _without(text: str, words: list[tuple[_Word, bool]]) -> str:
             # The first word kept takes the string's own leading space.
             kept.append((gap if kept else text[: tokens[0].start()]) + token.group())
     return "".join(kept) + text[end:]
+
+
+def _rejoined(document: DoclingDocument, data: bytes) -> DoclingDocument:
+    """Joins a raised ordinal suffix back to the number it follows.
+
+    A converter writes a raised "st", "nd", "rd" or "th" as a word of its own,
+    so a page printing "1st July" reaches the text as "1 st July", which then
+    reads as an addition to every fact that says "1st". The source is read
+    again with pymupdf, every superscript of letters straight after a digit is
+    found, and in each text item and table cell whose box holds it the space
+    between the number and the suffix is closed. A raised digit, as in a
+    footnote mark, or anything that is not letters, is left alone.
+
+    Args:
+        document: The converted document, modified in place.
+        data: The PDF it was converted from.
+
+    Returns:
+        The same document.
+    """
+    try:
+        found = _raised(data)
+        for number, (width, height, suffixes) in found.items():
+            page = document.pages.get(number)
+            if page is None or (
+                abs(page.size.width - width) > _PAGE_SLACK
+                or abs(page.size.height - height) > _PAGE_SLACK
+            ):
+                continue
+            for item in document.texts:
+                for prov in item.prov:
+                    if prov.page_no == number:
+                        item.text = _joined(item.text, prov.bbox, height, suffixes)
+                        item.orig = _joined(item.orig, prov.bbox, height, suffixes)
+            for table in document.tables:
+                if not table.prov or table.prov[0].page_no != number:
+                    continue
+                for cell in table.data.table_cells:
+                    if cell.bbox is not None:
+                        cell.text = _joined(cell.text, cell.bbox, height, suffixes)
+    except Exception as exc:  # noqa: BLE001 - the conversion already succeeded
+        log.warning(
+            "raised ordinal suffixes were not rejoined: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+    return document
+
+
+def _raised(
+    data: bytes,
+) -> dict[int, tuple[float, float, list[tuple[str, str, tuple[float, float]]]]]:
+    """Reads every raised run of letters that follows a number.
+
+    Args:
+        data: The PDF.
+
+    Returns:
+        By page number from 1, for each page that has any: its width and
+        height, and each as (digits, suffix, centre of the suffix).
+    """
+    found = {}
+    with pymupdf.open(stream=data, filetype="pdf") as pdf:
+        for number in range(1, pdf.page_count + 1):
+            page = pdf.load_page(number - 1)
+            suffixes = []
+            # The layout as a dict, which the method's annotation does not say.
+            for block in cast(dict, page.get_text("rawdict"))["blocks"]:
+                for line in block.get("lines", ()):
+                    spans = [
+                        (span, "".join(char["c"] for char in span["chars"]))
+                        for span in line["spans"]
+                    ]
+                    for (_, before), (span, text) in pairwise(spans):
+                        digits = re.search(r"\d+$", before.rstrip())
+                        suffix = text.strip()
+                        if span["flags"] & 1 and suffix.isalpha() and digits:
+                            x0, y0, x1, y1 = span["bbox"]
+                            suffixes.append(
+                                (digits.group(), suffix, ((x0 + x1) / 2, (y0 + y1) / 2))
+                            )
+            if suffixes:
+                found[number] = (page.rect.width, page.rect.height, suffixes)
+    return found
+
+
+def _joined(
+    text: str,
+    bbox: BoundingBox,
+    height: float,
+    suffixes: list[tuple[str, str, tuple[float, float]]],
+) -> str:
+    """Closes the space before each raised suffix whose centre lies in a box."""
+    box = bbox.to_top_left_origin(page_height=height)
+    for digits, suffix, (x, y) in suffixes:
+        if box.l <= x <= box.r and box.t <= y <= box.b:
+            text = re.sub(
+                rf"\b({re.escape(digits)})\s+({re.escape(suffix)})\b",
+                r"\1\2",
+                text,
+                count=1,
+            )
+    return text
 
 
 def _score(result: ConversionResult, name: str) -> float | None:

@@ -446,3 +446,59 @@ def test_a_page_with_no_strike_comes_out_unchanged(words, underlined, rules) -> 
     before = converted.export_to_dict()
 
     assert unstruck(pdf, converted).export_to_dict() == before
+
+
+# ── Superscripts, through the whole pipeline ─────────────────────────────
+
+
+def converted(pdf, converted_document: DoclingDocument) -> DoclingDocument:
+    """What the pipeline makes of a drawn page the converter read as given."""
+    pipeline = PdfPipeline(
+        table_mode="fast",
+        heading_hierarchy=False,
+        document_timeout_seconds=1.0,
+        artifacts_path=None,
+    )
+    pipeline._built = _Converted(converted_document)
+    return pipeline.convert(
+        SourceDocument(sha256="a" * 64, data=pdf.tobytes(), scanned=False)
+    ).document
+
+
+def raised(page, before: str, suffix: str, after: str, baseline: float = BASELINE):
+    """Prints `before`, then `suffix` raised and smaller, then `after`."""
+    page.insert_text((LEFT, baseline), before, fontsize=FONT, color=INK)
+    x = LEFT + pymupdf.get_text_length(before, fontsize=FONT) + 0.2
+    page.insert_text((x, baseline - 3), suffix, fontsize=5, color=INK)
+    x += pymupdf.get_text_length(suffix, fontsize=5) + 2.5
+    page.insert_text((x, baseline), after, fontsize=FONT, color=INK)
+
+
+def test_a_superscript_ordinal_joins_its_number() -> None:
+    """ "1 st" is how a converter writes a raised "st"; the page prints "1st"."""
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=WIDTH, height=HEIGHT)
+    raised(page, "Effective from 1", "st", "July 2026")
+    reading = document()
+    reading.add_text(
+        label=DocItemLabel.TEXT,
+        text="Effective from 1 st July 2026",
+        prov=provenance((LEFT - 1, BASELINE - 12, LEFT + 200, BASELINE + 3)),
+    )
+
+    assert converted(pdf, reading).texts[0].text == "Effective from 1st July 2026"
+
+
+def test_a_raised_footnote_number_is_left_alone() -> None:
+    """A raised digit after a word is a footnote mark, not part of the word."""
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=WIDTH, height=HEIGHT)
+    raised(page, "Fees apply", "2", "to all cards")
+    reading = document()
+    reading.add_text(
+        label=DocItemLabel.TEXT,
+        text="Fees apply 2 to all cards",
+        prov=provenance((LEFT - 1, BASELINE - 12, LEFT + 200, BASELINE + 3)),
+    )
+
+    assert converted(pdf, reading).texts[0].text == "Fees apply 2 to all cards"
