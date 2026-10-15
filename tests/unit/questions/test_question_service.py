@@ -1053,6 +1053,49 @@ def test_an_unanswerable_slot_is_dealt_an_atomic_fact() -> None:
     assert [one.kind for one in dealt.facts] == [FactKind.ATOMIC]
 
 
+def test_a_retry_note_shows_the_draft_it_is_about() -> None:
+    """A writer told what was wrong, but not shown what it wrote, writes it again."""
+    from question_generation.service import again
+
+    refused = replace(
+        accepted_question(),
+        question_text="How long does a refund take?",
+        target_answer="14 days",
+        status="rejected",
+        rejected_reason=QuestionRejection.NOT_RECOVERABLE,
+    )
+
+    note = again(refused)
+
+    assert note is not None
+    assert "How long does a refund take?" in note
+    assert "14 days" in note
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [QuestionRejection.ANSWERABLE_ELSEWHERE, QuestionRejection.ANSWERABLE_AFTER_ALL],
+)
+def test_an_unanswerable_retry_note_reads_as_feedback_not_as_an_override(gate) -> None:
+    """A note telling the writer what it is "supposed" to produce, whatever any
+    document says, is the wording a provider's prompt shield reads as a jailbreak."""
+    from question_generation.service import again
+
+    refused = replace(
+        accepted_question(),
+        answerable=False,
+        target_answer=None,
+        status="rejected",
+        rejected_reason=gate,
+    )
+
+    note = again(refused)
+
+    assert note is not None
+    for override in ("supposed to", "no document would", "anywhere"):
+        assert override not in note.lower(), note
+
+
 def test_a_duplicate_is_not_worth_asking_again() -> None:
     """The same sample asked twice gives another twin of the same question."""
     from question_generation.service import again

@@ -373,3 +373,19 @@ def test_the_writer_is_told_closed_lists_and_general_rules_settle_new_cases() ->
 
     assert re.search(r"general rule", prompt, re.IGNORECASE)
     assert re.search(r"closed list|\bonly\b.{0,40}\blist", prompt, re.IGNORECASE)
+
+
+def test_a_retry_note_is_framed_as_feedback_on_the_previous_draft() -> None:
+    """Capitals and "thrown out" read as an instruction to override, not as a note."""
+    from factories import source
+
+    from question_generation.generation import QuestionWriter
+    from question_generation.models import FactGroup
+
+    rendered = QuestionWriter._prompt(
+        FactGroup([source(1)]), note="a reviewer found the answer too short."
+    )
+
+    assert "FEEDBACK ON THE PREVIOUS DRAFT" in rendered
+    assert "THROWN OUT" not in rendered
+    assert "a reviewer found the answer too short." in rendered

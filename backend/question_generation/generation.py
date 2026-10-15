@@ -444,10 +444,12 @@ class QuestionWriter:
             f"[{position}] {heading}{text}"
             for position, (heading, text) in enumerate(sample.context, 1)
         )
+        # Framed as a reviewer's feedback on a draft: a note in capitals
+        # telling the writer to set aside what it was asked reads, to a
+        # provider's prompt shield, like an attempt to override its rules.
         again = (
-            f"\n\nYOUR LAST ATTEMPT WAS THROWN OUT: {note}\nWrite a different "
-            f"question from the same facts. Everything else asked of you still "
-            f"applies."
+            f"\n\nFEEDBACK ON THE PREVIOUS DRAFT\n{note}\nWrite a different "
+            f"question from the same facts, following the instructions above."
             if note
             else ""
         )

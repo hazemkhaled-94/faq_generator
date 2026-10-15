@@ -122,18 +122,16 @@ _NOTES: dict[str, str] = {
         "the fact and move one detail of it out of reach."
     ),
     QuestionRejection.ANSWERABLE_AFTER_ALL: (
-        "the passages answered it, and this question is supposed to have no "
-        "answer. A passage answers it when it states the answer, contradicts "
-        "its premise, or settles it by a closed list or a general rule. Ask "
-        "for a detail of this subject that none of them settles."
+        "the passages you were given answer that question: one of them states "
+        "the answer, contradicts its premise, or settles it by a closed list "
+        "or a general rule. Choose a detail of the same subject that none of "
+        "them settles."
     ),
     QuestionRejection.ANSWERABLE_ELSEWHERE: (
-        "another part of the corpus answers it, and this question is "
-        "supposed to have no answer anywhere. Ask for a detail of this "
-        "subject that no document would carry."
+        "a passage elsewhere in the material answers that question. Choose a "
+        "detail of the same subject that the material leaves open."
     ),
 }
-
 
 def reverify(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
     """Puts every stored question through the gates that need no model.
@@ -643,13 +641,21 @@ def again(checked: CheckedQuestion) -> str | None:
     """What to tell the writer about this draft, or None to keep it as it is.
 
     Only a gate refusing it, and only a gate the writer could have satisfied.
+    The draft itself is quoted: told what was wrong but not shown what it
+    wrote, a writer at a low temperature writes the same draft again.
 
     An accepted draft that came out below its band is left alone. Asking it
     to cite every passage it was offered is asking for the weld the span
     rules forbid: the writer narrowed because the facts did not meet, and a
     second draft citing them all was accepted in its place.
     """
-    return _NOTES.get(checked.rejected_reason or "")
+    note = _NOTES.get(checked.rejected_reason or "")
+    if note is None:
+        return None
+    answer = (
+        f' Its answer was "{checked.target_answer}".' if checked.target_answer else ""
+    )
+    return f'The previous draft was "{checked.question_text}".{answer} A reviewer found that {note}'
 
 
 class QuestionGenerationService(StageService):
