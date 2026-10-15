@@ -556,6 +556,21 @@ def test_the_passages_bearing_a_fact_are_those_with_a_validated_one(store) -> No
     assert store.queue.bearing_facts([]) == set()
 
 
+def test_a_passage_size_is_the_number_of_its_lemmas(store, engine) -> None:
+    """What a label excerpt is ranked by, with its weight; none counts as 0."""
+    from sqlalchemy import text
+
+    store.given_passages(de=2)
+    first, second = store.passages["de"]
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE passages SET lemmas = NULL WHERE id = :id"), {"id": second}
+        )
+
+    assert store.queue.sizes([first, second]) == {first: 2, second: 0}
+    assert store.queue.sizes([]) == {}
+
+
 def test_a_fit_reads_only_the_passages_carrying_a_fact(store) -> None:
     """A heading, a page number or a contents page extraction found nothing in.
 
@@ -563,7 +578,7 @@ def test_a_fit_reads_only_the_passages_carrying_a_fact(store) -> None:
     them; a passage the corpus says nothing about has no subject to model.
     """
     store.given_passages(de=3)
-    first, second, third = store.passages["de"]
+    first, second, _ = store.passages["de"]
     store.given_facts(first, validated=1)
     store.given_facts(second, validated=0, rejected=2)
 

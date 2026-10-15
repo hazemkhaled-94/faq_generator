@@ -415,6 +415,50 @@ def test_the_model_is_shown_the_passages_the_topic_holds_most_strongly(
     assert "German" in shown, shown
 
 
+def test_a_topic_is_named_off_its_passages_that_carry_a_fact(
+    service, passages
+) -> None:
+    """A heading can hold a topic most strongly and still say nothing.
+
+    Its few words all sit in one topic, so its weight there is near total,
+    yet extraction found nothing in it: a name read off it names the
+    document's layout, not its subject.
+    """
+    heading = PassageVocabulary(id=5, lemmas=["lieferung", "versand"])
+    texts = {one.id: f"stated rule {one.id}" for one in passages} | {5: "HEADING"}
+    named = LabellerDriver("Shipping", "Storage", languages={"de": "German"})
+    flow = service({"de": [*passages, heading]}, texts=texts, labeller=named)
+    flow.queue.bearing = {one.id for one in passages}
+
+    flow.request_and_run()
+
+    shown = "".join(str(ask["user"]) for ask in named.model.asked)
+    assert "stated rule" in shown, shown
+    assert "HEADING" not in shown, shown
+
+
+def test_the_passage_that_says_most_of_a_topic_is_shown_first(
+    service, passages, monkeypatch
+) -> None:
+    """Of two passages wholly in a topic, the longer says more of it."""
+    from topic_modelling import service as module
+
+    monkeypatch.setattr(module, "_EXCERPTS", 1)
+    long = PassageVocabulary(
+        id=5, lemmas=["lieferung", "versand", "transport"] * 4 + ["spedition"]
+    )
+    texts = {one.id: f"short {one.id}" for one in passages} | {5: "LONG"}
+    named = LabellerDriver("Shipping", "Storage", languages={"de": "German"})
+    flow = service({"de": [*passages, long]}, texts=texts, labeller=named)
+    flow.queue.bearing = {*(one.id for one in passages), 5}
+
+    flow.request_and_run()
+
+    shown = "".join(str(ask["user"]) for ask in named.model.asked)
+    assert "LONG" in shown, shown
+    assert "short 1" not in shown and "short 2" not in shown, shown
+
+
 def test_a_model_that_finds_no_subject_leaves_the_topic_unnamed(service) -> None:
     """A wrong name is worse than none, so `Mixed` is not stored."""
     flow = service(labeller=LabellerDriver("Mixed", languages={"de": "German"}))

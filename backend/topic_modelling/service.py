@@ -13,7 +13,7 @@ from stages import StageService
 from telemetry import tracer, working
 from telemetry.evaluations import current_ids
 from topic_modelling.labels import TopicLabeller
-from topic_modelling.models import FittedTopic, Fitting
+from topic_modelling.models import FittedTopic, Fitting, PassageWeight
 from topic_modelling.repository import TopicQueue
 from topic_modelling.space import dump
 from topic_modelling.topics import NoVocabulary, TopicFitter, carry_labels
@@ -21,8 +21,27 @@ from topic_modelling.topics import NoVocabulary, TopicFitter, carry_labels
 log = logging.getLogger(__name__)
 span = tracer(__name__)
 
-#: How many of a topic's strongest passages the model is shown when naming it.
+#: How many of a topic's passages the model is shown when naming it.
 _EXCERPTS = 4
+
+
+def _representative(
+    members: list[PassageWeight], bearing: set[int], sizes: dict[int, int]
+) -> list[int]:
+    """The passages a topic is named off: those that say most of it.
+
+    Drawn from the passages the topic is strongest in, and from those that
+    carry a fact when any does: a heading's few words can sit wholly in one
+    topic and still say nothing a name could be read off. Ranked by weight
+    times lemma count, which is how much of the topic a passage holds rather
+    than how purely it holds it.
+    """
+    carrying = [one for one in members if one.passage_id in bearing] or members
+    ranked = sorted(
+        carrying,
+        key=lambda one: (-one.weight * sizes.get(one.passage_id, 0), one.passage_id),
+    )
+    return [one.passage_id for one in ranked[:_EXCERPTS]]
 
 
 class TopicModellingService(StageService):
@@ -249,7 +268,9 @@ class TopicModellingService(StageService):
             except Exception:
                 log.exception("could not draw the %s topics", fitting.language)
 
-    def _barren(self, fitting: Fitting) -> frozenset[int]:
+    def _barren(
+        self, held: dict[int, list[PassageWeight]], bearing: set[int]
+    ) -> frozenset[int]:
         """Which topics hold almost no facts, and so name no subject.
 
         The deterministic half of "Mixed". A model reliably names whatever
@@ -266,27 +287,13 @@ class TopicModellingService(StageService):
         rather than unanimous.
         """
         floor = self._min_fact_share
-        if floor <= 0:
+        if floor <= 0 or not bearing:
             return frozenset()
-
-        dominant: dict[int, int] = {}
-        best: dict[int, float] = {}
-        for weight in fitting.weights:
-            if weight.weight > best.get(weight.passage_id, 0.0):
-                best[weight.passage_id] = weight.weight
-                dominant[weight.passage_id] = weight.topic_index
-
-        bearing = self._repository.bearing_facts(list(dominant))
-        if not bearing:
-            return frozenset()
-
-        held: dict[int, list[int]] = {}
-        for passage_id, topic_index in dominant.items():
-            held.setdefault(topic_index, []).append(passage_id)
         return frozenset(
             topic_index
-            for topic_index, passages in held.items()
-            if sum(1 for one in passages if one in bearing) / len(passages) < floor
+            for topic_index, members in held.items()
+            if sum(1 for one in members if one.passage_id in bearing) / len(members)
+            < floor
         )
 
     def _named(
@@ -301,13 +308,18 @@ class TopicModellingService(StageService):
         if self._labeller is None:
             return topics
 
-        strongest: dict[int, list[int]] = {}
-        for weight in sorted(fitting.weights, key=lambda w: -w.weight):
-            held = strongest.setdefault(weight.topic_index, [])
-            if len(held) < _EXCERPTS:
-                held.append(weight.passage_id)
+        dominant: dict[int, PassageWeight] = {}
+        for weight in fitting.weights:
+            strongest = dominant.get(weight.passage_id)
+            if strongest is None or weight.weight > strongest.weight:
+                dominant[weight.passage_id] = weight
+        held: dict[int, list[PassageWeight]] = {}
+        for weight in dominant.values():
+            held.setdefault(weight.topic_index, []).append(weight)
+        bearing = self._repository.bearing_facts(list(dominant))
+        sizes = self._repository.sizes(list(dominant))
 
-        barren = self._barren(fitting)
+        barren = self._barren(held, bearing)
         named: list[FittedTopic] = []
         # Every name given so far, including those a person typed: the model
         # is shown them so one fit cannot put two topics under one name.
@@ -328,7 +340,9 @@ class TopicModellingService(StageService):
             label = self._labeller.label(
                 topic,
                 language,
-                self._repository.excerpts(strongest.get(topic.topic_index, [])),
+                self._repository.excerpts(
+                    _representative(held.get(topic.topic_index, []), bearing, sizes)
+                ),
                 taken,
             )
             if label:

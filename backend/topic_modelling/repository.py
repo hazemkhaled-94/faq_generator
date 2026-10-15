@@ -352,6 +352,25 @@ class TopicQueue(StageQueue):
                 ).all()
             )
 
+    def sizes(self, passage_ids: list[int]) -> dict[int, int]:
+        """How many content lemmas each of these passages holds.
+
+        With a passage's weight in a topic, how much of that topic it says:
+        what the label excerpts are ranked by.
+        """
+        if not passage_ids:
+            return {}
+        with self._session() as session:
+            return {
+                row.id: row.size
+                for row in session.execute(
+                    select(
+                        Passage.id,
+                        func.coalesce(func.cardinality(Passage.lemmas), 0).label("size"),
+                    ).where(Passage.id.in_(passage_ids))
+                )
+            }
+
     def counts(self) -> dict[str, int]:
         """Reports what this service owns, for the status panel.
 

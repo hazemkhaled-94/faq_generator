@@ -251,6 +251,16 @@ class RecordingQueue:
         """Which of these passages carry a validated fact."""
         return self.bearing & set(passage_ids)
 
+    def sizes(self, passage_ids: list[int]) -> dict[int, int]:
+        """How many lemmas each of these passages holds."""
+        asked = set(passage_ids)
+        return {
+            one.id: len(one.lemmas)
+            for held in self.corpora.values()
+            for one in held
+            if one.id in asked
+        }
+
     def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
         """Stores what one fit produced, or nothing for a claim another took."""
         if self.refuses is not None:
