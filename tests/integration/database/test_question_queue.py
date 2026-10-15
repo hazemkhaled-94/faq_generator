@@ -1969,6 +1969,29 @@ def test_a_passage_unlike_anything_in_another_document_is_kept(corpus, engine) -
     assert kept, "a passage nothing repeats was excluded"
 
 
+def test_a_passage_and_its_translation_are_not_furniture(corpus, engine) -> None:
+    """A bilingual corpus prints each rule twice, once per language.
+
+    A multilingual embedder puts a passage and its translation as close as
+    a repeated copyright notice, and a translation is subject matter. So a
+    passage is furniture only when it recurs in another document of its own
+    language.
+    """
+    written = corpus(topics=1, facts_per_topic=2, documents=2)
+    _embed(engine, _SAME)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE passages SET language = 'de' WHERE doc_sha256 = "
+                "(SELECT min(doc_sha256) FROM passages)"
+            )
+        )
+
+    kept = QuestionQueue(boilerplate_cosine=0.95).facts(written["topics"][0])
+
+    assert kept, "a passage repeated only in another language was excluded"
+
+
 def test_a_threshold_of_zero_turns_the_reading_off(corpus, engine) -> None:
     """The default, so a caller that says nothing gets every passage."""
     written = corpus(topics=1, facts_per_topic=2, documents=2)

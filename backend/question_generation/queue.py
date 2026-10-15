@@ -99,6 +99,12 @@ def repeated_across_documents(threshold: float):
     and lowering the threshold is not it - below this the glossary goes too,
     and a glossary is subject matter.
 
+    Only another document of the SAME language counts. A bilingual corpus
+    prints every rule once per language, and a multilingual embedder puts a
+    passage and its translation as close together as two copies of a
+    copyright notice; a translation is subject matter, and reading it as
+    furniture took whole subjects out of both languages.
+
     Three ways this abstains, all of them correct rather than missing:
     a corpus of one document has no other document to repeat into, a
     passage with no embedding cannot be compared, and a threshold of 0
@@ -117,6 +123,7 @@ def repeated_across_documents(threshold: float):
         select(twin.id)
         .where(
             twin.doc_sha256 != Passage.doc_sha256,
+            twin.language == Passage.language,
             twin.embedding.is_not(None),
             Passage.embedding.is_not(None),
             (1 - twin.embedding.cosine_distance(Passage.embedding)) >= threshold,
