@@ -392,7 +392,18 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         log.warning("no accepted question carries both a difficulty and a type")
         return 0
 
-    bands = _supplied(pool, settings.release_difficulty, "band", "difficulty")
+    # Unset follows the bands the answerable pool holds, as the languages
+    # follow theirs: equal thirds drew every hard row the pool had, and a
+    # band that mostly means "cites several passages" brought its welds in.
+    # Answerable rows only, because an unanswerable one is always easy and
+    # would weigh the easy band by how many the writer left unanswered.
+    bands = _supplied(
+        pool,
+        settings.release_difficulty
+        or dict(Counter(row.difficulty for row in pool if row.answerable)),
+        "band",
+        "difficulty",
+    )
     types = _supplied(
         pool, settings.release_types or settings.type_mix, "kind", "question_type"
     )

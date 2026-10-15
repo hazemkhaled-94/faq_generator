@@ -631,9 +631,11 @@ SETTINGS: tuple[Setting, ...] = (
         rebuild="make questions-balance",
         service="questions",
         kind="mapping",
+        optional=True,
         invalidates=("questions",),
         help="How a release spreads over the difficulty bands, counting the "
-        "unanswerable questions, which are always easy.",
+        "unanswerable questions, which are always easy. Absent follows the "
+        "bands the answerable pool holds.",
     ),
     Setting(
         name="QUESTIONS_RELEASE_TYPES",

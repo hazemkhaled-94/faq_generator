@@ -533,7 +533,7 @@ So the run overgenerates and the composition is chosen afterwards.
 | | |
 |---|---|
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of the release that may have no answer. A ceiling |
-| `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands |
+| `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands. Unset follows the answerable pool's own band split |
 | `QUESTIONS_RELEASE_TYPES` | How it spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 | `QUESTIONS_RELEASE_LANGUAGES` | How it spreads over the languages. Unset follows the pool's own language split |
 
@@ -727,7 +727,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_DUPLICATE_FLOOR` | The cosine two unrelated questions score, which a question's stored confidence is measured from. Moves no verdict |
 | `QUESTIONS_RELEASE_SIZE` | How many to draw. `0` is the largest the pool can fill |
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |
-| `QUESTIONS_RELEASE_DIFFICULTY` | How a release spreads over the bands |
+| `QUESTIONS_RELEASE_DIFFICULTY` | How a release spreads over the bands. Unset follows the bands the answerable pool holds, so the draw no longer takes nearly every multi-passage question to fill equal thirds; set it for any other split, equal thirds included |
 | `QUESTIONS_RELEASE_TYPES` | How a release spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 | `QUESTIONS_RELEASE_LANGUAGES` | How a release spreads over the languages, by ISO 639-1 code. Unset follows the pool's own language split, so a corpus mostly in one language releases in proportion; set it for any other split, an equal one included |
 | `QUESTIONS_MODEL` | A different writer. Unset means `LLM_MODEL` |

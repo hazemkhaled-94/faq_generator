@@ -211,6 +211,15 @@ def test_a_release_language_mix_takes_any_language_code_from_a_source() -> None:
     assert Settings.load(_overridden()).release_languages is None
 
 
+def test_an_empty_release_band_mix_follows_the_pool() -> None:
+    """Empty is a value, as it is for the languages: the pool's own split."""
+    from question_generation.config import Settings
+
+    assert Settings.load(_overridden(QUESTIONS_RELEASE_DIFFICULTY="")).release_difficulty is None
+    loaded = Settings.load(_overridden(QUESTIONS_RELEASE_DIFFICULTY="easy:2,hard:1"))
+    assert loaded.release_difficulty == {"easy": 2, "hard": 1}
+
+
 def test_a_release_language_mix_naming_no_language_code_is_refused() -> None:
     """`german` is a word, and no question's language column holds it."""
     from question_generation.config import Settings

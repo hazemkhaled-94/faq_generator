@@ -1451,6 +1451,66 @@ def test_a_release_holds_and_reports_the_languages_its_pool_holds(caplog) -> Non
     ), caplog.messages
 
 
+def _banded(counts: dict[str, int], unanswerable: int = 0):
+    """Answerable factoids, this many in each band, then easy unanswerables."""
+    from question_generation.balance import Row
+
+    bands = [band for band, count in counts.items() for _ in range(count)]
+    rows = [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=band,
+            question_type=QuestionType.FACTOID,
+            language="en",
+        )
+        for at, band in enumerate(bands, start=1)
+    ]
+    return rows + [
+        Row(
+            id=len(rows) + at,
+            answerable=False,
+            difficulty=Difficulty.EASY,
+            question_type=QuestionType.FACTOID,
+            language="en",
+        )
+        for at in range(1, unanswerable + 1)
+    ]
+
+
+@pytest.mark.parametrize("unanswerable", [0, 50], ids=["answerable only", "with no-answer rows"])
+def test_an_unset_band_mix_follows_the_answerable_pool(unanswerable) -> None:
+    """Equal thirds drained the pool's few hard rows; its own split does not.
+
+    Read over the answerable rows: unanswerable ones are all easy, so counted
+    in they would push the easy share up by whatever share of the pool the
+    writer happened to leave without an answer.
+    """
+    from question_generation.service import balance
+
+    pool = _banded(
+        {Difficulty.EASY: 80, Difficulty.MEDIUM: 15, Difficulty.HARD: 5}, unanswerable
+    )
+    catalog = _Pool(pool)
+
+    balance(
+        catalog,
+        replace(
+            SETTINGS,
+            release_size=20,
+            release_difficulty=None,
+            release_unanswerable=0.0,
+            release_types={QuestionType.FACTOID: 1},
+        ),
+    )
+
+    drawn = [pool[at - 1].difficulty for at in catalog.drawn]
+    assert len(drawn) == 20
+    assert drawn.count(Difficulty.EASY) == 16
+    assert drawn.count(Difficulty.MEDIUM) == 3
+    assert drawn.count(Difficulty.HARD) == 1
+
+
 class _Pool:
     """A catalogue offering one pool, holding no twin, and keeping what was drawn."""
 

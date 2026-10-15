@@ -226,8 +226,9 @@ class Settings:
     #: How a release spreads over the difficulty bands. The whole set, so
     #: the unanswerable questions are counted in it - they are always easy.
     #: Not the same thing as difficulty_mix, which is what the planner aims
-    #: the answerable ones at.
-    release_difficulty: dict[str, int]
+    #: the answerable ones at. None follows the bands the answerable pool
+    #: holds.
+    release_difficulty: dict[str, int] | None
     embedding_model: str
     max_tokens: int
     #: The model that writes a question, or None for the shared one.
@@ -320,8 +321,10 @@ class Settings:
             boilerplate_cosine=decimal("QUESTIONS_BOILERPLATE_COSINE", source),
             release_size=integer("QUESTIONS_RELEASE_SIZE", source),
             release_unanswerable=decimal("QUESTIONS_RELEASE_UNANSWERABLE", source),
-            release_difficulty=_weights(
-                "QUESTIONS_RELEASE_DIFFICULTY", tuple(Difficulty), source
+            release_difficulty=(
+                _weights("QUESTIONS_RELEASE_DIFFICULTY", tuple(Difficulty), source)
+                if optional("QUESTIONS_RELEASE_DIFFICULTY", source)
+                else None
             ),
             # The one embedding model, as chunking reads it: a question
             # embedded by a model other than the one a passage was sized by
