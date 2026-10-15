@@ -140,6 +140,42 @@ def heard(
     return settled
 
 
+#: Marks two readers print differently, folded before a quote is looked for.
+_FOLDED = str.maketrans(
+    {"‘": "'", "’": "'", "‚": "'", "“": '"', "”": '"', "„": '"', "–": "-", "—": "-"}
+)
+
+
+def _plain(text: str) -> str:
+    """Text as a quote is compared: folded marks, single spaces, no case."""
+    return " ".join(text.translate(_FOLDED).casefold().split())
+
+
+def shown(
+    settled: Settled, passages: Sequence[str], question_id: int | None
+) -> Settled:
+    """A `settles` verdict, silent where its quote is in none of the passages shown.
+
+    A model that knows the material from elsewhere can settle a question
+    from memory, quoting words the passages a chatbot will read do not
+    carry; they leave the question open, and so does this. A quote cut with
+    an ellipsis is looked for piece by piece.
+    """
+    if settled.verdict == Settling.SILENT or settled.quote is None:
+        return settled
+    shown_text = _plain("\n".join(passages))
+    pieces = [_plain(one) for one in settled.quote.replace("...", "…").split("…")]
+    if all(piece in shown_text for piece in pieces if piece):
+        return settled
+    log.info(
+        "reading question %s as silent: the verifier settled it with %r, "
+        "which is not in the passages it was shown",
+        "unsaved" if question_id is None else question_id,
+        settled.quote,
+    )
+    return Settled(verdict=Settling.SILENT, quote=None)
+
+
 def settle(
     verifier: Verifier,
     question: str,
@@ -162,7 +198,10 @@ def settle(
     row keeps them.
     """
     settled = heard(
-        verifier.settles(question, passages), question, language, question_id
+        shown(verifier.settles(question, passages), passages, question_id),
+        question,
+        language,
+        question_id,
     )
     opinions = [settled.reading("settles")]
     if settled.verdict != Settling.SILENT:
@@ -179,7 +218,12 @@ def settle(
     # Not filtered by the extractive reader first: it finds where an answer
     # is stated, and a refuted premise or a general rule that settles the
     # question is not a span it could find.
-    settled = heard(verifier.settles(question, probed), question, language, question_id)
+    settled = heard(
+        shown(verifier.settles(question, probed), probed, question_id),
+        question,
+        language,
+        question_id,
+    )
     opinions.append(settled.reading("settles_elsewhere"))
     if settled.verdict == Settling.SILENT:
         return None, opinions

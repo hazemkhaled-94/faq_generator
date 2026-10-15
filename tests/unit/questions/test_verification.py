@@ -885,7 +885,9 @@ def test_a_quote_that_only_restates_the_question_is_not_an_answer(
 
 def test_a_quote_giving_the_reason_still_answers_it() -> None:
     """The same `why` and the same `answers`, with the reason it asked for."""
-    recording = Recording(recovers="So that no one person can move money alone.")
+    reason = "So that no one person can move money alone."
+    recording = Recording(recovers=reason)
+    passage = f"A senior officer signs every transfer. {reason}"
 
     result = build(recording).check(
         candidate(
@@ -895,6 +897,7 @@ def test_a_quote_giving_the_reason_still_answers_it() -> None:
             target_answer=None,
             answerable=False,
             question_type=QuestionType.REASON,
+            facts=group(source(1, statement=passage, passage_text=passage)),
         )
     )
 

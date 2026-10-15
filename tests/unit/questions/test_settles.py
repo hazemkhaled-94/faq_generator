@@ -295,3 +295,65 @@ def test_no_probe_leaves_the_cited_passages_as_the_whole_judgement() -> None:
 
     assert result.accepted
     assert len(client.systems) == 1
+
+
+class _Says:
+    """A verifier settling every question with one quote."""
+
+    def __init__(self, verdict: str, quote: str) -> None:
+        """Initialises the stand-in with the verdict and quote it gives."""
+        self.verdict, self.quote = verdict, quote
+
+    def settles(self, question: str, passages):
+        """Settles whatever it is asked, with its quote."""
+        from question_generation.verifier import Settled
+
+        return Settled(verdict=self.verdict, quote=self.quote)
+
+
+def test_a_quote_the_passages_do_not_hold_settles_nothing(caplog) -> None:
+    """A verdict resting on words no passage shown carries came from somewhere else.
+
+    A model that knows a famous rulebook can settle a question from memory,
+    and the passages a chatbot will read leave it open.
+    """
+    from question_generation.checker import settle
+
+    with caplog.at_level("INFO", logger="question_generation.checker"):
+        failed, opinions = settle(
+            _Says(Settling.RULE, "Refunds are only paid to account holders."),
+            "When are refunds paid to visitors?",
+            "en",
+            ["Standard requests are answered within 48 hours."],
+            None,
+        )
+
+    assert failed is None
+    assert opinions[0].value == 1.0
+    assert "not in the passages" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "passage",
+    [
+        "Refunds are only paid to\naccount holders.",
+        "REFUNDS are only paid to account holders.",
+        "Refunds are only paid to ‘account holders’.",
+    ],
+)
+def test_a_quote_the_passages_hold_however_spaced_still_settles(passage) -> None:
+    """A line break, a capital or a curly quote does not make a quote invented."""
+    from database.qa_generator import QuestionRejection
+    from question_generation.checker import settle
+
+    quote = (
+        "Refunds are only paid to 'account holders'."
+        if "‘" in passage
+        else "Refunds are only paid to account holders."
+    )
+    failed, _ = settle(
+        _Says(Settling.RULE, quote), "When are refunds paid to visitors?", "en", [passage], None
+    )
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
