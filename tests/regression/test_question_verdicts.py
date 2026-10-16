@@ -1030,6 +1030,32 @@ STORED_ROWS: tuple[
         AnswerForm.VALUE,
         None,
     ),
+    (
+        "a short answer whose new word is its polarity (Q1905)",
+        "Welche Disziplinarmassnahme gilt beim Vereiteln einer offensichtlichen Torchance, wenn das gegnerische Team nach Vorteil ein Tor erzielt?",
+        "keine Disziplinarmassnahme",
+        "de",
+        (
+            "Ein Spieler wird wegen unsportlichen Verhaltens verwarnt, wenn er eine offensichtliche Torchance vereitelt, außer das gegnerische Team erzielt infolge des Vorteils ein Tor.",
+            "Wenn das gegnerische Team infolge des Vorteils ein Tor erzielt, wird keine Disziplinarmassnahme verhängt.",
+        ),
+        QuestionType.FACTOID,
+        AnswerForm.VALUE,
+        None,
+    ),
+    (
+        "a who answered by the party it names (Q2057)",
+        "Wenn ein Videoassistent dem Schiedsrichter widerspricht, wer trifft dann die endgültige Entscheidung?",
+        "Der Schiedsrichter trifft immer die endgültige Entscheidung.",
+        "de",
+        (
+            "- Für Spiele können verschiedene Spieloffizielle eingesetzt werden, darunter VAR und AVAR.\n- Der Schiedsrichter trifft immer die endgültige Entscheidung.\n- Spieloffizielle auf dem Spielfeld unterstützen den Schiedsrichter und melden Fehlverhalten.\n- VAR und AVAR sind Video-Spieloffizielle und unterstützen gemäß VAR-Protokoll.\n- Der Schiedsrichter kann Offizielle bei Fehlverhalten ihres Amtes entheben.\n- Spieloffizielle kontrollieren Spielfeld, Bälle, Ausrüstung und notieren relevante Ereignisse.",
+            "Der VAR und der AVAR sind die Video-Spieloffiziellen (VMO).",
+        ),
+        QuestionType.APPLICATION,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
 )
 
 

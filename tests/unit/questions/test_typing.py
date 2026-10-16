@@ -104,3 +104,38 @@ def test_a_type_that_derives_nothing_keeps_its_label() -> None:
         )
         == QuestionType.CONDITION
     )
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            "Welche Gebühr gilt, wenn das Konto im Plus ist?",
+            "keine Gebühr",
+            "de",
+        ),
+        (
+            "If the branch and the call centre disagree, who decides on a refund?",
+            "The branch decides on a refund.",
+            "en",
+        ),
+    ],
+)
+def test_a_short_answer_whose_new_word_is_its_polarity_or_party_says_something(
+    question, answer, language
+) -> None:
+    """`keine` against a question that asked which fee, `who` answered by a party."""
+    from question_generation.gates import restates
+
+    assert not restates(question, answer, language)
+
+
+def test_a_why_answered_with_its_own_rule_negated_still_restates() -> None:
+    """A negative said back to a `why` is the rule, not the reason."""
+    from question_generation.gates import restates
+
+    assert restates(
+        "Why is a transfer not released before a senior officer signs it?",
+        "A transfer is not released before a senior officer signs it.",
+        "en",
+    )

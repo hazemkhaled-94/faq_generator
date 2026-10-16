@@ -1474,6 +1474,17 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     `ja` is what it says. A polarity the question already had is no answer -
     `not` asked and `not` said back is an echo - and neither is one put to a
     `why`, which `A transfer is not released until it is signed` restates.
+
+    An answer stating a NEGATIVE its question did not is exempt whatever
+    the question word, unless the question asks why: `Welche Gebühr gilt,
+    wenn das Konto im Plus ist?` answered `keine Gebühr` says there is none,
+    and `keine` is the whole answer. Said back to a `why` it is still the
+    rule restated rather than its reason.
+
+    A question asking who is exempt too: it is answered by a party, and the
+    party can be one the question named. `If the branch and the call centre
+    disagree, who decides on a refund?` answered `The branch decides on a
+    refund.` adds one word, and that word is the answer.
     """
     read = pipeline(language)(answer)
     said = _says(read)
@@ -1482,9 +1493,13 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     if any(token.pos_ == "NUM" or token.like_num for token in read):
         return False
     asked = pipeline(language)(question)
-    if not interrogatives(question, language) and (
-        _polarity(read, language) - _polarity(asked, language)
-    ):
+    added = _polarity(read, language) - _polarity(asked, language)
+    if not interrogatives(question, language) and added:
+        return False
+    opened = _opened(question, language)
+    if False in added and not (opened and opened[0] == QuestionType.REASON):
+        return False
+    if any(token.lower_ in _AGENTS for token in asked):
         return False
     return len(said - _says(asked)) / len(said) < _NEW
 
