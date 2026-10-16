@@ -177,3 +177,43 @@ def test_a_picture_between_the_halves_of_a_table_does_not_part_them() -> None:
     document.add_table(data=grid(("Cash", "3 EUR"), header=False), prov=on(2))
 
     assert len(rows(_tabled(document))) == 1
+
+
+def test_a_row_a_spanning_cell_covers_is_never_joined() -> None:
+    """A label spanning two rows holds both; joining one would cut it."""
+    cells = [
+        TableCell(
+            text=text,
+            start_row_offset_idx=r,
+            end_row_offset_idx=r + 1,
+            start_col_offset_idx=c,
+            end_col_offset_idx=c + 1,
+            column_header=r == 0,
+        )
+        for r, c, text in (
+            (0, 0, "Card"),
+            (0, 1, "Fee"),
+            (1, 1, "a monthly fee"),
+            (2, 1, "waived for students"),
+        )
+    ] + [
+        TableCell(
+            text="Debit",
+            start_row_offset_idx=1,
+            end_row_offset_idx=3,
+            start_col_offset_idx=0,
+            end_col_offset_idx=1,
+            row_span=2,
+        )
+    ]
+    document = paged(1)
+    document.add_table(
+        data=TableData(num_rows=3, num_cols=2, table_cells=cells), prov=on(1)
+    )
+
+    table = _tabled(document).tables[0].data
+
+    assert table.num_rows == 3
+    assert any(
+        cell.text == "Debit" and cell.row_span == 2 for cell in table.table_cells
+    )

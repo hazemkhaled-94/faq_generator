@@ -370,19 +370,28 @@ def _append(table: TableItem, rest: TableItem) -> None:
 
 
 def _unwrapped(table: TableItem) -> None:
-    """Joins each row that is the wrapped rest of the row above it into it."""
+    """Joins each row that is the wrapped rest of the row above it into it.
+
+    A row a spanning cell or a header covers is left as it is, on either
+    side of a join: the cell holds more than one row, and a header names the
+    columns rather than continuing a cell.
+    """
     rows: dict[int, dict[int, TableCell]] = {}
+    held: set[int] = set()
     for cell in table.data.table_cells:
-        if cell.row_span == 1 and cell.col_span == 1:
+        if cell.row_span == 1 and cell.col_span == 1 and not cell.column_header:
             rows.setdefault(cell.start_row_offset_idx, {})[
                 cell.start_col_offset_idx
             ] = cell
-    order = sorted(rows)
+        else:
+            held.update(range(cell.start_row_offset_idx, cell.end_row_offset_idx))
+    order = sorted(set(rows) - held)
     gone: set[int] = set()
     for row, below in pairwise(order):
         cells, first = rows[row], rows[below].get(0)
         if (
-            table.data.num_cols > 1
+            below == row + 1
+            and table.data.num_cols > 1
             and {col for col, cell in cells.items() if cell.text.strip()} == {0}
             and not any(cell.column_header for cell in cells.values())
             and first is not None
@@ -391,7 +400,7 @@ def _unwrapped(table: TableItem) -> None:
             first.text = f"{cells[0].text.strip()} {first.text.strip()}"
             gone.add(row)
     for row in order[1:]:
-        if row in gone:
+        if row in gone or _kept(row, gone) in held:
             continue
         cells, above = rows[row], rows.get(_kept(row, gone))
         filled = {col: cell for col, cell in cells.items() if cell.text.strip()}
