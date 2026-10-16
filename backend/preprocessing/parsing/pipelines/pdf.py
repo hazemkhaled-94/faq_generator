@@ -29,6 +29,10 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc.base import BoundingBox
 from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.document import DoclingDocument
+from docling_core.types.doc.items.node import DocItem
+from docling_core.types.doc.items.table.table import TableItem
+from docling_core.types.doc.items.table.table_data import TableCell
+from docling_core.types.doc.labels import DocItemLabel
 
 from preprocessing.parsing.models import Conversion, SourceDocument
 from preprocessing.parsing.pipelines.base import ConversionFailed, Pipeline
@@ -164,8 +168,8 @@ class PdfPipeline(Pipeline):
 
         Returns:
             The document, its struck-through words removed, its raised
-            ordinal suffixes rejoined and its text mended, and its
-            confidences.
+            ordinal suffixes rejoined, its text mended and its broken tables
+            joined, and its confidences.
 
         Raises:
             ConversionFailed: If the document needs OCR, or if Docling cannot
@@ -196,8 +200,10 @@ class PdfPipeline(Pipeline):
                 f"the conversion ended {result.status.value}: {'; '.join(errors)}"
             )
         return Conversion(
-            document=_repaired(
-                _rejoined(_unstruck(result.document, source.data), source.data)
+            document=_tabled(
+                _repaired(
+                    _rejoined(_unstruck(result.document, source.data), source.data)
+                )
             ),
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
@@ -286,6 +292,143 @@ def _repaired(document: DoclingDocument) -> DoclingDocument:
         for cell in table.data.table_cells:
             cell.text = _mend(cell.text)
     return document
+
+
+#: What ends a sentence in a cell: a cell ending on one is complete, and the
+#: row below it is a row of its own. Not a colon, which in a cell opens what
+#: follows - `Impact:` over `goal kick`.
+_SENTENCE_END = (".", "!", "?")
+
+
+def _tabled(document: DoclingDocument) -> DoclingDocument:
+    """Joins the tables the converter broke at a page or inside a wrapped cell.
+
+    A table running onto the next page comes out as two, and the second has
+    no header: a table with no header row, the next body item after a table
+    of its width on the same page or the one after, is that table's rest and
+    joins it, moving to the furniture layer so no reference the passages
+    store moves; a picture between the two, a page's decoration, does not
+    part them. And a cell wrapped onto a second line comes out as a row of
+    its own: a row with no label in its first column, a cell of which goes
+    on in lower case, and over which no cell ends a sentence, is the rest of
+    the row above and joins it; and a row holding a label and nothing else,
+    over a row whose label opens in lower case, is that label's head. Read off the grid and the case alone, never
+    off a word, so it holds for any table in any language with case; a
+    script without case joins no row, which is the safe side.
+
+    Args:
+        document: The converted document, modified in place.
+
+    Returns:
+        The same document.
+    """
+    # The table the next body item would continue: the item right before it,
+    # where that is a table, or the table that one already joined.
+    anchor: TableItem | None = None
+    for item, _ in document.iterate_items():
+        if not isinstance(item, DocItem) or item.content_layer != ContentLayer.BODY:
+            continue
+        if item.label == DocItemLabel.PICTURE:
+            continue
+        if not isinstance(item, TableItem):
+            anchor = None
+        elif anchor is not None and _continues(anchor, item):
+            _append(anchor, item)
+            item.content_layer = ContentLayer.FURNITURE
+        else:
+            anchor = item
+    for table in document.tables:
+        if table.content_layer == ContentLayer.BODY:
+            _unwrapped(table)
+    return document
+
+
+def _continues(table: TableItem, rest: TableItem) -> bool:
+    """Whether a table is the rest of the one before it, broken at a page."""
+    if rest.data.num_cols != table.data.num_cols or not table.prov or not rest.prov:
+        return False
+    if any(cell.column_header for cell in rest.data.table_cells):
+        return False
+    gap = rest.prov[0].page_no - table.prov[-1].page_no
+    return gap in (0, 1)
+
+
+def _append(table: TableItem, rest: TableItem) -> None:
+    """Puts the rows of `rest` under the rows of `table`."""
+    offset = table.data.num_rows
+    for cell in rest.data.table_cells:
+        table.data.table_cells.append(
+            cell.model_copy(
+                update={
+                    "start_row_offset_idx": cell.start_row_offset_idx + offset,
+                    "end_row_offset_idx": cell.end_row_offset_idx + offset,
+                }
+            )
+        )
+    table.data.num_rows += rest.data.num_rows
+    table.prov.extend(rest.prov)
+
+
+def _unwrapped(table: TableItem) -> None:
+    """Joins each row that is the wrapped rest of the row above it into it."""
+    rows: dict[int, dict[int, TableCell]] = {}
+    for cell in table.data.table_cells:
+        if cell.row_span == 1 and cell.col_span == 1:
+            rows.setdefault(cell.start_row_offset_idx, {})[
+                cell.start_col_offset_idx
+            ] = cell
+    order = sorted(rows)
+    gone: set[int] = set()
+    for row, below in pairwise(order):
+        cells, first = rows[row], rows[below].get(0)
+        if (
+            table.data.num_cols > 1
+            and {col for col, cell in cells.items() if cell.text.strip()} == {0}
+            and not any(cell.column_header for cell in cells.values())
+            and first is not None
+            and first.text.strip()[:1].islower()
+        ):
+            first.text = f"{cells[0].text.strip()} {first.text.strip()}"
+            gone.add(row)
+    for row in order[1:]:
+        if row in gone:
+            continue
+        cells, above = rows[row], rows.get(_kept(row, gone))
+        filled = {col: cell for col, cell in cells.items() if cell.text.strip()}
+        if (
+            above is None
+            or not filled
+            or 0 in filled
+            or any(cell.column_header for cell in cells.values())
+            or not any(cell.text.lstrip()[0].islower() for cell in filled.values())
+            or any(
+                not above.get(col) or above[col].text.rstrip().endswith(_SENTENCE_END)
+                for col in filled
+            )
+        ):
+            continue
+        for col, cell in filled.items():
+            above[col].text = f"{above[col].text.rstrip()} {cell.text.strip()}"
+        gone.add(row)
+    if not gone:
+        return
+    kept = [
+        cell for cell in table.data.table_cells if cell.start_row_offset_idx not in gone
+    ]
+    for cell in kept:
+        shift = sum(1 for one in gone if one < cell.start_row_offset_idx)
+        cell.start_row_offset_idx -= shift
+        cell.end_row_offset_idx -= shift
+    table.data.table_cells = kept
+    table.data.num_rows -= len(gone)
+
+
+def _kept(row: int, gone: set[int]) -> int:
+    """The row a wrapped row joins: the nearest above it still standing."""
+    above = row - 1
+    while above in gone:
+        above -= 1
+    return above
 
 
 class _Word(NamedTuple):

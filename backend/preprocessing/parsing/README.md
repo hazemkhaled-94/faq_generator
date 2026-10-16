@@ -108,6 +108,22 @@ it:
 It runs on the text items *and* on the table grid. A character a model cannot
 reproduce is one no quote of it can match.
 
+[`_tabled`](pipelines/pdf.py) then joins the tables the converter broke,
+reading the grid and the case and never a word:
+
+- a table with no header row that comes right after a table of its width, on
+  the same page or the next, with at most a picture between them, is that
+  table's rest: its rows go under the first table's, and it moves to the
+  furniture layer, so no reference a passage stores moves
+- a row with no label in its first column, one cell of which goes on in
+  lower case, and over which no cell ends a sentence (`.`, `!`, `?` — a
+  colon opens what follows), is a wrapped cell's rest and joins the row
+  above
+- a row holding a label and nothing else, over a row whose label opens in
+  lower case, is that label's head and joins it
+
+A script without case joins no row, which is the safe side.
+
 ### Step 5 — Store the converted document
 
 The converter's own exported dictionary, one JSON object in the `parsed`
@@ -211,6 +227,7 @@ the two buckets and Docling itself are stood in for.
 |---|---|
 | [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
+| [`test_tables.py`](../../../tests/unit/parsing/test_tables.py) | A table's rest on the next page joined to it, past a picture, and not one with its own header, of another width or with text between; a wrapped cell's rest and a wrapped label's head joined to their row, and a row whose label did not span kept |
 | [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge and partial strokes removing nothing; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
