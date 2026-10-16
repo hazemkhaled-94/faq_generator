@@ -39,7 +39,6 @@ def refusal(
     passage_id: int = 2,
     language: str = "en",
     kind: str = FactKind.ATOMIC,
-    context: str = "",
 ) -> Refused:
     """One stored refusal, lying along `ALONG`."""
     return Refused(
@@ -49,7 +48,6 @@ def refusal(
         kind=kind,
         statement=statement,
         embedding=ALONG,
-        context=context,
     )
 
 
@@ -241,60 +239,3 @@ def test_facts_whose_own_citation_is_gone_are_warned_about(caplog) -> None:
     dedup(catalog, BAR)  # type: ignore[arg-type]
 
     assert "2 fact(s)" in caplog.text
-
-
-def test_a_refusal_naming_a_case_its_twin_s_passage_never_mentions_is_given_back() -> (
-    None
-):
-    """Two cards replaced alike are two rules: the credit card is not the debit card.
-
-    The vectors cannot tell them apart, because the statements share every
-    word but one; the passages can, because one of them never names a credit
-    card at all.
-    """
-    catalog = (
-        Catalogue()
-        .holding_kept(
-            Kept(
-                1,
-                1,
-                "A lost card is replaced free of charge.",
-                at(0.99),
-                context="Debit cards\nA lost debit card is replaced free of charge.",
-            )
-        )
-        .refusing(
-            refusal(
-                "A lost credit card is replaced free of charge.",
-                context="Credit cards\nA lost credit card is replaced free of charge.",
-            )
-        )
-    )
-
-    assert dedup(catalog, BAR) == 1  # type: ignore[arg-type]
-    assert catalog.given_back == [10]
-
-
-def test_a_rewording_its_twin_s_passage_carries_stays_refused() -> None:
-    """A word the other passage says too is a paraphrase, not a second rule."""
-    catalog = (
-        Catalogue()
-        .holding_kept(
-            Kept(
-                1,
-                1,
-                "The device weighs 4 kg.",
-                at(0.99),
-                context="Device weight\nThe device weighs 4 kg.",
-            )
-        )
-        .refusing(
-            refusal(
-                "The device has a weight of 4 kg.",
-                context="Specifications\nThe device has a weight of 4 kg.",
-            )
-        )
-    )
-
-    assert dedup(catalog, BAR) == 0  # type: ignore[arg-type]
-    assert catalog.given_back == []

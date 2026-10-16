@@ -380,8 +380,6 @@ class Kept:
     embedding: list[float]
     language: str | None = "en"
     kind: str = FactKind.ATOMIC
-    #: The text and heading trail of the passage it was read from.
-    context: str = ""
 
 
 class Catalogue:
@@ -482,12 +480,7 @@ class Catalogue:
         from nlp.embedding import cosine
 
         found = [
-            Twin(
-                one.fact_id,
-                one.statement,
-                cosine(embedding, one.embedding),
-                context=one.context,
-            )
+            Twin(one.fact_id, one.statement, cosine(embedding, one.embedding))
             for one in self._validated()
             if one.passage_id != excluding
             and language in (None, one.language)

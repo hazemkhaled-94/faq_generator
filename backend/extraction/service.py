@@ -22,7 +22,7 @@ from extraction.extractors import (
 from extraction.models import CheckedFact, PassageToExtract, Twin
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
-from nlp.analysis import claim, content, normalised, numbers, vocabulary
+from nlp.analysis import claim, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
@@ -249,7 +249,7 @@ def dedup(
             excluding=refused.passage_id,
             language=refused.language,
             kind=refused.kind,
-            alike=_naming(refused.statement, refused.language, refused.context),
+            alike=_naming(refused.statement, refused.language),
         )
         twin = _closest(
             refused.statement,
@@ -258,7 +258,6 @@ def dedup(
             refused.embedding,
             probed,
             catalog.kept(refused.passage_id),
-            refused.context,
         )
         if threshold <= 0 or twin is None:
             back = catalog.give_back(refused.fact_id)
@@ -812,39 +811,12 @@ def _counted_alike(statement: str, twin: str, language: str | None) -> bool:
     return numbers(statement, language) == numbers(twin, language)
 
 
-def _paraphrased(
-    statement: str, context: str, twin: Twin, language: str | None
-) -> bool:
-    """Whether two statements differ only in words each other's passage says too.
+def _naming(statement: str, language: str | None) -> Callable[[Twin], bool]:
+    """What a probe for this statement takes as a twin: one naming its numbers.
 
-    A word one statement has and the other lacks names a case, a party or a
-    situation: "a lost credit card" against "a lost card" from a passage
-    about debit cards is a second rule, however near the two vectors sit.
-    Unless the other passage carries that word too, which makes it a
-    rewording: "has a weight of" against a passage that says "weight".
-    Read only where both passages are known; a pair whose passages a probe
-    did not read is taken as before.
+    Handed to the index probe, which reads past a nearer fact naming others.
     """
-    if not context or not twin.context:
-        return True
-    mine, theirs = content(statement, language), content(twin.statement, language)
-    return mine - theirs <= vocabulary(twin.context, language) and (
-        theirs - mine <= vocabulary(context, language)
-    )
-
-
-def _naming(
-    statement: str, language: str | None, context: str = ""
-) -> Callable[[Twin], bool]:
-    """What a probe for this statement takes as a twin.
-
-    One naming its numbers, and differing from it only by rewording. Handed
-    to the index probe, which reads past a nearer fact naming others.
-    """
-    return lambda twin: (
-        _counted_alike(statement, twin.statement, language)
-        and _paraphrased(statement, context, twin, language)
-    )
+    return lambda twin: _counted_alike(statement, twin.statement, language)
 
 
 def _closest(
@@ -854,7 +826,6 @@ def _closest(
     vector: Sequence[float],
     probed: Twin | None,
     kept: Sequence[tuple[str, str, Sequence[float]]],
-    context: str = "",
 ) -> Twin | None:
     """The closest fact that could be this statement's twin, or None.
 
@@ -876,7 +847,7 @@ def _closest(
     repeat.
     """
     twin = probed
-    if twin is not None and not _naming(statement, language, context)(twin):
+    if twin is not None and not _counted_alike(statement, twin.statement, language):
         twin = None
     for other_statement, other_kind, other in kept:
         if other_kind == kind or not _counted_alike(
@@ -988,13 +959,7 @@ class ExtractionService(StageService):
                 facts = self._passage(passage, current)
                 facts = self._capped(
                     passage,
-                    self._deduplicated(
-                        facts,
-                        current,
-                        passage.id,
-                        passage.language,
-                        f"{passage.text}\n{passage.section_path or ''}",
-                    ),
+                    self._deduplicated(facts, current, passage.id, passage.language),
                     current,
                 )
                 stored = self._repository.store(
@@ -1131,7 +1096,6 @@ class ExtractionService(StageService):
         current,
         passage_id: int,
         language: str | None,
-        context: str = "",
     ) -> list[CheckedFact]:
         """Embeds every fact and refuses the ones already in the corpus.
 
@@ -1161,7 +1125,7 @@ class ExtractionService(StageService):
             if threshold <= 0 or not fact.validated:
                 checked.append(fact)
                 continue
-            twin = self._nearest(fact, vector, written, passage_id, language, context)
+            twin = self._nearest(fact, vector, written, passage_id, language)
             if twin is not None:
                 reading = _measured(twin, threshold, self._duplicate_floor)
                 fact = replace(
@@ -1186,7 +1150,6 @@ class ExtractionService(StageService):
         written: Sequence[tuple[str, str, list[float]]],
         passage_id: int,
         language: str | None,
-        context: str = "",
     ) -> Twin | None:
         """The closest stored fact that could be this one's twin, or None.
 
@@ -1202,11 +1165,9 @@ class ExtractionService(StageService):
             excluding=passage_id,
             language=language,
             kind=fact.kind,
-            alike=_naming(fact.statement, language, context),
+            alike=_naming(fact.statement, language),
         )
-        return _closest(
-            fact.statement, fact.kind, language, vector, probed, written, context
-        )
+        return _closest(fact.statement, fact.kind, language, vector, probed, written)
 
     def _readers(self, passage: PassageToExtract, current) -> list:
         """Which extractors read one passage, in the order they are applied.

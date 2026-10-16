@@ -294,15 +294,8 @@ def _nearest_fact(
     nearer fee of another amount hide the one that repeats this one.
     """
     distance = Fact.embedding.cosine_distance(embedding)
-    # The passage the fact opens on, as dedup reads a twin's situation off it.
-    opened = (
-        select(func.concat(Passage.text, "\n", func.coalesce(Passage.section_path, "")))
-        .join(FactPassage, FactPassage.passage_id == Passage.id)
-        .where(FactPassage.fact_id == Fact.id, FactPassage.position == 0)
-        .scalar_subquery()
-    )
     query = (
-        select(Fact.id, Fact.statement, distance.label("far"), opened.label("context"))
+        select(Fact.id, Fact.statement, distance.label("far"))
         .where(
             Fact.validated,
             Fact.embedding.is_not(None),
@@ -347,7 +340,6 @@ def _nearest_fact(
             fact_id=found.id,
             statement=found.statement,
             similarity=1.0 - float(found.far),
-            context=found.context or "",
         )
         if alike is None or alike(twin):
             return twin
@@ -771,9 +763,6 @@ class FactCatalog(Repository):
                 Fact.kind,
                 Fact.statement,
                 Fact.embedding,
-                func.concat(
-                    Passage.text, "\n", func.coalesce(Passage.section_path, "")
-                ).label("context"),
             )
             .select_from(Fact)
             .join(
@@ -802,7 +791,6 @@ class FactCatalog(Repository):
                     # As pgvector reads it, which is a list of floats
                     # already, rather than built again element by element.
                     embedding=row.embedding,
-                    context=row.context,
                 )
                 for row in session.execute(query)
             ]
