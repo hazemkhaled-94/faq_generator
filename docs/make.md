@@ -222,7 +222,7 @@ both warn and wait 5 seconds first.
 
 | Target | Does |
 |---|---|
-| `make questions-balance` | Draw the balanced release out of what was accepted |
+| `make questions-balance` | Draw the balanced release out of what was accepted, with the verifier judging which released questions want one answer. **Calls the verifier model**, about once per released question |
 | `make questions-export` | Write the questions a filter selects to an `.xlsx` |
 | `make questions-reverify` | Re-check stored questions; no model call |
 | `make questions-rejudge` | Ask the verifier whether the passages settle each accepted unanswerable question, and reject those they do. **Calls the verifier model**; takes `TOPIC` |

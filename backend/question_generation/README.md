@@ -603,6 +603,16 @@ twins what is already in, and of a group the question the draw's hash ranks
 first is the one kept where it fits, so creation order does not decide which
 twin stays.
 
+The rule misses twins that restate one rule as two documents state it: they
+share no citation and sit no closer than a pair asking two things. So the
+draw is then put to the verifier, `Verifier.same_answer`: each released
+question with its nearest released neighbour of its language and
+answerability — rank, not a bar — asking whether one correct reply serves
+both. A pair it reads as one answer joins the twin groups, and the release
+is drawn again, up to three times, each pair asked once. That is about one
+call per released question. On the labelled set it found 24 of 29 reviewer
+twin pairs and called none of 60 neighbouring non-twins one answer.
+
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota. The command reports what it drew, the yield,
 its spread over every share, the languages included, and any quota the pool

@@ -308,6 +308,63 @@ _USER_JUDGE = "Passages:\n{{passages}}\n\n{{conversation}}Question: {{question}}
 _USER_VERIFY = "Passages:\n{{passages}}\n\n{{question}}"
 
 
+_SAME = """ROLE
+You are an independent reviewer for a document-search chatbot's test set. You
+compare two test questions that will both be put to the chatbot.
+
+ACTION
+Say whether the two questions want the SAME ANSWER: whether one correct reply
+is right for both, so a test set holding the two tests one thing twice.
+
+STEPS
+1. Read both questions, each with the answer it is keyed with.
+2. Work out what each asks for: the value, the party, the rule, the condition
+   or the reason its answer states.
+3. Compare those, not the wording. The same rule asked from the other side,
+   in other words, or about the same rule as another document states it, is
+   the same answer.
+4. Answer true only when one correct reply serves both.
+
+CONTEXT
+The two are in one language and sit close to each other, which is why they
+are compared; being close says nothing on its own. Two questions about one
+subject that ask for different things about it want two answers: what a
+transfer abroad costs and how long it takes are two tests.
+
+The questions may be in any language, and the examples below are in English
+only because these instructions are. Judge what they ask.
+
+EXAMPLES
+  TRUE:  A "How long may the bank take to answer an urgent request?" - "4 hours"
+         B "Within what time must an urgent support request be answered?"
+           - "within 4 hours"
+  TRUE:  A "Who approves a change to the shift plan?" - "the site manager"
+         B "Whose approval does a change to the shift plan need?"
+           - "the site manager's"
+  FALSE: A "How long may the bank take to answer an urgent request?" - "4 hours"
+         B "How long may it take to answer a standard request?" - "48 hours"
+  FALSE: A "What does a transfer abroad cost?" - "a flat fee of 5 euros"
+         B "How long does a transfer abroad take?" - "two working days"
+
+FORMAT
+Return `same`, true or false, and nothing else."""
+
+#: The user message `same_answer` sends.
+_USER_SAME = """QUESTION A: {{first}}
+ANSWER A: {{first_answer}}
+
+QUESTION B: {{second}}
+ANSWER B: {{second_answer}}"""
+
+
+class _Same(BaseModel):
+    """Whether two questions want one answer."""
+
+    same: bool = Field(
+        description="True only when one correct reply is right for both questions."
+    )
+
+
 class _Supported(BaseModel):
     """Whether the passages back one proposed answer."""
 
@@ -502,6 +559,33 @@ class Verifier:
             prompt_version=PROMPT_VERSION,
         )
         return got.supported
+
+    def same_answer(
+        self, first: tuple[str, str | None], second: tuple[str, str | None]
+    ) -> bool:
+        """Whether two questions, each with its key, want one answer.
+
+        What the release reads twins off where no measure can: two questions
+        restating one rule as two documents state it share no citation and
+        sit no closer than a pair asking two things. A question written to
+        have no answer is put with "not in the material" for its key.
+
+        Raises:
+            ModelUnavailable: If the model could not be reached or would not
+                answer in the shape.
+        """
+        got = self._client.answer(
+            system=_SAME,
+            user=(
+                _USER_SAME.replace("{{first}}", first[0])
+                .replace("{{first_answer}}", first[1] or "not in the material")
+                .replace("{{second}}", second[0])
+                .replace("{{second_answer}}", second[1] or "not in the material")
+            ),
+            shape=_Same,
+            prompt_version=PROMPT_VERSION,
+        )
+        return got.same
 
     def settles(self, question: str, passages: Sequence[str]) -> Settled:
         """Whether these passages settle a question written to have none.

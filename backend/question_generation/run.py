@@ -40,10 +40,17 @@ def main(argv: list[str] | None = None) -> int:
         return Settings.load(source), ModelSettings.load(source), version
 
     def balanced(within) -> int:
-        """Draws the release over every accepted question, refusing --only."""
+        """Draws the release over every accepted question, refusing --only.
+
+        With the verifier the workers use, which judges whether two released
+        questions want one answer, proved before the first pair is asked.
+        """
         if within is not None:
             raise SystemExit("--balance draws the whole release and takes no --only")
-        return balance(QuestionCatalog(), configured()[0], within)
+        settings, model, _ = configured()
+        _, verifier, _ = models(settings, model)
+        before_work(verifier)
+        return balance(QuestionCatalog(), settings, within, Verifier(Client(verifier)))
 
     def rejudged(within) -> int:
         """Re-judges the accepted unanswerable questions, with the verifier.

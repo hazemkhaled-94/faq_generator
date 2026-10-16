@@ -383,13 +383,20 @@ def _recheck(
     return near_verdict(found[0] if found else None, **probed)
 
 
-def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
+def balance(
+    catalog: QuestionCatalog,
+    settings: Settings,
+    within=None,
+    verifier: Verifier | None = None,
+) -> int:
     """Draws a balanced release out of everything the run accepted.
 
     Args:
         catalog: Where the accepted questions are read and the draw written.
         settings: The shares the release is held to.
         within: A condition narrowing which questions may be drawn, or None.
+        verifier: The judge of whether two released questions want one
+            answer, or None to draw on the duplicate gate's rule alone.
 
     Re-verifies first, so the draw reads rows that pass today's gates, or
     that a person accepted and whose facts still hold.
@@ -445,20 +452,21 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
         return 0
     twins = _twins(catalog, settings, pool)
 
-    if settings.release_size:
-        release = choose(
-            pool,
-            quota_of(
-                settings.release_size,
-                bands,
-                types,
-                settings.release_unanswerable,
-                languages,
-            ),
-            twins,
-        )
-    else:
-        release = largest(
+    def draw():
+        """The release the quotas and the twins known so far allow."""
+        if settings.release_size:
+            return choose(
+                pool,
+                quota_of(
+                    settings.release_size,
+                    bands,
+                    types,
+                    settings.release_unanswerable,
+                    languages,
+                ),
+                twins,
+            )
+        return largest(
             pool,
             bands,
             types,
@@ -467,9 +475,56 @@ def balance(catalog: QuestionCatalog, settings: Settings, within=None) -> int:
             twins=twins,
         )
 
+    release = draw()
+    if verifier is not None:
+        release = _judged(catalog, verifier, twins, release, draw)
+
     drawn, written = catalog.release(release.ids)
     _report(pool, release, drawn, written)
     return written
+
+
+#: How many times the release is drawn again over newly judged twins. A
+#: redraw brings in questions whose own nearest has not been asked about;
+#: each round asks only about pairs no round has, and the third finds few.
+_TWIN_ROUNDS = 3
+
+
+def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw):
+    """The release, drawn again until the judge finds no twin left in it.
+
+    No measure separates two questions restating one rule as two documents
+    state it: they share no citation and sit no closer than a pair asking two
+    things. So each released question is put to the verifier with its
+    nearest released neighbour of its language and answerability - rank, not
+    a bar - and a pair it reads as wanting one answer joins `twins`, which
+    the next draw holds to. Every pair is asked once. A verifier that cannot
+    be reached leaves the release as the last draw made it.
+    """
+    asked: set[tuple[int, int]] = set()
+    for _ in range(_TWIN_ROUNDS):
+        found = 0
+        for first, second in catalog.closest_among(list(release.ids)):
+            if (first.id, second.id) in asked:
+                continue
+            asked.add((first.id, second.id))
+            try:
+                same = verifier.same_answer(
+                    (first.question_text, first.target_answer),
+                    (second.question_text, second.target_answer),
+                )
+            except ModelUnavailable as exc:
+                log.warning("twins not judged further: %s", exc)
+                return release
+            if same:
+                twins.setdefault(first.id, set()).add(second.id)
+                twins.setdefault(second.id, set()).add(first.id)
+                found += 1
+        log.info("release: %d more twin pair(s) judged", found)
+        if not found:
+            break
+        release = draw()
+    return release
 
 
 def _twins(catalog: QuestionCatalog, settings: Settings, pool) -> dict[int, set[int]]:

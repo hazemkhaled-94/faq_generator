@@ -112,7 +112,11 @@ class Driver:
             module, "reverify", lambda catalog, settings, within: self._recheck(within)
         )
         monkeypatch.setattr(
-            module, "balance", lambda catalog, settings, within: self._balance(within)
+            module,
+            "balance",
+            lambda catalog, settings, within, verifier=None: self._balance(
+                within, verifier
+            ),
         )
         #: The verifier each re-judge was handed, and what it was narrowed to.
         self.rejudged: list[tuple[str, object]] = []
@@ -150,9 +154,10 @@ class Driver:
         self.rejudged.append((verifier.model, within))
         return 2
 
-    def _balance(self, within) -> int:
-        """Records one draw and what it was narrowed to."""
+    def _balance(self, within, verifier=None) -> int:
+        """Records one draw, what it was narrowed to and who judged its twins."""
         self.balanced.append(within)
+        self.judged_by = verifier.model if verifier is not None else None
         return 7
 
     def run(self, *argv: str) -> int:
@@ -230,6 +235,17 @@ def test_balance_draws_a_release_without_building_a_service(cli) -> None:
     assert cli.run("--balance") == 0
     assert cli.balanced == [None]
     assert cli.built == 0
+
+
+def test_balance_judges_twins_with_the_verifier_model_proved_first(
+    cli, monkeypatch
+) -> None:
+    """Whether two released questions want one answer is the verifier's call."""
+    monkeypatch.setenv("QUESTIONS_VERIFIER_MODEL", "ollama_chat/verifier")
+
+    assert cli.run("--balance") == 0
+    assert cli.proved == ["ollama_chat/verifier"]
+    assert cli.judged_by == "ollama_chat/verifier"
 
 
 def test_a_narrowed_balance_is_refused_before_anything_is_drawn(cli) -> None:

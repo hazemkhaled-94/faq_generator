@@ -374,3 +374,47 @@ def test_a_verdict_is_recorded_with_the_prompt_it_was_given_under() -> None:
     )
 
     assert recorded["version"] == PROMPT_VERSION
+
+
+# ── Whether two released questions want one answer ─────────────────────────
+
+
+class _Twins:
+    """A served model that says whether two questions want one answer."""
+
+    model = "fake/verifier"
+
+    def __init__(self, same: bool) -> None:
+        """Initialises the model with the verdict it gives."""
+        self.same = same
+        self.asked: list[tuple[str, str]] = []
+
+    def answer(self, *, system: str, user: str, shape, prompt_version=None):
+        """Records the call and answers in the shape asked for."""
+        self.asked.append((system, user))
+        return shape(same=self.same)
+
+
+def test_two_questions_are_put_to_the_judge_with_their_keys() -> None:
+    """One correct reply serving both is what makes two questions one test."""
+    client = _Twins(same=True)
+
+    same = Verifier(client).same_answer(
+        ("How fast is an urgent request answered?", "within 4 hours"),
+        ("Within what time must an urgent request be answered?", "4 hours"),
+    )
+
+    system, user = client.asked[-1]
+    assert same is True
+    assert "How fast is an urgent request answered?" in user
+    assert "within 4 hours" in user and "4 hours" in user
+    assert re.search(r"same answer", system, re.IGNORECASE)
+
+
+def test_a_question_written_to_have_no_answer_is_put_with_none() -> None:
+    """Two unanswerable questions are twins when they ask after one gap."""
+    client = _Twins(same=False)
+
+    Verifier(client).same_answer(("Q one?", None), ("Q two?", None))
+
+    assert "not in the material" in client.asked[-1][1]

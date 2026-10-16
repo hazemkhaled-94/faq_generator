@@ -158,6 +158,12 @@ def _judges(settings: Settings | None) -> Iterator[Composed]:
             verifier._USER_VERIFY,
             verifier._Settled,
         ),
+        (
+            "verifier: same answer",
+            verifier._SAME,
+            verifier._USER_SAME,
+            verifier._Same,
+        ),
     ):
         yield Composed(
             name,

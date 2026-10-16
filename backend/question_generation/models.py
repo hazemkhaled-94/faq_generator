@@ -525,6 +525,15 @@ class Neighbour:
 
 
 @dataclass(frozen=True)
+class Posed:
+    """A question as the release's twin judge reads it: what it asks, and its key."""
+
+    id: int
+    question_text: str
+    target_answer: str | None
+
+
+@dataclass(frozen=True)
 class Unanswered:
     """An accepted question written to have no answer, as a re-judge reads it.
 

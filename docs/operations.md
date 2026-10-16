@@ -236,7 +236,7 @@ commands that call no model come first:
 | `make questions-rescore` | no | Each question's scope and difficulty, from the facts it cites now. Run it after `extract-dedup` and before re-verify, and not after any other re-run: there it would hide a question that lost a fact |
 | `make questions-reverify` | no | The new gates, on every accepted question. It only rejects |
 | `make questions-rejudge` | yes, the verifier | The `settles` judgement, on every accepted unanswerable question |
-| `make questions-balance` | no | A release with the language share, hash order and twin check |
+| `make questions-balance` | yes, the verifier | A release with the language share, hash order and twin check, the twins judged by the verifier |
 
 Struck-through text, list lead-ins and chapter-aware section paths change
 the passages themselves. They reach stored rows only through a rebuild:

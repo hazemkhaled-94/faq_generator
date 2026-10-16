@@ -50,6 +50,7 @@ from question_generation.models import (
     Criteria,
     JudgedQuestion,
     Neighbour,
+    Posed,
     QuestionDetail,
     QuestionQuality,
     QuestionSource,
@@ -710,6 +711,68 @@ class QuestionCatalog(Repository):
                 row.passage_id for row in cited if row.passage_id is not None
             ),
         )
+
+    def closest_among(self, ids: Sequence[int]) -> list[tuple[Posed, Posed]]:
+        """Each of these questions paired with its nearest other among them.
+
+        In one language and one answerability, by vector, each pair once.
+        What the release's twin judge is asked about: a pair restating one
+        rule as two documents state it shares no citation and sits no closer
+        than a pair asking two things, so rank and not a cosine bar picks
+        what is put to it. The filters apply over an iterative index scan,
+        as in `nearest`.
+        """
+        if len(ids) < 2:
+            return []
+        asked, other = aliased(Question), aliased(Question)
+        nearest = (
+            select(other.id.label("id"))
+            .where(
+                other.id.in_(ids),
+                other.embedding.is_not(None),
+                other.language == asked.language,
+                other.answerable == asked.answerable,
+                other.id != asked.id,
+            )
+            .order_by(other.embedding.cosine_distance(asked.embedding))
+            .limit(1)
+            .lateral("nearest")
+        )
+        pairs = (
+            select(
+                func.least(asked.id, nearest.c.id).label("first"),
+                func.greatest(asked.id, nearest.c.id).label("second"),
+            )
+            .select_from(asked)
+            .join(nearest, true())
+            .where(asked.id.in_(ids), asked.embedding.is_not(None))
+            .distinct()
+            .cte("pairs")
+        )
+        one, two = aliased(Question), aliased(Question)
+        query = (
+            select(
+                one.id,
+                one.question_text,
+                one.target_answer,
+                two.id.label("other_id"),
+                two.question_text.label("other_text"),
+                two.target_answer.label("other_answer"),
+            )
+            .select_from(pairs)
+            .join(one, one.id == pairs.c.first)
+            .join(two, two.id == pairs.c.second)
+            .order_by(pairs.c.first, pairs.c.second)
+        )
+        with self._session() as session:
+            session.execute(_PAST_THE_FILTERS)
+            return [
+                (
+                    Posed(row.id, row.question_text, row.target_answer),
+                    Posed(row.other_id, row.other_text, row.other_answer),
+                )
+                for row in session.execute(query)
+            ]
 
     def twins(self, floor: float) -> list[tuple[Neighbour, Neighbour]]:
         """The pairs of accepted questions at least this alike, in one language.

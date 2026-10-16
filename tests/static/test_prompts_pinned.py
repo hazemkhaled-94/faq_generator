@@ -65,6 +65,7 @@ RECORDED = {
     ("questions", "verifier: computes"): ("5", "2667ae6169e5343e"),
     ("questions", "verifier: follows"): ("5", "9941c681a2936bc1"),
     ("questions", "verifier: settles"): ("5", "6599e13b065e85ab"),
+    ("questions", "verifier: same answer"): ("5", "054fa0307cf7bcd9"),
     ("extraction", "atomic"): ("11+cap4", "a855ad279eaee08d"),
     ("extraction", "digest"): ("4", "ab0e93b11858a0e8"),
     ("extraction", "bridge"): ("4", "d93f5daae44104bb"),

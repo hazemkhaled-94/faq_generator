@@ -1813,6 +1813,55 @@ def test_an_unset_language_share_is_not_capped_at_twice_the_smaller_language() -
     assert abs(german - len(catalog.drawn) * 20 / 1_020) <= 1, german
 
 
+class _Judge:
+    """A verifier that reads one pair as wanting one answer, and counts asks."""
+
+    def __init__(self, *same: tuple[int, int]) -> None:
+        """Takes the pairs, by question text, it will call twins."""
+        self.same = {frozenset(pair) for pair in same}
+        self.asked: list[tuple[str, str]] = []
+
+    def same_answer(self, first, second) -> bool:
+        """Twins where both texts name a pair it was given."""
+        self.asked.append((first[0], second[0]))
+        ids = frozenset(
+            int(text.split()[-1].rstrip("?")) for text in (first[0], second[0])
+        )
+        return ids in self.same
+
+
+class _Nearby(_Pool):
+    """A pool whose questions pair up one by one: 1 with 2, 3 with 4."""
+
+    def closest_among(self, ids):
+        """Each released question with its pair, where both are released."""
+        from question_generation.models import Posed
+
+        held = set(ids)
+        return [
+            (
+                Posed(one, f"Question {one}?", "4 kg"),
+                Posed(one + 1, f"Question {one + 1}?", "4 kg"),
+            )
+            for one in (1, 3)
+            if one in held and one + 1 in held
+        ]
+
+
+def test_two_questions_the_judge_reads_as_one_answer_are_not_both_released() -> None:
+    """No citation or cosine rule finds twins restating one rule from two places."""
+    from question_generation.service import balance
+
+    catalog = _Nearby(_spoken({"en": 4}))
+    judge = _Judge((1, 2))
+
+    balance(catalog, replace(SETTINGS, release_size=0, **_ONE_BUCKET), verifier=judge)
+
+    assert len(set(catalog.drawn) & {1, 2}) == 1, catalog.drawn
+    assert {3, 4} <= set(catalog.drawn), catalog.drawn
+    assert len(judge.asked) == 2, "a pair was asked about twice"
+
+
 def test_two_same_language_near_twins_are_not_both_released() -> None:
     """The release reads twins by the duplicate gate's own rule.
 

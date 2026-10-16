@@ -227,6 +227,47 @@ def test_the_twins_are_read_among_each_question_s_nearest_few(engine, database) 
     assert with_asked == closer_ids
 
 
+def test_each_released_question_is_paired_with_its_nearest_released_one(
+    engine, database
+) -> None:
+    """Rank and not a bar: the twin judge is asked about the nearest, however far.
+
+    Among the ids given only, in one language and one answerability, each
+    pair once.
+    """
+
+    def axis(*weights: float) -> list[float]:
+        """A unit vector with these first components."""
+        vector = [0.0] * 1024
+        norm = sum(one * one for one in weights) ** 0.5
+        for at, one in enumerate(weights):
+            vector[at] = one / norm
+        return vector
+
+    with Session(engine) as session:
+        rows = [
+            question(question_text="A?", target_answer="4 kg", embedding=axis(1, 0)),
+            question(question_text="B?", target_answer="5 kg", embedding=axis(1, 0.3)),
+            question(question_text="C?", target_answer="6 kg", embedding=axis(0, 1)),
+            question(question_text="D?", target_answer="7 kg", embedding=axis(1, 0.1)),
+            question(
+                question_text="E?",
+                language="de",
+                target_answer="8 kg",
+                embedding=axis(1, 0),
+            ),
+        ]
+        session.add_all(rows)
+        session.commit()
+        a, b, c, _, e = (row.id for row in rows)
+
+    found = QuestionCatalog().closest_among([a, b, c, e])
+
+    pairs = {(first.id, second.id) for first, second in found}
+    assert pairs == {(min(a, b), max(a, b)), (min(b, c), max(b, c))}, pairs
+    assert all(first.question_text and first.target_answer for first, _ in found)
+
+
 def test_the_draw_writes_one_id_on_what_it_chose(written, engine) -> None:
     """A release is a column on the rows already there."""
     ids = written([("easy", "factoid", True, "accepted")] * 3)

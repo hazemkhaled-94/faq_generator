@@ -999,8 +999,11 @@ questions-rejudge:
 # Holds four shares at once: how much of the release has no answer, how it
 # spreads over the difficulty bands, over the kinds and over the languages -
 # QUESTIONS_RELEASE_UNANSWERABLE, _DIFFICULTY, _TYPES and _LANGUAGES in
-# backend.env - and one question of each twin group. A column on the rows
-# already there, so nothing is deleted, the questions left out stay
+# backend.env - and one question of each twin group. Calls the verifier:
+# each released question is put to it with its nearest released neighbour of
+# its language, about one call per released question, and a pair it reads as
+# wanting one answer is a twin group the next draw holds to. A column on the
+# rows already there, so nothing is deleted, the questions left out stay
 # queryable, and running it again replaces the draw. Reports the
 # yield - how much of the accepted pool made it in - and names any quota the
 # pool could not fill. Always over every topic: TOPIC= does not narrow it.
