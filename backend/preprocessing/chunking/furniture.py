@@ -24,8 +24,8 @@ from itertools import pairwise
 
 from docling_core.transforms.chunker.doc_chunk import DocChunk
 from docling_core.types.doc.common.content_layer import ContentLayer
-from docling_core.types.doc.common.reference import RefItem
-from docling_core.types.doc.document import DoclingDocument, ProvenanceItem
+from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
+from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.node import DocItem, NodeItem
 from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
