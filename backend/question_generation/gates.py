@@ -1019,30 +1019,25 @@ _RESTATES = 0.9
 
 
 def _asserts(text: str, language: str | None) -> tuple[str, ...]:
-    """The units an explanation claims, minus the ones prose counts with.
+    """The figures an explanation claims: its units that carry a digit.
 
     `asserted` reads every number and proper noun, which is right for a
     target answer: that is short, and every unit in one is the answer. Prose
     counts as it goes - `the slower of the two`, `both editions`, `the first
     of these` - and none of those is a claim the material has to carry. The
     explanation of a 48-hour reply time was refused for saying `two` about
-    two figures it had just quoted correctly.
+    two figures it had just quoted correctly. So a spelled-out numeral is
+    dropped and a figure is kept: `48` is a claim the passages can
+    contradict; `two` is how a sentence is built.
 
-    So a spelled-out numeral is dropped and a figure is kept. `48` is a
-    claim the passages can contradict; `two` is how a sentence is built.
-    Read off `like_num`, which every Universal Dependencies tagset marks, so
-    no list of number words per language is needed.
-
-    Proper nouns stay. A name an explanation invents is the failure this is
-    for, and no language writes one to hold a sentence together.
+    Proper nouns are dropped too. A name an explanation uses to describe
+    the answer is not a claim the passages must carry - the key's own checks
+    hold its names - while a figure is, and a figure is what can be wrong.
     """
-    counted = {
-        token.text.casefold()
-        for token in pipeline(language)(text)
-        if token.like_num and not any(char.isdigit() for char in token.text)
-    }
     return tuple(
-        unit for unit in claim(text, language).units if unit.casefold() not in counted
+        unit
+        for unit in claim(text, language).units
+        if any(char.isdigit() for char in unit)
     )
 
 
@@ -1066,8 +1061,8 @@ def explains(
     - LONG ENOUGH to be a reading rather than the target said twice, and
       short enough to stay an answer rather than becoming the passage.
 
-    - ASSERTING NOTHING THE MATERIAL DOES NOT. Every figure, date and name
-      has to be in the cited passages - `asserted`'s reading, over the units
+    - ASSERTING NOTHING THE MATERIAL DOES NOT. Every figure and date has
+      to be in the cited passages - `asserted`'s reading, over the units
       `_asserts` keeps. This is the only one of the three that can put a
       wrong claim in front of a reader, and it is why the gate is not simply
       a length check.

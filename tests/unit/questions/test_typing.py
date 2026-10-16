@@ -156,3 +156,21 @@ def test_a_why_answered_with_its_own_rule_negated_still_restates() -> None:
         "A transfer is not released before a senior officer signs it.",
         "en",
     )
+
+
+def test_an_explanation_naming_a_term_the_passages_do_not_is_still_usable() -> None:
+    """A name an explanation uses to describe is not a claim; a figure is."""
+    from question_generation.gates import explains
+
+    passages = ["Refunds are paid within 14 days of the request."]
+    good = (
+        "The bank pays a refund within 14 days of the request, so the Northbank "
+        "customer service desk does not need to chase it; the period starts with the request."
+    )
+    bad = (
+        "The bank pays a refund within 30 days of the request, so the customer does "
+        "not need to chase it; the period starts with the request itself."
+    )
+
+    assert explains(good, "within 14 days", passages, "en")
+    assert not explains(bad, "within 14 days", passages, "en")
