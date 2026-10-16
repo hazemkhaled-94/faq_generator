@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 
 from confidence import Measurement
 from database.qa_generator import (
@@ -79,7 +80,9 @@ from question_generation.gates import (
     near_verdict,
     on_topic,
     recalled,
+    relabelled,
     restates,
+    retyped,
     rivals,
     same_material,
     shared_lemmas,
@@ -93,7 +96,7 @@ from question_generation.models import (
     CheckedQuestion,
     Neighbour,
 )
-from question_generation.types import GATES, PASSED, REFUSED, annotation
+from question_generation.types import GATES, PASSED, REFUSED, annotation, spec
 from question_generation.verifier import Reading, Settled, Settling, Verifier
 
 log = logging.getLogger(__name__)
@@ -357,6 +360,17 @@ class QuestionChecker:
         # an abstention is None, so a gate that could not run reads exactly
         # like one that passed and the question is ACCEPTED.
         abstained: list[str] = []
+        kind = retyped(
+            candidate.question_text, candidate.spec.name, candidate.group.language
+        )
+        if kind != candidate.spec.name:
+            log.info(
+                "typing question %r as %s: its opening asks for one, not %s",
+                candidate.question_text,
+                kind,
+                candidate.spec.name,
+            )
+            candidate = replace(candidate, spec=spec(kind))
         failed, form = structural(
             question_text=candidate.question_text,
             target_answer=candidate.target_answer,
@@ -1080,7 +1094,12 @@ class QuestionChecker:
             passage_ids=tuple(passage.id for passage in candidate.group.resting),
             embedding=embedding,
             thread_position=candidate.thread_position,
-            question_type=candidate.spec.name,
+            question_type=relabelled(
+                candidate.spec.name,
+                (form or candidate.spec.form) if candidate.answerable else None,
+                candidate.target_answer,
+                candidate.group.language,
+            ),
             cognitive_level=candidate.spec.level,
             # An unanswerable question has no answer, so it has no form: the
             # column says what shape the answer takes and there is none.

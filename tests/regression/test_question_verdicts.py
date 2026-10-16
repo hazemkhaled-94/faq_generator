@@ -47,12 +47,12 @@ ROWS: tuple[tuple[str, str, str, str, str, str | None], ...] = (
         QuestionRejection.WRONG_TYPE,
     ),
     (
-        "a why question typed as a procedure",
+        "a why question typed as a procedure is held as a reason",
         "Why does the release draw whole threads?",
         "because a follow-up reads only after the turn it follows",
         QuestionType.PROCEDURE,
         AnswerForm.EXPLANATION,
-        QuestionRejection.WRONG_TYPE,
+        None,
     ),
     (
         "an answer that restates its question",

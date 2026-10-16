@@ -3192,8 +3192,8 @@ def test_a_comparison_whose_axis_is_in_the_question_passes(
     assert compares(question, answer, language)
 
 
-def test_a_why_question_typed_as_a_procedure_is_the_wrong_type() -> None:
-    """The type is read off the question word as well as off the answer."""
+def test_a_why_question_written_for_a_procedure_is_typed_as_a_reason() -> None:
+    """The type is read off the question word, not refused for the slot's."""
     recording = Recording(recovers="4 kg")
 
     result = build(recording).check(
@@ -3204,19 +3204,19 @@ def test_a_why_question_typed_as_a_procedure_is_the_wrong_type() -> None:
         )
     )
 
-    assert result.rejected_reason == QuestionRejection.WRONG_TYPE
-    assert recording.embedded == 0
+    assert result.question_type == QuestionType.REASON, result.question_type
+    assert result.rejected_reason != QuestionRejection.WRONG_TYPE
 
 
 def test_a_why_question_typed_as_a_reason_is_asked_as_it_was_planned() -> None:
     """The family a question word names holds the type that answers it."""
-    assert asked_as("Why is the device built at the Hamburg plant?", "reason")
-    assert not asked_as("Wie viele Werke bauen das Gerät?", "definition")
+    assert asked_as("Why is the device built at the Hamburg plant?", "reason", "en")
+    assert not asked_as("Wie viele Werke bauen das Gerät?", "definition", "de")
 
 
 def test_a_question_word_naming_no_family_leaves_the_type_alone() -> None:
     """`Which` asks for any kind of thing."""
-    assert asked_as("Which plant builds the device?", "enumeration")
+    assert asked_as("Which plant builds the device?", "enumeration", "en")
 
 
 def test_a_total_is_found_past_a_sum_of_two_years() -> None:

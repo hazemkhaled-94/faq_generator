@@ -36,6 +36,7 @@ from question_generation.gates import (
     names_parties,
     near_bar,
     near_verdict,
+    retyped,
     rivals,
     states_a_reason,
     structural,
@@ -337,11 +338,13 @@ def _recheck(
         return failed
 
     if question.question_type is not None:
+        # Held to the type its opening asks for, as the checker holds it: a
+        # row stored before that was read is not refused for its old label.
         failed = typed(
             question.question_text,
             question.target_answer,
             question.answerable,
-            question.question_type,
+            retyped(question.question_text, question.question_type, question.language),
             question.language,
         )
         if failed:

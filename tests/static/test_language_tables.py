@@ -79,6 +79,7 @@ def test_the_scan_finds_the_tables_it_is_meant_to() -> None:
     found = set(_keyed(_configured()))
 
     assert {
+        "question_generation.gates._ASKED_FOR",
         "question_generation.gates._ASKS_HOW_MANY",
         "question_generation.gates._POLARITY",
         "question_generation.gates._PURPOSE",

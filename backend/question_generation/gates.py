@@ -1137,38 +1137,160 @@ def asks_for_an_agent(question: str, answer: str, language: str | None) -> bool:
     )
 
 
-#: The types a question's opening asks for, by the opening. An opening not
-#: here names no type.
+#: The types a question's opening asks for, by ISO 639-1 code: each row an
+#: opening read over the normalised question and the kinds it asks for, the
+#: first matching row deciding. Keyed by language because an opening is a
+#: phrase of one language, and one table matched across all of them read a
+#: German `was ist` against English rows. The PRIMARY kind comes first: it is
+#: what `retyped` gives a question its opening asks for under another name.
+#: An enumeration may ask for consequences: `Welche Folgen hat ...?` is
+#: answered by the set of them.
 #:
-#: ponytail: openings in the two languages NLP_MODELS configures; a third
-#: language asks through none of them. Upgrade: a per-language setting.
-_ASKED_FOR: dict[str, frozenset[str]] = {
-    r"^(why|warum)\b": frozenset(
-        {QuestionType.REASON, QuestionType.IMPLICATION, QuestionType.CONSEQUENCE}
+#: ponytail: openings in the two languages NLP_MODELS configures; a language
+#: missing here is typed by its slot. Upgrade: a per-language setting.
+_ASKED_FOR: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    "en": (
+        (r"^how (many|much)\b", (QuestionType.FACTOID, QuestionType.AGGREGATION)),
+        (
+            (
+                r"^(how|in what way)\b.*\b(differs?|distinguish(es)?)\b"
+                r"|^what (distinguishes|sets)\b|^what is the difference\b"
+            ),
+            (QuestionType.COMPARISON,),
+        ),
+        (
+            r"^why\b|^what is the (reason|purpose)\b|^for what (reason|purpose)\b",
+            (QuestionType.REASON, QuestionType.IMPLICATION, QuestionType.CONSEQUENCE),
+        ),
+        (
+            r"^what happens (if|when|after)\b|^what (is|are) the consequences?\b",
+            (
+                QuestionType.CONSEQUENCE,
+                QuestionType.IMPLICATION,
+                QuestionType.APPLICATION,
+                QuestionType.ENUMERATION,
+            ),
+        ),
+        (
+            r"^(when|under what|in what (circumstances|cases|situations))\b",
+            (QuestionType.CONDITION, QuestionType.TEMPORAL, QuestionType.FACTOID),
+        ),
+        (r"^what does .* mean\b|^what is meant by\b", (QuestionType.DEFINITION,)),
+        (
+            r"^what is\b",
+            (
+                QuestionType.DEFINITION,
+                QuestionType.FACTOID,
+                QuestionType.AGGREGATION,
+                QuestionType.REASON,
+                QuestionType.CONSEQUENCE,
+                QuestionType.PROCEDURE,
+            ),
+        ),
     ),
-    r"^(when|wann)\b": frozenset(
-        {QuestionType.CONDITION, QuestionType.TEMPORAL, QuestionType.FACTOID}
-    ),
-    _HOW_MANY: frozenset({QuestionType.FACTOID, QuestionType.AGGREGATION}),
-    r"^(what is|was ist)\b": frozenset(
-        {QuestionType.DEFINITION, QuestionType.FACTOID, QuestionType.AGGREGATION}
-    ),
-    r"^(how|wie|worin|wodurch)\b.*\b(differs?|distinguish(es)?|unterscheide[nt]?)\b": (
-        frozenset({QuestionType.COMPARISON})
+    "de": (
+        (r"^wie viele?n?\b", (QuestionType.FACTOID, QuestionType.AGGREGATION)),
+        (
+            r"^(wie|worin|wodurch)\b.*\bunterscheide[nt]?\b|^was unterscheidet\b",
+            (QuestionType.COMPARISON,),
+        ),
+        (
+            (
+                r"^(warum|weshalb|wieso|wozu)\b|^aus welchem grund\b"
+                r"|^was ist der (zweck|grund)\b"
+            ),
+            (QuestionType.REASON, QuestionType.IMPLICATION, QuestionType.CONSEQUENCE),
+        ),
+        (
+            r"^was (passiert|geschieht)\b|^welche (folgen|konsequenzen)\b",
+            (
+                QuestionType.CONSEQUENCE,
+                QuestionType.IMPLICATION,
+                QuestionType.APPLICATION,
+                QuestionType.ENUMERATION,
+            ),
+        ),
+        (
+            r"^(wann|unter welchen|in welchen fällen|in welchem fall)\b",
+            (QuestionType.CONDITION, QuestionType.TEMPORAL, QuestionType.FACTOID),
+        ),
+        (r"^was (bedeutet|versteht man)\b", (QuestionType.DEFINITION,)),
+        (
+            r"^was ist\b",
+            (
+                QuestionType.DEFINITION,
+                QuestionType.FACTOID,
+                QuestionType.AGGREGATION,
+                QuestionType.REASON,
+                QuestionType.CONSEQUENCE,
+                QuestionType.PROCEDURE,
+            ),
+        ),
     ),
 }
 
 
-def asked_as(question: str, kind: str) -> bool:
+def _opened(question: str, language: str | None) -> tuple[str, ...] | None:
+    """The kinds a question's opening asks for, or None where it names none."""
+    rows = _ASKED_FOR.get((language or "").strip().lower())
+    if not rows:
+        return None
+    folded = normalised(question)
+    for opening, kinds in rows:
+        if re.search(opening, folded):
+            return kinds
+    return None
+
+
+def asked_as(question: str, kind: str, language: str | None) -> bool:
     """Whether a type is one the question's opening asks for.
 
     True where the opening names no type.
     """
-    folded = normalised(question)
-    for opening, kinds in _ASKED_FOR.items():
-        if re.search(opening, folded):
-            return kind in kinds
-    return True
+    kinds = _opened(question, language)
+    return kinds is None or kind in kinds
+
+
+def retyped(question: str, kind: str, language: str | None) -> str:
+    """The type a question is held to: its slot's, unless its opening asks another.
+
+    A question opening `Wann` asks for a condition whatever slot it was
+    written for. Refusing it as the wrong type throws away a question that
+    is right about what it asks, so it is typed by its opening instead - the
+    opening's primary kind - and held to that type's rules.
+    """
+    kinds = _opened(question, language)
+    if kinds is None or kind in kinds:
+        return kind
+    return kinds[0]
+
+
+#: The kinds whose answer is computed, a count or a sum, rather than looked up.
+_DERIVED = frozenset({QuestionType.AGGREGATION})
+
+
+def relabelled(
+    kind: str, form: str | None, answer: str | None, language: str | None
+) -> str:
+    """The type a checked question is stored as, read off what its key holds.
+
+    A count keyed with a list - `a passport and proof of address` - computed
+    nothing: it is an enumeration, and a count keyed with a name is a
+    factoid. A derived kind keeps its label only where its answer holds
+    exactly one number, which is what a count or a sum comes to.
+    """
+    if kind not in _DERIVED or form not in (AnswerForm.LIST, AnswerForm.VALUE):
+        return kind
+    numbers = sum(
+        1
+        for token in pipeline(language)(answer or "")
+        if token.pos_ == "NUM"
+        or token.like_num
+        or any(char.isdigit() for char in token.text)
+    )
+    if numbers == 1:
+        return kind
+    return QuestionType.ENUMERATION if form == AnswerForm.LIST else QuestionType.FACTOID
 
 
 #: How the material says WHY, by language: each marker a run of words read
@@ -1574,7 +1696,7 @@ def typed(
     An unanswerable question faces only its question word: it has no answer
     to be the wrong shape.
     """
-    if not asked_as(question, kind):
+    if not asked_as(question, kind, language):
         return (
             QuestionRejection.WRONG_TYPE,
             f"it was planned as {kind} and its question word asks for another kind",
@@ -1956,7 +2078,7 @@ def adds_up(answer: str, passages: Sequence[str]) -> bool | None:
         return None
 
     # Stated outright is not an aggregation, but it is not wrong arithmetic
-    # either; `_derived` is the gate that refuses a lookup wearing this name.
+    # either; `relabelled` stores a lookup wearing this name as what it is.
     return any(
         abs(sum(combination) - total) < 1e-9 and not _summed_years(combination, size)
         for size in range(1, _TERM_CAP + 1)

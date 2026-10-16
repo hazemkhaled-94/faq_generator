@@ -135,7 +135,7 @@ language added there without its rows fails that test, naming each table.
 | `_AGENTS` | same | The interrogatives that ask after a **party** rather than a thing | `wer`, `who` |
 | `_HOW_MANY` | same | The opening of a question asking for a count | `wie viele`, `how many` |
 | `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
-| `_ASKED_FOR` | same | Question openings, and the kinds each asks for | `warum`, `why` |
+| `_ASKED_FOR` | same | Question openings by language, and the kinds each asks for, the primary first | `warum`, `why` |
 | `_ASKS_HOW_MANY` | same | How a question asks for a count anywhere in it, by language | `wie vielen`, `how many` |
 | `_POLARITY` | same | Words answering a yes-or-no question by their polarity, by language | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why, by language: what a `reason` slot is dealt | `damit`, `so that` |
