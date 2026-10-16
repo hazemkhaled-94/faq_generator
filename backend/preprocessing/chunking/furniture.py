@@ -411,14 +411,17 @@ def _resolved(reference: str, document: DoclingDocument) -> NodeItem:
 
 
 def _dividers(document: DoclingDocument) -> set[str]:
-    """The paragraphs that are a glossary's index letters.
+    """The paragraphs and headings that are a glossary's index letters.
 
     One letter, and the next text in the body starts with it, in either
-    case. A lone letter followed by anything else is content: an energy
-    class, a part marker. And an index has two letters or more, each after
-    the one before as its character code is, so a document whose letters are
-    one, or come back or run backwards, is giving values - a class "A" over
-    a line that happens to start with an A - and none is dropped.
+    case. The converter takes some index letters as headings and some as
+    text, so both are read. A lone letter followed by anything else is
+    content: an energy class, a part marker. And an index has two letters or
+    more, each after the one before as its character code is: the longest
+    such run is the index, and a letter outside it - a stray one the page
+    hides, a class "A" over a line that happens to start with an A - is
+    left. A document whose letters never run is giving values, and none is
+    dropped.
     """
     texts = [
         item
@@ -428,15 +431,18 @@ def _dividers(document: DoclingDocument) -> set[str]:
     found = [
         (item.self_ref, letter.casefold())
         for item, following in pairwise(texts)
-        if item.label in _PROSE
+        if (item.label in _PROSE or item.label == DocItemLabel.SECTION_HEADER)
         and len(letter := item.text.strip()) == 1
         and letter.isalpha()
         and following.text.strip()[0].casefold() == letter.casefold()
     ]
-    letters = [letter for _, letter in found]
-    if len(found) < 2 or any(a >= b for a, b in pairwise(letters)):
-        return set()
-    return {reference for reference, _ in found}
+    # The longest run of letters each after the one before, by its references.
+    runs: list[list[str]] = []
+    for index, (reference, letter) in enumerate(found):
+        before = [runs[at] for at in range(index) if found[at][1] < letter]
+        runs.append([*max(before, key=len, default=[]), reference])
+    longest = max(runs, key=len, default=[])
+    return set(longest) if len(longest) >= 2 else set()
 
 
 def _restated(

@@ -560,6 +560,65 @@ def test_an_elision_mark_stays_passage_text() -> None:
     assert any("(…)" in text for text, _ in trails(document))
 
 
+def test_a_running_head_read_as_body_text_on_its_own_page_is_dropped() -> None:
+    """The head printed on the page, read twice, heads nothing; a list item stays."""
+    document = paged(2)
+    for page in (1, 2):
+        head(document, page, "Accounts")
+    say(document, 2, "Accounts")
+    say(document, 2, "A joint account needs both holders to sign.")
+    group = document.add_list_group()
+    document.add_list_item(text="Accounts", parent=group, prov=on(2, 200))
+
+    texts = [text for text, _ in trails(document)]
+
+    assert texts == ["A joint account needs both holders to sign.\n- Accounts"], texts
+
+
+def test_index_letters_read_as_headings_and_as_text_are_all_dividers() -> None:
+    """The converter takes some index letters as headings and some as text."""
+    document = DoclingDocument(name="glossary")
+    document.add_heading(text="Glossary", level=1)
+    for kind, text in (
+        ("heading", "A"),
+        ("text", "Abacus: a counting frame."),
+        ("text", "B"),
+        ("text", "Balance: money held."),
+        ("heading", "C"),
+        ("text", "Credit: money lent."),
+    ):
+        if kind == "heading":
+            document.add_heading(text=text, level=2)
+        else:
+            document.add_text(label=DocItemLabel.TEXT, text=text)
+
+    found = trails(document)
+
+    assert all(len(segment) > 1 for _, trail in found for segment in trail), found
+    assert all("\nB\n" not in f"\n{text}\n" for text, _ in found), found
+
+
+def test_a_letter_out_of_an_index_run_does_not_hide_the_index() -> None:
+    """One stray letter among the dividers leaves the rest of the run read."""
+    document = DoclingDocument(name="glossary")
+    document.add_heading(text="Glossary", level=1)
+    for text in (
+        "A",
+        "Abacus: a counting frame.",
+        "K",
+        "Kiosk: a small shop.",
+        "C",
+        "Credit: money lent.",
+        "D",
+        "Debit: money taken.",
+    ):
+        document.add_text(label=DocItemLabel.TEXT, text=text)
+
+    texts = "\n".join(text for text, _ in trails(document))
+
+    assert "\nA\n" not in f"\n{texts}\n" and "\nC\n" not in f"\n{texts}\n", texts
+
+
 def facing() -> DoclingDocument:
     """Left pages head their chapter, right pages a topic of their own."""
     document = paged(9)
