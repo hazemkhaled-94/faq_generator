@@ -13,14 +13,15 @@ import os
 from typing import Any
 
 import pytest
-from docling_core.types.doc.document import DoclingDocument
+from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
+from docling_core.types.doc.document import DoclingDocument, ProvenanceItem
 from docling_core.types.doc.labels import DocItemLabel
 from factories import Words, chunked, word_chunker
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from preprocessing.chunking.models import Chunking
-from preprocessing.chunking.passages import NoPassages, lead_ins_kept
+from preprocessing.chunking.passages import NoPassages, chunks_of, lead_ins_kept
 
 
 def test_every_chunk_is_stored_and_numbered() -> None:
@@ -221,6 +222,68 @@ def test_a_lead_in_heads_each_sub_section_it_introduces() -> None:
 
     cash = next(chunk for chunk in chunks if "cash is drawn abroad" in chunk.text)
     assert cash.meta.headings == ["Fees", "Cash", "The bank charges a fee when:"]
+
+
+def indented(left: float, top: float, height: float = 10.0) -> ProvenanceItem:
+    """Provenance on page 1 at a left edge, `height` points tall."""
+    return ProvenanceItem(
+        page_no=1,
+        bbox=BoundingBox(
+            l=left, t=top, r=400, b=top + height, coord_origin=CoordOrigin.TOPLEFT
+        ),
+        charspan=(0, 1),
+    )
+
+
+def test_an_item_indented_under_another_is_nested_under_it() -> None:
+    """The converter flattens a nested list; the indent is all that says so."""
+    document = DoclingDocument(name="restarts")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    document.add_heading(text="Restarts", level=1, prov=indented(54, 40))
+    group = document.add_list_group()
+    for top, (left, text) in enumerate(
+        (
+            (54, "a stoppage in play"),
+            (54, "the halfway line"),
+            (72, "when the referee signals"),
+            (54, "after the player left"),
+        )
+    ):
+        document.add_list_item(
+            text=text, parent=group, prov=indented(left, 100 + 14 * top)
+        )
+
+    _, chunks = chunks_of(document, word_chunker(200), "en")
+    lines = chunks[0].text.splitlines()
+
+    at = lines.index("- the halfway line")
+    assert lines[at + 1].startswith((" ", "\t")), lines
+    assert lines[at + 1].strip() == "- when the referee signals", lines
+    assert lines[at + 2] == "- after the player left", lines
+
+
+def test_items_side_by_side_in_two_columns_are_not_nested() -> None:
+    """The next column starts right of the last item, not inside it."""
+    document = DoclingDocument(name="restarts")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    group = document.add_list_group()
+    for left, top, text in ((54, 100, "a stoppage in play"), (420, 100, "a goal kick")):
+        prov = ProvenanceItem(
+            page_no=1,
+            bbox=BoundingBox(
+                l=left,
+                t=top,
+                r=left + 120,
+                b=top + 10,
+                coord_origin=CoordOrigin.TOPLEFT,
+            ),
+            charspan=(0, 1),
+        )
+        document.add_list_item(text=text, parent=group, prov=prov)
+
+    _, chunks = chunks_of(document, word_chunker(200), "en")
+
+    assert chunks[0].text.splitlines() == ["- a stoppage in play", "- a goal kick"]
 
 
 #: Words the generated documents are written in.

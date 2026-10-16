@@ -325,6 +325,15 @@ corpus, which is a property of the model rather than of this code.
   lower case, takes that paragraph's text; the paragraph moves to the
   furniture layer. A script without case is never joined, and two blocks in
   one column of one page are the document's own break.
+- **A flattened list is nested again by its indents.** The converter builds
+  every list flat. Within one list, an item whose left edge lies more than
+  half a line right of the item before it, on the same page and inside that
+  item's width, nests under it, and a later item back at an outer edge
+  returns to that level. A line is the height of the list's shortest item,
+  one line in nearly every list, where the median is a two-line item's
+  wherever items wrap. A nested item is rendered indented four spaces per
+  level, as the converter renders a list it nested itself; the chunker
+  renders each item on its own, so the indent is put back after the cut.
 - **A paragraph that only repeats a heading is a heading.** One whose whole
   text, spaces, punctuation and case aside, is a running field or a heading
   of its document (a chapter title the converter read as body text) gets a

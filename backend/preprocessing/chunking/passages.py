@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import replace
+from itertools import pairwise
 from typing import cast
 
 from docling_core.transforms.chunker.doc_chunk import DocChunk
@@ -19,8 +20,9 @@ from docling_core.transforms.serializer.markdown import (
 )
 from docling_core.types.doc.common.reference import RefItem
 from docling_core.types.doc.document import DoclingDocument
-from docling_core.types.doc.items.node import DocItem
-from docling_core.types.doc.items.text import TextItem
+from docling_core.types.doc.items.group import ListGroup
+from docling_core.types.doc.items.node import DocItem, NodeItem
+from docling_core.types.doc.items.text import ListItem, TextItem
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import read
@@ -88,8 +90,9 @@ def chunks_of(
 
     The document's running heads and feet are read first: debris they show
     the converter left in the body comes out, and each chapter they name
-    starts with an empty heading trail and leads every trail in it. Then
-    every list is kept beside its lead-in.
+    starts with an empty heading trail and leads every trail in it. A list
+    the converter flattened is nested again by its indents. Then every list
+    is kept beside its lead-in.
 
     Args:
         document: The converted document, which is not modified.
@@ -102,10 +105,128 @@ def chunks_of(
     """
     furniture = furniture_of(document)
     tidy, titles = tidied(document, furniture)
+    tidy = nested(tidy)
     chunks = headed(
         cast(list[DocChunk], list(chunker.chunk(tidy))), furniture, titles, language
     )
-    return tidy, lead_ins_kept(chunks, chunker, tidy)
+    return tidy, _indented(lead_ins_kept(chunks, chunker, tidy), chunker, tidy)
+
+
+def nested(document: DoclingDocument) -> DoclingDocument:
+    """A document whose flattened lists are nested again by their indents.
+
+    The converter builds every list flat, and an item printed indented under
+    another then reads as a rule of its own. Within one list, an item whose
+    left edge lies more than half a line right of the item before it, on
+    the same page and inside that item's width, nests under it; a later item
+    back at an outer edge returns to that level. A line is the height of the
+    list's shortest item, which is one line in nearly every list: the median
+    is a two-line item's wherever items wrap. A nested list is rendered as
+    indented Markdown, as the converter renders one it built itself.
+
+    Returns:
+        `document` itself when no list is indented, otherwise a copy.
+    """
+    plans: list[list[tuple[str, str]]] = []
+    for group in document.groups:
+        if not isinstance(group, ListGroup):
+            continue
+        items = [
+            one
+            for child in group.children
+            if isinstance(one := child.resolve(document), ListItem) and one.prov
+        ]
+        if len(items) < 2:
+            continue
+        step = min(abs(one.prov[0].bbox.height) for one in items) / 2
+        # The open levels: each one's left edge and the item it nests under.
+        levels: list[tuple[float, str | None]] = [(items[0].prov[0].bbox.l, None)]
+        moves: list[tuple[str, str]] = []
+        for before, item in pairwise(items):
+            here, there = item.prov[0], before.prov[0]
+            if (
+                here.page_no == there.page_no
+                and there.bbox.l + step < here.bbox.l < there.bbox.r
+            ):
+                levels.append((here.bbox.l, before.self_ref))
+            else:
+                while len(levels) > 1 and here.bbox.l < levels[-1][0] - step:
+                    levels.pop()
+            if (parent := levels[-1][1]) is not None:
+                moves.append((item.self_ref, parent))
+        if moves:
+            plans.append(moves)
+    if not plans:
+        return document
+
+    tidy = document.model_copy(deep=True)
+    for moves in plans:
+        under: dict[str, ListGroup] = {}
+        for reference, parent in moves:
+            if parent not in under:
+                under[parent] = tidy.add_list_group(parent=_node(parent, tidy))
+            item = _node(reference, tidy)
+            held = item.parent.resolve(tidy) if item.parent else None
+            if held is not None:
+                held.children = [one for one in held.children if one.cref != reference]
+            under[parent].children.append(_ref(reference))
+            item.parent = _ref(under[parent].self_ref)
+    return tidy
+
+
+def _ref(reference: str) -> RefItem:
+    """A reference to the node at a JSON pointer."""
+    return RefItem.model_validate({"$ref": reference})
+
+
+def _node(reference: str, document: DoclingDocument) -> NodeItem:
+    """The node a reference names in a document."""
+    return _ref(reference).resolve(document)
+
+
+#: The indent of one level of a nested list, as the converter renders one.
+_INDENT = "    "
+
+
+def _indented(
+    chunks: list[DocChunk], chunker: HybridChunker, document: DoclingDocument
+) -> list[DocChunk]:
+    """The chunks, with each nested list item indented as deep as it nests.
+
+    The chunker renders each item of a chunk on its own and joins them,
+    which drops the indent a nested list's own rendering gives: every item
+    would read as one of the outer list. Each item's rendering is found in
+    the chunk's text in order, and a nested one gets `_INDENT` per level.
+    """
+    serializer = chunker.serializer_provider.get_serializer(doc=document)
+    kept: list[DocChunk] = []
+    for chunk in chunks:
+        depths = [_depth(item.self_ref, document) for item in chunk.meta.doc_items]
+        if not any(depths):
+            kept.append(chunk)
+            continue
+        text, at, pieces = chunk.text, 0, []
+        for item, depth in zip(chunk.meta.doc_items, depths, strict=True):
+            rendered = serializer.serialize(item=_node(item.self_ref, document)).text
+            found = text.find(rendered, at) if rendered else -1
+            if found < 0:
+                continue
+            pieces += [text[at:found], _INDENT * depth, rendered]
+            at = found + len(rendered)
+        kept.append(chunk.model_copy(update={"text": "".join([*pieces, text[at:]])}))
+    return kept
+
+
+def _depth(reference: str, document: DoclingDocument) -> int:
+    """How many list items a list item is nested under; 0 for anything else."""
+    node = _node(reference, document)
+    if not isinstance(node, ListItem):
+        return 0
+    depth = 0
+    while node.parent is not None:
+        node = node.parent.resolve(document)
+        depth += isinstance(node, ListItem)
+    return depth
 
 
 #: What a lead-in is: a paragraph, as the converter labels one.
