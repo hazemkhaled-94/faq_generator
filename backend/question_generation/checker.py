@@ -55,6 +55,7 @@ from database.qa_generator import (
     Derivation,
     QuestionRejection,
     QuestionStatus,
+    QuestionType,
 )
 from nlp.analysis import content, interrogatives, pointing
 from nlp.embedding import Embedder, cosine
@@ -770,6 +771,26 @@ class QuestionChecker:
                 return (
                     QuestionRejection.NOT_RECOVERABLE,
                     "the verifier could not find the answer in the cited passages",
+                )
+            # Asked for a reason, the verifier came back with the question's
+            # own rule: the passages give no reason, and a key restating the
+            # rule in other words is one the entailment pass would accept,
+            # because the passages do entail the rule.
+            if (
+                read.recovered is not None
+                and candidate.spec.name == QuestionType.REASON
+                and restates(
+                    candidate.question_text,
+                    read.recovered,
+                    candidate.group.language,
+                )
+            ):
+                return (
+                    QuestionRejection.NOT_RECOVERABLE,
+                    (
+                        f"asked why, the verifier found only the rule itself "
+                        f"in the cited passages, {read.recovered!r}"
+                    ),
                 )
             # A key the entailment pass rescues goes on to the reading below:
             # the rescue says the key is true, not that it is the whole of

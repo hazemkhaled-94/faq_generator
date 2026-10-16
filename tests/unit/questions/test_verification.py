@@ -2286,6 +2286,50 @@ def test_an_unanswerable_question_no_other_passage_answers_stands() -> None:
     assert result.status == "accepted"
 
 
+_WRITING = (
+    "A transfer above the daily limit must be confirmed in writing, so that "
+    "the agreed release time can be evidenced later."
+)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key", "refused"),
+    [
+        (
+            "A transfer above the daily limit must be confirmed in writing.",
+            "because written confirmation is required for transfers above the limit",
+            True,
+        ),
+        (
+            "so that the agreed release time can be evidenced later",
+            "so that the agreed release time can be evidenced later",
+            False,
+        ),
+    ],
+    ids=["the rule said back", "the reason"],
+)
+def test_a_why_whose_recovery_only_says_the_rule_back_has_no_reason(
+    recovered: str, key: str, refused: bool
+) -> None:
+    """The verifier read the passages for a reason and came back with the rule.
+
+    A key restating the rule in other words is entailed by the passages, so
+    the entailment pass would accept the circle.
+    """
+    result = build(Recording(recovers=recovered, backs=True)).check(
+        candidate(
+            question_text="Why must a transfer above the daily limit be confirmed in writing?",
+            target_answer=key,
+            question_type=QuestionType.REASON,
+            facts=group(source(statement=_WRITING, passage_text=_WRITING)),
+        )
+    )
+
+    assert (result.rejected_reason == QuestionRejection.NOT_RECOVERABLE) is refused, (
+        result.rejected_reason
+    )
+
+
 # ── The entailment pass ────────────────────────────────────────────────────
 
 
