@@ -1792,7 +1792,7 @@ def moves_on(cited: Sequence[int], root: Sequence[int]) -> bool:
 
 
 def same_material(cited: Sequence[int], parent: Sequence[int]) -> bool:
-    """Whether a follow-up rests on a passage the turn before it used.
+    """Whether a follow-up rests on a passage an earlier turn of its thread used.
 
     The other way a thread fails: not asking the same thing again, but
     changing the subject. `Warum sollen beim Mehrfachbedingungstest

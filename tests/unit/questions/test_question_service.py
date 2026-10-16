@@ -624,6 +624,44 @@ def test_a_follow_up_is_shown_what_was_already_asked() -> None:
     assert any(len(turns) > 1 for turns in seen), "no second follow-up saw two turns"
 
 
+def test_a_follow_up_is_held_to_every_passage_its_thread_rested_on() -> None:
+    """A third turn may come back to the root's passage after the second walked on."""
+    held: list = []
+
+    class Walking(StubWriter):
+        """Cites a passage of its own on every follow-up."""
+
+        def follow_up(self, group, thread, plan, root_facts=(), parent_passages=()):
+            """Records what it is held to, and walks to a new passage."""
+            held.append(set(parent_passages))
+            written = super().follow_up(
+                group, thread, plan, root_facts, parent_passages
+            )
+            step = 100 + len(held)
+            return replace(
+                written,
+                group=FactGroup((source(step, document="a", passage_id=step),)),
+            )
+
+    class Resting(StubChecker):
+        """Accepts, recording the passages each question rests on."""
+
+        def check(self, candidate, seen=()) -> CheckedQuestion:
+            """Accepts as scripted, with the passages kept."""
+            checked = super().check(candidate, seen)
+            resting = tuple(passage.id for passage in candidate.group.resting)
+            return replace(checked, passage_ids=resting)
+
+    facts = [source(n, document="a", passage_id=n) for n in range(8)]
+    service, _ = build(topic(), facts, writer=Walking(), checker=Resting())
+
+    service.process_next()
+
+    assert len(held) >= 2, "no second follow-up was written"
+    assert held[0], "the root rested on no passage"
+    assert held[0] <= held[1], held
+
+
 def test_the_turns_of_a_thread_take_the_kinds_they_were_configured_to() -> None:
     """A conversation that asks the same kind three times is one question.
 

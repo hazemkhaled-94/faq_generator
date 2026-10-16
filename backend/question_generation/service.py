@@ -1281,8 +1281,9 @@ class QuestionGenerationService(StageService):
         written: list[CheckedQuestion] = []
         # What the two thread gates read. The root's facts stay the root's
         # all the way down - a third turn re-asking the first is the defect
-        # either way - while the passages are the turn before this one's,
-        # because a thread is allowed to walk from one passage to the next.
+        # either way - while the passages are every earlier turn's: a thread
+        # may walk from one passage to the next, and may come back to one an
+        # earlier turn rested on.
         cited = root.fact_ids
         previous = root.passage_ids
         names = self._settings.followup_types
@@ -1331,5 +1332,8 @@ class QuestionGenerationService(StageService):
                 break
             accepted.append(checked)
             turns.append((checked.question_text, checked.target_answer))
-            previous = checked.passage_ids
+            previous = (
+                *previous,
+                *(one for one in checked.passage_ids if one not in previous),
+            )
         return written

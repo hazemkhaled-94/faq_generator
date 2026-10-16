@@ -393,10 +393,11 @@ class Candidate:
     #: follow-up citing nothing outside this has asked one fact twice.
     #: Empty on a root question, which follows nothing.
     root_facts: tuple[int, ...] = ()
-    #: The passages the turn DIRECTLY before this one rested on. What
-    #: `same_material` reads. The parent's rather than the root's, because a
+    #: The passages every earlier turn of this thread rested on. What
+    #: `same_material` reads. Every turn's rather than the root's, because a
     #: thread is allowed to walk: turn three continues turn two, and holding
-    #: it to turn one would refuse a conversation that went somewhere.
+    #: it to turn one would refuse a conversation that went somewhere; and it
+    #: may come back to a passage turn one used after turn two walked on.
     parent_passages: tuple[int, ...] = ()
     #: What this was asked to be. The gates read the form off it, and the row
     #: records the type, so a set can be filtered to the reasons or the

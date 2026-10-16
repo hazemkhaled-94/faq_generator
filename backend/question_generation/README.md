@@ -288,7 +288,7 @@ its own document, runs in it too.
 | `restates_question` | is answered with almost no word the question did not already carry, counting nouns, proper nouns, adjectives, verbs, adverbs and interjections. An answer with a number, one saying yes or no where the question did not, one stating a negative the question did not (unless it asks why), an answer to a question asking who, and a `comparison`, are not read | nothing |
 | `explanation_unusable` | carries a long answer that is the wrong length, asserts a figure the passages do not, or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not | nothing |
-| `off_thread` | is a follow-up resting on no passage the turn before it used | nothing |
+| `off_thread` | is a follow-up resting on no passage an earlier turn of its thread used | nothing |
 | `duplicate` | is a near twin of one already accepted in its own language and of its own answerability. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
 | `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages settle it | the probe among answerable questions, the second of the two, or one `settles` call |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
@@ -502,7 +502,7 @@ shown the conversation when it judges recoverability.
 `Deal.widen` adds unspent facts **of the same passages** once, before the
 thread's first turn is written, and two gates hold the thread together:
 `asks_nothing_new` refuses one citing nothing outside its root, and
-`off_thread` refuses one resting on no passage the turn before it used.
+`off_thread` refuses one resting on no passage an earlier turn of its thread used.
 `off_thread` is read on **passages and not on words**, because a good
 follow-up may name nothing at all.
 

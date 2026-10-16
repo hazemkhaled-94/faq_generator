@@ -552,8 +552,8 @@ class QuestionChecker:
             return (
                 QuestionRejection.OFF_THREAD,
                 (
-                    "it rests on no passage the turn before it used, so it "
-                    "changes the subject rather than continuing"
+                    "it rests on no passage an earlier turn of its thread "
+                    "used, so it changes the subject rather than continuing"
                 ),
             )
         return None
