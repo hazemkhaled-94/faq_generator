@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
-from itertools import combinations
+from itertools import combinations, pairwise
 from typing import TYPE_CHECKING
 
 from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
@@ -1369,8 +1369,23 @@ def enumerates(answer: str, language: str | None) -> bool:
     written with commas in one language and with none in another, and
     `Systemtests, der Testmanager und der Technical Test Analyst` is three
     items however it is punctuated.
+
+    A suspended hyphen adds one item more for each part it leaves hanging:
+    a word ending in `-` directly before a comma or a coordinating
+    conjunction is a compound whose head the last part supplies.
+    `Junioren-, Senioren-, Behinderten- und Breitenfussball` is one noun
+    phrase and four kinds of football; `short- and long-term savings
+    accounts` is two kinds of account.
     """
-    return len(phrases(answer, language)) >= _ENUMERATED
+    read = list(pipeline(language)(answer))
+    suspended = sum(
+        1
+        for token, following in pairwise(read)
+        if len(token.text) > 1
+        and token.text.endswith("-")
+        and (following.text == "," or following.pos_ == "CCONJ")
+    )
+    return len(phrases(answer, language)) + suspended >= _ENUMERATED
 
 
 #: The least share of an answer's content lemmas the question did not carry.

@@ -1031,6 +1031,18 @@ STORED_ROWS: tuple[
         None,
     ),
     (
+        "an elided compound naming four kinds (Q1889)",
+        "Für welche Fussballbereiche gilt die Kapitänsregelung mit dem 4-Meter-Abstand zum Schiedsrichter?",
+        "Junioren-, Senioren-, Behinderten- und Breitenfussball",
+        "de",
+        (
+            "Die Bestimmungen gelten nur für den Junioren-, Senioren-, Behinderten- und Breitenfussball.",
+        ),
+        QuestionType.ENUMERATION,
+        AnswerForm.LIST,
+        None,
+    ),
+    (
         "a short answer whose new word is its polarity (Q1905)",
         "Welche Disziplinarmassnahme gilt beim Vereiteln einer offensichtlichen Torchance, wenn das gegnerische Team nach Vorteil ein Tor erzielt?",
         "keine Disziplinarmassnahme",
