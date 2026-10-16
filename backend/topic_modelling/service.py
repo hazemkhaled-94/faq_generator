@@ -320,13 +320,12 @@ class TopicModellingService(StageService):
         sizes = self._repository.sizes(list(dominant))
 
         barren = self._barren(held, bearing)
-        named: list[FittedTopic] = []
         # Every name given so far, including those a person typed: the model
         # is shown them so one fit cannot put two topics under one name.
         taken = [topic.label for topic in topics if topic.label]
+        asked: list[tuple[FittedTopic, list[str]]] = []
         for topic in topics:
             if topic.label:
-                named.append(topic)
                 continue
             if topic.topic_index in barren:
                 # Mixed, decided before the call rather than asked for in it.
@@ -335,23 +334,26 @@ class TopicModellingService(StageService):
                     language,
                     topic.topic_index,
                 )
-                named.append(topic)
                 continue
-            label = self._labeller.label(
+            asked.append(
+                (
+                    topic,
+                    self._repository.excerpts(
+                        _representative(held.get(topic.topic_index, []), bearing, sizes)
+                    ),
+                )
+            )
+        given = self._labeller.label_all(asked, language, taken)
+        named = [
+            replace(
                 topic,
-                language,
-                self._repository.excerpts(
-                    _representative(held.get(topic.topic_index, []), bearing, sizes)
-                ),
-                taken,
+                label=given[topic.topic_index],
+                labelled_by=self._labeller.model,
             )
-            if label:
-                taken.append(label)
-            named.append(
-                replace(topic, label=label, labelled_by=self._labeller.model)
-                if label
-                else topic
-            )
+            if not topic.label and topic.topic_index in given
+            else topic
+            for topic in topics
+        ]
         found = sum(1 for t in named if t.label)
         log.info("%s: %d of %d topic(s) named", language, found, len(named))
         return named

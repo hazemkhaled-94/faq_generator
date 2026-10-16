@@ -360,12 +360,20 @@ def test_a_name_another_topic_already_took_is_refused(service) -> None:
 
 def test_the_names_already_taken_are_shown_to_the_model(service) -> None:
     """It cannot avoid a repeat it was never told about."""
-    labeller = LabellerDriver("Shipping", "Storage", languages={"de": "German"})
+    labeller = LabellerDriver("Storage", languages={"de": "German"})
     flow = service(labeller=labeller)
+    flow.queue.previous["de"] = [
+        FittedTopic(
+            0,
+            ["lieferung", "versand", "transport", "monatlich", "paketdienst"],
+            label="By hand",
+            labelled_by="person",
+        )
+    ]
 
     flow.request_and_run()
 
-    assert "Shipping" in labeller.prompt, labeller.prompt
+    assert "By hand" in labeller.prompt, labeller.prompt
 
 
 def test_no_labeller_leaves_every_topic_with_its_terms_and_no_name(service) -> None:
@@ -409,7 +417,7 @@ def test_the_model_is_shown_the_passages_the_topic_holds_most_strongly(
 
     flow.request_and_run()
 
-    assert named.model.calls == 2, named.model.calls
+    assert named.model.calls == 1, named.model.calls
     shown = named.prompt
     assert "passage" in shown, shown
     assert "German" in shown, shown
@@ -495,5 +503,6 @@ def test_the_prompt_holds_no_more_excerpts_than_the_service_allows(
     flow.request_and_run()
 
     for ask in named.model.asked:
-        excerpts = str(ask["user"]).count("\n- ")
-        assert excerpts <= _EXCERPTS, excerpts
+        for block in str(ask["user"]).split("Topic ")[1:]:
+            excerpts = block.count("\n- ")
+            assert excerpts <= _EXCERPTS, excerpts

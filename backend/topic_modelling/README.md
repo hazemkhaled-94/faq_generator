@@ -76,12 +76,17 @@ is an outstanding request, and a row that has one is a topic.
    A topic whose terms moved too far loses its name. `ponytail:` a
    greedy pass; the upgrade is to solve it as an assignment problem.
 9. **Name the unnamed topics.** Only topics holding no label are offered to
-   the model, which is shown the terms and up to four excerpts and told which
-   language to answer in. The excerpts are passages the topic is strongest
+   the model, all of a language's in one call, so it sees the set and can
+   tell the topics apart. For each it is shown the terms and up to four
+   excerpts, and it is told which language to answer in. The excerpts are passages the topic is strongest
    in, those carrying a validated fact when any does, ranked by weight times
    lemma count: a heading can sit wholly in one topic and say nothing a name
-   could be read off. `Mixed` is stored as no name. `labelled_by` records
-   `person` or the model identifier.
+   could be read off. What the model answers is held to the excerpts: a word
+   they print takes their spelling, case aside (`Grosskunden` where the
+   model wrote `Großkunden`); a letter they never use is folded; and two or
+   more trailing words that more than half of three or more names end on —
+   the domain the whole corpus shares — are taken off. `Mixed` is stored as
+   no name. `labelled_by` records `person` or the model identifier.
 10. **Replace the fitted languages, in one transaction** for all of them. A
     language the fit skipped keeps its topics and memberships. Topic ids are
     read back after the insert rather than from `RETURNING`, whose row order
@@ -115,7 +120,8 @@ No HNSW index on that column: a fit is tens of rows.
 A topic is offered to the labeller only when its passages carry facts.
 `TOPIC_LABEL_MIN_FACT_SHARE` is the floor. It reads facts rather than terms,
 which is what keeps it language-neutral. The labeller is also shown the names
-already given and refuses one it repeats.
+already given and refuses one it repeats, or one it gives two topics of the
+same call.
 
 ### Limits of the output
 

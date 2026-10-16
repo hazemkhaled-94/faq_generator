@@ -144,6 +144,79 @@ def test_the_model_is_told_to_answer_with_a_noun_phrase() -> None:
     assert "noun phrase" in labeller.system, labeller.system
 
 
+def test_every_topic_of_a_language_is_named_in_one_call() -> None:
+    """The model sees the whole set, so it can tell the topics apart."""
+    driver = LabellerDriver("Shipping", "Maintenance")
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(3, FIRST), ["a parcel"]), (FittedTopic(7, SECOND), ["a repair"])],
+        "en",
+    )
+
+    assert named == {3: "Shipping", 7: "Maintenance"}
+    assert driver.model.calls == 1
+    assert "Topic 3" in driver.prompt and "Topic 7" in driver.prompt
+
+
+def test_one_name_given_twice_in_one_answer_names_one_topic() -> None:
+    """Two topics under one name read as one topic in the coverage report."""
+    driver = LabellerDriver("Shipping", "Shipping")
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(0, FIRST), []), (FittedTopic(1, SECOND), [])], "en"
+    )
+
+    assert named == {0: "Shipping"}
+
+
+def test_a_word_takes_the_spelling_the_excerpts_give_it() -> None:
+    """A Swiss corpus writes `ss`; a name the model spells `ß` is not its word."""
+    driver = LabellerDriver("Konten für Großkunden")
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(0, FIRST), ["Grosskunden erhalten eigene Konten."])], "de"
+    )
+
+    assert named == {0: "Konten für Grosskunden"}
+
+
+def test_a_letter_the_excerpts_never_use_is_folded() -> None:
+    """A compound the excerpts never print still takes their alphabet."""
+    driver = LabellerDriver("Großkundenkonten")
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(0, FIRST), ["Grosskunden erhalten eigene Konten."])], "de"
+    )
+
+    assert named == {0: "Grosskundenkonten"}
+
+
+def test_words_most_names_end_on_are_left_out() -> None:
+    """The domain the whole corpus shares tells no topic apart."""
+    driver = LabellerDriver(
+        "Card fees in banking", "Transfers in banking", "Savings in banking"
+    )
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(index, [f"term{index}"]), []) for index in range(3)], "en"
+    )
+
+    assert named == {0: "Card fees", 1: "Transfers", 2: "Savings"}
+
+
+def test_words_only_half_the_names_end_on_stay() -> None:
+    """Two of four is a pair of topics that share something, not the domain."""
+    driver = LabellerDriver(
+        "Card fees in branches", "Cash in branches", "Transfers", "Savings"
+    )
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(index, [f"term{index}"]), []) for index in range(4)], "en"
+    )
+
+    assert named[0] == "Card fees in branches"
+
+
 # ── Carrying a label across a refit ───────────────────────────────────────
 
 

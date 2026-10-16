@@ -29,7 +29,8 @@ def catalogue() -> list[Composed]:
             "label",
             labels.PROMPT_VERSION,
             labels._SYSTEM,
-            labels._USER,
-            labels._Label.model_json_schema(),
+            # One topic's block stands for each the message repeats.
+            labels._USER.replace("{{topics}}", labels._TOPIC),
+            labels._Labels.model_json_schema(),
         )
     ]

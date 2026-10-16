@@ -137,15 +137,20 @@ class FitterDriver:
         return FittingDriver(self._fitter.fit(lambda: spent, language))
 
 
+#: How the labelling prompt numbers each topic it asks about.
+_TOPIC = re.compile(r"^Topic (\d+)$", re.MULTILINE)
+
+
 class ScriptedModel:
     """A served model that answers whatever it was told to, and counts asks."""
 
     def __init__(self, *says: str, model: str = "test-model") -> None:
-        """Takes one answer per call, repeating the last once they run out."""
+        """Takes one answer per topic asked about, repeating the last once they run out."""
         self.says = list(says) or [""]
         self.model = model
         self.asked: list[dict] = []
         self.raises: Exception | None = None
+        self._named = 0
 
     @property
     def calls(self) -> int:
@@ -157,8 +162,12 @@ class ScriptedModel:
         self.asked.append(kwargs)
         if self.raises is not None:
             raise self.raises
-        said = self.says[min(self.calls - 1, len(self.says) - 1)]
-        return type("Answer", (), {"label": said})()
+        labels = []
+        for number in _TOPIC.findall(str(kwargs.get("user", ""))):
+            said = self.says[min(self._named, len(self.says) - 1)]
+            self._named += 1
+            labels.append(type("Named", (), {"topic": int(number), "label": said})())
+        return type("Answer", (), {"labels": labels})()
 
 
 class LabellerDriver:
