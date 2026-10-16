@@ -166,15 +166,61 @@ def test_a_list_longer_than_a_passage_carries_its_lead_in_on_every_passage() -> 
     assert [chunk.meta.headings for chunk in rest] == [["Card fees", LEAD_IN]] * 3
 
 
-def test_a_list_under_a_sub_heading_is_left_as_cut() -> None:
-    """Its own heading says what it is under; the lead-in ends the section."""
+def test_a_list_under_a_sub_heading_takes_its_lead_in() -> None:
+    """The sub-heading names one case; the lead-in still says what the list is."""
     document = listed(sub_heading="Debit cards")
 
     first, second = cut(document, budget=40)
 
-    assert first.text == f"{PROSE}\n{LEAD_IN}"
-    assert second.text.startswith("- ")
+    assert first.text == PROSE
+    assert second.text.startswith(f"{LEAD_IN}\n- ")
     assert second.meta.headings == ["Card fees", "Debit cards"]
+
+
+def sectioned(*sections: tuple[str, tuple[str, ...]]) -> DoclingDocument:
+    """A lead-in under one heading, sub-sections each opening on a list, then a chapter."""
+    document = DoclingDocument(name="fees")
+    document.add_heading(text="Fees", level=1)
+    document.add_text(label=DocItemLabel.TEXT, text="The bank charges a fee when:")
+    for heading, items in sections:
+        document.add_heading(text=heading, level=2)
+        group = document.add_list_group()
+        for item in items:
+            document.add_list_item(text=item, parent=group)
+    document.add_heading(text="Cards", level=1)
+    document.add_text(label=DocItemLabel.TEXT, text="Cards are free.")
+    return document
+
+
+def test_a_lead_in_reaches_its_list_across_a_sub_heading_and_no_further() -> None:
+    """A heading at the lead-in's own depth ends what it introduces."""
+    document = sectioned(
+        (
+            "Transfers abroad",
+            ("a transfer leaves the euro area", "a card is used abroad"),
+        )
+    )
+
+    chunks = cut(document, budget=40)
+
+    listing = next(chunk for chunk in chunks if "a card is used abroad" in chunk.text)
+    cards = next(chunk for chunk in chunks if "Cards are free." in chunk.text)
+    assert listing.text.startswith("The bank charges a fee when:\n- a transfer")
+    assert "The bank charges a fee when:" not in cards.text
+    assert "The bank charges a fee when:" not in (cards.meta.headings or [])
+
+
+def test_a_lead_in_heads_each_sub_section_it_introduces() -> None:
+    """The second case is as conditional as the first."""
+    document = sectioned(
+        ("Transfers abroad", ("a transfer leaves the euro area",)),
+        ("Cash", ("cash is drawn abroad",)),
+    )
+
+    chunks = cut(document, budget=40)
+
+    cash = next(chunk for chunk in chunks if "cash is drawn abroad" in chunk.text)
+    assert cash.meta.headings == ["Fees", "Cash", "The bank charges a fee when:"]
 
 
 #: Words the generated documents are written in.

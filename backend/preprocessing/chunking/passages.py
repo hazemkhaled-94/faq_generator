@@ -111,6 +111,9 @@ def chunks_of(
 #: What a lead-in is: a paragraph, as the converter labels one.
 _PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
+#: What a lead-in ends on: the colon, in the Latin and the full-width forms.
+_LEAD_IN = (":", "：")
+
 
 def lead_ins_kept(
     chunks: list[DocChunk], chunker: HybridChunker, document: DoclingDocument
@@ -126,9 +129,11 @@ def lead_ins_kept(
     model stages are shown. A list longer than one chunk goes on carrying
     it: each chunk after, under the same headings, that opens with a list
     item and follows a chunk ending on one has the lead-in of that list
-    appended to its trail, wherever the lead-in itself was kept. A list cut
-    from its lead-in by a sub-heading is left as it is: its own heading says
-    what it is under.
+    appended to its trail, wherever the lead-in itself was kept. A lead-in
+    followed by a sub-heading introduces what the sub-heading opens: it
+    moves into that chunk the same way, and heads every chunk after that
+    opens with a list item under a heading below it, until a heading at or
+    above its own depth ends what it introduces.
 
     Args:
         chunks: What the chunker returned, in order.
@@ -143,15 +148,19 @@ def lead_ins_kept(
     # As the chunker cut them: a trail extended below is not a new heading.
     trails = [chunk.meta.headings for chunk in chunks]
     kept: list[DocChunk] = []
-    # The lead-in of the list the last chunk kept closes on.
+    # The lead-in of the list the last chunk kept closes on, and the trail
+    # it was written under, which bounds what it introduces.
     carried: str | None = None
+    under: list[str] = []
     for index, chunk in enumerate(chunks):
-        continued = (
-            bool(kept) and trails[index - 1] == trails[index] and _opens_a_list(chunk)
-        )
-        lead = _lead_in(kept[-1], document) if continued else None
+        same = bool(kept) and trails[index - 1] == trails[index]
+        deeper = bool(kept) and _below(trails[index], trails[index - 1])
+        continued = same and _opens_a_list(chunk)
+        lead = _lead_in(kept[-1], document) if continued or deeper else None
         given = None
+        origin = trails[index] or []
         if lead is not None:
+            origin = trails[index - 1] or []
             item, text = lead
             given = text
             moved = chunk.model_copy(
@@ -182,12 +191,26 @@ def lead_ins_kept(
                 chunk = moved
             else:
                 chunk = _headed(chunk, text)
-        elif continued and carried is not None:
+        elif (
+            carried is not None
+            and _opens_a_list(chunk)
+            and (trails[index] or [])[: len(under)] == under
+        ):
             given = carried
             chunk = _headed(chunk, carried)
+            origin = under
         carried = _introduced(chunk, document, given)
+        under = (
+            origin if carried is not None and carried == given else trails[index] or []
+        )
         kept.append(chunk)
     return kept
+
+
+def _below(trail: list[str] | None, above: list[str] | None) -> bool:
+    """Whether a heading trail lies under another: it extends it."""
+    trail, above = trail or [], above or []
+    return len(trail) > len(above) and trail[: len(above)] == above
 
 
 def _headed(chunk: DocChunk, text: str) -> DocChunk:
@@ -211,7 +234,7 @@ def _lead_text(item: DocItem, document: DoclingDocument) -> str | None:
         return None
     found = RefItem.model_validate({"$ref": item.self_ref}).resolve(document)
     text = found.text.strip() if isinstance(found, TextItem) else ""
-    return text if text.endswith(":") else None
+    return text if text.endswith(_LEAD_IN) else None
 
 
 def _lead_in(chunk: DocChunk, document: DoclingDocument) -> tuple[DocItem, str] | None:

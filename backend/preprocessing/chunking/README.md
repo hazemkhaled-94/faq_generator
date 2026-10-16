@@ -53,8 +53,12 @@ heading trail, which extraction and question generation both show the
 model. A list longer than one chunk carries its lead-in on: every chunk
 after, under the same headings, that opens with a list item and follows a
 chunk ending on one has the lead-in appended to its trail, wherever the
-lead-in itself was kept. A list cut from its lead-in by a sub-heading is
-left as it is: its own heading says what it is under.
+lead-in itself was kept. A lead-in followed by a sub-heading introduces
+what the sub-heading opens, as `The bank charges a fee when:` does a section
+per case: it moves into that chunk the same way, and heads every later chunk
+opening with a list item under a heading below its own, until a heading at
+or above its depth ends what it introduces. A lead-in ends on ":" or on the
+full-width "：".
 
 ### Step 2 — Number and count
 
@@ -312,7 +316,8 @@ corpus, which is a property of the model rather than of this code.
   When the two do not fit one budget, the lead-in stays at the end of the
   passage before and becomes the last segment of the list passage's
   `section_path`, and of every later passage of the same list. A lead-in
-  that does not end in ":", or one split across two chunks, is not carried.
+  that does not end in a colon, or one split across two chunks, is not
+  carried.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed
