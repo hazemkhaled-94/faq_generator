@@ -909,6 +909,18 @@ class QuestionGenerationService(StageService):
                 # slots. Everything it had has been asked about once.
                 break
             written += 1
+            if not plan.answerable:
+                # What the probe reads beside the cited passage, so the writer
+                # sees what its question must not be answered by.
+                sample = replace(
+                    sample,
+                    beside=tuple(
+                        self._repository.beside(
+                            [one.id for one in sample.facts[0].passages],
+                            sample.language,
+                        )
+                    ),
+                )
             try:
                 try:
                     drafts = self._attempt(sample, plan, accepted)

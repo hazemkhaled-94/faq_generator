@@ -193,11 +193,20 @@ _USER_PERTURB = (
     "FACT - the question moves this one detail out of reach:\n"
     "{{facts}}\n"
     "\n"
-    "PASSAGE(S) - context only, so you know what the material is "
-    "about. Never quote or name a heading or a title out of them:\n"
+    "PASSAGE(S) - what the chatbot will read: no sentence of it may answer "
+    "your question, contradict its premise or cover its case by a rule. "
+    "Never quote or name a heading or a title out of them:\n"
     "{{passages}}\n"
+    "{{beside}}"
     "\n"
     "Write the question in {{language}}.{{note}}"
+)
+
+#: The passages either side of a perturbed fact's own, which a search for
+#: the question reaches as well.
+_BESIDE = (
+    "\nBESIDE IT - the passages either side in the same document, which the "
+    "chatbot reads too; the same holds for every sentence of them:\n{{texts}}\n"
 )
 
 #: Appended to the conversation for a follow-up, after the facts.
@@ -370,7 +379,7 @@ class QuestionWriter:
         reach is a change to one claim, and a reader given two would have two
         ways to notice.
         """
-        first = FactGroup(sample.facts[:1])
+        first = FactGroup(sample.facts[:1], beside=sample.beside)
         written = self._client.answer(
             system=_PERTURB.replace("{{asks}}", plan.spec.asks),
             user=self._prompt(first, note, _USER_PERTURB),
@@ -473,6 +482,12 @@ class QuestionWriter:
             {
                 "{{facts}}": numbered,
                 "{{passages}}": context,
+                "{{beside}}": fill(
+                    _BESIDE,
+                    {"{{texts}}": "\n\n".join(f"- {one}" for one in sample.beside)},
+                )
+                if sample.beside
+                else "",
                 "{{language}}": named(sample.language),
                 "{{note}}": again,
             },

@@ -99,6 +99,10 @@ class StubQueue:
         """The facts this topic is the subject of."""
         return list(self._facts)
 
+    def beside(self, passage_ids, language):
+        """The passages either side of these: one per passage, as scripted."""
+        return [f"Beside passage {one}." for one in passage_ids]
+
     def bridging(self, topic_id: int):
         """The facts of passages bridging this topic to another."""
         return list(self._bridges)
@@ -985,6 +989,31 @@ def test_a_settled_unanswerable_with_nothing_to_ask_is_not_recycled(
     handed = _recycling(verdict, quote)
 
     assert not [plan for _, plan in handed if plan.answerable], handed
+
+
+def test_an_unanswerable_slot_is_written_with_the_passages_beside_its_own() -> None:
+    """What the probe will read beside the cited passage, the writer sees first."""
+    handed: list = []
+
+    class Recording(StubWriter):
+        """Records each sample it is handed."""
+
+        def write(self, group, plan):
+            """Writes as scripted, noting what it was handed."""
+            handed.append((group, plan))
+            return super().write(group, plan)
+
+    facts = [source(n, document="a", passage_id=n) for n in range(1, 5)]
+    settings = replace(
+        SETTINGS, per_topic=1, unanswerable_share=1.0, followup_share=0.0
+    )
+    service, _ = build(topic(), facts, writer=Recording(), settings=settings)
+
+    service.process_next()
+
+    (sample, plan), *_ = handed
+    assert not plan.answerable
+    assert sample.beside, "the writer was shown nothing beside the passage"
 
 
 def test_a_swapped_reason_slot_says_what_it_became(caplog) -> None:

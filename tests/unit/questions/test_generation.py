@@ -87,6 +87,30 @@ def test_a_perturbation_is_not_told_its_question_must_be_answered() -> None:
     assert "both answers" not in model.user
 
 
+def test_a_perturbation_is_shown_the_passages_beside_its_own() -> None:
+    """A probe reads the passages either side too; so must the writer."""
+    from dataclasses import replace
+
+    model = StubModel(question="Q?", answer="A")
+    sample = replace(group(), beside=("The fee is waived for students.",))
+
+    QuestionWriter(model).write(sample, plan(answerable=False))
+
+    assert "The fee is waived for students." in model.user
+    assert "no sentence of" in model.user
+
+
+def test_a_perturbation_with_nothing_beside_its_passage_shows_no_empty_section() -> (
+    None
+):
+    """A passage at the edge of its document has nothing either side."""
+    model = StubModel(question="Q?", answer="A")
+
+    QuestionWriter(model).write(group(), plan(answerable=False))
+
+    assert "BESIDE" not in model.user
+
+
 def test_a_perturbation_is_taken_from_one_fact_even_out_of_a_larger_group() -> None:
     """Moving a claim out of reach is a change to one claim.
 

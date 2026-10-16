@@ -79,6 +79,45 @@ def statuses(engine) -> dict[str, int]:
         )
 
 
+# ── What a writer of an unanswerable question is shown ───────────────────
+
+
+def test_the_passages_beside_one_are_those_two_ordinals_either_side(
+    engine, database
+) -> None:
+    """The ones the probe reads too: same document, a claim made, same language."""
+    with Session(engine) as session:
+        sha, other = digest("a"), digest("b")
+        session.add_all([document(sha), document(other)])
+        session.flush()
+        rows = {
+            ordinal: passage(
+                sha, ordinal=ordinal, text=f"Passage {ordinal}.", language="en"
+            )
+            for ordinal in range(1, 6)
+        }
+        elsewhere = passage(other, ordinal=4, text="Another document.", language="en")
+        german = passage(sha, ordinal=6, text="Deutsch.", language="de")
+        session.add_all([*rows.values(), elsewhere, german])
+        session.flush()
+        for ordinal, row in rows.items():
+            if ordinal != 2:  # a contents page: no claim made from it
+                session.add(fact(row.id))
+        session.add(fact(elsewhere.id))
+        session.add(fact(german.id))
+        session.commit()
+        cited = rows[4].id
+
+    found = QuestionQueue().beside([cited], "en")
+
+    assert found == ["Passage 3.", "Passage 5."]
+
+
+def test_no_passage_has_nothing_beside_it(database) -> None:
+    """Nothing asked, nothing read."""
+    assert QuestionQueue().beside([], "en") == []
+
+
 # ── The base predicate ─────────────────────────────────────────────────────
 
 

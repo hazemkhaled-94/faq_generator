@@ -57,7 +57,7 @@ from question_generation.models import (
     Unanswered,
     pages,
 )
-from question_generation.queue import HOLDS, IS_TOPIC
+from question_generation.queue import AROUND, ASSERTS, HOLDS, IS_TOPIC
 from question_generation.types import CHECKED
 
 #: Which columns the search box looks in, by the name the API accepts.
@@ -91,26 +91,6 @@ TWIN_NEIGHBOURS = 5
 #: to the transaction it is set in, so no other query on the connection is
 #: read this way. pgvector 0.8 or later.
 _PAST_THE_FILTERS = text("SET LOCAL hnsw.iterative_scan = strict_order")
-
-#: Only passages the corpus makes a checkable claim from. Without it a probe
-#: comes back with tables of contents and indexes, which carry every term in
-#: the material and sit near every question in the embedding space, and
-#: answer none of them: they are the same passages extraction skips as
-#: navigation. Shared by both `elsewhere` probes, so the lemma one and the
-#: vector one cannot come to disagree about what a passage is.
-_ASSERTS = (
-    select(FactPassage.passage_id)
-    .join(Fact, Fact.id == FactPassage.fact_id)
-    .where(Fact.validated)
-    .where(FactPassage.passage_id == Passage.id)
-    .exists()
-)
-
-#: How many ordinals either side of a cited passage the vector probe also
-#: shows, in the cited passage's own document. A rule is often longer than
-#: one passage, and the answer to a question moved just out of reach of one
-#: sits beside it however the question's vector ranks it.
-AROUND = 2
 
 
 def _rejecting(code: str) -> dict[str, Any]:
@@ -551,7 +531,7 @@ class QuestionCatalog(Repository):
             .where(
                 Passage.language == language,
                 Passage.lemmas.op("&&")(wanted),
-                _ASSERTS,
+                ASSERTS,
             )
             .order_by(overlap.desc(), Passage.id)
             .limit(limit)
@@ -583,7 +563,7 @@ class QuestionCatalog(Repository):
         starts, which the vector ranks anywhere. `limit` counts the nearest
         only, so the neighbours never crowd the corpus out.
 
-        The language, `_ASSERTS` and `skip` apply over an iterative index
+        The language, `ASSERTS` and `skip` apply over an iterative index
         scan, as in `nearest`, so a language holding a small share of the
         passages still gets its `limit`.
 
@@ -600,7 +580,7 @@ class QuestionCatalog(Repository):
                 # reason: a contents page carries every term in the material
                 # and sits near every question in the space, and answers
                 # none of them.
-                _ASSERTS,
+                ASSERTS,
             )
             .order_by(distance)
             .limit(2 * limit)
@@ -634,7 +614,7 @@ class QuestionCatalog(Repository):
                     beside,
                     Passage.id.notin_(skip),
                     Passage.language == language,
-                    _ASSERTS,
+                    ASSERTS,
                 )
                 .order_by(Passage.doc_sha256, Passage.ordinal)
             ):

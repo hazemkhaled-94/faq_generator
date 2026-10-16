@@ -425,6 +425,11 @@ planned `easy` and from one passage, and dealt an **atomic** fact first: a
 summary perturbed moves a whole passage's claims at once, and the move lands
 on one of them.
 
+The writer is shown the passage its fact rests on as what the chatbot will
+read, and the passages two ordinals either side of it in the same document —
+the ones the probe reads too — under the same rule: no sentence of any of
+them may answer the question, contradict its premise or cover its case.
+
 The writer is told what "answered" means, because "not stated" is not the
 same thing. The material answers a question when it states the answer, and
 also when it **contradicts its premise**, names a **closed list or rule** its

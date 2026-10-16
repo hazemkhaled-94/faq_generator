@@ -246,6 +246,10 @@ class FactGroup:
     """
 
     facts: tuple[SourceFact, ...]
+    #: The passages either side of the ones these facts rest on, in their own
+    #: documents. Read only for a question written to have no answer, which
+    #: the probe tests against them as well: what the writer must not answer.
+    beside: tuple[str, ...] = ()
 
     @property
     def resting(self) -> tuple[SourcePassage, ...]:

@@ -262,6 +262,27 @@ def _fact(row: Any, resting: tuple[SourcePassage, ...]) -> SourceFact:
     )
 
 
+#: Only passages the corpus makes a checkable claim from. Without it a probe
+#: comes back with tables of contents and indexes, which carry every term in
+#: the material and sit near every question in the embedding space, and
+#: answer none of them: they are the same passages extraction skips as
+#: navigation. Shared by both `elsewhere` probes and by `beside`, so what
+#: the writer is shown and what the verifier is asked cannot disagree.
+ASSERTS = (
+    select(FactPassage.passage_id)
+    .join(Fact, Fact.id == FactPassage.fact_id)
+    .where(Fact.validated)
+    .where(FactPassage.passage_id == Passage.id)
+    .exists()
+)
+
+#: How many ordinals either side of a cited passage the vector probe also
+#: shows, in the cited passage's own document. A rule is often longer than
+#: one passage, and the answer to a question moved just out of reach of one
+#: sits beside it however the question's vector ranks it.
+AROUND = 2
+
+
 class QuestionQueue(RowQueue):
     """Reads the question queue and records what became of each topic."""
 
@@ -362,6 +383,40 @@ class QuestionQueue(RowQueue):
                 ).order_by(Fact.id)
             ).all()
         return self._read(rows)
+
+    def beside(self, passage_ids: list[int], language: str | None) -> list[str]:
+        """The passages within `AROUND` ordinals of these, in their documents.
+
+        What the probe reads beside a cited passage, for the writer of a
+        question meant to have no answer to see first. These passages left
+        out, in their documents' order, only those the corpus makes a claim
+        from, in the same language.
+        """
+        if not passage_ids:
+            return []
+        cited = aliased(Passage)
+        near = (
+            select(cited.id)
+            .where(
+                cited.id.in_(passage_ids),
+                cited.doc_sha256 == Passage.doc_sha256,
+                func.abs(cited.ordinal - Passage.ordinal) <= AROUND,
+            )
+            .exists()
+        )
+        with self._session() as session:
+            return list(
+                session.scalars(
+                    select(Passage.text)
+                    .where(
+                        near,
+                        Passage.id.notin_(passage_ids),
+                        Passage.language == language,
+                        ASSERTS,
+                    )
+                    .order_by(Passage.doc_sha256, Passage.ordinal)
+                ).all()
+            )
 
     def _read(self, rows: list[Any]) -> list[SourceFact]:
         """Turns selected rows into facts, each with the passages it rests on.
