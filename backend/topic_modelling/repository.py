@@ -59,6 +59,26 @@ def _place(session) -> int:
     return session.execute(_PLACE).rowcount
 
 
+#: A passage the fit placed in no topic, put in its language's topic whose
+#: centroid is nearest, held as weakly as the fit holds any passage of that
+#: language: the vocabulary filter dropped its words, not its subject. One
+#: with no vector has no nearest topic and stays out.
+_NEAREST = text(
+    "INSERT INTO passage_topics (passage_id, topic_id, weight) "
+    "SELECT p.id, nearest.id, floor.weight FROM passages p "
+    "CROSS JOIN LATERAL ("
+    "  SELECT t.id FROM topics t"
+    "  WHERE t.language = p.language AND t.embedding IS NOT NULL"
+    "  ORDER BY t.embedding <=> p.embedding LIMIT 1"
+    ") nearest "
+    "CROSS JOIN LATERAL ("
+    "  SELECT min(pt.weight) AS weight FROM passage_topics pt"
+    "  JOIN topics t ON t.id = pt.topic_id WHERE t.language = p.language"
+    ") floor "
+    "WHERE p.id = ANY(:ids) AND p.embedding IS NOT NULL AND floor.weight IS NOT NULL"
+)
+
+
 #: The next fit to run. Both conditions are load-bearing: status alone would
 #: let a fitted topic that somehow reached `pending` be claimed as a request.
 _NEXT_PENDING = (
@@ -331,6 +351,12 @@ class TopicQueue(StageQueue):
             if memberships:
                 session.execute(insert(PassageTopic), memberships)
                 _place(session)
+                unplaced = [one for fitting in fittings for one in fitting.unplaced]
+                if unplaced:
+                    placed = session.execute(_NEAREST, {"ids": unplaced}).rowcount
+                    # Their topics' centroids move with them.
+                    _place(session)
+                    return len(memberships) + placed
         return len(memberships)
 
     def bearing_facts(self, passage_ids: list[int]) -> set[int]:

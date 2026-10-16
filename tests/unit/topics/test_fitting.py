@@ -129,6 +129,13 @@ def test_a_passage_holding_none_of_the_vocabulary_is_counted(fitter) -> None:
     assert 99 not in counted.placed_ids
 
 
+def test_a_passage_placed_nowhere_is_named_for_the_store_to_place(fitter) -> None:
+    """Counting it is not enough to put it anywhere."""
+    counted = fitter.with_passage(99, "zzz", "qqq").fit("de")
+
+    assert counted.fitting.unplaced == (99,), counted.fitting.unplaced
+
+
 def test_a_passage_with_no_lemmas_at_all_is_counted(fitter) -> None:
     """A passage chunking stored no lemmas for is the same case.
 

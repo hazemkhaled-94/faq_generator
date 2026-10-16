@@ -68,8 +68,8 @@ is an outstanding request, and a row that has one is a topic.
 6. **Read the topics out.** `TOPIC_TOP_TERMS` highest-weighted terms each.
    This is also the only signature a label is matched on across a refit.
 7. **Score every passage.** One walk produces the memberships (every weight
-   above `TOPIC_MIN_WEIGHT`, clamped to 1.0), the count of unplaced passages,
-   and the whole fitted space the figure needs.
+   above `TOPIC_MIN_WEIGHT`, clamped to 1.0), the passages placed in no
+   topic, and the whole fitted space the figure needs.
 8. **Carry the labels over.** `carry_labels` matches on shared top terms —
    Jaccard overlap of at least 0.4 — and each previous label is used at most
    once. The coverage choice and when a person last decided travel with it.
@@ -91,9 +91,13 @@ is an outstanding request, and a row that has one is a topic.
     language the fit skipped keeps its topics and memberships. Topic ids are
     read back after the insert rather than from `RETURNING`, whose row order
     for an `executemany` is not guaranteed, and are keyed by
-    `(language, topic_index)`. If the request was withdrawn, or swept and
-    claimed again, after this fit claimed it, the fit writes nothing, keeps
-    no model and draws no figure.
+    `(language, topic_index)`. A passage the fit placed in no topic — the
+    vocabulary filter dropped its words, or every weight fell below the
+    floor — joins its language's topic whose centroid is nearest, held as
+    weakly as the fit holds any passage of that language; one with no
+    vector stays out. If the request was withdrawn, or swept and claimed
+    again, after this fit claimed it, the fit writes nothing, keeps no model
+    and draws no figure.
 11. **Keep the model and draw the figure**, after the topics are written, so
     a failure here is logged and left. Each language's previous model and
     figure go to the `archive` bucket first. `pyLDAvis` is imported inside
@@ -113,7 +117,8 @@ or `LLM_MODEL` without one) one question before claiming the request. See
 
 `topics.embedding` is the mean of the vectors of the passages a topic holds,
 normalised to length 1, written in SQL out of `passages.embedding` by every
-fit. Nothing reads it.
+fit. The fit reads it to place a passage it put in no topic, and writes it
+again once those are in.
 
 No HNSW index on that column: a fit is tens of rows.
 

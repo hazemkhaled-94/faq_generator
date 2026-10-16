@@ -7,6 +7,7 @@ figures read back as.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -809,6 +810,68 @@ class TestATopicSitsWhereItsPassagesDo:
         assert vectors[0] is not None and vectors[1] is not None
         assert vectors[0][0] == pytest.approx(1.0)
         assert vectors[1][7] == pytest.approx(1.0)
+
+    def test_a_passage_the_fit_placed_nowhere_joins_the_nearest_topic(
+        self, store
+    ) -> None:
+        """Held as weakly as the fit holds any passage of its language.
+
+        A passage whose words the vocabulary filter dropped still says
+        something; outside every topic, its facts are dealt to no question.
+        """
+        store.given_passages(de=5)
+        one, two, three, four, five = store.passages["de"]
+        store.given_passage_vectors(
+            **{str(one): 0, str(two): 0, str(three): 7, str(four): 7, str(five): 7}
+        )
+        store.queue.replace(
+            store.request(),
+            [
+                replace(
+                    fitting(
+                        "de",
+                        weights=[
+                            PassageWeight(one, 0, 0.9),
+                            PassageWeight(two, 0, 0.8),
+                            PassageWeight(three, 1, 0.9),
+                            PassageWeight(four, 1, 0.6),
+                        ],
+                    ),
+                    unplaced=(five,),
+                )
+            ],
+        )
+
+        held = [
+            (topic, weight)
+            for passage, topic, weight in store.memberships()
+            if passage == five
+        ]
+
+        assert held == [(store.topic_id("de", 1), pytest.approx(0.6))], held
+
+    def test_a_passage_placed_nowhere_with_no_vector_stays_out(self, store) -> None:
+        """Nearest is a distance, and a passage with no vector has none."""
+        store.given_passages(de=3)
+        one, two, three = store.passages["de"]
+        store.given_passage_vectors(**{str(one): 0, str(two): 7})
+        store.queue.replace(
+            store.request(),
+            [
+                replace(
+                    fitting(
+                        "de",
+                        weights=[
+                            PassageWeight(one, 0, 0.9),
+                            PassageWeight(two, 1, 0.9),
+                        ],
+                    ),
+                    unplaced=(three,),
+                )
+            ],
+        )
+
+        assert three not in {passage for passage, _, _ in store.memberships()}
 
     def test_a_centroid_is_a_unit_vector(self, store) -> None:
         """Normalised, so a cosine between two is a dot product.

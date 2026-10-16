@@ -74,6 +74,9 @@ class Fitting:
     trace_id: str = ""
     #: The span this language was fitted and labelled in.
     span_id: str = ""
+    #: The passages counted in `without_topics`, which the store places in
+    #: the topic whose centroid is nearest.
+    unplaced: tuple[int, ...] = ()
 
     @property
     def labelled(self) -> int:

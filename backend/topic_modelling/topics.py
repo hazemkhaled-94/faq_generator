@@ -208,15 +208,16 @@ class TopicFitter:
             random_state=self._random_state,
         )
 
-        weights, without, space = self._score(model, corpus, dictionary, weighting)
+        weights, unplaced, space = self._score(model, corpus, dictionary, weighting)
         return Fitting(
             language=language,
             topics=self._topics(model),
             weights=weights,
             passages=counted,
-            without_topics=without,
+            without_topics=len(unplaced),
             vocabulary=len(dictionary),
             space=space,
+            unplaced=tuple(unplaced),
         )
 
     def _count(self, passages: int) -> int:
@@ -252,17 +253,17 @@ class TopicFitter:
         corpus: Corpus,
         dictionary: corpora.Dictionary,
         weighting: TfidfModel,
-    ) -> tuple[list[PassageWeight], int, TopicSpace]:
+    ) -> tuple[list[PassageWeight], list[int], TopicSpace]:
         """Scores every passage against the fitted model, in one walk.
 
         Returns:
-            The memberships above the weight floor, how many passages hold
+            The memberships above the weight floor, the passages holding
             none, and the space the visualisation is drawn from.
         """
         weights: list[PassageWeight] = []
         doc_topic: list[list[float]] = []
         doc_lengths: list[int] = []
-        without = 0
+        without: list[int] = []
         for passage in corpus():
             bow = cast("list[tuple[int, int]]", dictionary.doc2bow(passage.lemmas))
             found = model.get_document_topics(weighting[bow], minimum_probability=0)
@@ -280,7 +281,7 @@ class TopicFitter:
             # Counts both a passage holding none of the vocabulary and one
             # whose every weight fell below the floor.
             if not kept:
-                without += 1
+                without.append(passage.id)
                 continue
             weights.extend(
                 PassageWeight(
@@ -293,9 +294,9 @@ class TopicFitter:
             )
         if without:
             log.warning(
-                "%d passage(s) came out with no topic, so they are in no "
-                "topic-weighted report",
-                without,
+                "%d passage(s) came out with no topic; each goes to the topic "
+                "whose centroid is nearest, where it has a vector",
+                len(without),
             )
         return (
             weights,
