@@ -129,7 +129,8 @@ language added there without its rows fails that test, naming each table.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
-| `_DIVISIONS` | [`question_generation/gates.py`](../question_generation/gates.py) | Words naming a division of a document | `Abschnitt`, `section` |
+| `_DIVISIONS` | [`question_generation/gates.py`](../question_generation/gates.py) | Words naming a division of a document's layout, by language: numbered, a citation | `Abschnitt`, `section` |
+| `_NORMATIVE` | same | Words naming a unit of what a document lays down, by language: numbered, the question's subject | `Artikel`, `clause` |
 | `_DOCUMENTS` | same | Words naming a document **type**, never a subject | `Richtlinie`, `guideline` |
 | `_ATTRIBUTIONS` | same | Words that attribute what follows to a source | `laut`, `according` |
 | `_AGENTS` | same | The interrogatives that ask after a **party** rather than a thing | `wer`, `who` |
@@ -148,7 +149,7 @@ language added there without its rows fails that test, naming each table.
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 
-None is read as a substring: `_DIVISIONS`, `_DOCUMENTS`, `_ANAPHORIC` and
+None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
 by the word as written, `_AGENTS`, `_NUMBER_WORDS` and `_CORRELATES` by the
 word as written, the openings off the start of the question, `_COUNTS`

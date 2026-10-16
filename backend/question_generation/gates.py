@@ -580,32 +580,39 @@ def subject(question: str, language: str | None) -> str:
     return " ".join(named)
 
 
-#: ponytail: this list, `_DOCUMENTS` and `_ATTRIBUTIONS` hold German and
-#: English words only; a third language names its source past them. Upgrade:
-#: a per-language list setting.
+#: ponytail: `_DOCUMENTS` and `_ATTRIBUTIONS` hold German and English words
+#: only; a third language names its source past them. Upgrade: a
+#: per-language list setting.
 #:
-#: Words that name a part of a document rather than a thing in the world, and
-#: so say WHERE an answer is once one is numbered. `Abschnitt 2.2` is a
-#: citation; `Abschnitt` alone is not, which is why every one of these is
-#: read with an identifier beside it.
-_DIVISIONS = frozenset(
-    {
-        "abschnitt",
-        "kapitel",
-        "anhang",
-        "artikel",
-        "ziffer",
-        "absatz",
-        "paragraf",
-        "paragraph",
-        "section",
-        "chapter",
-        "appendix",
-        "annex",
-        "clause",
-        "article",
-    }
-)
+#: Words that name a part of a document's LAYOUT, by language, and so say
+#: WHERE an answer is once one is numbered. `Abschnitt 2.2` is a citation;
+#: `Abschnitt` alone is not, which is why every one of these is read with an
+#: identifier beside it.
+_DIVISIONS: dict[str, frozenset[str]] = {
+    "de": frozenset({"abschnitt", "kapitel", "anhang", "seite"}),
+    "en": frozenset({"section", "chapter", "appendix", "annex", "page"}),
+}
+
+#: Words that name a unit of what a document LAYS DOWN, by language: a rule,
+#: an article, a clause. Numbered, one is what a question is about rather
+#: than where its answer is - `What does Article 5 require?` names its
+#: subject the way it would name a party - so it settles the question as
+#: citing nothing, unless another pattern finds a source beside it.
+_NORMATIVE: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "artikel",
+            "absatz",
+            "paragraf",
+            "paragraph",
+            "ziffer",
+            "klausel",
+            "regel",
+            "gesetz",
+        }
+    ),
+    "en": frozenset({"article", "clause", "paragraph", "rule", "law"}),
+}
 
 #: Words naming a document itself. Read by lemma and never as a substring,
 #: because German compounds: `Risikobericht` is a thing the corpus is about
@@ -674,8 +681,9 @@ def _names_something(following: Sequence) -> bool:
 def cites_source(question: str, language: str | None) -> bool | None:
     """Whether a question says WHERE its answer is, read off its parse.
 
-    True when a pattern settles it, and **None when nothing here does** -
-    never False. Absence of a pattern is not evidence a question names no
+    True when a pattern settles it, False where the only numbered unit it
+    names is a normative one (`_NORMATIVE`), and **None when nothing here
+    does**. Absence of a pattern is not evidence a question names no
     source: `Welche Reviewverfahren beschreibt die Norm ISO/IEC 20246?` names
     one and `Warum wird ISO/IEC/IEEE 29119-4 erwähnt?` does not, and the two
     differ by which of the standard and the answer the question is about.
@@ -689,6 +697,10 @@ def cites_source(question: str, language: str | None) -> bool | None:
     if _BRACKETED.search(question):
         return True
 
+    code = (language or "").strip().lower()
+    divisions = _DIVISIONS.get(code, frozenset())
+    normative = _NORMATIVE.get(code, frozenset())
+    names_a_rule = False
     tokens = list(document)
     for position, token in enumerate(tokens):
         lemma = token.lemma_.casefold()
@@ -703,8 +715,12 @@ def cites_source(question: str, language: str | None) -> bool | None:
         if attributes and _names_something(tokens[position + 1 :]):
             return True
         # `Abschnitt 2.2`, `Kapitel 5`, `section 4`.
-        if lemma in _DIVISIONS and following is not None and _identifier(following):
+        numbered = following is not None and _identifier(following)
+        if numbered and lemma in divisions:
             return True
+        # `Article 5`, `Klausel 12`: what the question is about.
+        if numbered and (lemma in normative or token.lower_ in normative):
+            names_a_rule = True
         # `Beck 2003`: a proper noun with a bare year against it. Adjacency
         # is load-bearing - `reported to the site manager in 2025` names a
         # party and a period and no source, and the preposition is what
@@ -727,7 +743,7 @@ def cites_source(question: str, language: str | None) -> bool | None:
                 "Dem" in child.morph.get("PronType", []) for child in token.children
             ):
                 return True
-    return None
+    return False if names_a_rule else None
 
 
 def anchored(question: str, language: str | None) -> bool:

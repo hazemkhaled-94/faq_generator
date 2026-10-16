@@ -69,6 +69,38 @@ def test_what_needs_a_reading_is_left_to_one(question: str, language: str) -> No
     assert cites_source(question, language) is None
 
 
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        ("What does Article 5 require of a joint account holder?", "en"),
+        ("Which fees does clause 12 allow the bank to raise?", "en"),
+        ("Welche Pflichten legt Artikel 5 dem Kontoinhaber auf?", "de"),
+        ("Welche Gebühr erlaubt Klausel 12 der Bank?", "de"),
+    ],
+)
+def test_a_numbered_rule_a_question_asks_about_is_not_its_source(
+    question: str, language: str
+) -> None:
+    """`Article 5` is what the question is about; `section 4` is where it looks.
+
+    A rule, an article or a clause is a unit of what a document lays down,
+    and a question about one names it the way it names a party. A section,
+    a chapter or a page is a unit of how the document is laid out. Settled
+    without a model either way.
+    """
+    assert cites_source(question, language) is False
+
+
+def test_a_numbered_rule_beside_a_named_source_still_cites_it() -> None:
+    """The rule is the subject; the manual is still where the answer is."""
+    assert (
+        cites_source(
+            "According to the service manual, what does Article 5 require?", "en"
+        )
+        is True
+    )
+
+
 def test_a_compound_naming_a_document_is_not_a_citation() -> None:
     """`Risikobericht` is a thing the corpus is about; `Bericht` is one it is.
 

@@ -390,10 +390,13 @@ the three phrasing judgements are answered where each belongs:
 | `names_its_source` | `gates.cites_source`, a model for the residue |
 | `self_contained` | `phrasing.py`, asked only where a pointer was found |
 
-`cites_source` matches what a pattern can settle — a numbered division
-(`Abschnitt 2.2`), a bracketed reference (`[R22]`), an author with a year
-(`Beck 2003`) — and returns **None, never False**, because the absence of a
-pattern is not evidence.
+`cites_source` matches what a pattern can settle — a numbered division of
+the layout (`Abschnitt 2.2`, `section 4`), a bracketed reference (`[R22]`), an
+author with a year (`Beck 2003`) — and returns **None** where nothing does,
+because the absence of a pattern is not evidence. It returns False only
+where the one numbered unit a question names is a unit of what the document
+lays down — `Article 5`, `clause 12`, `Klausel 12` — which is what the
+question is about rather than where its answer is, so no judge is asked.
 
 These are the readings that are words rather than features, and so the ones a
 third language has to be added to. [`backend/nlp/`](../nlp/README.md) lists

@@ -162,6 +162,7 @@ def test_no_catalogued_prompt_names_what_a_corpus_is_about(
 LEMMA_LISTS = {
     "backend/question_generation/gates.py": (
         "_DIVISIONS",
+        "_NORMATIVE",
         "_DOCUMENTS",
         "_ATTRIBUTIONS",
         "_AGENTS",
