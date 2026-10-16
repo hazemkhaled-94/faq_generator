@@ -29,7 +29,12 @@ from collections.abc import Mapping, Sequence
 from itertools import combinations, pairwise
 from typing import TYPE_CHECKING
 
-from database.qa_generator import AnswerForm, QuestionRejection, QuestionType
+from database.qa_generator import (
+    AnswerForm,
+    FactKind,
+    QuestionRejection,
+    QuestionType,
+)
 from nlp.analysis import (
     CARDINALS,
     claim,
@@ -1789,6 +1794,31 @@ def moves_on(cited: Sequence[int], root: Sequence[int]) -> bool:
     changes and the defect is that the material underneath did not.
     """
     return bool(set(cited) - set(root))
+
+
+#: The fact kinds that state several claims at once. A follow-up citing only
+#: one of these again can still reach a claim no earlier turn asked about.
+COMPOSITE = frozenset({FactKind.SUMMARY, FactKind.OUTLINE})
+
+
+def adds_to(
+    key: str, thread: Sequence[tuple[str, str | None]], language: str | None
+) -> bool:
+    """Whether a key says something no earlier turn of its thread said.
+
+    At least `_NEW` of its content lemmas absent from every earlier question
+    and answer. What lets a follow-up that cites its root's summary again
+    move on: `Which fees does the guide cover?` / `the card fees`, then `And
+    what does a transfer abroad cost?` / `a flat fee for each transfer
+    abroad` is one summary fact and two of its claims.
+    """
+    said = content(key, language)
+    if not said:
+        return False
+    earlier: set[str] = set()
+    for question, answer in thread:
+        earlier |= content(f"{question}\n{answer or ''}", language)
+    return len(said - earlier) / len(said) >= _NEW
 
 
 def same_material(cited: Sequence[int], parent: Sequence[int]) -> bool:

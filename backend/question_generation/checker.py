@@ -60,6 +60,7 @@ from nlp.analysis import content, interrogatives, pointing
 from nlp.embedding import Embedder, cosine
 from question_generation.gates import (
     BOUNDS,
+    COMPOSITE,
     COVERAGE,
     ENTAILMENT_OVERLAP,
     EXPLANATION_CHARS,
@@ -67,6 +68,7 @@ from question_generation.gates import (
     OFF_TOPIC_OVERLAP,
     OVERLAP,
     about,
+    adds_to,
     adds_up,
     agrees,
     anchored,
@@ -537,7 +539,14 @@ class QuestionChecker:
         if not candidate.follows:
             return None
         cited = [fact.id for fact in candidate.group.facts]
-        if not moves_on(cited, candidate.root_facts):
+        # A summary or an outline holds several claims, so a turn citing one
+        # again still walks on when its key says what no earlier turn did.
+        walks = all(
+            fact.kind in COMPOSITE for fact in candidate.group.facts
+        ) and adds_to(
+            candidate.target_answer or "", candidate.thread, candidate.group.language
+        )
+        if not moves_on(cited, candidate.root_facts) and not walks:
             return (
                 QuestionRejection.ASKS_NOTHING_NEW,
                 (

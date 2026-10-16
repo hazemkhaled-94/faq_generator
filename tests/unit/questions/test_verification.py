@@ -14,6 +14,7 @@ from factories import candidate, group, source
 
 from database.qa_generator import (
     AnswerForm,
+    FactKind,
     QuestionRejection,
     QuestionStatus,
     QuestionType,
@@ -2774,6 +2775,40 @@ def test_a_follow_up_citing_only_its_root_asks_nothing_new() -> None:
 def test_a_follow_up_reaching_one_new_fact_moves_on() -> None:
     """One is enough: the thread went somewhere."""
     assert moves_on(cited=(2, 4), root=(1, 2))
+
+
+#: A fact stating what a whole section covers, several claims in one.
+_COVERS = (
+    "The guide covers the fees for cards, for transfers abroad and for cash "
+    "withdrawals at other banks' machines."
+)
+
+
+@pytest.mark.parametrize(
+    ("kind", "key", "refused"),
+    [
+        (FactKind.SUMMARY, "a flat fee for each transfer abroad", False),
+        (FactKind.OUTLINE, "a flat fee for each transfer abroad", False),
+        (FactKind.ATOMIC, "a flat fee for each transfer abroad", True),
+        (FactKind.SUMMARY, "the card fees", True),
+    ],
+    ids=["summary, new key", "outline, new key", "atomic", "summary, key said before"],
+)
+def test_a_follow_up_on_a_summary_moves_on_when_its_key_says_something_new(
+    kind: str, key: str, refused: bool
+) -> None:
+    """A summary holds several claims; asking it again can reach another one."""
+    result = build(Recording(recovers=key)).check(
+        candidate(
+            question_text="And what does a transfer abroad cost?",
+            target_answer=key,
+            thread=(("Which fees does the guide cover?", "the card fees"),),
+            root_facts=(1,),
+            facts=group(source(1, statement=_COVERS, kind=kind)),
+        )
+    )
+
+    assert (result.rejected_reason == QuestionRejection.ASKS_NOTHING_NEW) is refused
 
 
 def test_a_follow_up_sharing_a_passage_stays_on_thread() -> None:
