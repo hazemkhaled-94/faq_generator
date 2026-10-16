@@ -3072,6 +3072,34 @@ def test_a_key_the_entailment_pass_rescued_is_still_held_to_completeness() -> No
     assert result.rejected_reason == QuestionRejection.ANSWER_INCOMPLETE
 
 
+def test_an_explanation_key_is_read_for_completeness_and_refused_nothing() -> None:
+    """Shadow mode: the share is stored, so a bar can be set on rebuilt keys."""
+    passage = (
+        "A card block stops every payment with the card until the bank lifts "
+        "it. The bank blocks a card for fraud, for unpaid fees, under a court "
+        "order, after a theft report or on a fraud alert, and it tells the "
+        "holder by letter within two days."
+    )
+    result = build(Recording(recovers=passage)).check(
+        candidate(
+            question_text="What is a card block?",
+            target_answer=(
+                "A card block stops every payment with the card until the bank lifts it."
+            ),
+            question_type=QuestionType.DEFINITION,
+            facts=group(
+                source(statement="A card block stops payments.", passage_text=passage)
+            ),
+        )
+    )
+
+    shadow = [one for one in result.readings if one.gate == "coverage"]
+    assert result.answer_form == AnswerForm.EXPLANATION, result.answer_form
+    assert result.rejected_reason != QuestionRejection.ANSWER_INCOMPLETE
+    assert len(shadow) == 1 and shadow[0].shadow, result.readings
+    assert shadow[0].value < 0.5, shadow[0]
+
+
 @pytest.mark.parametrize("form", [AnswerForm.VALUE, AnswerForm.EXPLANATION])
 def test_only_a_list_claims_to_name_a_set(form: str) -> None:
     """A value is short because its answer is one thing."""

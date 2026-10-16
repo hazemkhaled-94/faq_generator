@@ -57,6 +57,9 @@ class Measurement:
         version: The prompt version an opinion was given under, or None.
             A rewritten prompt is a new judgement, and this is how a re-run
             tells the verdicts it still has to ask for from the ones it has.
+        shadow: Whether this is a gate measured before it gates anything,
+            stored so its bar can be set on real readings. Like an opinion,
+            recorded with no margin and left out of `confidence`.
     """
 
     gate: str
@@ -66,6 +69,7 @@ class Measurement:
     safe_end: float | None = None
     opinion: bool = False
     version: str | None = None
+    shadow: bool = False
 
     @property
     def _safest(self) -> float:
@@ -113,12 +117,14 @@ class Measurement:
             "gate": self.gate,
             "value": round(self.value, 4),
             "threshold": round(self.threshold, 4),
-            "margin": None if self.opinion else round(self.margin, 4),
+            "margin": None if self.opinion or self.shadow else round(self.margin, 4),
             "high_is_safe": self.high_is_safe,
             "safe_end": round(self._safest, 4),
         }
         if self.opinion:
             recorded["opinion"] = True
+        if self.shadow:
+            recorded["shadow"] = True
         if self.version is not None:
             recorded["version"] = self.version
         return recorded
@@ -138,7 +144,7 @@ def confidence(readings: Sequence[Measurement]) -> float | None:
     column of zeroes would sort those to the top of every review queue.
     An opinion is left out for the same reason.
     """
-    measured = [one.margin for one in readings if not one.opinion]
+    measured = [one.margin for one in readings if not one.opinion and not one.shadow]
     if not measured:
         return None
     return round(min(measured), 4)

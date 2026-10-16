@@ -1576,10 +1576,36 @@ def incomplete(
     """
     if form != AnswerForm.LIST or coverage <= 0:
         return False
+    share = covered(recovered, target, language)
+    return share is not None and share < coverage
+
+
+def covered(recovered: str, target: str, language: str | None) -> float | None:
+    """How much of what the verifier found in the passages the key holds.
+
+    The share of the recovery's content lemmas the key carries, or None
+    where the recovery says no more than the key: a key cannot be short of
+    a recovery no longer than itself.
+    """
     wanted, got = content(target, language), content(recovered, language)
     if not got or len(got) <= len(wanted):
-        return False
-    return len(wanted & got) / len(got) < coverage
+        return None
+    return len(wanted & got) / len(got)
+
+
+#: The kinds whose explanation-form key can name part of what the passages
+#: give: the conditions of a rule, the steps of a procedure, the items of a
+#: set, the consequences of an act, what a term covers. Read in shadow by
+#: `covered` until a bar is set on real keys.
+SHADOWED = frozenset(
+    {
+        QuestionType.CONDITION,
+        QuestionType.PROCEDURE,
+        QuestionType.ENUMERATION,
+        QuestionType.CONSEQUENCE,
+        QuestionType.DEFINITION,
+    }
+)
 
 
 def compares(question: str, answer: str, language: str | None) -> bool:

@@ -163,6 +163,19 @@ def test_an_opinion_is_recorded_with_no_margin() -> None:
     assert written["opinion"] is True
 
 
+def test_a_shadow_reading_is_stored_and_moves_nothing() -> None:
+    """Measured to set a bar on later, not yet a gate: no margin, no confidence."""
+    shadow = Measurement("coverage", 0.2, 0.4, shadow=True)
+    measured = Measurement("off_topic", 0.4, 0.3)
+
+    (written,) = scored([shadow])
+
+    assert written["margin"] is None
+    assert written["shadow"] is True
+    assert written["threshold"] == 0.4
+    assert confidence([shadow, measured]) == confidence([measured])
+
+
 def test_a_measurement_is_recorded_as_it_always_was() -> None:
     """No `opinion` key, so a recalibration finds every stored row unchanged."""
     (written,) = scored([Measurement("recall", 0.8, 0.6)])

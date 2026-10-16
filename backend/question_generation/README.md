@@ -357,6 +357,14 @@ verbs are an explanation where the type takes one, and a list where it does
 not. A comma between two digits separates no items, so `49,90 €` is one
 amount.
 
+An `explanation` key of a `condition`, `procedure`, `enumeration`,
+`consequence` or `definition` question is read for completeness in
+**shadow**: the share of the recovery's content words the key carries is
+stored in `gate_scores` as `coverage`, marked `shadow`, with
+`QUESTIONS_ANSWER_COVERAGE` beside it, no margin and no part in the
+confidence, and nothing is refused on it. It is there to set a bar on real
+keys before it gates any.
+
 Three things about it are load-bearing. The verifier is meant to be a
 **different** model, because a model marking its own work recovers what it
 just wrote; the stage warns when it is the writer's. The escape hatch is
