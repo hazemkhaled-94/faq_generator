@@ -318,6 +318,12 @@ corpus, which is a property of the model rather than of this code.
   `section_path`, and of every later passage of the same list. A lead-in
   that does not end in a colon, or one split across two chunks, is not
   carried.
+- **A sentence cut at a page or column break is joined back.** A paragraph
+  or list item ending on no sentence mark (`.`, `!`, `?`, `:`, `;`),
+  followed on the next page or in the next column by a paragraph opening in
+  lower case, takes that paragraph's text; the paragraph moves to the
+  furniture layer. A script without case is never joined, and two blocks in
+  one column of one page are the document's own break.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed

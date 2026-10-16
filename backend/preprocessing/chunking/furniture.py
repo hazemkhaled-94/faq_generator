@@ -25,7 +25,7 @@ from itertools import pairwise
 from docling_core.transforms.chunker.doc_chunk import DocChunk
 from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.common.reference import RefItem
-from docling_core.types.doc.document import DoclingDocument
+from docling_core.types.doc.document import DoclingDocument, ProvenanceItem
 from docling_core.types.doc.items.node import DocItem, NodeItem
 from docling_core.types.doc.items.text import TextItem
 from docling_core.types.doc.labels import DocItemLabel
@@ -52,6 +52,10 @@ _SPACE = re.compile(r"\s+")
 #: The most body words one running field is matched against when its
 #: spacing is read off the body.
 _RESPACE_WORDS = 8
+
+#: What a sentence or a lead-in ends on. A block ending in none of these
+#: before a page or column break goes on in the next one.
+_ENDS = (".", "!", "?", ":", ";")
 
 #: The parts of speech of a conjunction, in spaCy's universal tag set.
 _CONJUNCTIONS = frozenset({"CCONJ", "SCONJ"})
@@ -324,10 +328,13 @@ def tidied(
     with whitespace removed, is the converter reading furniture as body
     text. A paragraph of one letter, followed by entries under that letter,
     is a glossary's index divider, where the document holds two or more in
-    ascending order. Both move to the furniture layer. Before
-    the first block of each chapter goes a title naming it, which empties
-    the heading trail the chunker would otherwise carry over from the
-    chapter before.
+    ascending order. Both move to the furniture layer. A sentence the
+    converter cut at a page or column break is joined back: a paragraph or
+    list item ending in no `_ENDS` mark, followed on the next page or in the
+    next column by a paragraph opening in lower case, takes that paragraph's
+    text, which moves to the furniture layer. Before the first block of each
+    chapter goes a title naming it, which empties the heading trail the
+    chunker would otherwise carry over from the chapter before.
 
     Args:
         document: The converted document, which is not modified.
@@ -345,13 +352,22 @@ def tidied(
         and item.label in _PROSE
         and _repeats(item.text, furniture.running)
     }
+    joins = _continued(document, debris)
     starts = _chapter_starts(document, furniture, debris)
-    if not debris and not starts:
+    if not debris and not starts and not joins:
         return document, {}
 
     tidy = document.model_copy(deep=True)
     for reference in debris:
         _resolved(reference, tidy).content_layer = ContentLayer.FURNITURE
+    into: dict[str, str] = {}
+    for first, second in joins:
+        target = into.get(first, first)
+        joined, taken = _resolved(target, tidy), _resolved(second, tidy)
+        if isinstance(joined, TextItem) and isinstance(taken, TextItem):
+            joined.text = f"{joined.text.rstrip()} {taken.text.lstrip()}"
+            taken.content_layer = ContentLayer.FURNITURE
+            into[second] = target
     titles: dict[str, tuple[str, ...]] = {}
     for reference, label in starts:
         text = " | ".join(label)
@@ -393,6 +409,43 @@ def _dividers(document: DoclingDocument) -> set[str]:
     if len(found) < 2 or any(a >= b for a, b in pairwise(letters)):
         return set()
     return {reference for reference, _ in found}
+
+
+def _continued(document: DoclingDocument, skipped: set[str]) -> list[tuple[str, str]]:
+    """The pairs of blocks a page or column break cut one sentence between.
+
+    The converter ends a block where a page or a column does, mid-sentence,
+    and opens the next as a paragraph of its own. Read off the punctuation
+    and the case, which a page's layout does not set: a block that ends on
+    no sentence mark and a next one that opens in lower case are one
+    sentence. A script without case opens nothing in lower case, so it is
+    never joined.
+    """
+    texts = [
+        item
+        for item, _ in document.iterate_items()
+        if isinstance(item, TextItem)
+        and item.content_layer == ContentLayer.BODY
+        and item.self_ref not in skipped
+        and item.prov
+        and item.text.strip()
+    ]
+    return [
+        (first.self_ref, second.self_ref)
+        for first, second in pairwise(texts)
+        if first.label in _PROSE | {DocItemLabel.LIST_ITEM}
+        and second.label in _PROSE
+        and not first.text.rstrip().endswith(_ENDS)
+        and second.text.lstrip()[0].islower()
+        and _broken(first.prov[-1], second.prov[0])
+    ]
+
+
+def _broken(before: ProvenanceItem, after: ProvenanceItem) -> bool:
+    """Whether a page or a column break lies between two blocks."""
+    if after.page_no != before.page_no:
+        return after.page_no == before.page_no + 1
+    return after.bbox.l >= before.bbox.r
 
 
 def _repeats(text: str, running: frozenset[tuple[str, ...]]) -> bool:

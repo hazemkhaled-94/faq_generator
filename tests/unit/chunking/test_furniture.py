@@ -471,6 +471,31 @@ def test_a_label_printed_letter_spaced_is_spelled_as_the_body_spells_it() -> Non
     assert trails(document)[0][1] == ["Savings accounts", "1. Interest"]
 
 
+def test_a_sentence_cut_by_a_page_break_is_read_whole() -> None:
+    """The converter ends a block at the foot of a page, mid-sentence."""
+    document = paged(2)
+    say(document, 1, "A transfer is released once the payee")
+    say(document, 2, "is verified by the bank.")
+
+    texts = [text for text, _ in trails(document)]
+
+    assert any(
+        "A transfer is released once the payee is verified by the bank." in text
+        for text in texts
+    ), texts
+
+
+def test_two_blocks_in_one_column_of_a_page_are_not_joined() -> None:
+    """A break the page does not force is the document's own."""
+    document = paged(1)
+    say(document, 1, "Fees are listed in the annex")
+    say(document, 1, "interest is paid monthly.")
+
+    texts = [text for text, _ in trails(document)]
+
+    assert not any("annex interest" in text for text in texts), texts
+
+
 def facing() -> DoclingDocument:
     """Left pages head their chapter, right pages a topic of their own."""
     document = paged(9)
