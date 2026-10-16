@@ -384,8 +384,12 @@ def test_heads_that_differ_on_every_page_are_not_chapters() -> None:
     assert read(document) == plain(document)
 
 
-def test_a_chapter_headed_on_one_page_is_not_filed_under_the_one_before() -> None:
-    """Its single-page head names no chapter, so it carries none, not the last."""
+def test_a_chapter_printed_on_one_page_is_filed_under_its_own_foot() -> None:
+    """A short chapter prints its foot on one page, laid out as every chapter's is.
+
+    The foot has the shape of the ones that name the chapters before it, so
+    it names this one, rather than leaving its rules under no chapter.
+    """
     document = paged(4)
     for page, printed in ((1, "Accounts"), (2, "Accounts"), (3, "Cards")):
         foot(document, page, f"{GUIDE} | {printed}")
@@ -399,8 +403,56 @@ def test_a_chapter_headed_on_one_page_is_not_filed_under_the_one_before() -> Non
 
     assert [headings for _, headings in trails(document)] == [
         ["Accounts", "1. Opening an account"],
-        ["1. Debit cards"],
+        ["Cards", "1. Debit cards"],
     ]
+
+
+def test_guide_words_inside_a_chaptered_guide_name_no_chapter() -> None:
+    """A glossary whose foot names each page's first entry is still one glossary."""
+    document = paged(6)
+    for page, printed in (
+        (1, "Accounts"),
+        (2, "Accounts"),
+        (3, "Abacus"),
+        (4, "Balance"),
+        (5, "Credit"),
+        (6, "Fees"),
+    ):
+        foot(document, page, f"{GUIDE} | {printed}")
+    document.add_heading(text="1. Opening an account", level=1, prov=on(1, 60))
+    say(document, 1, "An account opens once the bank has checked the holder.")
+    say(document, 2, "A joint account needs both holders to sign.")
+    document.add_heading(text="Glossary", level=1, prov=on(3, 60))
+    for page, entry in (
+        (3, "Abacus: a counting frame."),
+        (4, "Balance: money held."),
+        (5, "Credit: money lent."),
+    ):
+        say(document, page, entry)
+
+    glossary = [headings for text, headings in trails(document) if "Abacus" in text]
+
+    assert glossary == [["Glossary"]]
+
+
+def test_a_stray_foot_inside_a_chapter_changes_nothing() -> None:
+    """One page printing a notice in its foot is still in the chapter around it."""
+    document = paged(5)
+    for page, printed in (
+        (1, "Accounts"),
+        (2, "Accounts"),
+        (3, "Important notice"),
+        (4, "Accounts"),
+        (5, "Accounts"),
+    ):
+        foot(document, page, f"{GUIDE} | {printed}")
+    document.add_heading(text="1. Opening an account", level=1, prov=on(1, 60))
+    for page in range(1, 6):
+        say(document, page, f"An account rule printed on page {page}.")
+
+    assert {str(headings) for _, headings in trails(document)} == {
+        "['Accounts', '1. Opening an account']"
+    }
 
 
 def facing() -> DoclingDocument:

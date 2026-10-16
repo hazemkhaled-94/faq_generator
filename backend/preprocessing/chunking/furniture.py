@@ -103,16 +103,21 @@ def furniture_of(document: DoclingDocument) -> Furniture:
 
     Each running head and foot is split into fields. A field that numbers
     pages is dropped, and so is one printed on every page that prints any:
-    the title, the edition. So is one printed on a single page: a stray
-    header, or a guide word naming its own page. What is left, printed on a
-    run of pages and changing from one run to the next, is the chapter
-    label. A page printing only the title is in the chapter of the page
-    before, and so is one printing only some of that chapter's fields. So
-    is a page printing only single-page fields, when the same label is
-    printed either side of it; otherwise it is in none. When one of
-    those fields comes back after another has taken over,
-    as on pages whose heads alternate between title and chapter, the heads
-    do not name chapters and none is read.
+    the title, the edition. What is left, printed on a run of pages and
+    changing from one run to the next, is the chapter label. A page printing
+    only the title is in the chapter of the page before, and so is one
+    printing only some of that chapter's fields. So is a page printing only
+    single-page fields, when the same label is printed either side of it.
+
+    Otherwise a field printed on a single page names a chapter of one page
+    when its running item is laid out as one naming a chapter of several -
+    the same fields constant and varying, in the same places - and no page
+    beside it prints a single-page field of its own. A short chapter prints
+    its foot on one page; guide words, naming each page's first entry, print
+    a different one on every page in a row, and a page between them is in
+    no chapter. When one of the varying fields comes back after another has
+    taken over, as on pages whose heads alternate between title and
+    chapter, the heads do not name chapters and none is read.
 
     Args:
         document: The converted document.
@@ -146,10 +151,14 @@ def furniture_of(document: DoclingDocument) -> Furniture:
     )
 
     by_page: dict[int, dict[str, None]] = defaultdict(dict)
+    # Each running item's fields, by page, for the layout a chapter's has.
+    items_on: dict[int, list[tuple[str, ...]]] = defaultdict(list)
     for page, found in printed:
-        for one in found:
-            if _key(one) not in numbers:
-                by_page[page][_key(one)] = None
+        keys = tuple(_key(one) for one in found if _key(one) not in numbers)
+        for key in keys:
+            by_page[page][key] = None
+        if keys:
+            items_on[page].append(keys)
     furnished = set(by_page)
     constant = {key for key, pages in pages_of.items() if pages >= furnished}
     varying = {
@@ -167,6 +176,39 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             document.name,
         )
         return Furniture(running=running)
+
+    def shape(keys: tuple[str, ...]) -> tuple[bool, ...]:
+        """Which of an item's fields are constant, in the order it prints them."""
+        return tuple(key in constant for key in keys)
+
+    chaptered = {
+        shape(keys)
+        for items in items_on.values()
+        for keys in items
+        if any(key in varying for key in keys)
+    }
+
+    def single(page: int) -> tuple[str, ...]:
+        """The lettered fields of a page that no other page prints."""
+        return tuple(
+            key
+            for key in by_page.get(page, {})
+            if key not in constant and key not in varying and _lettered(key)
+        )
+
+    def names_a_chapter(page: int, own: tuple[str, ...]) -> bool:
+        """Whether a page's single-page fields name a chapter of one page."""
+        if not any(
+            shape(keys) in chaptered and any(key in own for key in keys)
+            for keys in items_on[page]
+        ):
+            return False
+        return not any(
+            single(beside)
+            and set(single(beside)) != set(own)
+            and not any(key in varying for key in by_page.get(beside, {}))
+            for beside in (page - 1, page + 1)
+        )
 
     pages = sorted(by_page)
     printing = {
@@ -193,6 +235,8 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             by_page[page].keys() <= constant or following[page] == before
         ):
             continue
+        if not label and (own := single(page)) and names_a_chapter(page, own):
+            label = tuple(spelled[key] for key in own)
         # A page printing only part of its chapter's label, its number
         # without its title, is still in it.
         if label and set(label) <= set(before):
