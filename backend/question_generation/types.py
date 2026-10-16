@@ -31,7 +31,7 @@ from database.qa_generator import (
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "13"
+PROMPT_VERSION = "14"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -210,6 +210,11 @@ to understand the answer. Write it for them:
 
 - SAME LANGUAGE as the question, and NEVER SAY WHERE THE ANSWER IS: the rules
   above about naming a document, a section or a heading apply here too.
+
+- ABOUT THE SUBJECT, NEVER ABOUT THE FACTS OR THE TASK. Not "the material
+  says", "the facts do not state", "both statements", "the question asks":
+  say what is so. Where the facts do not combine into the answer, do not
+  write around the gap - decline the question instead.
 """
 
 #: Everything the answer has to satisfy, under the FORMAT heading: how the
@@ -217,6 +222,10 @@ to understand the answer. Write it for them:
 _FORMAT_RULES = f"""{READS}
 - `facts` is the NUMBERS of the facts your question needs. Use several only
   when the question genuinely cannot be answered without all of them.
+- `declined` is true when these facts cannot answer a question of this kind
+  honestly - a reason they never give, a list they hold one item of. Leave
+  the question and the answer empty then: the slot is written as another
+  kind, and a question forced onto the wrong facts is thrown away.
 
 {EXPLAINS}"""
 

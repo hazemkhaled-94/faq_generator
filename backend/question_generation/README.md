@@ -176,6 +176,15 @@ and is not followed, with a warning, if no other kind is left. It is a
 preference over what is dealt, not a gate, and a language with no markers is
 dealt as before.
 
+**The writer may decline a slot.** Its answer carries `declined`, set where
+the facts it was dealt cannot answer a question of the kind asked honestly —
+a reason they never give, a list they hold one item of. A declined slot is
+swapped to another kind of the mix on the same facts, cycled as the reason
+swap is, and skipped if the mix has no other kind or the writer declines
+that too; a declined retry ends the retries, and a declined follow-up ends
+its thread. The writer is also told to write about the subject and never
+about the facts or the task: "the material says", "both statements".
+
 ### The answer form
 
 `answer_form` is `value`, `list` or `explanation`. The kind declares the form

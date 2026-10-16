@@ -314,6 +314,28 @@ def test_the_writer_is_told_not_to_pad_a_question_with_hedges() -> None:
     assert "PADDING" in model.system
 
 
+def test_a_writer_that_declines_the_slot_says_so() -> None:
+    """Facts that cannot answer this kind are a reason to write another kind."""
+    import pytest
+
+    from question_generation.generation import Declined
+
+    model = StubModel(question="", answer="", declined=True)
+
+    with pytest.raises(Declined):
+        QuestionWriter(model).write(group(), plan())
+
+
+def test_the_writer_may_decline_and_must_not_talk_about_the_task() -> None:
+    """A forced question and an answer about `the material` are both thrown away."""
+    model = StubModel(question="Q?", answer="A")
+
+    QuestionWriter(model).write(group(), plan())
+
+    assert "`declined`" in model.system
+    assert "NEVER ABOUT THE FACTS OR THE TASK" in model.system
+
+
 def test_the_unanswerable_prompt_carries_the_same_reading_rules() -> None:
     """A rule in one prompt and not the other is how the two disagree.
 

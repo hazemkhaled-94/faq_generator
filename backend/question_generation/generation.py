@@ -228,6 +228,10 @@ def _under(position: int, statement: str) -> str:
     return "\n".join([label + first, *(" " * len(label) + one for one in rest)])
 
 
+class Declined(Exception):
+    """The writer said these facts cannot answer a question of the kind asked."""
+
+
 class _Answered(BaseModel):
     """A question the facts answer, as the model is asked to return it."""
 
@@ -245,6 +249,11 @@ class _Answered(BaseModel):
     facts: list[int] = Field(
         default_factory=list,
         description="The NUMBERS of the facts this question needs.",
+    )
+    declined: bool = Field(
+        default=False,
+        description="True when these facts cannot answer a question of this "
+        "kind honestly; the question and the answer are then left empty.",
     )
 
 
@@ -288,6 +297,8 @@ class QuestionWriter:
         Raises:
             ModelUnavailable: If the model could not be reached or would not
                 answer in the shape.
+            Declined: If the model said these facts cannot answer a question
+                of this kind.
         """
         if not plan.answerable:
             return self._unanswerable(sample, plan, note)
@@ -298,6 +309,8 @@ class QuestionWriter:
             shape=_Answered,
             prompt_version=PROMPT_VERSION,
         )
+        if written.declined:
+            raise Declined(plan.spec.name)
         return self._candidate(
             plan,
             question=written.question,
@@ -337,6 +350,8 @@ class QuestionWriter:
             shape=_Answered,
             prompt_version=PROMPT_VERSION,
         )
+        if written.declined:
+            raise Declined(plan.spec.name)
         return self._candidate(
             plan,
             question=written.question,

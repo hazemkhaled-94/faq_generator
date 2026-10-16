@@ -42,7 +42,7 @@ from question_generation.gates import (
     structural,
     typed,
 )
-from question_generation.generation import QuestionWriter
+from question_generation.generation import Declined, QuestionWriter
 from question_generation.models import (
     Candidate,
     CheckedQuestion,
@@ -909,7 +909,33 @@ class QuestionGenerationService(StageService):
                 break
             written += 1
             try:
-                drafts = self._attempt(sample, plan, accepted)
+                try:
+                    drafts = self._attempt(sample, plan, accepted)
+                except Declined:
+                    # The writer read the facts and found they cannot answer
+                    # this kind; swapped as a reason slot with no reason is.
+                    other = instead(plan, self._settings.type_mix, swapped)
+                    swapped += 1
+                    log.info(
+                        "topic %d: the writer declined a %s slot as its facts "
+                        "cannot answer one; %s",
+                        topic.id,
+                        plan.spec.name,
+                        f"written as {other.spec.name}" if other else "not written",
+                        extra={"topic.id": topic.id},
+                    )
+                    if other is None:
+                        continue
+                    plan = other
+                    drafts = self._attempt(sample, plan, accepted)
+            except Declined:
+                log.info(
+                    "topic %d: the writer declined the %s slot it was swapped to",
+                    topic.id,
+                    plan.spec.name,
+                    extra={"topic.id": topic.id},
+                )
+                continue
             except ModelRefused as exc:
                 refused += 1
                 log.warning(
@@ -1236,6 +1262,12 @@ class QuestionGenerationService(StageService):
                     exc,
                 )
                 break
+            except Declined:
+                log.info(
+                    "not asking again for %r: the writer declined the slot",
+                    drafts[-1].question_text,
+                )
+                break
         return drafts
 
     def _followups(
@@ -1324,6 +1356,13 @@ class QuestionGenerationService(StageService):
                     "refused the prompt (%s)",
                     topic_id,
                     exc,
+                    extra={"topic.id": topic_id},
+                )
+                break
+            except Declined:
+                log.info(
+                    "topic %d: a thread ends: the writer declined its next turn",
+                    topic_id,
                     extra={"topic.id": topic_id},
                 )
                 break

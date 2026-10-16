@@ -869,6 +869,40 @@ def test_a_reason_turn_with_no_reason_to_ask_takes_the_next_kind() -> None:
     assert QuestionType.REASON not in turns
 
 
+def test_a_slot_the_writer_declines_is_written_as_another_kind() -> None:
+    """The writer knows when its facts cannot answer the kind it was handed."""
+    from question_generation.generation import Declined
+
+    asked: list = []
+
+    class Declining(StubWriter):
+        """Declines every condition slot, as a writer with only values would."""
+
+        def write(self, group, plan, note: str = ""):
+            """Declines a condition; writes anything else as scripted."""
+            asked.append(plan.spec.name)
+            if plan.spec.name == QuestionType.CONDITION:
+                raise Declined(plan.spec.name)
+            return super().write(group, plan)
+
+    facts = [source(n, document="a", passage_id=n) for n in range(8)]
+    settings = replace(
+        SETTINGS,
+        type_mix={QuestionType.CONDITION: 1, QuestionType.FACTOID: 1},
+        per_topic=4,
+        unanswerable_share=0.0,
+        followup_share=0.0,
+    )
+    service, queue = build(topic(), facts, writer=Declining(), settings=settings)
+
+    service.process_next()
+
+    stored = [one.question_type for thread in queue.stored[0] for one in thread]
+    assert QuestionType.CONDITION in asked, "no condition slot was planned"
+    assert QuestionType.CONDITION not in stored, stored
+    assert len(stored) == 4, "a declined slot was dropped rather than swapped"
+
+
 def test_a_swapped_reason_slot_says_what_it_became(caplog) -> None:
     """A mix that came out short of reasons is a fact somebody wants to read."""
     facts = [
