@@ -455,6 +455,22 @@ def test_a_stray_foot_inside_a_chapter_changes_nothing() -> None:
     }
 
 
+def test_a_label_printed_letter_spaced_is_spelled_as_the_body_spells_it() -> None:
+    """A tracked font puts spaces inside the words of a running foot."""
+    document = paged(4)
+    for page in (1, 2):
+        foot(document, page, f"{GUIDE} | Sav ings ac counts")
+    for page in (3, 4):
+        foot(document, page, f"{GUIDE} | Cards")
+    document.add_heading(text="1. Interest", level=1, prov=on(1, 60))
+    say(document, 1, "Savings accounts pay interest every month.")
+    say(document, 2, "Interest on savings accounts is taxed.")
+    document.add_heading(text="1. Debit cards", level=1, prov=on(3, 60))
+    say(document, 3, "A debit card draws on the current account.")
+
+    assert trails(document)[0][1] == ["Savings accounts", "1. Interest"]
+
+
 def facing() -> DoclingDocument:
     """Left pages head their chapter, right pages a topic of their own."""
     document = paged(9)

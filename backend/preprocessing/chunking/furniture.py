@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import re
 from bisect import bisect_right
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
@@ -48,6 +48,10 @@ _GAP = re.compile(r"\t+|\s{2,}")
 _NUMERAL = re.compile(r"\d+|\b[ivxlcdm]+\b", re.IGNORECASE)
 
 _SPACE = re.compile(r"\s+")
+
+#: The most body words one running field is matched against when its
+#: spacing is read off the body.
+_RESPACE_WORDS = 8
 
 #: The parts of speech of a conjunction, in spaCy's universal tag set.
 _CONJUNCTIONS = frozenset({"CCONJ", "SCONJ"})
@@ -138,6 +142,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             pages_of[_key(one)].add(page)
             spelled.setdefault(_key(one), one)
     numbers = _numbers(pages_of, spelled)
+    spelled = _respaced(spelled, document)
     running = frozenset(
         keys
         for _, found in printed
@@ -245,6 +250,39 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             starts.append(page)
             labels.append(label)
     return Furniture(tuple(starts), tuple(labels), running)
+
+
+def _respaced(spelled: dict[str, str], document: DoclingDocument) -> dict[str, str]:
+    """Each field spelled with the spaces the body puts in its words.
+
+    A running head set in a tracked font comes out of the converter
+    letter-spaced, `Sav ings ac counts`, and the chapter would be labelled
+    so. The body prints the same words: a run of up to `_RESPACE_WORDS` body
+    words whose letters, case and spaces aside, are the field's gives the
+    spaces - the run with the fewest, then the commonest. The field keeps
+    its own characters and case and borrows only where the spaces go. A
+    field the body never prints keeps its spelling.
+    """
+    seen: dict[str, Counter[str]] = defaultdict(Counter)
+    for item in document.texts:
+        if item.label in _RUNNING or not item.text:
+            continue
+        words = item.text.split()
+        for start in range(len(words)):
+            joined = ""
+            for end in range(start, min(len(words), start + _RESPACE_WORDS)):
+                joined += words[end]
+                if joined.casefold() in spelled:
+                    seen[joined.casefold()][" ".join(words[start : end + 1])] += 1
+    respaced = dict(spelled)
+    for key, runs in seen.items():
+        best = min(runs.items(), key=lambda run: (run[0].count(" "), -run[1]))[0]
+        own = [char for char in spelled[key] if not char.isspace()]
+        if len(own) != len(best) - best.count(" "):
+            continue
+        letters = iter(own)
+        respaced[key] = "".join(" " if char == " " else next(letters) for char in best)
+    return respaced
 
 
 def _numbers(pages_of: dict[str, set[int]], spelled: dict[str, str]) -> set[str]:
