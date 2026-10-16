@@ -85,17 +85,25 @@ document's own `page_header` and `page_footer` items:
   12", "iv")
 - a field printed on every page that prints any is dropped: the title, the
   edition
-- a field printed on a single page is dropped: a stray header, or a guide
-  word naming its own page
+- a field printed on a single page is not read as a chapter field
 - what is left, printed on a run of pages and changing from one run to the
   next, is the chapter label; a page printing only the title is in the
   chapter of the last page that printed one, and so is a page printing only
   some of that chapter's fields, its number without its title
 - a page printing only single-page fields is in the chapter printed either
   side of it when both sides print the same one, as a facing page's topic
-  is; between two different chapters, or after the last, it is in none — a
-  chapter headed on a single page — and its passages keep today's trail,
+  is
+- otherwise its single-page fields name a chapter of one page when its
+  running item is laid out as one naming a chapter of several (the same
+  fields constant and varying, in the same places) and no page beside it
+  prints a single-page field of its own: a short chapter prints its foot on
+  one page, while guide words print a different one on every page in a row;
+  failing that it is in no chapter, and its passages keep today's trail,
   with no chapter prefix and no reset
+- a label's spacing is read off the body: a running head set in a tracked
+  font comes out letter-spaced (`Sav ings ac counts`), so the spaces of the
+  shortest run of up to eight body words with the same letters are used,
+  and the field keeps its own letters and case
 
 Fields are compared with whitespace removed and case folded, so a word the
 converter split is the same field. If a field comes back after another took
@@ -280,7 +288,7 @@ and `chunking_of` directly.
 |---|---|
 | [`test_intake_chunking.py`](../../../tests/unit/intake/test_intake_chunking.py) | Numbering, the token budget, block-type labelling, the row-to-line pairing, the cell grids, the bounding boxes, the failure paths and the re-read |
 | [`test_intake_surface.py`](../../../tests/unit/intake/test_intake_surface.py) | The spaCy-backed reading with real pipelines: per-passage language, sentence offsets, predicate counts, table rows, and what becomes vocabulary |
-| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, onto every later chunk of a list longer than one, nowhere across a sub-heading; and, as a property, that no passage holds part of a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, and so does one letter, or letters out of order, whatever line follows, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under none, a facing page's own topic kept in its chapter, and a page printing part of its chapter's label opening no chapter |
+| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, onto every later chunk of a list longer than one, nowhere across a sub-heading; and, as a property, that no passage holds part of a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, and so does one letter, or letters out of order, whatever line follows, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under its own foot, guide words inside a chaptered guide and a stray foot inside a chapter naming none, a letter-spaced label spelled as the body spells it, a facing page's own topic kept in its chapter, and a page printing part of its chapter's label opening no chapter |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | Every non-blank chunk is stored, ordinals run from 1 without a gap, `oversized` never exceeds the passages stored |
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes, the transactional replacement and its cascade, and every listing filter |
@@ -311,8 +319,9 @@ corpus, which is a property of the model rather than of this code.
   on one page only is no chapter field, so heads that differ on every page
   name no chapter — read as page numbers when they share a shape once their
   numerals are masked, dropped as single-page fields when they do not — and
-  neither does a chapter whose running head is printed on a single page: its
-  passages keep today's trail, unprefixed and not reset. So does the last
+  neither does a one-page chapter whose foot is laid out unlike the feet of
+  longer chapters, or that sits beside guide words: its passages keep
+  today's trail, unprefixed and not reset. So does the last
   right-hand page of a chapter whose facing pages head a topic of their own,
   since the next chapter's label follows it. A
   page whose head carries an extra field printed on several pages — another
