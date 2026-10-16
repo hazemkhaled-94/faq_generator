@@ -436,6 +436,12 @@ class CheckedQuestion:
     #: off that. Carried because the next turn of a thread is judged
     #: against them, and a follow-up is written before anything is stored.
     passage_ids: tuple[int, ...] = ()
+    #: How the material settled a question written to have no answer, and
+    #: with what words: `answers` or `rule` is a passage to write an
+    #: answerable question from. Not columns: the rejection reason quotes
+    #: them, and the topic loop reads them before anything is stored.
+    settled_as: str | None = None
+    settled_by: str | None = None
     embedding: list[float] | None = None
     thread_position: int = 1
     question_type: str | None = None

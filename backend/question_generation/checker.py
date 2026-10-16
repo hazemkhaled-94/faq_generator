@@ -157,6 +157,13 @@ def _plain(text: str) -> str:
     return " ".join(text.translate(_FOLDED).casefold().split())
 
 
+def quoted(quote: str, text: str) -> bool:
+    """Whether a text holds a quote, read piece by piece across an ellipsis."""
+    held = _plain(text)
+    pieces = [_plain(one) for one in quote.replace("...", "…").split("…")]
+    return all(piece in held for piece in pieces if piece)
+
+
 def shown(
     settled: Settled, passages: Sequence[str], question_id: int | None
 ) -> Settled:
@@ -169,9 +176,7 @@ def shown(
     """
     if settled.verdict == Settling.SILENT or settled.quote is None:
         return settled
-    shown_text = _plain("\n".join(passages))
-    pieces = [_plain(one) for one in settled.quote.replace("...", "…").split("…")]
-    if all(piece in shown_text for piece in pieces if piece):
+    if quoted(settled.quote, "\n".join(passages)):
         return settled
     log.info(
         "reading question %s as silent: the verifier settled it with %r, "
@@ -189,6 +194,7 @@ def settle(
     passages: Sequence[str],
     probe: Callable[[], Sequence[str]] | None,
     question_id: int | None = None,
+    found: list[Settled] | None = None,
 ) -> tuple[tuple[str, str] | None, list[Measurement]]:
     """Whether the material settles a question written to have no answer.
 
@@ -201,7 +207,8 @@ def settle(
     The one sequence the checker and `make questions-rejudge` both run, so
     the two cannot read one verdict two ways. Returns the code and reason it
     refuses the question under, or None, and beside them the verdicts as the
-    row keeps them.
+    row keeps them. `found` collects the verdict that settled it, when one
+    did, for a caller that writes from the words it was settled with.
     """
     settled = heard(
         shown(verifier.settles(question, passages), passages, question_id),
@@ -211,6 +218,8 @@ def settle(
     )
     opinions = [settled.reading("settles")]
     if settled.verdict != Settling.SILENT:
+        if found is not None:
+            found.append(settled)
         return (
             QuestionRejection.ANSWERABLE_AFTER_ALL,
             (
@@ -233,6 +242,8 @@ def settle(
     opinions.append(settled.reading("settles_elsewhere"))
     if settled.verdict == Settling.SILENT:
         return None, opinions
+    if found is not None:
+        found.append(settled)
     return (
         QuestionRejection.ANSWERABLE_ELSEWHERE,
         (
@@ -363,6 +374,10 @@ class QuestionChecker:
         # an abstention is None, so a gate that could not run reads exactly
         # like one that passed and the question is ACCEPTED.
         abstained: list[str] = []
+        # The verdict that settled a question written to have no answer,
+        # when one did: the words a recycled answerable question is written
+        # from.
+        settled: list[Settled] = []
         kind = retyped(
             candidate.question_text, candidate.spec.name, candidate.group.language
         )
@@ -398,6 +413,7 @@ class QuestionChecker:
                 ran,
                 readings,
                 abstained,
+                settled[0] if settled else None,
             )
 
         if failed:
@@ -485,7 +501,9 @@ class QuestionChecker:
             return done(failed, embedding)
 
         ran.append("round_trip")
-        return done(self._round_trip(candidate, form, embedding, readings), embedding)
+        return done(
+            self._round_trip(candidate, form, embedding, readings, settled), embedding
+        )
 
     def _kind(self, candidate: Candidate) -> tuple[str, str] | None:
         """What a rule can settle about the kind and the long answer.
@@ -723,8 +741,13 @@ class QuestionChecker:
         form: str,
         embedding: list[float],
         readings: list[Measurement],
+        settled: list[Settled] | None = None,
     ) -> tuple[str, str] | None:
-        """Asks whether the passages give the answer back."""
+        """Asks whether the passages give the answer back.
+
+        `settled` collects the verdict that settled a question written to
+        have no answer, when one did.
+        """
         # A derived answer is not in the passages and is not meant to be.
         # Asking recall for it is asking the verifier to contradict the
         # type's own directive - `aggregation` says the total must be
@@ -838,6 +861,7 @@ class QuestionChecker:
             candidate.group.language,
             candidate.group.passages,
             self._corpus(candidate, embedding),
+            found=settled,
         )
         readings.extend(opinions)
         return failed
@@ -1094,6 +1118,7 @@ class QuestionChecker:
         ran: Sequence[str] = (),
         readings: Sequence[Measurement] = (),
         abstained: Sequence[str] = (),
+        settled: Settled | None = None,
     ) -> CheckedQuestion:
         """Assembles one judged question, kept whichever way it went.
 
@@ -1139,4 +1164,6 @@ class QuestionChecker:
             gates_ran=tuple(ran),
             readings=tuple(readings),
             gates_abstained=tuple(abstained),
+            settled_as=settled.verdict if settled else None,
+            settled_by=settled.quote if settled else None,
         )

@@ -28,6 +28,7 @@ from question_generation.checker import (
     REFUSED,
     QuestionChecker,
     annotation,
+    quoted,
     settle,
 )
 from question_generation.config import Settings
@@ -57,10 +58,10 @@ from question_generation.models import (
 from question_generation.planning import Plan, instead, plans
 from question_generation.queue import QuestionQueue
 from question_generation.runs import ACCEPTED
-from question_generation.selection import Deal, derivative, spread
+from question_generation.selection import Deal, Shape, derivative, spread
 from question_generation.types import PROMPT_VERSION, SPECS, spec
 from question_generation.verifier import PROMPT_VERSION as VERIFIER_VERSION
-from question_generation.verifier import Verifier
+from question_generation.verifier import Settling, Verifier
 from settings.runs import run_id
 from stages import StageService
 from telemetry import tracer, working
@@ -979,8 +980,76 @@ class QuestionGenerationService(StageService):
                         followed += 1
                     roots += 1
             threads.append(thread)
+            threads.extend(self._recycled(checked, plan, deal, accepted, topic.id))
         current.set_attribute("questions.samples", written)
         return threads
+
+    def _recycled(
+        self,
+        checked: CheckedQuestion,
+        plan: Plan,
+        deal: Deal,
+        accepted: list[CheckedQuestion],
+        topic_id: int,
+    ) -> list[list[CheckedQuestion]]:
+        """An answerable question from the passage that settled an unanswerable one.
+
+        A question written to have no answer that a passage of this topic
+        answers, or settles by a rule, was refused - and the passage holds
+        an answer, so it is material for a question that has one. Written
+        at once, in the slot's kind and band, from this topic's facts on
+        that passage, those whose evidence carries the quote first. A
+        refuted premise asks nothing the passage answers, and a passage
+        outside the topic is its own topic's to ask about.
+
+        Returns the drafts, each a thread of one, or nothing.
+        """
+        quote = checked.settled_by
+        if (
+            checked.answerable
+            or checked.accepted
+            or not quote
+            or checked.settled_as not in (Settling.ANSWERS, Settling.RULE)
+        ):
+            return []
+
+        def on(fact: SourceFact) -> bool:
+            """Whether a fact rests on the passage that holds the quote."""
+            return any(quoted(quote, passage.text) for passage in fact.passages)
+
+        def carries(fact: SourceFact) -> bool:
+            """Whether a fact on that passage was read from the quoted words."""
+            return (
+                on(fact)
+                and bool(fact.evidence)
+                and (quoted(fact.evidence, quote) or quoted(quote, fact.evidence))
+            )
+
+        prefer = carries if deal.holds(carries) else on if deal.holds(on) else None
+        if prefer is None:
+            return []
+        answerable = replace(plan, answerable=True, shape=Shape.SINGLE)
+        sample = deal.sample(
+            Shape.SINGLE,
+            condensed=answerable.spec.form != AnswerForm.VALUE,
+            prefer=prefer,
+        )
+        if sample is None:
+            return []
+        log.info(
+            "topic %d: an unanswerable question the topic answers is written "
+            "again as a %s with its answer",
+            topic_id,
+            answerable.spec.name,
+            extra={"topic.id": topic_id},
+        )
+        try:
+            drafts = self._attempt(sample, answerable, accepted)
+        except (ModelRefused, Declined):
+            return []
+        if drafts[-1].accepted:
+            accepted.append(drafts[-1])
+        return [[one] for one in drafts]
 
     def _subjects(self, facts: list[SourceFact]) -> list[SourceFact]:
         """The facts whose passage is about a subject rather than about people.

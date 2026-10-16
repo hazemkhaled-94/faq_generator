@@ -903,6 +903,90 @@ def test_a_slot_the_writer_declines_is_written_as_another_kind() -> None:
     assert len(stored) == 4, "a declined slot was dropped rather than swapped"
 
 
+def _settling(verdict: str, quote: str):
+    """A checker refusing every unanswerable question as settled by `quote`."""
+    from question_generation.verifier import Settling
+
+    class Settled(StubChecker):
+        """Accepts what has an answer; finds one for what was written without."""
+
+        def check(self, candidate, seen=()) -> CheckedQuestion:
+            """Refuses an unanswerable question as one the material settles."""
+            checked = super().check(candidate, seen)
+            if candidate.answerable:
+                return checked
+            return replace(
+                checked,
+                status="rejected",
+                rejected_reason=QuestionRejection.ANSWERABLE_ELSEWHERE,
+                settled_as=Settling(verdict),
+                settled_by=quote,
+            )
+
+    return Settled()
+
+
+def _recycling(verdict: str, quote: str) -> list:
+    """The samples and plans a topic of one unanswerable slot hands its writer."""
+    handed: list = []
+
+    class Recording(StubWriter):
+        """Records each sample and plan it is handed."""
+
+        def write(self, group, plan):
+            """Writes as scripted, noting what it was handed."""
+            handed.append((group, plan))
+            return super().write(group, plan)
+
+    facts = [
+        source(
+            n,
+            document="a",
+            passage_id=n,
+            passage_text=f"For case {n} the bank charges a fee of {n} euros.",
+        )
+        for n in range(1, 7)
+    ]
+    settings = replace(
+        SETTINGS, per_topic=1, unanswerable_share=1.0, followup_share=0.0
+    )
+    service, _ = build(
+        topic(),
+        facts,
+        writer=Recording(),
+        checker=_settling(verdict, quote),
+        settings=settings,
+    )
+    service.process_next()
+    return handed
+
+
+def test_an_unanswerable_the_topic_answers_is_recycled_into_an_answerable_one() -> None:
+    """The passage that settled it is material for a question that has an answer."""
+    handed = _recycling("answers", "the bank charges a fee of 5 euros")
+
+    answerable = [(group, plan) for group, plan in handed if plan.answerable]
+    assert len(answerable) == 1, handed
+    assert 5 in {fact.id for fact in answerable[0][0].facts}
+
+
+@pytest.mark.parametrize(
+    ("verdict", "quote"),
+    [
+        ("refutes", "the bank charges a fee of 5 euros"),
+        ("answers", "a passage this topic does not hold"),
+    ],
+    ids=["a refuted premise", "a passage outside the topic"],
+)
+def test_a_settled_unanswerable_with_nothing_to_ask_is_not_recycled(
+    verdict: str, quote: str
+) -> None:
+    """A refuted premise asks nothing the passage answers; another topic's is its own."""
+    handed = _recycling(verdict, quote)
+
+    assert not [plan for _, plan in handed if plan.answerable], handed
+
+
 def test_a_swapped_reason_slot_says_what_it_became(caplog) -> None:
     """A mix that came out short of reasons is a fact somebody wants to read."""
     facts = [

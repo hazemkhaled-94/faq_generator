@@ -460,6 +460,15 @@ is stored in `gate_scores`, `settles` and `settles_elsewhere`, 1 for silent
 and 0 for settled, with the verifier's prompt version, so a row says what
 the verifier made of it and under which prompt. It is an **opinion**: kept
 with no margin, it moves no confidence.
+
+**A settled question is recycled.** One refused because a passage of its own
+topic `answers` it or covers it by a `rule` points at material holding an
+answer, so the topic writes an answerable question in the same kind and
+band at once, from its facts on the passage the quote is in — those whose
+evidence carries the quote first. A refuted premise asks nothing that
+passage answers, and a passage outside the topic is its own topic's to ask
+about, so neither is recycled.
+
 `make questions-rejudge` asks the same of the questions already accepted,
 writes its verdicts on each row the same way, and does not ask again about
 a row that already carries one given under the current prompt. A question the model will not answer about
