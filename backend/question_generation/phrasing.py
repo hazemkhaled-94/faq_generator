@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 #: every worked example into the neutral domain the rest of the prompts use:
 #: the examples had been taken from the corpus being debugged against, which
 #: is the one thing extraction's own prompt warns about.
-PROMPT_VERSION = "3"
+PROMPT_VERSION = "4"
 
 _SOURCE = """ROLE
 You are a question reviewer. You judge ONE property of ONE question and
@@ -50,6 +50,12 @@ Naming a party, a duty, a period or a thing being governed is NOT naming a
 source. Only saying which material holds the answer is. The hard cases are
 the ones where a document is named.
 
+A rule, an article, a clause or a procedure is usually what a question is
+ABOUT, or the situation it asks in: "what does clause 12 allow" asks about
+the clause, and "when the branch follows the complaints procedure" says what
+is happening. A section, a chapter, a page or a document quoted for what it
+says is where the answer is.
+
 The question may be in any language, and the examples below are in English
 and German only because these instructions are. Judge what the question
 does, not what it is written in.
@@ -70,6 +76,13 @@ FALSE: "Warum wird die Norm XY-4711 in diesem Zusammenhang erwähnt?"
        (the standard is the subject being asked about, not the source.
         The pair above and this one have the same shape and differ only by
         which of the norm and the answer the question is about)
+FALSE: "Which fees does clause 12 allow the bank to raise?"
+       (the clause is the rule being asked about. Set it beside "What does
+        section 4 say about weekend cover?": a section is where an answer
+        is printed, a clause is what it is about)
+FALSE: "Who signs off a refund when the branch follows the complaints
+        procedure?"
+       (the procedure is what the branch is doing, not where the answer is)
 
 FORMAT
 Return `names_its_source`, true or false, and nothing else."""
