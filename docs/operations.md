@@ -196,6 +196,52 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.0
+
+Rebuild the image, since the code it runs has changed:
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build api
+make up
+```
+
+No migration: no table, column or constraint changes.
+
+These settings changed in `configs/env/backend.env`. A deployment that copied
+the file keeps its old values until it takes the new ones:
+
+| Setting | v0.2.2 | v0.3.0 |
+|---|---|---|
+| `QUESTIONS_RELEASE_DIFFICULTY` | `easy:1,medium:1,hard:1` | unset, which follows the answerable pool's own band split |
+| `QUESTIONS_RELEASE_UNANSWERABLE` | 0.10 | 0, until the `settles` judgement can be trusted with them |
+| `QUESTIONS_ELSEWHERE_PASSAGES` | 10 | 20 |
+| `QUESTIONS_FOLLOWUP_TYPES` | `condition,reason,comparison` | `condition,reason` |
+| `QUESTIONS_MEETS_SHARE` | — | 0.02, new |
+| `QUESTIONS_RELEASE_TYPES` | `aggregation:4` | `aggregation:1`, the other kinds unchanged |
+
+Six prompts changed, so the runs after the upgrade record new prompt
+versions: atomic extraction 11, the digest 4, question writing 15, the
+verifier 5, the phrasing judge 4 and topic naming 2.
+
+**`make questions-balance` now calls the verifier**, about once per released
+question, to judge which released questions want one answer. It proves the
+verifier model before it asks anything.
+
+**What the stored data needs.** Most of the fixes change the passages, the
+facts or the topics themselves, so stored rows improve only through a
+rebuild: `make parse-rerun` and `make parse`, `make chunk-rerun` and
+`make chunk`, `make extract-start` and `make extract`, `make topics-discover`,
+`make extract-bridge MISSING=1`, then `make questions-start` and
+`make questions`, `make questions-rejudge` and `make questions-balance`.
+Parsing and chunking call no model; every step from extraction on does.
+
+`make topics-discover` carries a topic's name over wherever its top terms
+still match, so such a topic keeps the name the last fit gave it. Only the
+topics it names afresh are named the v0.3.0 way: in one call per language,
+in the corpus's own spelling, without the domain every name shares. A
+carried name can be changed in the topic review: `make review-push-topics`,
+then `make review-pull-topics`.
+
 ## Upgrading to v0.2.2
 
 Rebuild the image, since the code it runs has changed, then bring the schema

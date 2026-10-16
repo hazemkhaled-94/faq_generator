@@ -610,8 +610,8 @@ question with its nearest released neighbour of its language and
 answerability — rank, not a bar — asking whether one correct reply serves
 both. A pair it reads as one answer joins the twin groups, and the release
 is drawn again, up to three times, each pair asked once. That is about one
-call per released question. On the labelled set it found 24 of 29 reviewer
-twin pairs and called none of 60 neighbouring non-twins one answer.
+call per released question. How it scored against the reviewers' twin
+pairs is in [docs/bugs.md](../../docs/bugs.md#found-on-the-v022-rebuild-of-2026-10-14).
 
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota. The command reports what it drew, the yield,

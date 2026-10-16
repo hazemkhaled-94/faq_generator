@@ -19,6 +19,10 @@ The two repairs:
 - 117 validated facts whose evidence sits verbatim in more than one syllabus
   gained 214 citations, so each now cites every document that holds it.
 
+Everything up to [The v0.3.0 rebuild](#the-v030-rebuild-of-2026-10-16)
+describes that run. The rebuild is a second run, of a second corpus, and its
+figures stand on their own.
+
 This is the only place in the repository that holds run figures. A README
 that needs one links here.
 
@@ -415,3 +419,98 @@ WHERE a.run_id = 'assess-stratified-2026-10-06'
 
 Per-stage wall clock comes from the run's log files in `./logs`, and the
 counts from the tables. Nothing on this page is computed anywhere else.
+
+## The v0.3.0 rebuild of 2026-10-16
+
+The IFAB *Laws of the Game 2026/27*, one PDF in German and its English
+translation, taken through every stage by v0.3.0 on **2026-10-16**. Nobody
+read its output by hand; [bugs.md](bugs.md#after-the-fixes) sets its figures
+beside the v0.2.2 rebuild of the same two PDFs, which was read in full.
+
+| | |
+|---|---|
+| Corpus | 2 PDFs: German, 139 pages; English, 131 pages |
+| Question writer | `azure/gpt-5.4` |
+| Extractor, digest, topic labeller, verifier, phrasing judge | `azure/gpt-4.1` |
+| Wall clock | 2 h 26 min |
+| Model calls | 5,846 |
+| Cost | USD 17.93 |
+
+| Stage | Wall clock | Calls | Cost (USD) |
+|---|---|---|---|
+| Parsing | 1.3 min | — | — |
+| Chunking | 0.6 min | — | — |
+| Extraction | 32.1 min | 899 | 2.70 |
+| Topic modelling | 0.4 min | 2 | 0.01 |
+| Bridge facts | 5.3 min | 204 | 0.44 |
+| Question generation | 99.9 min | 4,347 | 14.27 |
+| Release | 5.9 min | 394 | 0.50 |
+
+Question generation is 69% of the wall clock and 80% of the spend. The
+table leaves out two runs the rebuild threw away: a first extraction, redone
+after the fact-dedup guard measured on it was reverted (USD 2.82), and a
+first release draw, redone at a lower `aggregation` weight (USD 0.18). With
+them the rebuild cost USD 20.93.
+
+### Passages, facts and topics
+
+| | German | English |
+|---|---|---|
+| Passages | 417 | 403 |
+| Passages carrying a validated fact | 361 | 339 |
+| Facts, bridges aside | 1,961 | 1,758 |
+| Validated | 1,692 | 1,488 |
+| Refused `not_atomic`, per 1,000 facts | 32.1 | 61.4 |
+| Refused `unresolved_reference`, per 1,000 | 30.1 | 21.0 |
+| Refused `unsupported_addition`, per 1,000 | 9.2 | 18.2 |
+| Refused `duplicate`, per 1,000 | 57.1 | 46.6 |
+| Bridge facts written, validated | 134, 106 | 115, 73 |
+| Topics | 9 | 8 |
+
+Each topic fit reads only the passages that carry a validated fact, and
+every one of them is in a topic. The 120 passages carrying none are in no
+topic.
+
+### Questions
+
+| | German | English |
+|---|---|---|
+| Written | 780 | 727 |
+| Accepted | 463 (59%) | 408 (56%) |
+| Accepted with no answer in the material | 133 | 114 |
+| Accepted citing two or more passages | 102 (22%) | 81 (20%) |
+
+The most common refusals, German and English: `asks_nothing_new` 59 and 55,
+`not_recoverable` 54 and 51, `answerable_elsewhere` 31 and 43,
+`answer_incomplete` 27 and 34, `wrong_type` 37 and 29,
+`answerable_after_all` 25 and 31.
+
+The writer declined 36 slots and 10 follow-up turns whose facts could not
+answer the kind asked for. 9 questions written to have no answer, which the
+material turned out to answer, were written again as answerable ones. The
+provider refused no prompt, and no topic failed.
+
+### The release
+
+343 questions drawn from the 871 accepted — a 39% yield.
+
+| Held at | Result |
+|---|---|
+| Language | German 182, English 161 |
+| Difficulty | `easy` 226, `medium` 94, `hard` 23: the answerable pool's own split |
+| Kind | `condition` 57; `application`, `definition`, `factoid`, `reason` 34; `consequence`, `enumeration`, `implication`, `procedure` 33; `aggregation`, `comparison` 9 |
+| Unanswerable | 0, as `QUESTIONS_RELEASE_UNANSWERABLE=0` sets |
+
+Eight kinds came 2 or 3 short of their quota of 36 or 37, because the pool
+held no more of them, and `condition`, which the pool held plenty of, took
+the places they left. The draw put 12 pairs of released questions to the
+verifier as possibly wanting one answer, and released one question of each
+pair it said did.
+
+The first draw weighed `aggregation` 4, like most kinds. The pool held only
+13 aggregations, and that capped the whole release at 133 questions.
+v0.3.0 weighs it 1, as it weighs `comparison`.
+
+The counts are queries over the run's own tables. Wall clock, calls and
+spend come from each stage's `make` output, which logs every model call with
+its cost.

@@ -3,7 +3,7 @@
 Defects in what the pipeline produced, each with the fix that closes it or
 the reason it is still open.
 
-The entries come from two runs.
+The entries come from three runs.
 
 - The first two entries, *Measured limitations* and *Known trade-offs* were
   measured against the re-verified release that
@@ -14,30 +14,34 @@ The entries come from two runs.
   Game 2026/27*, in German and English. That run's 1,476 questions (576
   accepted, 238 released) were each read by hand against their sources, and
   each defect was traced to its root cause in the code.
+- [Found on the v0.2.2 rebuild of 2026-10-14](#found-on-the-v022-rebuild-of-2026-10-14) was measured on that
+  rebuild of the same rulebook, read in full by hand. Its
+  [After the fixes](#after-the-fixes) counts what the v0.3.0 rebuild of
+  2026-10-16 changed.
 
 That page holds the runs' figures; this one holds only what is wrong with
 them. "Usable" below means a reviewer verdict of good or minor. The reviewer
 verdicts are model judgements, accurate to about five points.
 
-A fix in v0.2.2 changes what the next run writes. Stored rows improve only
-through the re-runs that [operations.md](operations.md#upgrading-to-v022)
-lists.
+A fix changes what the next run writes. Stored rows improve only through the
+re-runs that operations.md lists for [v0.2.2](operations.md#upgrading-to-v022)
+and [v0.3.0](operations.md#upgrading-to-v030).
 
 | | Release rows | Where the fix goes | Fixed |
 |---|---|---|---|
 | [Two subjects welded under one question word](#two-subjects-welded-under-one-question-word) | 11 | [`gates.py`](../backend/question_generation/gates.py) | no |
 | [Questions that count their own citations](#questions-that-count-their-own-citations) | 4 | [`gates.py`](../backend/question_generation/gates.py) | partial |
 | [The release drew the language written first](#the-release-drew-the-language-written-first) | 238 | [`balance.py`](../backend/question_generation/balance.py) | v0.2.2 |
-| [Near-twin questions decided on one cosine](#near-twin-questions-decided-on-one-cosine) | 12 | [`gates.py`](../backend/question_generation/gates.py), [`balance.py`](../backend/question_generation/balance.py) | v0.2.2, partial |
+| [Near-twin questions decided on one cosine](#near-twin-questions-decided-on-one-cosine) | 12 | [`gates.py`](../backend/question_generation/gates.py), [`balance.py`](../backend/question_generation/balance.py) | v0.2.2, partial; v0.3.0 in the release |
 | [Fact dedup folded a different rule into a stored fact](#fact-dedup-folded-a-different-rule-into-a-stored-fact) | 24 | [`extraction/service.py`](../backend/extraction/service.py) | v0.2.2 |
 | [The widen retry replaced an honest draft](#the-widen-retry-replaced-an-honest-draft) | 5 | [`service.py`](../backend/question_generation/service.py) | v0.2.2 |
 | [The count rule misread stated counts](#the-count-rule-misread-stated-counts) | 2 | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2 |
 | [The comparison gate split at the wrong seam](#the-comparison-gate-split-at-the-wrong-seam) | 2 | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
-| [A fact may drop its sentence's scope](#a-fact-may-drop-its-sentences-scope) | 4 | [`validation.py`](../backend/extraction/validation.py) | no |
+| [A fact may drop its sentence's scope](#a-fact-may-drop-its-sentences-scope) | 4 | [`validation.py`](../backend/extraction/validation.py), [`extractors/llm.py`](../backend/extraction/extractors/llm.py) | v0.3.0, in part |
 | [A two-item key was read as a value](#a-two-item-key-was-read-as-a-value) | not measured | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
-| [Unanswerable questions the passages answer](#unanswerable-questions-the-passages-answer) | 8 | [`verifier.py`](../backend/question_generation/verifier.py), [`checker.py`](../backend/question_generation/checker.py) | v0.2.2 |
+| [Unanswerable questions the passages answer](#unanswerable-questions-the-passages-answer) | 8 | [`verifier.py`](../backend/question_generation/verifier.py), [`checker.py`](../backend/question_generation/checker.py) | v0.2.2, in part; none released in v0.3.0 |
 | [Sibling list items refused as duplicates](#sibling-list-items-refused-as-duplicates) | 42 | [`extraction/service.py`](../backend/extraction/service.py), [`extraction/models.py`](../backend/extraction/models.py) | v0.2.2 |
-| [Two passages paired by reading order](#two-passages-paired-by-reading-order) | part of 68 | [`selection.py`](../backend/question_generation/selection.py) | v0.2.2 |
+| [Two passages paired by reading order](#two-passages-paired-by-reading-order) | part of 68 | [`selection.py`](../backend/question_generation/selection.py) | v0.2.2, v0.3.0 |
 | [Application questions always spanned two passages](#application-questions-always-spanned-two-passages) | 11 | [`planning.py`](../backend/question_generation/planning.py) | v0.2.2 |
 | [Reason questions with no stated reason](#reason-questions-with-no-stated-reason) | 15 | [`service.py`](../backend/question_generation/service.py) | v0.2.2 |
 | [The perturbation prompt read "not stated" as "unanswerable"](#the-perturbation-prompt-read-not-stated-as-unanswerable) | 3 | [`generation.py`](../backend/question_generation/generation.py) | v0.2.2 |
@@ -49,15 +53,16 @@ lists.
 | [The round trip missed verbs, number words and counts](#the-round-trip-missed-verbs-number-words-and-counts) | 0 (7 lost) | [`gates.py`](../backend/question_generation/gates.py), [`checker.py`](../backend/question_generation/checker.py) | v0.2.2 |
 | [An embedded question word read as a second question](#an-embedded-question-word-read-as-a-second-question) | 0 (5 lost) | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2 |
 | [A pronoun its own statement resolves read as dangling](#a-pronoun-its-own-statement-resolves-read-as-dangling) | 0 (48 facts lost) | [`nlp/analysis.py`](../backend/nlp/analysis.py) | v0.2.2 |
-| [A translation read as furniture](#a-translation-read-as-furniture) | 0 (16 passages) | [`queue.py`](../backend/question_generation/queue.py) | no |
+| [A translation read as furniture](#a-translation-read-as-furniture) | 0 (16 passages) | [`queue.py`](../backend/question_generation/queue.py) | v0.3.0 |
 | [Difficulty grades spread, not hardness](#difficulty-grades-spread-not-hardness) | 73 hard | [`models.py`](../backend/question_generation/models.py) | no |
 | [The entailment rescue scores a bare fragment](#the-entailment-rescue-scores-a-bare-fragment) | 0 (10 lost) | [`checker.py`](../backend/question_generation/checker.py) | no |
 | [The release reads no quality signal](#the-release-reads-no-quality-signal) | 22 | [`balance.py`](../backend/question_generation/balance.py) | no |
-| [Signal-diagram labels become passage text](#signal-diagram-labels-become-passage-text) | 0 | [`passages.py`](../backend/preprocessing/chunking/passages.py) | no |
-| [`explanation_unusable` reads any proper noun as a name](#explanation_unusable-reads-any-proper-noun-as-a-name) | 0 (3 lost) | [`gates.py`](../backend/question_generation/gates.py) | no |
-| [A refusal used as a key](#a-refusal-used-as-a-key) | 0 | [`gates.py`](../backend/question_generation/gates.py) | no |
-| [`asks_nothing_new` on outline facts](#asks_nothing_new-on-outline-facts) | 0 | [`selection.py`](../backend/question_generation/selection.py) | no |
-| [A refused model call fails its whole topic](#a-refused-model-call-fails-its-whole-topic) | 1 topic | [`service.py`](../backend/question_generation/service.py) | no |
+| [Signal-diagram labels become passage text](#signal-diagram-labels-become-passage-text) | 0 | [`parsing/pipelines/pdf.py`](../backend/preprocessing/parsing/pipelines/pdf.py) | v0.3.0, mostly |
+| [`explanation_unusable` reads any proper noun as a name](#explanation_unusable-reads-any-proper-noun-as-a-name) | 0 (3 lost) | [`gates.py`](../backend/question_generation/gates.py) | v0.3.0 |
+| [A refusal used as a key](#a-refusal-used-as-a-key) | 0 | [`generation.py`](../backend/question_generation/generation.py) | v0.3.0 |
+| [`asks_nothing_new` on outline facts](#asks_nothing_new-on-outline-facts) | 0 | [`gates.py`](../backend/question_generation/gates.py) | v0.3.0 |
+| [A refused model call fails its whole topic](#a-refused-model-call-fails-its-whole-topic) | 1 topic | [`service.py`](../backend/question_generation/service.py), [`llm/client.py`](../backend/llm/client.py) | v0.3.0 |
+| [Found on the v0.2.2 rebuild of 2026-10-14](#found-on-the-v022-rebuild-of-2026-10-14) | 321 | every stage | v0.3.0, mostly |
 
 On the earlier corpus, 15 of the 1,015 release rows — **1.5%** — carried at
 least one of the first two defects. On the 2026-10-13 run, 49% of the
@@ -175,6 +180,11 @@ neighbours: the closest such rule would have rejected 26 usable questions.
 They are pinned as expected failures in
 [`test_question_verdicts.py`](../tests/regression/test_question_verdicts.py).
 
+**Narrowed in v0.3.0, for the release.** The draw asks the verifier whether
+each released question and its nearest released neighbour want one answer,
+and releases one question of each pair it says do (see *Release twins* under
+[Found on the v0.2.2 rebuild](#found-on-the-v022-rebuild-of-2026-10-14)). Twins in the accepted pool stay.
+
 ## Fact dedup folded a different rule into a stored fact
 
 A candidate fact scoring 0.95 or more against a stored fact was refused as a
@@ -272,6 +282,12 @@ restrictive-clause examples as entailed. Neither shipped. A check that
 aligns clause by clause, treating each list line as its own unit, is the
 next step.
 
+**Narrowed in v0.3.0, at the source.** The atomic prompt now keeps a rule's
+conditions, exceptions and *only* in the statement, and restates the lead-in
+a list item depends on. Validation still does not check scope. The share of
+facts dropping a scope word fell in both languages; see
+[After the fixes](#after-the-fixes).
+
 ## A two-item key was read as a value
 
 `fitting` tried the "three or more items is a list" hint before the type's
@@ -317,6 +333,15 @@ ones and 3 of the 82 sound ones. That is precision 0.91 and agreement 0.68,
 against 0.52 for the reading it replaces. The other 47 answerable ones stay
 accepted until a later check or a person withdraws them.
 
+**Still open in v0.3.0.** Measured again on the v0.2.2 rebuild's reviewed
+rows, `settles` leaves about half of the questions the material answers as
+settling nothing: a false-omission rate of 0.53 in German and 0.46 in
+English, against the 0.15 a release can carry. Quoting, a fused probe of
+twenty passages and showing the writer the passages beside its own did not
+move it, and a second-opinion model only brought it to 0.39 and 0.34. v0.3.0
+therefore releases none of these questions
+(`QUESTIONS_RELEASE_UNANSWERABLE=0`); they stay in the accepted pool.
+
 ## Sibling list items refused as duplicates
 
 The prompt splits a list into one statement per item, and the items differ
@@ -349,6 +374,12 @@ Candidates in one document are ranked by likeness, and reading order only
 breaks a tie. The meets floor now measures the fact the deal actually
 offers. `QUESTIONS_MEETS_FLOOR` stays 0, because the floor was measured on
 pairs the new ranking no longer deals.
+
+**Narrowed further in v0.3.0.** A second passage is offered only where its
+closest fact is among the topic's closest 2% of fact pairs
+(`QUESTIONS_MEETS_SHARE`), so many deals now offer one passage. On the
+v0.3.0 rebuild, 6 of 40 sampled two-passage questions were welded, against
+128 of 270 before; see [After the fixes](#after-the-fixes).
 
 ## Application questions always spanned two passages
 
@@ -522,10 +553,12 @@ document scores 0.95 or more against it. With one rulebook in two languages,
 16 subject passages sit just above that bar against their own translation,
 and were never offered to the writer.
 
-**Not fixed.** Requiring the twin to be in the same language turns the filter
-off on a corpus of one document per language, which would also let the 7
-real furniture passages back in. Telling furniture apart needs another
-reading first.
+**Fixed in v0.3.0**, at a cost. Repetition is now read within one language
+only, so a passage and its translation are no longer furniture. On a corpus
+holding one document per language the filter therefore finds nothing, and
+the 7 real furniture passages of this corpus are offered again; the
+extraction prompt's rule against facts about the document itself, also new
+in v0.3.0, is what keeps their facts out.
 
 ## Difficulty grades spread, not hardness
 
@@ -569,8 +602,10 @@ Illustrations print their captions as text, and the chunker keeps all body
 text, so six passages hold signal-diagram labels. No accepted question was
 harmed.
 
-**Not fixed.** A narrow filter for runs of short, verbless, upper-case items
-is the proposed fix.
+**Mostly fixed in v0.3.0.** The labels were mostly text the page clips out
+of view, and the parser now drops that: on the v0.2.2 rebuild it cleaned 11
+of the 14 passages holding labels. A label printed in view is still body
+text.
 
 ## `explanation_unusable` reads any proper noun as a name
 
@@ -578,9 +613,10 @@ The gate treats every proper-noun token as a name the passages must carry,
 and the German tagger tags some common nouns as proper nouns. 3 usable
 questions were lost.
 
-**Not fixed.** No variant measured cleanly: matching entities only frees
-some and not others, and adding section paths also frees right refusals.
-The README now says the gate checks names as well as figures.
+**Fixed in v0.3.0.** The gate reads an explanation's figures only: a name it
+uses to describe the answer is not a claim the passages must carry, and the
+key's own checks hold its names. On the v0.2.2 rebuild that frees 14 of its
+29 refusals, every one wrong or partly wrong, and refuses no accepted row.
 
 ## A refusal used as a key
 
@@ -589,8 +625,10 @@ combined total… from these facts"). It was rejected only because its
 question was also compound. As a reason, procedure, condition or factoid, a
 refusal key would pass every structural gate.
 
-**Not fixed.** One row, and it was caught. A `declined` field in the writer
-schema is the proposed fix.
+**Fixed in v0.3.0.** The writer's answer carries `declined`, set where the
+facts it was dealt cannot answer the kind asked; the slot is written as
+another kind on the same facts instead. It is also told to write about the
+subject, never about the facts or the task.
 
 ## `asks_nothing_new` on outline facts
 
@@ -598,8 +636,11 @@ A follow-up citing an outline or summary fact that its root also cited reads
 as asking nothing new, even when it asks about a different bullet. The gate
 works as specified; the deal offers it those facts.
 
-**Not fixed.** Keeping outline and summary facts out of follow-up deals is
-the proposed fix.
+**Fixed in v0.3.0**, at the gate rather than in the deal: follow-ups citing
+a summary or outline fact were the best ones (13 of 15 usable). A turn
+citing only its root's summary or outline facts moves on when at least a
+quarter of its key's content words are new to the thread. Replayed on the
+v0.2.2 rebuild, that frees 10 refusals, 8 of them wrong.
 
 ## A refused model call fails its whole topic
 
@@ -617,13 +658,141 @@ The client reports the refusal as `ModelUnavailable`, and
 question generation fails the whole topic on it. A retry fails the same way:
 the same slot sends the same prompt.
 
-**Not fixed.** `make questions-rejudge` already logs and skips a question the
-model will not answer about; question generation should do the same with
-one slot, keeping the rest of the topic, and the retry note can be worded so
-it does not read as an instruction to override. Until then, a topic a
-provider's prompt shield refuses gets no questions; a deployment can turn the
-shield down for that deployment, or point the writer at a provider without
-one.
+**Fixed in v0.3.0.** A prompt the provider refuses under its content policy
+is sent once, not retried, and costs its one slot or thread; the topic fails
+only after five refusals in a row. The retry notes now read as a reviewer's
+feedback on the quoted draft, and no longer tell the writer what it is
+supposed to produce.
+
+## Found on the v0.2.2 rebuild of 2026-10-14
+
+The v0.2.2 rebuild ran the same corpus again through every stage, with
+`azure/gpt-5.4` writing and `azure/gpt-4.1` verifying, naming topics and
+extracting. Every item it produced was read by hand against the corpus:
+1,760 questions, 4,312 facts, 833 passages against the PDF pages, and the 20
+topics. Of the 837 accepted questions 475 (57%) were usable, against 50% on
+the run before; of the 321 released, 166 (52%), against 49%. Each defect
+below was traced to its cause, and each fix was measured offline on the
+reviewed rows before it went in. "Usable" means a reviewer verdict of good
+or minor, accurate to about five points.
+
+What the v0.3.0 rebuild of the same corpus measured after the fixes is in
+[After the fixes](#after-the-fixes).
+
+### Parsing
+
+| Defect | Found | Fix in v0.3.0 | Measured on the reviewed rows |
+|---|---|---|---|
+| A struck word survived, or took its neighbours with it | struck text kept in 5 German and 6 English passages; 5 passages over-stripped | Strike-through read per character; a bracket or comma beside a deletion stays; apostrophes and dashes folded before matching | the passages' struck text gone in the replay; what is left is source quirks |
+| Text the page hides read as body text | 14 passages of signal-diagram labels (8 German, 6 English) | Text the page clips out of view is dropped | 11 of the 14 cleaned; a label printed in view stays |
+| A raised ordinal read as a separate word | 9 English `1 st`; 8 facts refused for it | The superscript suffix is joined to its number | all 9 joined |
+| A table broken at a page or inside a wrapped cell | 8 German and 7 English broken tables | A header-less table right after one of its width joins it; a wrapped cell or label rejoins its row | continuations joined: 3 German, 2 English; wrapped rows joined: 2 English |
+| A two-column page interleaved | 2 passages | not fixed, **low**: reading order needs a better layout model | — |
+
+### Chunking
+
+| Defect | Found | Fix in v0.3.0 | Measured on the reviewed rows |
+|---|---|---|---|
+| A one-page chapter lost its label | chapter missing on 20 German and 23 English passages | A one-page foot laid out as a chapter's names one; guide words still name none | chapter missing 20 → 0 and 23 → 0 |
+| Letter-spaced chapter labels | 178 German and 97 English section paths | A label takes the spaces the body puts in the same words | 178 → 0 and 97 → 0 |
+| A lead-in cut from its list by a sub-heading, or a sentence cut by a page | lead-ins lost: 15 German, 17 English; sentences split: 7 and 4; passages ending on a colon: 8 and 7 | The lead-in travels into the sub-headed chunk; a sentence cut at a page or column joins its rest | colon endings 8 → 5 and 7 → 3; mid-sentence cuts 1 → 0 in each language |
+| A repeated heading or a page number as its own passage | 15 German and 16 English passages | A heading-equal paragraph heads the passage after; a figures-only paragraph goes | figure-only passages 2 → 0 and 3 → 0; passages 424 → 417 and 412 → 407 |
+| Stale one-letter index segments | 66 English passages | Index letters read from headings and text; the longest run in order is the index | 66 → 0 |
+| A nested list flattened | 152 German and 154 English items in 42 and 38 passages | An indented item nests under the one above and is rendered indented | 123 German and 147 English items nested |
+| Heading levels from numbering out of sequence | quoted `5.3` / `3.2` as parents of 36 passages; the change log's stale parents | not fixed, **low**: needs Docling's style inference, which is not a public interface, and the right parent needs words | — |
+| A group heading at its children's level | 4 passages | not fixed, **low**: the headings differ only in font family and colour | — |
+
+### Extraction
+
+| Defect | Found | Fix in v0.3.0 | Measured on the reviewed rows |
+|---|---|---|---|
+| A fact dropped its rule's scope | 486 of 3,578 facts narrowed (16% German, 10% English): lead-ins lost 264 times, conditions 249, exceptions 91, *only* 28 | Atomic prompt 11: the smallest statement true read alone; conditions, exceptions and *only* kept; lead-ins restated and cited; modality kept | in the rebuild, by a word-level count: atomic facts dropping *only*, *if*, *unless* or *except* from their evidence 16.6% → 10.8% German, 30.9% → 28.2% English |
+| Sound facts refused as `not_atomic` | 25 German, 92 English | A rule and its exception, and two alternatives, count as one claim | freed 12 and 40, no right refusal lost |
+| Sound facts refused as `unresolved_reference` | 84 German, 88 English | Pronouns resolved by the language's grammar | freed 57 and 73; 1 right refusal lost |
+| Sound facts refused as `asserts_nothing` | 2 German, 12 English | A root verb with a subject counts, as does a German or Dutch plural spelled as the infinitive | freed 2 and 3 |
+| Evidence cut mid-sentence | 76 German and 43 English facts | No cut inside a slash-joined word, before a comma clause, after an abbreviation before lower case, or between an item number and its item | every such cut gone; 63 passages re-split |
+| Sound facts refused as `unsupported_addition` | 43 German, 72 English | Names and numbers read against the evidence, the section path and the title, numbers in any spelling | freed 27 and 45 |
+| A different rule refused as a duplicate | 231 duplicate refusals, 13 of them wrong and 22 partly | not fixed: a guard taking two near statements as twins only when every word one has and the other lacks is in the other's passage was built and then **reverted** | on the review it gave back 11 of 13 wrong and 13 of 22 partly, at a cost of 25 of 196 right; on the rebuilt facts it kept 9 distinct rules apart and 26 restatements of one rule |
+| Summaries about "the excerpt" | 61% German, 78% English | Digest prompt 4 opens on the subject | in the rebuild, summaries opening on the excerpt went from 52% to 0% in German and from 75% to 0% in English |
+| Facts about the document itself | 53 validated; 10 subject passages excluded as a translation's furniture | Prompt rule; repetition read within one language | not counted: telling these facts apart needs a hand review |
+| No bridge fact ever written | 0 bridges | The bridge pass runs in `make corpus` for topics holding none | in the rebuild: 249 written, 179 validated |
+
+### Topic modelling
+
+| Defect | Found | Fix in v0.3.0 | Measured on the reviewed rows |
+|---|---|---|---|
+| Labels read off headings and stubs | 28 of 80 label excerpts carried no fact | Excerpts from fact-bearing passages, by weight times length | citation-unit share 42% → 54% |
+| Headings and page numbers fitted as subjects | 135 barren members | Fit on passages carrying a fact | German NPMI 0.005 → 0.053; barren label excerpts → 0 |
+| Every label named the domain | 9 of 10 German labels end "im Fußball", all spell ß though no passage does | One naming call per language; spelling held to the excerpts; a shared trailing phrase taken off | ß 10 → 0; shared endings 9 → 1. In the rebuild the 6 German topics named afresh have neither; 3 kept their v0.2.2 names, which a fit carries over where the top terms still match |
+| A topic's passages never asked about | 21 of one topic's 32 fact-bearing passages; 2 passages in no topic | The refusal that killed the topic fixed (below); a passage in no topic joins the nearest centroid | in the rebuild: every passage carrying a fact is in a topic; those no question cites went from 9 to 17 German and from 28 to 11 English |
+
+### Question generation
+
+| Defect | Found | Fix in v0.3.0 | Measured on the reviewed rows |
+|---|---|---|---|
+| Two facts welded into one question | 128 of 270 two-passage questions (47%); 104 released | A second passage only where its closest fact is among the topic's closest 2% of pairs, never a restatement | removes 100 of 128 welds, keeps 95 of 142 sound pairs |
+| The release drew every hard question | release 52% usable | The band split follows the answerable pool | 57% usable alone, about 67% with the weld fix |
+| Keys naming part of a list | 79 released incomplete keys | A reading or list slot is offered the whole list, up to eight items; prose keys read in shadow | not counted without a hand review. The shadow reading is stored on 75 accepted prose keys whose recovery says more than they do: on average they hold 52% of its content words. No bar is set on it yet |
+| Unanswerable questions the corpus answers | 141 of 283 accepted, 19 of 32 released | Quote held to the passages; probe of twenty fused by vector and words; neighbours shown to the writer; settled ones recycled into answerable questions; **release share 0** | calibration: false-omission rate 0.53 German, 0.46 English, unchanged by the prompt; a second-opinion model gets it to 0.39 and 0.34 |
+| Circular "why" keys | 25 of 50 accepted reason keys | A why whose recovery only restates the question is refused before the entailment rescue | it refused 1 draft in the rebuild, and the spot check below still met one circular key (question 3853) |
+| A change log's quotations used as the source | 114 accepted cite it; 36 an elided passage | An elided passage is dealt last and never to a list slot | rule flags 44 passages, 43 in the change log |
+| Release twins | 6 released twin pairs; 42 released rows in twin groups | The verifier judges each released question against its nearest released neighbour | calibration: 24 of 29 twins found, none of 60 non-twins called one. The rebuild's draw held 12 pairs to one question each |
+| Follow-up comparisons refused | 141 of 151 | Comparison out of the follow-up kinds; ISO opener table; suspended hyphens count as items | — |
+| A rescued key not checked for completeness | rescue held 13 of the 32 wrong accepted keys | `incomplete` runs after the rescue too | not counted: the stored readings do not say which keys the rescue passed |
+| A thread's later turn refused | 6 wrong `off_thread`; 27 `restates_question`; summary follow-ups refused | `off_thread` reads the whole thread; a negative or a party counts as an answer; a summary turn moves on when its key is new | frees the 6, 7 restates refusals and 10 summary turns |
+| Sound explanations and numbered rules refused | 29 `explanation_unusable`, 11 `leaks_source` | Explanations held to figures; a numbered article, clause or rule is a subject, a section a source | frees 14 explanations and 3 leaks, none rightly refused |
+| Retries returning the same draft | 22 of 291 | The note quotes the draft; an unchanged retry is not stored again | 13 stopped, none accepted lost |
+| A refused prompt failed its topic | 1 topic | A content-policy refusal skips one slot | the rebuild met no refusal and lost no topic |
+| Wrong type labels and meta-text | 160 of 837 accepted tagged wrong type; meta-text in 73 explanations | Type read off the opening; a count with no figure relabelled; the writer may decline | 50 wrong-type refusals pass the free gates (24 usable), still facing the model gates; 21 labels corrected. In the rebuild the writer declined 36 slots and 10 follow-up turns |
+
+### After the fixes
+
+The v0.3.0 rebuild of **2026-10-16** took the same two PDFs through every
+stage again, with the same models. Nobody read it in full: the figures below
+are counts over its tables, except the weld rate, which is a spot check of
+40 accepted questions citing two or more passages, 20 per language, drawn at
+random. [measurements.md](measurements.md#the-v030-rebuild-of-2026-10-16)
+has the run itself. Each cell reads German, then English.
+
+| | v0.2.2 rebuild | v0.3.0 rebuild |
+|---|---|---|
+| Letter-spaced section paths | 178, 97 | 0, 0 |
+| Passages carrying a validated fact | 358, 331 | 361, 339 |
+| Validated facts, bridges aside | 1,976, 1,602 | 1,692, 1,488 |
+| `not_atomic` refusals per 1,000 facts | 17.8, 56.4 | 32.1, 61.4 |
+| `unresolved_reference` per 1,000 | 42.4, 48.4 | 30.1, 21.0 |
+| `unsupported_addition` per 1,000 | 19.1, 45.4 | 9.2, 18.2 |
+| Atomic facts dropping *only*, *if*, *unless* or *except* | 16.6%, 30.9% | 10.8%, 28.2% |
+| Summaries opening on "the excerpt" | 52%, 75% | 0%, 0% |
+| Bridge facts | 0 | 249 |
+| Passages carrying a fact that no question cites | 9, 28 | 17, 11 |
+| Accepted questions citing two or more passages | 270 of 837 (32%) | 183 of 871 (21%) |
+| Of those, welded | 128 of 270 (47%), all read | 6 of 40 (15%), spot check |
+| Released | 321 | 343 |
+| Released `hard` | 100 | 23 |
+| Released citing two or more passages | 209 | 91 |
+| Released with no answer | 32 | 0 |
+
+Fewer facts now cover more passages: the atomic prompt keeps a rule with its
+conditions and exceptions in one statement, where it used to write each
+piece as a fact of its own. The validator refuses more of these joined
+statements as `not_atomic`, in German nearly twice as often as before.
+Passages carrying a validated fact still rose in both languages.
+
+The weld rate's 95% interval is 7% to 29%, so the spot check does not rule
+out a rate just above a quarter. 1 of the 22 released questions in the
+sample was welded; over the 91 released questions citing two or more
+passages, that puts the release's welds at about 4 to 14, against 104 in
+v0.2.2. Each weld the check found joins two rules that share a subject but
+not a situation, such as two signals asked about as one *why*.
+
+None of the questions with no answer were released, by setting: the
+`settles` judgement that keeps them still misses too many the material does
+answer, and its false-omission rate did not move (see the unanswerable row
+above).
+
+Not counted without a hand review: the usable share, key completeness, type
+labels, circular reasons and the facts about the document itself.
 
 ## Measured limitations
 
@@ -683,6 +852,11 @@ The entries measured on the 2026-10-13 run come from a hand review of all
 1,476 of its questions, one verdict per question, against the same tables.
 Each entry's root cause was confirmed in the code and reproduced by a test
 before it was fixed.
+
+[Found on the v0.2.2 rebuild of 2026-10-14](#found-on-the-v022-rebuild-of-2026-10-14) comes from a hand review
+of all 1,760 questions of that rebuild, with its facts, its passages against
+the PDF pages, and its topics. Its *After the fixes* figures are queries over
+the v0.3.0 rebuild's tables.
 
 Re-measuring means taking a corpus through again and rewriting both this page
 and [measurements.md](measurements.md).
