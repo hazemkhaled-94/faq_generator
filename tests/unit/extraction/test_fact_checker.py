@@ -715,8 +715,14 @@ def test_a_lead_in_figure_is_supported_only_when_cited() -> None:
 @pytest.mark.parametrize(
     ("excerpt", "statement"),
     [
-        ("The new tariff applies from 1 st July 2026.", "The new tariff applies from 1st July 2026."),
-        ("Each player has a ten-second limit.", "Each player has a ten-second limit to restart."),
+        (
+            "The new tariff applies from 1 st July 2026.",
+            "The new tariff applies from 1st July 2026.",
+        ),
+        (
+            "Each player has a ten-second limit.",
+            "Each player has a ten-second limit to restart.",
+        ),
     ],
 )
 def test_a_number_written_another_way_is_no_addition(excerpt, statement) -> None:

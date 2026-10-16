@@ -415,9 +415,7 @@ def test_the_model_is_shown_the_passages_the_topic_holds_most_strongly(
     assert "German" in shown, shown
 
 
-def test_a_topic_is_named_off_its_passages_that_carry_a_fact(
-    service, passages
-) -> None:
+def test_a_topic_is_named_off_its_passages_that_carry_a_fact(service, passages) -> None:
     """A heading can hold a topic most strongly and still say nothing.
 
     Its few words all sit in one topic, so its weight there is near total,

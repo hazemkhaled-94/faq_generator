@@ -366,7 +366,9 @@ class TopicQueue(StageQueue):
                 for row in session.execute(
                     select(
                         Passage.id,
-                        func.coalesce(func.cardinality(Passage.lemmas), 0).label("size"),
+                        func.coalesce(func.cardinality(Passage.lemmas), 0).label(
+                            "size"
+                        ),
                     ).where(Passage.id.in_(passage_ids))
                 )
             }

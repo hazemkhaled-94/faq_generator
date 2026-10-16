@@ -1859,12 +1859,18 @@ class TestFindingThePassageThatAnswersItAnyway:
                 text(
                     "UPDATE passages SET embedding = :near WHERE text = 'Second by vector.'"
                 ),
-                {"near": str([0.8 if i == 3 else 0.6 if i == 4 else 0.0 for i in range(1024)])},
+                {
+                    "near": str(
+                        [0.8 if i == 3 else 0.6 if i == 4 else 0.0 for i in range(1024)]
+                    )
+                },
             )
             connection.commit()
         asked = [1.0 if i == 3 else 0.0 for i in range(1024)]
 
-        found = QuestionCatalog().elsewhere(["refund", "defect", "card"], "en", [], 2, asked)
+        found = QuestionCatalog().elsewhere(
+            ["refund", "defect", "card"], "en", [], 2, asked
+        )
 
         assert "The refund for a defect is paid by card." in found
         assert "Nearest by vector." in found

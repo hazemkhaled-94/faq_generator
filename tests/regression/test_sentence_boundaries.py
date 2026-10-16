@@ -25,9 +25,11 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
             "wiederholt."
         ),
         (
-            "Wird der Ball nach vorne gespielt und berührt er keinen Spieler, die "
-            "Querlatte oder einen Torpfosten, wird der Strafstoss/Elfmeter "
-            "wiederholt.",
+            (
+                "Wird der Ball nach vorne gespielt und berührt er keinen Spieler, die "
+                "Querlatte oder einen Torpfosten, wird der Strafstoss/Elfmeter "
+                "wiederholt."
+            ),
         ),
     ),
     (
@@ -39,9 +41,11 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
             "indirekte Freistoss wiederholt werden."
         ),
         (
-            "Zeigt der Schiedsrichter nicht an, dass es sich um einen indirekten "
-            "Freistoss handelt, und geht der Ball direkt ins Tor, so muss der "
-            "indirekte Freistoss wiederholt werden.",
+            (
+                "Zeigt der Schiedsrichter nicht an, dass es sich um einen indirekten "
+                "Freistoss handelt, und geht der Ball direkt ins Tor, so muss der "
+                "indirekte Freistoss wiederholt werden."
+            ),
         ),
     ),
     (
@@ -65,8 +69,10 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
             "'VAR-only review' is usually appropriate."
         ),
         (
-            "For a factual decision such as offside, ball out of play etc. a "
-            "'VAR-only review' is usually appropriate.",
+            (
+                "For a factual decision such as offside, ball out of play etc. a "
+                "'VAR-only review' is usually appropriate."
+            ),
         ),
     ),
     (
@@ -101,7 +107,9 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     [row[1:] for row in ROWS],
     ids=[row[0] for row in ROWS],
 )
-def test_a_stored_passage_splits_where_its_sentences_end(language, text, expected) -> None:
+def test_a_stored_passage_splits_where_its_sentences_end(
+    language, text, expected
+) -> None:
     """The sentences read off the text, each stripped of its spacing."""
     from nlp.analysis import sentences
 

@@ -1105,8 +1105,11 @@ def test_a_retry_note_shows_the_draft_it_is_about() -> None:
     [QuestionRejection.ANSWERABLE_ELSEWHERE, QuestionRejection.ANSWERABLE_AFTER_ALL],
 )
 def test_an_unanswerable_retry_note_reads_as_feedback_not_as_an_override(gate) -> None:
-    """A note telling the writer what it is "supposed" to produce, whatever any
-    document says, is the wording a provider's prompt shield reads as a jailbreak."""
+    """A retry note says what was wrong, never what the writer is "supposed" to do.
+
+    Telling a writer what to produce whatever any document says is the
+    wording a provider's prompt shield reads as a jailbreak.
+    """
     from question_generation.service import again
 
     refused = replace(
@@ -1506,7 +1509,9 @@ def _banded(counts: dict[str, int], unanswerable: int = 0):
     ]
 
 
-@pytest.mark.parametrize("unanswerable", [0, 50], ids=["answerable only", "with no-answer rows"])
+@pytest.mark.parametrize(
+    "unanswerable", [0, 50], ids=["answerable only", "with no-answer rows"]
+)
 def test_an_unset_band_mix_follows_the_answerable_pool(unanswerable) -> None:
     """Equal thirds drained the pool's few hard rows; its own split does not.
 

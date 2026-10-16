@@ -42,9 +42,18 @@ def test_two_coordinated_clauses_are_two_claims() -> None:
     ("language", "sentence"),
     [
         ("de", "Die Karte wird gesperrt, es sei denn, der Kunde widerspricht."),
-        ("de", "Die Rückerstattung erfolgt binnen 14 Tagen, ausser die Ware ist beschädigt."),
-        ("en", "Refunds are issued within 14 days, except where the goods are damaged."),
-        ("en", "Customers may return goods within 14 days, provided they keep the receipt."),
+        (
+            "de",
+            "Die Rückerstattung erfolgt binnen 14 Tagen, ausser die Ware ist beschädigt.",
+        ),
+        (
+            "en",
+            "Refunds are issued within 14 days, except where the goods are damaged.",
+        ),
+        (
+            "en",
+            "Customers may return goods within 14 days, provided they keep the receipt.",
+        ),
     ],
 )
 def test_a_rule_and_the_case_it_leaves_out_are_one_claim(
@@ -76,7 +85,9 @@ def test_two_duties_of_one_subject_are_still_two_claims() -> None:
     """Coordination with `and` keeps counting: each duty is a claim of its own."""
     from nlp.analysis import claim
 
-    assert claim("The device weighs 4 kg and it runs for 12 hours.", "en").predicates == 2
+    assert (
+        claim("The device weighs 4 kg and it runs for 12 hours.", "en").predicates == 2
+    )
 
 
 def test_a_noun_phrase_asserts_nothing() -> None:

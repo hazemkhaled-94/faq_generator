@@ -936,9 +936,25 @@ def test_a_clause_repeated_in_a_sibling_document_is_not_its_partner() -> None:
     """
     clause = "Card fees are waived for students under 25."
     facts = [
-        source(1, document="current", passage_id=1, statement=clause, axis=7, passage_axis=7),
-        source(2, document="savings", passage_id=2, statement=clause, axis=7, passage_axis=7),
-        source(3, document="credit", passage_id=3, statement=clause, axis=7, passage_axis=7),
+        source(
+            1,
+            document="current",
+            passage_id=1,
+            statement=clause,
+            axis=7,
+            passage_axis=7,
+        ),
+        source(
+            2,
+            document="savings",
+            passage_id=2,
+            statement=clause,
+            axis=7,
+            passage_axis=7,
+        ),
+        source(
+            3, document="credit", passage_id=3, statement=clause, axis=7, passage_axis=7
+        ),
     ] + [
         source(
             at,
@@ -978,7 +994,9 @@ def _listed(count: int, passage_id: int = 1) -> list:
         for at in range(count)
     ]
     rule = replace(
-        source(passage_id * 100 + 99, passage_id=passage_id, statement="Accounts are free."),
+        source(
+            passage_id * 100 + 99, passage_id=passage_id, statement="Accounts are free."
+        ),
         evidence="Accounts are free.",
     )
     return [*items, rule]
@@ -1042,7 +1060,9 @@ def test_an_elision_mark_says_a_passage_quotes_another(text, expected) -> None:
 def test_an_elided_passage_is_dealt_after_the_passages_it_quotes() -> None:
     """A change log restating a rule with gaps is the worse source of the two."""
     facts = [
-        source(1, passage_id=1, passage_text="Clause 2 now reads: (…) fees are waived."),
+        source(
+            1, passage_id=1, passage_text="Clause 2 now reads: (…) fees are waived."
+        ),
         source(2, passage_id=2, statement="Fees are waived for students."),
         source(3, passage_id=3, statement="Cards are replaced for free."),
     ]
