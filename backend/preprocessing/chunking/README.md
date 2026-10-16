@@ -324,6 +324,14 @@ corpus, which is a property of the model rather than of this code.
   lower case, takes that paragraph's text; the paragraph moves to the
   furniture layer. A script without case is never joined, and two blocks in
   one column of one page are the document's own break.
+- **A paragraph that only repeats a heading is a heading.** One whose whole
+  text, spaces, punctuation and case aside, is a running field or a heading
+  of its document (a chapter title the converter read as body text) gets a
+  heading put before it, a level below the heading it follows, and moves to
+  the furniture layer, so it heads the passage after it instead of standing
+  as one. Where it repeats the heading right before it, it only moves. A
+  paragraph of figures with no letter, a page number, moves there too; an
+  elision mark such as `(…)` holds no figure and stays.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed

@@ -496,6 +496,70 @@ def test_two_blocks_in_one_column_of_a_page_are_not_joined() -> None:
     assert not any("annex interest" in text for text in texts), texts
 
 
+def test_a_paragraph_repeating_a_running_field_heads_what_follows() -> None:
+    """A chapter title the converter read as body text says nothing of its own."""
+    document = paged(2)
+    for page in (1, 2):
+        foot(document, page, f"{GUIDE} | Accounts")
+    say(document, 1, "Accounts")
+    say(document, 1, "An account opens once checked.")
+
+    found = trails(document)
+
+    assert [(text, headings[-1:]) for text, headings in found] == [
+        ("An account opens once checked.", ["Accounts"])
+    ], found
+
+
+def test_a_paragraph_repeating_a_heading_heads_what_follows() -> None:
+    """A heading printed again as a paragraph is a heading, not a passage."""
+    document = paged(1)
+    document.add_heading(text="4. Disciplinary action", level=1, prov=on(1, 60))
+    say(document, 1, "A warning is recorded in writing.")
+    document.add_heading(text="5. Appeals", level=1, prov=on(1, 300))
+    say(document, 1, "4. Disciplinary action")
+    say(document, 1, "An appeal is heard within 14 days.")
+
+    found = trails(document)
+
+    assert all(not text.startswith("4. Disciplinary") for text, _ in found), found
+
+
+@pytest.mark.parametrize("number", ["47", "– 12 –"])
+def test_a_paragraph_with_no_letter_is_not_passage_text(number: str) -> None:
+    """A page number the converter read as body text."""
+    document = paged(1)
+    say(document, 1, "An account opens once checked.")
+    say(document, 1, number)
+
+    texts = [text for text, _ in trails(document)]
+
+    assert texts == ["An account opens once checked."], texts
+
+
+@pytest.mark.parametrize(
+    "line", ["See Section 5 for the diagrams.", "Promptly, in writing."]
+)
+def test_a_short_line_of_content_stays_passage_text(line: str) -> None:
+    """Short and verbless is not the same as a heading."""
+    document = paged(2)
+    for page in (1, 2):
+        foot(document, page, f"{GUIDE} | Accounts")
+    document.add_heading(text="5. Diagrams", level=1, prov=on(1, 60))
+    say(document, 1, line)
+
+    assert any(line in text for text, _ in trails(document))
+
+
+def test_an_elision_mark_stays_passage_text() -> None:
+    """`(…)` says a quotation left something out; later readings rely on it."""
+    document = paged(1)
+    say(document, 1, "(…)")
+    say(document, 1, "Except as outlined above, the fee is waived.")
+
+    assert any("(…)" in text for text, _ in trails(document))
+
+
 def facing() -> DoclingDocument:
     """Left pages head their chapter, right pages a topic of their own."""
     document = paged(9)

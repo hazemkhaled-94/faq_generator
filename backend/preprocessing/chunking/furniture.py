@@ -27,7 +27,7 @@ from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.common.reference import RefItem
 from docling_core.types.doc.document import DoclingDocument, ProvenanceItem
 from docling_core.types.doc.items.node import DocItem, NodeItem
-from docling_core.types.doc.items.text import TextItem
+from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.pipelines import languages, pipeline
@@ -48,6 +48,12 @@ _GAP = re.compile(r"\t+|\s{2,}")
 _NUMERAL = re.compile(r"\d+|\b[ivxlcdm]+\b", re.IGNORECASE)
 
 _SPACE = re.compile(r"\s+")
+
+#: Everything but letters and digits, which a repeated heading is compared on.
+_PUNCTUATION = re.compile(r"[\W_]+")
+
+#: The labels of a heading the converter took as one.
+_HEADINGS = frozenset({DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE})
 
 #: The most body words one running field is matched against when its
 #: spacing is read off the body.
@@ -332,7 +338,14 @@ def tidied(
     converter cut at a page or column break is joined back: a paragraph or
     list item ending in no `_ENDS` mark, followed on the next page or in the
     next column by a paragraph opening in lower case, takes that paragraph's
-    text, which moves to the furniture layer. Before the first block of each
+    text, which moves to the furniture layer. A paragraph of figures with no
+    letter, a page number read as body text, moves there too; an elision
+    mark, `(…)`, holds no figure and stays. A paragraph
+    that only repeats a running field or a heading of the document - a
+    chapter title the converter read as body text - is a heading: one is
+    put before it, a level below the heading it follows, so it heads what
+    comes next, and it moves to the furniture layer; where it repeats the
+    heading right before it, it only moves. Before the first block of each
     chapter goes a title naming it, which empties the heading trail the
     chunker would otherwise carry over from the chapter before.
 
@@ -350,14 +363,29 @@ def tidied(
         for item in document.texts
         if item.content_layer == ContentLayer.BODY
         and item.label in _PROSE
-        and _repeats(item.text, furniture.running)
+        and (_repeats(item.text, furniture.running) or _figures_only(item.text))
     }
+    restated = _restated(document, debris)
+    debris |= {reference for reference, level in restated if level is None}
+    promoted = [(reference, level) for reference, level in restated if level]
+    debris |= {reference for reference, _ in promoted}
     joins = _continued(document, debris)
     starts = _chapter_starts(document, furniture, debris)
     if not debris and not starts and not joins:
         return document, {}
 
     tidy = document.model_copy(deep=True)
+    for reference, level in promoted:
+        node = _resolved(reference, tidy)
+        if isinstance(node, TextItem):
+            # Appended to the texts, so no reference the passages store moves.
+            tidy.insert_heading(
+                sibling=node,
+                text=node.text.strip(),
+                level=level,
+                prov=node.prov[0] if node.prov else None,
+                after=False,
+            )
     for reference in debris:
         _resolved(reference, tidy).content_layer = ContentLayer.FURNITURE
     into: dict[str, str] = {}
@@ -409,6 +437,56 @@ def _dividers(document: DoclingDocument) -> set[str]:
     if len(found) < 2 or any(a >= b for a, b in pairwise(letters)):
         return set()
     return {reference for reference, _ in found}
+
+
+def _restated(
+    document: DoclingDocument, skipped: set[str]
+) -> list[tuple[str, int | None]]:
+    """The paragraphs that only repeat a running field or a heading.
+
+    Compared with spaces, punctuation and case set aside, on the whole text,
+    so `See Section 5 for the diagrams.` is not `5. Diagrams`. Each comes
+    with the level a heading put before it takes - one below the heading it
+    follows - or None where it repeats that heading itself and so heads
+    nothing new.
+    """
+    names = {
+        _plain(name)
+        for item in document.texts
+        if item.label in _RUNNING
+        for name in (item.text, *fields(item.text))
+    } | {_plain(item.text) for item in document.texts if item.label in _HEADINGS}
+    names.discard("")
+    found: list[tuple[str, int | None]] = []
+    level, last = 0, ""
+    for item, _ in document.iterate_items():
+        if isinstance(item, SectionHeaderItem):
+            level, last = item.level, _plain(item.text)
+        elif isinstance(item, TitleItem):
+            level, last = 0, _plain(item.text)
+        elif (
+            isinstance(item, TextItem)
+            and item.label in _PROSE
+            and item.content_layer == ContentLayer.BODY
+            and item.self_ref not in skipped
+            and (plain := _plain(item.text)) in names
+        ):
+            found.append(
+                (item.self_ref, None if plain == last else min(level + 1, 100))
+            )
+    return found
+
+
+def _figures_only(text: str) -> bool:
+    """Whether a paragraph holds a figure and no letter: a page number."""
+    return any(char.isdigit() for char in text) and not any(
+        char.isalpha() for char in text
+    )
+
+
+def _plain(text: str) -> str:
+    """Text with spaces, punctuation and case set aside."""
+    return _PUNCTUATION.sub("", text).casefold()
 
 
 def _continued(document: DoclingDocument, skipped: set[str]) -> list[tuple[str, str]]:
