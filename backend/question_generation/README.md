@@ -294,7 +294,7 @@ its own document, runs in it too.
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
 | `not_recoverable` | cites evidence its own answer is not in | the round trip |
-| `answer_incomplete` | has a `list` key naming far less than the verifier found | the same round trip |
+| `answer_incomplete` | has a `list` key naming far less than the verifier found, whether recall found the key or the entailment pass rescued it | the same round trip |
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite settles it | a passage probe and a second `settles` call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
 

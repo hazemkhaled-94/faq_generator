@@ -762,6 +762,9 @@ class QuestionChecker:
                     QuestionRejection.NOT_RECOVERABLE,
                     "the verifier could not find the answer in the cited passages",
                 )
+            # A key the entailment pass rescues goes on to the reading below:
+            # the rescue says the key is true, not that it is the whole of
+            # what the passages gave back.
             if not agrees(
                 read.recovered,
                 target,
@@ -769,9 +772,7 @@ class QuestionChecker:
                 form,
                 self._overlap,
                 candidate.question_text,
-            ):
-                if self._backed(candidate, target, readings):
-                    return None
+            ) and not self._backed(candidate, target, readings):
                 return (
                     QuestionRejection.NOT_RECOVERABLE,
                     (

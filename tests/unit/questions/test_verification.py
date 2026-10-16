@@ -2964,6 +2964,35 @@ def test_a_two_item_key_to_a_list_first_type_is_checked_for_completeness(
     assert result.answer_form == AnswerForm.LIST
 
 
+def test_a_key_the_entailment_pass_rescued_is_still_held_to_completeness() -> None:
+    """The rescue says the key is true, not that it is the whole answer."""
+    passage = (
+        "A card is blocked when the bank detects card fraud, when fees stay "
+        "unpaid, under a court order, after a theft report, when the account "
+        "closes, on a fraud alert or after an address change."
+    )
+    result = build(
+        Recording(
+            recovers=(
+                "after a theft report, under a court order, when the account "
+                "closes, on a fraud alert or after an address change"
+            ),
+            backs=True,
+        )
+    ).check(
+        candidate(
+            question_text="When is a card blocked?",
+            target_answer="for card fraud, and for unpaid fees",
+            question_type=QuestionType.CONDITION,
+            facts=group(
+                source(statement="A card is blocked for fraud.", passage_text=passage)
+            ),
+        )
+    )
+
+    assert result.rejected_reason == QuestionRejection.ANSWER_INCOMPLETE
+
+
 @pytest.mark.parametrize("form", [AnswerForm.VALUE, AnswerForm.EXPLANATION])
 def test_only_a_list_claims_to_name_a_set(form: str) -> None:
     """A value is short because its answer is one thing."""
