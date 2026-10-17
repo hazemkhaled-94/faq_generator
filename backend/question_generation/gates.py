@@ -1056,7 +1056,7 @@ def asserted(target: str, passages: Sequence[str], language: str | None) -> bool
     The key's numbers are read as `agrees` reads them, by `_numbers`, so a
     count it writes out is one: `de_core_news_md` gives `zehn` no `like_num`.
     """
-    units = _numbers(target, language)
+    units = _number_readings(target, language)
     return not units or _carried(units, _values("\n".join(passages), language))
 
 
@@ -1994,15 +1994,25 @@ def about(
     return share is None or share >= floor
 
 
-def _numbers(text: str, language: str | None) -> frozenset[frozenset[str]]:
+def _numbers(text: str, language: str | None) -> frozenset[str]:
     """The values a text asserts, with the counts `like_num` does not mark.
 
     `claim().units` reads a number off `like_num`, which `en_core_web_md`
     sets on `two` and `de_core_news_md` does not set on `zwei`: a German key
     written in words asserted no number, and agreed with any. A time or a
     figure glued to its unit carries no `like_num` either, and is read off
-    `claim().figures`. Each value is every reading `_readings` gives it.
+    `claim().figures`. One reading each, by the language's decimal mark;
+    `_number_readings` is what a comparison with a model's text reads.
     """
+    written = _written(text, language)
+    read = claim(text, language)
+    return frozenset(
+        written.get(unit, _folded(unit, language)) for unit in read.units + read.figures
+    ) | frozenset(written.values())
+
+
+def _number_readings(text: str, language: str | None) -> frozenset[frozenset[str]]:
+    """`_numbers`, with each value as every reading `_readings` gives it."""
     written = _written(text, language)
     read = claim(text, language)
     return frozenset(
@@ -2114,7 +2124,7 @@ def agrees(
     # and the two are one number written in two locales. Folding keeps the
     # comparison that matters - `4` is still not `48` - and drops the one
     # that never did.
-    units = _numbers(target, language)
+    units = _number_readings(target, language)
     if units and not _carried(units, _values(recovered, language)):
         return False
 

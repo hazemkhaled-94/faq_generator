@@ -3790,3 +3790,14 @@ def test_every_verdict_carries_what_a_run_is_compared_on() -> None:
     for one in named.values():
         assert one.metadata["run_id"]
         assert one.metadata["prompt_version"]
+
+
+def test_the_values_a_text_asserts_are_one_reading_each() -> None:
+    """Read by the language's mark, as the review's replays read them.
+
+    Both readings of an ambiguous figure belong to the comparison alone.
+    """
+    from question_generation.gates import _numbers
+
+    assert _numbers("Das Limit beträgt 1.000 EUR.", "de") == frozenset({"1000.0"})
+    assert _numbers("The limit is 1,000 EUR.", "en") == frozenset({"1000.0"})
