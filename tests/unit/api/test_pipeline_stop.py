@@ -1,0 +1,93 @@
+"""Which runs Stop stops, without a database or a Dagster.
+
+The queue half is the backend's own and is tested against a real database in
+`tests/integration/api/test_pipeline_routes.py`. Here the queues move
+nothing, so what is left is which runs were asked to stop and what the
+answer says about each.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from api.orchestrator import Orchestration, Refused, Run
+
+
+class Runs:
+    """An orchestrator holding some runs, newest first."""
+
+    def __init__(self, *recent: Run, refuses: dict[str, Exception] | None = None):
+        """Holds the runs, and the ones that will not stop."""
+        self.recent = list(recent)
+        self.refuses = refuses or {}
+        self.terminated: list[str] = []
+
+    def state(self) -> Orchestration:
+        """The runs, as Dagster lists them."""
+        return Orchestration(
+            available=True,
+            running=next((one for one in self.recent if one.live), None),
+            recent=self.recent,
+        )
+
+    def terminate(self, run_id: str) -> bool:
+        """Stops one run, or refuses to."""
+        self.terminated.append(run_id)
+        if run_id in self.refuses:
+            raise self.refuses[run_id]
+        return True
+
+
+@pytest.fixture
+def stopping(monkeypatch):
+    """Stop, on an orchestrator a test fills and queues that hold nothing."""
+    from api.routes import pipeline
+
+    monkeypatch.setattr(pipeline, "_fan", lambda action, names: ([], 0))
+
+    def install(orchestrator: Runs):
+        monkeypatch.setattr(pipeline, "orchestrator", orchestrator)
+        return pipeline.stop()
+
+    return install
+
+
+def test_every_live_run_is_stopped_newest_first(stopping) -> None:
+    """A queued run left behind starts the moment the running one stops."""
+    runs = Runs(
+        Run(id="R2", status="QUEUED"),
+        Run(id="R1", status="STARTED"),
+        Run(id="R0", status="SUCCESS"),
+    )
+
+    answer = stopping(runs)
+
+    assert runs.terminated == ["R2", "R1"]
+    assert answer.run is not None and answer.run.id == "R1"
+    assert "R2" in answer.detail and "R1" in answer.detail
+
+
+def test_a_run_that_cannot_be_stopped_is_named_in_the_detail(stopping) -> None:
+    """Said rather than only logged, so the person who pressed Stop knows."""
+    runs = Runs(Run(id="run-7", status="STARTED"), refuses={"run-7": Refused("no")})
+
+    answer = stopping(runs)
+
+    assert answer.run is None
+    assert "run-7" in answer.detail
+    assert "could NOT be stopped" in answer.detail
+
+
+def test_the_others_are_stopped_when_one_will_not_be(stopping) -> None:
+    """One refusal stops nothing else being stopped."""
+    runs = Runs(
+        Run(id="R2", status="QUEUED"),
+        Run(id="R1", status="STARTED"),
+        refuses={"R2": Refused("no")},
+    )
+
+    answer = stopping(runs)
+
+    assert runs.terminated == ["R2", "R1"]
+    assert answer.run is not None and answer.run.id == "R1"
+    assert "R2 (no) could NOT be stopped" in answer.detail

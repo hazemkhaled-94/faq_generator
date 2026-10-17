@@ -115,7 +115,7 @@ have, because neither is about one stage.
 GET  /pipeline              every stage's queue, the run in flight, what is automated
 POST /pipeline/run          take the corpus through every stage but the topic fit, in order
 POST /pipeline/start        queue everything ready to be worked: parsing, chunking, extraction, questions
-POST /pipeline/stop         take back everything queued, and stop the run behind it
+POST /pipeline/stop         take back everything queued, and stop every run behind it
 POST /pipeline/retry        return every stage's failures to the queue
 GET  /pipeline/runs         the recent runs
 GET  /pipeline/automation   whether anything starts a run by itself
@@ -163,6 +163,11 @@ nothing and so names nothing.
 Under `/pipeline`, `start` and `retry` take no `?run=`: each mints one id for
 every stage it reaches and answers it as `queued_as`. There `run` is the
 Dagster run, set only by `stop` when it stopped one.
+
+**`stop` stops every live run, newest first,** because a queued run left
+behind is started the moment the one before it stops. Its `run` is the oldest
+it stopped, the one that was doing the work, and its `detail` names every run
+it stopped and every one Dagster would not stop, with the reason.
 
 ## The full surface
 

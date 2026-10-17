@@ -33,12 +33,18 @@ class FakeOrchestrator:
         *,
         available: bool = True,
         running: Run | None = None,
+        recent: list[Run] | None = None,
         launches: Run | Exception | None = None,
         terminates: bool | Exception = True,
     ) -> None:
-        """Holds the answers, and records what it was asked to do."""
+        """Holds the answers, and records what it was asked to do.
+
+        `recent` is newest first, as Dagster lists runs; absent, it is the
+        running one alone.
+        """
         self._available = available
         self._running = running
+        self._recent = recent if recent is not None else [running] if running else []
         self._launches = launches or Run(id="new-run", status="QUEUED")
         self._terminates = terminates
         self.launched = 0
@@ -50,8 +56,9 @@ class FakeOrchestrator:
             return Orchestration(detail="DAGSTER_URL is not set")
         return Orchestration(
             available=True,
-            running=self._running,
-            recent=[one for one in (self._running,) if one],
+            running=self._running
+            or next((one for one in self._recent if one.live), None),
+            recent=self._recent,
             automation=Automation(available=True),
         )
 
@@ -268,6 +275,33 @@ def test_a_run_that_cannot_be_stopped_does_not_stop_the_queues_emptying(
     assert answered.status_code == 202
     assert answered.json()["rows"] > 0
     assert corpus.get("/pipeline").json()["working"] is False
+
+
+def test_stop_stops_every_live_run_not_only_the_newest(corpus, orchestrator):
+    """A queued run left behind starts the moment the running one stops."""
+    fake = orchestrator(
+        recent=[Run(id="R2", status="QUEUED"), Run(id="R1", status="STARTED")]
+    )
+    corpus.post("/pipeline/start")
+
+    body = corpus.post("/pipeline/stop").json()
+
+    assert fake.terminated == ["R2", "R1"]
+    assert body["run"]["id"] == "R1"
+    assert "R2" in body["detail"] and "R1" in body["detail"]
+    assert corpus.get("/pipeline").json()["working"] is False
+
+
+def test_a_run_that_cannot_be_stopped_is_named_in_the_detail(corpus, orchestrator):
+    """Said rather than only logged, so the person who pressed Stop knows."""
+    orchestrator(running=Run(id="run-7", status="STARTED"), terminates=Refused("no"))
+    corpus.post("/pipeline/start")
+
+    body = corpus.post("/pipeline/stop").json()
+
+    assert body["run"] is None
+    assert "run-7" in body["detail"]
+    assert "could NOT be stopped" in body["detail"]
 
 
 def test_retry_returns_every_stage_s_failures(client, engine, orchestrator):

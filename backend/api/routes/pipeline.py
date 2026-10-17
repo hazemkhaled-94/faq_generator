@@ -276,38 +276,48 @@ def start() -> PipelineAction:
 
 @router.post("/stop", status_code=202)
 def stop() -> PipelineAction:
-    """Takes back everything queued, and stops the run that queued it.
+    """Takes back everything queued, and stops every run that could queue more.
 
     Both halves, because either alone leaves the corpus moving: emptying the
     queues while a run is going means the run queues them again at its next
     stage, and stopping the run alone leaves every already-queued row to be
     worked.
 
+    Every live run, newest first: a queued run left behind is started the
+    moment the one before it stops. `run` is the oldest stopped, the one that
+    was doing the work.
+
     Whatever a worker holds right now finishes. Nothing here interrupts an
     item in progress - `reclaim` is the only verb that does.
     """
-    stopped = None
-    live = orchestrator.state().running
-    if live is not None:
+    stopped: list[Run] = []
+    refused: list[str] = []
+    for live in [one for one in orchestrator.state().recent if one.live]:
         try:
             if orchestrator.terminate(live.id):
-                stopped = live
+                stopped.append(live)
         except (Unavailable, Refused) as refusal:
             # Not fatal: the queues are the backend's own and emptying them
             # is most of what Stop means. Said in the detail rather than
             # raised, so a Dagster that is down cannot stop a person
             # stopping their pipeline.
             log.warning("pipeline: could not stop run %s: %s", live.id, refusal)
+            refused.append(f"{live.id} ({refusal})")
 
     moved, rows = _fan("stop", tuple(name for name, _ in STAGES))
     return PipelineAction(
         action="stop",
         rows=rows,
         stages=moved,
-        run=stopped,
+        run=stopped[-1] if stopped else None,
         detail=(
             f"{rows} row(s) taken off the queue"
-            + (f", and run {stopped.id} stopped" if stopped else "")
+            + (
+                f", and run(s) {', '.join(one.id for one in stopped)} stopped"
+                if stopped
+                else ""
+            )
+            + (f"; run(s) {'; '.join(refused)} could NOT be stopped" if refused else "")
             + ". Whatever a worker holds right now finishes."
         ),
     )
