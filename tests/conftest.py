@@ -83,7 +83,7 @@ def _no_database_in_the_unit_layer(request, monkeypatch) -> Iterator[None]:
     a failed connection, so the attempt is refused here and reported at
     teardown, where nothing can swallow it.
     """
-    if not request.node.path.is_relative_to(ROOT / "tests" / "unit"):
+    if not request.node.path.resolve().is_relative_to(ROOT / "tests" / "unit"):
         yield
         return
     import psycopg
