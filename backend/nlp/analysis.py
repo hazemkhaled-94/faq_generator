@@ -1081,6 +1081,10 @@ def _lemmas(document: Doc) -> list[str]:
 #: never ends inside "Anspucken/Spucken" or "Ball-im-Spiel".
 _JOINERS = "/-"
 
+#: The marks that end a sentence, in the scripts read here. A joiner after
+#: one and a space is no word joined: it opens what follows.
+_SENTENCE_ENDS = ".!?"
+
 #: Characters that carry the sentence before them on: a clause opened by a
 #: comma or a closing bracket is not a sentence of its own.
 _CONTINUING = ",;:)"
@@ -1131,6 +1135,12 @@ def _boundaries(document: Doc) -> list[int]:
     the last. Only ever drops or moves a cut the parser made: a full stop
     with no space after it still ends a sentence, as it does in a PDF that
     lost its spaces.
+
+    A slash or dash after a sentence's end and a space joins nothing: it
+    opens the next sentence, standing free ("The fee is 50 EUR. - Repeat
+    offenders pay 100 EUR.") or as the bullet of the next line, which the
+    parser leaves on the line before. The cut is kept there, or moved back
+    to the bullet.
     """
     spans = list(document.sents)
     starts = [spans[0].start] if spans else []
@@ -1142,8 +1152,30 @@ def _boundaries(document: Doc) -> list[int]:
             continue
         spaced = previous.text != left or sentence.text != right
         last_word = left.split()[-1].casefold()
+        joined = not spaced and (left[-1] in _JOINERS or right[0] in _JOINERS)
+        if joined:
+            # `text`, not `text_with_ws`, decides `spaced`: read the space
+            # after the span here, so a slash a PDF spaced inside a word
+            # still joins and only one after a sentence's end does not.
+            if (
+                right[0] in _JOINERS
+                and previous.text_with_ws != left
+                and left[-1] in _SENTENCE_ENDS
+            ):
+                starts.append(sentence.start)
+                continue
+            last = previous[-1]
+            before = document.text[previous.start_char : last.idx]
+            if (
+                last.text in tuple(_JOINERS)
+                and before != before.rstrip()
+                and before.rstrip()[-1:] in tuple(_SENTENCE_ENDS)
+            ):
+                if last.i > starts[-1]:
+                    starts.append(last.i)
+                continue
         if (
-            (not spaced and (left[-1] in _JOINERS or right[0] in _JOINERS))
+            joined
             or right[0] in _CONTINUING
             or (
                 last_word in abbreviations

@@ -111,6 +111,72 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "Prices are shown incl. 19 % VAT. Shipping is extra.",
         ("Prices are shown incl. 19 % VAT.", "Shipping is extra."),
     ),
+    (
+        "a dash after a full stop and a space opens a sentence",
+        "en",
+        "The fee is 50 EUR. - Repeat offenders pay 100 EUR.",
+        ("The fee is 50 EUR.", "- Repeat offenders pay 100 EUR."),
+    ),
+    (
+        "a negative figure after a full stop opens a sentence",
+        "en",
+        "The card is blocked. -5 points are deducted for each late payment.",
+        ("The card is blocked.", "-5 points are deducted for each late payment."),
+    ),
+    (
+        "a free slash after a full stop goes with what follows",
+        "de",
+        "Der Rückversand ist kostenlos. / Ausnahmen regelt Nr. 4.",
+        ("Der Rückversand ist kostenlos.", "/ Ausnahmen regelt Nr. 4."),
+    ),
+    (
+        # The parser cuts after the second bullet's dash, as it does in a
+        # stored list of rules, and leaves the dash on the rule before.
+        "two bulleted rules each ending in a full stop are two sentences",
+        "en",
+        (
+            "- A replacement card may be ordered regardless of the number of "
+            "cards already issued.\n- In branches with no counter, the card is "
+            "sent by post."
+        ),
+        (
+            (
+                "- A replacement card may be ordered regardless of the number of "
+                "cards already issued."
+            ),
+            "- In branches with no counter, the card is sent by post.",
+        ),
+    ),
+    (
+        # The parser cuts after the first bullet's dash here too; with no
+        # sentence ended before it, the dash stays with its lead-in.
+        "a lead-in keeps its first bullet",
+        "de",
+        (
+            "Für dieses Konto gelten die folgenden Bestimmungen:\n- Die "
+            "Kontoführung kostet 4,90 EUR im Monat.\n- Die Karte ist im ersten "
+            "Jahr kostenlos."
+        ),
+        (
+            (
+                "Für dieses Konto gelten die folgenden Bestimmungen:\n- Die "
+                "Kontoführung kostet 4,90 EUR im Monat."
+            ),
+            "- Die Karte ist im ersten Jahr kostenlos.",
+        ),
+    ),
+    (
+        "a label dash stays one sentence",
+        "de",
+        "Abschnitt 6 - Entgelte für Karten lautet wie folgt:",
+        ("Abschnitt 6 - Entgelte für Karten lautet wie folgt:",),
+    ),
+    (
+        "a slash a PDF spaced inside a word joins",
+        "de",
+        "Ist die Ware beschädigt/ unvollständig, erstattet der Händler den Preis.",
+        ("Ist die Ware beschädigt/ unvollständig, erstattet der Händler den Preis.",),
+    ),
 )
 
 
