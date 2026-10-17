@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from pathlib import Path
 
 import pytest
 import yaml
+
+from telemetry import pipeline
 
 ROOT = Path(__file__).resolve().parents[2]
 PROVISIONING = ROOT / "configs" / "grafana" / "provisioning"
@@ -195,3 +198,29 @@ def _aggregated(target: dict) -> set[str]:
         if metric.get("field"):
             found.add(metric["field"])
     return found
+
+
+#: How a run dashboard panel takes a run's name off a Phoenix project's.
+RUN_OF_PROJECT = re.compile(r"regexp_replace\(p\.name, '([^']+)', ''\) = '\$run'")
+
+
+def test_no_panel_matches_a_run_by_suffix() -> None:
+    """Each panel takes the run's own projects, and no other run's.
+
+    `LIKE '%-a'` took in the projects of run `b-a` as well, and its `_`
+    matched any character, so one run's panels counted another's spend.
+    """
+    queries = [
+        target["rawSql"]
+        for target in _targets(DASHBOARDS["pipeline-runs.json"])
+        if "p.name" in target.get("rawSql", "")
+    ]
+
+    assert len(queries) >= 4, queries
+    for sql in queries:
+        assert not re.search(r"LIKE\s+'[^']*\$run", sql), sql
+        (prefix,) = RUN_OF_PROJECT.findall(sql)
+        for stage in pipeline.STAGES:
+            for run in ("a", "b-a", "a_b", "4-extraction"):
+                taken = re.sub(prefix, "", pipeline.project(stage, run), count=1)
+                assert taken == run, (sql, stage, run)
