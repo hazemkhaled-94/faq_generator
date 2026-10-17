@@ -17,6 +17,7 @@ import pytest
 from docling.datamodel.base_models import ConfidenceReport, ConversionStatus
 from docling.datamodel.document import ConversionResult
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
+from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.document import (
     DoclingDocument,
     ProvenanceItem,
@@ -28,7 +29,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from preprocessing.parsing.models import SourceDocument
-from preprocessing.parsing.pipelines.pdf import PdfPipeline, _unstruck
+from preprocessing.parsing.pipelines.pdf import _UNCLIPPED, PdfPipeline, _unstruck
 
 WIDTH, HEIGHT = 839.0, 595.0
 FONT = 9.0
@@ -550,6 +551,113 @@ def test_text_the_page_clips_out_of_view_is_dropped() -> None:
     texts = [one.text for one in converted(pdf, reading).texts if one.text.strip()]
 
     assert texts == ["Card fees"]
+
+
+def hidden(pdf, page, at: tuple[float, float], text: str, size: float = FONT):
+    """Prints `text` under a clip that shows none of it, as a diagram's label.
+
+    Returns:
+        The box a converter gives it, with a top-left origin, read off the
+        characters as drawn: the page shows none of them.
+    """
+    page.insert_text(at, text, fontsize=size, color=INK)
+    drawn = page.get_contents()[-1]
+    pdf.update_stream(drawn, b"q 0 0 0 0 re W n\n" + pdf.xref_stream(drawn) + b"\nQ")
+    chars = [
+        char["bbox"]
+        for block in page.get_text("rawdict", flags=_UNCLIPPED)["blocks"]
+        for line in block.get("lines", ())
+        for span in line["spans"]
+        if span["origin"] == at
+        for char in span["chars"]
+    ]
+    return (
+        min(one[0] for one in chars),
+        min(one[1] for one in chars),
+        max(one[2] for one in chars),
+        max(one[3] for one in chars),
+    )
+
+
+def read(*items: tuple[str, tuple[float, ...]]) -> DoclingDocument:
+    """The converter's reading of a page: one paragraph per (text, box)."""
+    reading = document()
+    for text, edges in items:
+        reading.add_text(label=DocItemLabel.TEXT, text=text, prov=provenance(edges))
+    return reading
+
+
+def shown(pdf, reading: DoclingDocument) -> list[str]:
+    """The texts the pipeline leaves in the body."""
+    return [
+        one.text
+        for one in converted(pdf, reading).texts
+        if one.content_layer == ContentLayer.BODY and one.text.strip()
+    ]
+
+
+def test_a_hidden_label_over_visible_text_is_dropped() -> None:
+    """A shop flyer's hidden 'SALE' sits on the line the page does show.
+
+    Each of its letters lies inside a letter of 'Returns', so a test of
+    position alone reads it as shown.
+    """
+    text = "Returns within 30 days"
+    pdf, page = printed((LEFT, 200, text))
+    label = hidden(pdf, page, (LEFT + 2, 200), "SALE")
+
+    assert shown(pdf, read((text, box(page, text, 200)), ("SALE", label))) == [text]
+
+
+def test_a_hidden_label_inside_a_tall_glyph_box_is_dropped() -> None:
+    """A large heading's letter boxes cover the small label hidden inside them."""
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=WIDTH, height=HEIGHT)
+    page.insert_text((LEFT, 200), "Card fees", fontsize=50, color=INK)
+    label = hidden(pdf, page, (LEFT + 10, 185), "NEW")
+    heading = box(page, "Card fees", 190)
+
+    assert shown(pdf, read(("Card fees", heading), ("NEW", label))) == ["Card fees"]
+
+
+def test_a_label_cut_at_the_page_edge_is_dropped() -> None:
+    """The converter reads only what lies on the page: 'SHIP', not 'SHIPPING'."""
+    text = "Free returns on every order"
+    pdf, page = printed((LEFT, 200, text))
+    hidden(pdf, page, (WIDTH - 48, 200), "FREE SHIPPING")
+    line = (LEFT, 190.0, WIDTH, 202.0)
+
+    assert shown(pdf, read((f"{text} FREE SHIP", line))) == [text]
+
+
+def test_a_hidden_label_the_converter_spelled_apart_leaves_the_body() -> None:
+    """A tracked label reads 'S A L E' to the converter and 'SALE' to pymupdf.
+
+    No token matches a word, so the item goes because every word in its box
+    is one the page hides.
+    """
+    pdf, page = printed((LEFT, 200, "Returns within 30 days"))
+    label = hidden(pdf, page, (LEFT, 400), "SALE")
+    reading = read(("Returns within 30 days", box(page, "Returns", 200)))
+    reading.add_text(label=DocItemLabel.TEXT, text="S A L E", prov=provenance(label))
+
+    assert shown(pdf, reading) == ["Returns within 30 days"]
+
+
+def test_a_word_drawn_twice_for_bold_is_kept() -> None:
+    """A writer's fake bold draws a fee line twice, a fraction of a point apart.
+
+    The page hides a label elsewhere, so the two reads differ and each
+    character of both copies is looked for.
+    """
+    text = "Account fee 4.90 EUR"
+    pdf, page = printed((LEFT, 200, text), (LEFT + 0.3, 200, text))
+    label = hidden(pdf, page, (LEFT, 400), "NEW")
+    line = box(page, text, 200)
+
+    assert shown(pdf, read((f"{text} {text}", line), ("NEW", label))) == [
+        f"{text} {text}"
+    ]
 
 
 def test_an_ocr_layer_drawn_invisible_is_kept() -> None:

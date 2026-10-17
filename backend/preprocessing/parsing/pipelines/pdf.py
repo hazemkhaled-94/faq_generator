@@ -7,6 +7,7 @@ import logging
 import math
 import re
 import unicodedata
+from collections import defaultdict
 from difflib import SequenceMatcher
 from itertools import pairwise
 from typing import ClassVar, NamedTuple, cast
@@ -100,6 +101,15 @@ _PAGE_SLACK = 1.0
 #: What pymupdf extracts when the page's clip is not applied, so text a clip
 #: path hides is returned.
 _UNCLIPPED = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_MEDIABOX_CLIP
+
+#: How far apart, in points, the two reads of one page may place a character
+#: and still mean one glyph. Float noise between two extractions of the same
+#: content stream, not a distance on the page.
+_SAME_PLACE = 1.0
+
+#: How far, in points, a character may stand past the page's edge and still
+#: be on it.
+_EDGE = 0.5
 
 #: One unit of a string, as the converter spaced it.
 _TOKEN = re.compile(r"\S+")
@@ -475,7 +485,7 @@ def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
         )
         return document
 
-    for number, (width, height, flagged) in marked.items():
+    for number, (width, height, flagged, hidden) in marked.items():
         page = document.pages.get(number)
         if page is None or (
             abs(page.size.width - width) > _PAGE_SLACK
@@ -495,8 +505,8 @@ def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
                 for word in _inside(flagged, prov.bbox, height)
             ]
             if any(any(struck) for _, struck in words):
-                item.text = _without(item.text, words)
-                item.orig = _without(item.orig, words)
+                item.text = _without(item.text, words, hidden)
+                item.orig = _without(item.orig, words, hidden)
                 if not item.text.strip():
                     # Out of the body, so a struck bullet renders as no
                     # bullet and a struck heading heads nothing; in place,
@@ -508,45 +518,62 @@ def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
             for cell in table.data.table_cells:
                 words = [] if cell.bbox is None else _inside(flagged, cell.bbox, height)
                 if any(any(struck) for _, struck in words):
-                    cell.text = _without(cell.text, words)
+                    cell.text = _without(cell.text, words, hidden)
     return document
 
 
-def _marked(data: bytes) -> dict[int, tuple[float, float, list[_Marked]]]:
+def _marked(
+    data: bytes,
+) -> dict[int, tuple[float, float, list[_Marked], frozenset[_Word]]]:
     """Reads every page that strikes a word through or hides one.
 
     A page's characters are read twice: as a reader sees them, with the
-    page's clip applied, and as the converter may, without it. A word of the
-    second read none of whose characters sits where the first read has one
-    is hidden, and every one of its characters is flagged as a struck one is. Text drawn invisible is
-    returned by both reads, so it is not hidden: a scanned page's OCR layer
-    is drawn that way.
+    page's clip applied, and as the converter may, without it. A character of
+    the second read is hidden when the first has no same character in the
+    same place, and is flagged as a struck one is. Matched one character to
+    another, not by position alone: a label hidden over a visible line, or
+    inside a large letter's box, lies where shown characters are. What the
+    second read sets past the page's edge is dropped first, as the converter
+    drops it, so a label cut at the edge reads as the converter spells it.
+    Text drawn invisible is returned by both reads, so it is not hidden: a
+    scanned page's OCR layer is drawn that way.
 
     Args:
         data: The PDF.
 
     Returns:
-        By page number from 1: the page's width and height, and every word on
-        it in reading order, each with a flag per character, True when it is struck or hidden.
+        By page number from 1: the page's width and height; every word on it
+        in reading order, each with a flag per character, True when it is
+        struck or hidden; and the words every character of which is hidden.
     """
     marked = {}
     with pymupdf.open(stream=data, filetype="pdf") as pdf:
         for number in range(1, pdf.page_count + 1):
             page = pdf.load_page(number - 1)
             strokes = _strokes(page)
-            words = _words(page, _UNCLIPPED)
-            hidden = _hidden(words, _words(page, None))
-            flagged = [
-                (
-                    word,
-                    (True,) * len(word.chars)
-                    if gone
-                    else _struck_segments(word, strokes),
-                )
-                for word, gone in zip(words, hidden, strict=True)
+            words = [
+                kept
+                for word in _words(page, _UNCLIPPED)
+                if (kept := _on_page(word, page.rect)) is not None
             ]
+            hidden = _hidden(words, _words(page, None))
+            flagged: list[_Marked] = []
+            for word, gone in zip(words, hidden, strict=True):
+                struck = _struck_segments(word, strokes)
+                if gone is not None:
+                    struck = tuple(a or b for a, b in zip(gone, struck, strict=True))
+                flagged.append((word, struck))
             if any(any(struck) for _, struck in flagged):
-                marked[number] = (page.rect.width, page.rect.height, flagged)
+                marked[number] = (
+                    page.rect.width,
+                    page.rect.height,
+                    flagged,
+                    frozenset(
+                        word
+                        for word, gone in zip(words, hidden, strict=True)
+                        if gone is not None and all(gone)
+                    ),
+                )
     return marked
 
 
@@ -590,23 +617,62 @@ def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
     return [stroke for stroke in found if stroke[1] - stroke[0] > _SHORTEST]
 
 
-def _hidden(words: list[_Word], shown: list[_Word]) -> list[bool]:
-    """Flags each of `words` True when none of its characters is among `shown`.
+def _hidden(words: list[_Word], shown: list[_Word]) -> list[tuple[bool, ...] | None]:
+    """Flags each character of `words` True when `shown` does not hold it.
 
-    A character is among them when its centre lies in the box of one.
+    `shown` holds a character when one of its words has the same character
+    within `_SAME_PLACE` of its top-left corner. A word drawn twice for a
+    bold face is in both reads twice, so both copies are held.
+
+    Returns:
+        One entry per word: its flags, or None when nothing in it is hidden.
     """
     if [word.text for word in words] == [word.text for word in shown]:
-        return [False] * len(words)
-    boxes = [box[1:] for word in shown for box in word.chars]
-    return [
-        not any(
-            left <= (c_left + c_right) / 2 <= right
-            and top <= (c_top + c_bottom) / 2 <= bottom
-            for _, c_left, c_right, c_top, c_bottom in word.chars
-            for left, right, top, bottom in boxes
+        return [None] * len(words)
+    placed: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for word in shown:
+        for char, left, _, top, _ in word.chars:
+            placed[char].append((left, top))
+    found: list[tuple[bool, ...] | None] = []
+    for word in words:
+        flags = tuple(
+            not any(
+                abs(left - x) <= _SAME_PLACE and abs(top - y) <= _SAME_PLACE
+                for x, y in placed.get(char, ())
+            )
+            for char, left, _, top, _ in word.chars
         )
-        for word in words
-    ]
+        found.append(flags if any(flags) else None)
+    return found
+
+
+def _on_page(word: _Word, rect: pymupdf.Rect) -> _Word | None:
+    """The part of a word that lies on the page, or None when none of it does.
+
+    The read without the clip returns characters set past the page's edge,
+    which the converter never sees: a label cut at the edge is `SHIP` to it
+    and `SHIPPING` here, and the two would never be matched.
+    """
+    chars = tuple(
+        char
+        for char in word.chars
+        if char[1] >= rect.x0 - _EDGE
+        and char[2] <= rect.x1 + _EDGE
+        and char[3] >= rect.y0 - _EDGE
+        and char[4] <= rect.y1 + _EDGE
+    )
+    if len(chars) == len(word.chars):
+        return word
+    if not chars:
+        return None
+    return word._replace(
+        text="".join(char[0] for char in chars),
+        left=min(char[1] for char in chars),
+        right=max(char[2] for char in chars),
+        top=min(char[3] for char in chars),
+        bottom=max(char[4] for char in chars),
+        chars=chars,
+    )
 
 
 def _words(page: pymupdf.Page, flags: int | None) -> list[_Word]:
@@ -769,7 +835,7 @@ def _remainder(
     )
 
 
-def _without(text: str, words: list[_Marked]) -> str:
+def _without(text: str, words: list[_Marked], hidden: frozenset[_Word]) -> str:
     """Drops the struck words, and the struck parts of words, from one string.
 
     The string is aligned with the page word by word, in reading order, so
@@ -787,14 +853,21 @@ def _without(text: str, words: list[_Marked]) -> str:
     it when it ends with an opening bracket or quote whose struck characters
     follow, so "(not credits)" with "not" struck reads "(credits)".
 
+    A string every page word in whose box is wholly hidden is a label the
+    page hides, and goes whole, however the converter spelled it: tracked
+    letters reach it as `S A L E`, which matches no word.
+
     Args:
         text: The converter's string.
         words: The page's words inside its box, each with a flag per
             character, True when struck.
+        hidden: The page's words every character of which is hidden.
 
     Returns:
         The string without them.
     """
+    if words and all(word in hidden for word, _ in words):
+        return ""
     tokens = list(_TOKEN.finditer(text))
     matcher = SequenceMatcher(
         None,

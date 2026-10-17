@@ -90,9 +90,21 @@ so each box is turned to a top-left origin before it is matched. The string
 is aligned with the page word by word in reading order, so the same word
 printed unstruck elsewhere in it stays.
 
-A page that strikes nothing is never touched. A source pymupdf cannot open,
-or a page the two readers give different sizes, is left as converted, with a
-warning.
+Text a clip path hides — a diagram's label layer — reaches the converter
+too, and goes the same way. Each page is read twice, with its clip and
+without, and a character of the second read is hidden when the first holds
+no same character within 1 pt of it: compared character to character, not by
+position alone, so a label hidden over a visible line or inside a large
+letter's box is still found, while a word a writer drew twice for a bold
+face is in both reads twice and stays. What the second read sets past the
+page's edge is dropped first, as the converter drops it, so a label cut at
+the edge is matched as the converter spells it. An item every page word in
+whose box is hidden goes whole, however the converter spelled it. Text drawn
+invisible is in both reads, so a scan's OCR layer is never hidden.
+
+A page that strikes and hides nothing is never touched. A source pymupdf
+cannot open, or a page the two readers give different sizes, is left as
+converted, with a warning.
 
 [`_mend`](pipelines/pdf.py) then rewrites every string before anything reads
 it:
@@ -234,7 +246,7 @@ the two buckets and Docling itself are stood in for.
 | [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
 | [`test_tables.py`](../../../tests/unit/parsing/test_tables.py) | A table's rest on the next page joined to it, past a picture, and not one with its own header, of another width or with text between; a wrapped cell's rest and a wrapped label's head joined to their row, a cell wrapped at a hyphen made one word, and a row whose label did not span kept |
-| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge and partial strokes removing nothing; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
+| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge and partial strokes removing nothing; clipped labels removed over visible text, inside a large letter, at the page's edge and spelled apart, and a fake-bold line and an OCR layer kept; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | The repair is idempotent and leaves no control character |
