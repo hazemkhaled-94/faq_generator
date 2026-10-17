@@ -164,9 +164,11 @@ class ReviewRepository(Repository):
         once: whether the gate was right, and whether a question the band
         calls hard is actually hard.
 
-        `ids` replaces the sampling with exactly those rows, in id order.
-        That is how a queue somebody else built gets reviewed - the
-        disagreements the Assessment page marks, where the gates kept a
+        Only questions nobody has given a verdict yet, as `facts` draws.
+
+        `ids` replaces the sampling with exactly those rows, in id order,
+        reviewed or not. That is how a queue somebody else built gets
+        reviewed - the disagreements the Assessment page marks, where the gates kept a
         question and the judge refused it. A stratified sample cannot find those: they are
         spread over every band and every verdict and are rare in all of
         them, which is exactly the shape a proportional draw misses.
@@ -195,6 +197,9 @@ class ReviewRepository(Repository):
                         Question.rejected_reason.is_(reason)
                         if reason is None
                         else Question.rejected_reason == reason,
+                        # As facts: a verdict given on the questions page is
+                        # one Argilla holds no answer for.
+                        Question.reviewed_verdict.is_(None),
                     )
                     .order_by(Question.id if each is None else func.random())
                     .limit(each)

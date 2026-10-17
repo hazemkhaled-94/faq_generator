@@ -194,6 +194,22 @@ def test_questions_are_spread_over_the_band_and_the_verdict_together(
     }
 
 
+def test_a_reviewed_question_is_not_sampled_again(asked, engine) -> None:
+    """A verdict given on the questions page is one Argilla cannot see."""
+    with Session(engine) as session:
+        held = session.get(Question, asked[0])
+        held.reviewed_verdict = ReviewVerdict.ACCEPTED
+        held.reviewed_at = GIVEN
+        session.commit()
+
+    drawn = ReviewRepository().questions(sample=10)
+
+    assert sorted(one.id for one in drawn) == sorted(asked[1:])
+    assert [one.id for one in ReviewRepository().questions(10, ids=[asked[0]])] == [
+        asked[0]
+    ]
+
+
 def test_naming_the_rows_replaces_the_sampling_entirely(asked) -> None:
     """How a queue somebody else built gets reviewed.
 

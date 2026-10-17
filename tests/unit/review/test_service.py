@@ -499,8 +499,8 @@ def test_a_second_push_does_not_offer_a_question_already_answered(
 ) -> None:
     """A sample that keeps drawing judged rows never reaches the rest.
 
-    `facts` skips one through `reviewed_verdict`; a question carries no
-    such column, so the answers Argilla already holds are what says so.
+    The draw skips one whose verdict was written back; one Argilla holds
+    and nobody has pulled yet is skipped by what Argilla already holds.
     """
     from review.service import push
 

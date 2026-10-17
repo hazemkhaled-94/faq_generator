@@ -8,12 +8,14 @@ whichever document was extracted first.
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 pytest.importorskip("argilla", reason="the observability group is not installed")
 
 from review import datasets
-from review.records import FactRow, QuestionRow, _even
+from review.records import FactRow, QuestionRow, ReviewRepository, _even
 
 
 def test_the_sample_is_split_across_the_groups() -> None:
@@ -38,6 +40,54 @@ def test_no_groups_does_not_divide_by_zero() -> None:
     instead of an empty push.
     """
     assert _even(200, 0) >= 1
+
+
+class _Drawn:
+    """A session holding one group of questions, recording what it is asked."""
+
+    def __init__(self) -> None:
+        """Asked nothing yet."""
+        self.asked: list = []
+
+    def execute(self, statement) -> _Drawn:
+        """Records the statement, and answers it from below."""
+        self.asked.append(statement)
+        return self
+
+    def all(self) -> list[tuple[str, None]]:
+        """One band, one verdict."""
+        return [("easy", None)]
+
+    def scalars(self) -> list:
+        """No question, which is all the drawing needs."""
+        return []
+
+
+def _drawing(session: _Drawn) -> ReviewRepository:
+    """The repository on that session rather than on a database."""
+    repository = ReviewRepository.__new__(ReviewRepository)
+    repository._session = lambda: contextlib.nullcontext(session)
+    return repository
+
+
+def test_a_question_already_reviewed_is_not_drawn_again() -> None:
+    """A verdict given on the page is one Argilla cannot see, as facts do."""
+    session = _Drawn()
+
+    _drawing(session).questions(sample=10)
+
+    (drawn,) = session.asked[1:]
+    assert "questions.reviewed_verdict IS NULL" in str(drawn.whereclause)
+
+
+def test_a_reviewed_question_named_by_id_is_still_drawn() -> None:
+    """Naming one is asking for it, whoever judged it before."""
+    session = _Drawn()
+
+    _drawing(session).questions(sample=10, ids=[3])
+
+    (drawn,) = session.asked
+    assert "reviewed_verdict" not in str(drawn.whereclause)
 
 
 def fact(**overrides) -> FactRow:

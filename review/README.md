@@ -103,9 +103,12 @@ rejection indistinguishable from a question no gate ever stopped.
 
 `REVIEW_SAMPLE_SIZE` facts or questions spread over the verdicts is the
 default, and what `make review` sends; topics are pushed whole every time.
-`--all` sends every fact nobody has reviewed, or every question not already
-answered in Argilla, instead, so Argilla holds the corpus and the reviewer
-filters there.
+`--all` sends every fact or question nobody has reviewed instead, so Argilla
+holds the corpus and the reviewer filters there.
+
+Either way a row that already carries a verdict, given here or on the
+Questions page, is not sent again, and neither is a question answered in
+Argilla and not yet pulled.
 
 `make review-all` is that over all three kinds. It is the right shape when
 somebody is working through a corpus; the sample is the right shape when the
