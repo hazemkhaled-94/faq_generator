@@ -556,3 +556,76 @@ def test_a_passage_that_yielded_facts_is_not_warned_about(caplog) -> None:
         run.next()
 
     assert "proposed nothing" not in caplog.text
+
+
+# ── The dedup replay where a drain ends ────────────────────────────────────
+
+
+class TestTheReplayWhereTheDrainEnds:
+    """A passage read again deletes facts a refusal elsewhere may name as its twin.
+
+    A retry or a rerun only queues rows; the drain is what deletes. So the
+    replay `make extract-dedup` runs hangs on the drain finding its queue
+    empty, after a drain that replaced facts.
+    """
+
+    def test_a_drain_that_replaced_facts_ends_with_the_replay(self) -> None:
+        """Once, under the lock, after the last passage was stored."""
+        from dataclasses import replace
+
+        from drivers import Catalogue
+
+        first = passage()
+        catalog = Catalogue()
+        run = Extraction(
+            first,
+            replace(first, id=2),
+            facts=ATOMIC,
+            duplicate_cosine=0.9,
+            catalog=catalog,
+        )
+        run.queue.read_before = {1, 2}
+
+        assert run.run() == 2
+        assert catalog.unfolded_locked == [True]
+
+    def test_a_drain_reading_only_new_passages_replays_nothing(self) -> None:
+        """A passage nothing cited yet deletes nothing, so it leaves no ghost."""
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
+
+        run.run()
+
+        assert catalog.unfolded_locked == []
+
+    def test_the_replay_waits_for_the_queue_to_empty(self) -> None:
+        """Not after each passage: a rerun of many would replay once per row."""
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
+        run.queue.read_before = {1}
+
+        run.next()
+        assert catalog.unfolded_locked == [], "a passage stored, the queue not empty"
+        assert run.next() is None
+        assert catalog.unfolded_locked == [True]
+        assert run.next() is None
+        assert catalog.unfolded_locked == [True], "and not again until facts move"
+
+    def test_a_service_with_the_gate_off_replays_nothing(self) -> None:
+        """At EXTRACTION_DUPLICATE_COSINE 0 a replay gives every refusal back.
+
+        That is `make extract-dedup`'s to decide, not a drain's.
+        """
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        run = Extraction(passage(), facts=ATOMIC, catalog=catalog)
+        run.queue.read_before = {1}
+
+        run.run()
+
+        assert catalog.unfolded_locked == []

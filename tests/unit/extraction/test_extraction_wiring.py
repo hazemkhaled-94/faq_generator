@@ -113,6 +113,14 @@ def test_the_lease_is_the_queue_default_and_not_the_work() -> None:
     assert built._repository.lease <= timedelta(minutes=5)
 
 
+def test_the_worker_replays_dedup_under_the_configuration_it_writes() -> None:
+    """The catalogue the replay writes through stamps this configuration."""
+    built = build_service(MODEL, settings(FactKind.ATOMIC), version="a-version")
+
+    assert built._catalog is not None
+    assert built._catalog._version == "a-version"
+
+
 def test_the_digest_share_reaches_the_checker() -> None:
     """The one setting the checks themselves read."""
     from drivers import passage

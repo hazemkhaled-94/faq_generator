@@ -8,6 +8,8 @@ service with no pages.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -315,10 +317,17 @@ class Queue:
         self.twin_kind: str | None = None
         #: The language and kind each `nearest_fact` probe was narrowed to.
         self.probed: list[tuple[str | None, str | None]] = []
+        #: The passages a fact already cites when they are read, which a
+        #: store replaces.
+        self.read_before: set[int] = set()
 
     def claim(self) -> PassageToExtract | None:
         """Takes the next passage off the queue."""
         return self._pending.pop(0) if self._pending else None
+
+    def cited(self, passage_id: int) -> bool:
+        """Whether a fact cites the passage already."""
+        return passage_id in self.read_before
 
     def store(
         self,
@@ -410,6 +419,10 @@ class Catalogue:
         self.unfolded = 0
         #: The cap and the narrowing of every recap asked for.
         self.recapped: list[tuple[int | None, Any]] = []
+        #: Whether the replay's lock is held, and whether it was at each
+        #: unfold, which is the first thing a dedup replay does.
+        self.locked = False
+        self.unfolded_locked: list[bool] = []
 
     def holding(self, *facts: tuple[int, list[PassageToExtract], CandidateFact, str]):
         """Fills the catalogue with facts a re-judgement will read back.
@@ -453,10 +466,21 @@ class Catalogue:
         self.refusals += refusals
         return self
 
+    @contextmanager
+    def replaying(self) -> Iterator[None]:
+        """Holds the dedup replay's lock for as long as the body runs."""
+        assert not self.locked, "one replay at a time"
+        self.locked = True
+        try:
+            yield
+        finally:
+            self.locked = False
+
     def unfold(self, cited, within=None) -> tuple[int, int]:
         """Records that the folds were taken out, before anything is probed."""
         self.narrowed.append(within)
         self.unfolded += 1
+        self.unfolded_locked.append(self.locked)
         assert not self.given_back, "folds are taken out before any refusal moves"
         return self.folds
 
@@ -539,7 +563,7 @@ class Catalogue:
                 one.kind,
             )
             for one in self.refusals
-            if one.fact_id in self._back()
+            if one.fact_id in self._back() and one.embedding is not None
         ]
         return self.kept_facts + back
 
@@ -620,6 +644,7 @@ class Extraction:
         duplicate_cosine: float = 0.0,
         embed: bool = False,
         atomic_cap: int | None = None,
+        catalog: Catalogue | None = None,
     ) -> None:
         """Wires the service.
 
@@ -635,6 +660,8 @@ class Extraction:
                 gate.
             atomic_cap: The most validated atomic facts a passage keeps, or
                 None for no cap.
+            catalog: Where the dedup replay runs once the queue empties,
+                or None for no replay.
         """
         from extraction.extractors import (
             DigestExtractor,
@@ -661,6 +688,7 @@ class Extraction:
             embedder=self.vectors,  # type: ignore[arg-type]
             duplicate_cosine=duplicate_cosine,
             atomic_cap=atomic_cap,
+            catalog=catalog,  # type: ignore[arg-type]
         )
 
     def run(self) -> int:

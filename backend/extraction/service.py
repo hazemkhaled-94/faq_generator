@@ -973,6 +973,7 @@ class ExtractionService(StageService):
         embedder: Embedder | None = None,
         duplicate_cosine: float = 0.0,
         duplicate_floor: float = 0.0,
+        catalog: FactCatalog | None = None,
     ) -> None:
         """Initialises the service with its collaborators.
 
@@ -995,6 +996,8 @@ class ExtractionService(StageService):
             duplicate_floor: The cosine two unrelated statements score,
                 which the stored confidence is measured from. Calibration
                 only; it refuses nothing.
+            catalog: Where the dedup replay runs when the queue empties
+                after this service replaced facts, or None to run none.
         """
         super().__init__(repository)
         self._repository: PassageQueue = repository
@@ -1006,6 +1009,9 @@ class ExtractionService(StageService):
         self._embedder = embedder
         self._duplicate_cosine = duplicate_cosine
         self._duplicate_floor = duplicate_floor
+        self._catalog = catalog
+        # Whether a passage stored since the last replay replaced facts.
+        self._replaced = False
         # Held for the life of the service, as question generation holds
         # its own: the client is one connection and the batch spans
         # passages, so a passage yielding four facts costs no call.
@@ -1019,6 +1025,8 @@ class ExtractionService(StageService):
         """
         passage = self._repository.claim()
         if passage is None:
+            if self._replaced:
+                self._replay()
             return None
 
         with working(
@@ -1037,6 +1045,8 @@ class ExtractionService(StageService):
                     self._deduplicated(facts, current, passage.id, passage.language),
                     current,
                 )
+                if self._replays() and not self._replaced:
+                    self._replaced = self._repository.cited(passage.id)
                 stored = self._repository.store(
                     passage.id, facts, self._embedded(passage)
                 )
@@ -1066,6 +1076,39 @@ class ExtractionService(StageService):
                 self._fail(passage.id, f"{type(exc).__name__}: {exc}", current)
                 log.exception("failed passage %d", passage.id)
         return passage.id
+
+    def _replays(self) -> bool:
+        """Whether this service replays the dedup gate where its drain ends.
+
+        Only where it runs the gate: with the gate off the replay gives
+        every refusal back, which is `make extract-dedup`'s to decide.
+        """
+        return (
+            self._catalog is not None
+            and self._embedder is not None
+            and self._duplicate_cosine > 0
+        )
+
+    def _replay(self) -> None:
+        """Re-decides every stored duplicate refusal, as `make extract-dedup` does.
+
+        A passage read again has its facts replaced, and a refusal elsewhere
+        naming one of them as its twin is left refused against a fact that
+        is gone. A retry or a rerun only queues the rows, so the drain that
+        deletes is this one and the replay runs where it finds its queue
+        empty. Under a lock, so two workers' replays never interleave: the
+        second waits for the first and then replays what that one left.
+        """
+        assert self._catalog is not None
+        with self._catalog.replaying():
+            dedup(
+                self._catalog,
+                self._duplicate_cosine,
+                floor=self._duplicate_floor,
+                checker=self._checker,
+                cap=self._atomic_cap,
+            )
+        self._replaced = False
 
     def _record(self, passage: PassageToExtract, facts: list[CheckedFact]) -> None:
         """Puts every fact's verdict in Phoenix's Evaluations view.

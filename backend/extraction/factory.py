@@ -10,7 +10,7 @@ from extraction.extractors import (
     LlmExtractor,
     TableExtractor,
 )
-from extraction.repository import PassageQueue
+from extraction.repository import FactCatalog, PassageQueue
 from extraction.service import ExtractionService
 from extraction.validation import FactChecker
 from llm.client import Client
@@ -76,6 +76,7 @@ def build_service(
         embedder=_embedder(settings) if settings.embeds else None,
         duplicate_cosine=settings.duplicate_cosine,
         duplicate_floor=settings.duplicate_floor,
+        catalog=FactCatalog(version=version),
     )
 
 

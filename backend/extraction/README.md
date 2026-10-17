@@ -163,7 +163,11 @@ Two more refusals are the service refusing what the checks passed:
   `extract-dedup`, which gives the repeat back. A deletion through the API
   or the UI does not, so run `make extract-dedup` after it; it is also the
   recovery when the replay of a `make delete` fails, since the document is
-  gone by then. The passages of the refusals it gives back, and no others,
+  gone by then. A passage read again - a rerun, a retry - replaces its
+  facts the same way, so a drain that replaced any runs the same replay
+  itself once it finds its queue empty, under an advisory lock, so two
+  `extract-worker` replicas never interleave it. Only with the gate on: at
+  `EXTRACTION_DUPLICATE_COSINE` 0 the replay would give every refusal back. The passages of the refusals it gives back, and no others,
   are then judged again and re-capped, as `make extract-revalidate` and
   `make extract-recap` would: a fact given back was judged when it was
   extracted and never counted against the cap. `extract-dedup`,

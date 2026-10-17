@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from itertools import groupby
 from typing import ClassVar, cast
 
@@ -37,6 +38,7 @@ from database.qa_generator import (
     QuestionStatus,
     Rejection,
     Status,
+    engine,
 )
 from database.qa_generator.passage_topics import DOMINANT
 from database.qa_generator.repository import Repository, matching
@@ -93,6 +95,10 @@ _PROBED = 5
 #: Strict order, because the caller takes the closest it would call a twin.
 #: Local to the transaction. pgvector 0.8 or later.
 _PAST_THE_FILTERS = text("SET LOCAL hnsw.iterative_scan = strict_order")
+
+#: The advisory lock a dedup replay holds, so two workers' replays never
+#: interleave. Beside the one a pipeline launch holds, and not that one.
+_REPLAYING = 0x5155_4444
 
 #: The facts table itself, for the bulk update a re-judgement writes.
 _FACTS = cast("Table", Fact.__table__)
@@ -478,6 +484,27 @@ class PassageQueue(RowQueue):
             self._finish(passage_id, session=session)
         return len(facts)
 
+    def cited(self, passage_id: int) -> bool:
+        """Whether a fact other than a bridge cites this passage already.
+
+        What its `store` replaces: a passage read again, whose facts a
+        refusal elsewhere may name as its twin.
+        """
+        with self._session() as session:
+            return bool(
+                session.scalar(
+                    select(
+                        select(FactPassage.fact_id)
+                        .join(Fact, Fact.id == FactPassage.fact_id)
+                        .where(
+                            FactPassage.passage_id == passage_id,
+                            Fact.kind != FactKind.BRIDGE,
+                        )
+                        .exists()
+                    )
+                )
+            )
+
     def nearest_fact(
         self,
         embedding: list[float],
@@ -742,6 +769,24 @@ class FactCatalog(Repository):
         """The validated passage fact closest to this vector, as the queue probes."""
         with self._session() as session:
             return _nearest_fact(session, embedding, excluding, language, kind, alike)
+
+    @contextmanager
+    def replaying(self) -> Iterator[None]:
+        """Holds the dedup replay's lock for as long as the body runs.
+
+        At session level, on a connection held for it, because the replay
+        commits in many transactions of its own. A second caller waits for
+        the first to let go, and Postgres lets go of a lock whose process
+        died holding it.
+        """
+        with engine().connect() as connection:
+            connection.execute(select(func.pg_advisory_lock(_REPLAYING)))
+            connection.commit()
+            try:
+                yield
+            finally:
+                connection.execute(select(func.pg_advisory_unlock(_REPLAYING)))
+                connection.commit()
 
     def duplicates(self, within=None) -> list[Refused]:
         """Every stored `duplicate` refusal, as the dedup replay re-decides it.

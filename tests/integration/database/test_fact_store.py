@@ -1654,3 +1654,121 @@ class TestRevalidatingRefusals:
             where="id IN (SELECT fact_id FROM fact_passages WHERE passage_id = :at)",
             at=first,
         ) == [(None,), (Rejection.OVER_CAP,)]
+
+
+def _reading(store: FactStore, answer: dict):
+    """The per-passage service over this database, with a scripted model.
+
+    The dedup gate on, through vectors that need no weights, so the drain
+    replays it where it ends.
+    """
+    from drivers import DIGEST_SHARE, Model, Vectors
+
+    from extraction.extractors import ExtractorRegistry, LlmExtractor, TableExtractor
+    from extraction.service import ExtractionService
+    from extraction.validation import FactChecker
+
+    return ExtractionService(
+        repository=store.queue,
+        extractors=ExtractorRegistry(
+            extractors=(TableExtractor(),),
+            default=LlmExtractor(Model(answer)),  # type: ignore[arg-type]
+        ),
+        checker=FactChecker(DIGEST_SHARE),
+        embedder=Vectors(),  # type: ignore[arg-type]
+        duplicate_cosine=0.985,
+        catalog=store.catalog,
+    )
+
+
+class TestTheReplayWhereTheDrainEnds:
+    """The extract worker's dedup replay, against the database it writes to."""
+
+    def test_a_passage_a_fact_cites_is_one_its_store_replaces(
+        self, store, corpus
+    ) -> None:
+        """A bridge resting on it is not: `store` leaves bridges alone."""
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first))
+        store.bridges(
+            checked(
+                other,
+                "A bridge.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[other, corpus["b"][1]],
+            )
+        )
+
+        assert store.queue.cited(first)
+        assert not store.queue.cited(other)
+        assert not store.queue.cited(corpus["a"][1])
+
+    def test_the_lock_is_held_until_the_replay_ends(self, store, engine) -> None:
+        """A second worker's replay waits for it rather than interleaving."""
+        from sqlalchemy import text
+
+        from extraction.repository import _REPLAYING
+
+        def free() -> bool:
+            """Whether another connection could take the lock now."""
+            with engine.connect() as other:
+                taken = other.execute(
+                    text("SELECT pg_try_advisory_lock(:key)"), {"key": _REPLAYING}
+                ).scalar()
+                if taken:
+                    other.execute(
+                        text("SELECT pg_advisory_unlock(:key)"), {"key": _REPLAYING}
+                    )
+                return bool(taken)
+
+        with store.catalog.replaying():
+            assert not free()
+        assert free()
+
+    def test_a_rerun_ends_with_the_dedup_replay(self, store) -> None:
+        """A refusal whose twin the rerun deleted is given back.
+
+        The passage read again yields nothing this time, so its fact goes,
+        and the copy another document holds is the claim's only statement.
+        """
+        passages = store.corpus(
+            ("x", ["The device weighs 4 kg."]), ("y", ["The device weighs 4 kg."])
+        )
+        first, other = passages["x"][0], passages["y"][0]
+        store.store(first, checked(first, embedding=_axis(0)))
+        store.store(
+            other,
+            checked(
+                other,
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                validation_error="says what fact 1 already says",
+                embedding=_axis(0),
+            ),
+        )
+        store.queued(first)
+
+        assert _reading(store, {"facts": []}).drain() == 1
+        assert store.rows("validated", "rejection_code") == [(True, None)]
+
+    def test_a_drain_of_new_passages_leaves_the_refusals_alone(self, store) -> None:
+        """Nothing it stored replaced a fact, so no refusal lost its twin."""
+        passages = store.corpus(
+            ("x", ["The device weighs 4 kg."]), ("y", ["The device weighs 4 kg."])
+        )
+        first, other = passages["x"][0], passages["y"][0]
+        store.store(
+            other,
+            checked(
+                other,
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                validation_error="says what a deleted fact said",
+                embedding=_axis(0),
+            ),
+        )
+        store.queued(first)
+
+        _reading(store, {"facts": []}).drain()
+
+        assert store.rows("rejection_code") == [(Rejection.DUPLICATE,)]
