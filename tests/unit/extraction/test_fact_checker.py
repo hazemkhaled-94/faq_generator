@@ -726,6 +726,15 @@ def test_a_leading_zero_is_no_addition(evidence, statement) -> None:
     assert judged.validated, (judged.rejection_code, judged.units_added)
 
 
+def test_a_count_written_as_digits_and_a_suffix_is_its_word() -> None:
+    """`2-mal` is the `zweimal` it cites, in digits, and no figure added."""
+    read = passage("Die Karte kann zweimal gesperrt werden.", language="de")
+
+    judged = Checker(read).atomic("Die Karte kann 2-mal gesperrt werden.", 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
 def test_a_lead_in_figure_is_supported_only_when_cited() -> None:
     """A figure restated from a lead-in is the lead-in's to support."""
     read = passage(

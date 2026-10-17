@@ -330,7 +330,9 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 #: most four letters of a unit glued on - `08:00`, `2:2`, `2.5x`, `1,100g`.
 #: A compound carrying a figure - `90-minütigen`, `4-m-Bereich` - runs on
 #: past its unit and is a word; a name ending in digits starts with a letter.
-_FIGURE_TOKEN = re.compile(r"[+±−-]?\(?\d[\d.,:/()–-]*[^\W\d_]{0,4}%?")
+#: The unit follows a digit directly: after a dash - `2-mal`, `3-fach` - the
+#: letters make the digits a number word, which states no figure.
+_FIGURE_TOKEN = re.compile(r"[+±−-]?\(?\d[\d.,:/()–-]*(?:(?<=\d)[^\W\d_]{1,4})?%?")
 
 
 def _figures(span: Doc | Span) -> tuple[str, ...]:
