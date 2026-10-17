@@ -37,7 +37,10 @@ as `admin@localhost`), `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`, and
 ## Scaling
 
 `parse-worker`, `chunk-worker` and `extract-worker` scale horizontally — each
-claims one row at a time with `FOR UPDATE SKIP LOCKED`:
+claims one row at a time with `FOR UPDATE SKIP LOCKED`. Extract workers running
+side by side do not see each other's uncommitted facts, so two passages read
+at once can both keep one restated claim; see the `duplicate` refusal in
+[the extraction README](../backend/extraction/README.md).
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
@@ -53,9 +56,10 @@ and downloads it into the `models` volume if extract-worker has not. The
 topics sit `pending` until it finishes and `make logs` says so. The container is given 6 GB for it and
 `NLI_MODEL`'s weights, and the weights are per container, not per lane.
 
-`assess-worker` is the cheapest of the six to scale and the only one that
-loads **no** weights at all: it asks a served model two to six questions
-about text it already has. 1 GB and one CPU. It also does nothing until
+`assess-worker` is the cheapest of the six to scale and, with `topic-worker`,
+which fits its NMF from scratch, one of two that load **no** pretrained
+weights: it asks a served model two to six questions about text it already
+has. 1 GB and one CPU. It also does nothing until
 `ASSESSMENT_ENABLED` is true, so a deployment that never turns the
 evaluation phase on pays for one idle container. It reads the flag every
 `WORKER_POLL_SECONDS`, so switching it on from the Assessment page needs no
@@ -196,6 +200,44 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.1
+
+Rebuild the images, since the code they run has changed, and let `make doctor`
+confirm the API serves this build:
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+make doctor
+```
+
+`make doctor` now compares the settings the API serves with the settings the
+checkout defines, and names any the API lacks: an API still serving an older
+build is the usual cause, and the rebuild above the cure.
+
+No migration and no prompt change, so nothing needs re-running: v0.3.1
+produces the same passages, facts and questions from the same input.
+
+| Setting | v0.3.0 | v0.3.1 |
+|---|---|---|
+| `LLM_STRUCTURED_MODE` | any instructor mode | one of `FUNCTIONS`, `PARALLEL_TOOLS`, `TOOLS`, `TOOLS_STRICT`, `JSON`, `JSON_O1`, `MD_JSON`, `JSON_SCHEMA`, the modes litellm's client takes; anything else is refused at start-up |
+| `QUESTIONS_MEETS_SHARE` | required | absent reads 0.02 |
+
+What an operator will notice:
+
+- **A model call is billed at most `LLM_MAX_ATTEMPTS` times.** instructor's
+  own re-asks are off, a 429 waits what its `Retry-After` asks (two minutes
+  at most), and a provider's content filter is a refusal after one call
+  that skips one question slot rather than failing its topic.
+- **`make spend` counts failed calls**, which are billed too, and prints cost
+  to four decimals; `make spend-by-shape` reads the same log the same way.
+- **`make delete` and `make delete-derived` refuse while `extract-worker`
+  runs**, before they delete anything. Stop the worker first, or delete
+  through the API and run `make extract-dedup` once the worker is stopped.
+- **`make audit` fails when it finds an advisory.**
+- **`ARGILLA_API_KEY` reaches Argilla**, on a fresh `argilla_data` volume
+  only: an owner Argilla already created keeps its key.
+
 ## Upgrading to v0.3.0
 
 Rebuild the image, since the code it runs has changed:
@@ -216,7 +258,7 @@ the file keeps its old values until it takes the new ones:
 | `QUESTIONS_RELEASE_UNANSWERABLE` | 0.10 | 0, until the `settles` judgement can be trusted with them |
 | `QUESTIONS_ELSEWHERE_PASSAGES` | 10 | 20 |
 | `QUESTIONS_FOLLOWUP_TYPES` | `condition,reason,comparison` | `condition,reason` |
-| `QUESTIONS_MEETS_SHARE` | — | 0.02, new |
+| `QUESTIONS_MEETS_SHARE` | — | 0.02, new; required until v0.3.1 |
 | `QUESTIONS_RELEASE_TYPES` | `aggregation:4` | `aggregation:1`, the other kinds unchanged |
 
 Six prompts changed, so the runs after the upgrade record new prompt
@@ -227,13 +269,23 @@ verifier 5, the phrasing judge 4 and topic naming 2.
 question, to judge which released questions want one answer. It proves the
 verifier model before it asks anything.
 
+On v0.3.0 `QUESTIONS_MEETS_SHARE` is required: a `backend.env` copied from
+v0.2.2 must gain the line `QUESTIONS_MEETS_SHARE=0.02`, or `make questions`
+and `make questions-balance` stop on the missing name and `question-worker`
+logs that it refuses to claim work. From v0.3.1 an absent line reads 0.02.
+
 **What the stored data needs.** Most of the fixes change the passages, the
 facts or the topics themselves, so stored rows improve only through a
-rebuild: `make parse-rerun` and `make parse`, `make chunk-rerun` and
-`make chunk`, `make extract-start` and `make extract`, `make topics-discover`,
-`make extract-bridge MISSING=1`, then `make questions-start` and
-`make questions`, `make questions-rejudge` and `make questions-balance`.
-Parsing and chunking call no model; every step from extraction on does.
+rebuild, and the container workers build it. With the stack up (`make up`),
+queue each stage once the one before it has finished: `POST /parsing/rerun`,
+then `POST /chunking/rerun`, then `make extract-start`, then
+`POST /topics/discover`, then `make extract-bridge MISSING=1`, then
+`make questions-start`, and last `make questions-rejudge` and
+`make questions-balance`. The bridge pass has no worker yet, so it runs on
+the host. The host drains - `make parse-rerun`, `make chunk-rerun`,
+`make extract`, `make topics-discover`, `make questions` - refuse while their
+stage's worker runs, and are for developing a stage. Parsing and chunking
+call no model; every step from extraction on does.
 
 `make topics-discover` carries a topic's name over wherever its top terms
 still match, so such a topic keeps the name the last fit gave it. Only the
@@ -285,9 +337,10 @@ commands that call no model come first:
 | `make questions-balance` | yes, the verifier | A release with the language share, hash order and twin check, the twins judged by the verifier |
 
 Struck-through text, list lead-ins and chapter-aware section paths change
-the passages themselves. They reach stored rows only through a rebuild:
-`make parse-rerun`, `make chunk-rerun`, then extraction, topics, the bridge
-pass (`make extract-bridge`) and questions again, all of which call models. A fresh question generation also carries
+the passages themselves. They reach stored rows only through a rebuild by the container workers:
+`POST /parsing/rerun`, then `POST /chunking/rerun`, then extraction, topics,
+the bridge pass (`make extract-bridge`) and questions again, all of which
+from extraction on call models. A fresh question generation also carries
 the fixes that live in how questions are written: the widen retry, the deal,
 the reason and application slots, the perturbation prompt, and the gates that
 only ever rejected. `make questions-reverify` never gives back a rejected
@@ -298,12 +351,12 @@ question.
 | Symptom | Usually |
 |---|---|
 | Topics sit `pending`, nothing in the logs | `question-worker` is downloading 2.2 GB of embedding weights |
-| `make assess` prints one line and stops | `ASSESSMENT_ENABLED` is not true in `.env` |
+| `make assess` prints one line and stops | `ASSESSMENT_ENABLED` is not true, in `.env` or in the override the Assessment page stores, which wins; `make settings SERVICE=assessment` shows the value in force |
 | `make assess` refuses before it claims anything | `ASSESSMENT_JUDGE_MODEL` names a model that is not served |
 | A queue fills and nothing drains it | That stage has no container. `make up` |
 | Grafana panels are empty | The shipper. `make logs-shipper` |
 | A panel that groups by `stage` finds nothing | A field missing from `append_fields` in `filebeat.yml` |
-| An edit to `filebeat.yml` changed nothing | `setup.template.overwrite` is false |
+| An edit to `filebeat.yml` changed nothing | The filebeat container still runs the file it started with: `podman compose restart filebeat` |
 | Grafana cannot read the database | `init.sh` has not run on this volume |
 | The run dashboard's Phoenix panels cannot read their tables | The grants `make up` and `make dev` make have not run. `make grafana-grants` |
 | Streamlit refuses a file the API would accept | `server.maxUploadSize` is below `MAX_FILE_SIZE_MB` |
@@ -350,7 +403,7 @@ Deleting a document takes everything derived from it. What it does **not**
 take is `topics`: a fit is over the corpus rather than over a file, so
 `make wipe` is one command that runs both.
 
-A claim two documents share rests on one of them only. The second copy is
+A claim two documents in the same language share, as the same kind of fact, rests on one of them only; a translation's claim is its own language's fact and is never a duplicate. The second copy is
 stored as a `duplicate` refusal that names the first and cites only its own
 passage. Deleting the first document therefore takes the claim with it,
 and leaves the second copy refused. `make delete` and `make delete-derived`

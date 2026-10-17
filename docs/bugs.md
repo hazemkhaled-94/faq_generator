@@ -63,6 +63,7 @@ and [v0.3.0](operations.md#upgrading-to-v030).
 | [`asks_nothing_new` on outline facts](#asks_nothing_new-on-outline-facts) | 0 | [`gates.py`](../backend/question_generation/gates.py) | v0.3.0 |
 | [A refused model call fails its whole topic](#a-refused-model-call-fails-its-whole-topic) | 1 topic | [`service.py`](../backend/question_generation/service.py), [`llm/client.py`](../backend/llm/client.py) | v0.3.0 |
 | [Found on the v0.2.2 rebuild of 2026-10-14](#found-on-the-v022-rebuild-of-2026-10-14) | 321 | every stage | v0.3.0, mostly |
+| [Found on the v0.3.0 rebuild of 2026-10-16](#found-on-the-v030-rebuild-of-2026-10-16) | 343 | every stage | v0.3.1 on, in part |
 
 On the earlier corpus, 15 of the 1,015 release rows — **1.5%** — carried at
 least one of the first two defects. On the 2026-10-13 run, 49% of the
@@ -663,6 +664,46 @@ is sent once, not retried, and costs its one slot or thread; the topic fails
 only after five refusals in a row. The retry notes now read as a reviewer's
 feedback on the quoted draft, and no longer tell the writer what it is
 supposed to produce.
+
+## Found on the v0.3.0 rebuild of 2026-10-16
+
+The v0.3.0 rebuild of the same two PDFs was reviewed in full: every question,
+fact, bridge, passage and topic was read against the corpus, the code was
+audited, and every earlier claim on this page was checked again. Of its 871
+accepted questions 70% were usable, and of its 343 released ones 76% on the
+first reading (79% once disagreements were settled), with 10 invalid. Welds
+fell to 18% of the questions citing two passages. The review left 39 ranked
+defects, 145 verified code findings and 154 documentation gaps; each is now
+fixed, deferred with its numbers, ranked low or found not to be a defect. The
+fixes ship in the v0.3.x releases, and each was measured before it went in by
+a replay of the review's labels over the stored v0.3.0 data, not by a
+rebuild.
+
+### Fixed in v0.3.1: model calls, settings and commands
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| Hidden re-asks inside each attempt | instructor re-asked up to 3 times within each of the client's attempts: up to 12 billed calls for one bad answer, 4 for a preflight | instructor asked for none ([`llm/client.py`](../backend/llm/client.py)) | 12 calls to 3, 4 to 1, with fake completions |
+| A rate limit's `Retry-After` ignored | the 429 arrives wrapped, so the call backed off a second | read through the cause chain, at most two minutes | waits 30 s for `Retry-After: 30` |
+| A filtered answer failed its topic | `content_filter` retried as a schema failure and reported as an unreachable model | a refusal after one call; the writer skips the slot | 1 call |
+| Failed calls never costed | the "did not answer" line carried no cost; the answered line only the last response | every attempt summed onto both lines; `make spend` reads both | — |
+| Ollama-only options sent to hosted models | `LLM_NUM_CTX` and Ollama's `off` effort reached a hosted override | sent only to the provider they belong to ([`llm/config.py`](../backend/llm/config.py)) | — |
+| A recommended mode stopped every stage | 30 of the 38 offered `LLM_STRUCTURED_MODE` values, `ANTHROPIC_TOOLS` among them, are refused by litellm's client | the 8 it takes, others refused at start-up ([`settings/catalog.py`](../backend/settings/catalog.py)) | — |
+| A recalibration rewrote stored scores | `confidence-recalibrate` dropped the shadow mark and prompt version | both kept ([`stages/recalibrate.py`](../backend/stages/recalibrate.py)) | on the v0.3.0 data it would have moved 40 confidences (21 released) and re-asked 377 verdicts; now none |
+| A copied `backend.env` stalled the question worker | `QUESTIONS_MEETS_SHARE` had no default | absent reads 0.02 ([`question_generation/config.py`](../backend/question_generation/config.py)) | — |
+| An old API build went unnoticed | the rebuild ran against an API still serving v0.2.2's settings | `make doctor` names the settings the API lacks ([`settings/drift.py`](../backend/settings/drift.py)) | — |
+| `make test` failed in one run | the question CLI's tests wrote prompt rows into the test container; a logging test depended on order | the recorder stubbed; a unit test opening a database fails | green in one run, in any order |
+| Make targets that misbehaved | `make audit` always passed; command-line ports missed the derived URLs; `make delete` refused only after deleting; `logs-wipe` unlinked open files; `certs` and `logs-prune` reported success after a failure; Argilla had no API key; the run dashboard matched other runs | each fixed ([`Makefile`](../Makefile), [`compose.yaml`](../compose.yaml)) | static tests per target |
+
+### Deferred or low, with the reason
+
+| Defect | Why it stays open |
+|---|---|
+| The release draw overshoots its quotas with follow-up questions, and its size search halves over a test that is not monotonic | Every change to the draw was measured over 100 paired draws on the stored pool, a pool without bridges and a pool a third the size. Counting follow-ups within their quota raised the weld rate on all three (on the stored pool from 18.8 to 24.9 welded per draw on average): the places it frees go to root questions and short kinds, which cite two passages more often. Scanning for the size and dropping a later turn at the round cap are weld-neutral, but the floor says welds never rise, so they wait for a decision on a non-inferiority reading |
+| Explanation-form keys are not held to completeness | The only bar that separated complete from partial keys passed at 7 rows, one more usable row would fail it, and German commas inflate the item count it reads |
+| Section paths are wrong at scale | Docling now offers public heading options, but every setting tried moves 200 or more paths the review judged right while fixing about 160 wrong ones. A general fix needs a re-levelling pass from the PDF's own styles, checked against a judged set |
+| `make doctor` checks only the container's shared model and verifier | Whether containers may call a hosted model is a deployment policy to settle first |
+| Tooling odds and ends | The CI cache key hashes the whole Makefile; an unused SeaweedFS UI container; `make dev` waits for Postgres without a timeout. Low |
 
 ## Found on the v0.2.2 rebuild of 2026-10-14
 
