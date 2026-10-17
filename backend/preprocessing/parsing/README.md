@@ -135,10 +135,11 @@ reading the grid and the case and never a word:
   there, read off the PDF with pymupdf; the row then joins as data. A second
   table whose header is set as the first's stays apart, and so does the rest
   of a table whose header and data share one font
-- a row with no label in its first column, one cell of which goes on in
-  lower case, and over which no cell ends a sentence (`.`, `!`, `?` — a
+- a row with no label in its first column, every filled cell of which goes
+  on in lower case, and over which no cell ends a sentence (`.`, `!`, `?` — a
   colon opens what follows), is a wrapped cell's rest and joins the row
-  above
+  above; a row whose empty label means "same as above", a second tier of one
+  service with its own fee, opens a cell in a figure and stays its own
 - a row holding a label and nothing else, over a row whose label opens in
   lower case, is that label's head and joins it
 

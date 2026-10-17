@@ -159,6 +159,42 @@ def test_a_row_whose_label_did_not_span_keeps_its_own_values() -> None:
     assert rows(_tabled(document))[0][2] == ["", "Credit", "10"]
 
 
+def test_a_row_whose_empty_label_means_same_as_above_stays_its_own_row() -> None:
+    """A second tier of the same service: its own channel and its own fee."""
+    document = paged(1)
+    document.add_table(
+        data=grid(
+            ("Leistung", "Weg", "Entgelt"),
+            ("Überweisung", "beleghaft", "1,50 EUR"),
+            ("", "online", "0,10 EUR"),
+        ),
+        prov=on(1),
+    )
+
+    assert rows(_tabled(document))[0][1:] == [
+        ["Überweisung", "beleghaft", "1,50 EUR"],
+        ["", "online", "0,10 EUR"],
+    ]
+
+
+def test_a_shipping_tier_row_stays_its_own_row() -> None:
+    """A shop's second delivery option under the same country."""
+    document = paged(1)
+    document.add_table(
+        data=grid(
+            ("Country", "Delivery", "Price"),
+            ("Germany", "standard", "4.95 EUR"),
+            ("", "express", "9.95 EUR"),
+        ),
+        prov=on(1),
+    )
+
+    assert rows(_tabled(document))[0][1:] == [
+        ["Germany", "standard", "4.95 EUR"],
+        ["", "express", "9.95 EUR"],
+    ]
+
+
 def test_a_wrapped_label_whose_head_stands_on_its_own_row_rejoins_it() -> None:
     """A label alone on a row, its rest opening the next in lower case."""
     document = paged(1)
