@@ -1576,10 +1576,14 @@ lock:
 #   verifies strictly and refuses a chain without them, so Argilla failed with
 #   "Missing Authority Key Identifier" and reported Elasticsearch as down.
 #
+# A failed step stops the rest, and the skip asks for the last file written,
+# so a run that stopped half-way is made again rather than skipped.
+#
 # For a real deployment these come from a secret store.
 certs:
 	@mkdir -p certs
-	@[ -f certs/ca.key ] && echo "certs/ already exists, skipping generation" && exit 0; \
+	@set -e; \
+	[ -f certs/elasticsearch.crt ] && echo "certs/ already exists, skipping generation" && exit 0; \
 	openssl genrsa -out certs/ca.key 4096; \
 	openssl req -new -x509 -days 3650 -key certs/ca.key -out certs/ca.crt \
 	  -subj "/CN=qa-generator-ca" \
@@ -1600,7 +1604,7 @@ certs:
 	    "subjectKeyIdentifier=hash" \
 	    "authorityKeyIdentifier=keyid,issuer") \
 	  -out certs/elasticsearch.crt; \
-	rm certs/elasticsearch.csr certs/ca.srl; \
+	rm -f certs/elasticsearch.csr certs/ca.srl; \
 	echo "Certificates written to certs/"
 	@chmod 600 certs/ca.key
 	@chmod 644 certs/elasticsearch.key

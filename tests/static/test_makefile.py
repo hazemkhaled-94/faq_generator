@@ -284,6 +284,46 @@ def test_the_audit_keeps_pip_audits_exit_status(
     assert not held.exists()
 
 
+@pytest.mark.parametrize(
+    ("held", "failing", "refused", "generated"),
+    [
+        ((), "req", True, ["genrsa", "req"]),
+        (("ca.key",), "", False, ["genrsa", "req", "genrsa", "req", "x509"]),
+        (("ca.key", "elasticsearch.crt"), "", False, []),
+    ],
+    ids=["failed-step", "half-made", "made"],
+)
+def test_certs_stops_on_a_failed_step(
+    tmp_path: Path, held: tuple[str, ...], failing: str, refused: bool, generated: list
+) -> None:
+    """And a certs/ a failed run left half-made is made again, not skipped.
+
+    It ran every step whatever the one before did, printed that it wrote the
+    certificates and passed, and the next run saw ca.key and skipped.
+    """
+    (tmp_path / "certs").mkdir()
+    for name in held:
+        (tmp_path / "certs" / name).write_text("")
+    calls = tmp_path / "calls"
+    (tmp_path / "openssl").write_text(
+        f'#!/bin/sh\necho "$1" >> {calls}\n[ "$1" != "{failing}" ]\n'
+    )
+    (tmp_path / "openssl").chmod(0o755)
+    generate = command("certs", "openssl genrsa")
+
+    ran = subprocess.run(
+        ["bash", "-c", generate],
+        cwd=tmp_path,
+        env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (ran.returncode != 0) is refused, ran
+    assert (calls.read_text().split() if calls.exists() else []) == generated, ran
+
+
 def test_the_log_wipe_takes_every_stream_grafana_reads() -> None:
     """The dated streams an earlier filebeat.yml wrote are `qa-logs*` too."""
     assert "_data_stream/qa-logs*" in command("logs-wipe", "_data_stream")

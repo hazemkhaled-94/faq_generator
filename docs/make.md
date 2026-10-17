@@ -95,7 +95,7 @@ run compose has no equivalent of.
 | `make grafana-grants` | Those grants alone. Safe to run again |
 | `make down` | Stop services, keep data, and remove dangling images |
 | `make down-volumes` | Stop services and **delete all data** |
-| `make certs` | Generate the TLS certificates Elasticsearch needs |
+| `make certs` | Generate the TLS certificates Elasticsearch needs. Stops at a failed step, and skips only once `certs/elasticsearch.crt` is written |
 | `make prune` | Remove dangling container images |
 
 ## Logs
