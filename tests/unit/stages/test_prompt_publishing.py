@@ -199,6 +199,20 @@ def test_the_tenth_version_is_newer_than_the_ninth() -> None:
     assert sorted(["9", "10", "8"], key=order) == ["8", "9", "10"]
 
 
+def test_capped_versions_publish_in_number_order() -> None:
+    """A version a setting suffixes, as the extractor's cap does, is still one."""
+    assert sorted(["11+cap4", "9+cap4", "10+cap4"], key=order) == [
+        "9+cap4",
+        "10+cap4",
+        "11+cap4",
+    ]
+    assert sorted(["11", "10+cap4", "9+cap4"], key=order) == [
+        "9+cap4",
+        "10+cap4",
+        "11",
+    ]
+
+
 class Recorder:
     """A Phoenix client that keeps what it was asked to create."""
 

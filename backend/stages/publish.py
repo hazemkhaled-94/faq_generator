@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
@@ -164,11 +165,13 @@ def order(version: str) -> tuple[int, str]:
     and the prompt somebody opens beside a trace is the one the source has
     moved past. This is what turns that round.
 
-    Numerically where the version is a number, because these are counted
-    and compared as text: `10` sorts before `9` and the newest prompt would
-    be buried again the tenth time one is bumped.
+    Numerically by the number a version starts with, because these are
+    counted and compared as text: `10` sorts before `9` and the newest
+    prompt would be buried again the tenth time one is bumped. A capped
+    extraction prompt is its number with the cap after it, as `11+cap4`.
     """
-    return (int(version), "") if version.isdigit() else (0, version)
+    number = re.match(r"\d+", version)
+    return (int(number[0]) if number else 0, version)
 
 
 def _response_format(row: Composed) -> dict[str, Any] | None:
