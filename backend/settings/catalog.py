@@ -812,7 +812,8 @@ SETTINGS: tuple[Setting, ...] = (
         name="LLM_STRUCTURED_MODE",
         service="platform",
         kind="text",
-        # instructor.Mode's names, spelled out: the api does not import
+        # The instructor.Mode names instructor.from_litellm takes, spelled
+        # out as llm.client.LITELLM_MODES is: the api does not import
         # instructor.
         choices=(
             "FUNCTIONS",
@@ -823,36 +824,6 @@ SETTINGS: tuple[Setting, ...] = (
             "JSON_O1",
             "MD_JSON",
             "JSON_SCHEMA",
-            "RESPONSES_TOOLS",
-            "RESPONSES_TOOLS_WITH_INBUILT_TOOLS",
-            "XAI_JSON",
-            "XAI_TOOLS",
-            "ANTHROPIC_TOOLS",
-            "ANTHROPIC_REASONING_TOOLS",
-            "ANTHROPIC_JSON",
-            "ANTHROPIC_PARALLEL_TOOLS",
-            "MISTRAL_TOOLS",
-            "MISTRAL_STRUCTURED_OUTPUTS",
-            "VERTEXAI_TOOLS",
-            "VERTEXAI_JSON",
-            "VERTEXAI_PARALLEL_TOOLS",
-            "GEMINI_JSON",
-            "GEMINI_TOOLS",
-            "GENAI_TOOLS",
-            "GENAI_JSON",
-            "GENAI_STRUCTURED_OUTPUTS",
-            "COHERE_TOOLS",
-            "COHERE_JSON_SCHEMA",
-            "CEREBRAS_TOOLS",
-            "CEREBRAS_JSON",
-            "FIREWORKS_TOOLS",
-            "FIREWORKS_JSON",
-            "WRITER_TOOLS",
-            "WRITER_JSON",
-            "BEDROCK_TOOLS",
-            "BEDROCK_JSON",
-            "PERPLEXITY_JSON",
-            "OPENROUTER_STRUCTURED_OUTPUTS",
         ),
         help="How the model is made to answer in the shape asked for, as an "
         "instructor.Mode name. A property of the provider: JSON_SCHEMA suits "

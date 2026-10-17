@@ -17,7 +17,11 @@ the answer against a Pydantic model, so a stage receives a structure or an
 exception.
 
 `LLM_STRUCTURED_MODE` is how that shape is asked for. `JSON_SCHEMA` is what
-a local runtime supports; a hosted provider may want `TOOLS`. Getting it wrong is an error at the first call.
+a local runtime supports; a hosted provider may want `TOOLS`. It takes one of
+the instructor modes litellm's client accepts: `FUNCTIONS`, `PARALLEL_TOOLS`,
+`TOOLS`, `TOOLS_STRICT`, `JSON`, `JSON_O1`, `MD_JSON` and `JSON_SCHEMA`. Any
+other is refused at start-up, naming these. A mode the provider will not
+answer in is an error at the first call.
 
 ### Retries
 

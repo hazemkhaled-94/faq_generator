@@ -89,9 +89,9 @@ All three go through the **same validation** — the stage's own
 `Settings.load` — so what you are refused with is the message the worker
 would have failed at start-up with. Every stage's, `assessment` included,
 must still load after the change, and the catalogue's bounds and closed sets
-are checked first: `LLM_STRUCTURED_MODE` takes only an instructor mode. An
-empty value turns off an optional setting and is refused for any other; a
-list of nothing but commas counts as empty.
+are checked first: `LLM_STRUCTURED_MODE` takes only an instructor mode
+litellm's client accepts. An empty value turns off an optional setting and is
+refused for any other; a list of nothing but commas counts as empty.
 
 ```bash
 # The page that runs the service, under Configuration.

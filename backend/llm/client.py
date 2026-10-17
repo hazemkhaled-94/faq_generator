@@ -272,15 +272,31 @@ def priced(fields: dict[str, Any]) -> str:
     return f" ({', '.join(written)})" if written else ""
 
 
+#: The instructor modes `instructor.from_litellm` builds a client for. Every
+#: other mode is another client's, and refused there in words that name
+#: neither LLM_STRUCTURED_MODE nor a value that would work.
+#: `settings.catalog` offers the same names, spelled out.
+LITELLM_MODES = (
+    "FUNCTIONS",
+    "PARALLEL_TOOLS",
+    "TOOLS",
+    "TOOLS_STRICT",
+    "JSON",
+    "JSON_O1",
+    "MD_JSON",
+    "JSON_SCHEMA",
+)
+
+
 def mode(name: str) -> instructor.Mode:
     """Turns a mode name from the environment into the mode itself."""
-    try:
-        return instructor.Mode[name.strip().upper()]
-    except KeyError:
+    named = name.strip().upper()
+    if named not in LITELLM_MODES:
         raise ValueError(
-            f"LLM_STRUCTURED_MODE={name!r} is not an instructor mode; expected "
-            f"one of {', '.join(sorted(m.name for m in instructor.Mode))}"
-        ) from None
+            f"LLM_STRUCTURED_MODE={name!r} is not a mode litellm takes; expected "
+            f"one of {', '.join(LITELLM_MODES)}"
+        )
+    return instructor.Mode[named]
 
 
 class Client:

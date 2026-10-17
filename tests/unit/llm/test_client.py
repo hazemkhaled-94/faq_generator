@@ -10,6 +10,8 @@ own, so LLM_MAX_ATTEMPTS is the whole budget.
 
 from __future__ import annotations
 
+import warnings
+
 import httpx
 import instructor
 import litellm
@@ -111,11 +113,55 @@ def test_an_unknown_mode_names_the_setting_and_the_choices() -> None:
         mode("not_a_mode")
 
 
-def test_the_catalogue_offers_every_instructor_mode_and_no_other() -> None:
-    """It may not import instructor, so it spells the names out."""
+def taken(one: instructor.Mode) -> bool:
+    """Whether `instructor.from_litellm` builds a client in this mode.
+
+    Three it takes are deprecated and warn, which this suite raises.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        try:
+            instructor.from_litellm(litellm.completion, mode=one)
+        except Exception:  # noqa: BLE001 - which it raises varies by mode
+            return False
+    return True
+
+
+def litellm_takes() -> tuple[str, ...]:
+    """The instructor modes `instructor.from_litellm` builds a client for.
+
+    Asked of the library rather than copied from it, so an upgrade that
+    takes or drops one fails here instead of at a worker's start.
+    """
+    return tuple(one.name for one in instructor.Mode if taken(one))
+
+
+def test_the_catalogue_offers_exactly_the_modes_litellm_takes() -> None:
+    """It may not import instructor, so it spells the names out.
+
+    Every instructor mode was offered, and `from_litellm` refuses most of
+    them: a mode chosen off the page stopped every model worker.
+    """
     (setting,) = [one for one in catalog.SETTINGS if one.name == "LLM_STRUCTURED_MODE"]
 
-    assert setting.choices == tuple(one.name for one in instructor.Mode)
+    assert setting.choices == litellm_takes()
+
+
+def test_every_mode_litellm_takes_is_taken() -> None:
+    """The refusal below turns away nothing that would have worked."""
+    assert tuple(mode(name).name for name in litellm_takes()) == litellm_takes()
+
+
+def test_a_mode_litellm_cannot_take_is_refused_naming_the_ones_it_can() -> None:
+    """At start-up, saying what to put in LLM_STRUCTURED_MODE instead.
+
+    Left to instructor, a mode built for another client is refused in its
+    own words, which name neither the setting nor a value that would work.
+    """
+    with pytest.raises(ValueError, match="LLM_STRUCTURED_MODE") as refused:
+        Client(settings(structured_mode="ANTHROPIC_TOOLS"))
+
+    assert all(name in str(refused.value) for name in litellm_takes())
 
 
 def test_the_model_and_temperature_are_published_for_provenance() -> None:
