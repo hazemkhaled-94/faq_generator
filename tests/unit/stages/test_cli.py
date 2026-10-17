@@ -475,3 +475,122 @@ def test_a_rebuilt_worker_records_its_prompts_again(monkeypatch) -> None:
     drain(lambda: False)
 
     assert recorded == ["before", "after"]
+
+
+# ── A rebuild that fails ───────────────────────────────────────────────────
+
+
+class _Rebuilt:
+    """A watching worker's drain whose settings move and whose builds fail."""
+
+    def __init__(self, monkeypatch) -> None:
+        """Settings at v1, a clock at 0, and a build that succeeds once."""
+        from settings import store
+        from stages import cli
+
+        self.version = "v1"
+        self.now = 0.0
+        self.builds = 0
+        self.preflights = 0
+        self.failing = False
+        self.drained: list[int] = []
+        monkeypatch.setattr(store, "current", lambda: self.version)
+        monkeypatch.setattr(cli.time, "monotonic", lambda: self.now)
+        monkeypatch.setattr(cli.log, "exception", lambda *_, **__: None)
+        self.drain = cli.reloading("extraction", self._build, self._preflight)
+
+    def _preflight(self) -> None:
+        """Answers, and counts."""
+        self.preflights += 1
+
+    def _build(self):
+        """Builds a service that records its drains, or fails to build one."""
+        self.builds += 1
+        if self.failing:
+            raise OSError("no such model")
+        built = self.builds
+
+        class _Service:
+            def drain(_, stopping) -> int:
+                self.drained.append(built)
+                return 1
+
+        return _Service()
+
+    def __call__(self) -> int:
+        """One poll."""
+        return self.drain(lambda: False)
+
+
+def test_a_build_that_fails_is_not_retried_every_poll(monkeypatch) -> None:
+    """Every retry is a preflight model call and a build: thousands a day."""
+    worker = _Rebuilt(monkeypatch)
+    worker()
+    worker.version, worker.failing = "v2", True
+
+    polls = [worker() for _ in range(3)]
+
+    assert polls == [0, 0, 0]
+    assert (worker.builds, worker.preflights) == (2, 1)
+
+
+def test_a_build_that_failed_is_tried_again_after_the_back_off(monkeypatch) -> None:
+    """A model hub that was down for a minute is not a value that stands."""
+    worker = _Rebuilt(monkeypatch)
+    worker()
+    worker.version, worker.failing = "v2", True
+    worker()
+
+    worker.now += 301
+    worker.failing = False
+
+    assert worker() == 1
+    assert (worker.builds, worker.preflights) == (3, 2)
+
+
+def test_the_back_off_doubles_while_the_build_keeps_failing(monkeypatch) -> None:
+    """Up to an hour, so a value nobody corrects costs a build an hour."""
+    worker = _Rebuilt(monkeypatch)
+    worker()
+    worker.version, worker.failing = "v2", True
+    worker()
+    worker.now += 301
+    worker()
+
+    worker.now += 301
+    worker()
+
+    assert worker.builds == 3
+    worker.now += 300
+    worker()
+    assert worker.builds == 4
+
+
+def test_a_change_after_a_failed_build_is_built_at_once(monkeypatch) -> None:
+    """The back-off is on the value that failed, not on the next one."""
+    worker = _Rebuilt(monkeypatch)
+    worker()
+    worker.version, worker.failing = "v2", True
+    worker()
+
+    worker.version, worker.failing = "v3", False
+
+    assert worker() == 1
+    assert worker.builds == 3
+
+
+def test_a_failed_build_does_not_keep_working_on_the_old_settings(
+    monkeypatch,
+) -> None:
+    """Nobody asked for them any more, even if the new ones will not build."""
+    worker = _Rebuilt(monkeypatch)
+    worker()
+    worker.version, worker.failing = "v2", True
+
+    worker()
+    worker()
+    worker.version = "v1"
+    worker.failing = False
+    worker()
+
+    assert worker.drained == [1, 3]

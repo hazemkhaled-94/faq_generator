@@ -249,7 +249,10 @@ A watching worker rebuilds its service when the settings change. The check
 sits between drains, where nothing is claimed. Before it builds again it runs
 its `preflight` and waits there as it does at start, so a setting that names a
 model which will not answer claims nothing, and then records its prompts
-again.
+again. A build that fails drops the service it would have replaced and claims
+nothing, and is tried again on the same settings after five minutes, doubling
+to an hour, rather than at every poll; settings that move again are built at
+once.
 
 A `make` target runs one drain on the host, in the foreground, against the
 same database the containers use. It is the same code; there is no second
@@ -297,7 +300,7 @@ poetry run pytest tests/unit/stages tests/integration/database/test_queue.py
 
 | File | Covers |
 |---|---|
-| [`test_cli.py`](../../tests/unit/stages/test_cli.py) | Narrowing and the flag combinations refused, the preflight and how a waiting worker reports, and a rebuilt worker waiting for its models |
+| [`test_cli.py`](../../tests/unit/stages/test_cli.py) | Narrowing and the flag combinations refused, the preflight and how a waiting worker reports, a rebuilt worker waiting for its models, and a failed rebuild backing off |
 | [`test_queue_narrowing.py`](../../tests/unit/stages/test_queue_narrowing.py) | Narrowing to one item, and both refusals |
 | [`test_worker.py`](../../tests/unit/stages/test_worker.py) | Ending a worker's loop |
 | [`test_recalibrate.py`](../../tests/unit/stages/test_recalibrate.py) | Rebuilding a stored gate reading, and the two floors `make confidence-recalibrate` reads |

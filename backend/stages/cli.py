@@ -60,6 +60,13 @@ _RETRY_CEILING = 60.0
 #: says what is wrong without scrolling.
 _RETRY_REPORT_SECONDS = 600.0
 
+#: How long a watching worker whose service would not build on new settings
+#: waits before building it again, and the ceiling that doubles towards.
+#: Every attempt is a preflight model call and a build, and a value that
+#: parses but cannot build stands until somebody changes it.
+_REBUILD_SECONDS = 300.0
+_REBUILD_CEILING = 3600.0
+
 
 def parser(module: str, actions: dict[str, str]) -> argparse.ArgumentParser:
     """Builds a stage's argument parser.
@@ -102,6 +109,10 @@ def reloading(
     A rebuild waits for `preflight` before it claims anything, and records
     `prompts` again. The first build does neither: `queue_main` has already.
 
+    A build that fails drops the service it would have replaced, so nothing
+    is worked on settings nobody asks for any more, and is not tried again
+    on those settings for `_REBUILD_SECONDS`, doubling to `_REBUILD_CEILING`.
+
     ponytail: the wait ignores a stop request. Nothing is claimed while it
     waits, so the supervisor's kill loses nothing; the upgrade is giving
     `_ready` the `stopping` callable and an interruptible sleep.
@@ -114,6 +125,8 @@ def reloading(
         """Drains the queue, on a service built from the current settings."""
         version = current()
         if held.get("version") != version:
+            if held.get("failed") == version and time.monotonic() < held["retry_at"]:
+                return 0
             if held:
                 log.info(
                     "%s: settings are now %s; building the service again",
@@ -124,8 +137,27 @@ def reloading(
                     _ready(name, preflight, True)
                 if prompts is not None:
                     prompts()
-            held["service"] = build_service()
-            held["version"] = version
+            try:
+                service = build_service()
+            except Exception:
+                wait = held.get("backoff", _REBUILD_SECONDS)
+                held.pop("service", None)
+                held.pop("version", None)
+                held.update(
+                    failed=version,
+                    retry_at=time.monotonic() + wait,
+                    backoff=min(2 * wait, _REBUILD_CEILING),
+                )
+                log.exception(
+                    "%s: the service would not build on settings %s; claiming "
+                    "nothing, and building it again in %s",
+                    name,
+                    version,
+                    _for(wait),
+                )
+                return 0
+            held.clear()
+            held.update(service=service, version=version)
         return held["service"].drain(stopping)
 
     return drain
