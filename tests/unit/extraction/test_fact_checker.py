@@ -85,6 +85,81 @@ def test_two_claims_in_one_statement_are_refused(checker) -> None:
     assert both.statement_predicates == 2, both.statement_predicates
 
 
+#: Bank and shop statements a reader cannot take as one claim drawn from
+#: what they cite, as (language, passage, statement, cited sentence, code).
+#: Each is refused for what it is, however the claim reading is loosened.
+STILL_REFUSED: tuple[tuple[str, str, str, int, str], ...] = (
+    (
+        "en",
+        "Customers may return goods within 30 days, but refunds are paid only to "
+        "the original card.",
+        "Customers may return goods within 30 days, but refunds are only paid to "
+        "the original card.",
+        0,
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "de",
+        "Kunden können Waren innerhalb von 30 Tagen zurückgeben, aber die "
+        "Erstattung erfolgt nur auf die ursprüngliche Karte.",
+        "Kunden können Waren binnen 30 Tagen zurückgeben, aber die Erstattung "
+        "erfolgt nur auf die ursprüngliche Karte.",
+        0,
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "en",
+        "The card is free in the first year, but a fee of 30 EUR is charged from "
+        "the second year.",
+        "The card is free of charge in the first year, but a fee of 30 EUR is "
+        "charged from the second year.",
+        0,
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "de",
+        "Die Karte ist im ersten Jahr kostenlos, jedoch wird ab dem zweiten Jahr "
+        "eine Gebühr von 30 EUR berechnet.",
+        "Die Karte ist im ersten Jahr gebührenfrei, jedoch wird ab dem zweiten "
+        "Jahr eine Gebühr von 30 EUR berechnet.",
+        0,
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "en",
+        "If the card is lost, the bank blocks it and the customer is liable for up "
+        "to 50 EUR.",
+        "If the card is lost, the bank blocks the card and the customer is liable "
+        "for up to 50 EUR.",
+        0,
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "de",
+        "Die Bank erstattet die Gebühr, wenn die Beschwerde berechtigt ist, und "
+        "kündigt das Konto.",
+        "Die Bank erstattet die Gebühr, wenn die Beschwerde berechtigt ist, und "
+        "kündigt das Konto des Kunden.",
+        0,
+        Rejection.NOT_ATOMIC,
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement", "cited", "code"),
+    STILL_REFUSED,
+    ids=[f"{row[0]}-{row[4]}-{at}" for at, row in enumerate(STILL_REFUSED)],
+)
+def test_a_bank_or_shop_statement_saying_too_much_is_still_refused(
+    language, text, statement, cited, code
+) -> None:
+    """A second claim, a pronoun naming what came before, a borrowed figure."""
+    judged = Checker(passage(text, language=language)).atomic(statement, cited)
+
+    assert judged.rejection_code == code, (judged.validation_error, judged.units_added)
+
+
 def test_a_statement_with_no_finite_verb_is_refused(checker) -> None:
     """Naming something is not asserting anything about it."""
     naming = checker.atomic("The 4 kg device.")

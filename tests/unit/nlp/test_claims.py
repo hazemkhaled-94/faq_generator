@@ -106,6 +106,90 @@ def test_two_duties_of_one_subject_are_still_two_claims() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        ("en", "Customers may return goods within 30 days but must keep the receipt."),
+        ("en", "The bank may refuse the payment but must tell the customer why."),
+        (
+            "de",
+            "Die Bank muss den Betrag nicht sofort erstatten, sondern kann ihn "
+            "zunächst prüfen.",
+        ),
+    ],
+)
+def test_a_permission_with_its_but_limit_is_one_claim(
+    language: str, sentence: str
+) -> None:
+    """A `but` clause with no subject of its own limits the rule it follows."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found == 1, f"{found} claim(s) read in {sentence!r}; expected 1"
+
+
+@pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        (
+            "en",
+            "Customers may return goods within 30 days, but refunds are only paid "
+            "to the original card.",
+        ),
+        (
+            "de",
+            "Kunden können Waren binnen 30 Tagen zurückgeben, aber die Erstattung "
+            "erfolgt nur auf die ursprüngliche Karte.",
+        ),
+        (
+            "en",
+            "The card is free of charge in the first year, but a fee of 30 EUR is "
+            "charged from the second year.",
+        ),
+        (
+            "de",
+            "Die Karte ist im ersten Jahr gebührenfrei, jedoch wird ab dem zweiten "
+            "Jahr eine Gebühr von 30 EUR berechnet.",
+        ),
+        ("en", "The card is blocked and the account is closed."),
+    ],
+)
+def test_a_clause_with_its_own_subject_is_still_a_second_claim(
+    language: str, sentence: str
+) -> None:
+    """`X, but refunds are paid only to the card` says a second thing."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found == 2, f"{found} claim(s) read in {sentence!r}; expected 2"
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        (
+            "If the customer accidentally enters the PIN incorrectly three times or "
+            "the terminal rejects the card and the payment does not go through, the "
+            "card is blocked."
+        ),
+        (
+            "If the order was cancelled and the goods were already shipped and the "
+            "shop cannot determine which parcel was sent first, the customer keeps "
+            "the first parcel."
+        ),
+    ],
+)
+def test_a_parse_rooted_on_its_condition_is_one_claim(sentence: str) -> None:
+    """The parser made the `if` clause the main one; the rule is still one."""
+    from nlp.analysis import _read, claim
+
+    roots = [token for token in _read(sentence, "en") if token.head == token]
+    assert any(child.dep_ == "mark" for root in roots for child in root.children), (
+        "the parse no longer roots this sentence on its condition"
+    )
+    assert claim(sentence, "en").predicates == 1
+
+
 def test_a_noun_phrase_asserts_nothing() -> None:
     """A phrase with no finite verb reads as no claim."""
     from nlp.analysis import claim

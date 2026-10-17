@@ -140,6 +140,14 @@ _DISJUNCTIVE: dict[str, frozenset[str]] = {
     "en": frozenset({"or", "nor"}),
 }
 
+#: Coordinators that set a limit against the clause before them, keyed by
+#: ISO language. "may return goods but must keep the receipt" grants one
+#: thing on one condition.
+_CONTRASTIVE: dict[str, frozenset[str]] = {
+    "de": frozenset({"aber", "jedoch", "sondern", "doch"}),
+    "en": frozenset({"but", "yet"}),
+}
+
 
 def _clause_verb(token):
     """Climbs from an auxiliary or copula to the verb whose clause it is in."""
@@ -198,6 +206,22 @@ def _coordinator_words(token) -> set[str]:
     return {word.text.casefold() for word in words}
 
 
+def _own_subject(verb) -> bool:
+    """Whether a verb, or an auxiliary or copula under it, has a subject of its own."""
+    return any(
+        child.dep_ in _SUBJECTS or child.dep_ in _EXPLETIVE
+        for head in (verb, *(c for c in verb.children if c.dep_ in _CARRIERS))
+        for child in head.children
+    )
+
+
+def _root(token):
+    """The root of the sentence a token is parsed in."""
+    while token.head.i != token.i:
+        token = token.head
+    return token
+
+
 def _predicates(span: Doc | Span) -> int:
     """Counts the claims a span makes, as its independent finite verbs.
 
@@ -213,12 +237,19 @@ def _predicates(span: Doc | Span) -> int:
     or "es sei denn", and of the clause it opens, only restricts what the
     first clause says. So are two alternatives: "the card is blocked or the
     account is closed" does not entail either half, so a clause joined by
-    "or" is no claim of its own. A language with no entry in the exception
-    and alternative tables falls back to the attachment rule alone.
+    "or" is no claim of its own. Nor is a limit set against the clause before
+    it with no subject of its own: "may return goods but must keep the
+    receipt" grants one thing on one condition, while "X, but refunds are
+    paid only to the card" says a second thing about something else. A
+    language with no entry in the exception, alternative and contrast tables
+    falls back to the attachment rule alone.
 
     A span carrying a finite verb makes at least one claim. A parse that
     hangs every clause off something else has mis-read the sentence, which
-    is not the same as a sentence that asserts nothing.
+    is not the same as a sentence that asserts nothing. Nor is one rooted on
+    a clause its subordinator opens: the parser made the condition the main
+    clause and hung what it governs beside it, so the span is read as the
+    one rule it states.
     """
     finite = [token for token in span if "Fin" in token.morph.get("VerbForm", [])]
     if not finite:
@@ -226,6 +257,7 @@ def _predicates(span: Doc | Span) -> int:
     doc = span.doc
     inside, after = _exceptive_tokens(doc)
     disjunctive = _DISJUNCTIVE.get(doc.lang_, frozenset())
+    contrastive = _CONTRASTIVE.get(doc.lang_, frozenset())
     claims = 0
     for token in finite:
         if not _coordinated_to_root(token) or token.i in inside:
@@ -234,9 +266,19 @@ def _predicates(span: Doc | Span) -> int:
         start = min(one.i for one in verb.subtree)
         if start in inside or start in after:
             continue
-        if verb.dep_ in _COORDINATION and _coordinator_words(token) & disjunctive:
-            continue
+        if verb.dep_ in _COORDINATION:
+            words = _coordinator_words(token)
+            if words & disjunctive:
+                continue
+            if words & contrastive and not _own_subject(verb):
+                continue
         claims += 1
+    if claims > 1 and any(
+        child.dep_ in _SUBORDINATOR
+        for root in {_root(token) for token in finite}
+        for child in root.children
+    ):
+        return 1
     return claims or 1
 
 

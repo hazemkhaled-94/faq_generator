@@ -308,6 +308,98 @@ KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
 )
 
 #: (name, language, the cited excerpt, statement, expected code or None):
+#: stored rules refused for a second verb that states no second claim: a
+#: limit opened by "sondern" with no subject of its own, and a rule the
+#: parser rooted on its condition. A contrastive clause with a subject of
+#: its own still states a second claim, and the rows reading so stay refused.
+ONE_RULE_READ: tuple[tuple[str, str, str, str, str | None], ...] = (
+    (
+        "a limit with no subject of its own (F11533)",
+        "de",
+        (
+            "Wenn ein Team weniger als sieben Spieler hat, weil ein oder mehrere "
+            "Spieler absichtlich das Spielfeld verlassen haben, muss der "
+            "Schiedsrichter das Spiel nicht unterbrechen, sondern kann Vorteil geben."
+        ),
+        (
+            "Wenn ein Team weniger als sieben Spieler hat, weil ein oder mehrere "
+            "Spieler absichtlich das Spielfeld verlassen haben, muss der "
+            "Schiedsrichter das Spiel nicht unterbrechen, sondern kann Vorteil geben."
+        ),
+        None,
+    ),
+    (
+        "a rule the parse roots on its condition (F13825)",
+        "en",
+        (
+            "- If the kicker accidentally kicks the ball with both feet "
+            "simultaneously or the ball touches their non-kicking foot or leg "
+            "immediately after the kick:\n"
+            "    - if the ball enters the goal from the kick, the kick is retaken\n"
+            "    - if the ball does not enter the goal from the kick, the kick is "
+            "recorded as missed"
+        ),
+        (
+            "If the kicker accidentally kicks the ball with both feet "
+            "simultaneously or the ball touches their non-kicking foot or leg "
+            "immediately after the kick and the ball does not enter the goal, the "
+            "kick is recorded as missed."
+        ),
+        None,
+    ),
+    (
+        "the same rule before the ball is in play (F14128)",
+        "en",
+        (
+            "If, before the ball is in play, one of the following occurs:\n"
+            "- the kicker accidentally kicks the ball with both feet "
+            "simultaneously or the ball touches their non-kicking foot or leg "
+            "immediately after the kick:\n"
+            "    - if the ball enters the goal from the kick, the kick is retaken\n"
+            "    - if the ball does not enter the goal from the kick, an indirect "
+            "free kick is awarded"
+        ),
+        (
+            "If, before the ball is in play, the kicker accidentally kicks the ball "
+            "with both feet simultaneously or the ball touches their non-kicking "
+            "foot or leg immediately after the kick and the ball does not enter the "
+            "goal, an indirect free kick is awarded."
+        ),
+        None,
+    ),
+    (
+        "a but clause with a subject of its own (F13698)",
+        "en",
+        (
+            "They will assist the referee in controlling the match in accordance "
+            "with the Laws of the Game but the final decision will always be taken "
+            "by the referee."
+        ),
+        (
+            "Other match officials assist the referee in controlling the match in "
+            "accordance with the Laws of the Game, but the final decision is always "
+            "taken by the referee."
+        ),
+        Rejection.NOT_ATOMIC,
+    ),
+    (
+        "an aber clause with a subject of its own (F12493)",
+        "de",
+        (
+            "- Der Schiedsrichter kann andere/weitere Winkel/Geschwindigkeiten "
+            "verlangen, grundsätzlich sollte die Zeitlupe aber nur für objektive "
+            "Entscheidungen verwendet werden."
+        ),
+        (
+            "Der Schiedsrichter kann andere oder weitere Winkel und "
+            "Geschwindigkeiten verlangen, grundsätzlich sollte die Zeitlupe aber nur "
+            "für objektive Entscheidungen verwendet werden."
+        ),
+        Rejection.NOT_ATOMIC,
+    ),
+)
+
+#: (name, language, the cited excerpt, statement, expected code or None):
 #: stored claims refused as `unresolved_reference` although their own words
 #: name what the pronoun points to: a singular "their", the "es" of "es sei
 #: denn", a "sie" agreeing with a plural or a feminine noun, a relative
@@ -788,6 +880,20 @@ def test_a_rule_kept_with_its_exception_reaches_its_verdict(
     language, excerpt, statement, expected
 ) -> None:
     """An exception or an alternative is part of the claim it qualifies."""
+    checked = Checker(passage(excerpt, language=language)).atomic(statement, 0)
+
+    assert verdict(checked) == expected, checked.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "excerpt", "statement", "expected"),
+    [row[1:] for row in ONE_RULE_READ],
+    ids=[row[0] for row in ONE_RULE_READ],
+)
+def test_a_rule_whose_second_verb_states_nothing_new_reaches_its_verdict(
+    language, excerpt, statement, expected
+) -> None:
+    """A limit with no subject of its own, or a misrooted parse, is one claim."""
     checked = Checker(passage(excerpt, language=language)).atomic(statement, 0)
 
     assert verdict(checked) == expected, checked.validation_error
