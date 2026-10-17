@@ -195,17 +195,17 @@ def _chosen(setting: dict, label: str, key: str, help: str) -> str:
     # choice comes first: the form sends every value, so Save would store it.
     if current not in offered:
         current = setting["default"] or ""
+    # Neither is offered: drawn blank and sent only once something is picked.
+    unoffered = current not in offered
+    if unoffered:
+        offered = offered if "" in offered else ["", *offered]
+        current = ""
     # `or ""`: nothing chosen reads as absent.
-    return (
-        st.selectbox(
-            label,
-            offered,
-            index=offered.index(current) if current in offered else 0,
-            key=key,
-            help=help,
-        )
+    picked = (
+        st.selectbox(label, offered, index=offered.index(current), key=key, help=help)
         or ""
     )
+    return None if unoffered and not picked else picked
 
 
 def _label(setting: dict) -> str:

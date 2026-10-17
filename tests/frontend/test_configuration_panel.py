@@ -220,3 +220,24 @@ def _refusal(code: str, detail: str):
             return {"code": code, "detail": detail}
 
     return Response()
+
+
+def test_a_value_neither_offered_nor_defaulted_is_not_sent(open_view) -> None:
+    """Drawn as the first choice and sent, it stored a value nobody picked.
+
+    The file's own value can be one the page no longer offers, a mode
+    litellm does not take or one spelled in lower case, and then the
+    default is that same value.
+    """
+    gone = [
+        {**one, "value": "retired", "default": "retired"}
+        if one["name"] == "A_MODE"
+        else one
+        for one in SETTINGS["settings"]
+    ]
+    configured = Answers(**settings(settings=gone))
+    view = open_view("topics", configured=configured)
+
+    view.save_configuration()
+
+    assert "A_MODE" not in configured.calls("change_settings")[0][1][1]
