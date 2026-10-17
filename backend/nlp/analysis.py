@@ -1180,10 +1180,10 @@ def _boundaries(document: Doc) -> list[int]:
 
     The parser cuts where a statement would not: inside a word joined by a
     slash, before a clause opened by a comma, after an abbreviation followed
-    by a lower-case word or a figure ("approx. 3 days"), and between an
-    item's number and the item, leaving the number at the end of the item
-    before. A citation resolves against these sentences, so a cut there
-    leaves a fact's evidence half a rule.
+    by a lower-case word or, on its line, a figure numbering no item
+    ("approx. 3 days"), and between an item's number and the item, leaving
+    the number at the end of the item before. A citation resolves against
+    these sentences, so a cut there leaves a fact's evidence half a rule.
     A cut is dropped in the first three cases and moved to the number in
     the last. Only ever drops or moves a cut the parser made: a full stop
     with no space after it still ends a sentence, as it does in a PDF that
@@ -1227,13 +1227,18 @@ def _boundaries(document: Doc) -> list[int]:
                 if last.i > starts[-1]:
                     starts.append(last.i)
                 continue
+        # A figure on the next line, or an item's number, opens the next
+        # item rather than finishing the abbreviation: "etc.\n2. Card fees".
+        gap = document.text[
+            previous.start_char + len(left) : sentence.end_char - len(right)
+        ]
+        figure = right[0].isdigit() and not (
+            "\n" in gap or _ENUMERATOR.fullmatch(right.split()[0])
+        )
         if (
             joined
             or right[0] in _CONTINUING
-            or (
-                last_word in abbreviations
-                and (right[0].islower() or right[0].isdigit())
-            )
+            or (last_word in abbreviations and (right[0].islower() or figure))
         ):
             continue
         line = left[left.rfind("\n") + 1 :]

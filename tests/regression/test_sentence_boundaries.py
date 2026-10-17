@@ -112,6 +112,12 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         ("Prices are shown incl. 19 % VAT.", "Shipping is extra."),
     ),
     (
+        "an abbreviation ending a numbered item ends it",
+        "en",
+        "1. Account fees, transfers etc.\n2. Card fees and cash.",
+        ("1. Account fees, transfers etc.", "2. Card fees and cash."),
+    ),
+    (
         "a dash after a full stop and a space opens a sentence",
         "en",
         "The fee is 50 EUR. - Repeat offenders pay 100 EUR.",

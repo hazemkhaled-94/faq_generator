@@ -41,7 +41,8 @@ It is computed once, by chunking, and stored. Nothing recomputes it.
 
 The parser's cuts are corrected where a statement would not end: inside a
 word joined by a slash or a dash, before a clause opened by a comma, after an
-abbreviation followed by a lower-case word or a figure (`approx. 3 days`),
+abbreviation followed by a lower-case word or, on its line, a figure that
+numbers no item (`approx. 3 days`, but not `etc.` before a line opening `2.`),
 and between an item's number and the item. A slash or a dash after a
 sentence's end and a space joins nothing: it opens the next sentence, as a
 free `- ` does or as the bullet of the next line.
