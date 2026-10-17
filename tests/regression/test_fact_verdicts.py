@@ -518,6 +518,117 @@ RESOLVED_BY_GRAMMAR: tuple[tuple[str, str, str, str, str | None], ...] = (
 )
 
 #: (name, language, the cited excerpt, statement, expected code or None):
+#: stored claims refused as `unresolved_reference` whose pronoun names what
+#: the statement itself says: a noun of a German condition opening on its
+#: verb, a noun of the phrase a participle hangs in, an English `this`
+#: standing for the clause before it, and an `it` standing for the
+#: infinitive after its predicate. The last is an `es` before a condition
+#: after a sentence naming what it is, and stays refused.
+RESOLVED_IN_ITS_CLAUSES: tuple[tuple[str, str, str, str, str | None], ...] = (
+    (
+        "a condition opening on its verb (F12853)",
+        "de",
+        (
+            "Wird ein Spieler oder Teamoffizieller in einem Spiel zweimal "
+            "verwarnt, wird er des Feldes verwiesen."
+        ),
+        (
+            "Wird ein Spieler oder Teamoffizieller in einem Spiel zweimal "
+            "verwarnt, wird er des Feldes verwiesen."
+        ),
+        None,
+    ),
+    (
+        "the same with a clause inside the condition (F11429)",
+        "de",
+        (
+            "Bemerkt der Schiedsrichter, dass die unerlaubten Markierungen bei "
+            "laufendem Spiel angebracht wurden, verwarnt er den Spieler, sobald "
+            "der Ball aus dem Spiel ist."
+        ),
+        (
+            "Bemerkt der Schiedsrichter, dass die unerlaubten Markierungen bei "
+            "laufendem Spiel angebracht wurden, verwarnt er den Spieler, sobald "
+            "der Ball aus dem Spiel ist."
+        ),
+        None,
+    ),
+    (
+        "a participle's object named in its phrase (F13574)",
+        "en",
+        (
+            "Where head covers (excluding goalkeepers' caps) are worn, they must:\n"
+            "- not be attached to the shirt\n"
+            "- not be dangerous to the player wearing it or any other player "
+            "(e.g. opening/ closing mechanism around neck)"
+        ),
+        (
+            "A head cover worn by a player (excluding a goalkeeper's cap) must not "
+            "be dangerous to the player wearing it or any other player, for "
+            "example by having an opening or closing mechanism around the neck."
+        ),
+        None,
+    ),
+    (
+        "this standing for the condition before it (F13762)",
+        "en",
+        (
+            "If an offence occurs when the ball is not in play, this does not "
+            "change how play is restarted."
+        ),
+        (
+            "If an offence occurs when the ball is not in play, this does not "
+            "change how play is restarted."
+        ),
+        None,
+    ),
+    (
+        "this as the object standing for the condition (F14694)",
+        "en",
+        "If the ball is not placed correctly, the AAR must communicate this to the referee.",
+        (
+            "If the ball is not placed correctly for a goal kick, the additional "
+            "assistant referee must communicate this to the referee."
+        ),
+        None,
+    ),
+    (
+        "it standing for the infinitive after its predicate (F13233)",
+        "en",
+        (
+            "At the same time, it will be the responsibility of each captain to "
+            "ensure that their team-mates remain a reasonable distance from the "
+            "referee and do not interfere in the interaction between the referee "
+            "and the team captain(s).\n"
+        ),
+        (
+            "It will be the responsibility of each captain to ensure that their "
+            "team-mates remain a reasonable distance from the referee and do not "
+            "interfere in the interaction between the referee and the team "
+            "captain(s)."
+        ),
+        None,
+    ),
+    (
+        "es before a condition after a sentence naming it (F13065)",
+        "de",
+        (
+            "Früher musste ein verletzter Spieler, der auf dem Spielfeld ärztlich "
+            "versorgt wurde, das Spielfeld verlassen, bevor das Spiel fortgesetzt "
+            "werden konnte. Dies konnte unfair sein, wenn ein Gegner die "
+            "Verletzung verursacht hatte, da das fehlbare Team bei der Fortsetzung "
+            "des Spiels in Überzahl spielen konnte.\n"
+        ),
+        (
+            "Es konnte als unfair angesehen werden, wenn ein Gegner die Verletzung "
+            "verursacht hatte, da das fehlbare Team bei der Fortsetzung des Spiels "
+            "in Überzahl spielen konnte."
+        ),
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+)
+
+#: (name, language, the cited excerpt, statement, expected code or None):
 #: stored claims refused as `asserts_nothing` because the tagger read their
 #: one verb as an infinitive or a bare form: English after a plural or a
 #: name, German where the third person plural is spelled as the infinitive,
@@ -924,6 +1035,22 @@ def test_a_pronoun_the_grammar_resolves_reaches_its_verdict(
     language, excerpt, statement, expected
 ) -> None:
     """Agreement read as the language marks it, not as one feature list for all."""
+    read = passage(excerpt, language=language)
+    cited = tuple(sentence.index for sentence in read.sentences)
+    checked = Checker(read).atomic(statement, cited)
+
+    assert verdict(checked) == expected, checked.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "excerpt", "statement", "expected"),
+    [row[1:] for row in RESOLVED_IN_ITS_CLAUSES],
+    ids=[row[0] for row in RESOLVED_IN_ITS_CLAUSES],
+)
+def test_a_pronoun_its_clauses_resolve_reaches_its_verdict(
+    language, excerpt, statement, expected
+) -> None:
+    """A clause of its own, a participle's phrase, or the infinitive it stands for."""
     read = passage(excerpt, language=language)
     cited = tuple(sentence.index for sentence in read.sentences)
     checked = Checker(read).atomic(statement, cited)

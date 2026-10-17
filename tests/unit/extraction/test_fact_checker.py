@@ -143,6 +143,37 @@ STILL_REFUSED: tuple[tuple[str, str, str, int, str], ...] = (
         0,
         Rejection.NOT_ATOMIC,
     ),
+    (
+        "en",
+        "The current account costs 5 EUR a month. It is free if at least 1,000 EUR "
+        "is paid in each month.",
+        "It is free of charge if at least 1,000 EUR is paid in each month.",
+        1,
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "de",
+        "Das Girokonto kostet 5 EUR im Monat. Es ist kostenlos, wenn monatlich "
+        "mindestens 1.000 EUR eingehen.",
+        "Es ist gebührenfrei, wenn monatlich mindestens 1.000 EUR eingehen.",
+        1,
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "en",
+        "The gift box is sold separately. It is free if the order is over 50 EUR.",
+        "It is free of charge if the order is over 50 EUR.",
+        1,
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "de",
+        "Das Geschenkpaket wird separat verkauft. Es ist kostenlos, wenn die "
+        "Bestellung über 50 EUR liegt.",
+        "Es ist gratis, wenn die Bestellung über 50 EUR liegt.",
+        1,
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
 )
 
 
@@ -158,6 +189,32 @@ def test_a_bank_or_shop_statement_saying_too_much_is_still_refused(
     judged = Checker(passage(text, language=language)).atomic(statement, cited)
 
     assert judged.rejection_code == code, (judged.validation_error, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "Payments are checked daily. It is an offence if the PIN is shared.",
+            "It is an offence if the PIN is shared.",
+        ),
+        (
+            "de",
+            "Zahlungen werden täglich geprüft. Es ist ein Verstoß, wenn die PIN "
+            "weitergegeben wird.",
+            "Es ist ein Verstoß, wenn die PIN weitergegeben wird.",
+        ),
+    ],
+)
+def test_it_standing_for_the_condition_after_it_is_no_reference(
+    language, text, statement
+) -> None:
+    """Nothing the passage said before agrees with `it`: the condition is the offence."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 1)
+
+    assert judged.validated, judged.validation_error
+    assert not judged.unresolved_references
 
 
 def test_a_statement_with_no_finite_verb_is_refused(checker) -> None:
@@ -234,6 +291,9 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
         ("A customer who moves must give their new address.", "en"),
         ("Die Rückgabe ist kostenlos, es sei denn, die Ware ist beschädigt.", "de"),
         ("It is easy to close the account online.", "en"),
+        ("The card is blocked if this is reported stolen.", "en"),
+        ("Geht die Karte verloren, sperrt die Bank sie sofort.", "de"),
+        ("The card is replaced free of charge for a customer losing it abroad.", "en"),
         (
             "Die Filialen tragen Schilder, durch die sie sich voneinander unterscheiden.",
             "de",
@@ -259,8 +319,11 @@ def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
     [
         ("Er wird gekündigt, wenn der Kredit nicht bedient wird.", "de", "er"),
         ("Der Kredit wird gekündigt, wenn sie ihn nicht bedient.", "de", "sie"),
-        ("The card is blocked if this is reported stolen.", "en", "this"),
+        ("This is blocked if the card is reported stolen.", "en", "this"),
         ("The customer must return it within 14 days.", "en", "it"),
+        ("At the branch, the customer must return it within 14 days.", "en", "it"),
+        ("In der Filiale muss der Kunde sie zurückgeben.", "de", "sie"),
+        ("Customers and staff are not allowed to use it.", "en", "it"),
         ("The customer has the right to return it within 14 days.", "en", "it"),
         ("Der Kunde hat das Recht, ihn zurückzugeben.", "de", "ihn"),
         ("The account holder must inform him within three days.", "en", "him"),
@@ -282,7 +345,8 @@ def test_a_pronoun_its_statement_does_not_resolve_is_still_refused(
 
     Or agreeing only with a noun of its own clause, which a personal pronoun
     never names - that takes a reflexive - so `it` in "The customer must
-    return it" is something the passage named before.
+    return it" is something the passage named before, as it is after "At
+    the branch".
     """
     judged = Checker(passage(statement, language=language)).atomic(statement, 0)
 

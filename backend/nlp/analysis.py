@@ -561,6 +561,15 @@ def _fixed_expletive(token) -> bool:
     )
 
 
+def _placeholder(token) -> bool:
+    """Whether a pronoun has the shape of a placeholder: a neuter singular subject."""
+    if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
+        return False
+    if "Neut" not in token.morph.get("Gender") and token.doc.lang_ != "en":
+        return False
+    return "Sing" in token.morph.get("Number")
+
+
 def _clausal_correlate(token) -> bool:
     """Whether a neuter singular pronoun anticipates a clause of its verb.
 
@@ -574,11 +583,7 @@ def _clausal_correlate(token) -> bool:
     muss es zurückgeben, um eine Erstattung zu erhalten", still points at
     something the statement never named.
     """
-    if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
-        return False
-    if "Neut" not in token.morph.get("Gender") and token.doc.lang_ != "en":
-        return False
-    if "Sing" not in token.morph.get("Number"):
+    if not _placeholder(token):
         return False
     chain, frontier = [token.head], [token.head]
     while frontier:
@@ -600,20 +605,73 @@ def _clausal_correlate(token) -> bool:
     )
 
 
-def _refers(token) -> bool:
+#: How a predicate hangs off the verb that states it, German and English:
+#: "Es ist ein Verstoß", "It is important".
+_PREDICATIVE = frozenset({"pd", "attr", "acomp", "cop"})
+
+#: How the clause a placeholder stands for may hang off the predicate after
+#: it, or off the pronoun itself as German `re` does: as a complement, or as
+#: the adverbial a parser reads an extraposed infinitive or condition as.
+_ANTICIPATED = frozenset({"advcl", "mo", "ccomp", "oc", "xcomp", "re", "csubj"})
+
+
+def _anticipates(token, before: Doc | None) -> bool:
+    """Whether `it` or `es` before a predicate stands for the clause after it.
+
+    "It is very important for the customer to keep the PIN secret" and "It
+    is an offence if the PIN is shared", which the parser hangs as an
+    adverbial rather than as the complement `_clausal_correlate` reads. An
+    infinitive has no subject of its own the pronoun could be, so the
+    pronoun is its placeholder wherever it stands. A subordinate clause is
+    only where nothing the reader met before the statement agrees with the
+    pronoun: after "The current account costs 5 EUR a month.", "It is free
+    if ..." is the account.
+
+    `before` is what the passage said ahead of the statement's sentences,
+    and only a fact's check knows it: with None, as every other reader
+    passes, this reads nothing.
+    """
+    if before is None or not _placeholder(token):
+        return False
+    head = token.head
+    if head.pos_ not in ("ADJ", "NOUN") and not any(
+        child.dep_ in _PREDICATIVE for child in head.children
+    ):
+        return False
+    after = [
+        clause
+        for clause in (*head.children, *token.children)
+        if clause.i > token.i and clause.dep_ in _ANTICIPATED
+    ]
+    words = [one for clause in after for one in clause.subtree]
+    if any(one.tag_ in _INFINITIVE_MARKERS for one in words):
+        return True
+    if not any(one.dep_ in _SUBORDINATOR for one in words):
+        return False
+    return not any(
+        noun.pos_ in _NOMINAL and _agrees(token, noun) for noun in before
+    )
+
+
+def _refers(token, before: Doc | None = None) -> bool:
     """Reports whether a pronoun points at something outside the statement.
 
     A reflexive belongs to its own verb - `sich` in `ergibt sich aus` - and an
     expletive stands in for no antecedent, so neither leaves a reader without
     a subject. Nor does the `es` of a fixed phrase, "es sei denn", or an
     `it` or `es` that anticipates the infinitive or clause its verb governs
-    further on, "It is easy to close the account".
+    further on, "It is easy to close the account", or, read against what
+    came `before` the statement, the one after its predicate.
     """
     if token.pos_ != "PRON" or token.dep_ in _EXPLETIVE:
         return False
     if "Yes" in token.morph.get("Reflex"):
         return False
-    if _fixed_expletive(token) or _clausal_correlate(token):
+    if (
+        _fixed_expletive(token)
+        or _clausal_correlate(token)
+        or _anticipates(token, before)
+    ):
         return False
     return "3" in token.morph.get("Person") or "Dem" in token.morph.get("PronType")
 
@@ -675,12 +733,14 @@ _POSSESSIVE_DEPS = frozenset({"poss", "nmod:poss"})
 
 #: What opens a clause of its own beneath another: a subordinator on its verb,
 #: or the verb hung off its head as an adverbial or a relative clause. English
-#: and German labels, and the Universal Dependencies names for the same. A
+#: and German labels, and the Universal Dependencies names for the same:
+#: German hangs a condition opening on its verb, "Wird die Karte gesperrt,
+#: ...", as an adverbial `mo` with no subordinator at all. A
 #: scheme naming none of them reads every statement as one clause, so its
 #: pronouns resolve only as a correlate or a possessive, which is the safe
 #: side of the line.
 _SUBORDINATOR = frozenset({"mark", "cp"})
-_EMBEDDED = frozenset({"advcl", "relcl", "acl", "acl:relcl", "rc"})
+_EMBEDDED = frozenset({"advcl", "mo", "relcl", "acl", "acl:relcl", "rc"})
 
 #: How a relative clause hangs off its noun, German and English. It opens a
 #: clause whatever its verb is tagged.
@@ -800,8 +860,9 @@ def _correlate(token) -> bool:
 
 
 #: Languages whose demonstrative pronouns ordinarily point back to a noun,
-#: German `der`, `dieser`; also gates the propositional neuter demonstrative.
-_NOUN_ANAPHORIC_DEMONSTRATIVES = frozenset({"de"})
+#: German `der`, `dieser`, English `this`, `that`; also gates the
+#: propositional neuter demonstrative.
+_NOUN_ANAPHORIC_DEMONSTRATIVES = frozenset({"de", "en"})
 
 #: Words that read as the same thing again rather than as a pointer, by ISO
 #: 639-1 code: German `derselbe`, "the same", opens a statement with no
@@ -865,6 +926,32 @@ def _conjuncts(verb) -> list:
     return found
 
 
+def _in_finite_chain(token) -> bool:
+    """Whether the verb chain a token's predicate sits in carries a finite verb.
+
+    Up the chain through a carried tense and, in German, through the `oc` a
+    modal or an auxiliary heads its infinitive by: `muss ... informieren` is
+    as finite as `must inform`.
+    """
+    at = _predicate_verb(token)
+    while not _finite(at):
+        if (
+            (at.dep_ not in _CARRIERS and at.dep_ != "oc")
+            or at.head.i == at.i
+            or at.head.pos_ not in ("VERB", "AUX")
+        ):
+            return False
+        at = at.head
+    return True
+
+
+def _argument(noun) -> bool:
+    """Whether a noun is a subject or an object, or a conjunct of one."""
+    while noun.dep_ in _CONJUNCT or noun.dep_ == "cd":
+        noun = noun.head
+    return noun.dep_ in _ARGUMENTS
+
+
 def _other_conjunct(token, noun) -> bool:
     """Whether a non-subject noun hangs off another verb coordinated with the token's."""
     if noun.dep_ in _SUBJECTS:
@@ -888,14 +975,21 @@ def _resolved(token) -> bool:
     standalone one, "The customer must return hers", is not. Nor is a noun
     of another verb coordinated with the pronoun's own, unless it is that
     verb's subject: in "The bank blocks the card and informs it", the card is
-    outside the pronoun's predicate.
+    outside the pronoun's predicate. Nor is a noun inside a phrase of the
+    pronoun's clause when the pronoun's verb is no finite one: in "The card
+    stays valid for the holder using it", `using` has no subject a reader
+    takes the holder for. A subject or an object of that clause, or a noun
+    coordinated with one, still does not resolve it, since it is what the
+    unwritten subject of the participle or infinitive is read as: `it` in
+    "The customer has the right to return it" is not the customer.
 
     A demonstrative pronoun is read like a personal one in the languages
     whose demonstratives ordinarily point back to a noun, German `der` and
-    `dieser`; there a neuter `dies` may also stand for a finite clause before
-    it. Elsewhere a demonstrative is never resolved here, and nor is a pronoun
-    opening its statement, with no noun before it to stand for: both are what
-    a reader without the passage cannot place.
+    `dieser`, English `this`; there a neuter `dies` or `this` may also stand
+    for a finite clause before it. Elsewhere a demonstrative is never
+    resolved here, and nor is a pronoun opening its statement, with no noun
+    before it to stand for: both are what a reader without the passage
+    cannot place.
     """
     if _propositional(token):
         return True
@@ -919,6 +1013,12 @@ def _resolved(token) -> bool:
             for noun in earlier
             if noun not in kept and _other_conjunct(token, noun)
         ]
+        if not _in_finite_chain(token):
+            kept += [
+                noun
+                for noun in earlier
+                if noun not in kept and not _argument(noun)
+            ]
         earlier = kept
     return any(_agrees(token, noun) for noun in earlier)
 
@@ -962,17 +1062,22 @@ def _opens(token) -> bool:
     ) or token.tag_ == "PROAV"
 
 
-def _references(span: Doc | Span) -> tuple[str, ...]:
+def _references(span: Doc | Span, before: Doc | None = None) -> tuple[str, ...]:
     """Collects what leaves a statement dependent on its context.
 
     The pronouns anywhere that the statement does not resolve itself, and
     what `_opens` reads before the first finite verb. A pronoun it resolves
     is not recorded at all: a validated claim may carry no reference.
+    `before` is what the passage said ahead of it, where the caller knows.
     """
     opening = takewhile(lambda t: "Fin" not in t.morph.get("VerbForm", []), span)
     return tuple(
         sorted(
-            {t.text.casefold() for t in span if _refers(t) and not _resolved(t)}
+            {
+                t.text.casefold()
+                for t in span
+                if _refers(t, before) and not _resolved(t)
+            }
             | {t.text.casefold() for t in opening if _opens(t)}
         )
     )
@@ -1399,8 +1504,13 @@ def _untagged_claim(span: Doc | Span) -> bool:
     return any(token.tag_ in finite for token in span)
 
 
-def claim(text: str, language: str | None) -> Claim:
+def claim(text: str, language: str | None, before: str | None = None) -> Claim:
     """Reads what one written statement asserts.
+
+    `before` is what the passage said ahead of the sentences the statement
+    rests on, which a fact's check passes and no question gate does: it
+    decides whether `it` or `es` before a condition is the condition's
+    placeholder or names something said before.
 
     A statement the tagger read without a finite verb still counts as one
     claim when its root verb has a subject, or a word of it carries a finite
@@ -1409,10 +1519,11 @@ def claim(text: str, language: str | None) -> Claim:
     passage is chunked into keep the tagger's own reading.
     """
     document = _read(text, language)
+    earlier = _read(before, language) if before is not None else None
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document),
-        references=_references(document),
+        references=_references(document, earlier),
         verbs=_verbs(document),
         figures=_figures(document),
     )

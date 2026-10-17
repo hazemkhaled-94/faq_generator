@@ -225,7 +225,7 @@ are written.
 | Content words and lemmas | `NOUN`, `PROPN`, `ADJ` |
 | A number, for the circularity exemption | `NUM` |
 | Pointing outward | `PronType=Dem`, and a noun with both a definite article (`Definite=Def`, or `PronType=Art` without `Definite=Ind`) and a quantifier (`NumType=Card`, or a determiner with `PronType=Ind`) |
-| A pronoun its own statement resolves, for `unresolved_reference` | `PronType=Prs`, and `Gender` and `Number` on it and on a noun before it outside its own clause, bounded by a `mark`/`cp` subordinator or an `advcl`/`relcl`/`acl`/`rc` attachment whose verb, or an auxiliary or copula under it, is finite; a subject or object label where neither carries them |
+| A pronoun its own statement resolves, for `unresolved_reference` | `PronType=Prs`, and `Gender` and `Number` on it and on a noun before it outside its own clause, bounded by a `mark`/`cp` subordinator or an `advcl`/`mo`/`relcl`/`acl`/`rc` attachment whose verb, or an auxiliary or copula under it, is finite, or on a noun of its own clause that is no subject or object when no finite verb carries the pronoun's; a subject or object label where neither carries them |
 | Everything measured on an embedding | `EMBEDDING_MODEL`, which is multilingual |
 | Every length, share and citation reading | no language at all |
 
