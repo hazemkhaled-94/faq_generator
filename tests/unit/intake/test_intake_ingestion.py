@@ -364,6 +364,36 @@ def test_deleting_one_document_leaves_the_other_alone() -> None:
     assert driver.holds_parsed(OTHER)
 
 
+def test_emptying_the_corpus_forgets_the_uploads_too() -> None:
+    """A status panel reporting attempts for documents nothing holds."""
+    driver = RemovalDriver(held=(SHA, OTHER))
+    driver.rows.record_attempt("rules.pdf", 3, Outcome.STORED, None, SHA)
+
+    driver.delete_every()
+
+    assert driver.rows.documents == {}
+    assert driver.rows.events == []
+
+
+def test_a_wipe_that_cannot_move_an_object_keeps_the_upload_history(
+    monkeypatch,
+) -> None:
+    """Every document left behind keeps the name it was uploaded under."""
+    driver = RemovalDriver(held=(SHA,))
+    driver.rows.record_attempt("rules.pdf", 3, Outcome.STORED, None, SHA)
+    monkeypatch.setattr(
+        driver.archive,
+        "take",
+        lambda origin, key: (_ for _ in ()).throw(OSError("the store went away")),
+    )
+
+    with pytest.raises(OSError, match="went away"):
+        driver.delete_every()
+
+    assert list(driver.rows.documents) == [SHA]
+    assert [one["filename"] for one in driver.rows.events] == ["rules.pdf"]
+
+
 def test_dropping_the_derived_data_keeps_the_document_and_both_objects() -> None:
     """The next run rebuilds the passages without re-parsing."""
     driver = RemovalDriver(held=(SHA,), passages=4)

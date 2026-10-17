@@ -392,6 +392,15 @@ class DocumentRows:
         """Removes these document rows at once."""
         return {sha256: self.delete(sha256) for sha256 in digests}
 
+    def digests(self) -> list[str]:
+        """Every stored document's digest, in digest order."""
+        return sorted(self.documents)
+
+    def forget_uploads(self) -> int:
+        """Drops the upload history."""
+        forgotten, self.events = len(self.events), []
+        return forgotten
+
     def delete_derived(self, sha256: str) -> int:
         """Drops a document's passages and returns chunk_status to `new`."""
         self.chunk_status[sha256] = Status.NEW
@@ -552,6 +561,10 @@ class RemovalDriver:
     def delete_derived(self, sha256: str):
         """Drops only what the pipeline built from it."""
         return self.service.delete_derived(sha256)
+
+    def delete_every(self):
+        """Empties the corpus."""
+        return self.service.delete_every()
 
     def holds_file(self, sha256: str) -> bool:
         """Whether the uploaded file is still there."""

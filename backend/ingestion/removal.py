@@ -107,7 +107,8 @@ class RemovalService:
         The upload history goes too. It survives a single deletion on purpose
         - it records what was attempted rather than what is held - but an
         empty corpus reporting upload attempts is a status panel describing
-        documents nothing has. It goes first.
+        documents nothing has. It goes last, so a move that fails leaves
+        every document with the name and date it was uploaded under.
 
         Every object is moved first and every row then goes in one
         statement, so a question resting on two documents is deleted whole
@@ -116,13 +117,13 @@ class RemovalService:
         Returns:
             What was removed, one entry per document.
         """
-        events = self._repository.forget_uploads()
         taken = {
             digest: objects
             for digest in self._repository.digests()
             if (objects := self._take_objects(digest)) is not None
         }
         passages = self._repository.delete_all(list(taken))
+        events = self._repository.forget_uploads()
         removed = [
             self._removed(digest, passages.get(digest, 0), *objects)
             for digest, objects in taken.items()

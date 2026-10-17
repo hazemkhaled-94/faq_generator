@@ -275,3 +275,30 @@ def test_the_upload_record_survives_a_deletion(service, held, database, engine) 
             connection.execute(text("SELECT count(*) FROM ingest_events")).scalar_one()
             == 1
         )
+
+
+def test_a_wipe_that_cannot_move_an_object_keeps_the_upload_history(
+    service, held, engine, monkeypatch
+) -> None:
+    """Only the history names a document and dates it, so it goes last."""
+    from botocore.exceptions import ClientError
+    from seed import event
+
+    with Session(engine) as session:
+        session.add(event(sha256=held))
+        session.commit()
+
+    def refused(origin: str, key: str) -> bool:
+        raise ClientError({"Error": {"Code": "SlowDown"}}, "CopyObject")
+
+    monkeypatch.setattr(service._archive, "take", refused)
+
+    with pytest.raises(ClientError):
+        service.delete_every()
+
+    with engine.connect() as connection:
+        assert (
+            connection.execute(text("SELECT count(*) FROM ingest_events")).scalar_one()
+            == 1
+        )
+    assert counts(engine)["documents"] == 1

@@ -82,6 +82,10 @@ row last.
 `delete_derived` drops only the passages and what cascades from them, and
 returns `chunk_status` to `new`. Both objects stay.
 
+`delete_every`, behind `make wipe`, does what `delete` does to every
+document and then drops the `ingest_events` rows too. Those go last, so a
+move that fails leaves every document still held with its name and date.
+
 Neither destroys anything: the rows are copied into `archived_rows` by an
 AFTER DELETE trigger and the objects are **moved** to the `archive` bucket.
 See [`archive/`](../archive/README.md).
