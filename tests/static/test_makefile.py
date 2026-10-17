@@ -153,7 +153,9 @@ def test_a_deletion_refuses_before_it_deletes(target: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("given", "guarded"), [((), True), (("TOPIC=7",), False)], ids=["whole-queue", "narrowed"]
+    ("given", "guarded"),
+    [((), True), (("TOPIC=7",), False)],
+    ids=["whole-queue", "narrowed"],
 )
 @pytest.mark.parametrize(
     ("target", "worker"),
@@ -221,7 +223,9 @@ def test_a_command_line_value_is_named_for_the_store_to_give_way_to() -> None:
     ids=["what-an-address-is-built-of", "the-address-itself"],
 )
 @pytest.mark.parametrize(
-    "target", [("settings", "SERVICE=platform"), ("review-status",)], ids=["LOADENV", "WITH"]
+    "target",
+    [("settings", "SERVICE=platform"), ("review-status",)],
+    ids=["LOADENV", "WITH"],
 )
 def test_a_command_line_value_is_exported_before_the_derived_addresses(
     tmp_path: Path, target: tuple[str, ...], given: str, address: str
