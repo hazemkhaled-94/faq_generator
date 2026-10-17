@@ -129,19 +129,76 @@ def test_an_unreachable_phoenix_does_not_fail_the_run() -> None:
     assert held.flush() == 0
 
 
-def test_it_stops_trying_after_the_first_failure() -> None:
-    """A Phoenix that is down stays down for the length of a run.
-
-    One warning, not one per hundred questions, which is the log nobody
-    reads.
-    """
+def test_it_stops_trying_for_a_while_after_a_failure() -> None:
+    """A Phoenix that is down is rarely up again by the next batch."""
     held = Evaluations(BASE, batch=1)
     held.record(_verdict())
 
-    assert not held.enabled, "it should have given up after the first failure"
+    assert not held.enabled, "it should have given up after the failure"
 
     held.record(_verdict())
     assert held.flush() == 0
+
+
+class _Phoenix:
+    """A Phoenix that is down until a test brings it back."""
+
+    def __init__(self) -> None:
+        """Down, and posted nothing."""
+        self.up = False
+        self.posted: list[int] = []
+        self.spans = self
+
+    def log_span_annotations(self, span_annotations) -> None:
+        """Takes the batch, or refuses it."""
+        if not self.up:
+            raise ConnectionError("connection refused")
+        self.posted.append(len(span_annotations))
+
+
+@pytest.fixture
+def outage(monkeypatch):
+    """Evaluations posting to a `_Phoenix`, on a clock the test moves."""
+    from telemetry import evaluations
+
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(evaluations.time, "monotonic", lambda: clock["now"])
+    phoenix = _Phoenix()
+    held = Evaluations(BASE, batch=1)
+    monkeypatch.setattr(held, "_connect", lambda: phoenix)
+    warned: list[str] = []
+    monkeypatch.setattr(evaluations.log, "warning", lambda msg, *a: warned.append(msg))
+    return held, phoenix, clock, warned
+
+
+def test_annotations_resume_after_phoenix_comes_back(outage) -> None:
+    """A watch worker lives for days, and Phoenix restarts in seconds."""
+    held, phoenix, clock, _ = outage
+    held.record(_verdict())
+
+    clock["now"] += 301
+    phoenix.up = True
+    held.record(_verdict())
+
+    assert phoenix.posted == [1]
+
+
+def test_an_outage_is_warned_about_once(outage) -> None:
+    """Not once per attempt, which is the log nobody reads; again after one."""
+    held, phoenix, clock, warned = outage
+    held.record(_verdict())
+    clock["now"] += 301
+    held.record(_verdict())
+
+    assert len(warned) == 1
+
+    clock["now"] += 301
+    phoenix.up = True
+    held.record(_verdict())
+    phoenix.up = False
+    held.record(_verdict())
+
+    assert len(warned) == 2
 
 
 def test_a_batch_is_held_until_it_is_full(monkeypatch) -> None:

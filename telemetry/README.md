@@ -251,8 +251,9 @@ than a quiet one.
 
 **A span and an annotation are both dropped when Phoenix is down.** The
 exporter discards what it cannot send; `evaluations.py` drops the batch it
-held, warns once and posts nothing more for the rest of the run. The verdict
-is in Postgres either way.
+held, warns once per outage and posts nothing for five minutes, then tries
+again, so a watch worker's annotations resume after Phoenix restarts. The
+verdict is in Postgres either way.
 
 ## Verdicts
 
@@ -368,7 +369,7 @@ poetry run pytest tests/unit/telemetry
 | File | Covers |
 |---|---|
 | [`test_logs.py`](../tests/unit/telemetry/test_logs.py) | The JSON line the shipper reads: the ECS names, the bound fields, and an exception written whole |
-| [`test_evaluations.py`](../tests/unit/telemetry/test_evaluations.py) | The annotation a verdict becomes, the address it is posted to, and a run surviving a Phoenix that is down |
+| [`test_evaluations.py`](../tests/unit/telemetry/test_evaluations.py) | The annotation a verdict becomes, the address it is posted to, a run surviving a Phoenix that is down, and posting again once it is back |
 | [`test_traces.py`](../tests/unit/telemetry/test_traces.py) | That only a run exports, under the project its name gives it, and only the logic is instrumented |
 | [`test_projects.py`](../tests/unit/telemetry/test_projects.py) | Which Phoenix projects a prune takes back, and which it keeps |
 | [`test_dashboards.py`](../tests/static/test_dashboards.py) | The provisioned dashboards against the datasources and fields that serve them |

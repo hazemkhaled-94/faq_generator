@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -56,6 +57,11 @@ API_KEY = ("PHOENIX_API_KEY", "PHOENIX_ADMIN_SECRET")
 #: How many annotations are held before they are posted. One HTTP call per
 #: question would cost more than the gate it is recording.
 BATCH = 100
+
+#: How long after a post fails before one is tried again. Verdicts recorded
+#: meanwhile are dropped, as the batch that failed is: they are annotations,
+#: and every one of them is in the database.
+_RETRY_SECONDS = 300.0
 
 
 @dataclass(frozen=True)
@@ -134,7 +140,12 @@ class Evaluations:
         self._batch = max(batch, 1)
         self._held: list[dict[str, Any]] = []
         self._client: Any = None
+        #: No client package, which no wait mends.
         self._broken = False
+        #: When a post may be tried again after one failed, on the
+        #: monotonic clock, and whether this outage has been warned about.
+        self._retry_at = 0.0
+        self._warned = False
         if not self._base_url:
             # The one failure with no other symptom: an unreachable Phoenix
             # warns from flush, and no address at all warned from nowhere.
@@ -146,8 +157,12 @@ class Evaluations:
 
     @property
     def enabled(self) -> bool:
-        """Whether there is anywhere to post to."""
-        return bool(self._base_url) and not self._broken
+        """Whether there is anywhere to post to, and it is worth trying now."""
+        return (
+            bool(self._base_url)
+            and not self._broken
+            and time.monotonic() >= self._retry_at
+        )
 
     def record(self, *verdicts: Verdict) -> None:
         """Holds some verdicts, posting once enough have piled up."""
@@ -173,18 +188,22 @@ class Evaluations:
         try:
             connected.spans.log_span_annotations(span_annotations=held)
         except Exception as exc:  # noqa: BLE001 - any failure is the same answer
-            # Once, not once per batch. A Phoenix that is down stays down
-            # for the length of a run, and a warning per hundred questions
-            # is the log nobody reads.
-            self._broken = True
-            log.warning(
-                "could not record %d verdict(s) in Phoenix, and will not try "
-                "again this run: %s: %s. The verdicts are in the database.",
-                len(held),
-                type(exc).__name__,
-                exc,
-            )
+            # Not tried again for a while, rather than never: a watch worker
+            # outlives a Phoenix restart by days. Warned once per outage,
+            # not once per batch, which is the log nobody reads.
+            self._retry_at = time.monotonic() + _RETRY_SECONDS
+            if not self._warned:
+                self._warned = True
+                log.warning(
+                    "could not record %d verdict(s) in Phoenix, and will try "
+                    "again in %.0f min: %s: %s. The verdicts are in the database.",
+                    len(held),
+                    _RETRY_SECONDS / 60,
+                    type(exc).__name__,
+                    exc,
+                )
             return 0
+        self._warned = False
         log.debug("recorded %d verdict(s) in Phoenix", len(held))
         return len(held)
 
