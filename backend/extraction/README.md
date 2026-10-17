@@ -65,13 +65,16 @@ A passage is skipped, and marked read with nothing found, when:
   line, a bare list fragment;
 - it carries a **copyright notice** — it is about the document;
 - it reads as **an index, a bibliography or a contents page** — long for the
-  claims it carries, and dense with digits. The shares are
-  `_CHARS_PER_CLAIM` and `_NUMERIC_WORDS` in [`service.py`](service.py).
+  claims and list items it carries, and dense with digits. The shares are
+  `_CHARS_PER_CLAIM` and `_NUMERIC_WORDS` in [`service.py`](service.py). A
+  list item counts as a claim, so a price list is read.
 
 A table is exempt from the last four, because it is read from its cell grid.
 It is not exempt from one more: a grid whose filled cells are more than half
-identifiers — `TA-BO1`, `K2`, `1.7`, a tick — states nothing a reader would
-look up. The share is `_CODE_CELLS` in [`service.py`](service.py).
+identifiers — `TA-BO1`, `K2`, `TM-2.2.1`, a tick — states nothing a reader
+would look up. A bare figure, `5` or `12.50`, is a value and no identifier,
+so a fee table is read. The share is `_CODE_CELLS` in
+[`service.py`](service.py).
 
 ### Step 3 — Read the claims
 

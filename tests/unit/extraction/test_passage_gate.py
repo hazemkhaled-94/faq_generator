@@ -152,6 +152,34 @@ def test_a_bullet_list_of_content_is_not_skipped() -> None:
     assert skipped(objectives) is None
 
 
+def test_a_priced_bullet_list_is_not_an_index() -> None:
+    """A price list carries a figure in every item, and each item is a claim.
+
+    Sparse in finite verbs because its items are labels and prices, so its
+    room is counted in items as well as in claims, as the cap counts it.
+    """
+    prices = passage(
+        "Für Bestellungen gelten folgende Versandkosten:\n"
+        "- Standardversand innerhalb Deutschlands: 4,95 EUR\n"
+        "- Expressversand innerhalb Deutschlands: 9,95 EUR\n"
+        "- Versand nach Österreich: 7,95 EUR\n"
+        "- Versand in die Schweiz: 14,95 EUR\n"
+        "- Versand in die übrigen EU-Länder: 12,95 EUR\n"
+        "- Sperrgut innerhalb Deutschlands: 29,95 EUR\n"
+        "- Sperrgut nach Österreich: 39,95 EUR\n"
+        "- Abholung in einer Filiale: kostenlos\n"
+        "- Rücksendung innerhalb von 30 Tagen: kostenlos\n"
+        "- Geschenkverpackung je Artikel: 2,50 EUR\n"
+        "- Nachnahmegebühr: 6,00 EUR\n"
+        "- Inselzuschlag: 15,00 EUR",
+        language="de",
+    )
+
+    assert prices.claims >= 1, "the lead-in asserts something"
+    assert len(prices.text) > 500
+    assert skipped(prices) is None
+
+
 def test_prose_carrying_a_reference_is_not_skipped() -> None:
     """One citation in a sentence does not make the sentence a bibliography."""
     prose = passage(
@@ -193,6 +221,19 @@ def test_a_grid_of_identifiers_is_skipped() -> None:
     )
 
     assert skipped(matrix) == "a grid of identifiers rather than of statements"
+
+
+def test_a_fee_table_of_figures_is_read() -> None:
+    """A price is a value, not an identifier: a fee schedule is what it states."""
+    fees = passage(
+        "| Account | Monthly fee | Card fee |",
+        block_type="table",
+        table_cells=_grid(
+            "Basic account", "0", "0.50", "Current account", "5", "12.50"
+        ),
+    )
+
+    assert skipped(fees) is None
 
 
 def test_a_table_whose_cells_say_something_is_still_read() -> None:

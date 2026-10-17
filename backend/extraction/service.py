@@ -664,10 +664,11 @@ _HAS_DIGIT = re.compile(r"\d")
 
 #: A cell holding an identifier rather than a statement: a learning-objective
 #: code, a level, a tick. Anchored, so a cell containing one of these among
-#: words is not one.
+#: words is not one. A number carries letters before it to be one: a bare
+#: figure, `5` or `12.50`, is a value a fee or price table states.
 _CODE_CELL = re.compile(
     r"""^(?:
-        [^\W\d_]{0,6}[-. ]?\d+(?:\.\d+)*   # TM-2.2.1, Abschnitt 4, 1.7
+        [^\W\d_]{1,6}[-. ]?\d+(?:\.\d+)*   # TM-2.2.1, Abschnitt 4
       | [A-Z]{1,5}-?[A-Z]*\d+              # TA-BO1, FL4
       | [XxKk]\d?                          # K2, X
       | [✓✗X-]                   # tick, cross, dash
@@ -705,11 +706,13 @@ def _reference_list(passage: PassageToExtract) -> bool:
     Both halves, because either alone is wrong. Sparse-in-claims catches a
     content bullet list; numeric-in-words catches a passage that is simply
     about measurements. An index, a bibliography and a contents page are
-    the only things that are both.
+    the only things that are both. A list item counts as a claim, as the
+    cap counts it, so a price list stating a figure on every line is not
+    sparse.
     """
     text = normalised(passage.text)
     words = text.split()
-    if not words or len(text) <= _CHARS_PER_CLAIM * passage.claims:
+    if not words or len(text) <= _CHARS_PER_CLAIM * (passage.claims + passage.items):
         return False
     numeric = sum(1 for one in words if _HAS_DIGIT.search(one)) / len(words)
     return numeric > _NUMERIC_WORDS
