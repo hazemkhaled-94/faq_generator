@@ -24,9 +24,10 @@ a local runtime supports; a hosted provider may want `TOOLS`. Getting it wrong i
 Retried here and nowhere else, up to `LLM_MAX_ATTEMPTS` attempts: a
 connection error, a timeout, an internal server error, a
 service-unavailable, a rate limit, and an answer that would not validate.
-litellm and the provider's SDK are asked for no retries of their own. An
-authentication failure, an unknown model or a malformed schema is raised at
-once.
+litellm, the provider's SDK and instructor are asked for no retries of their
+own, so an attempt is one billed call and `LLM_MAX_ATTEMPTS` is every call an
+answer may cost. An authentication failure, an unknown model or a malformed
+schema is raised at once.
 
 **A rate limit waits as long as its `Retry-After` asks.** A hosted provider
 answers 429 with a `Retry-After` of twenty to sixty seconds; every other
@@ -188,6 +189,7 @@ poetry run pytest tests/unit/llm
 | File | Covers |
 |---|---|
 | [`test_client.py`](../../tests/unit/llm/test_client.py) | Asking a served model, and what happens when it will not answer: which failures are retried, which are raised, and what the span carries |
+| [`test_check.py`](../../tests/unit/llm/test_check.py) | The preflight a worker runs before it claims anything: one call, and a refusal naming the model |
 | [`test_overridden.py`](../../tests/unit/llm/test_overridden.py) | One stage calling a different model, and that only the model moves, bar the address on a change of provider |
 | [`test_prompt_fill.py`](../../tests/unit/llm/test_prompt_fill.py) | Filling a prompt template, where a value may carry a placeholder too |
 

@@ -4,8 +4,8 @@ Only a transient failure is worth another attempt: retrying a bad model name
 or a malformed schema costs the backoff on every call and buries the error.
 
 A rate limit is retried here too, waiting as long as its Retry-After asks.
-litellm and the provider's SDK are asked for no retries of their own, so
-LLM_MAX_ATTEMPTS is the whole budget.
+litellm, the provider's SDK and instructor are asked for no retries of their
+own, so LLM_MAX_ATTEMPTS is the whole budget.
 """
 
 from __future__ import annotations
@@ -354,17 +354,18 @@ def test_a_self_hosted_model_is_left_its_own_default_too() -> None:
 def test_a_timeout_is_tried_as_often_as_the_setting_says_and_no_more(
     monkeypatch,
 ) -> None:
-    """Neither litellm nor the SDK below it is asked for retries of its own.
+    """Neither litellm, the SDK below it nor instructor retries on its own.
 
-    Each of them retried a timeout too, so one stuck call cost the setting's
-    attempts times theirs, each a full timeout long.
+    Each of the first two retried a timeout too, so one stuck call cost the
+    setting's attempts times theirs, each a full timeout long. instructor
+    re-asks an answer it cannot parse, three times unless told not to.
     """
     client = Client(settings(max_attempts=3))
-    asked: list[int] = []
+    asked: list[tuple] = []
 
     def timing_out(**kwargs):
         """Never answers in time."""
-        asked.append(kwargs["num_retries"])
+        asked.append((kwargs["num_retries"], kwargs.get("max_retries")))
         raise transient()
 
     client._client.chat.completions.create_with_completion = timing_out
@@ -372,7 +373,7 @@ def test_a_timeout_is_tried_as_often_as_the_setting_says_and_no_more(
     with pytest.raises(ModelUnavailable, match="Timeout"):
         client.answer(system="s", user="u", shape=Shape)
 
-    assert asked == [0, 0, 0]
+    assert asked == [(0, 0)] * 3
 
 
 def test_a_rate_limit_waits_as_long_as_the_provider_asks(monkeypatch) -> None:
@@ -711,3 +712,79 @@ def test_an_empty_answer_is_passed_through(content) -> None:
         None,
         "",
     )
+
+
+# ── Asked through instructor, of a provider faked behind litellm ──────────
+#
+# The tests above replace `_ask`, which skips instructor and with it how a
+# failure arrives here. These replace `litellm.completion` instead, so the
+# calls counted are the calls a provider would bill.
+
+
+def reply(
+    content: str | None, finish: str = "stop", prompt: int = 1000, out: int = 100
+):
+    """One billed response, the way litellm returns it."""
+    return litellm.ModelResponse(
+        model="azure/gpt-4.1",
+        choices=[
+            {
+                "index": 0,
+                "finish_reason": finish,
+                "message": {"role": "assistant", "content": content},
+            }
+        ],
+        usage={
+            "prompt_tokens": prompt,
+            "completion_tokens": out,
+            "total_tokens": prompt + out,
+        },
+    )
+
+
+#: What litellm is made to price every response at.
+PRICE = 0.0028
+
+
+class Provider:
+    """`litellm.completion`, answering in turn and keeping what it was asked.
+
+    The last answer repeats, so one answer is every answer.
+    """
+
+    def __init__(self, *answers) -> None:
+        """Holds the answers, and no call yet."""
+        self.answers = answers
+        self.calls: list[dict] = []
+
+    def __call__(self, *args, **kwargs):
+        """Answers the next call, or raises what it was given to raise."""
+        self.calls.append(kwargs)
+        answer = self.answers[min(len(self.calls), len(self.answers)) - 1]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+def provider(monkeypatch, *answers) -> Provider:
+    """Puts a provider behind litellm, priced at PRICE, with no wait slept."""
+    served = Provider(*answers)
+    monkeypatch.setattr(litellm, "completion", served)
+    monkeypatch.setattr(litellm, "completion_cost", lambda **_: PRICE)
+    monkeypatch.setattr("tenacity.nap.time.sleep", lambda _: None)
+    return served
+
+
+@pytest.mark.parametrize("attempts", [1, 3])
+def test_a_bad_answer_is_asked_for_as_often_as_the_setting_says(
+    monkeypatch, attempts
+) -> None:
+    """One attempt is one billed call, and LLM_MAX_ATTEMPTS is all of them."""
+    served = provider(monkeypatch, reply("not json"))
+
+    with pytest.raises(ModelUnavailable):
+        Client(settings(max_attempts=attempts)).answer(
+            system="s", user="u", shape=Shape
+        )
+
+    assert len(served.calls) == attempts

@@ -33,11 +33,11 @@ log = logging.getLogger(__name__)
 _NEAR_WINDOW = 0.8
 
 #: Failures worth another attempt here, and the only retries there are: the
-#: call asks litellm and the provider's SDK for none. An authentication
-#: failure, an unknown model, a refused prompt or a malformed request is none
-#: of these and is raised at once. A rate limit waits as long as its
-#: Retry-After asks; see `_waited`. An `InstructorRetryException` is here
-#: because a schema the model failed to fill is worth asking again, but
+#: call asks litellm, the provider's SDK and instructor for none. An
+#: authentication failure, an unknown model, a refused prompt or a malformed
+#: request is none of these and is raised at once. A rate limit waits as long
+#: as its Retry-After asks; see `_waited`. An `InstructorRetryException` is
+#: here because a schema the model failed to fill is worth asking again, but
 #: instructor also wraps what the provider refused, and `_retryable` takes
 #: those back out.
 _TRANSIENT = (
@@ -407,6 +407,10 @@ class Client:
             # keyword into the SDK's max_retries, and 0 also skips its own
             # retry wrapper, each of which retried a timeout in full.
             num_retries=0,
+            # instructor's own re-asks, three by default: each is a billed
+            # call inside one attempt here, so LLM_MAX_ATTEMPTS was not the
+            # budget it says it is.
+            max_retries=0,
             # Omitted when unset: a provider with its own address would be
             # sent to the wrong one by a base URL meant for Ollama.
             **(
