@@ -1777,6 +1777,14 @@ def test_a_key_time_the_passages_do_not_give_is_not_asserted() -> None:
     assert asserted("08:00", ["Die Filiale öffnet um 08:00 Uhr."], "de")
 
 
+def test_a_time_with_or_without_its_leading_zero_is_one_time() -> None:
+    """`08:00` is `8:00` and the `8 Uhr` a reply may say, and still not `09:00`."""
+    assert asserted("08:00 Uhr", ["Die Filiale öffnet um 8:00 Uhr."], "de")
+    assert agrees("Die Filiale öffnet um 8:00 Uhr.", "08:00 Uhr", "de")
+    assert agrees("um 8 Uhr", "08:00 Uhr", "de")
+    assert not agrees("um 9:00 Uhr", "08:00 Uhr", "de")
+
+
 def test_a_count_written_out_is_still_a_different_number_from_another() -> None:
     """`de_core_news_md` gives `zehn` no `like_num`, so it is read as a count."""
     assert not agrees("11 Sekunden", "zehn Sekunden", "de", AnswerForm.VALUE)

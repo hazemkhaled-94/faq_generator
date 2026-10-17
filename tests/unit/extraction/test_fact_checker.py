@@ -712,6 +712,20 @@ def test_a_time_the_evidence_does_not_give_is_an_addition() -> None:
     assert stated.validated, stated.validation_error
 
 
+@pytest.mark.parametrize(
+    ("evidence", "statement"),
+    [
+        ("The branch opens at 8:00.", "The branch opens at 08:00."),
+        ("The branch opens at 08:00.", "The branch opens at 8:00."),
+    ],
+)
+def test_a_leading_zero_is_no_addition(evidence, statement) -> None:
+    """`08:00` and `8:00` are one time: a figure's digits are read as numbers."""
+    judged = Checker(passage(evidence)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
 def test_a_lead_in_figure_is_supported_only_when_cited() -> None:
     """A figure restated from a lead-in is the lead-in's to support."""
     read = passage(

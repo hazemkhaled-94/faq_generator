@@ -101,7 +101,17 @@ def _folded(token: str, language: str | None) -> str:
     `123`.
 
     A count written out is `_written`'s, which reads the parse.
+
+    A time is read group by group, each as the number it is, so `08:00` is
+    `8:00`; and a group of zeros closing it adds nothing, as `,00` adds
+    nothing to `8,00`, so it is also the 8 that `um 8 Uhr` states. `09:00`
+    is still neither.
     """
+    if _CLOCK.fullmatch(token):
+        groups = [float(group) for group in token.split(":")]
+        while len(groups) > 1 and not groups[-1]:
+            groups.pop()
+        return ":".join(map(repr, groups))
     if _FIGURE.fullmatch(token) is None:
         return token
     found = figures(token, language)
@@ -2139,6 +2149,9 @@ _FIGURE = re.compile(
     r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
 )
+
+#: A time or a score as one token: groups of digits a colon joins.
+_CLOCK = re.compile(r"\d+(?::\d+)+")
 
 #: The most figures a sum is searched over, and the most terms in one. The
 #: search is every combination of up to this many, so both are what keeps it

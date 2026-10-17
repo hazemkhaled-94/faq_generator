@@ -411,6 +411,9 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: or written as a time - `08:00` - is still a number.
 _DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 
+#: The zeros a run of digits opens with, which are no part of its value.
+_PADDING = re.compile(r"^0+(?=\d)")
+
 #: The parts of speech a number word is tagged with when it is one: a count,
 #: or an ordinal, which taggers read as an adjective. A word spelled like a
 #: number and used otherwise - the verb `achten`, `Elf` naming a team, `one`
@@ -452,13 +455,17 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
 
 
 def numerals(text: str, language: str | None) -> frozenset[str]:
-    """The digit runs and number-word values a text carries, in any spelling."""
+    """The digit runs and number-word values a text carries, in any spelling.
+
+    A run is read as the number it is, its leading zeros dropped, so
+    `08:00` carries the 8 and the 0 that `8:00` does and `09:00` does not.
+    """
     document = _read(text, language)
     spelled = _NUMBER_WORDS.get(document.lang_, {})
     found: set[str] = set()
     for token in document:
         if digits := _DIGITS.findall(token.text):
-            found.update(digits)
+            found.update(_PADDING.sub("", one) for one in digits)
         elif token.pos_ in _NUMERAL and token.text.casefold() in spelled:
             found.add(spelled[token.text.casefold()])
     return frozenset(found)
