@@ -485,6 +485,35 @@ def test_a_sentence_cut_by_a_page_break_is_read_whole() -> None:
     ), texts
 
 
+@pytest.mark.parametrize(
+    ("before", "after", "whole"),
+    [
+        (
+            "Die monatliche Kontofüh-",
+            "rungsgebühr beträgt fünf Euro.",
+            "Die monatliche Kontoführungsgebühr beträgt fünf Euro.",
+        ),
+        (
+            "Es gilt das Zoll-",
+            "und Steuerrecht des Landes.",
+            "Es gilt das Zoll- und Steuerrecht des Landes.",
+        ),
+    ],
+    ids=["a broken word", "a shared suffix"],
+)
+def test_a_word_hyphenated_across_a_page_is_one_word(
+    before: str, after: str, whole: str
+) -> None:
+    """The page broke the word; a hyphen a joining word completes stays."""
+    document = paged(2)
+    say(document, 1, before)
+    say(document, 2, after)
+
+    texts = [text for text, _ in trails(document)]
+
+    assert texts == [whole], texts
+
+
 def test_two_blocks_in_one_column_of_a_page_are_not_joined() -> None:
     """A break the page does not force is the document's own."""
     document = paged(1)

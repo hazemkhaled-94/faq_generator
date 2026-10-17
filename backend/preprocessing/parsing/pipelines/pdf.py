@@ -34,6 +34,7 @@ from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.table.table_data import TableCell
 from docling_core.types.doc.labels import DocItemLabel
 
+from nlp.text import rejoined
 from preprocessing.parsing.models import Conversion, SourceDocument
 from preprocessing.parsing.pipelines.base import ConversionFailed, Pipeline
 
@@ -48,23 +49,6 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 #: Zero-width marks.
 _INVISIBLE = re.compile(r"[\u200b-\u200d\u2060\ufeff]")
-
-#: The words that complete a hanging hyphen, as in "Zoll- und Steuerrecht".
-_JOINING = (
-    "und|oder|bzw|sowie|beziehungsweise|als|noch|bis|u|resp|vs|versus|statt|wie"
-    "|and|or|nor|to"
-)
-
-#: A word the page broke across two lines with a real hyphen: a hyphen after
-#: a letter and before a lower-case continuation, unless a word in
-#: `_JOINING` follows it.
-#:
-#: ponytail: punctuation alone cannot separate a broken word from two ratings
-#: written side by side in one cell ("Mittel- niedrig"). Telling those apart
-#: needs a character language model or the geometry of the cells either side.
-_BROKEN_WORD = re.compile(
-    rf"(?<=[A-Za-z\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df])-\s+(?!(?:{_JOINING})\b)(?=[a-z\u00e4\u00f6\u00fc\u00df])"
-)
 
 #: Every space that is not U+0020.
 _SPACES = re.compile(r"[\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]")
@@ -270,7 +254,7 @@ def _mend(text: str) -> str:
     )
     # After the space normalisation, so the broken-word rule sees one kind of
     # space.
-    return _BROKEN_WORD.sub("", cleaned)
+    return rejoined(cleaned)
 
 
 def _repaired(document: DoclingDocument) -> DoclingDocument:
@@ -397,7 +381,7 @@ def _unwrapped(table: TableItem) -> None:
             and first is not None
             and first.text.strip()[:1].islower()
         ):
-            first.text = f"{cells[0].text.strip()} {first.text.strip()}"
+            first.text = rejoined(f"{cells[0].text.strip()} {first.text.strip()}")
             gone.add(row)
     for row in order[1:]:
         if row in gone or _kept(row, gone) in held:
@@ -417,7 +401,9 @@ def _unwrapped(table: TableItem) -> None:
         ):
             continue
         for col, cell in filled.items():
-            above[col].text = f"{above[col].text.rstrip()} {cell.text.strip()}"
+            above[col].text = rejoined(
+                f"{above[col].text.rstrip()} {cell.text.strip()}"
+            )
         gone.add(row)
     if not gone:
         return

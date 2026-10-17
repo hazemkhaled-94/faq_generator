@@ -17,7 +17,7 @@ from docling_core.types.doc.document import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 
-from preprocessing.parsing.pipelines.pdf import _tabled
+from preprocessing.parsing.pipelines.pdf import _repaired, _tabled
 
 
 def on(page: int) -> ProvenanceItem:
@@ -121,6 +121,26 @@ def test_a_cell_wrapped_onto_a_row_of_its_own_rejoins_the_row_above() -> None:
         [
             ["Offence", "Restart"],
             ["Encroachment", "a free kick taken from where it happened"],
+        ]
+    ]
+
+
+def test_a_cell_wrapped_at_a_hyphen_is_one_word() -> None:
+    """The line break the hyphen marked is mended once the halves are joined."""
+    document = paged(1)
+    document.add_table(
+        data=grid(
+            ("Leistung", "Entgelt"),
+            ("Girokonto", "monatlich, inklusive Kontofüh-"),
+            ("", "rungsentgelt 4,90 EUR"),
+        ),
+        prov=on(1),
+    )
+
+    assert rows(_tabled(_repaired(document))) == [
+        [
+            ["Leistung", "Entgelt"],
+            ["Girokonto", "monatlich, inklusive Kontoführungsentgelt 4,90 EUR"],
         ]
     ]
 

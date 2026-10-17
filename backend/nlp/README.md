@@ -109,6 +109,13 @@ sure it wants a gate to be. `NLI_ENTAILMENT_THRESHOLD` is that decision, and
 [`embedding.py`](embedding.py) is `sentence-transformers`, which reads the
 checkpoint's own `1_Pooling` config rather than assuming the mean.
 
+### Mending a broken word
+
+[`text.py`](text.py) rejoins a word a converter broke across two lines at a
+hyphen. Parsing runs it over every string it reads, and the table and page
+joins over each string they make of two, since the halves of a word a cell
+wrapped or a page broke meet only there. Mending twice changes nothing.
+
 ## Adding a language
 
 German and English are configured. Most readings are Universal Dependencies
@@ -156,6 +163,7 @@ language added there without its rows fails that test, naming each table.
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
 | `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence before a lower-case word or a figure | `ca.`, `approx.` |
+| `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 
@@ -249,6 +257,7 @@ poetry run pytest tests/unit/nlp -m nlp
 | [`test_language.py`](../../tests/unit/nlp/test_language.py) | Reading the language a passage is written in |
 | [`test_pointing.py`](../../tests/unit/nlp/test_pointing.py) | What a claim points at, and what it does not |
 | [`test_numbers.py`](../../tests/unit/nlp/test_numbers.py) | The numbers a statement states, a number word read as its value |
+| [`test_text.py`](../../tests/unit/nlp/test_text.py) | A word broken at a line hyphen made whole, a shared suffix kept, and mending twice the same as once |
 | [`test_references.py`](../../tests/unit/nlp/test_references.py) | When a German `es` is read as a correlate rather than a pronoun |
 | [`test_entailment.py`](../../tests/unit/nlp/test_entailment.py) | A verdict read off the label, and the refusal of a head that is not an NLI model's |
 | [`test_qa.py`](../../tests/unit/nlp/test_qa.py) | The span decode, the no-answer head, and the window that slides |

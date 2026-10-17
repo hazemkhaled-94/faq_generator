@@ -31,6 +31,7 @@ from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, Title
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.pipelines import languages, pipeline
+from nlp.text import rejoined
 
 log = logging.getLogger(__name__)
 
@@ -399,7 +400,8 @@ def tidied(
         target = into.get(first, first)
         joined, taken = _resolved(target, tidy), _resolved(second, tidy)
         if isinstance(joined, TextItem) and isinstance(taken, TextItem):
-            joined.text = f"{joined.text.rstrip()} {taken.text.lstrip()}"
+            # Mended after the join: a word the page broke meets its rest here.
+            joined.text = rejoined(f"{joined.text.rstrip()} {taken.text.lstrip()}")
             taken.content_layer = ContentLayer.FURNITURE
             into[second] = target
     titles: dict[str, tuple[str, ...]] = {}
