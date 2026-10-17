@@ -232,6 +232,36 @@ def test_a_long_answer_survives_the_round_trip() -> None:
     assert row["Answer"] == answer
 
 
+def test_text_that_starts_like_a_formula_is_written_as_text() -> None:
+    """Text from a document or a model is never a live formula in the file.
+
+    A string that starts with = is otherwise stored as a formula, which Excel
+    runs when the recipient opens the workbook. Kept as typed, character for
+    character, so the reader sees what the pipeline wrote.
+    """
+    from openpyxl import load_workbook
+
+    answer = '=HYPERLINK("http://x","y")'
+    book = load_workbook(
+        io.BytesIO(
+            workbook(
+                [stored(target_answer=answer)],
+                [cited(evidence_text="=1+1")],
+            )
+        )
+    )
+
+    found = [
+        cell
+        for sheet in book.worksheets
+        for row in sheet.iter_rows(min_row=2)
+        for cell in row
+        if isinstance(cell.value, str) and cell.value.startswith("=")
+    ]
+    assert {cell.value for cell in found} == {answer, "=1+1"}
+    assert {cell.data_type for cell in found} == {"s"}
+
+
 @pytest.mark.parametrize("value", [None, 1, True, "plain"])
 def test_an_ordinary_value_passes_through(value) -> None:
     """Only lists and over-long text are rewritten."""

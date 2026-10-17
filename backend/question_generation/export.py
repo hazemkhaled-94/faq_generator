@@ -325,11 +325,15 @@ def _summary(
 
 
 def _dress(sheet: Any, frame: pd.DataFrame) -> None:
-    """Freezes the headings, filters them, and sizes the columns.
+    """Freezes the headings, filters them, sizes the columns, keeps text text.
 
     Not decoration. A sheet whose headings scroll away is one nobody can
     read past the first screen, and the four long columns run to sixty
     characters and hide every column after them until they are wrapped.
+
+    openpyxl stores a string that starts with = as a formula, which Excel
+    runs when the workbook is opened, and every string here is a document's
+    or a model's. Typed back as text, it is shown as written.
     """
     sheet.freeze_panes = "A2"
     if len(frame):
@@ -343,6 +347,10 @@ def _dress(sheet: Any, frame: pd.DataFrame) -> None:
         if heading in _WRAPPED:
             for cell in sheet[letter][1:]:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
+    for row in sheet.iter_rows(min_row=2):
+        for cell in row:
+            if cell.data_type == "f":
+                cell.data_type = "s"
 
 
 def workbook(
