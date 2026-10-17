@@ -39,17 +39,20 @@ def extractor():
     if not os.environ.get("LLM_MODEL"):
         pytest.skip("LLM_MODEL is unset; no model to measure")
 
+    from extraction.config import Settings as ExtractionSettings
     from extraction.extractors.base import ExtractionFailed
-    from extraction.extractors.llm import LlmExtractor
-    from llm.client import Client, ModelUnavailable
+    from extraction.factory import build_reader, models
+    from llm.client import ModelUnavailable
     from llm.config import Settings
 
-    settings = Settings.load()
-    built = LlmExtractor(Client(settings))
+    # The reader a worker runs: EXTRACTION_MODEL, and the atomic cap.
+    shared, extraction = Settings.load(), ExtractionSettings.load()
+    reading, _ = models(extraction, shared)
+    built = build_reader(shared, extraction)
     try:
         built.extract(passage("The device weighs 4 kg.", language="en"))
     except (ModelUnavailable, ExtractionFailed) as exc:
-        pytest.fail(f"the model {settings.model} is not answering: {exc}")
+        pytest.fail(f"the model {reading.model} is not answering: {exc}")
     return built
 
 

@@ -313,19 +313,25 @@ def run(name: str, settings: Settings) -> str:
             f"experiment against it from the Phoenix UI if you want one."
         )
 
-    from extraction.extractors.llm import LlmExtractor
+    from extraction.config import Settings as ExtractionSettings
+    from extraction.factory import build_reader, models
     from extraction.validation import FactChecker
-    from llm.client import Client as ModelClient
     from llm.config import Settings as ModelSettings
 
-    model = ModelSettings.load()
+    # The reader a worker runs - EXTRACTION_MODEL and the atomic cap - and
+    # not the shared model uncapped, which no stage asks.
+    extraction = ExtractionSettings.load()
+    shared = ModelSettings.load()
+    model, _ = models(extraction, shared)
     log.info("scoring %s against %s", name, model.model)
 
     client = _client(settings)
     dataset = client.datasets.get_dataset(dataset=name)
     experiment = client.experiments.run_experiment(
         dataset=dataset,
-        task=_extraction_task(LlmExtractor(ModelClient(model)), FactChecker()),
+        task=_extraction_task(
+            build_reader(shared, extraction), FactChecker(extraction.digest_share)
+        ),
         evaluators={"recall": _recall, "precision": _precision},
         experiment_name=settings.run_name or f"extraction-{model.model}",
         experiment_description=(

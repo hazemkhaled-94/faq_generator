@@ -114,6 +114,12 @@ Not by an LLM judge. The checker is what decides whether a fact is kept in
 production, so a golden set scored by anything else measures something this
 pipeline does not use.
 
+Read by the reader a worker builds, for the same reason: `EXTRACTION_MODEL`
+where it is set, and the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out
+to, so the prompt scored is the capped one production sends. Scores recorded
+before that read the shared model uncapped and are not comparable with
+later ones.
+
 ### Two of the three sets are scored
 
 | Set | Scored | Because |
@@ -168,7 +174,7 @@ verdicts in [`telemetry/evaluations.py`](../telemetry/evaluations.py).
 | `EVAL_RUN_NAME` | [`configs/env/evaluation.env`](../configs/env/evaluation.env) | What a run is called. Unset names it after the model |
 | `PHOENIX_BASE_URL` | derived by the Makefile from `PHOENIX_PORT` in `configs/env/deployment.env` | Phoenix's HTTP API, as the host reaches it |
 | `PHOENIX_ADMIN_SECRET` | `.env` | At least 32 characters, including a digit and a lower-case letter |
-| `LLM_MODEL`, `LLM_BASE_URL` | `.env` | The model being scored |
+| `LLM_MODEL`, `LLM_BASE_URL` | `.env` | The model being scored, unless `EXTRACTION_MODEL` names extraction's own |
 
 `PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD` is applied only when Phoenix first
 creates its admin user.

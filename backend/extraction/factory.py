@@ -32,6 +32,16 @@ def models(
     return reading, shared.overridden(settings.digest_model)
 
 
+def build_reader(model: ModelSettings, settings: Settings) -> LlmExtractor:
+    """The passage reader a worker runs: EXTRACTION_MODEL's, and capped.
+
+    Here for what measures that reader, so it measures the one a worker
+    builds rather than one built beside it.
+    """
+    reading, _ = models(settings, model)
+    return LlmExtractor(Client(reading), settings.atomic_cap)
+
+
 def build_service(
     model: ModelSettings,
     settings: Settings | None = None,

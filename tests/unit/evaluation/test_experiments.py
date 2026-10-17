@@ -210,3 +210,86 @@ def test_the_phrasing_set_is_uploaded_with_its_labels_held_back() -> None:
     assert len(inputs) == len(outputs) == len(cases.PHRASING)
     assert set(inputs[0]) == {"question", "language"}
     assert set(outputs[0]) == {"names_its_source", "self_contained", "name"}
+
+
+class _Phoenix:
+    """A Phoenix client that records the experiment it was asked to run."""
+
+    def __init__(self) -> None:
+        """Asked nothing yet."""
+        self.datasets = self
+        self.experiments = self
+        self.ran: dict = {}
+
+    def get_dataset(self, dataset: str) -> object:
+        """Any dataset."""
+        return type("Dataset", (), {"id": "d"})()
+
+    def run_experiment(self, **asked) -> dict:
+        """Records the experiment rather than running it."""
+        self.ran = asked
+        return {"id": "e"}
+
+    def get_experiment_url(self, dataset_id: str, experiment_id: str) -> str:
+        """Where it would be read."""
+        return f"{dataset_id}/{experiment_id}"
+
+
+def test_the_extraction_experiment_scores_the_reader_production_builds(
+    monkeypatch,
+) -> None:
+    """EXTRACTION_MODEL's model and the atomic cap, as a worker reads with.
+
+    Scored on the shared model with no cap, the numbers measured a prompt
+    and a model the pipeline does not run.
+    """
+    from evaluation.config import Settings
+    from extraction import config
+    from llm import config as llm
+
+    shared = llm.Settings(
+        model="ollama/shared-model",
+        base_url="http://model.invalid",
+        structured_mode="JSON_SCHEMA",
+        temperature=0.0,
+        timeout_seconds=1.0,
+        max_attempts=1,
+        num_ctx=None,
+        reasoning_effort="off",
+    )
+    extraction = config.Settings(
+        kinds=frozenset({"atomic", "summary", "outline"}),
+        digest_share=0.6,
+        digest_min_chars=0,
+        min_other_share=0.2,
+        bridges_per_topic=5,
+        bridge_passages=2,
+        model="ollama/extraction-model",
+        digest_model=None,
+        duplicate_cosine=0.0,
+        duplicate_floor=0.75,
+        embedding_model="intfloat/multilingual-e5-large",
+        embedding_max_tokens=512,
+    )
+    monkeypatch.setattr(llm.Settings, "load", classmethod(lambda cls: shared))
+    monkeypatch.setattr(
+        config.Settings, "load", classmethod(lambda cls, source=None: extraction)
+    )
+    phoenix = _Phoenix()
+    monkeypatch.setattr(experiments, "_client", lambda settings: phoenix)
+    built: list = []
+    monkeypatch.setattr(
+        experiments,
+        "_extraction_task",
+        lambda extractor, checker: built.append((extractor, checker)),
+    )
+
+    experiments.run(
+        experiments.EXTRACTION, Settings("http://phoenix.invalid", "", None)
+    )
+
+    ((extractor, _),) = built
+    assert extraction.atomic_cap is not None
+    assert extractor._cap == extraction.atomic_cap
+    assert extractor._client.model == "ollama/extraction-model"
+    assert phoenix.ran["experiment_name"] == "extraction-ollama/extraction-model"
