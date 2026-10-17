@@ -52,12 +52,15 @@ telemetry.configure("orchestration")
 
 log = logging.getLogger(__name__)
 
-#: A run that has not finished.
+#: A run that has not finished. CANCELING is one being stopped, which goes
+#: on driving the queues until Dagster has torn it down; the api's `LIVE`
+#: counts it too.
 _GOING = [
     DagsterRunStatus.QUEUED,
     DagsterRunStatus.NOT_STARTED,
     DagsterRunStatus.STARTING,
     DagsterRunStatus.STARTED,
+    DagsterRunStatus.CANCELING,
 ]
 
 #: A run that ended without finishing and that nobody stopped.

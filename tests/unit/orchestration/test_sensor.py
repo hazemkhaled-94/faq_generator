@@ -93,6 +93,21 @@ def test_nothing_starts_while_a_corpus_run_is_going(monkeypatch, instance) -> No
     assert "corpus run" in str(answer.skip_message)
 
 
+def test_a_run_being_stopped_counts_as_going(monkeypatch, instance) -> None:
+    """Until Dagster has torn it down, it still holds the queues."""
+    answering(monkeypatch, new=3)
+    instance.add_run(
+        DagsterRun(
+            job_name="corpus", run_id="stopping", status=DagsterRunStatus.CANCELING
+        )
+    )
+
+    answer = evaluate(instance)
+
+    assert isinstance(answer, SkipReason)
+    assert "corpus run" in str(answer.skip_message)
+
+
 def test_an_empty_queue_starts_nothing(monkeypatch, instance) -> None:
     """A tick a minute over an idle stack must not queue a run a minute."""
     answering(monkeypatch, parsed=8)
