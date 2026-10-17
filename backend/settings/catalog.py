@@ -600,7 +600,8 @@ SETTINGS: tuple[Setting, ...] = (
         high=1,
         invalidates=("questions",),
         help="The share of a topic's closest cross-passage fact pairs a second "
-        "passage must be among before it is offered. 0 sets no relative floor.",
+        "passage must be among before it is offered. 0 sets no relative floor; "
+        "absent reads the shipped 0.02.",
     ),
     Setting(
         name="QUESTIONS_BOILERPLATE_COSINE",

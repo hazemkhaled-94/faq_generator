@@ -11,6 +11,8 @@ field fail.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 
@@ -231,6 +233,47 @@ def test_the_bounds_that_ship_are_read_the_way_round_they_are_written() -> None:
 
     assert all(low < high for low, high in loaded.answer_chars.values())
     assert loaded.explanation_chars[0] < loaded.explanation_chars[1]
+
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_an_unset_meets_share_reads_the_shipped_share(value: str | None) -> None:
+    """A backend.env from before the setting existed still starts the worker.
+
+    And keeps the relative floor a second passage must clear, rather than
+    turning it off and offering every pair again.
+    """
+    import os
+
+    from question_generation.config import MEETS_SHARE, Settings
+
+    source = {
+        name: held
+        for name, held in os.environ.items()
+        if name != "QUESTIONS_MEETS_SHARE"
+    }
+    if value is not None:
+        source["QUESTIONS_MEETS_SHARE"] = value
+
+    assert Settings.load(source).meets_share == MEETS_SHARE
+
+
+def test_an_explicit_zero_meets_share_turns_the_floor_off() -> None:
+    """0 is a value, not an absence."""
+    assert _questions(QUESTIONS_MEETS_SHARE="0").meets_share == 0.0
+
+
+def test_the_shipped_meets_share_is_the_one_backend_env_sets() -> None:
+    """The default in code and the shipped file cannot drift apart."""
+    from question_generation.config import MEETS_SHARE
+
+    shipped = Path(__file__).resolve().parents[3] / "configs/env/backend.env"
+    written = dict(
+        line.split("=", 1)
+        for line in shipped.read_text().splitlines()
+        if line.startswith("QUESTIONS_MEETS_SHARE=")
+    )
+
+    assert float(written["QUESTIONS_MEETS_SHARE"]) == MEETS_SHARE
 
 
 @pytest.mark.parametrize("value", [None, ""])

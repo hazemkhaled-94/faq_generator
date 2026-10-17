@@ -46,6 +46,10 @@ def _weights(
 #: A language as every `language` column holds one: an ISO 639-1 code.
 _LANGUAGE = re.compile(r"[a-z]{2}")
 
+#: QUESTIONS_MEETS_SHARE as configs/env/backend.env ships it, read when a
+#: backend.env written before the setting existed has no line for it.
+MEETS_SHARE = 0.02
+
 
 def _languages(name: str, source: Source = None) -> dict[str, int]:
     """Reads a `language:weight` mix, taking any ISO 639-1 code.
@@ -310,7 +314,13 @@ class Settings:
             answer_coverage=decimal("QUESTIONS_ANSWER_COVERAGE", source),
             party_density=decimal("QUESTIONS_PARTY_DENSITY", source),
             meets_floor=decimal("QUESTIONS_MEETS_FLOOR", source),
-            meets_share=decimal("QUESTIONS_MEETS_SHARE", source),
+            # Absent reads the shipped share rather than none, so an older
+            # backend.env starts the worker and still keeps the floor on.
+            meets_share=(
+                decimal("QUESTIONS_MEETS_SHARE", source)
+                if optional("QUESTIONS_MEETS_SHARE", source)
+                else MEETS_SHARE
+            ),
             off_topic_overlap=decimal("QUESTIONS_OFF_TOPIC_OVERLAP", source),
             elsewhere_passages=integer("QUESTIONS_ELSEWHERE_PASSAGES", source),
             long_answer_chars=integer("QUESTIONS_LONG_ANSWER_CHARS", source),
