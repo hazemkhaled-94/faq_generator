@@ -37,6 +37,7 @@ from database.qa_generator import (
 )
 from nlp.analysis import (
     CARDINALS,
+    DECIMAL_MARK,
     claim,
     content,
     interrogatives,
@@ -76,12 +77,13 @@ def _bare(text: str) -> str:
     return normalised(text).rstrip("?.!")
 
 
-def _folded(token: str) -> str:
+def _folded(token: str, language: str | None) -> str:
     """Reads a token as the value it is, where it is one.
 
-    `0,3` and `0.3` are one value; so are `1.033`, `1,033` and `1033`. The
-    point is the comparison that stays: `4` is still not `48`, which is the
-    one thing the unit guard in `agrees` exists to catch.
+    `0,3` and `0.3` are one value; so are a German `1.033` and `1033`, and
+    an English `1,033`. The point is the comparison that stays: `4` is still
+    not `48`, which is the one thing the unit guard in `agrees` exists to
+    catch.
 
     Deleting the separators is what this used to do, and it deleted the
     difference between a decimal comma and no separator at all: `12,5`
@@ -90,9 +92,8 @@ def _folded(token: str) -> str:
     with a comma, so that is the common shape and not an exotic one.
 
     So the value is parsed rather than the punctuation dropped, by
-    `figures` below - the same reading that decides whether an aggregation
-    adds up, which already knows a three-digit group after the last
-    separator is a thousands group and anything else is a fraction.
+    `figures` below, in the text's language - the same reading that decides
+    whether an aggregation adds up.
 
     Only for a token that is a figure WHOLE. A word keeps its punctuation,
     which is what the paragraph above always claimed and the deletion never
@@ -103,7 +104,7 @@ def _folded(token: str) -> str:
     """
     if _FIGURE.fullmatch(token) is None:
         return token
-    found = figures(token)
+    found = figures(token, language)
     return repr(found[0]) if len(found) == 1 else token
 
 
@@ -126,9 +127,9 @@ def _written(text: str, language: str | None) -> dict[str, str]:
 
 def _values(text: str, language: str | None) -> frozenset[str]:
     """Every form a text's words take, its figures and its counts as values."""
-    return frozenset(_folded(one) for one in vocabulary(text, language)) | frozenset(
-        _written(text, language).values()
-    )
+    return frozenset(
+        _folded(one, language) for one in vocabulary(text, language)
+    ) | frozenset(_written(text, language).values())
 
 
 def _misfits(
@@ -1106,7 +1107,7 @@ def explains(
     units = _asserts(explanation, language)
     if units:
         found = _values("\n".join(passages), language)
-        if not all(_folded(unit) in found for unit in units):
+        if not all(_folded(unit, language) in found for unit in units):
             return False
     said = content(explanation, language)
     if not said or not target:
@@ -1973,7 +1974,7 @@ def _numbers(text: str, language: str | None) -> frozenset[str]:
     written = _written(text, language)
     read = claim(text, language)
     return frozenset(
-        written.get(unit, _folded(unit)) for unit in read.units + read.figures
+        written.get(unit, _folded(unit, language)) for unit in read.units + read.figures
     ) | frozenset(written.values())
 
 
@@ -2128,29 +2129,44 @@ _TERM_CAP = 4
 _YEAR = range(1900, 2101)
 
 
-def figures(text: str) -> list[float]:
+def figures(text: str, language: str | None = None) -> list[float]:
     """Every number in a text, as a value.
 
-    A group of exactly three digits after the last separator is a thousands
-    group in both conventions, so 1.234 and 1,234 are 1234. Anything else
-    after the last separator is a fraction, so 12,5 and 12.5 are 12.5. A
-    number that resolves to neither is left out rather than guessed at.
+    Anything after the last separator but a group of exactly three digits is
+    a fraction, so 12,5 and 12.5 are 12.5. A group of three is a thousands
+    group, so 1.234.567 and 1,234.5 hold one, except after a head of zeros -
+    0,125 is an eighth, never 125 - and after a lone separator that is the
+    language's `DECIMAL_MARK`: a German 1,234 is 1.234 and 1.234 is 1234,
+    and English the reverse. A language with no row there, or none given,
+    reads either lone mark as thousands. A number that resolves to neither
+    is left out rather than guessed at.
     """
+    mark = DECIMAL_MARK.get((language or "").strip().lower())
     found: list[float] = []
     for match in _FIGURE.finditer(text):
         raw = match.group()
-        head, _, tail = raw.rpartition(",") if "," in raw[-4:] else raw.rpartition(".")
+        head, separator, tail = (
+            raw.rpartition(",") if "," in raw[-4:] else raw.rpartition(".")
+        )
+        whole = head.replace(".", "").replace(",", "")
+        decimal = (
+            separator == mark
+            and raw.count(separator) == 1
+            and not (set(".,") - {separator}) & set(head)
+        )
         try:
-            if not head or len(tail) == 3:
+            if not head or (len(tail) == 3 and whole.strip("0") and not decimal):
                 found.append(float(raw.replace(".", "").replace(",", "")))
             else:
-                found.append(float(f"{head.replace('.', '').replace(',', '')}.{tail}"))
+                found.append(float(f"{whole}.{tail}"))
         except ValueError:
             continue
     return found
 
 
-def adds_up(answer: str, passages: Sequence[str]) -> bool | None:
+def adds_up(
+    answer: str, passages: Sequence[str], language: str | None = None
+) -> bool | None:
     """Whether the answer is a total of figures the passages state.
 
     The check an `aggregation` gets instead of asking a model to do the
@@ -2168,12 +2184,13 @@ def adds_up(answer: str, passages: Sequence[str]) -> bool | None:
         the least a sum is made of, and a count of what a passage lists in
         words - four offences, no digit among them - is no sum at all.
     """
-    wanted = figures(answer)
+    wanted = figures(answer, language)
     if len(wanted) != 1:
         return None
     total = wanted[0]
 
-    available = [one for text in passages for one in figures(text)][:_FIGURE_CAP]
+    stated = [one for text in passages for one in figures(text, language)]
+    available = stated[:_FIGURE_CAP]
     if len(available) < 2:
         return None
 

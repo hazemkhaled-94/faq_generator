@@ -1485,15 +1485,36 @@ def test_a_shared_number_is_not_agreement_on_its_own() -> None:
 
 @pytest.mark.parametrize(
     ("recovered", "target"),
-    [("die Gebühr ist 1,033 Euro", "1.033 Euro"), ("0,3 Prozent", "0.3 Prozent")],
+    [("die Gebühr ist 1.033 Euro", "1033 Euro"), ("0,3 Prozent", "0.3 Prozent")],
 )
 def test_a_number_is_the_same_number_in_either_locale(recovered, target) -> None:
     """This corpus writes `0,3` and the verifier answers `0.3`.
 
     Folded only when comparing one number against another, so `4` is still
-    not `48`.
+    not `48`. A group of three after a German point is thousands.
     """
     assert agrees(recovered, target, "de")
+
+
+def test_a_three_decimal_rate_is_not_its_digits() -> None:
+    """`0,125 %` is an eighth of a percent, which `125 %` is not."""
+    assert not agrees("0,125 %", "125 %", "de")
+    assert not asserted("125 %", ["Der Zinssatz beträgt 0,125 % pro Jahr."], "de")
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language", "same"),
+    [
+        ("Der Sollzins beträgt 1,234 Prozent.", "1234 Prozent", "de", False),
+        ("Annual fee 1,234 EUR", "1234 EUR", "en", True),
+    ],
+    ids=["a German decimal", "an English thousands group"],
+)
+def test_a_group_of_three_is_read_by_the_languages_decimal_mark(
+    recovered, target, language, same
+) -> None:
+    """German `1,234` is a rate and English `1,234` a count."""
+    assert agrees(recovered, target, language) is same
 
 
 @pytest.mark.parametrize(
@@ -1521,7 +1542,7 @@ def test_a_word_keeps_its_punctuation(token) -> None:
     It dropped every dot and comma from every token it was handed, units
     and vocabulary alike, so `U.S.A.` was `USA` and a version was a number.
     """
-    assert _folded(token) == token
+    assert _folded(token, "en") == token
 
 
 # ── The form each type's answer takes, which decides who reads it how ──────

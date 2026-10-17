@@ -914,7 +914,7 @@ class QuestionChecker:
                     candidate.group.passages,
                     candidate.group.language,
                 )
-                else adds_up(target, candidate.group.passages)
+                else adds_up(target, candidate.group.passages, candidate.group.language)
             )
             if computed is True:
                 return None

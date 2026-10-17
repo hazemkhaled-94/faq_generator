@@ -374,6 +374,12 @@ CARDINALS: dict[str, dict[str, int]] = {
     )
 }
 
+#: The mark each language writes a decimal with, by ISO 639-1 code. One
+#: such mark before three digits is a fraction, not a thousands group: a
+#: German `1,234 %` is a rate and `1.234` a count, and English the reverse.
+#: A language missing here reads three digits after either mark as thousands.
+DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
+
 #: Ordinals by ISO 639-1 code, as the digits a written one carries: `2nd`,
 #: and German `2.` once `_bare` has dropped its full stop. German ordinals
 #: are listed in every ending they take.

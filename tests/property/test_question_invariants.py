@@ -343,13 +343,35 @@ def test_a_whole_number_is_read_wherever_a_sentence_puts_it(
     assert float(value) in figures(f"{before}{value}{after}")
 
 
-@given(value=st.integers(0, 999), group=st.integers(100, 999))
+@given(value=st.integers(1, 999), group=st.integers(100, 999))
 def test_a_thousands_group_is_one_number_in_either_convention(value, group) -> None:
-    """1.234 and 1,234 are 1234, whichever locale wrote it."""
+    """1.234 and 1,234 are 1234 where no language names its decimal mark.
+
+    From 1: a head of zeros carries no thousands, so 0.125 is a fraction.
+    """
     expected = float(f"{value}{group:03d}")
 
     assert figures(f"{value}.{group:03d}") == [expected]
     assert figures(f"{value},{group:03d}") == [expected]
+
+
+@given(group=st.integers(0, 999))
+def test_a_zero_head_is_a_fraction_in_either_convention(group) -> None:
+    """0,125 % is an eighth of a percent, in German as 0.125 % is in English."""
+    assert figures(f"0,{group:03d}", "de") == [group / 1000]
+    assert figures(f"0.{group:03d}", "en") == [group / 1000]
+
+
+@given(value=st.integers(1, 999), group=st.integers(0, 999))
+def test_a_thousands_group_is_read_by_the_languages_mark(value, group) -> None:
+    """German writes 1,234 for a rate and 1.234 for a count; English the reverse."""
+    count = float(f"{value}{group:03d}")
+    rate = float(f"{value}.{group:03d}")
+
+    assert figures(f"{value}.{group:03d}", "de") == [count]
+    assert figures(f"{value},{group:03d}", "de") == [rate]
+    assert figures(f"{value},{group:03d}", "en") == [count]
+    assert figures(f"{value}.{group:03d}", "en") == [rate]
 
 
 @given(text=st.text(max_size=200))
