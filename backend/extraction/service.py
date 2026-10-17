@@ -1177,12 +1177,15 @@ class ExtractionService(StageService):
             current.set_attribute("extract.skipped", reason)
             return []
 
+        readers = self._readers(passage, current)
         facts = [
             self._checker.check(passage, candidate, reader.method, reader.provenance)
-            for reader, shown in self._readers(passage, current)
+            for reader, shown in readers
             for candidate in reader.extract(shown)
         ]
-        if not facts:
+        # Only a model can answer empty: a cell reader finding no row to
+        # compose is the grid's answer, not a silent model.
+        if not facts and any(reader.method == WRITTEN for reader, _ in readers):
             _nothing_found(passage, current)
         return facts + self._digested(passage)
 

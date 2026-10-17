@@ -580,6 +580,21 @@ def test_a_skipped_passage_is_not_warned_about(caplog) -> None:
     assert "proposed nothing" not in caplog.text
 
 
+def test_a_table_read_without_the_model_raises_no_empty_model_warning(caplog) -> None:
+    """The cell reader found no row to compose, and no model was asked."""
+    from drivers import GRID
+
+    headers = {**GRID, "cells": [one for one in GRID["cells"] if one["row"] == 0]}
+    run = Extraction(table_passage(headers), facts=EMPTY)
+
+    with caplog.at_level("WARNING"):
+        run.next()
+
+    assert run.model.calls == 0
+    assert run.queue.stored == {1: []}
+    assert "proposed nothing" not in caplog.text
+
+
 def test_a_passage_that_yielded_facts_is_not_warned_about(caplog) -> None:
     """The ordinary path stays quiet."""
     run = Extraction(passage(), facts=ATOMIC)
