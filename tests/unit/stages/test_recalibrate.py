@@ -116,3 +116,55 @@ def test_a_stored_opinion_is_rebuilt_as_one() -> None:
     assert rebuilt.opinion is True
     assert scored([rebuilt]) == [stored]
     assert confidence([rebuilt]) is None
+
+
+def test_a_shadow_reading_stays_a_shadow() -> None:
+    """A reading taken before it gates anything must not start gating.
+
+    Rebuilt without its mark, a coverage reading of 0.2 against 0.5 gets a
+    margin of 0.0 and takes the question's confidence down with it.
+    """
+    from confidence import confidence, scored
+
+    stored = [
+        {
+            "gate": "recall",
+            "value": 0.9,
+            "threshold": 0.6,
+            "margin": 0.75,
+            "high_is_safe": True,
+            "safe_end": 1.0,
+        },
+        {
+            "gate": "coverage",
+            "value": 0.2,
+            "threshold": 0.5,
+            "margin": None,
+            "high_is_safe": True,
+            "safe_end": 1.0,
+            "shadow": True,
+        },
+    ]
+
+    rebuilt = [_reading(one, floor=0.75) for one in stored]
+
+    assert scored(rebuilt) == stored
+    assert confidence(rebuilt) == pytest.approx(0.75)
+
+
+def test_an_opinion_keeps_its_prompt_version() -> None:
+    """Without it, the next re-judge pays to ask the same question again."""
+    from confidence import scored
+
+    stored = {
+        "gate": "settles",
+        "value": 1.0,
+        "threshold": 0.5,
+        "margin": None,
+        "high_is_safe": True,
+        "safe_end": 1.0,
+        "opinion": True,
+        "version": "7",
+    }
+
+    assert scored([_reading(stored, floor=0.75)]) == [stored]

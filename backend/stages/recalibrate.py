@@ -52,6 +52,8 @@ def _reading(stored: dict, floor: float) -> Measurement:
         high_is_safe=not refuses_high,
         safe_end=floor if refuses_high else None,
         opinion=bool(stored.get("opinion")),
+        version=stored.get("version"),
+        shadow=bool(stored.get("shadow")),
     )
 
 
