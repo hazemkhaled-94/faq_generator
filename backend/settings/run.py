@@ -117,13 +117,8 @@ def change(service: str, values: dict[str, str | None], store: Settings) -> list
     except changes.Refused as refusal:
         raise SystemExit(refusal.detail) from None
 
-    lines = [f"{service}: {moved.detail}"]
-    if moved.stale:
-        lines.append(
-            f"what {', '.join(moved.stale)} already produced was made under "
-            f"the old values; rerun that stage to rebuild it"
-        )
-    return lines
+    # The detail already names what is stale and how to rebuild it.
+    return [f"{service}: {moved.detail}"]
 
 
 def main(argv: list[str] | None = None) -> int:
