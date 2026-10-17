@@ -2390,7 +2390,7 @@ def test_a_why_whose_recovery_only_says_the_rule_back_has_no_reason(
 
 def test_recall_missing_an_answer_the_passages_support_is_rescued() -> None:
     """Recalling an answer cold is a harder task than checking one."""
-    recording = Recording(recovers=None, backs=True)
+    recording = Recording(recovers="It ships from Hamburg.", backs=True)
 
     result = build(recording).check(candidate(target_answer="4 kg"))
 
@@ -2400,12 +2400,54 @@ def test_recall_missing_an_answer_the_passages_support_is_rescued() -> None:
 
 def test_the_entailment_pass_can_only_accept() -> None:
     """A question reaching it was already being refused."""
-    recording = Recording(recovers=None, backs=False)
+    recording = Recording(recovers="It ships from Hamburg.", backs=False)
 
     result = build(recording).check(candidate(target_answer="4 kg"))
 
     assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
     assert recording.supported == 1
+
+
+def test_a_key_the_verifier_could_not_find_is_not_rescued() -> None:
+    """The verifier read the question against the passages and found nothing.
+
+    The rescue scores the bare key against each passage, without the
+    question, so a fragment the passages happen to contain is entailed
+    whatever was asked. The verifier's NOT IN PASSAGE is the one reading
+    that saw the question, and no rescue overrides it.
+    """
+    recording = Recording(recovers=None, backs=True)
+
+    result = build(recording).check(candidate(target_answer="4 kg"))
+
+    assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
+    assert recording.supported == 0, "the entailment pass was asked"
+
+
+def test_a_why_the_verifier_found_nothing_for_has_no_reason(caplog) -> None:
+    """Asked for a reason, the verifier found none in the passages."""
+    recording = Recording(recovers=None, backs=True)
+
+    with caplog.at_level("INFO", logger="question_generation.checker"):
+        result = build(recording).check(
+            candidate(
+                question_text="Why must a request be confirmed in writing?",
+                target_answer="so that the agreed time can be evidenced later",
+                question_type=QuestionType.REASON,
+                facts=group(
+                    source(
+                        passage_text=(
+                            "Requests are confirmed in writing so the agreed "
+                            "time can be evidenced later."
+                        )
+                    )
+                ),
+            )
+        )
+
+    assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
+    assert "no reason" in caplog.text, caplog.text
+    assert recording.supported == 0
 
 
 def test_an_answer_to_a_different_question_is_not_rescued() -> None:
@@ -2418,7 +2460,12 @@ def test_an_answer_to_a_different_question_is_not_rescued() -> None:
     is a Liquiditätsmanagementtool, so the answer is supported and answers
     something else.
     """
-    recording = Recording(recovers=None, backs=True)
+    recording = Recording(
+        recovers=(
+            "Die Verwaltungsgesellschaft veröffentlicht die Frist im Verkaufsprospekt."
+        ),
+        backs=True,
+    )
 
     result = build(recording).check(
         candidate(
@@ -2537,7 +2584,7 @@ def test_an_encoder_answers_the_pass_where_one_is_configured() -> None:
             self.pairs.extend(pairs)
             return [Verdict(self.entailment, 1 - self.entailment, 0.0) for _ in pairs]
 
-    recording = Recording(recovers=None, backs=False)
+    recording = Recording(recovers="It ships from Hamburg.", backs=False)
     encoder = Encoder(entailment=0.9)
     checker = QuestionChecker(
         embedder=recording,
@@ -2575,7 +2622,7 @@ def test_the_encoder_is_asked_one_passage_at_a_time() -> None:
             self.pairs.extend(pairs)
             return [Verdict(0.0, 1.0, 0.0) for _ in pairs]
 
-    recording = Recording(recovers=None, backs=False)
+    recording = Recording(recovers="It ships from Hamburg.", backs=False)
     encoder = Encoder()
     checker = QuestionChecker(
         embedder=recording,
@@ -2599,7 +2646,7 @@ def test_a_number_the_passages_never_gave_is_not_rescued() -> None:
     the benchmark whose answer the material does not give, which marks a
     correct chatbot wrong.
     """
-    recording = Recording(recovers=None, backs=True)
+    recording = Recording(recovers="within 4 hours", backs=True)
 
     result = build(recording).check(
         candidate(
@@ -2618,7 +2665,7 @@ def test_a_number_the_passages_never_gave_is_not_rescued() -> None:
 
 def test_a_target_asserting_nothing_numeric_reaches_the_pass() -> None:
     """The guard is about numbers and names; prose has none to check."""
-    recording = Recording(recovers=None, backs=True)
+    recording = Recording(recovers="for evidence", backs=True)
 
     result = build(recording).check(
         candidate(

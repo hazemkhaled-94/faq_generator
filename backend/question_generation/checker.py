@@ -790,9 +790,16 @@ class QuestionChecker:
                         readings.append(Measurement("recall", recall, self._overlap))
                 elif recall is not None and recall < 1.0:
                     readings.append(Measurement("recall", recall, 1.0))
+            # NOT IN PASSAGE is final. The verifier read the question against
+            # the passages; the entailment pass scores the bare key against
+            # each passage without it, so a fragment the passages happen to
+            # contain is entailed whatever the question asked.
             if read.recovered is None:
-                if self._backed(candidate, target, readings):
-                    return None
+                if candidate.spec.name == QuestionType.REASON:
+                    return (
+                        QuestionRejection.NOT_RECOVERABLE,
+                        "asked why, the verifier found no reason in the cited passages",
+                    )
                 return (
                     QuestionRejection.NOT_RECOVERABLE,
                     "the verifier could not find the answer in the cited passages",

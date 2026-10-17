@@ -55,7 +55,7 @@ and [v0.3.0](operations.md#upgrading-to-v030).
 | [A pronoun its own statement resolves read as dangling](#a-pronoun-its-own-statement-resolves-read-as-dangling) | 0 (48 facts lost) | [`nlp/analysis.py`](../backend/nlp/analysis.py) | v0.2.2 |
 | [A translation read as furniture](#a-translation-read-as-furniture) | 0 (16 passages) | [`queue.py`](../backend/question_generation/queue.py) | v0.3.0 |
 | [Difficulty grades spread, not hardness](#difficulty-grades-spread-not-hardness) | 73 hard | [`models.py`](../backend/question_generation/models.py) | no |
-| [The entailment rescue scores a bare fragment](#the-entailment-rescue-scores-a-bare-fragment) | 0 (10 lost) | [`checker.py`](../backend/question_generation/checker.py) | no |
+| [The entailment rescue scores a bare fragment](#the-entailment-rescue-scores-a-bare-fragment) | 0 (10 lost) | [`checker.py`](../backend/question_generation/checker.py) | v0.3.4, partial |
 | [The release reads no quality signal](#the-release-reads-no-quality-signal) | 22 | [`balance.py`](../backend/question_generation/balance.py) | no |
 | [Signal-diagram labels become passage text](#signal-diagram-labels-become-passage-text) | 0 | [`parsing/pipelines/pdf.py`](../backend/preprocessing/parsing/pipelines/pdf.py) | v0.3.0, mostly |
 | [`explanation_unusable` reads any proper noun as a name](#explanation_unusable-reads-any-proper-noun-as-a-name) | 0 (3 lost) | [`gates.py`](../backend/question_generation/gates.py) | v0.3.0 |
@@ -584,7 +584,12 @@ shipped `bge-m3-zeroshot-v2.0` and two other multilingual NLI models
 (mDeBERTa-v3 and xlm-roberta-large-xnli), with four hypothesis shapes. No
 model, shape or threshold rescued more usable rows than it admitted bad
 ones in both languages without tuning to these rows, so the rescue is
-unchanged.
+unchanged where the verifier found a recovery that fell short.
+
+**Fixed in v0.3.4 where the verifier found nothing.** A key the verifier
+read as not in the passages is refused, not rescued: that reading saw the
+question, and the rescue reads the bare key. On the v0.3.0 rows this
+refuses 9 accepted questions, 1 of them usable.
 
 ## The release reads no quality signal
 

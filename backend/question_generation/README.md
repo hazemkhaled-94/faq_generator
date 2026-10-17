@@ -358,6 +358,11 @@ fell short and which the entailment pass then rescued carries a confidence of
 0, and a `list` or `explanation` whose recovery holds no content word reads 0
 rather than abstaining.
 
+The entailment pass rescues only a recovery that fell short. A question
+whose answer the verifier found not in the passages at all is refused: that
+reading saw the question, and the pass scores the bare key against each
+passage, which a fragment the passages happen to contain passes.
+
 The form is the one the answer fits among those its type takes, and only a
 `list` is then checked for completeness. Three items punctuated apart make a
 list; two carrying no verb do where the type asks for a list first, so a
