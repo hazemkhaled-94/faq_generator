@@ -221,10 +221,14 @@ form; a proper noun is lemmatised.
 
 An atomic fact is read against the sentences it cites, the passage's section
 path and the document's title, since a heading or a title names what a
-sentence under it calls "the card" or "the bank". A sentence of the passage it
-did not cite does not count: a name or number found only there is still an
-addition. A number is read in any spelling, so `1st` and `1 st`, or `two` and
-`2`, are the same number.
+sentence under it calls "the card" or "the bank". The sentences before the
+first one it cites lend their nouns and names, for the same reason, and
+nothing else: a number, a figure or the noun a number counts there belongs
+to what that sentence is about, so "Credit cards have a daily limit of 1,000
+EUR." does not give the debit card of the next sentence its limit. Any other
+sentence of the passage it did not cite does not count: a name or number
+found only there is still an addition. A number is read in any spelling, so
+`1st` and `1 st`, or `two` and `2`, are the same number.
 
 ### Step 6 — Store
 

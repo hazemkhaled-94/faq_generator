@@ -174,6 +174,23 @@ STILL_REFUSED: tuple[tuple[str, str, str, int, str], ...] = (
         1,
         Rejection.UNRESOLVED_REFERENCE,
     ),
+    (
+        "en",
+        "Credit cards have a daily limit of 1,000 EUR. Debit cards can be blocked "
+        "abroad.",
+        "Debit cards with a daily limit of 1,000 EUR can be blocked abroad.",
+        1,
+        Rejection.UNSUPPORTED_ADDITION,
+    ),
+    (
+        "de",
+        "Für Kreditkarten gilt ein Tageslimit von 1.000 EUR. Debitkarten können im "
+        "Ausland gesperrt werden.",
+        "Debitkarten mit einem Tageslimit von 1.000 EUR können im Ausland gesperrt "
+        "werden.",
+        1,
+        Rejection.UNSUPPORTED_ADDITION,
+    ),
 )
 
 
@@ -826,8 +843,33 @@ def test_a_name_the_document_title_carries_is_no_addition() -> None:
     assert judged.validated, judged.validation_error
 
 
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "Visa Debit cards are issued to students. The card is free of charge.",
+            "The Visa Debit card is free of charge.",
+        ),
+        (
+            "de",
+            "Die Nordbank führt Girokonten für Studenten. Die Kontoführung ist "
+            "kostenlos.",
+            "Bei der Nordbank ist die Kontoführung kostenlos.",
+        ),
+    ],
+)
+def test_a_name_the_sentence_before_carries_is_no_addition(
+    language, text, statement
+) -> None:
+    """The sentence before names what the cited one calls "the card"."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 1)
+
+    assert judged.validated, (judged.validation_error, judged.units_added)
+
+
 def test_a_name_from_an_uncited_sentence_is_still_an_addition() -> None:
-    """Named elsewhere in the passage is not said by the sentence cited."""
+    """Named in a sentence after the one cited is not said by it."""
     read = passage(
         "The fee applies to all cards. Mastercard holders receive a monthly statement."
     )

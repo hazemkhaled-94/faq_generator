@@ -821,6 +821,87 @@ UNITS_READ_RIGHT: tuple[tuple[str, str, str, str, str, str | None], ...] = (
     ),
 )
 
+#: (name, language, the excerpt, the sentence cited, statement, expected
+#: code or None): stored claims refused as `unsupported_addition` for a name
+#: the sentence before the cited one carries, which names what the cited
+#: one leaves as "they" or "the player". A figure from there is still an
+#: addition: the last row's five-second limit is the countdown's, named
+#: only before.
+NAMED_BEFORE: tuple[tuple[str, str, str, int, str, str | None], ...] = (
+    (
+        "a name the sentence before carries (F13419)",
+        "en",
+        (
+            "The reproduction, whether real or virtual, of representative logos or "
+            "emblems of FIFA, confederations, national football associations, "
+            "competitions, clubs or other bodies is forbidden on the field of "
+            "play, the goal nets and the areas they enclose, the goals, and the "
+            "flagposts during playing time. They are permitted on the flags on the "
+            "flagposts."
+        ),
+        1,
+        (
+            "Representative logos or emblems of FIFA, confederations, national "
+            "football associations, competitions, clubs or other bodies are "
+            "permitted on the flags on the flagposts."
+        ),
+        None,
+    ),
+    (
+        "a name the item before carries (F12572)",
+        "de",
+        (
+            "- Rote Karten aufgrund einer eindeutig falschen zweiten gelben Karte "
+            "dürfen vom VAR überprüft werden.\n"
+            "- Spielerverwechslungen können überprüft werden, wenn einem Spieler "
+            "eine gelbe oder rote Karte für ein Vergehen gezeigt wurde, das von "
+            "einem anderen Spieler des eigenen oder des gegnerischen Teams "
+            "begangen wurde.\n"
+        ),
+        1,
+        (
+            "Spielerverwechslungen können vom VAR überprüft werden, wenn einem "
+            "Spieler eine gelbe oder rote Karte für ein Vergehen gezeigt wurde, das "
+            "von einem anderen Spieler desselben oder des gegnerischen Teams "
+            "begangen wurde."
+        ),
+        None,
+    ),
+    (
+        "a noun the sentence before carries (F11649)",
+        "de",
+        (
+            "Ein Spieler, der versehentlich einen Schuh oder Schienbeinschoner "
+            "verliert, muss ihn so schnell wie möglich, spätestens jedoch während "
+            "der nächsten Spielunterbrechung, wieder anziehen. Wenn der Spieler "
+            "davor den Ball spielt und/oder ein Tor erzielt, zählt der Treffer."
+        ),
+        1,
+        (
+            "Wenn ein Spieler vor dem Wiederanziehen eines verlorenen Schuhs oder "
+            "Schienbeinschoners den Ball spielt und/oder ein Tor erzielt, zählt der "
+            "Treffer."
+        ),
+        None,
+    ),
+    (
+        "a figure only the sentence before gives (F13213)",
+        "en",
+        (
+            "This protocol relates to the five-second countdown in Laws 15 and 16 "
+            "to prevent time-wasting and disruption to the tempo of the match at "
+            "throw-ins and goal kicks. If the time limit is exceeded, the restart "
+            "is taken by the opposing team."
+        ),
+        1,
+        (
+            "If the five-second time limit is exceeded at a throw-in or goal kick, "
+            "the restart is taken by the opposing team."
+        ),
+        Rejection.UNSUPPORTED_ADDITION,
+    ),
+)
+
 #: (name, the cited excerpt, statement, expected code or None): stored German
 #: claims whose pronoun points back inside the statement, to the subject the
 #: condition is about. Refused as dangling before the reading looked behind
@@ -1086,6 +1167,22 @@ def test_a_unit_its_heading_or_spelling_supports_reaches_its_verdict(
     cited = tuple(sentence.index for sentence in read.sentences)
     checked = Checker(read).atomic(statement, cited)
 
+    assert verdict(checked) == expected, checked.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "excerpt", "cited", "statement", "expected"),
+    [row[1:] for row in NAMED_BEFORE],
+    ids=[row[0] for row in NAMED_BEFORE],
+)
+def test_a_name_the_sentence_before_carries_reaches_its_verdict(
+    language, excerpt, cited, statement, expected
+) -> None:
+    """A name from the sentence before is no addition; a figure from there is."""
+    read = passage(excerpt, language=language)
+    checked = Checker(read).atomic(statement, cited)
+
+    assert len(read.sentences) == cited + 1, [one.text for one in read.sentences]
     assert verdict(checked) == expected, checked.validation_error
 
 
