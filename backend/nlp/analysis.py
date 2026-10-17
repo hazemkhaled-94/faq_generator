@@ -326,6 +326,33 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
     return tuple(sorted(found))
 
 
+#: A figure written as one token: digits first, then separators, then at
+#: most four letters of a unit glued on - `08:00`, `2:2`, `2.5x`, `1,100g`.
+#: A compound carrying a figure - `90-minütigen`, `4-m-Bereich` - runs on
+#: past its unit and is a word; a name ending in digits starts with a letter.
+_FIGURE_TOKEN = re.compile(r"[+±−-]?\(?\d[\d.,:/()–-]*[^\W\d_]{0,4}%?")
+
+
+def _figures(span: Doc | Span) -> tuple[str, ...]:
+    """The figures a statement writes that `_units` does not read.
+
+    A token `like_num` marks, or the tagger calls a proper noun, is
+    `_units`' already, so no figure is read twice. Kept as written, as a
+    number there is, so `08:00` against `09:00` is a different figure.
+    """
+    return tuple(
+        sorted(
+            {
+                _bare(token.text).casefold()
+                for token in span
+                if not token.like_num
+                and token.pos_ != "PROPN"
+                and _FIGURE_TOKEN.fullmatch(token.text)
+            }
+        )
+    )
+
+
 def _valued(words: str, start: int = 0) -> dict[str, str]:
     """Number words, spaced and in order, each mapped to the digits of its value."""
     return {word: str(value) for value, word in enumerate(words.split(), start)}
@@ -1306,6 +1333,7 @@ def claim(text: str, language: str | None) -> Claim:
         units=_units(document),
         references=_references(document),
         verbs=_verbs(document),
+        figures=_figures(document),
     )
 
 

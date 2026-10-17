@@ -33,6 +33,10 @@ class Claim:
     #: describes an action. An infinitive makes no claim and is still not an
     #: answer: `Verwarnungen aussprechen` has no predicate and one verb.
     verbs: int = 0
+    #: Figures written as one token `like_num` does not mark: a time, a
+    #: score, a figure glued to its unit - `08:00`, `2.5x`. Apart from
+    #: `units` because only the checks for an invented value read them.
+    figures: tuple[str, ...] = ()
 
 
 #: What each configured language is called, for a prompt that has to name it.

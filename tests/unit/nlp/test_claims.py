@@ -114,6 +114,28 @@ def test_a_noun_phrase_asserts_nothing() -> None:
     assert claim(phrase, "de").predicates == 0
 
 
+@pytest.mark.parametrize(
+    ("language", "statement", "figures"),
+    [
+        ("de", "Die Filiale öffnet um 08:00 Uhr.", ("08:00",)),
+        ("en", "The limit is 2.5x the salary.", ("2.5x",)),
+    ],
+)
+def test_a_time_or_glued_figure_is_a_figure(language, statement, figures) -> None:
+    """A figure `like_num` does not mark is still one the statement states."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).figures == figures
+
+
+def test_a_compound_carrying_a_figure_is_not_one() -> None:
+    """`90-minütige` is a word with a number in it, not a figure."""
+    from nlp.analysis import claim
+
+    statement = "Das 90-minütige Beratungsgespräch ist kostenlos."
+    assert claim(statement, "de").figures == ()
+
+
 def test_a_hyphenated_compound_is_a_content_lemma() -> None:
     """`die KI-Verordnung der EU` is not about the EU alone."""
     from nlp.analysis import content

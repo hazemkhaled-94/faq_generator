@@ -89,11 +89,12 @@ class Judged:
         """Units the statement asserts that its evidence does not carry.
 
         Carried is a form in the vocabulary, or a unit read as supported: the
-        one place that decides what is added.
+        one place that decides what is added. A figure `like_num` misses - a
+        time, `08:00` - is a unit here too.
         """
         return tuple(
             unit
-            for unit in self.claim.units
+            for unit in self.claim.units + self.claim.figures
             if unit not in self.evidence_vocabulary and unit not in self.supported
         )
 
@@ -430,7 +431,7 @@ class FactChecker:
             numbers |= numerals(headings, language)
         known |= numbers
         supported = set()
-        for unit in said.units:
+        for unit in said.units + said.figures:
             if unit in known:
                 continue
             if figures := numerals(unit, language):

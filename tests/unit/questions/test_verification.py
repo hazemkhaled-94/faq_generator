@@ -1730,6 +1730,12 @@ def test_a_count_the_key_writes_out_passes_where_the_passages_state_it(
     assert asserted("zehn Sekunden", passages, "de")
 
 
+def test_a_key_time_the_passages_do_not_give_is_not_asserted() -> None:
+    """A time is a figure the key asserts, though `like_num` does not mark it."""
+    assert not asserted("08:00", ["Die Filiale öffnet um 09:00 Uhr."], "de")
+    assert asserted("08:00", ["Die Filiale öffnet um 08:00 Uhr."], "de")
+
+
 def test_a_count_written_out_is_still_a_different_number_from_another() -> None:
     """`de_core_news_md` gives `zehn` no `like_num`, so it is read as a count."""
     assert not agrees("11 Sekunden", "zehn Sekunden", "de", AnswerForm.VALUE)

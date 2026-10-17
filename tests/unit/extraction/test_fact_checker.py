@@ -698,6 +698,20 @@ def test_a_name_from_an_uncited_sentence_is_still_an_addition() -> None:
     assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
 
 
+def test_a_time_the_evidence_does_not_give_is_an_addition() -> None:
+    """A time is a figure the statement states, though `like_num` misses it."""
+    invented = Checker(passage("The branch opens at 09:00.")).atomic(
+        "The branch opens at 08:00.", 0
+    )
+    stated = Checker(passage("The branch opens at 08:00.")).atomic(
+        "The branch opens at 08:00.", 0
+    )
+
+    assert invented.rejection_code == Rejection.UNSUPPORTED_ADDITION
+    assert "08:00" in invented.units_added, invented.units_added
+    assert stated.validated, stated.validation_error
+
+
 def test_a_lead_in_figure_is_supported_only_when_cited() -> None:
     """A figure restated from a lead-in is the lead-in's to support."""
     read = passage(

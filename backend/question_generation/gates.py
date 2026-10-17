@@ -1966,11 +1966,14 @@ def _numbers(text: str, language: str | None) -> frozenset[str]:
 
     `claim().units` reads a number off `like_num`, which `en_core_web_md`
     sets on `two` and `de_core_news_md` does not set on `zwei`: a German key
-    written in words asserted no number, and agreed with any.
+    written in words asserted no number, and agreed with any. A time or a
+    figure glued to its unit carries no `like_num` either, and is read off
+    `claim().figures`.
     """
     written = _written(text, language)
+    read = claim(text, language)
     return frozenset(
-        written.get(unit, _folded(unit)) for unit in claim(text, language).units
+        written.get(unit, _folded(unit)) for unit in read.units + read.figures
     ) | frozenset(written.values())
 
 
