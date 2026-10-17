@@ -60,6 +60,21 @@ def test_a_threshold_that_is_not_a_number_is_refused() -> None:
     assert "PARSING_MIN_CONFIDENCE" in refused.value.detail
 
 
+def test_a_flag_spelled_wrong_is_refused() -> None:
+    """Read, it is off; written, it is a typo that switched something off."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.within_bounds(catalog.writable("CHUNKING_MERGE_PEERS"), "ture")
+
+    assert refused.value.code == "not_a_choice"
+    assert "CHUNKING_MERGE_PEERS" in refused.value.detail
+
+
+@pytest.mark.parametrize("value", ["TRUE", " off ", "1", "no"])
+def test_a_flag_spelled_either_way_is_accepted(value: str) -> None:
+    """Case and surrounding whitespace do not matter, as when it is read."""
+    changes.within_bounds(catalog.writable("CHUNKING_MERGE_PEERS"), value)
+
+
 def test_a_bound_is_accepted_where_the_setting_allows_it() -> None:
     """Only a setting marked exclusive refuses its bounds themselves."""
     changes.within_bounds(catalog.writable("TOPIC_NO_ABOVE"), "1")

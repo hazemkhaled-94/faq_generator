@@ -25,6 +25,7 @@ import preprocessing.parsing.config
 import question_generation.config
 import topic_modelling.config
 from settings import catalog
+from settings.env import _FALSE, _TRUE
 from settings.store import Settings as Store
 from settings.store import Stale
 
@@ -143,6 +144,13 @@ def within_bounds(setting: catalog.Setting, value: str) -> None:
     Raises:
         Refused: `not_a_choice` or `out_of_range`.
     """
+    # A flag reads anything it does not know as off, so a typo written here
+    # would switch the flag off rather than fail.
+    if setting.kind == "boolean" and value.strip().lower() not in _TRUE | _FALSE:
+        raise Refused(
+            "not_a_choice",
+            f"{setting.name} takes true or false; {value!r} is neither.",
+        )
     if setting.choices:
         unknown = [one for one in offered(setting, value) if one not in setting.choices]
         if unknown:

@@ -29,6 +29,10 @@ from collections.abc import Mapping
 #: boolean that guesses is worse than one that is simply off.
 _TRUE = frozenset({"1", "true", "yes", "on"})
 
+#: The spellings of false a write accepts beside those. Reading does not
+#: need them, since anything not true is false.
+_FALSE = frozenset({"0", "false", "no", "off"})
+
 #: Where a reader looks. None is the process environment.
 Source = Mapping[str, str] | None
 
