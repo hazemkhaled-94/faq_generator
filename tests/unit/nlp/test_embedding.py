@@ -24,12 +24,15 @@ loads_the_model = pytest.mark.nlp
 @pytest.fixture(scope="module")
 def embedder() -> Embedder:
     """The real embedder, or a skip when its weights are not here."""
-    from transformers import AutoConfig
+    from huggingface_hub import try_to_load_from_cache
 
-    try:
-        AutoConfig.from_pretrained(MODEL, local_files_only=True)
-    except Exception as exc:  # noqa: BLE001 - any failure is the same answer
-        pytest.skip(f"{MODEL} is not in the cache: {exc}")
+    # The weights, not config.json: the tokenizer caches that on its own,
+    # and a guard reading it downloads 2.2 GB instead of skipping.
+    if not any(
+        isinstance(try_to_load_from_cache(MODEL, name), str)
+        for name in ("model.safetensors", "pytorch_model.bin")
+    ):
+        pytest.skip(f"{MODEL}'s weights are not in the cache")
     return Embedder(MODEL, max_tokens=512)
 
 
