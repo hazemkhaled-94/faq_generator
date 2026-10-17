@@ -72,6 +72,33 @@ def _hypothesis() -> None:
 _hypothesis()
 
 
+@pytest.fixture(autouse=True)
+def _no_database_in_the_unit_layer(request, monkeypatch) -> Iterator[None]:
+    """Fails a unit test that opens a database connection.
+
+    A unit test that reaches a stage's start-up writes into whichever
+    database DATABASE_URL names at that moment: the developer's own, or
+    the test container the api fixture pointed it at, where the rows then
+    surface in an integration test that counts them. The writers swallow
+    a failed connection, so the attempt is refused here and reported at
+    teardown, where nothing can swallow it.
+    """
+    if not request.node.path.is_relative_to(ROOT / "tests" / "unit"):
+        yield
+        return
+    import psycopg
+
+    opened: list[str] = []
+
+    def refused(*args, **kwargs):
+        opened.append(str(kwargs.get("conninfo") or (args[0] if args else "")))
+        raise psycopg.OperationalError("a unit test may not open a database")
+
+    monkeypatch.setattr(psycopg, "connect", refused)
+    yield
+    assert not opened, f"{request.node.nodeid} opened a database: {opened}"
+
+
 def pytest_sessionstart() -> None:
     """Refuses a run where two test modules share a basename.
 

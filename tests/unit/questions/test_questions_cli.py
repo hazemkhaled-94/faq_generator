@@ -136,6 +136,8 @@ class Driver:
             self.proved.extend(one.model for one in models)
 
         monkeypatch.setattr(module, "before_work", proving)
+        # The real one writes the prompts into whatever DATABASE_URL names.
+        monkeypatch.setattr(module, "record", lambda *_: 0)
         monkeypatch.setattr(cli.telemetry, "configure", lambda *_, **__: None)
         monkeypatch.setattr(cli.telemetry, "trace_engine", lambda *_: None)
         monkeypatch.setattr(cli, "engine", lambda: None)
