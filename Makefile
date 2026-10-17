@@ -526,6 +526,10 @@ logs-prune: logs-dir
 # The answer is read: `index_not_found_exception` is a deployment that has
 # logged nothing yet and passes; anything but that or an acknowledgement,
 # a stopped container included, stops here.
+#
+# The files are emptied, not deleted: every running service holds its own
+# open, and an unlinked one goes on being written where Filebeat cannot see
+# it until a restart or a rotation.
 logs-wipe:
 	@answer=$$($(COMPOSE_CMD) exec -T elasticsearch sh -c 'curl -sS \
 	  --cacert /usr/share/elasticsearch/config/certs/ca.crt \
@@ -533,9 +537,9 @@ logs-wipe:
 	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"' 2>&1); \
 	  echo "$$answer"; \
 	  case "$$answer" in *'"acknowledged":true'*|*index_not_found_exception*) ;; *) exit 1;; esac
-	@$(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -delete' || true
-	@find logs -type f -delete 2>/dev/null || true
-	@echo "log stream and files deleted."
+	@$(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec truncate -s 0 {} +' || true
+	@find logs -type f -exec truncate -s 0 {} + 2>/dev/null || true
+	@echo "log stream deleted and files emptied."
 
 # ── Database ───────────────────────────────────────────────────────────────
 #

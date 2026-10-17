@@ -168,7 +168,7 @@ make logs-api
 make logs-shipper        # why nothing is arriving
 make logs-retention      # how long Elasticsearch keeps them. Run once
 make logs-prune          # delete the files on the volume
-make logs-wipe           # every line and every file. What make wipe runs
+make logs-wipe           # every line, emptying every file. What make wipe runs
 ```
 
 Only this project's processes are shipped to Elasticsearch, but all of them

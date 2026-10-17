@@ -391,6 +391,31 @@ def test_logs_prune_fails_when_its_exec_fails(
         assert ran.stdout.startswith("2 file(s)"), ran
 
 
+def test_the_log_wipe_empties_files_rather_than_unlinking_them(tmp_path: Path) -> None:
+    """A service's open handler goes on writing into the file Filebeat reads.
+
+    Unlinked, the file vanished from under its writer, which went on
+    appending to a name nothing could open until a restart or a rotation.
+    """
+    on_volume = command("logs-wipe", "/var/log/qa")
+    assert "-delete" not in on_volume and "truncate -s 0" in on_volume, on_volume
+    log = tmp_path / "logs" / "api-host-1.log"
+    log.parent.mkdir()
+
+    with log.open("a") as writer:
+        writer.write("before\n")
+        writer.flush()
+        subprocess.run(
+            ["bash", "-c", command("logs-wipe", "find logs")],
+            cwd=tmp_path,
+            check=True,
+        )
+        writer.write("after\n")
+        writer.flush()
+
+        assert log.read_text() == "after\n"
+
+
 def test_the_log_wipe_takes_every_stream_grafana_reads() -> None:
     """The dated streams an earlier filebeat.yml wrote are `qa-logs*` too."""
     assert "_data_stream/qa-logs*" in command("logs-wipe", "_data_stream")
