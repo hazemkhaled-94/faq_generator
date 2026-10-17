@@ -6,6 +6,7 @@ Importing this loads litellm. Nothing outside a worker should name it.
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from collections.abc import Callable, Iterator
@@ -111,6 +112,9 @@ def _waited(state: RetryCallState) -> float:
             try:
                 asked = float(cause.response.headers.get("retry-after", ""))
             except ValueError:
+                break
+            # A negative or non-finite one would make the sleep itself raise.
+            if not math.isfinite(asked) or asked < 0:
                 break
             return min(asked, _LONGEST_WAIT)
     return _BACKOFF(state)

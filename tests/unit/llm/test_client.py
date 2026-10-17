@@ -147,6 +147,13 @@ def test_the_catalogue_offers_exactly_the_modes_litellm_takes() -> None:
     assert setting.choices == litellm_takes()
 
 
+def test_the_client_takes_exactly_the_modes_litellm_takes() -> None:
+    """The client's own list, pinned as the catalogue's is."""
+    from llm.client import LITELLM_MODES
+
+    assert LITELLM_MODES == litellm_takes()
+
+
 def test_every_mode_litellm_takes_is_taken() -> None:
     """The refusal below turns away nothing that would have worked."""
     assert tuple(mode(name).name for name in litellm_takes()) == litellm_takes()
@@ -861,6 +868,18 @@ def test_a_retry_after_longer_than_the_cap_waits_the_cap(monkeypatch) -> None:
     Client(settings()).answer(system="s", user="u", shape=Shape)
 
     assert served.waits == [120.0]
+
+
+@pytest.mark.parametrize("after", ["-1", "nan", "inf"])
+def test_a_retry_after_that_is_no_wait_backs_off(monkeypatch, after) -> None:
+    """A negative or non-finite Retry-After would make the sleep itself raise."""
+    served = provider(monkeypatch, rate_limited(after=after), reply(FINE))
+
+    answer = Client(settings()).answer(system="s", user="u", shape=Shape)
+
+    assert answer.value == "answered"
+    assert len(served.waits) == 1
+    assert 0 < served.waits[0] <= 10
 
 
 def test_a_filtered_answer_is_a_refusal_asked_once(monkeypatch) -> None:
