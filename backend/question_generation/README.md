@@ -343,10 +343,13 @@ that restates the question before it answers is not held to the restatement.
 Numbers are always exact, so `4 hours` never
 passes for `48 hours`, and a count written out is its figure: `two
 conditions` is `2 conditions` and `zehn Sekunden` is `10 Sekunden`, for the
-languages whose number words the gates hold. A figure is read by its
-language's decimal mark, `DECIMAL_MARK` in [`nlp/analysis.py`](../nlp/analysis.py):
-a German `1,234 %` is a rate and `1.234` a count, English the reverse, and
-`0,125 %` is never `125 %` in either.
+languages whose number words the gates hold. A figure the passages or the
+verifier's reply state is read by its language's decimal mark, `DECIMAL_MARK`
+in [`nlp/analysis.py`](../nlp/analysis.py): a German `1,234 %` is a rate and
+`1.234` a count, English the reverse, and `0,125 %` is never `125 %` in
+either. A figure the key or the explanation writes with one mark before three
+digits is read both ways, because a model writes either convention whatever
+the language: a German key `1,000 EUR` is the `1.000 EUR` its passage states.
 
 The `recall` reading stored beside the verdict is the share the verdict
 read, held to the bar the form was: all of it for a `value`, which records a reading only where it fell

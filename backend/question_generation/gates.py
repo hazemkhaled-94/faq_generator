@@ -108,6 +108,28 @@ def _folded(token: str, language: str | None) -> str:
     return repr(found[0]) if len(found) == 1 else token
 
 
+#: A figure one lone mark splits before three digits - `1.000`, `1,000` -
+#: which is a thousands group in one convention and a decimal in the other.
+_EITHER = re.compile(r"(\d{1,3})[.,](\d{3})")
+
+
+def _readings(unit: str, language: str | None) -> frozenset[str]:
+    """Every value a figure a model wrote may be, as `_folded` gives one.
+
+    `_folded` reads a figure by its language's decimal mark, which is right
+    for the passages and wrong for what a model writes: a key or a reply in
+    German says `1,000 EUR` for the `1.000 EUR` its passage states as often
+    as not. So one lone mark before three digits is read both ways. A head
+    of zeros is still only a fraction, and of two kinds of mark the last is
+    still the decimal.
+    """
+    either = _EITHER.fullmatch(unit)
+    if either is None or not either[1].strip("0"):
+        return frozenset({_folded(unit, language)})
+    head, tail = either.groups()
+    return frozenset({repr(float(head + tail)), repr(float(f"{head}.{tail}"))})
+
+
 def _written(text: str, language: str | None) -> dict[str, str]:
     """Each count a text writes out, by its word, as the figure `_folded` gives.
 
@@ -1025,7 +1047,7 @@ def asserted(target: str, passages: Sequence[str], language: str | None) -> bool
     count it writes out is one: `de_core_news_md` gives `zehn` no `like_num`.
     """
     units = _numbers(target, language)
-    return not units or units <= _values("\n".join(passages), language)
+    return not units or _carried(units, _values("\n".join(passages), language))
 
 
 #: Shortest and longest explanation, as QUESTIONS_EXPLANATION_CHARS sets
@@ -1107,7 +1129,7 @@ def explains(
     units = _asserts(explanation, language)
     if units:
         found = _values("\n".join(passages), language)
-        if not all(_folded(unit, language) in found for unit in units):
+        if not all(_readings(unit, language) & found for unit in units):
             return False
     said = content(explanation, language)
     if not said or not target:
@@ -1962,20 +1984,26 @@ def about(
     return share is None or share >= floor
 
 
-def _numbers(text: str, language: str | None) -> frozenset[str]:
+def _numbers(text: str, language: str | None) -> frozenset[frozenset[str]]:
     """The values a text asserts, with the counts `like_num` does not mark.
 
     `claim().units` reads a number off `like_num`, which `en_core_web_md`
     sets on `two` and `de_core_news_md` does not set on `zwei`: a German key
     written in words asserted no number, and agreed with any. A time or a
     figure glued to its unit carries no `like_num` either, and is read off
-    `claim().figures`.
+    `claim().figures`. Each value is every reading `_readings` gives it.
     """
     written = _written(text, language)
     read = claim(text, language)
     return frozenset(
-        written.get(unit, _folded(unit, language)) for unit in read.units + read.figures
-    ) | frozenset(written.values())
+        frozenset({written[unit]}) if unit in written else _readings(unit, language)
+        for unit in read.units + read.figures
+    ) | frozenset(frozenset({one}) for one in written.values())
+
+
+def _carried(units: frozenset[frozenset[str]], found: frozenset[str]) -> bool:
+    """Whether `found` holds some reading of every value in `units`."""
+    return all(readings & found for readings in units)
 
 
 def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
@@ -2077,7 +2105,7 @@ def agrees(
     # comparison that matters - `4` is still not `48` - and drops the one
     # that never did.
     units = _numbers(target, language)
-    if units and not units <= _values(recovered, language):
+    if units and not _carried(units, _values(recovered, language)):
         return False
 
     wanted = content(target, language)

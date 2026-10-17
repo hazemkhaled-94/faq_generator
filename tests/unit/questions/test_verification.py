@@ -1518,6 +1518,26 @@ def test_a_group_of_three_is_read_by_the_languages_decimal_mark(
 
 
 @pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        ("Das Tageslimit beträgt 1,000 EUR.", "1.000 EUR", "de"),
+        ("EUR 1.000", "1,000 EUR", "en"),
+    ],
+    ids=["a German key", "an English key"],
+)
+def test_a_key_in_the_other_convention_still_agrees(
+    recovered, target, language
+) -> None:
+    """A model writes either convention, whatever the language it writes."""
+    assert agrees(recovered, target, language)
+
+
+def test_a_key_in_the_other_convention_is_still_asserted() -> None:
+    """`1,000 EUR` is the `1.000 EUR` a German passage states, read as thousands."""
+    assert asserted("1,000 EUR", ["Das Tageslimit beträgt 1.000 EUR."], "de")
+
+
+@pytest.mark.parametrize(
     ("recovered", "target"),
     [
         ("125 Anlagen wurden geprüft", "12,5 Prozent"),
