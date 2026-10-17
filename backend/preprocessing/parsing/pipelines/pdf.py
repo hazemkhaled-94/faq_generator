@@ -7,7 +7,8 @@ import logging
 import math
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
+from collections.abc import Callable
 from difflib import SequenceMatcher
 from itertools import pairwise
 from typing import ClassVar, NamedTuple, cast
@@ -102,8 +103,8 @@ _PAGE_SLACK = 1.0
 #: path hides is returned.
 _UNCLIPPED = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_MEDIABOX_CLIP
 
-#: How far apart, in points, the two reads of one page may place a character
-#: and still mean one glyph. Float noise between two extractions of the same
+#: How far apart, in points, two reads of one page may place a character and
+#: still mean one glyph. Float noise between two extractions of the same
 #: content stream, not a distance on the page.
 _SAME_PLACE = 1.0
 
@@ -197,7 +198,8 @@ class PdfPipeline(Pipeline):
             document=_tabled(
                 _repaired(
                     _rejoined(_unstruck(result.document, source.data), source.data)
-                )
+                ),
+                source.data,
             ),
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
@@ -293,8 +295,11 @@ def _repaired(document: DoclingDocument) -> DoclingDocument:
 #: follows - `Impact:` over `goal kick`.
 _SENTENCE_END = (".", "!", "?")
 
+#: A font as a page sets text in it: its name, and its size in whole points.
+_Font = tuple[str, int]
 
-def _tabled(document: DoclingDocument) -> DoclingDocument:
+
+def _tabled(document: DoclingDocument, data: bytes | None = None) -> DoclingDocument:
     """Joins the tables the converter broke at a page or inside a wrapped cell.
 
     A table running onto the next page comes out as two, and the second has
@@ -310,15 +315,27 @@ def _tabled(document: DoclingDocument) -> DoclingDocument:
     off a word, so it holds for any table in any language with case; a
     script without case joins no row, which is the safe side.
 
+    The converter may take the rest's first row for a header. That row is
+    data, and the rest joins, when each of its cells is set in the font most
+    of the first table's data in its column is set in, and not in the font of
+    that column's header: the type the PDF itself sets the two in, so a
+    second table whose header is set as the first's stays apart, and so does
+    the rest of a table whose header is set as its data.
+
     Args:
         document: The converted document, modified in place.
+        data: The PDF it was converted from, which the fonts are read off,
+            or None to read the grid alone and keep every headed rest apart.
 
     Returns:
         The same document.
     """
+    font = _typeface(data)
     # The table the next body item would continue: the item right before it,
-    # where that is a table, or the table that one already joined.
+    # where that is a table, or the table that one already joined; and the
+    # rows it printed on its own page, before any rest joined it.
     anchor: TableItem | None = None
+    own = 0
     for item, _ in document.iterate_items():
         if not isinstance(item, DocItem) or item.content_layer != ContentLayer.BODY:
             continue
@@ -326,25 +343,137 @@ def _tabled(document: DoclingDocument) -> DoclingDocument:
             continue
         if not isinstance(item, TableItem):
             anchor = None
-        elif anchor is not None and _continues(anchor, item):
+        elif anchor is not None and _continues(anchor, own, item, font):
+            for cell in item.data.table_cells:
+                cell.column_header = False
             _append(anchor, item)
             item.content_layer = ContentLayer.FURNITURE
         else:
-            anchor = item
+            anchor, own = item, item.data.num_rows
     for table in document.tables:
         if table.content_layer == ContentLayer.BODY:
             _unwrapped(table)
     return document
 
 
-def _continues(table: TableItem, rest: TableItem) -> bool:
-    """Whether a table is the rest of the one before it, broken at a page."""
+def _continues(
+    table: TableItem,
+    own: int,
+    rest: TableItem,
+    font: Callable[[int, BoundingBox], _Font | None],
+) -> bool:
+    """Whether a table is the rest of the one before it, broken at a page.
+
+    A rest holding a header is one only where the header is its first row,
+    set as the table's data is: `_set_as_data`.
+    """
     if rest.data.num_cols != table.data.num_cols or not table.prov or not rest.prov:
         return False
-    if any(cell.column_header for cell in rest.data.table_cells):
-        return False
     gap = rest.prov[0].page_no - table.prov[-1].page_no
-    return gap in (0, 1)
+    if gap not in (0, 1):
+        return False
+    heads = [cell for cell in rest.data.table_cells if cell.column_header]
+    return not heads or _set_as_data(table, own, heads, rest.prov[0].page_no, font)
+
+
+def _set_as_data(
+    table: TableItem,
+    own: int,
+    heads: list[TableCell],
+    page: int,
+    font: Callable[[int, BoundingBox], _Font | None],
+) -> bool:
+    """Whether a rest's header cells are its first row, set as `table`'s data.
+
+    Each is set in the font most of the table's data cells in its column are,
+    and not in the font of the table's header cell there. Only the rows the
+    table printed on its own page are read, where `font` looks for them.
+    """
+    if any(cell.start_row_offset_idx != 0 or cell.bbox is None for cell in heads):
+        return False
+    first = table.prov[0].page_no
+    headed = {
+        cell.start_col_offset_idx: cell.bbox
+        for cell in table.data.table_cells
+        if cell.column_header and cell.bbox is not None
+    }
+    if not headed:
+        return False
+    usual: dict[int, Counter[_Font | None]] = defaultdict(Counter)
+    for cell in table.data.table_cells:
+        if (
+            not cell.column_header
+            and cell.bbox is not None
+            and cell.text.strip()
+            and cell.start_row_offset_idx < own
+        ):
+            usual[cell.start_col_offset_idx][font(first, cell.bbox)] += 1
+    for cell in heads:
+        column = cell.start_col_offset_idx
+        set_in = font(page, cast(BoundingBox, cell.bbox))
+        commonest = usual[column].most_common(1)
+        if (
+            set_in is None
+            or not commonest
+            or set_in != commonest[0][0]
+            or (column in headed and set_in == font(first, headed[column]))
+        ):
+            return False
+    return True
+
+
+def _typeface(data: bytes | None) -> Callable[[int, BoundingBox], _Font | None]:
+    """Reads the font a box's text is set in, reading each page once.
+
+    The font most of the box's characters are set in. None with no PDF, for
+    a box holding no text, and on a page that cannot be read.
+    """
+    pages: dict[int, tuple[float, list[dict]] | None] = {}
+
+    def font(page_no: int, bbox: BoundingBox) -> _Font | None:
+        if data is None:
+            return None
+        if page_no not in pages:
+            pages[page_no] = _spans(data, page_no)
+        read = pages[page_no]
+        if read is None:
+            return None
+        height, spans = read
+        box = bbox.to_top_left_origin(page_height=height)
+        counted: Counter[_Font] = Counter()
+        for span in spans:
+            left, top, right, bottom = span["bbox"]
+            if (
+                box.l - _SAME_PLACE <= (left + right) / 2 <= box.r + _SAME_PLACE
+                and box.t - _SAME_PLACE <= (top + bottom) / 2 <= box.b + _SAME_PLACE
+            ):
+                counted[(span["font"], round(span["size"]))] += len(span["text"])
+        return counted.most_common(1)[0][0] if counted else None
+
+    return font
+
+
+def _spans(data: bytes, page_no: int) -> tuple[float, list[dict]] | None:
+    """A page's height and every span of text it shows, or None if unreadable."""
+    try:
+        with pymupdf.open(stream=data, filetype="pdf") as pdf:
+            page = pdf.load_page(page_no - 1)
+            # The layout as a dict, which the method's annotation does not say.
+            return page.rect.height, [
+                span
+                for block in cast(dict, page.get_text("dict"))["blocks"]
+                for line in block.get("lines", ())
+                for span in line["spans"]
+                if span["text"].strip()
+            ]
+    except Exception as exc:  # noqa: BLE001 - the conversion already succeeded
+        log.warning(
+            "the fonts on page %d were not read: %s: %s",
+            page_no,
+            type(exc).__name__,
+            exc,
+        )
+        return None
 
 
 def _append(table: TableItem, rest: TableItem) -> None:

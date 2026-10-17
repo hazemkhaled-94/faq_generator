@@ -7,6 +7,7 @@ two rows. Both are read off the grid's structure, never off its words.
 
 from __future__ import annotations
 
+import pymupdf
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.document import (
@@ -237,3 +238,98 @@ def test_a_row_a_spanning_cell_covers_is_never_joined() -> None:
     assert any(
         cell.text == "Debit" and cell.row_span == 2 for cell in table.table_cells
     )
+
+
+# ── A continuation whose first row the converter took for a header ─────────
+
+#: The type a fee schedule sets its header and its data in, as pymupdf's
+#: built-in Helvetica faces.
+HEADER, DATA = "hebo", "helv"
+
+
+def typeset(*pages: list[tuple[tuple[str, ...], str]]) -> tuple[bytes, list]:
+    """Prints each page's rows, each in its font, in two columns.
+
+    Returns:
+        The PDF, and each page's cell boxes by row and column, with a
+        top-left origin.
+    """
+    pdf = pymupdf.open()
+    boxes = []
+    for printed in pages:
+        page = pdf.new_page(width=595, height=842)
+        placed = []
+        for at, (row, font) in enumerate(printed):
+            baseline = 120 + 20 * at
+            placed.append([])
+            for col, text in enumerate(row):
+                left = 60 + 250 * col
+                page.insert_text((left, baseline), text, fontname=font, fontsize=9)
+                right = left + pymupdf.get_text_length(text, fontname=font, fontsize=9)
+                placed[-1].append(
+                    BoundingBox(
+                        l=left,
+                        t=baseline - 9,
+                        r=right,
+                        b=baseline + 3,
+                        coord_origin=CoordOrigin.TOPLEFT,
+                    )
+                )
+        boxes.append(placed)
+    return pdf.tobytes(), boxes
+
+
+def boxed(rows: tuple[tuple[str, ...], ...], boxes: list, header: bool) -> TableData:
+    """A table of these rows, each cell in its printed box."""
+    data = grid(*rows, header=header)
+    for cell in data.table_cells:
+        cell.bbox = boxes[cell.start_row_offset_idx][cell.start_col_offset_idx]
+    return data
+
+
+SCHEDULE = (
+    ("Leistung", "Entgelt"),
+    ("Girocard", "5,00 EUR"),
+    ("Kreditkarte", "29 EUR"),
+)
+REST = (("Ersatzkarte", "15,00 EUR"), ("Bargeld am Automaten", "2,00 EUR"))
+
+
+def schedule(
+    rest_font: str, header_font: str = HEADER
+) -> tuple[bytes, DoclingDocument]:
+    """A fee schedule run onto page 2, its rest's first row flagged a header."""
+    data, (first, second) = typeset(
+        [(SCHEDULE[0], header_font), *((row, DATA) for row in SCHEDULE[1:])],
+        [(REST[0], rest_font), (REST[1], DATA)],
+    )
+    document = paged(2)
+    document.add_table(data=boxed(SCHEDULE, first, header=True), prov=on(1))
+    document.add_table(data=boxed(REST, second, header=True), prov=on(2))
+    return data, document
+
+
+def test_a_rest_whose_first_data_row_is_flagged_a_header_joins_its_table() -> None:
+    """The row is set as the schedule's data is, not as its header: it is data."""
+    data, document = schedule(rest_font=DATA)
+
+    assert rows(_tabled(document, data)) == [[list(row) for row in SCHEDULE + REST]]
+    assert not any(
+        cell.column_header
+        for cell in document.tables[0].data.table_cells
+        if cell.start_row_offset_idx > 0
+    )
+
+
+def test_a_rest_with_a_header_in_the_header_font_is_a_table_of_its_own() -> None:
+    """A second table of the same width, its header set as the first's is."""
+    data, document = schedule(rest_font=HEADER)
+
+    assert len(rows(_tabled(document, data))) == 2
+
+
+def test_a_rest_after_a_table_whose_header_is_set_as_its_data_stays_apart() -> None:
+    """With header and data in one font, the font tells nothing apart."""
+    data, document = schedule(rest_font=DATA, header_font=DATA)
+
+    assert len(rows(_tabled(document, data))) == 2
