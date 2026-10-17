@@ -23,7 +23,7 @@ import requests
 
 import telemetry
 from settings import catalog
-from settings.env import required
+from settings.env import optional
 
 log = logging.getLogger(__name__)
 
@@ -92,7 +92,10 @@ def main(argv: list[str] | None = None) -> int:
     telemetry.configure("doctor")
 
     compose = " ".join(sys.argv[1:] if argv is None else argv) or "podman compose"
-    url = required("BACKEND_URL").rstrip("/")
+    url = (optional("BACKEND_URL") or "").rstrip("/")
+    if not url:
+        log.warning("BACKEND_URL is not set, so the api's settings were not compared")
+        return 0
     try:
         differs = missing(served(url))
     except requests.RequestException as unanswered:

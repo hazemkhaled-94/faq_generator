@@ -24,3 +24,11 @@ def test_a_served_catalog_missing_a_setting_is_named() -> None:
 def test_an_identical_catalog_reports_nothing() -> None:
     """The api runs this checkout's build."""
     assert drift.missing(_served()) == {}
+
+
+def test_an_unset_address_is_a_warning_not_a_failure(monkeypatch) -> None:
+    """The doctor goes on to its other checks, as it does when the api is down."""
+    monkeypatch.setattr(drift.telemetry, "configure", lambda *_, **__: None)
+    monkeypatch.delenv("BACKEND_URL", raising=False)
+
+    assert drift.main([]) == 0

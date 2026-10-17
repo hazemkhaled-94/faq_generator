@@ -981,3 +981,24 @@ def test_a_hosted_override_is_sent_neither_local_option(monkeypatch) -> None:
     Client(local.overridden("azure/gpt-4.1")).answer(system="s", user="u", shape=Shape)
 
     assert not {"num_ctx", "reasoning_effort"} & set(served.calls[0])
+
+
+def test_the_spend_parser_reads_the_line_a_failed_call_logs(monkeypatch, caplog) -> None:
+    """The Makefile's parser and this line are one contract, held in two files.
+
+    Reworded here alone, a failed call would drop out of `make spend` silently.
+    """
+    import re
+    from pathlib import Path
+
+    makefile = (Path(__file__).resolve().parents[3] / "Makefile").read_text()
+    (pattern,) = re.findall(r"grep -oE '([^']+)'", makefile.split("SPENT =", 1)[1])
+    provider(monkeypatch, reply("not json"))
+
+    class _Facts(Shape):
+        """Named as the stages name theirs, which is what the parser reads."""
+
+    with caplog.at_level("INFO"), pytest.raises(ModelUnavailable):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=_Facts)
+
+    assert re.search(pattern.replace("$$", "$"), logged(caplog, "ERROR").getMessage())
