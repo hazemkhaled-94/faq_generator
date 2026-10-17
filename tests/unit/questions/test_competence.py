@@ -468,6 +468,59 @@ def test_the_level_is_carried_onto_the_question() -> None:
     assert result.cognitive_level == CognitiveLevel.ANALYSE
 
 
+@pytest.mark.parametrize(
+    ("question", "answer", "kind", "level"),
+    [
+        (
+            "How many documents must be provided to open an account?",
+            "a passport and proof of address",
+            QuestionType.FACTOID,
+            CognitiveLevel.RECALL,
+        ),
+        (
+            "How many banks issue the card?",
+            "Northbank",
+            QuestionType.FACTOID,
+            CognitiveLevel.RECALL,
+        ),
+        (
+            "How many documents must be provided to open an account?",
+            "2",
+            QuestionType.AGGREGATION,
+            CognitiveLevel.ANALYSE,
+        ),
+    ],
+    ids=["two things", "a name", "a figure"],
+)
+def test_a_relabelled_count_takes_the_level_of_what_it_is(
+    question: str, answer: str, kind: str, level: str
+) -> None:
+    """A count stored as the kind its key is asks what that kind asks.
+
+    An aggregation takes its key as a value, so one naming no figure is
+    stored as a factoid: a lookup, at the level a lookup is.
+    """
+    recording = Recording(answer=True)
+
+    result = build(recording).check(
+        candidate(
+            question_text=question,
+            target_answer=answer,
+            question_type=QuestionType.AGGREGATION,
+            facts=group(
+                source(
+                    passage_text=(
+                        "Northbank opens an account on a passport and proof of address."
+                    )
+                )
+            ),
+        )
+    )
+
+    assert result.question_type == kind
+    assert result.cognitive_level == level
+
+
 def test_a_retrieval_question_carries_its_level_too() -> None:
     """Every type declares one, so every row gets one."""
     recording = Recording()

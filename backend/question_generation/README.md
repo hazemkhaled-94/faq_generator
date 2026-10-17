@@ -225,7 +225,9 @@ NULL on every unanswerable question by CHECK.
 ### What a question asks of a reader
 
 `difficulty` says how far an answer is spread — how hard it is to **find**.
-`cognitive_level` is the other axis, derived from the question's type:
+`cognitive_level` is the other axis, derived from the type the question is
+stored as, so a count whose key names no figure, stored as a `factoid`, is
+`recall`:
 
 | level | types |
 |---|---|

@@ -1144,6 +1144,12 @@ class QuestionChecker:
         code, reason = failed if failed else (None, "")
         if code:
             log.info("rejected %r: %s (%s)", candidate.question_text, reason, code)
+        kind = relabelled(
+            candidate.spec.name,
+            (form or candidate.spec.form) if candidate.answerable else None,
+            candidate.target_answer,
+            candidate.group.language,
+        )
         return CheckedQuestion(
             question_text=candidate.question_text,
             target_answer=candidate.target_answer,
@@ -1161,13 +1167,10 @@ class QuestionChecker:
             passage_ids=tuple(passage.id for passage in candidate.group.resting),
             embedding=embedding,
             thread_position=candidate.thread_position,
-            question_type=relabelled(
-                candidate.spec.name,
-                (form or candidate.spec.form) if candidate.answerable else None,
-                candidate.target_answer,
-                candidate.group.language,
-            ),
-            cognitive_level=candidate.spec.level,
+            question_type=kind,
+            # The stored kind's, so a count stored as the lookup it is
+            # carries a lookup's level rather than the analysis it skipped.
+            cognitive_level=spec(kind).level,
             # An unanswerable question has no answer, so it has no form: the
             # column says what shape the answer takes and there is none.
             answer_form=(form or candidate.spec.form) if candidate.answerable else None,
