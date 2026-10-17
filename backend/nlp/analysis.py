@@ -648,9 +648,7 @@ def _anticipates(token, before: Doc | None) -> bool:
         return True
     if not any(one.dep_ in _SUBORDINATOR for one in words):
         return False
-    return not any(
-        noun.pos_ in _NOMINAL and _agrees(token, noun) for noun in before
-    )
+    return not any(noun.pos_ in _NOMINAL and _agrees(token, noun) for noun in before)
 
 
 def _refers(token, before: Doc | None = None) -> bool:
@@ -1015,9 +1013,7 @@ def _resolved(token) -> bool:
         ]
         if not _in_finite_chain(token):
             kept += [
-                noun
-                for noun in earlier
-                if noun not in kept and not _argument(noun)
+                noun for noun in earlier if noun not in kept and not _argument(noun)
             ]
         earlier = kept
     return any(_agrees(token, noun) for noun in earlier)
@@ -1073,11 +1069,7 @@ def _references(span: Doc | Span, before: Doc | None = None) -> tuple[str, ...]:
     opening = takewhile(lambda t: "Fin" not in t.morph.get("VerbForm", []), span)
     return tuple(
         sorted(
-            {
-                t.text.casefold()
-                for t in span
-                if _refers(t, before) and not _resolved(t)
-            }
+            {t.text.casefold() for t in span if _refers(t, before) and not _resolved(t)}
             | {t.text.casefold() for t in opening if _opens(t)}
         )
     )

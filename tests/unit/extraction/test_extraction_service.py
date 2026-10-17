@@ -242,7 +242,12 @@ class TestTheDedupGate:
 
         assert (
             _closest(
-                "The card is blocked at home.", FactKind.ATOMIC, "en", vector, None, kept
+                "The card is blocked at home.",
+                FactKind.ATOMIC,
+                "en",
+                vector,
+                None,
+                kept,
             )
             is None
         )

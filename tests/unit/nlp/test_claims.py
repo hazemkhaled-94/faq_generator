@@ -113,8 +113,10 @@ def test_two_duties_of_one_subject_are_still_two_claims() -> None:
         ("en", "The bank may refuse the payment but must tell the customer why."),
         (
             "de",
-            "Die Bank muss den Betrag nicht sofort erstatten, sondern kann ihn "
-            "zunächst prüfen.",
+            (
+                "Die Bank muss den Betrag nicht sofort erstatten, sondern kann ihn "
+                "zunächst prüfen."
+            ),
         ),
     ],
 )
@@ -133,23 +135,31 @@ def test_a_permission_with_its_but_limit_is_one_claim(
     [
         (
             "en",
-            "Customers may return goods within 30 days, but refunds are only paid "
-            "to the original card.",
+            (
+                "Customers may return goods within 30 days, but refunds are only paid "
+                "to the original card."
+            ),
         ),
         (
             "de",
-            "Kunden können Waren binnen 30 Tagen zurückgeben, aber die Erstattung "
-            "erfolgt nur auf die ursprüngliche Karte.",
+            (
+                "Kunden können Waren binnen 30 Tagen zurückgeben, aber die Erstattung "
+                "erfolgt nur auf die ursprüngliche Karte."
+            ),
         ),
         (
             "en",
-            "The card is free of charge in the first year, but a fee of 30 EUR is "
-            "charged from the second year.",
+            (
+                "The card is free of charge in the first year, but a fee of 30 EUR is "
+                "charged from the second year."
+            ),
         ),
         (
             "de",
-            "Die Karte ist im ersten Jahr gebührenfrei, jedoch wird ab dem zweiten "
-            "Jahr eine Gebühr von 30 EUR berechnet.",
+            (
+                "Die Karte ist im ersten Jahr gebührenfrei, jedoch wird ab dem zweiten "
+                "Jahr eine Gebühr von 30 EUR berechnet."
+            ),
         ),
         ("en", "The card is blocked and the account is closed."),
     ],
