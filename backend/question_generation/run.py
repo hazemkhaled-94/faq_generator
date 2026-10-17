@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import sys
 
+import telemetry
+from database.qa_generator import engine
 from llm.check import before_work
 from llm.client import Client
 from llm.config import Settings as ModelSettings
@@ -19,6 +21,7 @@ from question_generation.factory import build_service, models
 from question_generation.queue import QuestionQueue
 from question_generation.service import balance, rejudge, rescore, reverify
 from question_generation.verifier import Verifier
+from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages.cli import queue_main
 from stages.prompts import record
@@ -50,6 +53,12 @@ def main(argv: list[str] | None = None) -> int:
         settings, model, _ = configured()
         _, verifier, _ = models(settings, model)
         before_work(verifier)
+        # `queue_main` installs tracing only for a drain, so without this the
+        # draw's spans and the verifier's calls were never exported, and its
+        # log lines read trace 0. After the preflight, as a drain's is, so a
+        # verifier that will not answer leaves no Phoenix project behind.
+        telemetry.configure("questions", run=run_id(), named=named_run())
+        telemetry.trace_engine(engine())
         return balance(QuestionCatalog(), settings, within, Verifier(Client(verifier)))
 
     def rejudged(within) -> int:

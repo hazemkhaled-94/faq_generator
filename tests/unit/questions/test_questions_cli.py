@@ -141,6 +141,7 @@ class Driver:
         monkeypatch.setattr(cli.telemetry, "configure", lambda *_, **__: None)
         monkeypatch.setattr(cli.telemetry, "trace_engine", lambda *_: None)
         monkeypatch.setattr(cli, "engine", lambda: None)
+        monkeypatch.setattr(module, "engine", lambda: None)
         monkeypatch.setattr(
             cli, "watch", lambda _, seconds: self.watched.append(seconds)
         )
@@ -248,6 +249,32 @@ def test_balance_judges_twins_with_the_verifier_model_proved_first(
     assert cli.run("--balance") == 0
     assert cli.proved == ["ollama_chat/verifier"]
     assert cli.judged_by == "ollama_chat/verifier"
+
+
+def test_a_balance_is_traced_once_its_verifier_has_answered(cli, monkeypatch) -> None:
+    """The draw and the verifier's calls are traced under this run.
+
+    `queue_main` installs tracing only before a drain, so this stage's own
+    operations ran without it and every line the draw wrote read trace 0.
+    After the preflight, as a drain's is: a verifier that will not answer
+    leaves no project behind.
+    """
+    import telemetry
+    from question_generation import run as module
+
+    happened: list[str] = []
+    monkeypatch.setattr(
+        telemetry,
+        "configure",
+        lambda *_, tracing=True, **__: happened.append(
+            "traced" if tracing else "logged"
+        ),
+    )
+    monkeypatch.setattr(module, "before_work", lambda *_: happened.append("proved"))
+    monkeypatch.setattr(module, "balance", lambda *_: happened.append("drawn") or 7)
+
+    assert cli.run("--balance") == 0
+    assert happened == ["logged", "proved", "traced", "drawn"]
 
 
 def test_a_narrowed_balance_is_refused_before_anything_is_drawn(cli) -> None:
