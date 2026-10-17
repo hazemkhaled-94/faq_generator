@@ -61,13 +61,17 @@ def main(argv: list[str] | None = None) -> int:
     telemetry.trace_engine(engine())
 
     if args.list:
-        _, documents = build_service(settings).documents(limit=1000)
+        total, documents = build_service(settings).documents(limit=1000)
         for document in documents:
             log.info(
                 "%s  %-9s %s",
                 document.sha256,
                 document.parse_status,
                 document.filename or "-",
+            )
+        if total > len(documents):
+            log.warning(
+                "listed %d of %d documents, the newest first", len(documents), total
             )
         return 0
 

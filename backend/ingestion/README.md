@@ -157,7 +157,7 @@ the PDF reader are stood in for.
 |---|---|
 | [`test_uploaded_file.py`](../../tests/unit/ingestion/test_uploaded_file.py) | What an upload's bytes say about it: magic-byte detection, the digest, the size |
 | [`test_intake_ingestion.py`](../../tests/unit/intake/test_intake_ingestion.py) | The check order, both size boundaries, the object metadata, the two store-failure paths, the insert race, and the deletion ordering across three stores |
-| [`test_intake_cli.py`](../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
+| [`test_intake_cli.py`](../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses, and a listing that says when it is cut |
 | [`test_ingest.py`](../../tests/integration/test_ingest.py), [`test_removal.py`](../../tests/integration/test_removal.py) | Both flows against a real PostgreSQL and SeaweedFS |
 | [`test_documents.py`](../../tests/integration/api/test_documents.py) | The HTTP surface: status codes, the digest guard, the refusal shapes |
 | [`test_orphans.py`](../../tests/integration/test_orphans.py) | That deleting a document leaves nothing derived from it behind |

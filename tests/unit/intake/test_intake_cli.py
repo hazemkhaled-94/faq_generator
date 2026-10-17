@@ -44,15 +44,16 @@ class _Telemetry:
 class _Catalogue:
     """Stands in for the ingest service, listing what it was given."""
 
-    def __init__(self, *documents: StoredDocument) -> None:
-        """Takes the documents to list."""
+    def __init__(self, *documents: StoredDocument, total: int | None = None) -> None:
+        """Takes the documents to list, and how many the corpus holds."""
         self.documents_held = list(documents)
+        self.total = len(self.documents_held) if total is None else total
         self.limits: list[int] = []
 
     def documents(self, search=None, limit=100, offset=0):
         """Answers with every document, recording the page asked for."""
         self.limits.append(limit)
-        return len(self.documents_held), self.documents_held
+        return self.total, self.documents_held
 
 
 class _Removal:
@@ -149,6 +150,29 @@ def test_listing_reports_every_document(monkeypatch, caplog) -> None:
     assert "report.pdf" in caplog.text
     assert "parsed" in caplog.text
     assert catalogue.limits == [1000]
+
+
+def test_a_cut_listing_says_so(monkeypatch, caplog) -> None:
+    """A thousand at most, and the rest would otherwise go unmentioned."""
+    catalogue = _Catalogue(*[stored(f"{one:064x}") for one in range(1000)], total=1001)
+    monkeypatch.setattr(ingestion_run, "build_service", lambda settings: catalogue)
+
+    with caplog.at_level("INFO"):
+        assert ingestion_run.main(["--list"]) == 0
+
+    (said,) = [one.getMessage() for one in caplog.records if one.levelname == "WARNING"]
+    assert "1000 of 1001" in said
+
+
+def test_a_whole_listing_says_nothing_more(monkeypatch, caplog) -> None:
+    """Every document is on it."""
+    catalogue = _Catalogue(stored())
+    monkeypatch.setattr(ingestion_run, "build_service", lambda settings: catalogue)
+
+    with caplog.at_level("INFO"):
+        assert ingestion_run.main(["--list"]) == 0
+
+    assert not [one for one in caplog.records if one.levelname == "WARNING"]
 
 
 def test_deleting_a_document_reports_what_went_with_it(monkeypatch, caplog) -> None:
