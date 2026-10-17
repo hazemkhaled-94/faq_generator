@@ -123,6 +123,7 @@ def offered(setting: catalog.Setting, value: str) -> list[str]:
 
     One value for `text`, every entry for a list, every key for a mix. An
     empty value names none, which is how an optional one is turned off.
+    Stripped, as the store writes it.
     """
     if setting.kind == "csv":
         return [part.strip() for part in value.split(",") if part.strip()]
@@ -132,7 +133,7 @@ def offered(setting: catalog.Setting, value: str) -> list[str]:
             for entry in value.split(",")
             if entry.strip()
         ]
-    return [value] if value.strip() else []
+    return [value.strip()] if value.strip() else []
 
 
 def within_bounds(setting: catalog.Setting, value: str) -> None:

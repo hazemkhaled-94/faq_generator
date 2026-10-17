@@ -75,6 +75,15 @@ def test_a_flag_spelled_either_way_is_accepted(value: str) -> None:
     changes.within_bounds(catalog.writable("CHUNKING_MERGE_PEERS"), value)
 
 
+def test_a_choice_is_read_as_the_store_will_write_it() -> None:
+    """The value is stored stripped, so it is checked stripped.
+
+    Checked as sent, the route refused what the command line, which strips
+    first, wrote.
+    """
+    changes.within_bounds(catalog.writable("PARSING_TABLE_MODE"), "fast ")
+
+
 def test_a_bound_is_accepted_where_the_setting_allows_it() -> None:
     """Only a setting marked exclusive refuses its bounds themselves."""
     changes.within_bounds(catalog.writable("TOPIC_NO_ABOVE"), "1")
