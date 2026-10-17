@@ -51,6 +51,15 @@ def test_a_membership_floor_the_fit_would_refuse_is_refused_when_set(
     assert "TOPIC_MIN_WEIGHT" in refused.value.detail
 
 
+def test_a_threshold_that_is_not_a_number_is_refused() -> None:
+    """A nan passes every bound, since each comparison with it is false."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.apply("parsing", {"PARSING_MIN_CONFIDENCE": "nan"}, store=Environment())
+
+    assert refused.value.code == "would_not_load"
+    assert "PARSING_MIN_CONFIDENCE" in refused.value.detail
+
+
 def test_a_bound_is_accepted_where_the_setting_allows_it() -> None:
     """Only a setting marked exclusive refuses its bounds themselves."""
     changes.within_bounds(catalog.writable("TOPIC_NO_ABOVE"), "1")

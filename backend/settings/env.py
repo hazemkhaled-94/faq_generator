@@ -21,6 +21,7 @@ touching the environment the process runs under.
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Mapping
 
@@ -79,13 +80,18 @@ def decimal(name: str, source: Mapping[str, str] | None = None) -> float:
 
     Raises:
         KeyError: If it is unset or empty.
-        ValueError: If it is not a number, naming the variable.
+        ValueError: If it is not a finite number, naming the variable.
     """
     value = required(name, source)
     try:
-        return float(value)
+        number = float(value)
     except ValueError:
         raise ValueError(f"{name}={value!r} is not a number") from None
+    # float() reads nan and inf too, and nan passes every bound and gate,
+    # since no comparison with it is true.
+    if not math.isfinite(number):
+        raise ValueError(f"{name}={value!r} is not a finite number")
+    return number
 
 
 def boolean(name: str, source: Mapping[str, str] | None = None) -> bool:

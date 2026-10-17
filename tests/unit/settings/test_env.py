@@ -89,6 +89,15 @@ def test_a_setting_that_is_not_a_number_names_itself(monkeypatch, value) -> None
         decimal(NAME)
 
 
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf"])
+def test_a_number_that_is_not_finite_names_itself(monkeypatch, value) -> None:
+    """float() reads these, and no threshold means one: nan passes every bound."""
+    monkeypatch.setenv(NAME, value)
+
+    with pytest.raises(ValueError, match=NAME):
+        decimal(NAME)
+
+
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "Yes", "on", " on "])
 def test_the_accepted_spellings_of_true(monkeypatch, value) -> None:
     """Case and surrounding whitespace do not matter."""
