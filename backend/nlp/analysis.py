@@ -159,13 +159,20 @@ def _coordinated_to_root(token) -> bool:
 
 
 def _exceptive_tokens(doc: Doc) -> tuple[set[int], set[int]]:
-    """Indices of exceptive-run tokens, and of the token right after each run."""
+    """Indices of exceptive-run tokens, and of the token right after each run.
+
+    A one-word run the tagger reads as a finite verb is no exception opened:
+    "The bank provided the card" states what `provided` would otherwise
+    only restrict.
+    """
     words = [token.text.casefold() for token in doc]
     inside: set[int] = set()
     after: set[int] = set()
     for run in _EXCEPTIVE.get(doc.lang_, ()):
         for start in range(len(words) - len(run) + 1):
             if tuple(words[start : start + len(run)]) != run:
+                continue
+            if len(run) == 1 and "Fin" in doc[start].morph.get("VerbForm", []):
                 continue
             inside.update(range(start, start + len(run)))
             end = start + len(run)

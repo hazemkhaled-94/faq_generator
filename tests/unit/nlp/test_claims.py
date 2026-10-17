@@ -66,6 +66,22 @@ def test_a_rule_and_the_case_it_leaves_out_are_one_claim(
     assert found == 1, f"{found} claim(s) read in {sentence!r}; expected 1"
 
 
+def test_a_main_verb_provided_is_a_claim() -> None:
+    """`provided` as the verb a clause states is no exception opening."""
+    from nlp.analysis import claim
+
+    sentence = "The bank provided the card and the customer signed the form."
+    assert claim(sentence, "en").predicates == 2
+
+
+def test_an_exceptive_provided_still_restricts() -> None:
+    """`provided` opening a condition still narrows the rule before it."""
+    from nlp.analysis import claim
+
+    sentence = "The voucher is valid provided the customer pays."
+    assert claim(sentence, "en").predicates == 1
+
+
 @pytest.mark.parametrize(
     ("language", "sentence"),
     [
