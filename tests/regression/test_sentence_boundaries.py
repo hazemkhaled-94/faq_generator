@@ -99,6 +99,18 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "Die Gebühren/Entgelte werden am Monatsende belastet.",
         ("Die Gebühren/Entgelte werden am Monatsende belastet.",),
     ),
+    (
+        "an abbreviation before a figure ends nothing",
+        "en",
+        "Delivery takes approx. 3 days. Express delivery is faster.",
+        ("Delivery takes approx. 3 days.", "Express delivery is faster."),
+    ),
+    (
+        "incl. before a rate ends nothing",
+        "en",
+        "Prices are shown incl. 19 % VAT. Shipping is extra.",
+        ("Prices are shown incl. 19 % VAT.", "Shipping is extra."),
+    ),
 )
 
 

@@ -1086,8 +1086,8 @@ _JOINERS = "/-"
 _CONTINUING = ",;:)"
 
 #: Abbreviations that end in a full stop and end no sentence when a
-#: lower-case word follows, by ISO 639-1 code, case-folded, as the tokenizer
-#: cuts them ("z. B." is two).
+#: lower-case word or a figure follows, by ISO 639-1 code, case-folded, as
+#: the tokenizer cuts them ("z. B." is two).
 _ABBREVIATIONS: dict[str, frozenset[str]] = {
     "de": frozenset(
         {
@@ -1123,9 +1123,10 @@ def _boundaries(document: Doc) -> list[int]:
 
     The parser cuts where a statement would not: inside a word joined by a
     slash, before a clause opened by a comma, after an abbreviation followed
-    by a lower-case word, and between an item's number and the item, leaving
-    the number at the end of the item before. A citation resolves against
-    these sentences, so a cut there leaves a fact's evidence half a rule.
+    by a lower-case word or a figure ("approx. 3 days"), and between an
+    item's number and the item, leaving the number at the end of the item
+    before. A citation resolves against these sentences, so a cut there
+    leaves a fact's evidence half a rule.
     A cut is dropped in the first three cases and moved to the number in
     the last. Only ever drops or moves a cut the parser made: a full stop
     with no space after it still ends a sentence, as it does in a PDF that
@@ -1144,7 +1145,10 @@ def _boundaries(document: Doc) -> list[int]:
         if (
             (not spaced and (left[-1] in _JOINERS or right[0] in _JOINERS))
             or right[0] in _CONTINUING
-            or (last_word in abbreviations and right[0].islower())
+            or (
+                last_word in abbreviations
+                and (right[0].islower() or right[0].isdigit())
+            )
         ):
             continue
         line = left[left.rfind("\n") + 1 :]

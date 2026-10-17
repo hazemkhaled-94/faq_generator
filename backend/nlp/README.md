@@ -146,13 +146,14 @@ language added there without its rows fails that test, naming each table.
 | `CARDINALS` | same | Cardinals from nought to twelve, each as the value it names: the one count table the fact dedup gate and the question gates both read | `zwei`, `one` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
+| `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence before a lower-case word or a figure | `ca.`, `approx.` |
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
-by the word as written, `_AGENTS`, `_NUMBER_WORDS` and `_CORRELATES` by the
-word as written, the openings off the start of the question, `_COUNTS`
+by the word as written, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES` and
+`_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
 
