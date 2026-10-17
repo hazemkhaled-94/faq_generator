@@ -45,7 +45,8 @@ abbreviation followed by a lower-case word or, on its line, a figure that
 numbers no item (`approx. 3 days`, but not `etc.` before a line opening `2.`),
 and between an item's number and the item. A slash or a dash after a
 sentence's end and a space joins nothing: it opens the next sentence, as a
-free `- ` does or as the bullet of the next line.
+free `- ` does or as the bullet of the next line. An abbreviation's full stop
+ends no sentence there either, so `inkl. / zzgl. Versand` stays whole.
 
 ### Counting claims
 

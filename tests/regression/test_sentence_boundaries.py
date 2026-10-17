@@ -136,6 +136,18 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         ("Der Rückversand ist kostenlos.", "/ Ausnahmen regelt Nr. 4."),
     ),
     (
+        "a free slash after an abbreviation ends nothing",
+        "de",
+        "Alle Preise inkl. / zzgl. Versand sind ausgewiesen.",
+        ("Alle Preise inkl. / zzgl. Versand sind ausgewiesen.",),
+    ),
+    (
+        "a free dash after an abbreviation ends nothing",
+        "en",
+        "The fee is approx. - depending on the card - 20 EUR.",
+        ("The fee is approx. - depending on the card - 20 EUR.",),
+    ),
+    (
         # The parser cuts after the second bullet's dash, as it does in a
         # stored list of rules, and leaves the dash on the rule before.
         "two bulleted rules each ending in a full stop are two sentences",

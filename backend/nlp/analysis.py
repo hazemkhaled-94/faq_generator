@@ -1193,7 +1193,8 @@ def _boundaries(document: Doc) -> list[int]:
     opens the next sentence, standing free ("The fee is 50 EUR. - Repeat
     offenders pay 100 EUR.") or as the bullet of the next line, which the
     parser leaves on the line before. The cut is kept there, or moved back
-    to the bullet.
+    to the bullet. An abbreviation's full stop is no sentence's end, so
+    "inkl. / zzgl. Versand" is still one.
     """
     spans = list(document.sents)
     starts = [spans[0].start] if spans else []
@@ -1214,6 +1215,7 @@ def _boundaries(document: Doc) -> list[int]:
                 right[0] in _JOINERS
                 and previous.text_with_ws != left
                 and left[-1] in _SENTENCE_ENDS
+                and last_word not in abbreviations
             ):
                 starts.append(sentence.start)
                 continue
@@ -1223,6 +1225,7 @@ def _boundaries(document: Doc) -> list[int]:
                 last.text in tuple(_JOINERS)
                 and before != before.rstrip()
                 and before.rstrip()[-1:] in tuple(_SENTENCE_ENDS)
+                and before.split()[-1].casefold() not in abbreviations
             ):
                 if last.i > starts[-1]:
                     starts.append(last.i)
