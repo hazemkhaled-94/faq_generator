@@ -673,7 +673,8 @@ parse-rerun:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run --rerun $(ONLY)
 
 # Split every parsed document into passages. Replaces the passages a document
-# already had, which cascades to the facts and questions drawn from them.
+# already had and the new cut does not repeat, which cascades to the facts and
+# questions drawn from them; a passage repeated exactly keeps its facts.
 chunk:
 	@$(call IDLE,chunk-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run
@@ -696,20 +697,23 @@ chunk-retry:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --retry $(ONLY)
 
 # Run this stage again over every document, finished ones included. For when
-# the code behind it changed and its output needs rebuilding. Each document's
-# passages are replaced, and with them go their topic memberships, any fact
-# left citing no passage, any bridge that cited one, and every question left
-# resting on no fact, with its follow-ups and the assessments of each.
-# Without SHA that is the whole corpus, so it warns and waits first.
+# the code behind it changed and its output needs rebuilding. A passage the new
+# cut repeats exactly - text, heading trail, sentences and cells - is kept with
+# its facts and takes its new ordinal and pages in place. Every other passage
+# is replaced, and with it go its topic memberships, any fact left citing no
+# passage, any bridge that cited it, and every question left resting on no
+# fact, with its follow-ups and the assessments of each. Without SHA that is
+# the whole corpus, so it warns and waits first.
 chunk-rerun:
 	@$(call IDLE,chunk-worker)
-	@[ -n "$(SHA)" ] || { echo "WARNING: this replaces every passage, and the facts and questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
+	@[ -n "$(SHA)" ] || { echo "WARNING: this replaces every passage the new cut changes, and the facts and questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --rerun $(ONLY)
 
 # Read every stored passage's language and vocabulary again, in place. Only
 # those two change; passages, sentence offsets and facts all stay, which is
-# what chunk-rerun cannot promise - it deletes the passages and the facts go
-# with them. Fit the topics afterwards to see the difference.
+# what chunk-rerun cannot promise - it deletes every passage whose sentences
+# moved, and the facts go with them. Fit the topics afterwards to see the
+# difference.
 chunk-revocabulary:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --revocabulary $(ONLY)
 

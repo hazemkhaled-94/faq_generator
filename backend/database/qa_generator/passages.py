@@ -33,8 +33,10 @@ if TYPE_CHECKING:
 class Passage(Base):
     """A document split into retrievable chunks.
 
-    Immutable: re-chunking deletes and re-inserts every passage of a document,
-    which cascades to its facts, topics and questions.
+    Immutable in what a fact rests on: re-chunking deletes every passage of a
+    document whose text, heading trail, sentences or cells changed, which
+    cascades to its facts, topics and questions, and keeps the rest, writing
+    only their position and the readings beside the text in place.
     """
 
     __tablename__ = "passages"

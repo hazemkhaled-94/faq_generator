@@ -6,8 +6,8 @@ model is fitted over.
 
 A passage is the unit everything downstream works in, which makes this the
 stage whose decisions are hardest to undo: re-chunking deletes every passage
-of a document, and the facts, topic memberships and questions resting on them
-go with it.
+of a document it cuts differently, and the facts, topic memberships and
+questions resting on them go with it.
 
 It reads the converted document out of the `parsed` bucket and never the
 original PDF, so re-chunking never re-parses.
@@ -184,8 +184,12 @@ One transaction deletes the document's old passages, inserts the new ones,
 writes `oversized` and sets the status, so a document can never read as
 chunked while holding another run's passages.
 
-The delete cascades to the facts drawn from the old passages and the topic
-memberships they held.
+An old passage the new set repeats - the same text, heading trail, sentences
+and cell grid - is kept instead: it keeps its id and with it its facts,
+topic memberships and embedding, and takes its new ordinal, pages and box in
+place. So a re-chunk after a parsing or chunking fix rebuilds only the
+passages the fix changed. The delete of every other old passage cascades to
+the facts drawn from it and the topic memberships it held.
 
 ### Step 6 — Re-read stored passages
 
@@ -306,8 +310,9 @@ corpus, which is a property of the model rather than of this code.
 
 ## Limits
 
-- **A re-chunk is destructive.** It deletes every passage of the document,
-  which cascades to the facts, memberships and questions resting on them.
+- **A re-chunk is destructive where it cuts differently.** It deletes every
+  passage of the document it does not repeat exactly, which cascades to the
+  facts, memberships and questions resting on them.
 - **`oversized` should always read 0.** Above 0 means the chunker's split did
   not happen and those passages will be truncated when embedded.
 - **A passage too short to detect a language for, in a document with none,

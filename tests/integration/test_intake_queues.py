@@ -327,9 +327,176 @@ def test_re_chunking_takes_the_facts_drawn_from_the_old_passages(
         session.commit()
     assert one(engine, "SELECT count(*) AS held FROM facts").held == 1
 
-    queue.replace(A, Chunking(passages=[chunk()], oversized=0))
+    queue.replace(
+        A, Chunking(passages=[chunk(1, "The device weighs 5 kg.")], oversized=0)
+    )
 
     assert one(engine, "SELECT count(*) AS held FROM facts").held == 0
+
+
+def _facts_on(engine, sha: str = A) -> dict[str, int]:
+    """How many facts rest on each passage of a document, by its text."""
+    return {
+        row.text: row.held
+        for row in rows(
+            engine,
+            "SELECT p.text, count(fp.fact_id) AS held FROM passages p "
+            "LEFT JOIN fact_passages fp ON fp.passage_id = p.id "
+            "WHERE p.doc_sha256 = :sha GROUP BY p.text",
+            sha=sha,
+        )
+    }
+
+
+def _ids(engine) -> dict[str, int]:
+    """Each passage's id, by its text."""
+    return {row.text: row.id for row in rows(engine, "SELECT id, text FROM passages")}
+
+
+def test_a_rerun_keeps_a_passage_whose_text_and_path_did_not_change_and_its_facts(
+    chunkable, engine
+) -> None:
+    """A parsing fix rebuilds what it changed, not the whole document.
+
+    A fee schedule re-chunked after a fix to its first passage: the second
+    comes back word for word under the same trail, on a page the fix moved,
+    and keeps its id, its fact and its place in the topic model.
+    """
+    queue = ChunkQueue()
+    fee, refund = "Card fee: 5 EUR a year.", "Refunds within 14 days."
+    queue.replace(
+        A,
+        Chunking(
+            passages=[chunk(1, fee + " NEW"), chunk(2, refund, section_path="Fees")],
+            oversized=0,
+        ),
+    )
+    before = _ids(engine)
+    with Session(engine) as session:
+        session.add_all([fact(before[fee + " NEW"]), fact(before[refund])])
+        session.commit()
+
+    stored = queue.replace(
+        A,
+        Chunking(
+            passages=[
+                chunk(1, fee),
+                chunk(
+                    2,
+                    refund,
+                    section_path="Fees",
+                    page_from=2,
+                    page_to=3,
+                    bbox=[{"page": 2, "l": 5.0, "t": 6.0, "r": 7.0, "b": 8.0}],
+                ),
+            ],
+            oversized=0,
+        ),
+    )
+
+    assert stored == 2
+    assert _ids(engine)[refund] == before[refund]
+    assert _facts_on(engine) == {fee: 0, refund: 1}
+    row = one(
+        engine,
+        "SELECT ordinal, page_from, page_to, bbox FROM passages WHERE id = :id",
+        id=before[refund],
+    )
+    assert (row.ordinal, row.page_from, row.page_to) == (2, 2, 3)
+    assert row.bbox == [{"page": 2, "l": 5.0, "t": 6.0, "r": 7.0, "b": 8.0}]
+
+
+def test_a_kept_passage_takes_its_new_ordinal(chunkable, engine) -> None:
+    """A passage inserted ahead of kept ones shifts them, with no clash.
+
+    (doc_sha256, ordinal) is unique and checked row by row, so the kept rows
+    must move past each other's old numbers on the way.
+    """
+    queue = ChunkQueue()
+    texts = ["Returns within 30 days.", "Refund to the card used.", "Postage paid."]
+    queue.replace(
+        A,
+        Chunking(
+            passages=[chunk(at, one) for at, one in enumerate(texts, 1)], oversized=0
+        ),
+    )
+    before = _ids(engine)
+
+    queue.replace(
+        A,
+        Chunking(
+            passages=[
+                chunk(1, "Exchanges are free."),
+                chunk(2, texts[0]),
+                chunk(3, texts[1]),
+                chunk(4, texts[2]),
+            ],
+            oversized=0,
+        ),
+    )
+
+    assert rows(engine, "SELECT ordinal, text FROM passages ORDER BY ordinal") == [
+        (1, "Exchanges are free."),
+        (2, texts[0]),
+        (3, texts[1]),
+        (4, texts[2]),
+    ]
+    assert all(_ids(engine)[one] == before[one] for one in texts)
+
+
+def test_a_passage_whose_heading_trail_changed_is_replaced(chunkable, engine) -> None:
+    """The trail is what both model stages are shown beside the text."""
+    queue = ChunkQueue()
+    queue.replace(A, Chunking(passages=[chunk(section_path="Fees > K")], oversized=0))
+    with Session(engine) as session:
+        session.add(fact(_ids(engine)["The device weighs 4 kg."]))
+        session.commit()
+
+    queue.replace(A, Chunking(passages=[chunk(section_path="Fees")], oversized=0))
+
+    assert one(engine, "SELECT count(*) AS held FROM facts").held == 0
+
+
+def test_a_passage_whose_sentences_moved_is_replaced(chunkable, engine) -> None:
+    """A fact cites a sentence by index, so new boundaries are a new passage."""
+    queue = ChunkQueue()
+    queue.replace(A, Chunking(passages=[chunk()], oversized=0))
+    with Session(engine) as session:
+        session.add(fact(_ids(engine)["The device weighs 4 kg."]))
+        session.commit()
+
+    queue.replace(
+        A,
+        Chunking(
+            passages=[
+                chunk(
+                    sentences=[
+                        {"i": 0, "start": 0, "end": 10, "predicates": 0},
+                        {"i": 1, "start": 11, "end": 23, "predicates": 1},
+                    ]
+                )
+            ],
+            oversized=0,
+        ),
+    )
+
+    assert one(engine, "SELECT count(*) AS held FROM facts").held == 0
+
+
+def test_two_passages_repeated_alike_are_kept_one_for_one(chunkable, engine) -> None:
+    """A schedule printing the same line twice keeps two rows, not one."""
+    queue = ChunkQueue()
+    queue.replace(A, Chunking(passages=[chunk(1), chunk(2)], oversized=0))
+    before = sorted(_id for (_id,) in rows(engine, "SELECT id FROM passages"))
+
+    queue.replace(
+        A,
+        Chunking(passages=[chunk(1), chunk(2), chunk(3, "Postage paid.")], oversized=0),
+    )
+
+    after = rows(engine, "SELECT id, ordinal FROM passages ORDER BY ordinal")
+    assert [_id for _id, _ in after[:2]] == before
+    assert [ordinal for _, ordinal in after] == [1, 2, 3]
 
 
 def test_re_chunking_one_document_leaves_another_alone(engine, database) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections import defaultdict
 from typing import ClassVar, cast
 
 from sqlalchemy import Table, bindparam, delete, func, insert, select, update
@@ -97,9 +99,16 @@ class ChunkQueue(RowQueue):
     def replace(self, sha256: str, chunking: Chunking) -> int:
         """Replaces a document's passages with a new set, then finishes it.
 
+        A stored passage the new set repeats - the same text, heading trail,
+        sentences and cell grid - is kept rather than replaced: it keeps its
+        id, and so the facts, topic memberships and embedding resting on it,
+        and takes the new one's ordinal, pages and every other column in
+        place. So a re-chunk after a parsing fix rebuilds only the passages
+        the fix changed. Two passages repeated alike pair off in order.
+
         One transaction: the passages, the oversized count and the status
-        land together. The delete cascades to the facts drawn from the old
-        passages and to the topic memberships they held.
+        land together. The delete of every other stored passage cascades to
+        the facts drawn from it and to the topic memberships it held.
 
         Args:
             sha256: The document's digest.
@@ -110,31 +119,75 @@ class ChunkQueue(RowQueue):
         """
         chunks: list[Chunk] = chunking.passages
         trace_id, span_id = current_ids()
+        run = {
+            "run_id": run_id(),
+            "trace_id": trace_id or None,
+            "span_id": span_id or None,
+        }
         with self._session.begin() as session:
-            session.execute(delete(Passage).where(Passage.doc_sha256 == sha256))
-            if chunks:
+            stored = session.execute(
+                select(
+                    Passage.id,
+                    Passage.ordinal,
+                    Passage.text,
+                    Passage.section_path,
+                    Passage.sentences,
+                    Passage.table_cells,
+                )
+                .where(Passage.doc_sha256 == sha256)
+                .order_by(Passage.ordinal)
+            ).all()
+            held: dict[tuple, list[int]] = defaultdict(list)
+            for row in stored:
+                held[
+                    _identity(
+                        row.text, row.section_path, row.sentences, row.table_cells
+                    )
+                ].append(row.id)
+            kept: dict[int, Chunk] = {}
+            added: list[Chunk] = []
+            for chunk in chunks:
+                twins = held[
+                    _identity(
+                        chunk.text,
+                        chunk.section_path,
+                        chunk.sentences or None,
+                        chunk.table_cells or None,
+                    )
+                ]
+                if twins:
+                    kept[twins.pop(0)] = chunk
+                else:
+                    added.append(chunk)
+            gone = [row.id for row in stored if row.id not in kept]
+            if gone:
+                session.execute(delete(Passage).where(Passage.id.in_(gone)))
+            if kept:
+                # (doc_sha256, ordinal) is unique and Postgres checks it row by
+                # row, so every kept passage first steps past any ordinal held
+                # before or after, then takes its own.
+                past = max([row.ordinal for row in stored] + [len(chunks)])
+                renumbered = update(_PASSAGES).where(_PASSAGES.c.id == bindparam("row"))
+                session.execute(
+                    renumbered,
+                    [
+                        {"row": passage_id, "ordinal": past + chunk.ordinal}
+                        for passage_id, chunk in kept.items()
+                    ],
+                )
+                session.execute(
+                    renumbered,
+                    [
+                        {"row": passage_id, **run, **_columns(chunk)}
+                        for passage_id, chunk in kept.items()
+                    ],
+                )
+            if added:
                 session.execute(
                     insert(Passage),
                     [
-                        {
-                            "doc_sha256": sha256,
-                            "run_id": run_id(),
-                            "trace_id": trace_id or None,
-                            "span_id": span_id or None,
-                            "ordinal": chunk.ordinal,
-                            "text": chunk.text,
-                            "language": chunk.language,
-                            "sentences": chunk.sentences or None,
-                            "lemmas": chunk.lemmas,
-                            "page_from": chunk.page_from,
-                            "page_to": chunk.page_to,
-                            "section_path": chunk.section_path,
-                            "block_type": chunk.block_type,
-                            "doc_item_refs": chunk.doc_item_refs,
-                            "bbox": chunk.bbox or None,
-                            "table_cells": chunk.table_cells or None,
-                        }
-                        for chunk in chunks
+                        {"doc_sha256": sha256, **run, **_columns(chunk)}
+                        for chunk in added
                     ],
                 )
             self._finish(sha256, session=session, oversized=chunking.oversized)
@@ -145,6 +198,44 @@ class ChunkQueue(RowQueue):
         with self._session() as session:
             passages = session.scalar(select(func.count()).select_from(Passage))
         return {**self.counts_by_status(), "passages": passages}
+
+
+def _identity(
+    text: str,
+    section_path: str | None,
+    sentences: list[dict] | None,
+    table_cells: list[dict] | None,
+) -> tuple:
+    """What a fact on a passage was drawn from and cites, comparably.
+
+    The sentences and the cell grid beside the text and the trail: a fact
+    cites a sentence by index and a table row by its line, so a passage
+    whose text stays but whose boundaries moved is a new one.
+    """
+    return (
+        text,
+        section_path,
+        json.dumps(sentences, sort_keys=True),
+        json.dumps(table_cells, sort_keys=True),
+    )
+
+
+def _columns(chunk: Chunk) -> dict:
+    """The columns a passage takes from the chunk it was cut as."""
+    return {
+        "ordinal": chunk.ordinal,
+        "text": chunk.text,
+        "language": chunk.language,
+        "sentences": chunk.sentences or None,
+        "lemmas": chunk.lemmas,
+        "page_from": chunk.page_from,
+        "page_to": chunk.page_to,
+        "section_path": chunk.section_path,
+        "block_type": chunk.block_type,
+        "doc_item_refs": chunk.doc_item_refs,
+        "bbox": chunk.bbox or None,
+        "table_cells": chunk.table_cells or None,
+    }
 
 
 class PassageCatalog(Repository):
