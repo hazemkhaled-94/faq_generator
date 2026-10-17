@@ -119,6 +119,16 @@ def test_a_repeated_position_is_kept_once_and_in_order(offered) -> None:
     [
         {"passages": [{"passage": 0, "sentences": [0]}], "statement": ""},
         {"passages": [{"passage": 0, "sentences": [0]}], "statement": "   "},
+    ],
+)
+def test_a_claim_with_no_statement_is_dropped(offered, returned) -> None:
+    """Nothing was said, so there is nothing to check."""
+    assert BridgeExtractor(Model({"facts": [returned]})).extract(offered) == []
+
+
+@pytest.mark.parametrize(
+    "returned",
+    [
         {"passages": [], "statement": "A claim resting on nothing."},
         {
             "passages": [{"passage": 0, "sentences": []}],
@@ -126,9 +136,16 @@ def test_a_repeated_position_is_kept_once_and_in_order(offered) -> None:
         },
     ],
 )
-def test_a_claim_with_no_statement_or_no_citation_is_dropped(offered, returned) -> None:
-    """Neither can be checked, so neither is a candidate."""
-    assert BridgeExtractor(Model({"facts": [returned]})).extract(offered) == []
+def test_a_claim_citing_nothing_reaches_the_checker(offered, returned) -> None:
+    """It is stored refused as evidence_absent, so the refusal rate counts it."""
+    from database.qa_generator import Rejection
+    from extraction.validation import FactChecker
+
+    (candidate,) = BridgeExtractor(Model({"facts": [returned]})).extract(offered)
+
+    assert candidate.passages == ()
+    checked = FactChecker(0.6).check_bridge(offered, candidate)
+    assert checked.rejection_code == Rejection.EVIDENCE_ABSENT
 
 
 def test_an_empty_answer_is_a_correct_answer(offered) -> None:

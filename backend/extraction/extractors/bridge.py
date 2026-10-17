@@ -182,8 +182,8 @@ class BridgeExtractor:
 
         Returns:
             One candidate per claim, each naming the passages it rests on and
-            the sentences of each. Empty when fewer than two passages were
-            offered.
+            the sentences of each, or none where the model named none. Empty
+            when fewer than two passages were offered.
 
         Raises:
             ExtractionFailed: If the model could not be reached.
@@ -199,15 +199,17 @@ class BridgeExtractor:
             )
         except ModelUnavailable as exc:
             raise ExtractionFailed(str(exc)) from exc
+        # One citing nothing is still a candidate: the checker stores it
+        # refused as evidence_absent, which is the rate the README reports.
         return [
             CandidateFact(
                 statement=fact.statement,
                 sentences=(),
                 kind=FactKind.BRIDGE,
-                passages=cited,
+                passages=_cited(fact.passages),
             )
             for fact in answer.facts
-            if fact.statement.strip() and (cited := _cited(fact.passages))
+            if fact.statement.strip()
         ]
 
     @staticmethod

@@ -271,7 +271,8 @@ class LlmExtractor(Extractor):
 
         Returns:
             One atomic candidate per claim, each citing the sentences it was
-            drawn from. Empty when the passage carries none.
+            drawn from, or none where the model named none. Empty when the
+            passage carries none.
 
         Raises:
             ExtractionFailed: If the model could not be reached.
@@ -285,12 +286,14 @@ class LlmExtractor(Extractor):
             )
         except ModelUnavailable as exc:
             raise ExtractionFailed(str(exc)) from exc
+        # One citing nothing is still a candidate: the checker stores it
+        # refused as evidence_absent, which is the rate the README reports.
         return [
             CandidateFact(
                 statement=fact.statement, sentences=tuple(dict.fromkeys(fact.sentences))
             )
             for fact in answer.facts
-            if fact.statement.strip() and fact.sentences
+            if fact.statement.strip()
         ]
 
     @staticmethod

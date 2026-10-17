@@ -144,17 +144,26 @@ def test_a_returned_fact_becomes_a_candidate() -> None:
     assert facts[0].sentences == (0,)
 
 
-@pytest.mark.parametrize(
-    "returned",
-    [
-        _Fact("", [0]),
-        _Fact("   ", [0]),
-        _Fact("A statement citing nothing.", []),
-    ],
-)
-def test_a_fact_with_no_statement_or_no_citation_is_dropped(returned) -> None:
-    """Neither can be checked, so neither is a candidate."""
+@pytest.mark.parametrize("returned", [_Fact("", [0]), _Fact("   ", [0])])
+def test_a_fact_with_no_statement_is_dropped(returned) -> None:
+    """Nothing was said, so there is nothing to check."""
     assert LlmExtractor(_Client(_Answer(returned))).extract(passage()) == []
+
+
+def test_a_fact_citing_nothing_reaches_the_checker() -> None:
+    """It is stored refused as evidence_absent, so the refusal rate counts it."""
+    from database.qa_generator import Rejection
+    from extraction.models import WRITTEN
+    from extraction.validation import FactChecker
+
+    read = passage()
+    (candidate,) = LlmExtractor(
+        _Client(_Answer(_Fact("A statement citing nothing.", [])))
+    ).extract(read)
+
+    assert candidate.sentences == ()
+    checked = FactChecker(0.6).check(read, candidate, WRITTEN)
+    assert checked.rejection_code == Rejection.EVIDENCE_ABSENT
 
 
 def test_a_repeated_citation_is_kept_once_and_in_order() -> None:
