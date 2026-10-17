@@ -302,6 +302,19 @@ class TestTheDedupGate:
         assert "fact 7" in (stored[0].validation_error or "")
         assert stored[0].twin_id == 7, "the refusal names fact 7"
 
+    def test_the_duplicate_message_names_the_bar_as_set(self) -> None:
+        """0.985 is not 0.98: the refusal says the bar the operator set."""
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.985)
+        run.queue.twin = Twin(
+            fact_id=7, statement="The device weighs 4 kg.", similarity=0.99
+        )
+        run.next()
+
+        (stored,) = run.queue.stored[1]
+        assert "over the 0.985 EXTRACTION_DUPLICATE_COSINE" in (
+            stored.validation_error or ""
+        ), stored.validation_error
+
     def test_a_twin_stating_other_numbers_is_not_a_duplicate(self) -> None:
         """4 kg and 7 kg share every word but one, and are two claims."""
         run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9)
@@ -372,7 +385,9 @@ class TestTheDedupGate:
             None,
             Rejection.OVER_CAP,
         ]
-        assert "the 2 atomic fact(s)" in (stored[2].validation_error or "")
+        assert "or the 1 EXTRACTION_MIN_OTHER_SHARE leaves room for" in (
+            stored[2].validation_error or ""
+        ), stored[2].validation_error
 
     def test_the_corpus_is_probed_in_the_candidate_s_language_and_kind(self) -> None:
         """A German summary is never the twin of an English atomic fact."""

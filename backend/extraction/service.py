@@ -208,6 +208,16 @@ def embed(catalog: FactCatalog, embedder: Embedder, within=None) -> int:
     return done
 
 
+def _over_cap_reason(cap: int | None) -> str:
+    """Why an atomic fact is over the cap, as a recap and a read in flight both write it."""
+    return (
+        f"the passage yielded more atomic facts than it has room for - its own "
+        f"sentences and list items, or the {cap} EXTRACTION_MIN_OTHER_SHARE leaves "
+        f"room for where that is more - and the ones asserting a number, a date "
+        f"or a name were kept ahead of it"
+    )
+
+
 def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
     """Applies the atomic cap to facts already stored.
 
@@ -221,14 +231,7 @@ def recap(catalog: FactCatalog, cap: int | None, within=None) -> int:
     Returns:
         How many facts were refused or given back.
     """
-    written = catalog.recap(
-        cap,
-        f"the passage yielded more atomic facts than it has room for - its own "
-        f"sentences and list items, or the {cap} EXTRACTION_MIN_OTHER_SHARE leaves "
-        f"room for where that is more - and the ones asserting a number, a date "
-        f"or a name were kept ahead of it",
-        within,
-    )
+    written = catalog.recap(cap, _over_cap_reason(cap), within)
     log.info(
         "moved %d atomic fact(s) across the cap of %s a passage, or its own "
         "sentence and item count where that is more",
@@ -852,19 +855,17 @@ def over_cap(facts: Sequence[CheckedFact], cap: int | None) -> set[int]:
     return {position for position, _ in ranked[cap:]}
 
 
-def _refuse(fact: CheckedFact, cap: int) -> CheckedFact:
-    """Marks one atomic fact as over the cap, leaving the rest of it alone."""
+def _refuse(fact: CheckedFact, cap: int | None) -> CheckedFact:
+    """Marks one atomic fact as over the cap, leaving the rest of it alone.
+
+    `cap` is EXTRACTION_MIN_OTHER_SHARE's, not the passage's room, so the
+    reason reads as the one `recap` writes.
+    """
     return replace(
         fact,
         validated=False,
         rejection_code=Rejection.OVER_CAP,
-        validation_error=(
-            f"the passage yielded more than the {cap} atomic fact(s) it has room "
-            f"for - its own sentences and list items, or what "
-            f"EXTRACTION_MIN_OTHER_SHARE leaves room for where that is more - "
-            f"and the ones asserting a number, a date or a name were kept ahead "
-            f"of it"
-        ),
+        validation_error=_over_cap_reason(cap),
     )
 
 
@@ -946,7 +947,7 @@ def _duplicate(fact: CheckedFact, twin: Twin, threshold: float) -> CheckedFact:
         twin_id=twin.fact_id or None,
         validation_error=(
             f"says what {named} already says at cosine "
-            f"{twin.similarity:.3f}, over the {threshold:.2f} "
+            f"{twin.similarity:.3f}, over the {threshold:g} "
             f"EXTRACTION_DUPLICATE_COSINE allows: {twin.statement!r}"
         ),
     )
@@ -1199,7 +1200,7 @@ class ExtractionService(StageService):
             return facts
         current.set_attribute("extract.over_cap", len(refused))
         return [
-            _refuse(fact, cap) if position in refused else fact
+            _refuse(fact, self._atomic_cap) if position in refused else fact
             for position, fact in enumerate(facts)
         ]
 

@@ -383,3 +383,39 @@ def test_a_passage_long_enough_is_still_digested() -> None:
     )
 
     assert service._digested(long) == ["a digest"]
+
+
+def test_recap_and_flight_word_over_cap_alike() -> None:
+    """One refusal, one reason, whether the read in flight or a recap wrote it."""
+    from drivers import Extraction, passage
+
+    from extraction.service import recap
+
+    class Recorded:
+        """A catalogue that keeps the reason a recap is handed."""
+
+        def __init__(self) -> None:
+            self.reasons: list[str] = []
+
+        def recap(self, cap: int | None, reason: str, within=None) -> int:
+            self.reasons.append(reason)
+            return 0
+
+    catalog = Recorded()
+    recap(catalog, 1)  # type: ignore[arg-type]
+    facts = {
+        "facts": [
+            {"sentences": [0], "statement": "The device weighs 4 kg."},
+            {"sentences": [0], "statement": "The device runs for 12 hours."},
+            {"sentences": [1], "statement": "The device arrives in March 2026."},
+        ]
+    }
+    run = Extraction(passage(), facts=facts, atomic_cap=1)
+    run.next()
+
+    (flight,) = [
+        one.validation_error
+        for one in run.queue.stored[1]
+        if one.rejection_code == Rejection.OVER_CAP
+    ]
+    assert flight == catalog.reasons[0]
