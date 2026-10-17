@@ -20,6 +20,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from database.qa_generator.status import SHARED
 from telemetry import pipeline
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -138,3 +139,17 @@ def test_every_named_stage_is_a_stage() -> None:
     )
 
     assert named <= set(pipeline.STAGES), sorted(named - set(pipeline.STAGES))
+
+
+def test_what_orchestration_counts_as_undone_is_the_shared_statuses() -> None:
+    """A status the backend adds that this does not know reads as worked.
+
+    The image `orchestration` runs in carries no backend, so it holds its
+    own copy, and every asset's count of produced rows rests on it.
+    """
+    undone = _assigned(ROOT / "orchestration" / "stages.py", "_UNDONE")
+
+    assert set(undone) == {status.value for status in SHARED}, (
+        "orchestration.stages._UNDONE and database.qa_generator.status.SHARED "
+        "disagree about which statuses mean a row is not produced yet"
+    )
