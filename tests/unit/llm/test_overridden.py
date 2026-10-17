@@ -224,3 +224,20 @@ def test_a_gateway_in_front_of_two_providers_keeps_its_address() -> None:
     )
 
     assert settings.overridden("azure/gpt-4.1").base_url == "http://gateway:4000"
+
+
+def test_a_hosted_override_is_sent_no_window_and_no_effort() -> None:
+    """Both are the local runtime's, and a hosted provider refuses each.
+
+    `num_ctx` is a parameter only a self-hosted runtime has, and `off` is
+    Ollama's spelling of an effort. A stage pointed at a hosted model from a
+    local deployment was sent the two of them.
+    """
+    local = shared(
+        model="ollama_chat/gemma4:31b", num_ctx=32768, reasoning_effort="off"
+    )
+
+    hosted = local.overridden("azure/gpt-4.1")
+
+    assert hosted.window is None
+    assert hosted.thinking is None

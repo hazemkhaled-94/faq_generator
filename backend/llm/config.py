@@ -113,6 +113,10 @@ class Settings:
         litellm uses the provider's own, which is what unset has always
         meant.
 
+        **An effort does not cross to a hosted provider.** It keeps the
+        spelling of the provider it was set for, and a hosted one refuses
+        Ollama's `off`. An override to a self-hosted model keeps it.
+
         Args:
             model: The model to call, or None to keep the shared one.
         """
@@ -126,8 +130,12 @@ class Settings:
             self.base_url, self.ollama_base_url
         ):
             moved["base_url"] = None
-        # Thinking is not decided here; see `thinking`. It follows the
-        # model being called and not how that model was arrived at.
+        # An effort is spelled for the provider it was named for - `off` is
+        # Ollama's - and a hosted provider refuses a spelling it does not
+        # take, so none crosses to one. Otherwise thinking is not decided
+        # here; see `thinking`.
+        if not _self_hosted(model):
+            moved["reasoning_effort"] = None
         return replace(self, **moved)
 
     @property
@@ -145,11 +153,13 @@ class Settings:
         Derived per model for the reason `thinking` is: a hosted provider
         has no such parameter and refuses a request carrying it, so there
         is no one value and no way to default it in the file. LLM_NUM_CTX
-        overrides it wherever a deployment knows better.
+        overrides it for a self-hosted model, and is never sent to a hosted
+        one, which is where a stage overriding a local deployment's model
+        would otherwise carry it.
         """
-        if self.num_ctx:
-            return self.num_ctx
-        return WINDOW if _self_hosted(self.model) else None
+        if not _self_hosted(self.model):
+            return None
+        return self.num_ctx or WINDOW
 
     @property
     def thinking(self) -> str | None:
@@ -177,7 +187,8 @@ class Settings:
         that could be defaulted here for both. Ollama accepts `off` on a
         model that does not think at all, so it costs nothing to set.
 
-        LLM_REASONING_EFFORT decides it, and nothing overrides that.
+        LLM_REASONING_EFFORT decides it, and nothing overrides that but a
+        stage naming a hosted model on another provider; see `overridden`.
         """
         return self.reasoning_effort or None
 

@@ -59,6 +59,11 @@ the address, unless the model named is on another provider: an `ollama*`
 model is sent to `OLLAMA_BASE_URL`, and a hosted one named while
 `LLM_BASE_URL` is that Ollama address goes to the provider's own.
 
+The options that belong to one provider stay with it. A hosted model is never
+sent `LLM_NUM_CTX`, which only a self-hosted runtime has, and a hosted model
+named on another provider is sent no `LLM_REASONING_EFFORT`, which is spelled
+for the provider it was set for.
+
 `QUESTIONS_VERIFIER_MODEL` is a different thing: a **second** model that
 checks the first one's work. See
 [question generation](../question_generation/README.md).
@@ -181,8 +186,8 @@ The values are in the file named beside each, once.
 | `LLM_TEMPERATURE` | `backend.env` | How far a re-run's answers may move from the last one's |
 | `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |
 | `LLM_MAX_ATTEMPTS` | `backend.env` | Attempts per call |
-| `LLM_NUM_CTX` | `backend.env` | The context window to ask the runtime for |
-| `LLM_REASONING_EFFORT` | `backend.env` | For a model that has the knob. Unset sends nothing, so the model keeps its own default |
+| `LLM_NUM_CTX` | `backend.env` | The context window to ask a self-hosted runtime for. Never sent to a hosted model |
+| `LLM_REASONING_EFFORT` | `backend.env` | For a model that has the knob. Unset sends nothing, so the model keeps its own default. Not sent to a hosted model a stage names on another provider |
 | `OLLAMA_BASE_URL` | `.env` | Where a self-hosted model is served |
 | `LLM_CONTAINER_MODEL` | `.env` | `LLM_MODEL` as the containers see it |
 | `QUESTIONS_VERIFIER_CONTAINER_MODEL` | `.env` | The verifier as the containers see it |

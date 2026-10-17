@@ -893,3 +893,26 @@ def test_the_window_warning_reads_the_last_response_alone(monkeypatch, caplog) -
         Client(local).answer(system="s", user="u", shape=Shape)
 
     assert "TRUNCATED" not in caplog.text
+
+
+def test_a_hosted_model_is_sent_no_window_even_with_LLM_NUM_CTX(monkeypatch) -> None:
+    """The window is a self-hosted runtime's parameter, whoever set it."""
+    served = provider(monkeypatch, reply(FINE))
+
+    Client(settings(num_ctx=8192, model="azure/gpt-4.1")).answer(
+        system="s", user="u", shape=Shape
+    )
+
+    assert "num_ctx" not in served.calls[0]
+
+
+def test_a_hosted_override_is_sent_neither_local_option(monkeypatch) -> None:
+    """What reaches litellm when a local deployment names a hosted model."""
+    served = provider(monkeypatch, reply(FINE))
+    local = settings(
+        model="ollama_chat/gemma4:31b", num_ctx=32768, reasoning_effort="off"
+    )
+
+    Client(local.overridden("azure/gpt-4.1")).answer(system="s", user="u", shape=Shape)
+
+    assert not {"num_ctx", "reasoning_effort"} & set(served.calls[0])
