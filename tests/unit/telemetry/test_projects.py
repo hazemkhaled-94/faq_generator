@@ -358,3 +358,43 @@ def test_a_purge_spares_default_too() -> None:
     purging = _Client()
     assert projects.prune(purging, held, everything=True) == 1
     assert purging.deleted == ["/v1/projects/worked"]
+
+
+@pytest.mark.parametrize(
+    ("flag", "taken"),
+    [
+        ("--prune", ["/v1/projects/spent"]),
+        ("--purge", ["/v1/projects/spent", "/v1/projects/worked"]),
+    ],
+)
+def test_the_command_line_flag_picks_what_is_deleted(monkeypatch, flag, taken) -> None:
+    """--prune takes the spent projects only; --purge takes the runs too."""
+    import contextlib
+
+    import telemetry
+
+    class _Answer:
+        """A successful response, as `requests` reports one."""
+
+        ok = True
+
+    class _Client:
+        """A client that succeeds at every delete."""
+
+        def __init__(self) -> None:
+            """Holds nothing yet."""
+            self.deleted: list[str] = []
+
+        def delete(self, path: str):
+            """Records the delete."""
+            self.deleted.append(path)
+            return _Answer()
+
+    client = _Client()
+    monkeypatch.setattr(telemetry, "configure", lambda *_: None)
+    monkeypatch.setattr(projects, "_client", lambda: contextlib.nullcontext(client))
+    found = [project("spent", [projects.CALL]), project("worked", ["extract"])]
+    monkeypatch.setattr(projects, "held", lambda _: found)
+
+    assert projects.main([flag]) == 0
+    assert client.deleted == taken

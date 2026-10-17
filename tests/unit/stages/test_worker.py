@@ -48,6 +48,30 @@ def test_sigterm_ends_the_loop_after_the_current_drain() -> None:
     assert drains == [False, False], drains
 
 
+def test_a_failed_drain_waits_the_interval_and_tries_again(monkeypatch) -> None:
+    """A drain that raises is logged and retried, never the end of the worker.
+
+    And an empty queue waits the same interval before it is asked again.
+    """
+    waits: list[float] = []
+    monkeypatch.setattr(Shutdown, "wait", lambda self, seconds: waits.append(seconds))
+    calls: list[int] = []
+
+    def drain(stopping) -> int:
+        """Raises, then finds nothing, then asks to stop."""
+        calls.append(len(calls))
+        if len(calls) == 1:
+            raise RuntimeError("the database went away")
+        if len(calls) == 3:
+            os.kill(os.getpid(), signal.SIGTERM)
+        return 0
+
+    watch(drain, 7.0)
+
+    assert len(calls) == 3
+    assert waits == [7.0, 7.0, 7.0]
+
+
 class _Repository:
     """A queue that counts how often it was asked for work."""
 
