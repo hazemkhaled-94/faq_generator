@@ -900,13 +900,16 @@ class QuestionChecker:
                 "it carries no answer to check the passages against",
             )
         if candidate.spec.derived == Derivation.ARITHMETIC:
-            # Done here rather than asked, when the answer is a figure. A
-            # total has a right value rather than a likely one, and a model
+            # A total no figures come to is refused here rather than asked:
+            # it has a right value rather than a likely one, and a model
             # asked whether two numbers come to a third is being asked to
-            # agree. None is an answer this cannot read - a total in words, a
-            # range, a date, or a count of what passages holding fewer than
-            # two figures list - and falls through to the model below, as a
-            # count does whose passages' figures all count something else.
+            # agree. One some figures do come to is still asked, because up
+            # to four of the figures cited sum to most small totals whatever
+            # each counts. None is an answer this cannot read - a total in
+            # words, a range, a date, or a count of what passages holding
+            # fewer than two figures list - and falls through to the model
+            # too, as a count does whose passages' figures all count
+            # something else.
             computed = (
                 None
                 if counts_something_else(
@@ -916,8 +919,6 @@ class QuestionChecker:
                 )
                 else adds_up(target, candidate.group.passages, candidate.group.language)
             )
-            if computed is True:
-                return None
             if computed is False:
                 return (
                     QuestionRejection.NOT_RECOVERABLE,

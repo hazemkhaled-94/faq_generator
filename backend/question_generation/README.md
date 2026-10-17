@@ -240,7 +240,9 @@ too: its total is not in the material. Because their answers are absent by
 construction, recoverability asks them the wrong question and they face one
 of their own — `arithmetic`, for `aggregation`, asks whether the figures
 come to the total, and `entailment`, for the two in bold, whether the
-conclusion follows from the premises. Where the passages hold fewer than two
+conclusion follows from the premises. A total no figures come to is refused
+unasked; one some do come to is still asked of the model, since up to four
+of the figures cited sum to most small totals whatever each counts. Where the passages hold fewer than two
 figures there is no total to compute, so a count of what they list is asked
 of the model rather than refused. So is a count whose passages' figures all
 count something else: `How many corner flagposts …?` over a height in metres.

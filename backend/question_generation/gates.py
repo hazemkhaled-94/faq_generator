@@ -2169,11 +2169,13 @@ def adds_up(
 ) -> bool | None:
     """Whether the answer is a total of figures the passages state.
 
-    The check an `aggregation` gets instead of asking a model to do the
+    The check an `aggregation` gets before a model is asked to do the
     arithmetic. A total is arithmetic, and arithmetic is the one judgement
     here that has a right answer rather than a likely one: a model asked
     whether 40 and 25 come to 65 is being asked to agree, and it agrees with
-    68 often enough to matter.
+    68 often enough to matter. So False refuses. True does not accept: some
+    combination of the figures comes to most small totals whatever each
+    counts, and whether it is the total asked for is still the model's.
 
     Returns:
         True when some combination of at most four of the figures in the

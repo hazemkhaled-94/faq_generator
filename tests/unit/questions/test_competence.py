@@ -201,9 +201,10 @@ def test_a_derived_question_is_sent_to_its_own_gate(kind: str, gate: str) -> Non
 class TestAnAggregationIsCheckedArithmetically:
     """A total has a right value rather than a likely one.
 
-    So it is computed here and not asked of a model, which agrees with a
-    wrong total often enough to matter and which cannot be shown to have
-    added anything up.
+    So a total no figures come to is refused here and not asked of a model,
+    which agrees with a wrong total often enough to matter. One some figures
+    do come to is still asked: up to four of the figures cited sum to most
+    small totals, whatever each of them counts.
     """
 
     PASSAGES = (
@@ -229,14 +230,44 @@ class TestAnAggregationIsCheckedArithmetically:
             ),
         )
 
-    def test_a_right_total_is_accepted_without_a_call(self) -> None:
-        """40 and 25 come to 65, and nothing has to be asked whether they do."""
-        recording = Recording(answer=False)
+    def test_a_right_total_is_still_asked(self) -> None:
+        """40 and 25 come to 65, and the model says it is the total asked for."""
+        recording = Recording(answer=True)
 
         result = build(recording).check(self.aggregation("65"))
 
         assert result.status == "accepted"
-        assert "computes" not in recording.asked, "the model was asked anyway"
+        assert "computes" in recording.asked, "it was accepted unasked"
+
+    def test_a_total_that_adds_up_is_still_asked(self) -> None:
+        """3 fees, 4 euros and 5 days come to 12, which counts no fees."""
+        recording = Recording(answer=False)
+
+        result = build(recording).check(
+            candidate(
+                question_text="Wie viele Entgelte fallen insgesamt an?",
+                target_answer="12",
+                question_type=QuestionType.AGGREGATION,
+                facts=group(
+                    *(
+                        source(
+                            fact_id=at, passage_id=at, passage_text=one, language="de"
+                        )
+                        for at, one in enumerate(
+                            (
+                                "Für das Konto fallen 3 Entgelte an.",
+                                "Die Karte kostet 4 Euro im Monat.",
+                                "Die Gutschrift erfolgt nach 5 Tagen.",
+                            ),
+                            1,
+                        )
+                    )
+                ),
+            )
+        )
+
+        assert "computes" in recording.asked, "it was accepted unasked"
+        assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
 
     def test_a_wrong_total_is_refused_without_a_call(self) -> None:
         """The failure a model asked to agree produces."""
@@ -352,34 +383,36 @@ class TestAnAggregationIsCheckedArithmetically:
 
         `figures` read a group of up to three digits or a whole number with
         no separator after it, so 1200 in `1200.` matched neither and the
-        total was refused as arithmetic over nothing.
+        total was refused as arithmetic over nothing. Read, it makes 1600 a
+        total no figures come to, refused unasked rather than handed on.
         """
-        recording = Recording(answer=False)
+        recording = Recording(answer=True)
 
         result = build(recording).check(
             self.aggregation(
-                "1500",
+                "1600",
                 "The northern site employs 1200.",
                 "The southern site employs 300.",
             )
         )
 
-        assert result.status == "accepted"
+        assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
         assert "computes" not in recording.asked
 
     def test_a_figure_before_a_comma_is_still_a_figure(self) -> None:
         """The other separator a sentence puts after a number."""
-        recording = Recording(answer=False)
+        recording = Recording(answer=True)
 
         result = build(recording).check(
             self.aggregation(
-                "1500",
+                "1600",
                 "The northern site employs 1200, at two depots.",
                 "The southern site employs 300, at one.",
             )
         )
 
-        assert result.status == "accepted"
+        assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
+        assert "computes" not in recording.asked
 
     def test_two_years_ending_their_sentences_are_still_refused(self) -> None:
         """The 4034 case as the corpus actually writes it.
