@@ -126,3 +126,25 @@ def test_the_metadata_a_record_carries_is_the_metadata_declared() -> None:
         "the terms judge_metadata writes and the properties _judge_metadata "
         "declares have drifted apart"
     )
+
+
+def test_a_right_topic_name_may_be_left_empty() -> None:
+    """The guideline says to leave a right name alone, and a pull keeps it.
+
+    Required, a reviewer agreeing with the name had to type it again, and a
+    name typed back with any difference became a person's.
+    """
+    (asked,) = [
+        node
+        for node in ast.walk(settings_functions()["topic_settings"])
+        if isinstance(node, ast.Call)
+        and any(
+            keyword.arg == "name"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value == "corrected_label"
+            for keyword in node.keywords
+        )
+    ]
+    required = {keyword.arg: keyword.value for keyword in asked.keywords}["required"]
+
+    assert isinstance(required, ast.Constant) and required.value is False

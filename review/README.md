@@ -195,6 +195,10 @@ None of them reaches a network.
   verdict, or a change of status.
 - **A topic answer without a name keeps the topic's name.** Only its
   coverage is written, and `labelled_by` stays as it was. An answer without
-  a coverage answer keeps the topic's coverage.
+  a coverage answer keeps the topic's coverage. The name is optional, so a
+  reviewer who agrees with it leaves the box empty; a topics dataset created
+  while it was required still asks for one until it is recreated:
+  `make review-pull-topics`, then delete the dataset in Argilla and push
+  again.
 - **`extract-revalidate` does not touch `reviewed_verdict`.**
 - **This never runs in a container.** No image carries the Argilla client.

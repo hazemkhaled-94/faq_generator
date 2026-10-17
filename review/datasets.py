@@ -190,7 +190,8 @@ def topic_settings() -> rg.Settings:
             rg.TextQuestion(
                 name="corrected_label",
                 title="The name it should have",
-                required=True,
+                # Left empty, the name stays as it is and so does who gave it.
+                required=False,
             ),
             rg.LabelQuestion(
                 name="in_coverage",
