@@ -1552,3 +1552,105 @@ class TestTheDedupReplay:
         assert store.rows(
             "rejection_code", where="statement = 'The fee is 25 EUR.'"
         ) == [(Rejection.DUPLICATE,)]
+
+
+class TestRevalidatingRefusals:
+    """`make extract-revalidate` validating what a check refused when read."""
+
+    @pytest.fixture
+    def twins(self, store) -> list[int]:
+        """Two passages of two documents stating one claim, each refused for it."""
+        passages = store.corpus(
+            ("x", ["The device weighs 4 kg."]), ("y", ["The device weighs 4 kg."])
+        )
+        for passage_id in (passages["x"][0], passages["y"][0]):
+            store.store(
+                passage_id,
+                checked(
+                    passage_id,
+                    validated=False,
+                    rejection_code=Rejection.UNRESOLVED_REFERENCE,
+                    validation_error="a check since relaxed",
+                    embedding=_axis(0),
+                ),
+            )
+        return [passages["x"][0], passages["y"][0]]
+
+    def test_the_refusals_among_them_come_back_with_their_vectors(
+        self, store, corpus
+    ) -> None:
+        """Of any code, in id order, and never a validated fact."""
+        from extraction.models import Refused
+
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first, "A claim.", embedding=_axis(1)))
+        store.store(
+            other,
+            checked(
+                other,
+                "Refused.",
+                validated=False,
+                rejection_code=Rejection.COPIED,
+                embedding=_axis(2),
+            ),
+        )
+        ids = [one for (one,) in store.rows("id")]
+
+        assert store.catalog.refused(ids) == [
+            Refused(
+                fact_id=ids[1],
+                passage_id=other,
+                language="en",
+                kind=FactKind.ATOMIC,
+                statement="Refused.",
+                embedding=_axis(2),
+            )
+        ]
+        assert store.catalog.refused([]) == []
+
+    def test_two_refused_twins_validated_together_leave_one_a_duplicate(
+        self, store, twins
+    ) -> None:
+        """The first one validated is the second one's twin."""
+        from extraction.service import revalidate
+        from extraction.validation import FactChecker
+
+        revalidate(store.catalog, FactChecker(0.6), threshold=0.985)
+
+        assert store.rows("validated", "rejection_code") == [
+            (True, None),
+            (False, Rejection.DUPLICATE),
+        ]
+
+    def test_the_passage_of_a_refusal_validated_is_re_capped(
+        self, store, twins
+    ) -> None:
+        """Neither was counted against the cap when it was refused.
+
+        Their passage states one sentence, so its room under a cap of one is
+        one, and the second validated there goes over it.
+        """
+        from extraction.service import revalidate
+        from extraction.validation import FactChecker
+
+        first = twins[0]
+        store.store(
+            first,
+            *(
+                checked(
+                    first,
+                    validated=False,
+                    rejection_code=Rejection.UNRESOLVED_REFERENCE,
+                    embedding=_axis(at),
+                )
+                for at in (3, 4)
+            ),
+        )
+
+        revalidate(store.catalog, FactChecker(0.6), threshold=0.985, cap=1)
+
+        assert store.rows(
+            "rejection_code",
+            where="id IN (SELECT fact_id FROM fact_passages WHERE passage_id = :at)",
+            at=first,
+        ) == [(None,), (Rejection.OVER_CAP,)]

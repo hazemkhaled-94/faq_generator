@@ -19,7 +19,7 @@ from extraction.extractors import (
     ExtractionFailed,
     ExtractorRegistry,
 )
-from extraction.models import CheckedFact, PassageToExtract, Twin
+from extraction.models import CheckedFact, PassageToExtract, Refused, Twin
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
 from nlp.analysis import claim, normalised, numbers
@@ -42,8 +42,23 @@ _REJUDGE_BATCH = 500
 _DIGESTIBLE = 2
 
 
-def revalidate(catalog: FactCatalog, checker: FactChecker, within=None) -> int:
+def revalidate(
+    catalog: FactCatalog,
+    checker: FactChecker,
+    within=None,
+    *,
+    threshold: float = 0.0,
+    cap: int | None = None,
+) -> int:
     """Judges every stored fact again, without calling the model.
+
+    A refusal the checks now validate was never probed for a twin - a fact
+    a check refused is not - nor counted against the cap. So once every
+    other verdict is written, each one is probed as `dedup` probes a
+    refusal, in id order, so that one validated earlier in the pass is a
+    twin for the ones after it, and refused as a duplicate where a twin
+    reaches `threshold`. Then the passages of the ones that stay validated,
+    and no others, are re-capped.
 
     Args:
         catalog: Where the facts are read from and written back to.
@@ -56,17 +71,38 @@ def revalidate(catalog: FactCatalog, checker: FactChecker, within=None) -> int:
             stamped with the stored configuration's version.
         within: A condition narrowing which facts are re-judged, or None for
             all of them.
+        threshold: EXTRACTION_DUPLICATE_COSINE. 0 probes nothing.
+        cap: The cap the passages of the refusals it validates are re-capped
+            to, as `recap` takes it.
 
     Returns:
         How many facts were written back.
     """
     verdicts: list[tuple[int, CheckedFact]] = []
+    flipped: list[tuple[Refused, CheckedFact]] = []
     written = 0
 
     def flush() -> None:
-        """Writes what has piled up."""
+        """Writes what has piled up, holding back the refusals it validates."""
         nonlocal written
-        written += catalog.rejudge(verdicts)
+        refused = {
+            one.fact_id: one
+            for one in catalog.refused(
+                [fact_id for fact_id, checked in verdicts if checked.validated]
+            )
+        }
+        flipped.extend(
+            (refused[fact_id], checked)
+            for fact_id, checked in verdicts
+            if fact_id in refused
+        )
+        written += catalog.rejudge(
+            [
+                (fact_id, checked)
+                for fact_id, checked in verdicts
+                if fact_id not in refused
+            ]
+        )
         verdicts.clear()
 
     skipped = 0
@@ -78,7 +114,27 @@ def revalidate(catalog: FactCatalog, checker: FactChecker, within=None) -> int:
         if len(verdicts) >= _REJUDGE_BATCH:
             flush()
     flush()
+    moved: set[int] = set()
+    twins = 0
+    for refused, checked in flipped:
+        twin = _twin(catalog, refused) if threshold > 0 else None
+        if twin is not None and twin.similarity >= threshold:
+            checked = _duplicate(checked, twin, threshold)
+            twins += 1
+        else:
+            moved.add(refused.passage_id)
+        # One at a time, so the next probe finds it.
+        written += catalog.rejudge([(refused.fact_id, checked)])
     log.info("re-judged %d fact(s)", written)
+    if flipped:
+        log.info(
+            "validated %d stored refusal(s); %d of them repeat a validated fact "
+            "and are refused as duplicates",
+            len(flipped),
+            twins,
+        )
+    if moved:
+        recap(catalog, cap, _among(moved))
     if skipped:
         log.warning(
             "left %d fact(s) alone: their citation resolved to no sentence, so "
@@ -244,21 +300,7 @@ def dedup(
     given = 0
     moved: set[int] = set()
     for refused in catalog.duplicates(within):
-        probed = catalog.nearest_fact(
-            refused.embedding,
-            excluding=refused.passage_id,
-            language=refused.language,
-            kind=refused.kind,
-            alike=_naming(refused.statement, refused.language),
-        )
-        twin = _closest(
-            refused.statement,
-            refused.kind,
-            refused.language,
-            refused.embedding,
-            probed,
-            catalog.kept(refused.passage_id),
-        )
+        twin = _twin(catalog, refused)
         if threshold <= 0 or twin is None:
             back = catalog.give_back(refused.fact_id)
         elif twin.similarity >= threshold:
@@ -273,14 +315,47 @@ def dedup(
             moved.add(refused.passage_id)
     log.info("gave back %d duplicate refusal(s) today's rule would not make", given)
     if checker is not None and moved:
-        # One array rather than a parameter per passage, which a replay over
-        # a large corpus could give back more of than a statement may bind.
-        narrowed = Passage.id == any_(
-            bindparam("moved", sorted(moved), type_=ARRAY(BigInteger))
-        )
-        revalidate(catalog, checker, narrowed)
+        narrowed = _among(moved)
+        revalidate(catalog, checker, narrowed, threshold=threshold, cap=cap)
         recap(catalog, cap, narrowed)
     return given
+
+
+def _among(passages: set[int]):
+    """The condition selecting these passages, and no others.
+
+    One array rather than a parameter per passage, which a replay over a
+    large corpus could move more of than a statement may bind.
+    """
+    return Passage.id == any_(
+        bindparam("moved", sorted(passages), type_=ARRAY(BigInteger))
+    )
+
+
+def _twin(catalog: FactCatalog, refused: Refused) -> Twin | None:
+    """The closest fact a stored refusal could be the twin of, or None.
+
+    Probed as a candidate is in flight: the corpus's facts of its language
+    and kind read from other passages, and what its own passage keeps. None
+    for a refusal stored with no vector, which nothing can probe.
+    """
+    if refused.embedding is None:
+        return None
+    probed = catalog.nearest_fact(
+        refused.embedding,
+        excluding=refused.passage_id,
+        language=refused.language,
+        kind=refused.kind,
+        alike=_naming(refused.statement, refused.language),
+    )
+    return _closest(
+        refused.statement,
+        refused.kind,
+        refused.language,
+        refused.embedding,
+        probed,
+        catalog.kept(refused.passage_id),
+    )
 
 
 def _uncitable(candidate) -> bool:

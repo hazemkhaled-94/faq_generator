@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     Select,
     Table,
+    any_,
     bindparam,
     delete,
     func,
@@ -755,6 +756,37 @@ class FactCatalog(Repository):
         Returns:
             The refusals carrying the vector they were refused on.
         """
+        conditions = [
+            Fact.rejection_code == Rejection.DUPLICATE,
+            Fact.embedding.is_not(None),
+        ]
+        if within is not None:
+            conditions.append(_resting(within))
+        return self._refusals(*conditions)
+
+    def refused(self, fact_ids: list[int]) -> list[Refused]:
+        """Those of these facts stored refused, as a dedup probe reads them.
+
+        What a re-judgement asks of the facts its checks now validate: the
+        ones found here were refused by a check when read, and so faced
+        neither the dedup gate nor the cap. Of any code, and carrying their
+        vector where they were stored with one.
+
+        Args:
+            fact_ids: The facts to look up.
+
+        Returns:
+            The refused ones, in id order.
+        """
+        if not fact_ids:
+            return []
+        return self._refusals(
+            Fact.validated.is_(False),
+            Fact.id == any_(bindparam("ids", fact_ids, type_=ARRAY(BigInteger))),
+        )
+
+    def _refusals(self, *conditions) -> list[Refused]:
+        """The refusals these conditions select, read off their citation at 0."""
         query = (
             select(
                 Fact.id,
@@ -771,15 +803,9 @@ class FactCatalog(Repository):
             )
             .join(Passage, Passage.id == FactPassage.passage_id)
             .join(Document, Document.sha256 == Passage.doc_sha256)
-            .where(
-                Fact.rejection_code == Rejection.DUPLICATE,
-                Fact.kind != FactKind.BRIDGE,
-                Fact.embedding.is_not(None),
-            )
+            .where(Fact.kind != FactKind.BRIDGE, *conditions)
             .order_by(Fact.id)
         )
-        if within is not None:
-            query = query.where(_resting(within))
         with self._session() as session:
             return [
                 Refused(

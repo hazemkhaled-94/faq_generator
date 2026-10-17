@@ -244,7 +244,10 @@ class Twin:
 
 @dataclass(frozen=True)
 class Refused:
-    """A stored `duplicate` refusal, as the dedup replay reads it back.
+    """A stored refusal, as a dedup probe reads it back.
+
+    A `duplicate` refusal the dedup replay re-decides, or a refusal of any
+    code a re-judgement validates, which faced no probe when it was read.
 
     Attributes:
         fact_id: Its primary key.
@@ -252,7 +255,8 @@ class Refused:
         language: The language that passage was read in.
         kind: Which reading it is.
         statement: What it says.
-        embedding: The vector the gate refused it on.
+        embedding: The vector it was stored with. None only for a fact
+            stored with none, which no probe can read.
     """
 
     fact_id: int
@@ -260,7 +264,7 @@ class Refused:
     language: str | None
     kind: str
     statement: str
-    embedding: list[float]
+    embedding: list[float] | None
 
 
 @dataclass(frozen=True)

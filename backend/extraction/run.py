@@ -97,12 +97,18 @@ def main(argv: list[str] | None = None) -> int:
             ) from None
 
     def run_revalidate(within) -> int:
-        """Judges every stored fact again, under the settings as they stand."""
+        """Judges every stored fact again, under the settings as they stand.
+
+        Then probes and re-caps the refusals it validated, under the same
+        settings.
+        """
         _, settings, version = configured()
         return revalidate(
             FactCatalog(version=version),
             FactChecker(settings.digest_share),
             within,
+            threshold=settings.duplicate_cosine,
+            cap=settings.atomic_cap,
         )
 
     def run_recap(within) -> int:

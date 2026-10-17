@@ -508,6 +508,25 @@ class Catalogue:
         self.readings[fact_id] = (gate_scores, confidence)
         return 1
 
+    def refused(self, fact_ids) -> list[Refused]:
+        """Those of these facts still stored refused, in id order."""
+        back = self._back()
+        return sorted(
+            (
+                one
+                for one in self.refusals
+                if one.fact_id in fact_ids and one.fact_id not in back
+            ),
+            key=lambda one: one.fact_id,
+        )
+
+    def _back(self) -> set[int]:
+        """The refusals given back, or re-judged validated, since."""
+        rejudged = dict(self.verdicts)
+        return set(self.given_back) | {
+            fact_id for fact_id, checked in rejudged.items() if checked.validated
+        }
+
     def _validated(self) -> list[Kept]:
         """The kept facts, and every refusal given back since."""
         back = [
@@ -520,7 +539,7 @@ class Catalogue:
                 one.kind,
             )
             for one in self.refusals
-            if one.fact_id in self.given_back
+            if one.fact_id in self._back()
         ]
         return self.kept_facts + back
 

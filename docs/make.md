@@ -202,7 +202,7 @@ expensive part:
 
 | Target | Does |
 |---|---|
-| `make extract-revalidate` | Judge every stored fact again. No model call |
+| `make extract-revalidate` | Judge every stored fact again. A refusal it validates meets the dedup gate and the cap, as one read in flight does. No model call |
 | `make chunk-revocabulary` | Re-read language and vocabulary. Only `passages.language` and `passages.lemmas` change |
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make questions-rescore` | Rewrite every stored question's scopes and difficulty from what it cites now. For after the `extract-dedup` that takes out an earlier version's fold citations (the v0.2.2 upgrade), before `questions-reverify`. Not after a re-extraction or a deletion, where it would hide a question that lost a fact from the `source_changed` check |
