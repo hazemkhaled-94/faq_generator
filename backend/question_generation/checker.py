@@ -783,7 +783,13 @@ class QuestionChecker:
             if read.recovered is not None:
                 language = candidate.group.language
                 recall = recalled(
-                    read.recovered, target, language, form, candidate.question_text
+                    read.recovered,
+                    target,
+                    language,
+                    form,
+                    candidate.question_text,
+                    candidate.group.headings,
+                    candidate.group.passages,
                 )
                 if form != AnswerForm.VALUE:
                     if recall is not None:
@@ -834,6 +840,8 @@ class QuestionChecker:
                 form,
                 self._overlap,
                 candidate.question_text,
+                candidate.group.headings,
+                candidate.group.passages,
             ) and not self._backed(candidate, target, readings):
                 return (
                     QuestionRejection.NOT_RECOVERABLE,

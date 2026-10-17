@@ -2044,12 +2044,112 @@ def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
     )
 
 
+#: The parts of speech a recovery may give a key's lemma back under, besides
+#: the key's own. `de_core_news_md` tags a predicative adjective an adverb,
+#: so `kostenlose Überweisungen` met `Überweisungen sind kostenlos` on no
+#: lemma it compared. Not a verb: `das Verpacken` is not `verpackt`, and
+#: reading it as one passes a key whose other items never came back.
+_BRIDGED = frozenset({"ADJ", "ADV"})
+
+
+def _named(
+    recovered: str, target: str, language: str | None, given: str
+) -> frozenset[str]:
+    """The names a key may leave out of its recovery, because the reader has them.
+
+    A name the question or the cited passages' heading trail carries: the
+    verifier answers `What is a SEPA direct debit?` without saying `SEPA`
+    again, and is never shown the heading a clause sits under.
+
+    Names only, never a figure. `4 hours` must not pass for `48 hours`
+    because the question says 48, and a clause numbered `7` or a `30-Day
+    Return Policy` heading supplies exactly the figure a wrong key copies.
+
+    And none where the recovery names a name the key does not: `Mastercard
+    charges 2 percent` answers for another card than `Visa charges 2
+    percent`, however much the question names both.
+    """
+    if not given.strip():
+        return frozenset()
+
+    def names(values: frozenset[str]) -> frozenset[str]:
+        return frozenset(one for one in values if not any(c.isdigit() for c in one))
+
+    if names(_numbers(recovered, language)) - _values(target, language):
+        return frozenset()
+    return names(_values(given, language))
+
+
+def _one_by_article(recovered: str, target: str, language: str | None) -> bool:
+    """Whether the recovery counts the key's one thing with an indefinite article.
+
+    `a used substitution opportunity` is `one used substitution opportunity`:
+    the verifier answers in the passage's words, and those count one with an
+    article. Only an article on the noun the key's `one` counts, and only in
+    a recovery asserting no value of its own: `a replacement is sent within
+    two weeks` says nothing of `one week`.
+    """
+    if _numbers(recovered, language):
+        return False
+    one = repr(1.0)
+    written = _written(target, language)
+    counted = {
+        token.head.lemma_.casefold()
+        for token in pipeline(language)(target)
+        if (token.like_num or token.pos_ == "NUM")
+        and written.get(token.lower_, _folded(token.text, language)) == one
+    }
+    return any(
+        "Ind" in token.morph.get("Definite", [])
+        and "Art" in token.morph.get("PronType", [])
+        and token.head.lemma_.casefold() in counted
+        for token in pipeline(language)(recovered)
+    )
+
+
+def _back(
+    recovered: str,
+    target: str,
+    language: str | None,
+    form: str,
+    question: str,
+    given: str,
+    passages: Sequence[str],
+) -> tuple[frozenset[str], frozenset[str]]:
+    """The target's lemmas `agrees` looks for, and the ones that came back.
+
+    For a list or an explanation, over what the answer adds to the question,
+    where it adds anything. For any form, not over a lemma only the heading
+    trail carries, which the verifier was never shown: a key naming the
+    heading's `Tagesgeldkonto` that its clause never repeats could not have
+    it come back. A lemma comes back under `_BRIDGED` parts of speech too.
+    """
+    wanted = _compared(target, language, form)
+    if form != AnswerForm.VALUE and question:
+        wanted = (wanted - content(question, language)) or wanted
+    if given:
+        unseen = content(given, language) - content("\n".join(passages), language)
+        wanted = (wanted - unseen) or wanted
+    hit = wanted & _compared(recovered, language, form)
+    if wanted - hit:
+        bridged = frozenset(
+            one
+            for token in pipeline(language)(recovered)
+            if token.pos_ in _BRIDGED
+            for one in (token.lemma_.casefold(), token.text.casefold())
+        )
+        hit |= (wanted - hit) & bridged
+    return wanted, hit
+
+
 def recalled(
     recovered: str,
     target: str,
     language: str | None,
     form: str = AnswerForm.VALUE,
     question: str = "",
+    given: str = "",
+    passages: Sequence[str] = (),
 ) -> float | None:
     """What share of the target's lemmas came back, as `agrees` reads them.
 
@@ -2058,13 +2158,14 @@ def recalled(
     drift apart. For those forms it is measured over what the answer adds to
     the question, where it adds anything. None where the target has no lemma
     to share.
+
+    `given` is the heading trail the cited passages sit under and `passages`
+    what the verifier read, as `agrees` takes them.
     """
-    wanted = _compared(target, language, form)
-    if form != AnswerForm.VALUE and question:
-        wanted = (wanted - content(question, language)) or wanted
+    wanted, hit = _back(recovered, target, language, form, question, given, passages)
     if not wanted:
         return None
-    return len(wanted & _compared(recovered, language, form)) / len(wanted)
+    return len(hit) / len(wanted)
 
 
 def agrees(
@@ -2074,6 +2175,8 @@ def agrees(
     form: str = AnswerForm.VALUE,
     overlap: float = OVERLAP,
     question: str = "",
+    given: str = "",
+    passages: Sequence[str] = (),
 ) -> bool:
     """Whether what the verifier got back says what the target answer says.
 
@@ -2094,7 +2197,10 @@ def agrees(
     and it is what stops `4 hours` passing for `48 hours` - no measure of
     likeness would, because the two are as alike as two answers get. A count
     written out is its figure, in either direction: `zehn Sekunden` is `10
-    Sekunden`, and neither is `11 Sekunden`.
+    Sekunden`, and neither is `11 Sekunden`. What the reader is given is not
+    asked back: a name the question or the heading trail `given` carries,
+    see `_named`, and a `one` the recovery says with an article, see
+    `_one_by_article`.
 
     And what the target is ABOUT has to occur in what came back, compared on
     content lemmas. That half replaced string containment, which was refusing
@@ -2124,17 +2230,28 @@ def agrees(
     # and the two are one number written in two locales. Folding keeps the
     # comparison that matters - `4` is still not `48` - and drops the one
     # that never did.
-    units = _number_readings(target, language)
-    if units and not _carried(units, _values(recovered, language)):
+    # Each value as every reading a model's figure may have; one carried
+    # reading is enough, and a name or a `one` excused below is one value.
+    found = _values(recovered, language)
+    missing = [one for one in _number_readings(target, language) if not one & found]
+    if missing:
+        named = _named(recovered, target, language, f"{question}\n{given}")
+        missing = [one for one in missing if not one & named]
+    if any(repr(1.0) in one for one in missing) and _one_by_article(
+        recovered, target, language
+    ):
+        missing = [one for one in missing if repr(1.0) not in one]
+    if missing:
         return False
 
     wanted = content(target, language)
     if wanted:
         got = content(recovered, language)
         if form == AnswerForm.VALUE:
-            return _compared(target, language, form) <= _compared(
-                recovered, language, form
+            compared, hit = _back(
+                recovered, target, language, form, question, given, passages
             )
+            return hit == compared
         # Measured over what the ANSWER adds, not over the question restated
         # inside it. A model asked for prose writes `Die Regionen, in die
         # chinesische Produkte exportiert werden, umfassen Südostasien und
@@ -2144,7 +2261,7 @@ def agrees(
         answered = wanted - content(question, language) if question else wanted
         if not answered:
             return bool(wanted & got)
-        share = recalled(recovered, target, language, form, question)
+        share = recalled(recovered, target, language, form, question, given, passages)
         return share is not None and share >= overlap
 
     left, right = normalised(recovered), normalised(target)

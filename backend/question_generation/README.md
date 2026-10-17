@@ -351,6 +351,19 @@ either. A figure the key or the explanation writes with one mark before three
 digits is read both ways, because a model writes either convention whatever
 the language: a German key `1,000 EUR` is the `1.000 EUR` its passage states.
 
+What the reader is given is not asked back. A name the question or the cited
+passages' heading trail carries need not come back, so `What is a SEPA
+direct debit?` is answered without `SEPA`; never a figure, because a
+`30-Day Return Policy` heading or a clause numbered 7 supplies exactly the
+number a wrong key copies, and not where the recovery names a name the key
+lacks, so `Mastercard charges 2 %` never stands for `Visa charges 2 %`. A
+lemma only the heading trail carries is not looked for, because the verifier
+is shown the passages without their headings. A `one` is met by an
+indefinite article on the noun it counts, in a recovery stating no value of
+its own. And a lemma comes back under an adjective or an adverb as well as
+its own part of speech, never under a verb: `kostenlose Überweisungen` is
+`Überweisungen sind kostenlos`, and `das Verpacken` is not `verpackt`.
+
 The `recall` reading stored beside the verdict is the share the verdict
 read, held to the bar the form was: all of it for a `value`, which records a reading only where it fell
 short, and `QUESTIONS_ANSWER_OVERLAP` otherwise. So a `value` whose recovery

@@ -311,6 +311,18 @@ class FactGroup:
         return tuple(passage.text for passage in self.resting)
 
     @property
+    def headings(self) -> str:
+        """The heading trail of each passage behind this group, one per line.
+
+        What the writer is shown above the passages and the verifier is not,
+        so the round trip does not ask the verifier to give back a name only
+        a heading carries.
+        """
+        return "\n".join(
+            passage.section_path for passage in self.resting if passage.section_path
+        )
+
+    @property
     def context(self) -> tuple[tuple[str, str], ...]:
         """Each distinct passage with its heading trail, for the writer.
 

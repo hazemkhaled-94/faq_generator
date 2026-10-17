@@ -1804,6 +1804,350 @@ def test_one_written_out_is_the_figure_1(
     assert agrees(recovered, target, language, AnswerForm.VALUE)
 
 
+# ── What the reader is given ───────────────────────────────────────────────
+
+#: A clause the verifier is shown, with no name of the product it is about:
+#: the heading above it carries that.
+_DEBIT = (
+    "A direct debit is a payment that the payee collects from the account of the payer."
+)
+
+
+def test_a_name_the_question_gives_need_not_come_back() -> None:
+    """The reader of the question already has the name it asks about.
+
+    The verifier answers what a `SEPA direct debit` is without saying `SEPA`
+    again, which is how anybody answers a question that names its subject.
+    """
+    assert agrees(
+        "a payment that the payee collects from the account of the payer",
+        (
+            "A SEPA direct debit is a payment that the payee collects from the "
+            "account of the payer."
+        ),
+        "en",
+        AnswerForm.EXPLANATION,
+        question="What is a SEPA direct debit?",
+    )
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [("Payments > SEPA", True), ("Payments > Direct debits", False)],
+    ids=["the heading names it", "nothing names it"],
+)
+def test_a_name_only_the_heading_carries_need_not_come_back(
+    given: str, expected: bool
+) -> None:
+    """The writer is shown the heading trail and the verifier is not.
+
+    So a name the clause never repeats is one the verifier cannot give back,
+    however right the key is to carry it. Where neither the question nor the
+    heading gives it, the key asserts a name the passages do not.
+    """
+    assert (
+        agrees(
+            "a payment that the payee collects from the account of the payer",
+            (
+                "A SEPA direct debit is a payment that the payee collects from "
+                "the account of the payer."
+            ),
+            "en",
+            AnswerForm.EXPLANATION,
+            question="What is a direct debit?",
+            given=given,
+            passages=(_DEBIT,),
+        )
+        is expected
+    )
+
+
+def test_a_question_name_is_not_excused_when_the_recovery_names_another() -> None:
+    """A recovery naming a name the key lacks answers for something else.
+
+    Both cards are in the question, so `Visa` would count as given; the
+    verifier came back with Mastercard's fee, and that is a weld.
+    """
+    assert not agrees(
+        "Mastercard charges a foreign withdrawal fee of 2 percent of the amount.",
+        "Visa charges a foreign withdrawal fee of 2 percent of the amount.",
+        "en",
+        AnswerForm.EXPLANATION,
+        question="How do Visa and Mastercard handle foreign withdrawal fees?",
+        given="Cards > Fees abroad",
+        passages=(
+            (
+                "Mastercard charges a foreign withdrawal fee of 2 percent of the "
+                "amount. Visa charges 1 percent."
+            ),
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "key", "recovered", "given", "passage", "language"),
+    [
+        (
+            "How soon is the purchase price refunded after the returned item arrives?",
+            "within 30 days",
+            "within 14 days",
+            "Returns > 30-Day Return Policy",
+            (
+                "Items may be returned within 30 days of delivery. The purchase "
+                "price is refunded within 14 days of receiving the return."
+            ),
+            "en",
+        ),
+        (
+            (
+                "Innerhalb welcher Frist erstattet der Händler den Kaufpreis nach "
+                "Eingang der Rücksendung?"
+            ),
+            "innerhalb von 30 Tagen",
+            "innerhalb von 14 Tagen",
+            "Rückgabe > 30 Tage Rückgaberecht",
+            (
+                "Waren können innerhalb von 30 Tagen zurückgegeben werden. Der "
+                "Kaufpreis wird innerhalb von 14 Tagen nach Eingang der "
+                "Rücksendung erstattet."
+            ),
+            "de",
+        ),
+        (
+            (
+                "Wie lange hat der Kunde Zeit, Einwendungen gegen einen "
+                "Rechnungsabschluss zu erheben?"
+            ),
+            "sieben Wochen",
+            "sechs Wochen",
+            "AGB-Banken > 7 Rechnungsabschlüsse",
+            (
+                "Einwendungen wegen Unrichtigkeit oder Unvollständigkeit eines "
+                "Rechnungsabschlusses hat der Kunde spätestens vor Ablauf von "
+                "sechs Wochen nach dessen Zugang zu erheben."
+            ),
+            "de",
+        ),
+    ],
+    ids=["30-Day Return Policy", "30 Tage Rückgaberecht", "clause 7"],
+)
+def test_a_number_the_heading_gives_still_has_to_come_back(
+    question: str, key: str, recovered: str, given: str, passage: str, language: str
+) -> None:
+    """A heading's number is the one a wrong key copies.
+
+    `30-Day Return Policy` over a refund made within 14 days, and a clause
+    numbered 7 over a deadline of six weeks: a name may be given, a number
+    never is, because `4 hours` must not pass for `48 hours`.
+    """
+    assert not agrees(
+        recovered,
+        key,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        given=given,
+        passages=(passage,),
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "key", "recovered", "language"),
+    [
+        (
+            (
+                "Unarranged overdrafts cost 12 percent a year; what interest rate "
+                "applies to an arranged overdraft?"
+            ),
+            "12 percent a year",
+            "8 percent a year",
+            "en",
+        ),
+        (
+            (
+                "Für eine geduldete Überziehung berechnet die Bank 12 Prozent im "
+                "Jahr. Welcher Zinssatz gilt für eine eingeräumte Überziehung?"
+            ),
+            "12 Prozent im Jahr",
+            "8 Prozent im Jahr",
+            "de",
+        ),
+    ],
+    ids=["en", "de"],
+)
+def test_a_number_the_question_gives_still_has_to_come_back(
+    question: str, key: str, recovered: str, language: str
+) -> None:
+    """A key copying the question's figure answers the other half of it."""
+    assert not agrees(recovered, key, language, AnswerForm.VALUE, question=question)
+
+
+def test_one_written_out_is_met_by_an_indefinite_article() -> None:
+    """`a free replacement card` says `one free replacement card`.
+
+    The verifier answers in the passage's words, and those count one thing
+    with an article rather than a numeral.
+    """
+    assert agrees(
+        "a free replacement card each year",
+        "one free replacement card a year",
+        "en",
+        AnswerForm.VALUE,
+        question="How many free replacement cards does the account include?",
+    )
+
+
+def test_an_article_elsewhere_does_not_stand_for_one() -> None:
+    """`a replacement` sent within two weeks says nothing of one week.
+
+    Only an article on the noun the key's `one` counts stands for it, and
+    only in a recovery stating no figure of its own.
+    """
+    assert not agrees(
+        "a replacement is sent within two weeks",
+        "one week",
+        "en",
+        AnswerForm.VALUE,
+        question="How long does the shop take to send a replacement card?",
+    )
+
+
+def test_a_lemma_back_under_another_part_of_speech_counts() -> None:
+    """`de_core_news_md` tags a predicative adjective an adverb.
+
+    So `kostenlose Überweisungen` met `Überweisungen sind kostenlos` on no
+    lemma it compared, though the two say the same.
+    """
+    assert agrees(
+        "Überweisungen sind kostenlos",
+        "kostenlose Überweisungen",
+        "de",
+        AnswerForm.LIST,
+        question="Welche Überweisungen führt die Bank aus?",
+    )
+
+
+def test_a_verb_does_not_bring_back_the_keys_noun() -> None:
+    """`das Verpacken` is not `verpackt`.
+
+    Counting it would pass a key whose second item, the receipt, never came
+    back.
+    """
+    assert not agrees(
+        "der Kunde verpackt die Ware",
+        "das Verpacken der Ware und ein Beleg",
+        "de",
+        AnswerForm.LIST,
+        question="Was gehört zur Rücksendung?",
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "key", "recovered", "given", "passage", "language", "form"),
+    [
+        (
+            "What is the annual fee for the card?",
+            "Visa Gold: 40 euros a year",
+            "40 euros a year",
+            "Cards > Visa Gold\nCards > Mastercard Classic",
+            (
+                "The Mastercard Classic costs 40 euros a year. The Visa Gold "
+                "costs 90 euros a year."
+            ),
+            "en",
+            AnswerForm.VALUE,
+        ),
+        (
+            "Was erhält der Kunde bei einer Rücksendung ohne Beleg?",
+            "eine Gutschrift",
+            (
+                "Der Kunde kann die Ware nur gutschreiben lassen, wenn er einen "
+                "Beleg vorlegt; sonst erhält er nichts."
+            ),
+            "Rückgabe > Beleg",
+            "Ohne Beleg erhält der Kunde nichts.",
+            "de",
+            AnswerForm.VALUE,
+        ),
+        (
+            "What must a customer do to cancel a standing order?",
+            "a written cancellation and a signed form",
+            "the customer can cancel online and must sign nothing",
+            "Standing orders > Cancellation",
+            "A standing order can be cancelled online; no signature is required.",
+            "en",
+            AnswerForm.LIST,
+        ),
+    ],
+    ids=["the heading's other card", "gutschreiben", "cancel and sign"],
+)
+def test_what_the_reader_is_given_lets_no_wrong_key_through(
+    question: str,
+    key: str,
+    recovered: str,
+    given: str,
+    passage: str,
+    language: str,
+    form: str,
+) -> None:
+    """Keys the passages contradict, with the heading and question to hand."""
+    assert not agrees(
+        recovered,
+        key,
+        language,
+        form,
+        question=question,
+        given=given,
+        passages=(passage,),
+    )
+
+
+def test_recalled_reads_what_agrees_reads() -> None:
+    """The recorded share and the verdict come off one reading."""
+    asked = {
+        "language": "en",
+        "form": AnswerForm.EXPLANATION,
+        "question": "What is a direct debit?",
+        "given": "Payments > SEPA",
+        "passages": (_DEBIT,),
+    }
+    recovered = "a payment that the payee collects from the account of the payer"
+    key = (
+        "A SEPA direct debit is a payment that the payee collects from the "
+        "account of the payer."
+    )
+
+    assert recalled(recovered, key, **asked) == 1.0
+    assert agrees(recovered, key, **asked)
+
+
+def test_the_round_trip_reads_the_heading_trail_the_writer_was_shown() -> None:
+    """The checker hands the cited passages' section paths to the round trip."""
+    result = build(
+        Recording(
+            recovers="a payment that the payee collects from the account of the payer"
+        )
+    ).check(
+        candidate(
+            question_text="What is a direct debit at this bank?",
+            target_answer=(
+                "A SEPA direct debit is a payment that the payee collects from "
+                "the account of the payer."
+            ),
+            question_type=QuestionType.DEFINITION,
+            facts=group(
+                source(
+                    statement="A direct debit is collected by the payee.",
+                    passage_text=_DEBIT,
+                    section_path="Payments > SEPA",
+                )
+            ),
+        )
+    )
+
+    assert result.rejected_reason is None, result.rejected_reason
+
+
 def test_an_ordinal_is_not_read_as_a_count_of_the_facts_cited() -> None:
     """`second half` names which half; it counts nothing, two facts cited or not."""
     assert (
