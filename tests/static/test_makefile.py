@@ -138,6 +138,45 @@ def test_a_deletion_is_followed_by_the_dedup_replay_over_the_whole_corpus(
     assert ran == [f"ingestion.run --{target} abc", "extraction.run --dedup"], ran
 
 
+@pytest.mark.parametrize("target", ["delete", "delete-derived"])
+def test_a_deletion_refuses_before_it_deletes(target: str) -> None:
+    """The extract worker's guard came with the replay, after the document was gone.
+
+    A refusal then left a deletion whose duplicates were never given back.
+    """
+    lines = printed(target, "SHA=abc")
+    guards = [at for at, line in enumerate(lines) if "ps -q extract-worker " in line]
+    deleting = [at for at, line in enumerate(lines) if "ingestion.run" in line]
+
+    assert guards and deleting, lines
+    assert guards[0] < deleting[0], lines
+
+
+@pytest.mark.parametrize(
+    ("given", "guarded"), [((), True), (("TOPIC=7",), False)], ids=["whole-queue", "narrowed"]
+)
+@pytest.mark.parametrize(
+    ("target", "worker"),
+    [("questions-reclaim", "question-worker"), ("assess-reclaim", "assess-worker")],
+)
+def test_a_whole_queue_reclaim_asks_whether_its_worker_runs(
+    target: str, worker: str, given: tuple[str, ...], guarded: bool
+) -> None:
+    """Over the whole stage it would hand a live worker's rows to another.
+
+    Narrowed, it is what a person does to one row they know is dead, worker up
+    or not.
+    """
+    lines = printed(target, *given)
+    guards = [at for at, line in enumerate(lines) if f"ps -q {worker} " in line]
+    reclaims = [at for at, line in enumerate(lines) if "--reclaim" in line]
+
+    assert reclaims, lines
+    assert bool(guards) is guarded, lines
+    if guarded:
+        assert guards[0] < reclaims[0], lines
+
+
 def test_the_corpus_reports_the_topics_and_never_fits_them() -> None:
     """`topics-discover` is the refit, asked for on its own."""
     topics = [line for line in printed("corpus") if "topic_modelling.run" in line]

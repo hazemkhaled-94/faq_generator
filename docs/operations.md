@@ -360,8 +360,9 @@ back, and no others. A deletion through the API or the UI does not run it,
 so run `make extract-dedup` yourself afterwards. No `make questions-rescore` follows
 a deletion: the questions that rested on the deleted facts went with them.
 
-The deletion and the replay are two steps. If the replay fails - the
-`extract-worker` container is draining the queue, say, and the command
-refuses to run beside it - the document is already gone, and running
-`make delete SHA=…` again finds nothing to delete. The recovery is
-`make extract-dedup`, once whatever stopped it is out of the way.
+The deletion and the replay are two steps. Both refuse beside a running
+`extract-worker` container, and `make delete` asks before it deletes, so that
+refusal leaves the document where it was. If the replay fails after the
+deletion, the document is already gone, and running `make delete SHA=…`
+again finds nothing to delete. The recovery is `make extract-dedup`, once
+whatever stopped it is out of the way.

@@ -934,8 +934,9 @@ questions-retry:
 # NARROW IT while a worker may be up. Nothing here can tell a dead claim
 # from a live one, and handing a live worker's row to a second worker is
 # what the lease exists to prevent. Over the whole stage only when it is
-# stopped.
+# stopped, which is what it asks first; narrowed, it does not.
 questions-reclaim:
+	@$(if $(strip $(ONLY)),,$(call IDLE,question-worker))
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --reclaim $(ONLY)
 
 # Run this stage again over every topic, finished ones included. Cheaper than
@@ -1115,8 +1116,10 @@ assess-retry:
 	$(ASSESS) --retry $(ONLY)
 
 # Return an artefact a dead worker still holds, without waiting out its
-# lease. Narrow it unless the worker is stopped; see stages/README.md.
+# lease. Narrow it unless the worker is stopped, which over the whole stage
+# it asks first; see stages/README.md.
 assess-reclaim:
+	@$(if $(strip $(ONLY)),,$(call IDLE,assess-worker))
 	$(ASSESS) --reclaim $(ONLY)
 
 # Judge everything again, finished rows included. This is what a changed
@@ -1273,9 +1276,12 @@ documents:
 # document. A deletion through the API or the UI does not run it: run
 # `make extract-dedup` after one. Nor can this resume a replay that failed,
 # since the document is gone by then: `make extract-dedup` is the recovery.
+# The replay's guard is asked first for that reason: asked by the replay
+# alone, it refused once the document was already gone.
 #   make delete SHA=<sha256>
 delete:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete SHA=<sha256>"; exit 2; }
+	@$(call IDLE,extract-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete $(SHA)
 	$(MAKE) extract-dedup SHA=
 
@@ -1359,10 +1365,12 @@ dagster-wipe:
 # another document's facts stays, rejected as `source_changed`. The document
 # and its file stay, and chunking goes back to `new`, so the next run
 # rebuilds them once somebody starts it. Then extract-dedup, as `make delete`
-# runs it and for the same reason, with the same recovery.
+# runs it and for the same reason, with the same recovery and the same guard
+# first.
 #   make delete-derived SHA=<sha256>
 delete-derived:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete-derived SHA=<sha256>"; exit 2; }
+	@$(call IDLE,extract-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-derived $(SHA)
 	$(MAKE) extract-dedup SHA=
 

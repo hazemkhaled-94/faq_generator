@@ -152,7 +152,9 @@ A drain here — the bare target, every `-rerun` and `topics-discover` —
 `podman compose … stop <worker>` that stops it. With no container engine
 answering, or the stack down, it drains as before. `extract-dedup`,
 `extract-revalidate` and `extract-recap`, which rewrite stored verdicts
-across the corpus, refuse beside `extract-worker` the same way.
+across the corpus, refuse beside `extract-worker` the same way, and so do
+`delete` and `delete-derived`, before they delete anything. `questions-reclaim`
+and `assess-reclaim` refuse beside their worker when they are not narrowed.
 
 `assess-start` also **enrols**: nothing upstream creates an assessment, so it
 creates the rows as well as queuing them.
@@ -277,7 +279,8 @@ make questions-reclaim             # every one the stage holds
 
 `reclaim` fills the gap between `retry`, which takes the failed, and `rerun`,
 which skips what a worker holds. Narrow it while a worker may be up: nothing
-can tell a dead claim from a live one.
+can tell a dead claim from a live one. Not narrowed, it refuses while the
+stage's worker runs.
 
 It has a route now as well — `POST /{stage}/{scope}/{value}/reclaim`, with
 `?confirm=true` needed for the unnarrowed form. See
