@@ -850,9 +850,11 @@ SETTINGS: tuple[Setting, ...] = (
         service="platform",
         kind="integer",
         low=1,
-        help="How many times one call is tried before the row fails. Only a "
-        "connection, a timeout or a rate limit is retried, and a rate limit "
-        "waits as long as the provider asks.",
+        help="How many times one call is tried before the row fails, and so "
+        "the most calls one answer is billed for. A connection, a timeout, a "
+        "rate limit or an answer that does not fit the shape asked for is "
+        "retried; a rate limit waits as long as the provider asks, two "
+        "minutes at most.",
     ),
     Setting(
         name="LLM_NUM_CTX",
@@ -862,8 +864,8 @@ SETTINGS: tuple[Setting, ...] = (
         optional=True,
         help="Context window to ask the runtime for. It holds the prompt "
         "AND the answer, so a thinking model needs room for however long it "
-        "reasons. Absent, a self-hosted model is asked for 16,384 and a "
-        "hosted one is asked for nothing. Over the window the oldest tokens "
+        "reasons. Absent, a self-hosted model is asked for 16,384. A hosted "
+        "model is never sent it. Over the window the oldest tokens "
         "are dropped - the system prompt first - and the answer comes back "
         "anyway, so too small fails silently.",
     ),
