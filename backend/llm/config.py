@@ -113,9 +113,9 @@ class Settings:
         litellm uses the provider's own, which is what unset has always
         meant.
 
-        **An effort does not cross to a hosted provider.** It keeps the
-        spelling of the provider it was set for, and a hosted one refuses
-        Ollama's `off`. An override to a self-hosted model keeps it.
+        **An effort set for Ollama does not cross to a hosted provider.**
+        It is spelled Ollama's way, and a hosted one refuses `off`. Hosted
+        providers share their spelling, so one keeps it on the way to another.
 
         Args:
             model: The model to call, or None to keep the shared one.
@@ -130,11 +130,11 @@ class Settings:
             self.base_url, self.ollama_base_url
         ):
             moved["base_url"] = None
-        # An effort is spelled for the provider it was named for - `off` is
-        # Ollama's - and a hosted provider refuses a spelling it does not
-        # take, so none crosses to one. Otherwise thinking is not decided
-        # here; see `thinking`.
-        if not _self_hosted(model):
+        # An effort set for Ollama is spelled Ollama's way - `off` - and a
+        # hosted provider refuses it, so none crosses from one to a hosted
+        # model. Hosted providers share theirs. Otherwise thinking is not
+        # decided here; see `thinking`.
+        if _self_hosted(self.model) and not _self_hosted(model):
             moved["reasoning_effort"] = None
         return replace(self, **moved)
 
@@ -188,7 +188,8 @@ class Settings:
         model that does not think at all, so it costs nothing to set.
 
         LLM_REASONING_EFFORT decides it, and nothing overrides that but a
-        stage naming a hosted model on another provider; see `overridden`.
+        stage naming a hosted model while the shared one is self-hosted; see
+        `overridden`.
         """
         return self.reasoning_effort or None
 

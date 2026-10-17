@@ -165,6 +165,20 @@ def test_a_hosted_override_is_left_thinking_as_it_was() -> None:
     assert shared(reasoning_effort=None).overridden("azure/gpt-4.1").thinking is None
 
 
+def test_a_hosted_effort_crosses_to_another_hosted_provider() -> None:
+    """Hosted providers share the spelling; only Ollama's is its own."""
+    hosted = shared(model="openai/gpt-5", reasoning_effort="none")
+
+    assert hosted.overridden("azure/gpt-5.4").thinking == "none"
+
+
+def test_a_self_hosted_effort_does_not_cross_to_a_hosted_provider() -> None:
+    """`off` is Ollama's word, and a hosted provider refuses it."""
+    local = shared(model="ollama_chat/gemma4:12b", reasoning_effort="off")
+
+    assert local.overridden("azure/gpt-4.1").thinking is None
+
+
 def test_a_deployment_that_is_self_hosted_throughout_says_nothing_either() -> None:
     """A container running Ollama for everything still decides nothing here.
 
