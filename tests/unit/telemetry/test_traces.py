@@ -61,7 +61,7 @@ def test_a_run_exports(exporters) -> None:
     """A stage, which is the only thing that does."""
     traces.configure("extraction", run="abc123")
 
-    assert len(exporters) == 1
+    assert sum(isinstance(one, traces.BatchSpanProcessor) for one in exporters) == 1
 
 
 def _resource(monkeypatch) -> dict:
@@ -113,6 +113,58 @@ def test_every_span_carries_the_run_whether_or_not_it_was_named(
         seen = _resource(monkeypatch)
         traces.configure("extraction", run="8f2c1e", named=named)
         assert seen["run.id"] == "8f2c1e"
+
+
+@pytest.fixture
+def finished(monkeypatch):
+    """The spans a worker configured for run P has finished, as Phoenix gets them."""
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    import telemetry
+
+    providers: list = []
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.setattr(traces.trace, "set_tracer_provider", providers.append)
+    traces.configure("extraction", run="P")
+    (provider,) = providers
+    exported = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
+
+    def work(queued_by: str | None):
+        telemetry.running_as(queued_by)
+        try:
+            with (
+                telemetry.working(provider.get_tracer("test"), "passage", {}),
+                provider.get_tracer("test").start_as_current_span("completion"),
+            ):
+                pass
+        finally:
+            telemetry.running_as(None)
+        return exported.get_finished_spans()
+
+    return work
+
+
+def test_a_span_carries_the_run_that_queued_the_row(finished) -> None:
+    """A worker's own run names its container; the row names the work.
+
+    The model call under it too, which is what a Phoenix filter on a
+    Dagster run has to find.
+    """
+    spans = finished("D")
+
+    assert [one.attributes["run.id"] for one in spans] == ["D", "D"]
+    assert {one.resource.attributes["run.id"] for one in spans} == {"P"}
+
+
+def test_a_row_no_run_queued_leaves_the_process_s_own(finished) -> None:
+    """Nothing claimed it under another run, so the resource's is the one."""
+    spans = finished(None)
+
+    assert all("run.id" not in one.attributes for one in spans)
 
 
 def test_a_process_with_no_run_is_filed_nowhere(monkeypatch) -> None:

@@ -174,15 +174,17 @@ attempt, each holding the single span its preflight filed before giving up.
 The comparison that design existed for is still there and is now the thing
 you ask for by name.
 
-Two runs sharing a project are still separable: `run.id` is a resource
-attribute on every span, the same id the logs and the rows carry. Telling
-them apart is a filter rather than a hunt through a sidebar.
+Two runs sharing a project are still separable: `run.id` is an attribute
+on every span, the same id the logs and the rows carry. Telling them apart
+is a filter rather than a hunt through a sidebar.
 
 **The id a row carries is the run that asked for it**, not the worker that
 took it — a Dagster run, a Start button or a `make …-start`, whichever
 queued the row. See [`settings/README.md`](../backend/settings/README.md).
-The span attribute is the same value, so a fact, its log lines and its
-model calls all filter on one id whoever set the stage going.
+The span attribute is the same value, written on every span begun while
+the row is worked, model calls included, so a fact, its log lines and its
+model calls all filter on one id whoever set the stage going. The
+resource's `run.id` stays the process's own.
 
 **The exporter is installed after the preflight, not before.** A project
 is created by the first span filed under it, and a stage's first span is
@@ -370,7 +372,7 @@ poetry run pytest tests/unit/telemetry
 |---|---|
 | [`test_logs.py`](../tests/unit/telemetry/test_logs.py) | The JSON line the shipper reads: the ECS names, the bound fields, and an exception written whole |
 | [`test_evaluations.py`](../tests/unit/telemetry/test_evaluations.py) | The annotation a verdict becomes, the address it is posted to, a run surviving a Phoenix that is down, and posting again once it is back |
-| [`test_traces.py`](../tests/unit/telemetry/test_traces.py) | That only a run exports, under the project its name gives it, and only the logic is instrumented |
+| [`test_traces.py`](../tests/unit/telemetry/test_traces.py) | That only a run exports, under the project its name gives it, that a span carries the run that queued its row, and only the logic is instrumented |
 | [`test_projects.py`](../tests/unit/telemetry/test_projects.py) | Which Phoenix projects a prune takes back, and which it keeps |
 | [`test_dashboards.py`](../tests/static/test_dashboards.py) | The provisioned dashboards against the datasources and fields that serve them |
 | [`test_log_fields.py`](../tests/static/test_log_fields.py) | Every field the code binds against what the shipper declares |

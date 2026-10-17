@@ -26,14 +26,16 @@ from typing import TYPE_CHECKING
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from telemetry import pipeline
+from telemetry import logs, pipeline
 
 if TYPE_CHECKING:
     # Behind TYPE_CHECKING: this package is shared with the frontend, which
     # does not install SQLAlchemy.
+    from opentelemetry.context import Context
+    from opentelemetry.sdk.trace import Span
     from sqlalchemy.engine import Engine
 
 log = logging.getLogger(__name__)
@@ -65,6 +67,21 @@ try:  # pragma: no cover - present wherever the instrumentor is
     PROJECT = ResourceAttributes.PROJECT_NAME
 except ImportError:  # pragma: no cover
     PROJECT = "openinference.project.name"
+
+
+class _RunStamp(SpanProcessor):
+    """Writes the run a span's work is for on the span itself.
+
+    The resource's `run.id` is the process's, fixed at `configure`, and a
+    worker outlives the runs it works for. The one a row records, and its
+    log lines carry, is the run that queued it, which a claim names through
+    `logs.running_as`.
+    """
+
+    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
+        """Stamps the span, where a claim named a run."""
+        if (run := logs.running()) is not None:
+            span.set_attribute("run.id", run)
 
 
 def configure(
@@ -105,6 +122,8 @@ def configure(
         # unnamed run no longer needs one of its own.
         attributes["run.id"] = run
     provider = TracerProvider(resource=Resource.create(attributes))
+    if run:
+        provider.add_span_processor(_RunStamp())
 
     endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") if run else None
     if endpoint:
