@@ -484,7 +484,7 @@ calls too, and so is one whose spans Phoenix would not hand over.
 | `make lint` | ruff check and format check |
 | `make format` | Apply every fix ruff can make |
 | `make typecheck` | pyright, at zero |
-| `make audit` | Known advisories against the two locks |
+| `make audit` | Known advisories against the two locks. Fails on one, after reading both |
 | `make lint-imports` | The two architecture rules, as import-linter contracts |
 | `make deps` | A declared dependency nothing imports, and an import nothing declares |
 | `make lock` | Rewrite `backend/api/requirements.lock` |

@@ -192,6 +192,55 @@ def stand_in(tmp_path: Path, script: str) -> Path:
     return engine
 
 
+def made(
+    target: str, *arguments: str, path: Path | None = None
+) -> subprocess.CompletedProcess:
+    """`make` run for real, for a target that reaches no service.
+
+    `path` goes first on PATH, so a stand-in there answers for a tool.
+    """
+    inherited = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("MAKE") and name != "MFLAGS"
+    }
+    if path is not None:
+        inherited["PATH"] = f"{path}:{inherited['PATH']}"
+    return subprocess.run(
+        ["make", "--no-print-directory", target, *arguments],
+        cwd=ROOT,
+        env=inherited,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("advised", "refused"),
+    [("lock.audit", True), ("frontend/requirements.lock", True), ("", False)],
+    ids=["backend-advisory", "frontend-advisory", "none"],
+)
+def test_the_audit_keeps_pip_audits_exit_status(
+    tmp_path: Path, advised: str, refused: bool
+) -> None:
+    """An advisory in either lock fails it, and both locks are still read."""
+    calls = tmp_path / "calls"
+    poetry = tmp_path / "poetry"
+    poetry.write_text(
+        f'#!/bin/sh\necho "$*" >> {calls}\n'
+        + (f'case "$*" in *{advised}*) exit 1;; esac\n' if advised else "")
+    )
+    poetry.chmod(0o755)
+    held = tmp_path / "lock.audit"
+
+    ran = made("audit", f"AUDIT_TMP={held}", path=tmp_path)
+
+    assert (ran.returncode != 0) is refused, ran
+    assert len(calls.read_text().splitlines()) == 2, calls.read_text()
+    assert not held.exists()
+
+
 def test_the_log_wipe_takes_every_stream_grafana_reads() -> None:
     """The dated streams an earlier filebeat.yml wrote are `qa-logs*` too."""
     assert "_data_stream/qa-logs*" in command("logs-wipe", "_data_stream")

@@ -1485,8 +1485,10 @@ check: test
 typecheck:
 	poetry run pyright
 
-# Known advisories against what the images install. Reported, not gated:
-# an advisory with no fixed version yet is not a reason to stop merging.
+# Known advisories against what the images install. Fails on one in either
+# lock, after reading both: the nightly job that runs it blocks no merge, so
+# a red run is how an advisory is reported, and a run that always passed
+# reported none.
 #
 # --no-deps because both locks already pin every transitive dependency.
 #
@@ -1497,10 +1499,10 @@ typecheck:
 # would cover them.
 audit:
 	@grep -viE "^(torch|torchvision)==" backend/api/requirements.lock > $(AUDIT_TMP)
-	poetry run pip-audit --no-deps --progress-spinner off -r $(AUDIT_TMP) || true
-	@rm -f $(AUDIT_TMP)
-	poetry run pip-audit --no-deps --progress-spinner off \
-	  -r frontend/requirements.lock || true
+	poetry run pip-audit --no-deps --progress-spinner off -r $(AUDIT_TMP); \
+	  s=$$?; rm -f $(AUDIT_TMP); \
+	  poetry run pip-audit --no-deps --progress-spinner off \
+	    -r frontend/requirements.lock && exit $$s
 
 # Configuration lives in [tool.ruff] in pyproject.toml.
 lint:
