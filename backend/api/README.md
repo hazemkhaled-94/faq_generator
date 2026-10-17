@@ -274,8 +274,10 @@ and a page reporting Argilla as failed because it answered 401. A worker
 serves no port and is reported as neither up nor down. `SERVICE_URLS` is
 where the links come from; a service nobody published gets no link.
 
-FastAPI serves its own pages beside these: `GET /docs`, `GET /redoc`,
-`GET /openapi.json` and `GET /docs/oauth2-redirect`.
+FastAPI serves its schema beside these at `GET /openapi.json`, and
+[`main.py`](main.py) serves `GET /docs` on it. That page loads Swagger UI from
+the CDN by exact version, where FastAPI's own names only the major version
+and so runs whatever was last published under it. There is no `/redoc`.
 
 ### How one artefact was produced
 

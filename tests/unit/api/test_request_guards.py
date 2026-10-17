@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -100,6 +102,18 @@ def test_a_read_from_another_site_is_answered(guarded, method: str) -> None:
     )
 
     assert answered.status_code == 200
+
+
+def test_the_docs_page_loads_pinned_assets() -> None:
+    """An exact version, which a later publish to the CDN cannot change."""
+    client = called_as("localhost:8000")
+    page = client.get("/docs")
+
+    assert page.status_code == 200
+    assert re.search(r"swagger-ui-dist@\d+\.\d+\.\d+/swagger-ui-bundle\.js", page.text)
+    assert re.search(r"swagger-ui-dist@\d+\.\d+\.\d+/swagger-ui\.css", page.text)
+    assert "@5/" not in page.text
+    assert client.get("/redoc").status_code == 404
 
 
 class Uploads:
