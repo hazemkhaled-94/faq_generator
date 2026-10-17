@@ -138,9 +138,10 @@ Two more refusals are the service refusing what the checks passed:
   corpus of its own language and kind that carries a vector, bar those
   citing only the passage being re-read, **and** against the facts of
   another kind this passage already kept - a summary or an outline
-  repeating one of its claims. Two atomic facts of one passage are never
-  twins: two items of a list, two conditions, a least and a most differ by
-  a word and are two claims. A bridge is never its twin, and nor is a fact
+  repeating one of its claims, or of its kind saying it word for word. Two
+  atomic facts of one passage are otherwise never twins: two items of a
+  list, two conditions, a least and a most differ by a word and are two
+  claims. A bridge is never its twin, and nor is a fact
   naming other numbers - another value, or the same one a different number
   of times, a number word read as the value it names. The index is read
   for the five nearest and the closest naming the candidate's numbers is

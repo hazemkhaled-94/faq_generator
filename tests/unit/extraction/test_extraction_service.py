@@ -231,14 +231,31 @@ class TestTheDedupGate:
     def test_two_atomic_facts_of_one_passage_are_never_duplicates(self) -> None:
         """Two items of a list differ by a word and are two claims.
 
-        The passage's own facts are compared across kinds only, so two of
-        its claims are kept however near their vectors sit; the question
-        dedup refuses a second question on a true repeat.
+        The passage's own facts of one kind are compared word for word only,
+        so two of its claims are kept however near their vectors sit; the
+        question dedup refuses a second question on a near repeat.
         """
+        from extraction.service import _closest
+
+        vector = [1.0, 0.0]
+        kept = [("The card is blocked abroad.", FactKind.ATOMIC, vector)]
+
+        assert (
+            _closest(
+                "The card is blocked at home.", FactKind.ATOMIC, "en", vector, None, kept
+            )
+            is None
+        )
+
+    def test_a_word_for_word_repeat_in_one_passage_is_a_duplicate(self) -> None:
+        """The model writing one claim twice is one fact, and one cap place."""
         run = Extraction(passage(), facts=self.TWICE, duplicate_cosine=0.9)
         run.next()
 
-        assert [one.validated for one in run.queue.stored[1]] == [True, True]
+        first, second = run.queue.stored[1]
+        assert first.validated, first.validation_error
+        assert second.rejection_code == Rejection.DUPLICATE, second.validation_error
+        assert "a fact this passage kept" in (second.validation_error or "")
 
     def test_a_summary_repeating_an_atomic_fact_is_still_refused(self) -> None:
         """The index holds nothing yet, so only the run's own memory catches it."""

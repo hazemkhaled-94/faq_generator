@@ -114,14 +114,25 @@ def test_a_refusal_is_read_against_its_own_passage_too() -> None:
 
 
 def test_a_sibling_claim_of_its_own_passage_is_given_back() -> None:
-    """Two atomic facts of one passage are never duplicates."""
+    """Two atomic facts of one passage differing by a word are two claims."""
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 2, "The device weighs 4 kg empty.", at(0.99)))
+        .refusing(refusal("The device weighs 4 kg.", passage_id=2))
+    )
+
+    assert dedup(catalog, BAR) == 1  # type: ignore[arg-type]
+
+
+def test_a_word_for_word_repeat_of_its_own_passage_stays_refused() -> None:
+    """The same claim written twice under one passage is one fact."""
     catalog = (
         Catalogue()
         .holding_kept(Kept(1, 2, "The device weighs 4 kg.", at(0.99)))
         .refusing(refusal("The device weighs 4 kg.", passage_id=2))
     )
 
-    assert dedup(catalog, BAR) == 1  # type: ignore[arg-type]
+    assert dedup(catalog, BAR) == 0  # type: ignore[arg-type]
 
 
 def test_a_refusal_given_back_carries_the_reading_against_today_s_bar() -> None:

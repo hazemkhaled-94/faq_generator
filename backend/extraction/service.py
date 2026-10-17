@@ -914,20 +914,21 @@ def _closest(
     near their vectors sit, and a bare statement scores high on a shared
     subject alone.
 
-    And inside one passage only a fact of another kind: a summary or an
-    outline repeating one of the passage's claims. Two atomic facts of one
-    passage are two of its claims - two items of a list, two conditions, a
+    And inside one passage only a fact of another kind - a summary or an
+    outline repeating one of the passage's claims - or one of its kind
+    saying the statement word for word. Two atomic facts of one passage are
+    otherwise two of its claims - two items of a list, two conditions, a
     least and a most - which differ by a word and score as near as a
-    restatement. The question dedup refuses a second question on a true
+    restatement. The question dedup refuses a second question on a near
     repeat.
     """
     twin = probed
     if twin is not None and not _counted_alike(statement, twin.statement, language):
         twin = None
     for other_statement, other_kind, other in kept:
-        if other_kind == kind or not _counted_alike(
-            statement, other_statement, language
-        ):
+        if (
+            other_kind == kind and normalised(other_statement) != normalised(statement)
+        ) or not _counted_alike(statement, other_statement, language):
             continue
         score = cosine(list(vector), list(other))
         if twin is None or score > twin.similarity:
@@ -1221,8 +1222,8 @@ class ExtractionService(StageService):
         holds what earlier passages stored; `written` holds what this passage
         has already kept, without which one passage would happily store the
         same statement twice - a summary and an atomic fact often say the
-        same thing about a short passage. Across kinds only: two atomic
-        facts of one passage are two of its claims.
+        same thing about a short passage. Across kinds, or word for word:
+        two atomic facts of one passage are otherwise two of its claims.
 
         Only validated facts compete and only they are refused: a fact a
         check already threw out is not a duplicate of anything, and comparing
