@@ -184,3 +184,15 @@ def test_every_setting_described_is_also_declared_for_a_deployment() -> None:
         f"{', '.join(sorted(undeclared))} is described in the catalogue but "
         f"declared in none of {', '.join(files)}"
     )
+
+
+@pytest.mark.parametrize(
+    "name", ["QUESTIONS_MEETS_SHARE", "QUESTIONS_DUPLICATE_SHARED_COSINE"]
+)
+def test_a_setting_whose_absence_reads_a_default_may_be_left_empty(name: str) -> None:
+    """Drawn as a number box, an absent value is a 0 the next Save stores.
+
+    And 0 is not the default the code reads when the line is missing: for
+    QUESTIONS_MEETS_SHARE it turns off the floor that keeps welds out.
+    """
+    assert BY_NAME[name].optional

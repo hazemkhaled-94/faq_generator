@@ -598,6 +598,7 @@ SETTINGS: tuple[Setting, ...] = (
         kind="decimal",
         low=0,
         high=1,
+        optional=True,
         invalidates=("questions",),
         help="The share of a topic's closest cross-passage fact pairs a second "
         "passage must be among before it is offered. 0 sets no relative floor; "
