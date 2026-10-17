@@ -201,6 +201,50 @@ def test_a_value_carries_no_shell_expansion(path: str) -> None:
         assert "${" not in line, f"{path}: {line}"
 
 
+#: What LOADENV sources, as the committed file each one is: `.env` and
+#: provider.env are a deployment's own, and their examples stand in for them.
+LOADED = (
+    "configs/env/backend.env",
+    "configs/env/deployment.env",
+    "configs/env/provider.env.example",
+    ".env.example",
+)
+
+
+def _host_sourced() -> list[str]:
+    """LOADENV's files, and every one a target hands WITH."""
+    called = re.findall(r"\$\(call WITH,([\w.-]+)\)", (ROOT / "Makefile").read_text())
+    return [*LOADED, *sorted({f"configs/env/{one}" for one in called})]
+
+
+#: An assignment of one word that bash and compose both read as written: no
+#: whitespace, which bash splits at; no quote or backslash, which bash takes
+#: away and compose keeps; no `$` or backtick, which bash expands; and none of
+#: the operators that end a command in bash and are text to compose.
+_ONE_WORD = re.compile(r"[A-Z][A-Z0-9_]*=[^\s'\"`$\\;&|<>()]*")
+
+
+@pytest.mark.parametrize("path", _host_sourced())
+def test_a_value_is_read_the_same_by_bash_and_compose(path: str) -> None:
+    """A host command sources these, and a container is handed the same names.
+
+    An unquoted space, a quote or a bare `$` is read one way by bash and
+    another by compose, which is one name holding two values. The files
+    only a container reads are not here, which is why ES_JAVA_OPTS may hold
+    a space. The exception is the OTLP header, which is only ever sourced.
+    """
+    split = [
+        line
+        for line in (ROOT / path).read_text().splitlines()
+        if (found := _ASSIGNED.match(line))
+        and not _COMMENTED.match(line)
+        and found.group(1) != "OTEL_EXPORTER_OTLP_HEADERS"
+        and not _ONE_WORD.fullmatch(line.strip())
+    ]
+
+    assert not split, f"{path}: " + "; ".join(split)
+
+
 def _spacy_pipelines() -> list[str]:
     """The spaCy pipelines NLP_MODELS names, which is the only source.
 
