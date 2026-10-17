@@ -846,6 +846,10 @@ services:
       ARGILLA_HOME_PATH: /argilla
       USERNAME: ${ARGILLA_USERNAME}
       PASSWORD: ${ARGILLA_PASSWORD}
+      # The owner's key, which the review tool sends. Read when Argilla
+      # creates the owner, on a fresh argilla_data; an owner already there
+      # keeps the key it has.
+      API_KEY: ${ARGILLA_API_KEY}
     volumes:
       - ./certs/ca.crt:/etc/argilla-certs/ca.crt:ro
       - argilla_data:/argilla

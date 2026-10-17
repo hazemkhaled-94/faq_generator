@@ -424,6 +424,18 @@ def test_every_service_has_exactly_one_network_with_a_way_out() -> None:
     assert not wrong, wrong
 
 
+def test_argilla_is_given_the_api_key_setup_writes() -> None:
+    """Argilla creates its owner on first boot, with this key or one of its own.
+
+    Not given it, Argilla made up a key, and the review tool, which sends
+    ARGILLA_API_KEY from .env, was refused until somebody copied the made-up
+    one across by hand.
+    """
+    argilla = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]["argilla"]
+
+    assert argilla["environment"].get("API_KEY") == "${ARGILLA_API_KEY}"
+
+
 def test_grafana_encrypts_its_secrets_with_a_key_of_this_deployment() -> None:
     """Without one it uses the default every Grafana ships with."""
     grafana = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]["grafana"]
