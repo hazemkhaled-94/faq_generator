@@ -429,11 +429,14 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     keeps its surface form, as `_units` reads one, so `12,5` and `12.5` stay
     two values; a number word reads as the digits it names where the
     language has a row in `_NUMBER_WORDS` for it, and as written where it
-    does not, and only where it is tagged as a numeral.
+    does not, and only where it is tagged as a numeral. The language is the
+    parse's, as every other table here reads it: a text of no language is
+    read by the default pipeline and in that pipeline's number words.
     """
-    spelled = _NUMBER_WORDS.get((language or "").strip().lower(), {})
+    document = _read(text, language)
+    spelled = _NUMBER_WORDS.get(document.lang_, {})
     found: list[str] = []
-    for token in _read(text, language):
+    for token in document:
         written = token.text.casefold()
         if digits := _DIGITS.findall(token.text):
             found += digits
@@ -450,9 +453,10 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
 
 def numerals(text: str, language: str | None) -> frozenset[str]:
     """The digit runs and number-word values a text carries, in any spelling."""
-    spelled = _NUMBER_WORDS.get((language or "").strip().lower(), {})
+    document = _read(text, language)
+    spelled = _NUMBER_WORDS.get(document.lang_, {})
     found: set[str] = set()
-    for token in _read(text, language):
+    for token in document:
         if digits := _DIGITS.findall(token.text):
             found.update(digits)
         elif token.pos_ in _NUMERAL and token.text.casefold() in spelled:

@@ -27,6 +27,18 @@ def test_a_number_word_reads_as_the_value_it_names(word, digit, language) -> Non
     assert numbers(word, language) == numbers(digit, language) == ("2",)
 
 
+def test_a_text_with_no_language_reads_the_default_pipelines_number_words() -> None:
+    """A notice too short to detect is parsed in English and read in it too."""
+    from nlp.analysis import numbers, numerals
+
+    assert (
+        numbers("Two cards per account.", None)
+        == numbers("2 cards per account.", None)
+        == ("2",)
+    )
+    assert numerals("two cards", None) == {"2"}
+
+
 @pytest.mark.parametrize(
     ("first", "second", "language"),
     [
