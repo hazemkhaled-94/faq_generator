@@ -243,12 +243,16 @@ def test_the_phase_off_message_is_logged_once_logging_is_set_up(monkeypatch) -> 
 
     logger = logging.getLogger("assessment.run")
     handler = Recorder()
-    monkeypatch.setattr(logger, "level", logging.INFO)
+    # setLevel, not the attribute: only setLevel clears the cache an earlier
+    # test filled with "INFO is off" for this logger.
+    previous = logger.level
+    logger.setLevel(logging.INFO)
     logger.addHandler(handler)
     try:
         assert cli.main(["--status"]) == 0
     finally:
         logger.removeHandler(handler)
+        logger.setLevel(previous)
 
     assert events == ["configured", "logged"]
 
