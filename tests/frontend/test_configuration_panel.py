@@ -70,6 +70,19 @@ def test_a_closed_set_is_drawn_as_a_picker(open_view) -> None:
     assert list(drawn["A_MODE"].options) == ["fast", "accurate"]
 
 
+def test_a_value_no_longer_offered_is_drawn_as_the_default(open_view) -> None:
+    """Not as whichever choice is first, which the next Save would store."""
+    gone = [
+        {**one, "value": "retired", "default": "accurate"}
+        if one["name"] == "A_MODE"
+        else one
+        for one in SETTINGS["settings"]
+    ]
+    view = open_view("topics", configured=Answers(**settings(settings=gone)))
+
+    assert view.pickers()["A_MODE"].value == "accurate"
+
+
 def test_a_list_with_a_closed_set_is_drawn_as_a_multiselect(open_view) -> None:
     """Each entry is checked against the list, so each entry is picked."""
     view = open_view("topics")

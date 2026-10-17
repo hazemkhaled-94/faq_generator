@@ -191,6 +191,10 @@ def _chosen(setting: dict, label: str, key: str, help: str) -> str:
     # A blank first entry when absence means something.
     offered = ["", *choices] if setting["optional"] else list(choices)
     current = setting["value"] or ""
+    # A value no longer offered is drawn as the default, not as whichever
+    # choice comes first: the form sends every value, so Save would store it.
+    if current not in offered:
+        current = setting["default"] or ""
     # `or ""`: nothing chosen reads as absent.
     return (
         st.selectbox(
