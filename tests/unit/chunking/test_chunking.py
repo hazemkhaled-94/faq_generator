@@ -56,6 +56,24 @@ def test_a_document_yielding_no_chunk_fails() -> None:
         chunked(("", "   "))
 
 
+def test_a_fee_paragraph_keeps_its_price() -> None:
+    """A price or a phone number alone in its paragraph is passage text."""
+    document = DoclingDocument(name="fees")
+    document.add_heading(text="Kontoführung", level=1)
+    for text in (
+        "Die monatliche Gebühr beträgt:",
+        "4,90 €",
+        "Hotline:",
+        "0800 123 4567",
+    ):
+        document.add_text(label=DocItemLabel.TEXT, text=text)
+
+    _, chunks = chunks_of(document, word_chunker(200), "de")
+    text = "\n".join(chunk.text for chunk in chunks)
+
+    assert "4,90 €" in text and "0800 123 4567" in text, text
+
+
 # ── A list keeps its lead-in ─────────────────────────────────────────────
 
 

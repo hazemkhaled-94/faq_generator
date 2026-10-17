@@ -340,8 +340,12 @@ corpus, which is a property of the model rather than of this code.
   heading put before it, a level below the heading it follows, and moves to
   the furniture layer, so it heads the passage after it instead of standing
   as one. Where it repeats the heading right before it, it only moves. A
-  paragraph of figures with no letter, a page number, moves there too; an
-  elision mark such as `(…)` holds no figure and stays.
+  paragraph that is a page number — a bare integer of up to four digits,
+  framed at most by dashes or brackets: `47`, `– 12 –`, `(3)` — moves there
+  too. A price, a rate, a phone number, a date or a time with no letter
+  beside it (`4,90 €`, `0800 123 4567`, `01.01.2026`) stays, and so does an
+  elision mark such as `(…)`. A bare integer alone in its paragraph is still
+  read as a page number, even where it is a value printed under its label.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed

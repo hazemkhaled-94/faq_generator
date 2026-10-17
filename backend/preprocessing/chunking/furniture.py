@@ -52,6 +52,11 @@ _SPACE = re.compile(r"\s+")
 #: Everything but letters and digits, which a repeated heading is compared on.
 _PUNCTUATION = re.compile(r"[\W_]+")
 
+#: A page number as a page prints one: a bare integer of up to four digits,
+#: framed at most by dashes or brackets - `47`, `– 12 –`, `(3)`. A price, a
+#: rate, a phone number, a date or a time carries more than that.
+_PAGE_NUMBER = re.compile(r"[-–—(\[\s]*\d{1,4}[-–—)\]\s]*")
+
 #: The labels of a heading the converter took as one.
 _HEADINGS = frozenset({DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE})
 
@@ -338,9 +343,10 @@ def tidied(
     converter cut at a page or column break is joined back: a paragraph or
     list item ending in no `_ENDS` mark, followed on the next page or in the
     next column by a paragraph opening in lower case, takes that paragraph's
-    text, which moves to the furniture layer. A paragraph of figures with no
-    letter, a page number read as body text, moves there too; an elision
-    mark, `(…)`, holds no figure and stays. A paragraph
+    text, which moves to the furniture layer. A paragraph that is a page
+    number read as body text moves there too; a price, a rate, a phone
+    number or a date with no letter beside it stays, and so does an elision
+    mark, `(…)`. A paragraph
     that only repeats a running field or a heading of the document - a
     chapter title the converter read as body text - is a heading: one is
     put before it, a level below the heading it follows, so it heads what
@@ -363,7 +369,7 @@ def tidied(
         for item in document.texts
         if item.content_layer == ContentLayer.BODY
         and item.label in _PROSE
-        and (_repeats(item.text, furniture.running) or _figures_only(item.text))
+        and (_repeats(item.text, furniture.running) or _page_number(item.text))
     }
     restated = _restated(document, debris)
     debris |= {reference for reference, level in restated if level is None}
@@ -483,11 +489,13 @@ def _restated(
     return found
 
 
-def _figures_only(text: str) -> bool:
-    """Whether a paragraph holds a figure and no letter: a page number."""
-    return any(char.isdigit() for char in text) and not any(
-        char.isalpha() for char in text
-    )
+def _page_number(text: str) -> bool:
+    """Whether a paragraph is a page number and nothing else.
+
+    A bare integer alone in its paragraph is read as one, so a value printed
+    under its label as one, `30` under `Return period (days):`, goes with it.
+    """
+    return _PAGE_NUMBER.fullmatch(text.strip()) is not None
 
 
 def _plain(text: str) -> str:

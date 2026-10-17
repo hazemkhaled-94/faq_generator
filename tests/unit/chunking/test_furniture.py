@@ -525,7 +525,7 @@ def test_a_paragraph_repeating_a_heading_heads_what_follows() -> None:
     assert all(not text.startswith("4. Disciplinary") for text, _ in found), found
 
 
-@pytest.mark.parametrize("number", ["47", "– 12 –"])
+@pytest.mark.parametrize("number", ["47", "– 12 –", "(3)"])
 def test_a_paragraph_with_no_letter_is_not_passage_text(number: str) -> None:
     """A page number the converter read as body text."""
     document = paged(1)
@@ -535,6 +535,29 @@ def test_a_paragraph_with_no_letter_is_not_passage_text(number: str) -> None:
     texts = [text for text, _ in trails(document)]
 
     assert texts == ["An account opens once checked."], texts
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "4,90 €",
+        "3,5 %",
+        "0800 123 4567",
+        "§ 12",
+        "01.01.2026",
+        "10:00 – 18:00",
+        "-5,00 EUR",
+    ],
+)
+def test_a_value_with_no_letter_stays_in_the_body(value: str) -> None:
+    """A price, a rate, a phone number or a date is no page number."""
+    document = paged(1)
+    say(document, 1, "Die monatliche Gebühr beträgt:")
+    say(document, 1, value)
+
+    texts = [text for text, _ in trails(document)]
+
+    assert any(value in text for text in texts), texts
 
 
 @pytest.mark.parametrize(
