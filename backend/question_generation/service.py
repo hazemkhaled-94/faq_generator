@@ -404,84 +404,88 @@ def balance(
     Returns:
         How many questions were drawn into the release.
     """
-    reverify(catalog, settings, within)
-    pool = catalog.releasable(within)
-    if not pool:
-        log.warning("no accepted question carries both a difficulty and a type")
-        return 0
+    with span.start_as_current_span("questions.balance") as current:
+        reverify(catalog, settings, within)
+        pool = catalog.releasable(within)
+        current.set_attribute("release.pool", len(pool))
+        if not pool:
+            log.warning("no accepted question carries both a difficulty and a type")
+            return 0
 
-    # Unset follows the bands the answerable pool holds, as the languages
-    # follow theirs: equal thirds drew every hard row the pool had, and a
-    # band that mostly means "cites several passages" brought its welds in.
-    # Answerable rows only, because an unanswerable one is always easy and
-    # would weigh the easy band by how many the writer left unanswered.
-    bands = _supplied(
-        pool,
-        settings.release_difficulty
-        or dict(Counter(row.difficulty for row in pool if row.answerable)),
-        "band",
-        "difficulty",
-    )
-    types = _supplied(
-        pool, settings.release_types or settings.type_mix, "kind", "question_type"
-    )
-    # Unset follows the pool's own language split, so a corpus mostly in one
-    # language releases in proportion rather than at a multiple of its
-    # smallest, and a third language is held to its share without anybody
-    # naming it.
-    languages = _supplied(
-        pool,
-        settings.release_languages or dict(Counter(row.language for row in pool)),
-        "language",
-        "language",
-    )
-    # The other way round from `_supplied`'s warning: a language the pool
-    # holds and the setting gives no weight is left out whole, which is
-    # what the setting asks for and worth saying all the same.
-    unweighted = sorted({row.language for row in pool} - set(languages))
-    if settings.release_languages and unweighted:
-        log.warning(
-            "the pool holds questions in %s, which QUESTIONS_RELEASE_LANGUAGES "
-            "gives no weight, so the release holds none of %s.",
-            ", ".join(unweighted),
-            "them" if len(unweighted) > 1 else "it",
-        )
-    if not bands or not types or not languages:
-        log.warning("nothing accepted can fill any quota; no release was drawn")
-        catalog.release([])
-        return 0
-    twins = _twins(catalog, settings, pool)
-
-    def draw():
-        """The release the quotas and the twins known so far allow."""
-        if settings.release_size:
-            return choose(
-                pool,
-                quota_of(
-                    settings.release_size,
-                    bands,
-                    types,
-                    settings.release_unanswerable,
-                    languages,
-                ),
-                twins,
-            )
-        return largest(
+        # Unset follows the bands the answerable pool holds, as the languages
+        # follow theirs: equal thirds drew every hard row the pool had, and a
+        # band that mostly means "cites several passages" brought its welds in.
+        # Answerable rows only, because an unanswerable one is always easy and
+        # would weigh the easy band by how many the writer left unanswered.
+        bands = _supplied(
             pool,
-            bands,
-            types,
-            settings.release_unanswerable,
-            languages=languages,
-            twins=twins,
+            settings.release_difficulty
+            or dict(Counter(row.difficulty for row in pool if row.answerable)),
+            "band",
+            "difficulty",
         )
+        types = _supplied(
+            pool, settings.release_types or settings.type_mix, "kind", "question_type"
+        )
+        # Unset follows the pool's own language split, so a corpus mostly in one
+        # language releases in proportion rather than at a multiple of its
+        # smallest, and a third language is held to its share without anybody
+        # naming it.
+        languages = _supplied(
+            pool,
+            settings.release_languages or dict(Counter(row.language for row in pool)),
+            "language",
+            "language",
+        )
+        # The other way round from `_supplied`'s warning: a language the pool
+        # holds and the setting gives no weight is left out whole, which is
+        # what the setting asks for and worth saying all the same.
+        unweighted = sorted({row.language for row in pool} - set(languages))
+        if settings.release_languages and unweighted:
+            log.warning(
+                "the pool holds questions in %s, which QUESTIONS_RELEASE_LANGUAGES "
+                "gives no weight, so the release holds none of %s.",
+                ", ".join(unweighted),
+                "them" if len(unweighted) > 1 else "it",
+            )
+        if not bands or not types or not languages:
+            log.warning("nothing accepted can fill any quota; no release was drawn")
+            catalog.release([])
+            return 0
+        twins = _twins(catalog, settings, pool)
 
-    release = draw()
-    if verifier is not None:
-        release = _judged(catalog, verifier, twins, release, draw)
+        def draw():
+            """The release the quotas and the twins known so far allow."""
+            if settings.release_size:
+                return choose(
+                    pool,
+                    quota_of(
+                        settings.release_size,
+                        bands,
+                        types,
+                        settings.release_unanswerable,
+                        languages,
+                    ),
+                    twins,
+                )
+            return largest(
+                pool,
+                bands,
+                types,
+                settings.release_unanswerable,
+                languages=languages,
+                twins=twins,
+            )
 
-    drawn, written = catalog.release(release.ids)
-    _report(pool, release, drawn, written)
-    return written
+        release = draw()
+        if verifier is not None:
+            release = _judged(catalog, verifier, twins, release, draw)
+
+        drawn, written = catalog.release(release.ids)
+        current.set_attribute("release.quota", release.quota.size)
+        current.set_attribute("release.size", written)
+        _report(pool, release, drawn, written)
+        return written
 
 
 #: How many times the release is drawn again over newly judged twins. A
@@ -502,25 +506,38 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw):
     be reached leaves the release as the last draw made it.
     """
     asked: set[tuple[int, int]] = set()
-    for _ in range(_TWIN_ROUNDS):
-        found = 0
-        for first, second in catalog.closest_among(list(release.ids)):
-            if (first.id, second.id) in asked:
-                continue
-            asked.add((first.id, second.id))
-            try:
-                same = verifier.same_answer(
-                    (first.question_text, first.target_answer),
-                    (second.question_text, second.target_answer),
+    for number in range(1, _TWIN_ROUNDS + 1):
+        with span.start_as_current_span("questions.balance.round") as current:
+            current.set_attribute("release.round", number)
+            found = 0
+            for first, second in catalog.closest_among(list(release.ids)):
+                if (first.id, second.id) in asked:
+                    continue
+                asked.add((first.id, second.id))
+                try:
+                    same = verifier.same_answer(
+                        (first.question_text, first.target_answer),
+                        (second.question_text, second.target_answer),
+                    )
+                except ModelUnavailable as exc:
+                    log.warning("twins not judged further: %s", exc)
+                    return release
+                # Each pair by its ids, so the count below can be checked
+                # against the pairs themselves.
+                log.info(
+                    "release twin: %d %d round=%d same=%s",
+                    first.id,
+                    second.id,
+                    number,
+                    same,
                 )
-            except ModelUnavailable as exc:
-                log.warning("twins not judged further: %s", exc)
-                return release
-            if same:
-                twins.setdefault(first.id, set()).add(second.id)
-                twins.setdefault(second.id, set()).add(first.id)
-                found += 1
-        log.info("release: %d more twin pair(s) judged", found)
+                if same:
+                    twins.setdefault(first.id, set()).add(second.id)
+                    twins.setdefault(second.id, set()).add(first.id)
+                    found += 1
+            current.set_attribute("release.twins", found)
+            # Worded as it was: a review reads the count off this line.
+            log.info("release: %d more twin pair(s) judged", found)
         if not found:
             break
         release = draw()
@@ -615,13 +632,38 @@ def _report(pool, release, drawn, written: int) -> None:
         len(pool),
         100.0 * written / len(pool),
     )
-    for name, counted in composition(pool, release.ids).items():
+    made = composition(pool, release.ids)
+    for name, counted in made.items():
         log.info(
             "  %-11s %s",
             name,
             ", ".join(
                 f"{key} {value} ({100.0 * value / max(written, 1):.0f}%)"
                 for key, value in sorted(counted.items())
+            ),
+        )
+    # Signed, every bucket: the warning below names only the short ones, and
+    # a bucket drawn past its share is as far off as one drawn under it.
+    quota = release.quota
+    asked = {
+        "answerable": {
+            "answerable": quota.size - quota.unanswerable,
+            "unanswerable": quota.unanswerable,
+        },
+        "difficulty": quota.difficulty,
+        "type": quota.types,
+        "language": quota.languages,
+    }
+    log.info("against its quota of %d, achieved minus asked:", quota.size)
+    for name, counted in made.items():
+        if not asked[name]:
+            continue
+        log.info(
+            "  %-11s %s",
+            name,
+            ", ".join(
+                f"{key} {counted.get(key, 0) - asked[name].get(key, 0):+d}"
+                for key in sorted(set(counted) | set(asked[name]))
             ),
         )
     if release.short:

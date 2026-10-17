@@ -1862,6 +1862,142 @@ def test_two_questions_the_judge_reads_as_one_answer_are_not_both_released() -> 
     assert len(judge.asked) == 2, "a pair was asked about twice"
 
 
+def test_each_judged_pair_is_logged_with_its_ids_and_verdict(caplog) -> None:
+    """The twins a release reports can be checked pair by pair, from the log.
+
+    One line per pair asked, naming both questions, the round and what the
+    judge said. Each round's count keeps its wording: a review reads it.
+    """
+    import re
+
+    from question_generation.service import balance
+
+    catalog = _Nearby(_spoken({"en": 4}))
+
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        balance(
+            catalog,
+            replace(SETTINGS, release_size=0, **_ONE_BUCKET),
+            verifier=_Judge((1, 2)),
+        )
+
+    pairs = [line for line in caplog.messages if line.startswith("release twin:")]
+    assert pairs == [
+        "release twin: 1 2 round=1 same=True",
+        "release twin: 3 4 round=1 same=False",
+    ], caplog.messages
+    counts = [
+        int(found.group(1))
+        for line in caplog.messages
+        if (found := re.search(r"release: (\d+) more twin pair", line))
+    ]
+    assert counts == [1, 0], caplog.messages
+
+
+def test_the_balance_runs_inside_a_span(caplog, monkeypatch) -> None:
+    """A draw is one trace: its pool, its quota and its size, and its rounds.
+
+    Each pair's line is written under its round's span, so the line and the
+    verifier's call it records carry one trace id.
+    """
+    import logging
+
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    from question_generation import service as module
+
+    exported = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
+    monkeypatch.setattr(module, "span", provider.get_tracer(__name__))
+
+    class Under(logging.Handler):
+        """Keeps the span each pair's line was written under."""
+
+        def __init__(self) -> None:
+            """Nothing written yet."""
+            super().__init__()
+            self.spans: list = []
+
+        def emit(self, record) -> None:
+            """Reads the span current when a pair's line is written."""
+            if record.getMessage().startswith("release twin:"):
+                self.spans.append(trace.get_current_span().get_span_context())
+
+    under = Under()
+    logger = logging.getLogger("question_generation.service")
+    logger.addHandler(under)
+    try:
+        with caplog.at_level("INFO", logger="question_generation.service"):
+            module.balance(
+                _Nearby(_spoken({"en": 4})),
+                replace(SETTINGS, release_size=0, **_ONE_BUCKET),
+                verifier=_Judge((1, 2)),
+            )
+    finally:
+        logger.removeHandler(under)
+
+    finished = exported.get_finished_spans()
+    (drawn,) = [one for one in finished if one.name == "questions.balance"]
+    rounds = [one for one in finished if one.name == "questions.balance.round"]
+    assert drawn.attributes["release.pool"] == 4
+    assert drawn.attributes["release.quota"] == 4
+    assert drawn.attributes["release.size"] == 3
+    assert [one.attributes["release.round"] for one in rounds] == [1, 2]
+    assert [one.attributes["release.twins"] for one in rounds] == [1, 0]
+    assert all(one.parent.span_id == drawn.context.span_id for one in rounds)
+    assert len(under.spans) == 2, "a pair's line was not written"
+    assert all(one.trace_id == drawn.context.trace_id for one in under.spans)
+    assert all(one.span_id == rounds[0].context.span_id for one in under.spans)
+
+
+def test_the_report_says_how_far_each_bucket_came_from_its_quota(caplog) -> None:
+    """Achieved minus asked, every bucket, met or not.
+
+    The shortfall warning names only the buckets short; this names the rest,
+    so a kind drawn past its share shows as plainly as one drawn under it.
+    """
+    from question_generation.balance import Row
+    from question_generation.service import balance
+
+    kinds = [QuestionType.FACTOID] * 30 + [QuestionType.REASON] * 2
+    pool = [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=Difficulty.EASY,
+            question_type=kind,
+            language="en",
+        )
+        for at, kind in enumerate(kinds, start=1)
+    ]
+
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        balance(
+            _Pool(pool),
+            replace(
+                SETTINGS,
+                release_size=20,
+                release_difficulty={Difficulty.EASY: 1},
+                release_unanswerable=0.0,
+                release_types={QuestionType.FACTOID: 1, QuestionType.REASON: 1},
+            ),
+        )
+
+    heading = "against its quota of 20, achieved minus asked:"
+    assert heading in caplog.messages, caplog.messages
+    errors = caplog.messages[caplog.messages.index(heading) + 1 :]
+    assert "  answerable  answerable -8, unanswerable +0" in errors, errors
+    assert "  difficulty  easy -8" in errors, errors
+    assert "  type        factoid +0, reason -8" in errors, errors
+    assert "  language    en -8" in errors, errors
+
+
 def test_two_same_language_near_twins_are_not_both_released() -> None:
     """The release reads twins by the duplicate gate's own rule.
 
