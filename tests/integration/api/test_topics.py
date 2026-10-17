@@ -259,8 +259,8 @@ def test_a_label_longer_than_the_column_is_refused(modelled) -> None:
     assert answered.status_code == 422
 
 
-def test_describing_a_topic_with_no_body_at_all_takes_the_defaults(modelled) -> None:
-    """Both fields are optional, and the defaults are no label, in coverage."""
+def test_describing_a_topic_with_no_body_at_all_changes_nothing(modelled) -> None:
+    """Both fields are optional, and one left out is left as it is."""
     routes, store = modelled
     topic_id = store.topic_id("de", 0)
 
@@ -269,6 +269,31 @@ def test_describing_a_topic_with_no_body_at_all_takes_the_defaults(modelled) -> 
     assert answered.status_code == 200
     assert answered.json()["label"] is None
     assert answered.json()["include_in_coverage"] is True
+
+
+def test_excluding_a_topic_keeps_its_name(modelled) -> None:
+    """A scripted exclusion does not erase a person's name for the topic."""
+    routes, store = modelled
+    topic_id = store.topic_id("de", 0)
+    routes.describe(topic_id, label="Shipping")
+
+    answered = routes.describe(topic_id, include_in_coverage=False)
+
+    assert answered.json()["include_in_coverage"] is False
+    assert answered.json()["label"] == "Shipping"
+    assert answered.json()["labelled_by"] == "person"
+
+
+def test_naming_a_topic_keeps_it_out_of_coverage(modelled) -> None:
+    """Naming an excluded topic does not put it back in."""
+    routes, store = modelled
+    topic_id = store.topic_id("de", 0)
+    routes.describe(topic_id, include_in_coverage=False)
+
+    answered = routes.describe(topic_id, label="Fees")
+
+    assert answered.json()["label"] == "Fees"
+    assert answered.json()["include_in_coverage"] is False
 
 
 # ── The figure ────────────────────────────────────────────────────────────

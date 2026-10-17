@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from datetime import datetime, timedelta
+from enum import Enum
 from typing import Any
 
 from sqlalchemy import case, delete, func, insert, select, text, update
@@ -574,6 +575,17 @@ class TopicQueue(StageQueue):
             )
 
 
+class _Keep(Enum):
+    """The one value meaning "this is not being changed"."""
+
+    KEEP = "keep"
+
+
+#: A label `TopicCatalog.describe` leaves as it is, with whoever gave it.
+#: None cannot say that: None is how a label is cleared.
+KEEP = _Keep.KEEP
+
+
 class TopicCatalog(Repository):
     """Reads the fitted topics, and records what a person decided about one."""
 
@@ -581,7 +593,7 @@ class TopicCatalog(Repository):
         self,
         topic_id: int,
         *,
-        label: str | None,
+        label: str | None | _Keep = KEEP,
         include_in_coverage: bool | None,
         at: datetime | None = None,
     ) -> StoredTopic | None:
@@ -592,7 +604,8 @@ class TopicCatalog(Repository):
 
         Args:
             topic_id: The topic. A fit request is not one and is not editable.
-            label: The name to record, or None to clear it.
+            label: The name to record, None to clear it, or `KEEP` to leave
+                it and its provenance as they are.
             include_in_coverage: Whether it counts toward coverage reporting,
                 or None to leave it as it is.
             at: When the person decided, or None for now.
@@ -600,18 +613,21 @@ class TopicCatalog(Repository):
         Returns:
             The topic as it now reads, or None if no topic has that id.
         """
-        named = (label or "").strip() or None
+        naming = {}
+        if label is not KEEP:
+            named = (label or "").strip() or None
+            naming = {
+                "label": named,
+                "labelled_by": None
+                if named is None
+                else case((Topic.label == named, Topic.labelled_by), else_="person"),
+            }
         with self._session.begin() as session:
             changed = session.execute(
                 update(Topic)
                 .where(Topic.id == topic_id, ~_OUTSTANDING)
                 .values(
-                    label=named,
-                    labelled_by=None
-                    if named is None
-                    else case(
-                        (Topic.label == named, Topic.labelled_by), else_="person"
-                    ),
+                    **naming,
                     include_in_coverage=Topic.include_in_coverage
                     if include_in_coverage is None
                     else include_in_coverage,

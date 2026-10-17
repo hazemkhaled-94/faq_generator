@@ -24,6 +24,7 @@ from api.errors import ApiError, ErrorBody
 from api.params import RowId, RunName
 from api.routes.stage import StageAction, StageStatus, answered, status_of
 from topic_modelling.models import StoredTopic, TopicFit, TopicRemoval
+from topic_modelling.repository import KEEP
 
 router = APIRouter(prefix="/topics", tags=["topics"])
 
@@ -45,11 +46,12 @@ class TopicDiscovery:
 class TopicDescription(BaseModel):
     """What a person decided about one topic.
 
-    Both survive a refit by being matched on top terms.
+    Both survive a refit by being matched on top terms. A field left out is
+    left as it is: `label: null` is how a name is cleared.
     """
 
     label: str | None = Field(default=None, max_length=120)
-    include_in_coverage: bool = True
+    include_in_coverage: bool | None = None
 
 
 @router.get("/status")
@@ -72,7 +74,7 @@ def describe(topic_id: RowId, description: TopicDescription) -> StoredTopic:
     """Names a topic, or takes it out of coverage reporting."""
     described = topic_catalog.describe(
         topic_id,
-        label=description.label,
+        label=description.label if "label" in description.model_fields_set else KEEP,
         include_in_coverage=description.include_in_coverage,
     )
     if described is None:

@@ -208,7 +208,7 @@ replay, which `make delete` and `make delete-derived` run themselves.
 | Route | Answers |
 |---|---|
 | `GET /topics` | Every topic, its terms, and how much of the corpus it holds |
-| `PATCH /topics/{id}` | Name a topic, or take it out of coverage reporting |
+| `PATCH /topics/{id}` | Name a topic, or take it out of coverage reporting. A field left out of the body is left as it is; `label: null` clears the name |
 | `GET /topics/fit` | When the topics were fitted, over what, and whether they still describe the corpus |
 | `GET /topics/visualisation/{language}` | One language's model as a pyLDAvis page |
 | `DELETE /topics` | Every topic and membership |

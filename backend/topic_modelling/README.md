@@ -198,7 +198,7 @@ puts a term in few of its topics, and deflate is very good at that.
 | `GET /topics` | Every topic with how much of the corpus it holds |
 | `GET /topics/fit` | The model's state, one entry per language |
 | `GET /topics/visualisation/{language}` | One language's figure. 400 `invalid_language`, 404 `no_visualisation` |
-| `PATCH /topics/{topic_id}` | Records a label and a coverage choice, and when they were made |
+| `PATCH /topics/{topic_id}` | Records a label and a coverage choice, and when they were made. A field left out is left as it is |
 | `POST /topics/discover` | Queues a fit. 202 |
 | `POST /topics/stop` | Withdraws a queued fit |
 | `POST /topics/retry` | Returns a failed fit to the queue |
