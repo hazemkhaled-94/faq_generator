@@ -41,6 +41,9 @@ SOURCES := backend frontend telemetry orchestration review evaluation tests
 # the files above would otherwise overwrite it - which is why
 # `make topics TOPIC_PASSES=20` used to run with the file's value and say
 # nothing. QA_COMMAND_LINE names them, so a stored row for one gives way too.
+#
+# Applied twice: before DERIVED, so an address is built from a port given on
+# the command line, and after it, so an address given there is not rebuilt.
 GIVEN = $(foreach given,$(MAKEOVERRIDES),$(firstword $(subst =, ,$(given))))
 OVERRIDE = $(if $(MAKEOVERRIDES),&& export $(MAKEOVERRIDES) QA_COMMAND_LINE="$(GIVEN)",)
 
@@ -74,7 +77,7 @@ DERIVED = DATABASE_URL=postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@loca
 PROVIDER = { [ ! -f ./configs/env/provider.env ] || . ./configs/env/provider.env; }
 
 LOADENV = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env \
-          && $(PROVIDER) && . ./.env && $(DERIVED) && set +a $(OVERRIDE)
+          && $(PROVIDER) && . ./.env $(OVERRIDE) && $(DERIVED) $(OVERRIDE) && set +a
 
 # What `wipe` leaves standing. Comma-separated, and empty by default: the
 # command is called wipe, and a default that quietly kept things would be
@@ -109,8 +112,8 @@ SPARED = case " $(KEPT) " in *" $(1) "*) echo "KEEP=$(1): leaving $(2)";; \
 # `set +a` a sourced file's values are set in the shell and not exported,
 # so the process below saw none of them and stopped naming the first.
 WITH = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env && \
-       . ./configs/env/$(1) && $(PROVIDER) && . ./.env && $(DERIVED) && \
-       set +a $(OVERRIDE)
+       . ./configs/env/$(1) && $(PROVIDER) && . ./.env $(OVERRIDE) && \
+       $(DERIVED) $(OVERRIDE) && set +a
 
 # Narrows a stage target to one item instead of the whole queue, mirroring
 # the route's /{scope}/{value} segment:

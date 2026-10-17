@@ -70,7 +70,9 @@ make topics-discover TOPIC_PASSES=20
 ```
 
 The Makefile re-applies command-line overrides after sourcing the files,
-because sourcing would otherwise overwrite them.
+because sourcing would otherwise overwrite them, and before it builds the
+addresses out of them, so `make schema POSTGRES_PORT=5433` connects to that
+port.
 
 The Makefile invokes `podman compose`. For Docker:
 

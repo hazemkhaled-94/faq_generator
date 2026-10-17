@@ -173,6 +173,49 @@ def test_a_command_line_value_is_named_for_the_store_to_give_way_to() -> None:
     assert any('QA_COMMAND_LINE="TOPIC_PASSES"' in line for line in lines), lines
 
 
+@pytest.mark.parametrize(
+    ("given", "address"),
+    [
+        ("BACKEND_PORT=9999", "http://localhost:9999"),
+        ("BACKEND_URL=http://elsewhere:1", "http://elsewhere:1"),
+    ],
+    ids=["what-an-address-is-built-of", "the-address-itself"],
+)
+@pytest.mark.parametrize(
+    "target", [("settings", "SERVICE=platform"), ("review-status",)], ids=["LOADENV", "WITH"]
+)
+def test_a_command_line_value_is_exported_before_the_derived_addresses(
+    tmp_path: Path, target: tuple[str, ...], given: str, address: str
+) -> None:
+    """A port given on the command line reaches the address built from it.
+
+    Applied only after the addresses were built, it reached the process
+    while the address beside it still named the file's port.
+    """
+    for name, text in {
+        "configs/env/backend.env": "",
+        "configs/env/deployment.env": "BACKEND_PORT=8000\n",
+        "configs/env/review.env": "",
+        ".env": "",
+    }.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(text)
+    (tmp_path / "poetry").write_text('#!/bin/sh\necho "$BACKEND_URL"\n')
+    (tmp_path / "poetry").chmod(0o755)
+    (line,) = [one for one in printed(*target, given) if "poetry run" in one]
+
+    ran = subprocess.run(
+        ["bash", "-c", line],
+        cwd=tmp_path,
+        env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert ran.stdout.strip() == address, ran
+
+
 def command(target: str, holding: str, **environment: str) -> str:
     """The one command `make -n` prints for a target that holds `holding`.
 
