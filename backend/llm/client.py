@@ -92,19 +92,27 @@ def _retryable(failure: BaseException) -> bool:
 #: The wait between attempts when the failure says nothing of its own.
 _BACKOFF = wait_exponential(multiplier=1, min=1, max=10)
 
+#: The longest a Retry-After is waited, in seconds. A provider may ask for
+#: an hour, and a worker waiting it holds its row that long every attempt.
+_LONGEST_WAIT = 120.0
+
 
 def _waited(state: RetryCallState) -> float:
     """How long to wait before the next attempt.
 
-    What a 429's Retry-After asks, in seconds, where it carries one. The
-    backoff otherwise, an HTTP-date included.
+    What a 429's Retry-After asks, in seconds, where it carries one, up to
+    `_LONGEST_WAIT`. Read off the 429 wherever it is behind the failure,
+    because instructor wraps whatever its call raised. The backoff
+    otherwise, an HTTP-date included.
     """
     failed = state.outcome.exception() if state.outcome else None
-    if isinstance(failed, litellm.exceptions.RateLimitError):
-        try:
-            return float(failed.response.headers.get("retry-after", ""))
-        except ValueError:
-            pass
+    for cause in _causes(failed) if failed else ():
+        if isinstance(cause, litellm.exceptions.RateLimitError):
+            try:
+                asked = float(cause.response.headers.get("retry-after", ""))
+            except ValueError:
+                break
+            return min(asked, _LONGEST_WAIT)
     return _BACKOFF(state)
 
 

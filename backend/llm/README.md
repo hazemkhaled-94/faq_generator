@@ -29,8 +29,9 @@ own, so an attempt is one billed call and `LLM_MAX_ATTEMPTS` is every call an
 answer may cost. An authentication failure, an unknown model or a malformed
 schema is raised at once.
 
-**A rate limit waits as long as its `Retry-After` asks.** A hosted provider
-answers 429 with a `Retry-After` of twenty to sixty seconds; every other
+**A rate limit waits as long as its `Retry-After` asks, two minutes at
+most.** A hosted provider answers 429 with a `Retry-After` of twenty to sixty
+seconds, and it is read off the 429 inside instructor's wrapping; every other
 failure, and a 429 that names no seconds, backs off exponentially.
 
 ### What a stage may override
@@ -199,7 +200,8 @@ model is asked anything — see [`evaluation/`](../../evaluation/README.md).
 ## Limits
 
 - **A rate limit spends an attempt.** It waits as long as its `Retry-After`
-  asks and counts against `LLM_MAX_ATTEMPTS` like any other failure.
+  asks, two minutes at most, and counts against `LLM_MAX_ATTEMPTS` like any
+  other failure.
 - **The lowest `LLM_TEMPERATURE` is not a guarantee of determinism.** A model's
   answers still move between versions and quantisations, which is why
   `tests/eval/` never gates.

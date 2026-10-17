@@ -742,6 +742,9 @@ def reply(
     )
 
 
+#: An answer in the shape asked for.
+FINE = '{"value": "answered"}'
+
 #: What litellm is made to price every response at.
 PRICE = 0.0028
 
@@ -753,9 +756,10 @@ class Provider:
     """
 
     def __init__(self, *answers) -> None:
-        """Holds the answers, and no call yet."""
+        """Holds the answers, and no call or wait yet."""
         self.answers = answers
         self.calls: list[dict] = []
+        self.waits: list[float] = []
 
     def __call__(self, *args, **kwargs):
         """Answers the next call, or raises what it was given to raise."""
@@ -767,11 +771,11 @@ class Provider:
 
 
 def provider(monkeypatch, *answers) -> Provider:
-    """Puts a provider behind litellm, priced at PRICE, with no wait slept."""
+    """Puts a provider behind litellm, priced at PRICE, keeping each wait unslept."""
     served = Provider(*answers)
     monkeypatch.setattr(litellm, "completion", served)
     monkeypatch.setattr(litellm, "completion_cost", lambda **_: PRICE)
-    monkeypatch.setattr("tenacity.nap.time.sleep", lambda _: None)
+    monkeypatch.setattr("tenacity.nap.time.sleep", served.waits.append)
     return served
 
 
@@ -788,3 +792,26 @@ def test_a_bad_answer_is_asked_for_as_often_as_the_setting_says(
         )
 
     assert len(served.calls) == attempts
+
+
+def test_a_wrapped_rate_limit_waits_as_long_as_its_retry_after(monkeypatch) -> None:
+    """A 429 arrives wrapped by instructor, like whatever else its call raised.
+
+    Looked for on the outermost failure alone, a Retry-After was never found,
+    and a throttled call backed off a second and was throttled again.
+    """
+    served = provider(monkeypatch, rate_limited(after="30"), reply(FINE))
+
+    answer = Client(settings()).answer(system="s", user="u", shape=Shape)
+
+    assert answer.value == "answered"
+    assert served.waits == [30.0]
+
+
+def test_a_retry_after_longer_than_the_cap_waits_the_cap(monkeypatch) -> None:
+    """A provider asking for an hour does not hold a row for an hour an attempt."""
+    served = provider(monkeypatch, rate_limited(after="7200"), reply(FINE))
+
+    Client(settings()).answer(system="s", user="u", shape=Shape)
+
+    assert served.waits == [120.0]
