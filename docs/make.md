@@ -108,7 +108,7 @@ run compose has no equivalent of.
 | `make logs-orchestration` | The Dagster webserver and daemon |
 | `make logs-shipper` | The log shipper, when Grafana shows nothing |
 | `make logs-retention` | Not a follow: how long Elasticsearch keeps them. **Run once** |
-| `make logs-prune` | Not a follow: delete the log files nothing has written to for `LOGS_KEEP_DAYS`, on the `logs` volume and in `./logs` |
+| `make logs-prune` | Not a follow: delete the log files nothing has written to for `LOGS_KEEP_DAYS`, on the `logs` volume and in `./logs`. Fails when the api, through which it reaches the volume, does not answer |
 | `make logs-wipe` | Not a follow: delete every `qa-logs*` data stream and every log file. Stops unless Elasticsearch acknowledges the delete or holds no stream. What `make wipe` runs |
 
 ```bash

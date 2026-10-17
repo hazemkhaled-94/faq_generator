@@ -324,6 +324,34 @@ def test_certs_stops_on_a_failed_step(
     assert (calls.read_text().split() if calls.exists() else []) == generated, ran
 
 
+@pytest.mark.parametrize(
+    ("answer", "refused"),
+    [
+        ("printf '/var/log/qa/api-1.log\\n/var/log/qa/api-2.log\\n'", False),
+        ("echo 'no container named api' >&2; exit 125", True),
+    ],
+    ids=["pruned", "stack-down"],
+)
+def test_logs_prune_fails_when_its_exec_fails(
+    tmp_path: Path, answer: str, refused: bool
+) -> None:
+    """A stopped api counted as "0 file(s) deleted" and passed."""
+    engine = stand_in(tmp_path, answer)
+    prune = command("logs-prune", "exec -T api", COMPOSE=str(engine))
+
+    ran = subprocess.run(
+        ["bash", "-c", prune],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (ran.returncode != 0) is refused, ran
+    if not refused:
+        assert ran.stdout.startswith("2 file(s)"), ran
+
+
 def test_the_log_wipe_takes_every_stream_grafana_reads() -> None:
     """The dated streams an earlier filebeat.yml wrote are `qa-logs*` too."""
     assert "_data_stream/qa-logs*" in command("logs-wipe", "_data_stream")

@@ -500,14 +500,18 @@ logs-retention:
 # Deletes by mtime, so a file a live process is still appending to is never
 # old enough to take.
 #
+# Counted one place at a time under pipefail: piped into the count together,
+# a stopped api was "0 file(s) deleted" and passed.
+#
 #     make logs-prune LOGS_KEEP_DAYS=7
 LOGS_KEEP_DAYS ?= 30
 # Delete the log files no process has written to for LOGS_KEEP_DAYS.
-logs-prune:
-	@{ $(COMPOSE_CMD) exec -T api sh -c \
-	     'find /var/log/qa -type f -mtime +$(LOGS_KEEP_DAYS) -print -delete'; \
-	   find logs -type f -mtime +$(LOGS_KEEP_DAYS) -print -delete 2>/dev/null; \
-	 } | wc -l | xargs printf '%s file(s) deleted.\n'
+logs-prune: logs-dir
+	@set -o pipefail; find logs -type f -mtime +$(LOGS_KEEP_DAYS) -print -delete \
+	  | wc -l | xargs printf '%s file(s) deleted in ./logs.\n'
+	@set -o pipefail; $(COMPOSE_CMD) exec -T api sh -c \
+	  'find /var/log/qa -type f -mtime +$(LOGS_KEEP_DAYS) -print -delete' \
+	  | wc -l | xargs printf '%s file(s) deleted on the volume.\n'
 
 # Every log line, in both places one lives: the `qa-logs*` data streams that
 # Grafana reads, and the JSON files Filebeat ships from. What `make wipe`
