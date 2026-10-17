@@ -591,6 +591,11 @@ def test_every_target_is_declared_phony() -> None:
     assert not targets - phony, sorted(targets - phony)
 
 
+def test_doctor_checks_the_served_catalog() -> None:
+    """The api runs the image it was built from, and a checkout moves on."""
+    assert any("python -m settings.drift" in line for line in printed("doctor"))
+
+
 def test_the_balance_is_drawn_over_every_topic_whatever_narrows_it() -> None:
     """A draw narrowed to one topic replaced the release for all of them."""
     (drawing,) = [

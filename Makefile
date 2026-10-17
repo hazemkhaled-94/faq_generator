@@ -267,6 +267,11 @@ setup:
 # first: somebody setting this up wants the whole list, not one item of it
 # six times.
 #
+# The settings the api serves are compared with this checkout's, because the
+# api and the workers run the image they were built from and a checkout
+# moves on without them. An api that is down is a warning and not a
+# failure: on a first run the stack is not up yet.
+#
 # The last check is a real call to the configured model, which is the one
 # thing no amount of reading the files can tell you. An unknown model id, a
 # wrong address and a rejected credential all fail at the first call, and
@@ -309,6 +314,8 @@ doctor:
 	else \
 	  say ok "containers call $$LLM_CONTAINER_MODEL at $$OLLAMA_CONTAINER_URL"; \
 	fi; \
+	echo; echo "Comparing the settings the api serves with this checkout's..."; \
+	PYTHONPATH=backend poetry run python -m settings.drift $(COMPOSE_CMD) || fail=1; \
 	echo; echo "Asking $$LLM_MODEL one question, as the host calls it..."; \
 	PYTHONPATH=backend poetry run python -m llm.check || fail=1; \
 	echo; \
