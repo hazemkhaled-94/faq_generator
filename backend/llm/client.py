@@ -162,12 +162,26 @@ def answering(completion: Any) -> Any:
     recorded: a response carrying no reasoning is not a response missing
     anything, so there is nothing here to fail on when a model never
     produces any.
+
+    An answer the provider's content filter withheld is raised here as the
+    refusal it is. It comes back a 200 that litellm raises nothing for, and
+    its empty content would otherwise fail the schema on every attempt and
+    arrive as `ModelUnavailable`, though the same prompt is filtered again.
     """
 
     def called(*args: Any, **kwargs: Any) -> Any:
         """Calls the model and cleans each choice's content in place."""
         response = completion(*args, **kwargs)
         for choice in getattr(response, "choices", ()) or ():
+            if getattr(choice, "finish_reason", None) == "content_filter":
+                # A BadRequestError, so `_retryable` stops and `_refused`
+                # finds it behind instructor's wrapping.
+                raise litellm.exceptions.ContentPolicyViolationError(
+                    message="the provider filtered the answer "
+                    "(finish_reason=content_filter)",
+                    model=str(kwargs.get("model", "")),
+                    llm_provider="",
+                )
             message = getattr(choice, "message", None)
             content = getattr(message, "content", None)
             if message is None or not content:
@@ -189,7 +203,7 @@ class ModelUnavailable(Exception):
 
 
 class ModelRefused(ModelUnavailable):
-    """Raised when the provider refused the prompt itself, for what it says."""
+    """Raised when the provider refused the prompt, or its answer, for what it says."""
 
 
 def spend(completion: Any) -> dict[str, Any]:
@@ -316,8 +330,8 @@ class Client:
         version it does not have.
 
         Raises:
-            ModelRefused: If the provider refused the prompt under its
-                content policy. Not retried.
+            ModelRefused: If the provider refused the prompt, or filtered
+                the answer, under its content policy. Not retried.
             ModelUnavailable: If it could not be reached, or did not return
                 the requested shape after every attempt.
         """

@@ -815,3 +815,20 @@ def test_a_retry_after_longer_than_the_cap_waits_the_cap(monkeypatch) -> None:
     Client(settings()).answer(system="s", user="u", shape=Shape)
 
     assert served.waits == [120.0]
+
+
+def test_a_filtered_answer_is_a_refusal_asked_once(monkeypatch) -> None:
+    """A provider that filters what its model wrote still answers 200.
+
+    litellm raises nothing for it, so the empty answer failed the schema, was
+    asked for again on every attempt, and arrived as a model that could not
+    be reached. The same prompt is filtered again.
+    """
+    from llm.client import ModelRefused
+
+    served = provider(monkeypatch, reply(None, finish="content_filter"))
+
+    with pytest.raises(ModelRefused):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert len(served.calls) == 1

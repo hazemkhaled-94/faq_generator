@@ -29,6 +29,11 @@ own, so an attempt is one billed call and `LLM_MAX_ATTEMPTS` is every call an
 answer may cost. An authentication failure, an unknown model or a malformed
 schema is raised at once.
 
+**A filtered answer is a refusal.** A prompt the provider's content policy
+refuses, and an answer it withholds with `finish_reason` `content_filter`,
+are asked once and raised as `ModelRefused`: the same prompt is filtered
+again.
+
 **A rate limit waits as long as its `Retry-After` asks, two minutes at
 most.** A hosted provider answers 429 with a `Retry-After` of twenty to sixty
 seconds, and it is read off the 429 inside instructor's wrapping; every other
