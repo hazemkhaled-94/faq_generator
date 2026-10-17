@@ -190,6 +190,48 @@ def test_a_parse_rooted_on_its_condition_is_one_claim(sentence: str) -> None:
     assert claim(sentence, "en").predicates == 1
 
 
+def _tagged(words, pos, tags, deps, heads):
+    """A German Doc carrying the parse given rather than the tagger's."""
+    from spacy.tokens import Doc
+
+    from nlp.pipelines import pipeline
+
+    return Doc(
+        pipeline("de").vocab, words=words, pos=pos, tags=tags, deps=deps, heads=heads
+    )
+
+
+def test_a_finite_fine_tag_is_a_claim_when_the_morphology_drops_it() -> None:
+    """`genügen` tagged VVFIN with the part of speech of an adjective still says something."""
+    from nlp.analysis import _predicates, _untagged_claim
+
+    statement = _tagged(
+        ["Bei", "Kartenzahlungen", "genügen", "PIN", "und", "Unterschrift", "."],
+        ["ADP", "NOUN", "ADJ", "PROPN", "CCONJ", "NOUN", "PUNCT"],
+        ["APPR", "NN", "VVFIN", "NE", "KON", "NN", "$."],
+        ["mo", "nk", "ROOT", "sb", "cd", "cj", "punct"],
+        [2, 0, 2, 2, 3, 4, 2],
+    )
+
+    assert _predicates(statement) == 0, "the morphology carries no finite verb"
+    assert _untagged_claim(statement)
+
+
+def test_a_heading_tagged_with_no_finite_verb_still_asserts_nothing() -> None:
+    """A German heading ending on its infinitive carries no finite fine tag."""
+    from nlp.analysis import _untagged_claim
+
+    heading = _tagged(
+        ["Konto", "online", "eröffnen"],
+        ["NOUN", "ADV", "VERB"],
+        ["NN", "ADV", "VVINF"],
+        ["oa", "mo", "ROOT"],
+        [2, 2, 2],
+    )
+
+    assert not _untagged_claim(heading)
+
+
 def test_a_noun_phrase_asserts_nothing() -> None:
     """A phrase with no finite verb reads as no claim."""
     from nlp.analysis import claim

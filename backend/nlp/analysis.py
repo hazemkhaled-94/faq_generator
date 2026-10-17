@@ -1356,6 +1356,14 @@ _INFINITIVE_IS_PLURAL = frozenset({"de", "nl"})
 #: Tags of the particle that marks a verb as an infinitive, German and English.
 _INFINITIVE_MARKERS = frozenset({"PTKZU", "TO"})
 
+#: Fine tags of a finite verb, by ISO 639-1 code: STTS and Penn. The tagger
+#: gives one to a verb whose part of speech and morphology it got wrong, as
+#: German `genügen` tagged VVFIN and read as an adjective.
+_FINITE_TAGS: dict[str, frozenset[str]] = {
+    "de": frozenset({"VVFIN", "VAFIN", "VMFIN"}),
+    "en": frozenset({"VBZ", "VBP", "VBD", "MD"}),
+}
+
 
 def _untagged_claim(span: Doc | Span) -> bool:
     """Tells whether a statement says something the tagger read as no finite verb.
@@ -1368,7 +1376,9 @@ def _untagged_claim(span: Doc | Span) -> bool:
     infinitive marker beside it is that plural verb when it stands where a
     finite verb does, with words before and after it: "Die Verbände
     entscheiden, ob …" says something, and the heading "Konto online
-    eröffnen", which ends on its verb, does not.
+    eröffnen", which ends on its verb, does not. So does a statement any of
+    whose words carries a finite verb's fine tag, whatever part of speech
+    the tagger gave it.
     """
     language = span.doc.lang_
     for root in (token for token in span if token.head == token):
@@ -1385,15 +1395,17 @@ def _untagged_claim(span: Doc | Span) -> bool:
             and words[0] < root.i < words[-1]
         ):
             return True
-    return False
+    finite = _FINITE_TAGS.get(language, frozenset())
+    return any(token.tag_ in finite for token in span)
 
 
 def claim(text: str, language: str | None) -> Claim:
     """Reads what one written statement asserts.
 
     A statement the tagger read without a finite verb still counts as one
-    claim when its root verb has a subject, so that a statement is not
-    refused as asserting nothing for the tagger's slip. The sentences a
+    claim when its root verb has a subject, or a word of it carries a finite
+    verb's fine tag, so that a statement is not refused as asserting nothing
+    for the tagger's slip. The sentences a
     passage is chunked into keep the tagger's own reading.
     """
     document = _read(text, language)

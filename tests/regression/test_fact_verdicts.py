@@ -520,8 +520,9 @@ RESOLVED_BY_GRAMMAR: tuple[tuple[str, str, str, str, str | None], ...] = (
 #: (name, language, the cited excerpt, statement, expected code or None):
 #: stored claims refused as `asserts_nothing` because the tagger read their
 #: one verb as an infinitive or a bare form: English after a plural or a
-#: name, German where the third person plural is spelled as the infinitive.
-#: A heading still asserts nothing.
+#: name, German where the third person plural is spelled as the infinitive,
+#: or as an adjective whose fine tag still says finite verb. A heading still
+#: asserts nothing.
 MISTAGGED_VERBS: tuple[tuple[str, str, str, str, str | None], ...] = (
     (
         "a verb after a name read as its bare form (F5643)",
@@ -581,6 +582,21 @@ MISTAGGED_VERBS: tuple[tuple[str, str, str, str, str | None], ...] = (
         (
             "Nationale Fussballverbände können verlangen, dass bei ihren "
             "Wettbewerben nur Bälle mit einem Gütesiegel eingesetzt werden."
+        ),
+        None,
+    ),
+    (
+        "a finite verb the tagger read as an adjective (F12905)",
+        "de",
+        (
+            "Bei Disziplinarmassnahmen reichen Blickkontakt und ein einfaches, "
+            "diskretes Handzeichen des Schiedsrichterassistenten an den "
+            "Schiedsrichter."
+        ),
+        (
+            "Bei Disziplinarmassnahmen genügen Blickkontakt und ein einfaches, "
+            "diskretes Handzeichen des Schiedsrichterassistenten an den "
+            "Schiedsrichter."
         ),
         None,
     ),

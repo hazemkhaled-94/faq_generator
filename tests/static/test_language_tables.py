@@ -85,6 +85,7 @@ def test_the_scan_finds_the_tables_it_is_meant_to() -> None:
         "question_generation.gates._PURPOSE",
         "nlp.analysis._ORDINALS",
         "nlp.analysis._CONTRASTIVE",
+        "nlp.analysis._FINITE_TAGS",
         "nlp.analysis.DECIMAL_MARK",
         "nlp.text.JOINING",
     } <= found
