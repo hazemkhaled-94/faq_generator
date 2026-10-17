@@ -30,8 +30,9 @@ GERMAN = (
     "Ein Risikobericht muss mindestens vierteljährlich erstellt werden."
 )
 
-#: (name, statement, cited sentence, expected code or None), over PROSE.
-ATOMIC: tuple[tuple[str, str, int, str | None], ...] = (
+#: (name, statement, cited sentence or sentences, expected code or None),
+#: over PROSE.
+ATOMIC: tuple[tuple[str, str, int | tuple[int, ...], str | None], ...] = (
     ("one claim, its own words", "The device weighs 4 kg.", 0, None),
     ("the other claim of the same sentence", "The device runs for 12 hours.", 0, None),
     (
@@ -41,11 +42,12 @@ ATOMIC: tuple[tuple[str, str, int, str | None], ...] = (
         Rejection.UNRESOLVED_REFERENCE,
     ),
     (
-        "the sentence copied whole",
+        "the sentence copied whole, judged on its two claims",
         "The device weighs 4 kg and runs for 12 hours.",
         0,
-        Rejection.COPIED,
+        Rejection.NOT_ATOMIC,
     ),
+    ("the two sentences copied whole", PROSE, (0, 1), Rejection.COPIED),
     (
         "two claims joined by and",
         "The device weighs 4 kg and it runs for 12 hours.",

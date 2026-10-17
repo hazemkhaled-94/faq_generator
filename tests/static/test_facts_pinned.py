@@ -42,7 +42,7 @@ FACT_ROUTES = frozenset(
 #: Which checks each kind faces, in the order they are applied. This is the
 #: whole of what "kind" means, so it is pinned rather than described.
 CHECKS = {
-    "atomic": ("_copied", "_asserts", "_atomic", "_supported", "_self_contained"),
+    "atomic": ("_quoted", "_asserts", "_atomic", "_supported", "_self_contained"),
     "summary": ("_asserts", "_supported", "_condensed"),
     "outline": ("_listed", "_supported", "_condensed"),
     "bridge": ("_asserts", "_atomic", "_supported", "_self_contained", "_bridging"),

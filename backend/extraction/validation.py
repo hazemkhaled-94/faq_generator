@@ -118,6 +118,19 @@ def _copied(judged: Judged) -> Failure | None:
     )
 
 
+def _quoted(judged: Judged) -> Failure | None:
+    """Refuses a written statement that is more than one sentence copied.
+
+    A copy of one sentence is left to `_atomic`, which counts the claims the
+    statement reads as now rather than the ones its sentence was counted as
+    carrying when the passage was chunked: carrying one, it is the fact, and
+    carrying two, it is refused for those.
+    """
+    if sum(len(one.sentence_ids or ()) for one in judged.citations) == 1:
+        return None
+    return _copied(judged)
+
+
 def _asserts(judged: Judged) -> Failure | None:
     """Refuses a statement carrying no finite verb."""
     if judged.claim.predicates:
@@ -259,7 +272,7 @@ class FactChecker:
         )
         condensed = partial(_condensed, share=share)
         self._by_kind: dict[str, tuple[Check, ...]] = {
-            FactKind.ATOMIC: (_copied, _asserts, _atomic, _supported, _self_contained),
+            FactKind.ATOMIC: (_quoted, _asserts, _atomic, _supported, _self_contained),
             FactKind.SUMMARY: (_asserts, _supported, condensed),
             FactKind.OUTLINE: (_listed, _supported, condensed),
             FactKind.BRIDGE: (

@@ -62,7 +62,7 @@ def test_a_citation_naming_no_sentence_of_the_passage_is_refused(
 
 
 def test_a_sentence_carrying_one_claim_may_be_quoted() -> None:
-    """Evidence that is already one claim is the fact; restating two is not."""
+    """Evidence that is already one claim is the fact; quoting two is not."""
     quoted = Checker(
         passage(
             "The market presented a mixed picture in 2025. "
@@ -75,7 +75,29 @@ def test_a_sentence_carrying_one_claim_may_be_quoted() -> None:
     assert verbatim.validated, (verbatim.rejection_code, verbatim.validation_error)
 
     restated = quoted.atomic(quoted.passage.sentences[1].text, 1)
-    assert restated.rejection_code == Rejection.COPIED, restated.validation_error
+    assert restated.rejection_code == Rejection.NOT_ATOMIC, restated.validation_error
+
+    both = quoted.atomic(quoted.passage.text, (0, 1))
+    assert both.rejection_code == Rejection.COPIED, both.validation_error
+
+
+def test_a_copy_of_one_sentence_is_judged_on_its_claims() -> None:
+    """Not on the claims its sentence was counted as carrying when it was chunked.
+
+    A passage chunked before the claim reading moved still carries the old
+    count, and a copy of one sentence reading as one claim now is the fact.
+    """
+    from dataclasses import replace
+
+    text = "Customers may return goods within 30 days but must keep the receipt."
+    read = passage(text)
+    stale = replace(
+        read, sentences=[replace(one, predicates=2) for one in read.sentences]
+    )
+
+    judged = Checker(stale).atomic(text, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
 
 
 def test_two_claims_in_one_statement_are_refused(checker) -> None:
@@ -768,7 +790,7 @@ def test_each_failure_reaches_its_own_code(checker, offered) -> None:
     """Every rejection code the checks can emit, and no bucket shared."""
     codes = {
         checker.atomic("Anything.", 7).rejection_code,
-        checker.atomic("The device weighs 4 kg and runs for 12 hours.").rejection_code,
+        checker.atomic(checker.passage.text, (0, 1)).rejection_code,
         checker.atomic("The 4 kg device.").rejection_code,
         checker.atomic(
             "The device weighs 4 kg and it runs for 12 hours."

@@ -185,7 +185,10 @@ Two more refusals are the service refusing what the checks passed:
 The gaps are the design: a `summary` and an `outline` carry several claims by
 definition, an `outline` is a fragment the parser cannot read as a sentence,
 a `summary` resolves its own pronoun, and a statement a deterministic reader
-composed faces only `copied`.
+composed faces only `copied`. A written atomic fact copying a single
+sentence does not face `copied` either: `not_atomic` counts the claims it
+reads as now, where `copied` would read the count its sentence was stored
+with when the passage was chunked.
 
 A pronoun the statement resolves itself is not dangling, and is not recorded
 in `unresolved_references` at all: one with a noun before it, outside the
