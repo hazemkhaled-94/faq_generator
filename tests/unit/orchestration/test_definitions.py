@@ -8,6 +8,8 @@ that exists nowhere and fails at load, not at run.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 pytest.importorskip("dagster", reason="the pipeline group is not installed")
@@ -122,6 +124,29 @@ def test_only_one_corpus_run_may_go_at_a_time() -> None:
     # resolve is a limit that is in the file and not in the deployment.
     assert isinstance(instance.run_coordinator, QueuedRunCoordinator)
     assert instance.run_coordinator_data.config_dict["max_concurrent_runs"] == 1
+
+
+def test_run_monitoring_clears_a_run_whose_worker_died() -> None:
+    """Otherwise a run whose process is gone holds the one slot for ever.
+
+    The ceiling is above the longest a corpus run can legitimately take:
+    every asset of the job waiting its whole drain timeout.
+    """
+    monitoring = InstanceRef.from_dir(str(ROOT / "configs/dagster")).settings[
+        "run_monitoring"
+    ]
+    drain = re.search(
+        r"^ORCHESTRATION_DRAIN_TIMEOUT_SECONDS=(\d+)$",
+        (ROOT / "configs/env/orchestration.env").read_text(),
+        re.MULTILINE,
+    )
+    assets = defs.resolve_job_def(corpus.name).asset_layer.selected_asset_keys
+
+    assert drain is not None
+    assert monitoring["enabled"] is True
+    assert monitoring["max_resume_run_attempts"] == 0
+    assert monitoring["cancel_timeout_seconds"] > 0
+    assert monitoring["max_runtime_seconds"] > len(assets) * int(drain[1])
 
 
 def test_the_schedule_and_the_sensor_ship_stopped() -> None:

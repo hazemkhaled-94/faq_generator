@@ -215,7 +215,7 @@ poetry run pytest tests/unit/orchestration
 
 | File | Covers |
 |---|---|
-| [`test_definitions.py`](../tests/unit/orchestration/test_definitions.py) | The code location as Dagster loads it: the assets, the job and the fit it leaves out, that both triggers ship stopped, and that the instance caps the corpus at one run |
+| [`test_definitions.py`](../tests/unit/orchestration/test_definitions.py) | The code location as Dagster loads it: the assets, the job and the fit it leaves out, that both triggers ship stopped, that the instance caps the corpus at one run, and that it clears a run whose process died |
 | [`test_assets.py`](../tests/unit/orchestration/test_assets.py) | What the asset and check bodies report, against a stand-in backend |
 | [`test_orchestration_client.py`](../tests/unit/orchestration/test_orchestration_client.py) | The stage routes as the orchestrator reads them, and the run it carries into them |
 | [`test_sensor.py`](../tests/unit/orchestration/test_sensor.py) | When the orchestrator decides the pipeline should start, and what it records for the work it did not |
@@ -240,6 +240,12 @@ None of these reaches a network.
 - **A second corpus run waits rather than racing.** `max_concurrent_runs: 1`
   queues it; it is not refused, except at `POST /pipeline/run`, which still
   answers 409 rather than leaving somebody watching a queued run.
+- **A run whose process died holds that one slot until run monitoring clears
+  it.** The daemon marks a run still stopping after 180 seconds as stopped.
+  The default launcher cannot tell whether a run's process is alive, so one
+  left `STARTED` is failed only after 48 hours, above the longest a corpus
+  run can take; terminating it in Dagster's UI is quicker. Both are in
+  [`configs/dagster/dagster.yaml`](../configs/dagster/dagster.yaml).
 - **Deleting this directory changes nothing about the pipeline.** It takes
   away the Run button and `POST /pipeline/run`, both of which then report
   themselves unavailable; every queue verb on every surface is untouched.

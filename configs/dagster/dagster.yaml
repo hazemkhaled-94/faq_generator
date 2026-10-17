@@ -47,3 +47,19 @@ run_coordinator:
   class: QueuedRunCoordinator
   config:
     max_concurrent_runs: 1
+
+# A run whose process died, cleared so it stops holding that one slot.
+#
+# Off, a run that a restart or an OOM left STARTED or CANCELING stays so for
+# ever, and every run queued behind it waits for ever. The daemon marks one
+# still CANCELING after cancel_timeout_seconds as CANCELED. DefaultRunLauncher
+# cannot tell whether a run's process is alive, so a STARTED one is failed
+# only at max_runtime_seconds: 48 hours, above the five assets of the corpus
+# job each waiting its whole ORCHESTRATION_DRAIN_TIMEOUT_SECONDS. Terminating
+# it in Dagster's UI is the quicker way. That launcher cannot resume a run
+# either, hence no resume attempts.
+run_monitoring:
+  enabled: true
+  max_resume_run_attempts: 0
+  cancel_timeout_seconds: 180
+  max_runtime_seconds: 172800
