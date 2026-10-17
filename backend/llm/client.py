@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any, TypeVar
 
 import instructor
@@ -148,7 +148,7 @@ def without_reasoning(text: str) -> str:
     return _UNCLOSED.sub("", _REASONING.sub("", text)).strip()
 
 
-def answering(completion: Any) -> Any:
+def answering(completion: Any, seen: Callable[[Any], None] | None = None) -> Any:
     """Wraps a completion function so inline reasoning never reaches the parser.
 
     One place, because every call in this pipeline goes through instructor
@@ -167,11 +167,16 @@ def answering(completion: Any) -> Any:
     refusal it is. It comes back a 200 that litellm raises nothing for, and
     its empty content would otherwise fail the schema on every attempt and
     arrive as `ModelUnavailable`, though the same prompt is filtered again.
+
+    `seen` is handed every response before anything is read off it: each
+    was billed, whether or not an answer came of it.
     """
 
     def called(*args: Any, **kwargs: Any) -> Any:
         """Calls the model and cleans each choice's content in place."""
         response = completion(*args, **kwargs)
+        if seen is not None:
+            seen(response)
         for choice in getattr(response, "choices", ()) or ():
             if getattr(choice, "finish_reason", None) == "content_filter":
                 # A BadRequestError, so `_retryable` stops and `_refused`
@@ -240,6 +245,15 @@ def spend(completion: Any) -> dict[str, Any]:
     return {name: value for name, value in fields.items() if value is not None}
 
 
+def _summed(responses: list[Any]) -> dict[str, Any]:
+    """What every response one answer took consumed, `spend` field by field."""
+    total: dict[str, Any] = {}
+    for response in responses:
+        for name, value in spend(response).items():
+            total[name] = total.get(name, 0) + value
+    return total
+
+
 def priced(fields: dict[str, Any]) -> str:
     """What `spend` found, for the end of a log line a person reads.
 
@@ -282,10 +296,14 @@ class Client:
         # Read on the azure path only, and only when no key is set.
         litellm.enable_azure_ad_token_refresh = True
         self._settings = settings
+        # Every response the answer being asked for has taken, a failed
+        # attempt's included: each was billed, and is logged with it.
+        self._responses: list[Any] = []
         # Any: instructor replaces create() at run time, so a checker would
         # match these keywords against the unpatched signature.
         self._client: Any = instructor.from_litellm(
-            answering(litellm.completion), mode=mode(settings.structured_mode)
+            answering(litellm.completion, self._responses.append),
+            mode=mode(settings.structured_mode),
         )
         # Only `_retryable`: retrying a bad model name, a refused prompt or a
         # schema costs the backoff on every call and buries the real error.
@@ -336,6 +354,7 @@ class Client:
                 the requested shape after every attempt.
         """
         started = time.monotonic()
+        self._responses.clear()
         # Shared by both lines below, so a failed call is counted in the
         # same fields a successful one is.
         about = {
@@ -354,18 +373,24 @@ class Client:
             # Logged with the traceback before it is rewrapped: what the
             # caller records against the row is one line, and litellm's own
             # cause is the only thing that says which of the layers below
-            # failed.
+            # failed. Priced as the answered line is: every attempt was billed.
+            elapsed = self._since(started)
+            billed = _summed(self._responses)
             log.exception(
-                "%s did not answer",
+                "%s did not answer %s in %.1fs%s",
                 self._settings.model,
-                extra=about | {"llm.duration_ms": self._since(started)},
+                shape.__name__,
+                elapsed / 1000,
+                priced(billed),
+                extra=about | {"llm.duration_ms": elapsed} | billed,
             )
             refusal = ModelRefused if _refused(exc) else ModelUnavailable
             raise refusal(f"{type(exc).__name__}: {exc}") from exc
 
         elapsed = self._since(started)
-        spent = spend(completion)
-        self._warn_if_near_the_window(spent, shape)
+        # The last response alone: each attempt had a window of its own.
+        self._warn_if_near_the_window(spend(completion), shape)
+        spent = _summed(self._responses)
         log.info(
             "%s answered %s in %.1fs%s",
             self._settings.model,

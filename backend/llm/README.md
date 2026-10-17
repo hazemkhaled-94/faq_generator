@@ -147,8 +147,11 @@ the check.
 ## Cost and latency
 
 Every call is logged with its duration, its token counts and, where
-litellm has a price for the model, what it cost. A model missing from its
-price list is logged with no cost, and the answer is kept:
+litellm has a price for the model, what it cost. **Every attempt is
+counted**, a failed one's too: an answer that came on the third attempt is
+logged with the tokens of all three, and one that never came is logged with
+what its attempts cost on the line saying it did not answer. A model missing
+from its price list is logged with no cost, and the answer is kept:
 
 ```bash
 make spend LOG=run.log                    # totals from a captured log

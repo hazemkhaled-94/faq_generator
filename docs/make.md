@@ -514,7 +514,9 @@ make spend-by-shape LOG=run.log           # split by model and judgement
 now, use Grafana's **2 · What each stage is doing** dashboard or Phoenix.
 
 `spend-by-shape` splits by the model that answered and the Pydantic class the
-call had to return, which is what each judgement costs.
+call had to return, which is what each judgement costs. Both read a log the
+same way, so its totals agree, and both count a call that failed after it
+was billed.
 
 ## Orchestration
 

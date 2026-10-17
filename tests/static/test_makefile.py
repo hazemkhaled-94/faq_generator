@@ -391,6 +391,36 @@ def test_logs_prune_fails_when_its_exec_fails(
         assert ran.stdout.startswith("2 file(s)"), ran
 
 
+def test_both_spend_targets_agree_and_count_failed_calls(tmp_path: Path) -> None:
+    """A call that failed after it was billed is spend too.
+
+    `spend` read only lines that began with their timestamp and
+    `spend-by-shape` read them anywhere, so the two totals of one log
+    differed, and neither read a failed call's price.
+    """
+    import re
+
+    log = tmp_path / "run.log"
+    log.write_text(
+        "2026-10-17T17:23:12 INFO    llm.client [trace=1 span=2] azure/gpt-4.1 "
+        "answered _Facts in 0.4s (1,000 in, 100 out, $0.0028)\n"
+        "2026-10-17T17:23:13 ERROR   llm.client [trace=1 span=3] azure/gpt-4.1 "
+        "did not answer _Facts in 0.1s (3,000 in, 300 out, $0.0084)\n"
+    )
+
+    spend = made("spend", f"LOG={log}").stdout
+    (total,) = [
+        line.split()[1:]
+        for line in made("spend-by-shape", f"LOG={log}").stdout.splitlines()
+        if line.split()[:1] == ["TOTAL"]
+    ]
+
+    assert re.search(r"^calls\s+2$", spend, re.MULTILINE), spend
+    assert re.search(r"^tokens\s+4000 in, 400 out$", spend, re.MULTILINE), spend
+    assert re.search(r"^cost\s+\$0\.0112\b", spend, re.MULTILINE), spend
+    assert total == ["2", "4000", "400", "0.0112"], total
+
+
 def test_the_log_wipe_empties_files_rather_than_unlinking_them(tmp_path: Path) -> None:
     """A service's open handler goes on writing into the file Filebeat reads.
 

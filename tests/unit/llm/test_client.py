@@ -832,3 +832,64 @@ def test_a_filtered_answer_is_a_refusal_asked_once(monkeypatch) -> None:
         Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
 
     assert len(served.calls) == 1
+
+
+def test_a_filtered_answer_is_paid_for_all_the_same(monkeypatch, caplog) -> None:
+    """The provider billed the answer it then withheld."""
+    provider(monkeypatch, reply(None, finish="content_filter"))
+
+    with caplog.at_level("INFO"), pytest.raises(ModelUnavailable):
+        Client(settings()).answer(system="s", user="u", shape=Shape)
+
+    assert logged(caplog, "ERROR").__dict__["llm.cost_usd"] == pytest.approx(PRICE)
+
+
+def logged(caplog, level: str):
+    """The client's last record at a level."""
+    return [
+        one
+        for one in caplog.records
+        if one.name == "llm.client" and one.levelname == level
+    ][-1]
+
+
+def test_a_failed_answer_logs_what_every_attempt_cost(monkeypatch, caplog) -> None:
+    """Each attempt was billed, so the line saying it failed says for how much."""
+    provider(monkeypatch, reply("not json"))
+
+    with caplog.at_level("INFO"), pytest.raises(ModelUnavailable):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    failed = logged(caplog, "ERROR")
+    assert failed.__dict__["llm.tokens.input"] == 3000
+    assert failed.__dict__["llm.tokens.output"] == 300
+    assert failed.__dict__["llm.cost_usd"] == pytest.approx(3 * PRICE)
+    assert failed.getMessage().endswith(" (3,000 in, 300 out, $0.0084)")
+
+
+def test_a_late_answer_logs_the_attempts_before_it(monkeypatch, caplog) -> None:
+    """The two that failed were billed as surely as the one that answered."""
+    provider(monkeypatch, reply("not json"), reply("not json"), reply(FINE))
+
+    with caplog.at_level("INFO"):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    answered = logged(caplog, "INFO")
+    assert answered.__dict__["llm.tokens.input"] == 3000
+    assert answered.__dict__["llm.cost_usd"] == pytest.approx(3 * PRICE)
+
+
+def test_the_window_warning_reads_the_last_response_alone(monkeypatch, caplog) -> None:
+    """Three attempts are three windows, not one window holding all three."""
+    provider(
+        monkeypatch,
+        reply("not json", prompt=2000, out=500),
+        reply("not json", prompt=2000, out=500),
+        reply(FINE, prompt=2000, out=500),
+    )
+    local = settings(max_attempts=3, num_ctx=6144, model="ollama_chat/gemma4:12b")
+
+    with caplog.at_level("WARNING"):
+        Client(local).answer(system="s", user="u", shape=Shape)
+
+    assert "TRUNCATED" not in caplog.text

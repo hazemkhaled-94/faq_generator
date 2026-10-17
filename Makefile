@@ -1175,8 +1175,18 @@ questions-diff:
 # figures per span, per run. What these two have that neither does is a log
 # from a run that is over, on a machine with no stack up.
 #
+# Both read the log through SPENT, so one log has one total. A call that
+# failed after it was billed is spend too, and is counted: its line says
+# "did not answer" and carries its price as an answered one does.
+#
 #   make spend LOG=run.log
 #   make spend LOG=run.log SINCE=2026-09-18
+SPENT = cat $(LOG) \
+ | $(if $(SINCE),grep "$(SINCE)",cat) \
+ | grep -oE '[^ ]+ (answered|did not answer) _[A-Za-z]+ in [0-9.]+s \([0-9,]+ in, [0-9,]+ out, \$$[0-9.]+\)' \
+ | sed -E 's/^([^ ]+) (answered|did not answer) (_[A-Za-z]+) in [0-9.]+s \(([0-9,]+) in, ([0-9,]+) out, \$$([0-9.]+)\)/\1 \3 \4 \5 \6/' \
+ | tr -d ','
+
 # The same log, split by which model answered and what it was asked for.
 #
 # The shape is the Pydantic class the call had to return, and every stage
@@ -1195,33 +1205,21 @@ spend-by-shape:
 	@test -n "$(LOG)" || { echo 'usage: make spend-by-shape LOG=<a captured log> [SINCE=<date>]'; exit 2; }
 	@printf '%-24s %-18s %8s %12s %12s %10s\n' \
 	   MODEL SHAPE CALLS 'TOKENS IN' 'TOKENS OUT' COST
-	@cat $(LOG) \
-	 | $(if $(SINCE),grep "$(SINCE)",cat) \
-	 | grep -hoE '[^ ]+ answered _[A-Za-z]+ in [0-9.]+s \([0-9,]+ in, [0-9,]+ out, \$$[0-9.]+\)' \
-	 | sed -E 's/^([^ ]+) answered (_[A-Za-z]+) in [0-9.]+s \(([0-9,]+) in, ([0-9,]+) out, \$$([0-9.]+)\)/\1 \2 \3 \4 \5/' \
-	 | tr -d ',' \
+	@$(SPENT) \
 	 | awk '{k=$$1" "$$2; n[k]++; i[k]+=$$3; o[k]+=$$4; c[k]+=$$5} \
 	     END {for (k in n) {split(k,p," "); \
-	       printf "%-24s %-18s %8d %12d %12d %9.2f\n", p[1],p[2],n[k],i[k],o[k],c[k]}}' \
+	       printf "%-24s %-18s %8d %12d %12d %9.4f\n", p[1],p[2],n[k],i[k],o[k],c[k]}}' \
 	 | sort -k3 -rn
-	@cat $(LOG) \
-	 | $(if $(SINCE),grep "$(SINCE)",cat) \
-	 | grep -hoE 'answered _[A-Za-z]+ in [0-9.]+s \([0-9,]+ in, [0-9,]+ out, \$$[0-9.]+\)' \
-	 | sed -E 's/.*\(([0-9,]+) in, ([0-9,]+) out, \$$([0-9.]+)\)/\1 \2 \3/' \
-	 | tr -d ',' \
-	 | awk '{i+=$$1; o+=$$2; c+=$$3; n++} END {if (n==0) {print "\nno priced calls in the log"; exit} \
-	     printf "%-24s %-18s %8d %12d %12d %9.2f\n", "", "TOTAL", n, i, o, c}'
+	@$(SPENT) \
+	 | awk '{i+=$$3; o+=$$4; c+=$$5; n++} END {if (n==0) {print "\nno priced calls in the log"; exit} \
+	     printf "%-24s %-18s %8d %12d %12d %9.4f\n", "", "TOTAL", n, i, o, c}'
 
 # What the models have cost in total, over the same log.
 spend:
 	@test -n "$(LOG)" || { echo 'usage: make spend LOG=<a captured log> [SINCE=<date>]'; exit 2; }
-	@grep -hoE '^[0-9T:-]+ .*answered _[A-Za-z]+ in [0-9.]+s \([0-9,]+ in, [0-9,]+ out, \$$[0-9.]+\)' \
-	   $(LOG) \
-	 | $(if $(SINCE),grep "^$(SINCE)",cat) \
-	 | sed -E 's/.*\(([0-9,]+) in, ([0-9,]+) out, \$$([0-9.]+)\)/\1 \2 \3/' \
-	 | tr -d ',' \
-	 | awk '{i+=$$1; o+=$$2; c+=$$3; n++} END {if (n==0) {print "no priced calls in the log"; exit} \
-	     printf "calls   %d\ntokens  %d in, %d out\ncost    $$%.2f  (mean $$%.5f a call)\n", n, i, o, c, c/n}'
+	@$(SPENT) \
+	 | awk '{i+=$$3; o+=$$4; c+=$$5; n++} END {if (n==0) {print "no priced calls in the log"; exit} \
+	     printf "calls   %d\ntokens  %d in, %d out\ncost    $$%.4f  (mean $$%.5f a call)\n", n, i, o, c, c/n}'
 
 # ── Settings ───────────────────────────────────────────────────────────────
 #
