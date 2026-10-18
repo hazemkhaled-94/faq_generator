@@ -126,6 +126,29 @@ def test_a_heading_trail_is_fenced_off_and_labelled() -> None:
     assert sent.index("Context") < sent.index("Excerpt:")
 
 
+def test_the_context_is_given_as_the_situation_a_rule_holds_in() -> None:
+    """Labelled only as what the excerpt is about, a heading's scope was dropped."""
+    client = _Client(_Answer())
+    LlmExtractor(client).extract(passage(section_path="Accounts > Students"))
+
+    assert client.asked["user"].startswith(
+        "Context (not part of the excerpt): Accounts > Students. It names the "
+        "situation the excerpt sits in; when a rule holds only in that "
+        "situation, the statement names it."
+    )
+
+
+def test_an_exclusive_lead_in_is_not_copied_into_items() -> None:
+    """Copied into each item, "the only exceptions are" makes each one false."""
+    client = _Client(_Answer())
+    LlmExtractor(client).extract(passage())
+
+    assert (
+        'A lead-in that closes the list ("only", "the only exceptions are") '
+        "is not repeated into the items: such a list is one fact."
+    ) in " ".join(client.asked["system"].split())
+
+
 def test_a_passage_with_no_heading_is_all_excerpt() -> None:
     """Nothing is invented to fill the context in."""
     client = _Client(_Answer())

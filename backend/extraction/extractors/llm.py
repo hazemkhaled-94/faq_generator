@@ -16,7 +16,9 @@ from nlp.models import named
 #: prompt changes what counts as a fact. 11 keeps a rule whole with its
 #: conditions, its exception and the set an "only" closes, carries a list's
 #: lead-in into each item, and leaves out claims about the document itself.
-PROMPT_VERSION = "11"
+#: 12 gives the heading trail as the situation a rule may hold only in, and
+#: keeps a list whose lead-in closes it as one fact.
+PROMPT_VERSION = "12"
 
 _SYSTEM = """ROLE
 You are a claims analyst. You read one numbered excerpt of a document and
@@ -46,7 +48,9 @@ STEPS
      flagged for review." is one fact.
 3. A list under a lead-in ("Required to open an account:") makes one fact
    per item, and each item's fact says the lead-in's situation again and
-   cites the lead-in's sentence as well as the item's.
+   cites the lead-in's sentence as well as the item's. A lead-in that closes
+   the list ("only", "the only exceptions are") is not repeated into the
+   items: such a list is one fact.
 4. Drop anything that states nothing: a question, a checklist item, a heading
    written as a question, a sentence with no factual content.
 5. Write each claim as one sentence of your own, naming its subject. Keep
@@ -304,8 +308,9 @@ class LlmExtractor(Extractor):
         the excerpt, the model cited it as a sentence that does not exist.
         """
         heading = (
-            f"Context (not part of the excerpt, use it only to name what the "
-            f"excerpt is about): {passage.section_path}\n\n"
+            f"Context (not part of the excerpt): {passage.section_path}. It "
+            f"names the situation the excerpt sits in; when a rule holds only "
+            f"in that situation, the statement names it.\n\n"
             if passage.section_path
             else ""
         )
