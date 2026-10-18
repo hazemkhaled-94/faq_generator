@@ -109,25 +109,26 @@ def test_two_duties_of_one_subject_are_still_two_claims() -> None:
 @pytest.mark.parametrize(
     ("language", "sentence"),
     [
-        ("en", "Customers may return goods within 30 days but must keep the receipt."),
-        ("en", "The bank may refuse the payment but must tell the customer why."),
+        (
+            "en",
+            "The bank blocks the card at once but sends a replacement within 5 days.",
+        ),
+        ("en", "The shop opens at 9:00 but closes at 14:00 on Saturdays."),
+        ("de", "Die Filiale öffnet um 9 Uhr, aber schließt samstags um 14 Uhr."),
         (
             "de",
-            (
-                "Die Bank muss den Betrag nicht sofort erstatten, sondern kann ihn "
-                "zunächst prüfen."
-            ),
+            "Das Sparkonto bringt 2 % Zinsen, aber erlaubt nur 3 Abhebungen im Monat.",
         ),
     ],
 )
-def test_a_permission_with_its_but_limit_is_one_claim(
+def test_a_but_clause_with_no_subject_of_its_own_is_still_a_second_claim(
     language: str, sentence: str
 ) -> None:
-    """A `but` clause with no subject of its own limits the rule it follows."""
+    """`opens at 9:00 but closes at 14:00` says two things of one shop."""
     from nlp.analysis import claim
 
     found = claim(sentence, language).predicates
-    assert found == 1, f"{found} claim(s) read in {sentence!r}; expected 1"
+    assert found == 2, f"{found} claim(s) read in {sentence!r}; expected 2"
 
 
 @pytest.mark.parametrize(

@@ -311,25 +311,9 @@ KEPT_WHOLE: tuple[tuple[str, str, str, str, str | None], ...] = (
 
 #: (name, language, the cited excerpt, statement, expected code or None):
 #: stored rules refused for a second verb that states no second claim: a
-#: limit opened by "sondern" with no subject of its own, and a rule the
-#: parser rooted on its condition. A contrastive clause with a subject of
-#: its own still states a second claim, and the rows reading so stay refused.
+#: rule the parser rooted on its condition. A clause opened by "but" or
+#: "aber" still states a second claim, and the rows reading so stay refused.
 ONE_RULE_READ: tuple[tuple[str, str, str, str, str | None], ...] = (
-    (
-        "a limit with no subject of its own (F11533)",
-        "de",
-        (
-            "Wenn ein Team weniger als sieben Spieler hat, weil ein oder mehrere "
-            "Spieler absichtlich das Spielfeld verlassen haben, muss der "
-            "Schiedsrichter das Spiel nicht unterbrechen, sondern kann Vorteil geben."
-        ),
-        (
-            "Wenn ein Team weniger als sieben Spieler hat, weil ein oder mehrere "
-            "Spieler absichtlich das Spielfeld verlassen haben, muss der "
-            "Schiedsrichter das Spiel nicht unterbrechen, sondern kann Vorteil geben."
-        ),
-        None,
-    ),
     (
         "a rule the parse roots on its condition (F13825)",
         "en",
@@ -1009,7 +993,7 @@ def test_a_rule_kept_with_its_exception_reaches_its_verdict(
 def test_a_rule_whose_second_verb_states_nothing_new_reaches_its_verdict(
     language, excerpt, statement, expected
 ) -> None:
-    """A limit with no subject of its own, or a misrooted parse, is one claim."""
+    """A parse rooted on its condition is one claim; a but clause is a second."""
     checked = Checker(passage(excerpt, language=language)).atomic(statement, 0)
 
     assert verdict(checked) == expected, checked.validation_error

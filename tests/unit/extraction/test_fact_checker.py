@@ -89,7 +89,11 @@ def test_a_copy_of_one_sentence_is_judged_on_its_claims() -> None:
     """
     from dataclasses import replace
 
-    text = "Customers may return goods within 30 days but must keep the receipt."
+    text = (
+        "If the customer accidentally enters the PIN incorrectly three times or the "
+        "terminal rejects the card and the payment does not go through, the card is "
+        "blocked."
+    )
     read = passage(text)
     stale = replace(
         read, sentences=[replace(one, predicates=2) for one in read.sentences]

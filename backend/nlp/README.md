@@ -55,13 +55,8 @@ ends no sentence there either, so `inkl. / zzgl. Versand` stays whole.
 relative or other subordinate clause is not counted. A statement with more
 than one carries several claims; one with none carries nothing.
 
-Two coordinated verbs are not always two claims. A clause opened by a
-contrastive coordinator (`_CONTRASTIVE`: `but`, `sondern`) with no subject of
-its own sets a limit on the rule before it - "may return goods but must keep
-the receipt" - while one with its own subject, "..., but refunds are paid
-only to the card", is a second claim. A parse rooted on a clause its
-subordinator opens has made the condition the main clause, and the span is
-read as the one rule it states.
+A parse rooted on a clause its subordinator opens has made the condition
+the main clause, and the span is read as the one rule it states.
 
 The same reading is what lets the passage gate skip a heading, a caption or a
 navigation line **before** the model is called.
@@ -172,7 +167,6 @@ language added there without its rows fails that test, naming each table.
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
-| `_CONTRASTIVE` | same | Coordinators setting a limit against the clause before them: a clause they open with no subject of its own is no second claim | `sondern`, `but` |
 | `_FINITE_TAGS` | same | Fine tags of a finite verb: a statement carrying one asserts something, whatever part of speech the tagger gave the word | `VVFIN`, `VBZ` |
 | `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence before a lower-case word or a figure | `ca.`, `approx.` |
 | `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
@@ -182,7 +176,7 @@ language added there without its rows fails that test, naming each table.
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
 by the word as written, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
-`_EXCEPTIVE`, `_CONTRASTIVE` and `_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
+`_EXCEPTIVE` and `_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
 
