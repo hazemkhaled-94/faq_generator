@@ -11,7 +11,11 @@ import json
 
 import pytest
 
-from question_generation.config import Settings, categorizations
+from question_generation.config import (
+    DEFAULT_CATEGORIZATIONS,
+    Settings,
+    categorizations,
+)
 from question_generation.models import Categorization, Category
 
 #: The paper's Figure 2, verbatim.
@@ -196,6 +200,53 @@ def test_a_role_it_does_not_take_is_refused_by_name(role: object) -> None:
     assert str(refused.value) == (
         "QUESTIONS_CATEGORIZATIONS: categorization 'user-expertise-categorization' "
         f"has the role {role!r}; it takes question, user"
+    )
+
+
+def test_the_default_bounds_its_phrasings_words() -> None:
+    """Table 5's "less than 10" and "more than 9", which a report reads."""
+    (phrasing,) = read(json.loads(DEFAULT_CATEGORIZATIONS))
+    assert [each.words for each in phrasing.categories] == [(None, 9), (10, None)]
+
+
+def test_a_category_with_no_words_is_unbounded() -> None:
+    """Bounds are a label a report derives; most categories have none."""
+    (phrasing,) = read(one(category("x")))
+    assert phrasing.categories[0].words == (None, None)
+
+
+def test_words_take_a_floor_a_ceiling_or_both() -> None:
+    """Each a whole number of at least one, the floor at most the ceiling."""
+    (phrasing,) = read(
+        one(
+            {"name": "x", "description": "d", "words": {"min": 3, "max": 3}},
+            {"name": "y", "description": "d", "words": {"min": 1}},
+        )
+    )
+    assert [each.words for each in phrasing.categories] == [(3, 3), (1, None)]
+
+
+@pytest.mark.parametrize(
+    ("words", "says"),
+    [
+        ({"min": 10, "max": 9}, "'x' has at least 10 words and at most 9"),
+        (
+            {"max": 0},
+            "'x' has the max 0 words; each bound is a whole number of at least 1",
+        ),
+        ({"max": "9"}, "'x' has the max '9' words; each bound"),
+        ({"max": 9.0}, "'x' has the max 9.0 words; each bound"),
+        ({"min": True}, "'x' has the min True words; each bound"),
+        ({"most": 9}, "'x' bounds its words by 'most', which is not one of min, max"),
+        (9, "'x' has the words 9, which is not an object"),
+    ],
+)
+def test_words_it_cannot_read_are_refused_by_name(words: object, says: str) -> None:
+    """Naming the category, as every other refusal does."""
+    with pytest.raises(ValueError) as refused:
+        read(one({"name": "x", "description": "d", "words": words}))
+    assert str(refused.value).startswith(
+        f"QUESTIONS_CATEGORIZATIONS: 'phrasing''s category {says}"
     )
 
 

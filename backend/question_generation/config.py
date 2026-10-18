@@ -138,10 +138,11 @@ def _span(name: str, source: Source = None) -> tuple[int, int]:
     return span
 
 
-#: The keys the paper's JSON uses, and nothing else, so a misspelt
+#: The keys the paper's JSON uses, with a categorization's role and a
+#: category's word bounds beside them, and nothing else, so a misspelt
 #: `probabilty` is refused rather than read as no probability at all.
 _CATEGORIZATION_KEYS = ("categorization_name", "categories", "description", "role")
-_CATEGORY_KEYS = ("description", "name", "probability")
+_CATEGORY_KEYS = ("description", "name", "probability", "words")
 
 #: Whom a categorization describes: the question, or the person asking it, as
 #: the paper's Figure 3 does. Its JSON has no key for which; absent reads as
@@ -158,8 +159,9 @@ _ROUNDING = 0.01
 
 #: QUESTIONS_CATEGORIZATIONS when it is absent: the paper's two natural
 #: phrasings, its Table 5 descriptions without the examples its caption calls
-#: illustrative. Here rather than in backend.env, which bash sources and so
-#: cannot hold a JSON value.
+#: illustrative, each bounded by the word count its description names. Here
+#: rather than in backend.env, which bash sources and so cannot hold a JSON
+#: value.
 DEFAULT_CATEGORIZATIONS = json.dumps(
     {
         "categorization_name": "Phrasing",
@@ -170,6 +172,7 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                 "reflecting everyday language use, without formal or artificial "
                 "structure. It is a concise, direct question consisting of less "
                 "than 10 words.",
+                "words": {"max": 9},
             },
             {
                 "name": "verbose-and-natural",
@@ -177,6 +180,7 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                 "reflecting everyday language use, without formal or artificial "
                 "structure. It is a relatively long question consisting of more "
                 "than 9 words.",
+                "words": {"min": 10},
             },
         ],
     }
@@ -268,7 +272,7 @@ def _categorization(read: object) -> Categorization:
     return Categorization(
         name=name,
         categories=tuple(
-            Category(name, one.name, one.description, weight / total, role)
+            Category(name, one.name, one.description, weight / total, role, one.words)
             for one, weight in zip(categories, weights, strict=True)
         ),
     )
@@ -281,6 +285,7 @@ class _Read:
     name: str
     description: str
     probability: float | None
+    words: tuple[int | None, int | None]
 
 
 def _category(categorization: str, read: object) -> _Read:
@@ -311,8 +316,33 @@ def _category(categorization: str, read: object) -> _Read:
             f"QUESTIONS_CATEGORIZATIONS: {where} has the probability "
             f"{probability!r}; each is between 0 and 1"
         )
+    # A label a report derives and never a refusal: a question outside them
+    # is counted, not thrown away, so only the bounds themselves are checked.
+    words = read.get("words", {})
+    if not isinstance(words, dict):
+        raise ValueError(  # noqa: TRY004 - a bad value, not a caller's bug
+            f"QUESTIONS_CATEGORIZATIONS: {where} has the words {words!r}, which "
+            f"is not an object of min and max"
+        )
+    for key, bound in words.items():
+        if key not in ("min", "max"):
+            raise ValueError(
+                f"QUESTIONS_CATEGORIZATIONS: {where} bounds its words by {key!r}, "
+                f"which is not one of min, max"
+            )
+        if isinstance(bound, bool) or not isinstance(bound, int) or bound < 1:
+            raise ValueError(
+                f"QUESTIONS_CATEGORIZATIONS: {where} has the {key} {bound!r} words; "
+                f"each bound is a whole number of at least 1"
+            )
+    least, most = words.get("min"), words.get("max")
+    if least is not None and most is not None and least > most:
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {where} has at least {least} words and "
+            f"at most {most}"
+        )
     # One line in the prompt, whatever the JSON held.
-    return _Read(name, " ".join(description.split()), probability)
+    return _Read(name, " ".join(description.split()), probability, (least, most))
 
 
 def _known(read: dict, keys: tuple[str, ...], where: str) -> None:

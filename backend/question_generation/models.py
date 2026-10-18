@@ -53,6 +53,10 @@ class Category:
     #: person asking it, whom the writer is told of in a block of its own
     #: that the answer and the explanation must ignore.
     role: str = "question"
+    #: The fewest and the most words a question of it should have, either
+    #: None for no bound. Never sent to the writer: a report reads how many
+    #: questions of the category came out inside them.
+    words: tuple[int | None, int | None] = (None, None)
 
     @property
     def label(self) -> str:

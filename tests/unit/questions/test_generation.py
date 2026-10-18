@@ -727,3 +727,16 @@ def test_a_question_carries_its_asker_as_one_of_its_categories() -> None:
     )
 
     assert written.categories == (novice(), concise())
+
+
+def test_word_bounds_never_reach_the_writer() -> None:
+    """Byte for byte: a bound is a label a report derives, not an instruction."""
+    from dataclasses import replace
+
+    bounded = replace(concise(), words=(None, 9))
+
+    assert (
+        asked_with(bounded).user
+        == asked_with(replace(bounded, words=(None, None))).user
+    )
+    assert concise().words == (None, 9), "the default bounds it"
