@@ -660,6 +660,15 @@ _NUMERIC_WORDS = 0.05
 #: about what it says.
 _COPYRIGHT = "\u00a9"
 
+#: The shapes a way to reach someone takes in any language: a web address, an
+#: e-mail address and a telephone number in international form. A domestic
+#: number is left out, since its shape is a fee's or a date's.
+_CONTACTS = (
+    re.compile(r"\b(?:https?://|www\.)\S+", re.IGNORECASE),
+    re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]+\b"),
+    re.compile(r"\+\d{1,3}[\s()0-9-]{6,}\d"),
+)
+
 _HAS_DIGIT = re.compile(r"\d")
 
 #: A cell holding an identifier rather than a statement: a learning-objective
@@ -782,6 +791,12 @@ def skipped(passage: PassageToExtract) -> str | None:
     # checkable, and about the document rather than about its subject.
     if _COPYRIGHT in passage.text:
         return "a copyright notice, which is about the document"
+    # An imprint or a contact block lists the ways to reach whoever published
+    # the document. A rule naming a hotline gives one, for the claim it makes,
+    # so the kinds of contact are weighed against the claims rather than the
+    # characters: a short rule is mostly its number.
+    if sum(1 for shape in _CONTACTS if shape.search(passage.text)) > passage.claims:
+        return "contact details, which are about the publisher"
     if _reference_list(passage):
         return "an index, a bibliography or a contents page rather than prose"
     return None

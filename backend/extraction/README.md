@@ -64,12 +64,17 @@ A passage is skipped, and marked read with nothing found, when:
 - **none of its sentences carries a finite verb** — a caption, a navigation
   line, a bare list fragment;
 - it carries a **copyright notice** — it is about the document;
+- it gives **more kinds of contact than it makes claims** — of a web
+  address, an e-mail address and a telephone number in international form —
+  as an imprint or a contact block does: it says who published the document.
+  Kinds against claims rather than a share of the text, because a short rule
+  naming a hotline is mostly its number and is still read;
 - it reads as **an index, a bibliography or a contents page** — long for the
   claims and list items it carries, and dense with digits. The shares are
   `_CHARS_PER_CLAIM` and `_NUMERIC_WORDS` in [`service.py`](service.py). A
   list item counts as a claim, so a price list is read.
 
-A table is exempt from the last four, because it is read from its cell grid.
+A table is exempt from the last five, because it is read from its cell grid.
 It is not exempt from one more: a grid whose filled cells are more than half
 identifiers — `TA-BO1`, `K2`, `TM-2.2.1`, a tick — states nothing a reader
 would look up. A bare figure, `5` or `12.50`, is a value and no identifier,

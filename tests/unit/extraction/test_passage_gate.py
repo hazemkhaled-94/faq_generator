@@ -131,6 +131,92 @@ def test_a_copyright_notice_is_skipped() -> None:
     assert skipped(notice) == "a copyright notice, which is about the document"
 
 
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        (
+            (
+                "Example Bank plc, 1 High Street, London EC2V 7XX\n"
+                "Telephone: +44 20 7946 0000\n"
+                "Email: contact@examplebank.example\n"
+                "Web: www.examplebank.example\n"
+                "Example Bank plc is authorised by the Prudential Regulation "
+                "Authority and regulated by the Financial Conduct Authority."
+            ),
+            "en",
+        ),
+        (
+            (
+                "Kontakt\n"
+                "Beispielshop GmbH, Musterweg 5, 10115 Berlin\n"
+                "Telefon: +49 30 1234 5678 (Montag bis Freitag, 8 bis 18 Uhr)\n"
+                "E-Mail: service@beispielshop.example\n"
+                "Internet: www.beispielshop.example/kontakt\n"
+                "Wir beantworten jede Anfrage innerhalb eines Werktags."
+            ),
+            "de",
+        ),
+    ],
+    ids=["bank imprint", "shop contact page"],
+)
+def test_a_contact_block_is_skipped(text: str, language: str) -> None:
+    """Ways to reach the publisher are about the document, not its subject.
+
+    Each carries a claim, so the verb check reads it, and a question asked
+    of it asks for a telephone number.
+    """
+    block = passage(text, language=language)
+
+    assert block.claims, "the block asserts something"
+    assert skipped(block) == "contact details, which are about the publisher"
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        (
+            (
+                "Report a lost card at once by calling +44 20 7946 0000; the "
+                "bank then blocks it."
+            ),
+            "en",
+        ),
+        (
+            (
+                "Bei Verlust oder Diebstahl der Karte rufen Sie sofort "
+                "+49 69 1234 5678 an, aus dem Ausland +49 116 116."
+            ),
+            "de",
+        ),
+        (
+            (
+                "If you are not satisfied with our final response, you can "
+                "refer your complaint to the ombudsman by calling "
+                "+44 800 023 4567 or online at www.ombudsman.example. You must "
+                "do so within six months of our final response."
+            ),
+            "en",
+        ),
+        (
+            (
+                "To return an item, e-mail returns@shop.example within 30 days "
+                "of delivery and quote your order number. We refund the "
+                "purchase price within 14 days of receiving the item."
+            ),
+            "en",
+        ),
+    ],
+    ids=["one hotline", "two numbers", "number and address", "an e-mail"],
+)
+def test_a_rule_citing_a_way_to_reach_someone_is_read(text: str, language: str) -> None:
+    """A short rule is mostly its number, and still states the rule.
+
+    A share of the text would refuse it, as it would any short passage
+    naming a hotline; it gives fewer kinds of contact than it makes claims.
+    """
+    assert skipped(passage(text, language=language)) is None
+
+
 def test_a_bullet_list_of_content_is_not_skipped() -> None:
     """The false positive the numeric half of the rule exists to prevent.
 
