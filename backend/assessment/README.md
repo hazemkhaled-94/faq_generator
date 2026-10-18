@@ -248,8 +248,8 @@ From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 ## How varied the questions are
 
 `make diversity` measures a set of questions the way the DataMorgana paper
-(Filice et al., ACL 2025 Industry Track, Appendix E) measures a benchmark,
-after Shaib et al. (2024). It reads a workbook that `make questions-export`
+([Filice et al., 2025](#references), Appendix E) measures a benchmark,
+after [Shaib et al. (2024)](#references). It reads a workbook that `make questions-export`
 wrote, asks no model, and runs whether or not this phase is switched on.
 
 | Metric | What it is | More varied when |
@@ -334,3 +334,16 @@ poetry run pytest tests/unit/assessment
   cascading foreign keys, so a verdict never outlives what it is about.
 - **A re-run overwrites.** A corpus never holds two opinions from two
   template versions with nothing saying which is current.
+
+## References
+
+- Simone Filice, Guy Horowitz, David Carmel, Zohar Karnin, Liane Lewin-Eytan
+  and Yoelle Maarek. 2025. [*Generating Q&A Benchmarks for RAG Evaluation in
+  Enterprise Settings*](https://aclanthology.org/2025.acl-industry.33/). In
+  *Proceedings of the 63rd Annual Meeting of the Association for
+  Computational Linguistics (Volume 6: Industry Track)*, pages 469–484,
+  Vienna, Austria. Association for Computational Linguistics.
+  doi:10.18653/v1/2025.acl-industry.33. The DataMorgana paper.
+- Chantal Shaib et al. 2024. [*Standardizing the Measurement of Text
+  Diversity: A Tool and a Comparative Analysis of Scores*](https://arxiv.org/abs/2403.00553).
+  arXiv:2403.00553.

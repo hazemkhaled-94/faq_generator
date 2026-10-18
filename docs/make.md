@@ -375,7 +375,9 @@ make diversity FILE=set.xlsx SIZE=200
 ```
 
 See [`backend/assessment/`](../backend/assessment/README.md#how-varied-the-questions-are)
-for what each metric is.
+for what each metric is. They are the DataMorgana paper's:
+Filice et al., [*Generating Q&A Benchmarks for RAG Evaluation in Enterprise
+Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Track.
 
 ## Documents
 
