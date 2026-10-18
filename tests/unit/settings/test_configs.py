@@ -132,6 +132,22 @@ def test_topic_modelling_reads_the_fitter_and_the_language_names() -> None:
     assert loaded.label_min_fact_share == 0.37
 
 
+@pytest.mark.parametrize("value", ["0", "-0.1", "1.5"])
+def test_a_vocabulary_ceiling_of_nothing_is_refused(value: str) -> None:
+    """The fitter takes a share in (0, 1], which the catalogue's bounds cannot say.
+
+    Refused here, where a write is checked too, rather than when a refit
+    builds the fitter.
+    """
+    with pytest.raises(ValueError, match="TOPIC_NO_ABOVE"):
+        _loaded("topic_modelling.config", TOPIC_NO_ABOVE=value)
+
+
+def test_a_vocabulary_ceiling_of_the_whole_corpus_is_read() -> None:
+    """One is a share: no term is too common."""
+    assert _loaded("topic_modelling.config", TOPIC_NO_ABOVE="1").no_above == 1
+
+
 def test_topic_modelling_names_no_model_when_none_is_served(monkeypatch) -> None:
     """Topics are still fitted; they are just left unnamed."""
     from topic_modelling.config import Settings

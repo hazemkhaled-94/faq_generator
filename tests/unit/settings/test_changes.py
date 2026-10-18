@@ -84,6 +84,26 @@ def test_a_choice_is_read_as_the_store_will_write_it() -> None:
     changes.within_bounds(catalog.writable("PARSING_TABLE_MODE"), "fast ")
 
 
+def test_one_topic_is_refused() -> None:
+    """The fitter refuses fewer than two, so the topic worker could not build."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.within_bounds(catalog.writable("TOPIC_NUM_TOPICS"), "1")
+
+    assert refused.value.code == "out_of_range"
+
+
+@pytest.mark.parametrize(
+    ("value", "said"), [("-1", "below 0"), ("4294967296", "above 4294967295")]
+)
+def test_a_seed_outside_the_fitters_range_is_refused(value: str, said: str) -> None:
+    """The factorisation takes a seed from 0 to 2**32 - 1, named in full."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.within_bounds(catalog.writable("TOPIC_RANDOM_STATE"), value)
+
+    assert refused.value.code == "out_of_range"
+    assert said in refused.value.detail
+
+
 def test_a_bound_is_accepted_where_the_setting_allows_it() -> None:
     """Only a setting marked exclusive refuses its bounds themselves."""
     changes.within_bounds(catalog.writable("TOPIC_NO_ABOVE"), "1")

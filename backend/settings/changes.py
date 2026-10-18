@@ -173,14 +173,14 @@ def within_bounds(setting: catalog.Setting, value: str) -> None:
     ):
         raise Refused(
             "out_of_range",
-            f"{setting.name} may not be{at} below {setting.low:g}; {value!r} is.",
+            f"{setting.name} may not be{at} below {setting.low:.15g}; {value!r} is.",
         )
     if setting.high is not None and (
         number >= setting.high if setting.exclusive else number > setting.high
     ):
         raise Refused(
             "out_of_range",
-            f"{setting.name} may not be{at} above {setting.high:g}; {value!r} is.",
+            f"{setting.name} may not be{at} above {setting.high:.15g}; {value!r} is.",
         )
 
 

@@ -8,6 +8,21 @@ import llm.config
 from settings import Source, decimal, integer, mapping, optional
 
 
+def _ceiling(source: Source) -> float:
+    """Reads TOPIC_NO_ABOVE, refusing a share the fitter would refuse.
+
+    The fitter takes (0, 1], which the catalogue's one `exclusive` flag
+    cannot say, so a write is refused here, where `settings.changes` asks.
+    """
+    no_above = decimal("TOPIC_NO_ABOVE", source)
+    if not 0 < no_above <= 1:
+        raise ValueError(
+            f"TOPIC_NO_ABOVE={no_above} is not a share of the corpus; it must "
+            "be above 0 and at most 1"
+        )
+    return no_above
+
+
 @dataclass(frozen=True)
 class Settings:
     """Runtime configuration, read from the environment."""
@@ -43,7 +58,8 @@ class Settings:
 
         Raises:
             KeyError: If any required setting is missing.
-            ValueError: If a numeric setting is not a number, or
+            ValueError: If a numeric setting is not a number,
+                TOPIC_NO_ABOVE is not a share of the corpus, or
                 TOPIC_LANGUAGE_NAMES carries an entry that is not
                 `code:name`.
         """
@@ -71,6 +87,6 @@ class Settings:
             top_terms=integer("TOPIC_TOP_TERMS", source),
             min_weight=decimal("TOPIC_MIN_WEIGHT", source),
             no_below=integer("TOPIC_NO_BELOW", source),
-            no_above=decimal("TOPIC_NO_ABOVE", source),
+            no_above=_ceiling(source),
             label_min_fact_share=decimal("TOPIC_LABEL_MIN_FACT_SHARE", source),
         )

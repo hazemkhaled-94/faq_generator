@@ -281,7 +281,7 @@ SETTINGS: tuple[Setting, ...] = (
         name="TOPIC_NUM_TOPICS",
         service="topics",
         kind="integer",
-        low=1,
+        low=2,
         invalidates=("topics",),
         help="How many topics to fit per language, or the ceiling on it when "
         "TOPIC_PASSAGES_PER_TOPIC is set.",
@@ -308,6 +308,9 @@ SETTINGS: tuple[Setting, ...] = (
         name="TOPIC_RANDOM_STATE",
         service="topics",
         kind="integer",
+        # What the factorisation's random state accepts.
+        low=0,
+        high=2**32 - 1,
         invalidates=("topics",),
         help="Seed, so one corpus fits the same topics twice.",
     ),
