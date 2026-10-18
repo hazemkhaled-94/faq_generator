@@ -351,10 +351,11 @@ def tidied(
     furniture layer. A sentence the converter cut at a page or column break
     is joined back: a paragraph or list item ending in no `_ENDS` mark,
     followed on the next page or in the next column by a paragraph opening
-    in lower case, takes that paragraph's text, which moves to the furniture
-    layer. A paragraph that is a page number read as body text moves there
-    too; a price, a rate, a phone number or a date with no letter beside it
-    stays, and so does an elision mark, `(…)`. A paragraph that only
+    in lower case, takes that paragraph's text and its place on the page,
+    and the paragraph moves to the furniture layer. A paragraph that is a
+    page number read as body text moves there too; a price, a rate, a phone
+    number or a date with no letter beside it stays, and so does an elision
+    mark, `(…)`. A paragraph that only
     repeats a running field or a heading of the document - a chapter title
     the converter read as body text - is a heading, unless it or what it
     repeats is a lone conjunction: one is
@@ -415,6 +416,8 @@ def tidied(
         if isinstance(joined, TextItem) and isinstance(taken, TextItem):
             # Mended after the join: a word the page broke meets its rest here.
             joined.text = rejoined(f"{joined.text.rstrip()} {taken.text.lstrip()}")
+            # And its place, so the passage cites the page the sentence ends on.
+            joined.prov.extend(taken.prov)
             taken.content_layer = ContentLayer.FURNITURE
             into[second] = target
     titles: dict[str, tuple[str, ...]] = {}

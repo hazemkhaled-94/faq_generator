@@ -17,7 +17,7 @@ from docling_core.types.doc.labels import DocItemLabel
 from factories import word_chunker
 
 from preprocessing.chunking.furniture import fields
-from preprocessing.chunking.passages import chunks_of, lead_ins_kept
+from preprocessing.chunking.passages import PassageBuilder, chunks_of, lead_ins_kept
 
 GUIDE = "Retail Banking Guide 2026"
 
@@ -531,6 +531,21 @@ def test_a_sentence_cut_by_a_page_break_is_read_whole() -> None:
         "A transfer is released once the payee is verified by the bank." in text
         for text in texts
     ), texts
+
+
+def test_a_block_joined_across_a_page_cites_both_pages() -> None:
+    """The fee's due date is printed on the second page, and cited there."""
+    document = paged(2)
+    say(document, 1, "Die Gebühr wird am")
+    say(document, 2, "letzten Bankarbeitstag des Monats fällig.")
+
+    tidy, (chunk,) = chunks_of(document, word_chunker(200), "de")
+    passage = PassageBuilder._passage(tidy, 1, chunk)
+
+    assert (
+        passage.text == "Die Gebühr wird am letzten Bankarbeitstag des Monats fällig."
+    )
+    assert (passage.page_from, passage.page_to) == (1, 2)
 
 
 @pytest.mark.parametrize(

@@ -329,12 +329,13 @@ corpus, which is a property of the model rather than of this code.
 - **A sentence cut at a page or column break is joined back.** A paragraph
   or list item ending on no sentence mark (`.`, `!`, `?`, `:`, `;`),
   followed on the next page or in the next column by a paragraph opening in
-  lower case, takes that paragraph's text; the paragraph moves to the
-  furniture layer. A word the page broke at a hyphen is whole again once
-  joined (`Kontofüh-` and `rungsgebühr`), while a hyphen a joining word
-  completes (`Zoll- und Steuerrecht`) stays. A script without case is never
-  joined, and two blocks in one column of one page are the document's own
-  break.
+  lower case, takes that paragraph's text and its place on the page, so
+  the passage's pages and box reach the page the sentence ends on; the
+  paragraph moves to the furniture layer. A word the page broke at a hyphen
+  is whole again once joined (`Kontofüh-` and `rungsgebühr`), while a
+  hyphen a joining word completes (`Zoll- und Steuerrecht`) stays. A script
+  without case is never joined, and two blocks in one column of one page
+  are the document's own break.
 - **A flattened list is nested again by its indents.** The converter builds
   every list flat. Within one list, an item whose left edge lies more than
   half a line right of the item before it, on the same page and inside that
