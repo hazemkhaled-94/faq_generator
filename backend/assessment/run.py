@@ -1,7 +1,8 @@
 """Command-line entry point for the assessment phase.
 
 Every flag is the same operation as the route beside it under /assessment.
-Run with --help for the list.
+Run with --help for the list. `--diversity` is the exception: a report on an
+exported workbook, which no route serves and no setting governs.
 
 The one thing this stage does that no other does is refuse to run at all:
 `ASSESSMENT_ENABLED` off means the queue verbs move nothing and a drain
@@ -11,13 +12,22 @@ empty queue.
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 import time
+from collections import defaultdict
+from pathlib import Path
 
 import telemetry
 from assessment import prompts
 from assessment.config import OFF, UNNAMED, Settings, judged_kinds
+from assessment.diversity import (
+    compression_ratio,
+    ngram_diversity,
+    self_repetition,
+    subsamples,
+)
 from assessment.factory import build_service, judge_model
 from assessment.repository import AssessmentQueue
 from llm.check import before_work
@@ -43,6 +53,12 @@ def main(argv: list[str] | None = None) -> int:
         return Settings.load(source), ModelSettings.load(source), version
 
     argv = sys.argv[1:] if argv is None else argv
+
+    # Before the flag: the report reads a workbook and asks no model, so the
+    # phase being off is no reason to refuse it. By hand, because
+    # queue_main's parser takes the queue verbs only.
+    if argv[:1] == ["--diversity"]:
+        return diversity(argv[1:])
 
     # The flag alone, and deliberately not through `configured`: that one
     # also reads the model settings, which are required and have no
@@ -134,3 +150,47 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def diversity(argv: list[str]) -> int:
+    """Prints how varied a workbook's questions are, one row per language.
+
+    The workbook is what `make questions-export` writes, and its filter
+    chooses the set: the paper measured answerable questions, which is
+    `--status accepted --answerable --roots-only`. Each language is measured
+    on its own, and with `--size` at that many questions drawn from each, so
+    two sets are compared at one size.
+    """
+    parser = argparse.ArgumentParser(
+        prog="python -m assessment.run --diversity",
+        description="How varied an exported workbook's questions are.",
+    )
+    parser.add_argument("--file", required=True, type=Path, help="an exported workbook")
+    parser.add_argument("--language", metavar="CODE", help="measure one language only")
+    parser.add_argument(
+        "--size", type=int, metavar="N", help="draw N questions from each language"
+    )
+    args = parser.parse_args(argv)
+
+    # Here rather than above: the assess-worker imports this module and
+    # never reads a workbook.
+    import pandas as pd
+
+    frame = pd.read_excel(args.file, sheet_name="Questions").sort_values("ID")
+    asked: dict[str, list[str]] = defaultdict(list)
+    for language, text in zip(frame["Language"], frame["Question"], strict=True):
+        if args.language in (None, language):
+            asked[language].append(str(text))
+
+    print(f"{'language':<9}{'n':>6}{'NGD':>8}{'SR':>8}{'word-CR':>9}")
+    for language, texts in sorted(asked.items()):
+        if args.size:
+            if len(texts) < args.size:
+                print(f"{language:<9}{len(texts):>6}  question, fewer than {args.size}")
+                continue
+            texts = [texts[i] for i in subsamples(len(texts), args.size, draws=1)[0]]
+        print(
+            f"{language:<9}{len(texts):>6}{ngram_diversity(texts):>8.3f}"
+            f"{self_repetition(texts):>8.3f}{compression_ratio(texts):>9.3f}"
+        )
+    return 0

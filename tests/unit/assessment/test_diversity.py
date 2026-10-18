@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import pytest
 
+from assessment import run as cli
 from assessment.diversity import (
     compression_ratio,
     ngram_diversity,
     self_repetition,
     subsamples,
 )
+from question_generation.export import workbook
+from question_generation.models import StoredQuestion
 
 B = ["a b c d e", "a b c d f", "x y z"]
 
@@ -97,3 +100,80 @@ def test_subsamples_are_the_same_for_the_same_seed() -> None:
     )
     assert [one.tolist() for one in first] == [one.tolist() for one in again]
     assert [one.tolist() for one in first] != [one.tolist() for one in other]
+
+
+def asked(id: int, text: str, language: str) -> StoredQuestion:
+    """One accepted question, as the exporter is handed it."""
+    return StoredQuestion(
+        id=id,
+        question_text=text,
+        target_answer="48 hours",
+        answer_explanation="A standard request is answered within 48 hours.",
+        answerable=True,
+        difficulty="easy",
+        passage_scope="single_passage",
+        document_scope="single_document",
+        topic_scope="single_topic",
+        answer_chars=8,
+        language=language,
+        status="accepted",
+        rejected_reason=None,
+        created_at="2026-10-18T12:00:00+00:00",
+        facts=1,
+        documents=["Service policy"],
+        topics=["Support"],
+        statements=["A standard request is answered in 48 hours."],
+        evidence=["Requests are answered in 48 hours."],
+    )
+
+
+@pytest.fixture
+def exported(tmp_path, monkeypatch):
+    """B in German and one English question, as `make questions-export` writes them.
+
+    Reading any setting fails the test: the report asks no model, so the
+    phase being off, or no judge being named, must not stop it.
+    """
+    path = tmp_path / "questions.xlsx"
+    path.write_bytes(
+        workbook(
+            [asked(i, text, "de") for i, text in enumerate(B, 1)]
+            + [asked(4, "Wie lange dauert eine Antwort?", "en")]
+        )
+    )
+
+    def unread():
+        raise AssertionError("the diversity report read a setting")
+
+    monkeypatch.setattr(cli, "snapshot", unread)
+    return path
+
+
+def report(capsys, *argv: str) -> list[list[str]]:
+    """The report's rows below its heading, each split into its cells."""
+    assert cli.main(["--diversity", *argv]) == 0
+    heading, *rows = capsys.readouterr().out.strip().splitlines()
+    assert heading.split() == ["language", "n", "NGD", "SR", "word-CR"]
+    return [row.split() for row in rows]
+
+
+def test_the_command_line_measures_a_workbook_per_language(exported, capsys) -> None:
+    """One row a language, each set measured on its own."""
+    rows = report(capsys, "--file", str(exported))
+    assert [row[:4] for row in rows] == [
+        ["de", "3", "3.160", "0.667"],
+        ["en", "1", "4.000", "0.000"],
+    ]
+
+
+def test_the_command_line_measures_one_language(exported, capsys) -> None:
+    """CODE= names it."""
+    rows = report(capsys, "--file", str(exported), "--language", "en")
+    assert [row[:2] for row in rows] == [["en", "1"]]
+
+
+def test_a_size_draws_each_language_to_it(exported, capsys) -> None:
+    """Equal sizes, or nothing: a smaller set is named and left out."""
+    rows = report(capsys, "--file", str(exported), "--size", "2")
+    assert rows[0][:2] == ["de", "2"]
+    assert rows[1] == ["en", "1", "question,", "fewer", "than", "2"]

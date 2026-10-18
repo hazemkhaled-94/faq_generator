@@ -204,7 +204,7 @@ help:
         questions-rescore \
         confidence-recalibrate \
         assess assess-status assess-start assess-enrol assess-stop \
-        assess-retry assess-reclaim assess-rerun \
+        assess-retry assess-reclaim assess-rerun diversity \
         questions-balance questions-export questions-rejudge \
         questions-runs questions-diff \
         documents delete delete-derived wipe-all dagster-wipe \
@@ -1149,6 +1149,21 @@ assess-reclaim:
 assess-rerun:
 	@$(call IDLE,assess-worker)
 	$(ASSESS) --rerun $(ONLY)
+
+# How varied an exported workbook's questions are, the way the DataMorgana
+# paper measures a benchmark: n-gram diversity (higher is more varied),
+# self-repetition and the word compression ratio (lower is more varied), one
+# row per language. No model is asked. FILE is what questions-export wrote;
+# its FILTER chooses the set, and the paper's is the answerable questions.
+# SIZE draws that many from each language, because these metrics move with
+# a set's size and two sets compare only at one. CODE and not LANG, as for
+# topics-render.
+#
+#   make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
+#   make diversity FILE=set.xlsx SIZE=200
+diversity:
+	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [CODE=de] [SIZE=200]'; exit 2; }
+	$(ASSESS) --diversity --file $(FILE) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE))
 
 # ── Question runs ──────────────────────────────────────────────────────────
 

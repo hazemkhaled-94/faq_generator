@@ -245,6 +245,36 @@ From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 | `ASSESSMENT_SAMPLE` | How many of each kind one `start` enrols, newest first. 0 is all of them |
 | `ASSESSMENT_STRATIFY` | Whether that sample spans every language, and every type of question, in an order fixed by a hash of the id, instead of taking the newest. Drawn again, it is the same rows |
 
+## How varied the questions are
+
+`make diversity` measures a set of questions the way the DataMorgana paper
+(Filice et al., ACL 2025 Industry Track, Appendix E) measures a benchmark,
+after Shaib et al. (2024). It reads a workbook that `make questions-export`
+wrote, asks no model, and runs whether or not this phase is switched on.
+
+| Metric | What it is | More varied when |
+|---|---|---|
+| NGD, n-gram diversity | For n = 1 to 4, the distinct n-grams over all n-grams, summed. The questions are joined end to end, so an n-gram may run from one question into the next | higher |
+| SR, self-repetition | The share of questions holding a four-word run that another question also holds | lower |
+| word-CR, compression ratio | The joined text's size over its size gzipped at level 9 | lower |
+
+Words are split at whitespace with case and punctuation kept, so "card?" and
+"card" are two words. Joining the questions with one space and gzipping at
+level 9 are this project's reading of the paper, which does not say.
+
+Each language is measured on its own. These metrics move with the size of a
+set (a smaller one looks more varied), so `SIZE=` draws that many questions
+from each language, the same ones on every run, and names and leaves out a
+language that has fewer. Two sets compare only at one size.
+
+The export's filter chooses the set. The paper measured answerable
+questions:
+
+```sh
+make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
+make diversity FILE=set.xlsx SIZE=200
+```
+
 ## Layout
 
 | File | Holds |
@@ -255,7 +285,8 @@ From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 | [`service.py`](service.py) | The drain loop, and the annotations it posts |
 | [`config.py`](config.py) | The flag, the judge and the two cost dials |
 | [`factory.py`](factory.py) | Wiring |
-| [`run.py`](run.py) | The command line |
+| [`diversity.py`](diversity.py) | How varied a set of questions is: the paper's metrics, as pure functions |
+| [`run.py`](run.py) | The command line, and the diversity report on a workbook |
 
 Reads `database.qa_generator` directly and no other service's repository —
 this stage is about facts, topics and questions at once, and a package
@@ -274,6 +305,7 @@ poetry run pytest tests/unit/assessment
 | [`test_assessment_service.py`](../../tests/unit/assessment/test_assessment_service.py) | The row, the annotations, and the columns this phase does not write |
 | [`test_assessment_config.py`](../../tests/unit/assessment/test_assessment_config.py) | The flag, the judge and the two cost dials |
 | [`test_assessment_prompts.py`](../../tests/unit/assessment/test_assessment_prompts.py) | Every template recorded under a name of its own, with both halves and its version |
+| [`test_diversity.py`](../../tests/unit/assessment/test_diversity.py) | The metrics against values worked out by hand, and the report on a workbook the exporter wrote |
 
 ## Limits
 

@@ -363,6 +363,20 @@ A failure here is the **model** being unreachable, not an artefact being bad:
 a judgement that came back as a refusal is recorded as one and is not a
 failed row.
 
+### How varied the questions are
+
+| Target | Does |
+|---|---|
+| `make diversity FILE=<workbook>` | N-gram diversity, self-repetition and the word compression ratio of an exported workbook's questions, one row per language, as the DataMorgana paper measures a benchmark. `CODE=de` measures one language; `SIZE=200` draws that many from each, because the metrics move with a set's size. No model is asked, and the phase need not be on |
+
+```bash
+make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
+make diversity FILE=set.xlsx SIZE=200
+```
+
+See [`backend/assessment/`](../backend/assessment/README.md#how-varied-the-questions-are)
+for what each metric is.
+
 ## Documents
 
 Documents are ingestion's, not a stage's. A deletion here is the first of
