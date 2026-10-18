@@ -146,8 +146,7 @@ def test_switching_the_assessment_tab_starts_on_the_first_page(open_view) -> Non
     """
     client, opened = on_page_four(open_view)
 
-    opened.app.segmented_control(key="assessment-tab").set_value("Topics")
-    after = opened.rerun()
+    after = opened.choose("assessment-tab", "Topics")
 
     assert client.calls("assessments")[-1][2]["offset"] == 0
     assert after.numbers()["Page of 4"].value == 1
@@ -157,8 +156,7 @@ def test_showing_only_the_disagreements_starts_on_the_first_page(open_view) -> N
     """The same for the other control outside the search panel."""
     client, opened = on_page_four(open_view)
 
-    opened.app.checkbox(key="assessment-disagreements").check()
-    after = opened.rerun()
+    after = opened.check("assessment-disagreements")
 
     assert client.calls("assessments")[-1][2]["offset"] == 0
     assert after.numbers()["Page of 4"].value == 1

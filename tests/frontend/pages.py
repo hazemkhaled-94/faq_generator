@@ -914,13 +914,18 @@ class View:
         return self._rerun()
 
     def choose(self, key: str, value: Any) -> View:
-        """Picks a value in one of the page's pickers."""
-        self.app.selectbox(key).select(value)
+        """Picks a value in one of the page's pickers, whichever kind it is."""
+        self._widget(key).set_value(value)
         return self._rerun()
 
     def type_in(self, key: str, value: str) -> View:
         """Types into one of the page's inputs."""
         self.app.text_input(key).set_value(value)
+        return self._rerun()
+
+    def check(self, key: str) -> View:
+        """Ticks one of the page's checkboxes."""
+        self.app.checkbox(key).check()
         return self._rerun()
 
     def uncheck(self, key: str) -> View:
