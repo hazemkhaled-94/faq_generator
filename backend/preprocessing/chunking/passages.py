@@ -125,10 +125,10 @@ def nested(document: DoclingDocument) -> DoclingDocument:
     left edge of its own column - the leftmost edge of the page's body
     blocks reaching across the item's - so depth open at a column's foot
     is not carried into the next, and a page with another margin keeps it.
-    A line is the height of the list's shortest item, or of the document's
-    where that is less: one line in nearly every list, and two in a list
-    whose every item wraps. A nested list is rendered as indented Markdown,
-    as the converter renders one it built itself.
+    A line is the height of the list's shortest item, which is one line in
+    nearly every list: the median is a two-line item's wherever items wrap.
+    A nested list is rendered as indented Markdown, as the converter renders
+    one it built itself.
 
     Returns:
         `document` itself when no list is indented, otherwise a copy.
@@ -146,13 +146,10 @@ def nested(document: DoclingDocument) -> DoclingDocument:
             lists.append(items)
     if not lists:
         return document
-    line = min(abs(one.prov[0].bbox.height) for items in lists for one in items)
     blocks = _blocks(document)
     plans: list[list[tuple[str, str]]] = []
     for items in lists:
-        shortest = min(abs(one.prov[0].bbox.height) for one in items)
-        # The document's line never under two points, which no line of text is.
-        step = min(shortest, max(line, 2.0)) / 2
+        step = min(abs(one.prov[0].bbox.height) for one in items) / 2
         edge = _column_edge(items[0].prov[0], blocks)
         # The open levels: each one's indent and the item it nests under.
         levels: list[tuple[float, str | None]] = [

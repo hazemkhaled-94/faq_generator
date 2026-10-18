@@ -450,32 +450,31 @@ def test_depth_survives_a_page_break() -> None:
     ]
 
 
-def test_items_every_one_of_which_wraps_still_nest() -> None:
-    """A fee schedule's two-line items are indented by less than a line of theirs.
-
-    Its one-line list of prices above says how high a line is.
-    """
-    document = DoclingDocument(name="fees")
+def test_a_fine_print_list_does_not_nest_another_lists_items() -> None:
+    """A shop's 7-point notes do not set the step of its 10-point returns list."""
+    document = DoclingDocument(name="returns")
     document.add_page(page_no=1, size=Size(width=595, height=842))
-    prices = document.add_list_group()
-    for top, text in ((100, "Kontoführung 4,90 EUR"), (114, "Girocard 12,00 EUR")):
-        document.add_list_item(text=text, parent=prices, prov=placed(1, 54, top))
-    transfers = document.add_list_group()
-    for top, left, text in (
-        (300, 54, "Überweisungen kosten je Auftrag, auch als Dauerauftrag:"),
-        (326, 63, "beleghaft 1,50 EUR, am Schalter oder per Post eingereicht,"),
-        (352, 63, "online 0,10 EUR, im Online-Banking oder in der App."),
+    returns = document.add_list_group()
+    for left, top, text in (
+        (54, 300, "Returns must be sent within 30 days of delivery."),
+        (54, 330, "Items must be unused and in their original packaging."),
+        (59, 360, "Refunds are paid to the original payment method."),
     ):
         document.add_list_item(
-            text=text, parent=transfers, prov=placed(1, left, top, height=22)
+            text=text, parent=returns, prov=placed(1, left, top, height=24)
+        )
+    notes = document.add_list_group()
+    for top, text in ((720, "1 Excludes marketplace sellers."), (728, "2 UK only.")):
+        document.add_list_item(
+            text=text, parent=notes, prov=placed(1, 54, top, height=7)
         )
 
-    _, chunks = chunks_of(document, word_chunker(200), "de")
+    _, chunks = chunks_of(document, word_chunker(200), "en")
 
-    assert chunks[0].text.splitlines()[-3:] == [
-        "- Überweisungen kosten je Auftrag, auch als Dauerauftrag:",
-        "    - beleghaft 1,50 EUR, am Schalter oder per Post eingereicht,",
-        "    - online 0,10 EUR, im Online-Banking oder in der App.",
+    assert chunks[0].text.splitlines()[:3] == [
+        "- Returns must be sent within 30 days of delivery.",
+        "- Items must be unused and in their original packaging.",
+        "- Refunds are paid to the original payment method.",
     ]
 
 
