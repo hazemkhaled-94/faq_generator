@@ -301,3 +301,20 @@ def test_returning_to_the_file_draws_the_value_the_file_gives(open_view) -> None
     *_, (_, (_, values, version), _) = configured.calls("change_settings")
     assert values["A_COUNT"] == "5"
     assert version == "v2"
+
+
+def test_an_untouched_decimal_goes_back_as_the_api_wrote_it(open_view) -> None:
+    """`0.3` for `0.30` is another string, and the API stores another string.
+
+    So a Save that changed nothing turned the file's value into a stored one.
+    """
+    written = [
+        {**one, "value": "0.30", "default": "0.30"} if one["name"] == "A_SHARE" else one
+        for one in SETTINGS["settings"]
+    ]
+    configured = Answers(**settings(settings=written))
+    view = open_view("topics", configured=configured)
+
+    view.save_configuration()
+
+    assert configured.calls("change_settings")[0][1][1]["A_SHARE"] == "0.30"

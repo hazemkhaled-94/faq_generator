@@ -172,17 +172,18 @@ def _control(service: str, setting: dict, version: str) -> str | None:
         )
 
     if setting["kind"] == "decimal":
-        return _written(
-            st.number_input(
-                label,
-                value=float(value or 0),
-                step=0.01,
-                min_value=_bound(setting["low"], float),
-                max_value=_bound(setting["high"], float),
-                key=key,
-                help=help,
-            )
+        drawn = st.number_input(
+            label,
+            value=float(value or 0),
+            step=0.01,
+            min_value=_bound(setting["low"], float),
+            max_value=_bound(setting["high"], float),
+            key=key,
+            help=help,
         )
+        # Untouched goes back as the API wrote it: "0.3" for "0.30" is a
+        # different string, and the API stores a different string.
+        return value if value and float(value) == drawn else _written(drawn)
 
     return st.text_input(label, value=value or "", key=key, help=help)
 
