@@ -112,3 +112,50 @@ def test_one_reader_reads_every_refusal() -> None:
 
     assert refusal(refused) == "no topic 17"
     assert refusal(late) == "read timed out"
+
+
+def test_refusal_reads_fastapis_own_422_as_a_sentence() -> None:
+    """FastAPI's own 422 carries a list under `detail`, one entry a field.
+
+    A topic label over the 120 characters the API takes is refused so,
+    before any route runs, and the page drew the list as its repr.
+    """
+
+    class Refused:
+        @staticmethod
+        def json() -> dict:
+            return {
+                "detail": [
+                    {
+                        "type": "string_too_long",
+                        "loc": ["body", "label"],
+                        "msg": "String should have at most 120 characters",
+                    },
+                    {
+                        "type": "bool_parsing",
+                        "loc": ["body", "include_in_coverage"],
+                        "msg": "Input should be a valid boolean",
+                    },
+                ]
+            }
+
+    refused = requests.exceptions.HTTPError("422 Client Error")
+    refused.response = Refused()  # type: ignore[assignment]
+
+    assert refusal(refused) == (
+        "String should have at most 120 characters; Input should be a valid boolean"
+    )
+
+
+def test_refusal_survives_a_body_that_is_not_an_object() -> None:
+    """A JSON array or string, as a proxy may answer, has no `detail` to read."""
+
+    class Refused:
+        @staticmethod
+        def json() -> list:
+            return ["bad gateway"]
+
+    refused = requests.exceptions.HTTPError("502 Server Error")
+    refused.response = Refused()  # type: ignore[assignment]
+
+    assert refusal(refused) == "502 Server Error"

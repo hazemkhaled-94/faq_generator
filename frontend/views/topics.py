@@ -409,6 +409,8 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             "Label",
             value=chosen["label"] or "",
             key=f"topics-label-{chosen['id']}",
+            # The API's own bound, past which it refuses the whole save.
+            max_chars=120,
             placeholder="a short name for this subject",
             help="Shown wherever the topic is, in place of its number.",
         )

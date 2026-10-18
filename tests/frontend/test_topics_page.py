@@ -286,6 +286,42 @@ def test_a_refused_save_is_shown_and_the_page_stays(open_view) -> None:
     assert after.button("Delete all topics") is not None
 
 
+def test_a_refused_long_label_shows_a_sentence(open_view) -> None:
+    """FastAPI refuses a label over 120 characters with a list, not a sentence.
+
+    Drawn as the list's repr, `[{'type': 'string_too_long', ...`, which is
+    code to whoever typed the label.
+    """
+
+    class Refused:
+        """The body FastAPI's own validation answers with."""
+
+        @staticmethod
+        def json() -> dict:
+            return {"detail": [{"msg": "String should have at most 120 characters"}]}
+
+    refused = requests.exceptions.HTTPError("422 Client Error")
+    refused.response = Refused()  # type: ignore[assignment]
+    client = Answers(
+        **answers(
+            stage_status=lambda *a, **k: status(modelled=1), describe_topic=refused
+        )
+    )
+
+    after = open_view("topics", client).select(0).press("Save")
+
+    assert after.errors() == ["String should have at most 120 characters"]
+
+
+def test_a_label_box_takes_no_more_than_the_api_stores(open_view) -> None:
+    """120 characters, TopicDescription's own bound, so a longer one is not typed."""
+    client = Answers(**answers(stage_status=lambda *a, **k: status(modelled=1)))
+
+    drawn = open_view("topics", client).select(0)
+
+    assert drawn.texts()["Label"].max_chars == 120
+
+
 @pytest.mark.parametrize("queued", ({"pending": 1}, {"in_progress": 1}))
 def test_a_topic_cannot_be_saved_while_a_fit_is_queued_or_running(page, queued) -> None:
     """The fit may replace this topic, so a label saved now may be lost."""

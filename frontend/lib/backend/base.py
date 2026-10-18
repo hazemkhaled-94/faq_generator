@@ -15,9 +15,11 @@ def refusal(
 ) -> str:
     """Reads the sentence the API refused a request with.
 
-    Every deliberate refusal carries `{"code", "detail"}`. An HTTPError
-    stringifies as its status line alone, and a network failure or a 500
-    carries no such body: those read as `fallback`, or as the error itself.
+    Every deliberate refusal carries `{"code", "detail"}`, and FastAPI's own
+    422 a list under `detail`, one entry a field, read as their messages. An
+    HTTPError stringifies as its status line alone, and a network failure or
+    a 500 carries no such body: those read as `fallback`, or as the error
+    itself.
     """
     otherwise = str(error) if fallback is None else fallback
     response = getattr(error, "response", None)
@@ -27,7 +29,12 @@ def refusal(
         body = response.json()
     except ValueError:
         return otherwise
-    return body.get("detail") or otherwise
+    detail = body.get("detail") if isinstance(body, dict) else None
+    if isinstance(detail, list):
+        detail = "; ".join(
+            one["msg"] for one in detail if isinstance(one, dict) and one.get("msg")
+        )
+    return detail or otherwise
 
 
 #: How long each verb waits, by what it costs the backend. A read is a query;
