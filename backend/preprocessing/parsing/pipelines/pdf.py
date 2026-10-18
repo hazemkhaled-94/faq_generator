@@ -36,7 +36,7 @@ from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.table.table_data import TableCell
 from docling_core.types.doc.labels import DocItemLabel
 
-from nlp.text import rejoined
+from nlp.text import printed, rejoined
 from preprocessing.parsing.models import Conversion, SourceDocument
 from preprocessing.parsing.pipelines.base import ConversionFailed, Pipeline
 
@@ -253,7 +253,7 @@ class PdfPipeline(Pipeline):
         return self._built
 
 
-def _mend(text: str) -> str:
+def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """Rejoins a line-broken word and spells the rest so it can be copied.
 
     Composes to NFC, joins soft and line-break hyphens, drops control and
@@ -261,6 +261,8 @@ def _mend(text: str) -> str:
 
     Args:
         text: One string as the converter read it.
+        whole: The words its document prints whole around a hyphen, which
+            keep theirs where a line breaks them there.
 
     Returns:
         The mended string.
@@ -271,14 +273,15 @@ def _mend(text: str) -> str:
     )
     # After the space normalisation, so the broken-word rule sees one kind of
     # space.
-    return rejoined(cleaned)
+    return rejoined(cleaned, whole)
 
 
 def _repaired(document: DoclingDocument) -> DoclingDocument:
     """Mends every string a later stage reads out of a converted document.
 
     Both the text items and the table grid: a passage's text comes from the
-    first and its table_cells from the second.
+    first and its table_cells from the second. A word broken at its own
+    hyphen keeps it where the document prints it whole elsewhere.
 
     Args:
         document: The converted document, modified in place.
@@ -286,13 +289,28 @@ def _repaired(document: DoclingDocument) -> DoclingDocument:
     Returns:
         The same document.
     """
+    whole = _printed(document)
     for item in document.texts:
-        item.text = _mend(item.text)
-        item.orig = _mend(item.orig)
+        item.text = _mend(item.text, whole)
+        item.orig = _mend(item.orig, whole)
     for table in document.tables:
         for cell in table.data.table_cells:
-            cell.text = _mend(cell.text)
+            cell.text = _mend(cell.text, whole)
     return document
+
+
+def _printed(document: DoclingDocument) -> frozenset[tuple[str, str]]:
+    """The words a document's texts and cells print whole around a hyphen."""
+    return printed(
+        [
+            *(item.text for item in document.texts),
+            *(
+                cell.text
+                for table in document.tables
+                for cell in table.data.table_cells
+            ),
+        ]
+    )
 
 
 #: What ends a sentence in a cell: a cell ending on one is complete, and the
@@ -356,9 +374,10 @@ def _tabled(document: DoclingDocument, data: bytes | None = None) -> DoclingDocu
             item.content_layer = ContentLayer.FURNITURE
         else:
             anchor, own = item, item.data.num_rows
+    whole = _printed(document)
     for table in document.tables:
         if table.content_layer == ContentLayer.BODY:
-            _unwrapped(table)
+            _unwrapped(table, whole)
     return document
 
 
@@ -498,12 +517,13 @@ def _append(table: TableItem, rest: TableItem) -> None:
     table.prov.extend(rest.prov)
 
 
-def _unwrapped(table: TableItem) -> None:
+def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
     """Joins each row that is the wrapped rest of the row above it into it.
 
     A row a spanning cell or a header covers is left as it is, on either
     side of a join: the cell holds more than one row, and a header names the
-    columns rather than continuing a cell.
+    columns rather than continuing a cell. A word the wrap broke is mended,
+    keeping a hyphen `whole` says the document prints.
     """
     rows: dict[int, dict[int, TableCell]] = {}
     held: set[int] = set()
@@ -525,7 +545,9 @@ def _unwrapped(table: TableItem) -> None:
             and first is not None
             and first.text.strip()[:1].islower()
         ):
-            first.text = rejoined(f"{cells[0].text.strip()} {first.text.strip()}")
+            first.text = rejoined(
+                f"{cells[0].text.strip()} {first.text.strip()}", whole
+            )
             gone.add(row)
     for row in order[1:]:
         if row in gone or _kept(row, gone) in held:
@@ -545,7 +567,7 @@ def _unwrapped(table: TableItem) -> None:
             continue
         for col, cell in filled.items():
             above[col].text = rejoined(
-                f"{above[col].text.rstrip()} {cell.text.strip()}"
+                f"{above[col].text.rstrip()} {cell.text.strip()}", whole
             )
         gone.add(row)
     if not gone:

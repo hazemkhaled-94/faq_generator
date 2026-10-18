@@ -30,11 +30,29 @@ def test_a_broken_word_is_joined_and_a_shared_suffix_kept(broken, whole) -> None
     assert rejoined(broken) == whole
 
 
-@given(text=st.text(alphabet="aäbKZ- \n", max_size=40))
-def test_mending_twice_is_mending_once(text: str) -> None:
+def test_a_compound_the_document_prints_whole_keeps_its_hyphen() -> None:
+    """A shop's terms print "third-party" on one line and break it on another."""
+    from nlp.text import printed, rejoined
+
+    whole = printed(["Payments through a third-party provider are refunded."])
+
+    assert rejoined("sent with a third- party courier", whole) == (
+        "sent with a third-party courier"
+    )
+    assert rejoined("inklusive Kontofüh- rungsentgelt", whole) == (
+        "inklusive Kontoführungsentgelt"
+    )
+
+
+@given(
+    text=st.text(alphabet="aäbKZ- \n", max_size=40),
+    seen=st.text(alphabet="aäbKZ- ", max_size=20),
+)
+def test_mending_twice_is_mending_once(text: str, seen: str) -> None:
     """A join mends a string already mended, and must leave the rest alone."""
-    from nlp.text import rejoined
+    from nlp.text import printed, rejoined
 
-    once = rejoined(text)
+    whole = printed([seen])
+    once = rejoined(text, whole)
 
-    assert rejoined(once) == once
+    assert rejoined(once, whole) == once

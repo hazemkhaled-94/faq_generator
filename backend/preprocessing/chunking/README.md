@@ -339,7 +339,9 @@ corpus, which is a property of the model rather than of this code.
   the passage's pages and box reach the page the sentence ends on; the
   paragraph moves to the furniture layer. A word the page broke at a hyphen
   is whole again once joined (`Kontofüh-` and `rungsgebühr`), while a
-  hyphen a joining word completes (`Zoll- und Steuerrecht`) stays. A script
+  hyphen a joining word completes (`Zoll- und Steuerrecht`) stays, and so
+  does one inside a word the document prints whole elsewhere
+  (`non-refundable`). A script
   without case is never joined, and two blocks in one column of one page
   are the document's own break.
 - **A flattened list is nested again by its indents.** The converter builds

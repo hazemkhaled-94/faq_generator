@@ -146,6 +146,26 @@ def test_a_cell_wrapped_at_a_hyphen_is_one_word() -> None:
     ]
 
 
+def test_a_cell_wrapped_inside_a_printed_compound_keeps_its_hyphen() -> None:
+    """A shop's returns table wraps the "non-refundable" its terms print whole."""
+    document = paged(1)
+    document.add_text(
+        label=DocItemLabel.TEXT, text="Sale items are non-refundable.", prov=on(1)
+    )
+    document.add_table(
+        data=grid(
+            ("Item", "Returns"),
+            ("Gift cards", "non-"),
+            ("", "refundable, not exchanged"),
+        ),
+        prov=on(1),
+    )
+
+    assert rows(_tabled(_repaired(document))) == [
+        [["Item", "Returns"], ["Gift cards", "non-refundable, not exchanged"]]
+    ]
+
+
 def test_a_row_whose_label_did_not_span_keeps_its_own_values() -> None:
     """`Credit` under `Debit` is a second row, not the rest of the first."""
     document = paged(1)

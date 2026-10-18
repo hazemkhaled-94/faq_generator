@@ -93,6 +93,25 @@ def test_a_decomposed_umlaut_is_composed(given: str, expected: str) -> None:
     assert _mend(given) == expected
 
 
+def test_a_compound_the_document_prints_whole_keeps_its_hyphen() -> None:
+    """A shop's "third- party" broken at a line is the "third-party" it prints."""
+    from docling_core.types.doc.document import DoclingDocument
+    from docling_core.types.doc.labels import DocItemLabel
+
+    document = DoclingDocument(name="returns")
+    for text in (
+        "Refunds through a third-party provider take longer.",
+        "Items sent back with a third- party courier are refunded.",
+    ):
+        document.add_text(label=DocItemLabel.TEXT, text=text)
+
+    mended = _repaired(document)
+
+    assert mended.texts[1].text == (
+        "Items sent back with a third-party courier are refunded."
+    )
+
+
 def test_the_repair_reaches_the_text_and_the_grid() -> None:
     """A passage's table_cells are read from the grid, not from the rendering."""
     from docling_core.types.doc.document import DoclingDocument, TableCell, TableData

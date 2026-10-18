@@ -29,7 +29,7 @@ from docling_core.types.doc.items.node import DocItem, NodeItem
 from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
 
-from nlp.text import rejoined
+from nlp.text import printed, rejoined
 
 log = logging.getLogger(__name__)
 
@@ -410,12 +410,15 @@ def tidied(
     for reference in debris:
         _resolved(reference, tidy).content_layer = ContentLayer.FURNITURE
     into: dict[str, str] = {}
+    whole = printed(item.text for item in tidy.texts)
     for first, second in joins:
         target = into.get(first, first)
         joined, taken = _resolved(target, tidy), _resolved(second, tidy)
         if isinstance(joined, TextItem) and isinstance(taken, TextItem):
             # Mended after the join: a word the page broke meets its rest here.
-            joined.text = rejoined(f"{joined.text.rstrip()} {taken.text.lstrip()}")
+            joined.text = rejoined(
+                f"{joined.text.rstrip()} {taken.text.lstrip()}", whole
+            )
             # And its place, so the passage cites the page the sentence ends on.
             joined.prov.extend(taken.prov)
             taken.content_layer = ContentLayer.FURNITURE

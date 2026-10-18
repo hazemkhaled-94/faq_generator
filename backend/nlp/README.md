@@ -119,7 +119,11 @@ checkpoint's own `1_Pooling` config rather than assuming the mean.
 [`text.py`](text.py) rejoins a word a converter broke across two lines at a
 hyphen. Parsing runs it over every string it reads, and the table and page
 joins over each string they make of two, since the halves of a word a cell
-wrapped or a page broke meet only there. Mending twice changes nothing.
+wrapped or a page broke meet only there. A word broken at its own hyphen
+looks like any other broken word, so it keeps the hyphen only where the
+document prints it whole elsewhere: `third- party` is `third-party` in a
+document that prints `third-party`, and `thirdparty` in one that never
+does. Mending twice changes nothing.
 
 ## Adding a language
 
@@ -264,7 +268,7 @@ poetry run pytest tests/unit/nlp -m nlp
 | [`test_language.py`](../../tests/unit/nlp/test_language.py) | Reading the language a passage is written in |
 | [`test_pointing.py`](../../tests/unit/nlp/test_pointing.py) | What a claim points at, and what it does not |
 | [`test_numbers.py`](../../tests/unit/nlp/test_numbers.py) | The numbers a statement states, a number word read as its value |
-| [`test_text.py`](../../tests/unit/nlp/test_text.py) | A word broken at a line hyphen made whole, a shared suffix kept, and mending twice the same as once |
+| [`test_text.py`](../../tests/unit/nlp/test_text.py) | A word broken at a line hyphen made whole, a shared suffix kept, a compound the document prints whole keeping its hyphen, and mending twice the same as once |
 | [`test_references.py`](../../tests/unit/nlp/test_references.py) | When a German `es` is read as a correlate rather than a pronoun |
 | [`test_entailment.py`](../../tests/unit/nlp/test_entailment.py) | A verdict read off the label, and the refusal of a head that is not an NLI model's |
 | [`test_qa.py`](../../tests/unit/nlp/test_qa.py) | The span decode, the no-answer head, and the window that slides |

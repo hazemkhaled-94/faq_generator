@@ -577,6 +577,20 @@ def test_a_word_hyphenated_across_a_page_is_one_word(
     assert texts == [whole], texts
 
 
+def test_a_compound_hyphenated_across_a_page_keeps_its_hyphen() -> None:
+    """The shop prints "non-refundable" whole; the page broke it at its hyphen."""
+    document = paged(2)
+    say(document, 1, "Sale items are non-refundable.")
+    say(document, 1, "Gift cards bought in a store are non-")
+    say(document, 2, "refundable and cannot be exchanged.")
+
+    texts = [text for text, _ in trails(document)]
+
+    assert any(
+        "are non-refundable and cannot be exchanged." in text for text in texts
+    ), texts
+
+
 def test_two_blocks_in_one_column_of_a_page_are_not_joined() -> None:
     """A break the page does not force is the document's own."""
     document = paged(1)
