@@ -250,3 +250,22 @@ def test_a_switch_turned_on_here_is_saved_once(page) -> None:
     assert [one[2] for one in scripted.calls("automate")] == [
         {"on_arrival": True, "nightly": False}
     ]
+
+
+def test_a_refused_switch_is_not_sent_again(page) -> None:
+    """The toggle kept the refused value, so every 3 s poll sent it again.
+
+    And once the backend could take it, a switch nobody had touched since
+    the refusal was turned on.
+    """
+    scripted = client()
+    scripted._answers["automate"] = (False, "no")
+    opened = page(pipeline_api=scripted)
+
+    refused = opened.switch("pipeline-on-arrival", True)
+    assert "no" in refused.warnings()
+
+    polled = refused.rerun()
+
+    assert polled.toggles()["pipeline-on-arrival"].value is False
+    assert len(scripted.calls("automate")) == 1

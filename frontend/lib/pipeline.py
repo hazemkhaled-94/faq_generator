@@ -224,7 +224,12 @@ def _automation(client, automation: dict) -> None:
             "waiting. A refit is Fit all on the Topics page.",
         )
         if chosen != on_arrival or clocked != nightly:
-            _report(client.automate(on_arrival=chosen, nightly=clocked))
+            done, said = client.automate(on_arrival=chosen, nightly=clocked)
+            if not done:
+                # Redrawn from the backend next run, or the toggle keeps the
+                # refused value and every poll sends it again.
+                st.session_state.pop("pipeline-automation-seen", None)
+            _report((done, said))
 
 
 def _report(outcome: tuple[bool, str]) -> None:

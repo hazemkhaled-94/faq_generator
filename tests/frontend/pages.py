@@ -845,6 +845,10 @@ class View:
         """Every multi-choice control, by its label."""
         return {one.label: one for one in self.app.multiselect}
 
+    def toggles(self) -> dict[str, Any]:
+        """Every toggle, by its key."""
+        return {one.key: one for one in self.app.toggle}
+
     def ticked(self, prefix: str) -> dict[str, bool]:
         """Whether each checkbox under one key prefix is on.
 
