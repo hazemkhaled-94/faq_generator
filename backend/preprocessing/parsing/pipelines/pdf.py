@@ -92,8 +92,13 @@ _FOLDED = str.maketrans(
 #: The most a line may rise or fall, in points, and still be horizontal.
 _LEVEL = 0.3
 
-#: The shortest line, in points, that can strike a word.
+#: The shortest line, in points, that can strike a word in type of any size.
 _SHORTEST = 2.0
+
+#: The shortest line that can strike a word as a share of its font size,
+#: where that is less than `_SHORTEST`: a full stop struck in small type is
+#: crossed by a stroke shorter than that.
+_SHORTEST_SHARE = 0.15
 
 #: How far, in points, the two readers may disagree on a page's size before
 #: the page is left alone rather than matched in the wrong place.
@@ -716,7 +721,8 @@ def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
     one path, and the box around them all runs through the words between
     them, or stands two lines tall and strikes nothing. The edge of an
     outlined shape is not a stroke: a highlight's frame can run through a
-    line of text. Whether one strikes a word is `_struck_segments`'s to decide.
+    line of text. Whether one strikes a word, however long it is, is
+    `_struck_segments`'s to decide.
     """
     found = []
     for path in page.get_drawings():
@@ -742,7 +748,7 @@ def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
                 else [path["rect"]]
             )
             found += [(shape.x0, shape.x1, shape.y0, shape.y1) for shape in shapes]
-    return [stroke for stroke in found if stroke[1] - stroke[0] > _SHORTEST]
+    return found
 
 
 def _hidden(words: list[_Word], shown: list[_Word]) -> list[tuple[bool, ...] | None]:
@@ -859,7 +865,10 @@ def _struck_segments(
     A word is cut into segments: each maximal run of letters or digits, and
     each other character on its own. A run is struck when one stroke through
     the x-height crosses at least `_STRIKE_COVER` of its width; a punctuation
-    mark when one crosses at least `_PUNCTUATION_COVER` of its width. So a
+    mark when one crosses at least `_PUNCTUATION_COVER` of its width. A stroke
+    counts when it is longer than `_SHORTEST`, or than `_SHORTEST_SHARE` of
+    the word's font size where that is less, so the length a strike needs
+    scales with the type it runs through. So a
     stroke through "six" in "six/eight", or through "not" in "(not", leaves
     the rest of the word standing, while a stroke across part of a run
     removes nothing. In any colour: the stroke's position is what marks a
@@ -870,11 +879,13 @@ def _struck_segments(
         the word is struck.
     """
     low, high = _STRIKE_BAND
+    shortest = min(_SHORTEST, _SHORTEST_SHARE * word.size)
     level = [
         (left, right)
         for left, right, top, bottom in strokes
         if top >= word.baseline - high * word.size
         and bottom <= word.baseline - low * word.size
+        and right - left > shortest
     ]
     flags: list[bool] = []
     start = 0
