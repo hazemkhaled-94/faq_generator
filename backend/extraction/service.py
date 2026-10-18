@@ -1136,7 +1136,8 @@ class ExtractionService(StageService):
         about = {"run_id": run_id(), "passage_id": str(passage.id)}
         for fact in facts:
             with span.start_as_current_span("check_fact") as current:
-                current.set_attribute("run.id", about["run_id"])
+                # No run.id: telemetry.traces stamps every span with the run
+                # that queued the row, and RUN_ID set here split one trace.
                 current.set_attribute("passage.id", passage.id)
                 current.set_attribute("fact.kind", str(fact.kind))
                 current.set_attribute("fact.validated", fact.validated)

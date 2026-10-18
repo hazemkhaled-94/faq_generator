@@ -158,3 +158,40 @@ def test_a_run_that_cannot_reach_phoenix_records_nothing(service) -> None:
 
     assert service._evaluations.recorded == []
     assert service._evaluations.flushed == 0
+
+
+def test_a_named_run_s_fact_span_carries_the_run_that_queued_the_passage(
+    service, monkeypatch
+) -> None:
+    """As every other span of the passage does, the model calls included.
+
+    RUN_ID names the rows and the Phoenix project. A fact's span naming it
+    beside the passage's spans naming the run that queued it put two runs
+    in one trace, and a filter on either found half of it.
+    """
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    import telemetry
+    from extraction import service as module
+    from telemetry import traces
+
+    providers: list = []
+    monkeypatch.setenv("RUN_ID", "a-gpt-4.1")
+    monkeypatch.setattr(traces.trace, "set_tracer_provider", providers.append)
+    traces.configure("extraction", run="a-gpt-4.1", named="a-gpt-4.1")
+    (provider,) = providers
+    exported = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
+    monkeypatch.setattr(module, "span", provider.get_tracer(__name__))
+
+    telemetry.running_as("dagster-D")
+    try:
+        service._record(PASSAGE, [_fact()])
+    finally:
+        telemetry.running_as(None)
+
+    (checked,) = exported.get_finished_spans()
+    assert checked.attributes["run.id"] == "dagster-D"

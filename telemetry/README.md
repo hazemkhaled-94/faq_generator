@@ -184,7 +184,10 @@ queued the row. See [`settings/README.md`](../backend/settings/README.md).
 The span attribute is the same value, written on every span begun while
 the row is worked, model calls included, so a fact, its log lines and its
 model calls all filter on one id whoever set the stage going. The
-resource's `run.id` stays the process's own.
+resource's `run.id` stays the process's own. A run named with `RUN_ID`
+writes the name on its rows and files its spans under a project of that
+name, but its spans still carry the run that queued each row, so no trace
+names two runs.
 
 **The exporter is installed after the preflight, not before.** A project
 is created by the first span filed under it, and a stage's first span is

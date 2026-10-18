@@ -2210,3 +2210,42 @@ def test_a_retry_that_returns_the_refused_draft_unchanged_is_not_kept() -> None:
 
     assert [(one.attempt, one.status) for one in queue.written] == [(1, "rejected")]
     assert len(writer.notes) == 2, "the retries went on after an unchanged draft"
+
+
+def test_a_named_run_s_question_span_carries_the_run_that_queued_the_topic(
+    monkeypatch,
+) -> None:
+    """As every other span of the topic does, the model calls included.
+
+    RUN_ID names the rows and the Phoenix project. A question's span naming
+    it beside the topic's spans naming the run that queued it put two runs
+    in one trace, and a filter on either found half of it.
+    """
+    from factories import candidate
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    import telemetry
+    from question_generation import service as module
+    from telemetry import traces
+
+    providers: list = []
+    monkeypatch.setenv("RUN_ID", "a-gpt-4.1")
+    monkeypatch.setattr(traces.trace, "set_tracer_provider", providers.append)
+    traces.configure("questions", run="a-gpt-4.1", named="a-gpt-4.1")
+    (provider,) = providers
+    exported = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
+    monkeypatch.setattr(module, "span", provider.get_tracer(__name__))
+    service, _ = build(topic())
+
+    telemetry.running_as("dagster-D")
+    try:
+        service._checked(candidate(), [])
+    finally:
+        telemetry.running_as(None)
+
+    (checked,) = exported.get_finished_spans()
+    assert checked.attributes["run.id"] == "dagster-D"

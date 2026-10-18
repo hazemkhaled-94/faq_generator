@@ -1235,7 +1235,8 @@ class QuestionGenerationService(StageService):
         """
         with span.start_as_current_span("check_question") as current:
             checked = self._checker.check(candidate, accepted)
-            current.set_attribute("run.id", run_id())
+            # No run.id: telemetry.traces stamps every span with the run that
+            # queued the row, and RUN_ID set here split one trace in two.
             # The gate that stopped it, or `accepted`. One attribute rather
             # than a boolean and a nullable code, because what every query
             # here groups on is "what became of it".
