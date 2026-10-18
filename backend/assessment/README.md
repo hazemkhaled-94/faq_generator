@@ -109,7 +109,7 @@ report the pipeline's most careful output as its worst.
 
 ## The paper's judge
 
-The DataMorgana paper (Filice et al., ACL 2025 Industry Track, Appendix D)
+The DataMorgana paper ([Filice et al., 2025](#references), Appendix D)
 measures a benchmark's questions with one judge prompt that scores each
 question 1 to 3 on six dimensions: fluency, clarity and conciseness of the
 question itself, and its relevance, consistency and answerability against the

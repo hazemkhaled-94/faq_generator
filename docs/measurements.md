@@ -427,7 +427,8 @@ artefact reads as sound. The disagreeing pairs are the queue for a person.
 ### The paper's judge
 
 From template version 3, a question that opens its thread is also scored by
-the DataMorgana paper's judge (Filice et al., ACL 2025 Industry Track,
+the DataMorgana paper's judge (Filice et al., [*Generating Q&A Benchmarks for RAG Evaluation in Enterprise
+Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Track,
 Appendix D). The run above was judged under version 2 and carries none of
 these scores.
 
