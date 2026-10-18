@@ -544,6 +544,24 @@ def test_duplicate_probe_names_its_parallel_gap() -> None:
     assert "--scale extract-worker" in _read("docs/operations.md")
 
 
+def test_the_not_atomic_repair_is_described_as_it_runs() -> None:
+    """Once per passage, only for `not_atomic`, and a failed call fails nothing.
+
+    The behaviour is in the unit tests; this pins the README's sentence to
+    the method that keeps it.
+    """
+    readme = _flat(_read("backend/extraction/README.md"))
+    repaired = _function("backend/extraction/service.py", "_repaired")
+
+    assert "is sent back to the same model once, in one more call" in readme
+    assert (
+        "a repair call that fails leaves the refusals standing and is logged "
+        "rather than failing the passage"
+    ) in readme
+    assert "Rejection.NOT_ATOMIC" in repaired
+    assert "except ExtractionFailed" in repaired
+
+
 # ── The model client ───────────────────────────────────────────────────────
 
 

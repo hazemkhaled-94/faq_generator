@@ -133,6 +133,19 @@ for, first failure winning:
 | shorter than its passage | `not_condensed` | | ● | ● | |
 | rests on two passages | `not_bridging` | | | | ● |
 
+An atomic statement the model wrote and the checks refused as `not_atomic` is sent
+back to the same model once, in one more call for the passage, under a
+prompt of its own. Shown the numbered sentences the first call was shown,
+the refused statements and the reason each was refused, it writes each
+claim as a fact of its own, repeating the subject and the condition or
+exception the claims shared. What comes back faces the same checks, then
+the `duplicate` gate and the cap beside the passage's other facts; one still
+joining two claims is refused again and not sent back. The refusals are
+stored as they were, and a repaired fact carries the repair prompt's version
+as its prompt version. A passage with no `not_atomic` refusal costs no extra
+call, and a repair call that fails leaves the refusals standing and is
+logged rather than failing the passage.
+
 Two more refusals are the service refusing what the checks passed:
 
 - `duplicate` — the corpus already holds the statement.
@@ -289,15 +302,17 @@ alone: a gap between two of them, or a second passage, is a line break.
 
 ## Prompts
 
-Each of the three model-backed readers declares its own `PROMPT_VERSION` and
-writes its composed prompt to the `prompts` table before the first claim.
+Each of the three model-backed readers declares its own `PROMPT_VERSION`, and
+the passage reader's repair prompt declares `REPAIR_PROMPT_VERSION` beside
+it. Each prompt is written as composed to the `prompts` table before the
+first claim.
 [`prompts.py`](prompts.py) is the catalogue. The atomic prompt is recorded
 with the cap paragraph `EXTRACTION_MIN_OTHER_SHARE` works out to, under its
 version with that cap appended (`<version>+cap<n>`). A passage stating more
 sentences and list items than the cap is sent the same text with its own count,
 under the same version. Each prompt is recorded
-under the model it is sent to: `EXTRACTION_MODEL` for the atomic and bridge
-readers, and `EXTRACTION_DIGEST_MODEL` for the digest, the reader's where
+under the model it is sent to: `EXTRACTION_MODEL` for the atomic, repair and
+bridge prompts, and `EXTRACTION_DIGEST_MODEL` for the digest, the reader's where
 unset.
 
 Read one back with `GET /prompts?service=extraction`, or in Phoenix, where
@@ -375,7 +390,7 @@ Twenty-five files over seven layers. Non-UI tests act through a driver —
 | Integration | The SQL against a real Postgres, what the database refuses, and the HTTP surface |
 | Property | A verdict and its code always agree; a span always resolves; a bridge never records a passage it was not offered |
 | Regression | A golden table of every candidate anybody has seen, in both languages, with the verdict it should get |
-| Static | `tests/static/test_facts_pinned.py` — the settings catalogued, the routes, the check matrix in order, and this README's sections, kinds and rejection codes; `tests/static/test_prompts_pinned.py` — the three prompts, by version and digest |
+| Static | `tests/static/test_facts_pinned.py` — the settings catalogued, the routes, the check matrix in order, and this README's sections, kinds and rejection codes; `tests/static/test_prompts_pinned.py` — the four prompts, by version and digest |
 | Eval | A real served model against golden passages. Prints; never gates |
 | Frontend | `tests/frontend/test_facts_page.py` — the Facts page against a scripted backend |
 
