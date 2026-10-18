@@ -1,7 +1,7 @@
-"""Naming a topic, and carrying a name across a refit.
+"""Naming a topic, and carrying a person's decision across a refit.
 
-A refit deletes the topics of each language it fits, so a label survives
-only by being matched on top terms.
+A refit deletes the topics of each language it fits, so a decision survives
+only on the topic that holds most of the passages it was made for.
 """
 
 from __future__ import annotations
@@ -13,22 +13,12 @@ from topic_drivers import LabellerDriver
 
 from llm.client import ModelUnavailable
 from topic_modelling.labels import _EXCERPT_CHARS
-from topic_modelling.models import FittedTopic
-from topic_modelling.topics import _LABEL_MATCH, carry_labels
+from topic_modelling.models import FittedTopic, PassageWeight
+from topic_modelling.topics import carry_labels, dominant
 
 FIRST = ["lieferung", "versand", "transport", "paket", "monatlich"]
 SECOND = ["wartung", "reparatur", "instandhaltung", "ersatzteil", "pruefung"]
 DECIDED = datetime(2026, 10, 1, 9, tzinfo=UTC)
-
-
-def previous() -> list[FittedTopic]:
-    """Two named topics, one of them taken out of coverage."""
-    return [
-        FittedTopic(0, FIRST, label="Shipping", include_in_coverage=False),
-        FittedTopic(
-            1, SECOND, label="Maintenance", labelled_by="person", decided_at=DECIDED
-        ),
-    ]
 
 
 # ── Asking the model ──────────────────────────────────────────────────────
@@ -241,124 +231,235 @@ def test_words_only_half_the_names_end_on_stay() -> None:
     assert named[0] == "Card fees in branches"
 
 
-# ── Carrying a label across a refit ───────────────────────────────────────
+# ── Carrying a decision across a refit ────────────────────────────────────
+#
+# `before` is each passage's dominant topic in the fit being replaced, and
+# `after` its dominant topic in the new one.
 
 
-def test_a_label_travels_to_the_topic_it_matches() -> None:
-    """The top terms decide, not the topic number."""
-    refitted = [
-        FittedTopic(
-            0, ["wartung", "reparatur", "instandhaltung", "ersatzteil", "intervall"]
-        ),
-        FittedTopic(1, ["lieferung", "versand", "transport", "paket", "jaehrlich"]),
-    ]
+def test_a_person_name_travels_to_the_topic_holding_most_of_its_passages() -> None:
+    """The passages decide, not the topic number or the terms."""
+    carried, dropped = carry_labels(
+        [FittedTopic(0, ["card", "fee"]), FittedTopic(1, ["transfer", "abroad"])],
+        [
+            FittedTopic(
+                0,
+                ["card", "fee"],
+                label="Card fees",
+                labelled_by="person",
+                decided_at=DECIDED,
+            )
+        ],
+        before={1: 0, 2: 0, 3: 0, 4: 0},
+        after={1: 1, 2: 1, 3: 1, 4: 0},
+    )
 
-    carried = carry_labels(refitted, previous())
-
-    assert carried[0].label == "Maintenance", carried[0].label
-    assert carried[1].label == "Shipping", carried[1].label
-
-
-def test_what_named_a_label_travels_with_it() -> None:
-    """A name a person typed must not come back as a model's, nor undated."""
-    carried = carry_labels([FittedTopic(0, SECOND)], previous())
-
-    assert carried[0].labelled_by == "person", carried[0]
-    assert carried[0].decided_at == DECIDED, carried[0]
+    assert carried[1].label == "Card fees", carried
+    assert (carried[1].labelled_by, carried[1].decided_at) == ("person", DECIDED)
+    assert carried[0].label is None, carried[0]
+    assert dropped == 0
 
 
-def test_the_coverage_choice_travels_with_the_label() -> None:
-    """A topic taken out of coverage by hand stays out across a refit."""
-    carried = carry_labels([FittedTopic(0, FIRST)], previous())
+def test_a_name_does_not_travel_on_shared_terms_alone() -> None:
+    """A topic with the old one's very terms may hold few of its passages.
 
-    assert carried[0].label == "Shipping"
+    Matched on terms, this carried at an overlap of 1.0.
+    """
+    terms = ["return", "refund", "parcel"]
+
+    carried, dropped = carry_labels(
+        [
+            FittedTopic(0, terms),
+            FittedTopic(1, ["voucher", "gift"]),
+            FittedTopic(2, ["delivery", "courier"]),
+        ],
+        [FittedTopic(0, terms, label="Returns", labelled_by="person")],
+        before={1: 0, 2: 0, 3: 0, 4: 0},
+        after={1: 0, 2: 1, 3: 2, 4: 2},
+    )
+
+    assert [one.label for one in carried] == [None, None, None], carried
+    assert dropped == 1
+
+
+def test_an_exclusion_does_not_ride_into_a_merged_topic() -> None:
+    """Two passages of five are not the topic a person took out of coverage."""
+    carried, dropped = carry_labels(
+        [FittedTopic(0, ["consent", "data", "partner"])],
+        [
+            FittedTopic(
+                0,
+                ["consent", "newsletter"],
+                label="Marketing consent",
+                labelled_by="person",
+                include_in_coverage=False,
+            )
+        ],
+        before={1: 0, 2: 0, 3: 1, 4: 1, 5: 1},
+        after={1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+    )
+
+    assert carried[0].include_in_coverage is True, carried[0]
+    assert carried[0].label is None, carried[0]
+    assert dropped == 1
+
+
+def test_a_model_given_name_never_travels() -> None:
+    """It is named afresh, against the names this fit gives."""
+    carried, _ = carry_labels(
+        [FittedTopic(0, ["card", "fee"])],
+        [FittedTopic(0, ["card", "fee"], label="Card fees", labelled_by="azure/x")],
+        before={1: 0, 2: 0, 3: 0},
+        after={1: 0, 2: 0, 3: 0},
+    )
+
+    assert (carried[0].label, carried[0].labelled_by) == (None, None), carried[0]
+
+
+def test_a_coverage_choice_on_a_model_named_topic_travels_without_the_name() -> None:
+    """The exclusion is a person's decision; the name was not."""
+    carried, _ = carry_labels(
+        [FittedTopic(0, ["card", "fee"])],
+        [
+            FittedTopic(
+                0,
+                ["card", "fee"],
+                label="Card fees",
+                labelled_by="azure/x",
+                include_in_coverage=False,
+                decided_at=DECIDED,
+            )
+        ],
+        before={1: 0, 2: 0, 3: 0},
+        after={1: 0, 2: 0, 3: 0},
+    )
+
+    assert carried[0].label is None, carried[0]
     assert carried[0].include_in_coverage is False, carried[0]
-
-
-def test_a_label_is_dropped_rather_than_put_on_an_unrelated_topic() -> None:
-    """No match means no name."""
-    unrelated = carry_labels(
-        [FittedTopic(0, ["farbe", "lack", "oberflaeche"])], previous()
-    )
-
-    assert unrelated[0].label is None, unrelated[0].label
-    assert unrelated[0].labelled_by is None
-    assert unrelated[0].include_in_coverage is True
-
-
-def test_a_label_is_used_once() -> None:
-    """Two topics matching the same label take it between them."""
-    twice = carry_labels([FittedTopic(0, FIRST), FittedTopic(1, FIRST)], previous())
-
-    assert [t.label for t in twice].count("Shipping") == 1, [t.label for t in twice]
-
-
-def test_an_overlap_at_the_threshold_carries() -> None:
-    """The bound is inclusive, so a label at it is kept rather than lost."""
-    at = carry_labels(
-        [FittedTopic(0, ["a", "b", "c"])],
-        [FittedTopic(0, ["a", "b", "d", "e"], label="Kept")],
-    )
-
-    assert _LABEL_MATCH == 0.4, "this case is built around the threshold"
-    assert at[0].label == "Kept", at[0]
-
-
-def test_an_overlap_below_the_threshold_drops() -> None:
-    """Two unrelated topics sharing a term or two are still unrelated."""
-    below = carry_labels(
-        [FittedTopic(0, ["a", "b", "c", "d", "e"])],
-        [FittedTopic(0, ["a", "b", "x", "y", "z"], label="Dropped")],
-    )
-
-    assert below[0].label is None, below[0]
-
-
-def test_a_first_fit_carries_nothing() -> None:
-    """There is no previous fit, and that is not an error."""
-    first = carry_labels([FittedTopic(0, FIRST), FittedTopic(1, SECOND)], [])
-
-    assert [one.label for one in first] == [None, None]
-
-
-def test_a_refit_that_produced_no_topic_carries_nothing() -> None:
-    """An empty list in, an empty list out."""
-    assert carry_labels([], previous()) == []
-
-
-def test_a_previous_topic_with_no_terms_matches_nothing() -> None:
-    """A signature nobody can read cannot be matched on."""
-    carried = carry_labels(
-        [FittedTopic(0, FIRST)], [FittedTopic(0, [], label="Unmatchable")]
-    )
-
-    assert carried[0].label is None, carried[0]
-
-
-def test_a_new_topic_with_no_terms_takes_no_label() -> None:
-    """Two empty signatures are not a match."""
-    carried = carry_labels([FittedTopic(0, [])], previous())
-
-    assert carried[0].label is None, carried[0]
+    assert carried[0].decided_at == DECIDED, carried[0]
 
 
 def test_an_unnamed_previous_topic_out_of_coverage_still_travels() -> None:
     """The exclusion is a decision, and it is recorded without a name."""
-    carried = carry_labels(
+    carried, _ = carry_labels(
         [FittedTopic(0, FIRST)],
         [FittedTopic(0, FIRST, include_in_coverage=False)],
+        before={1: 0, 2: 0},
+        after={1: 0, 2: 0},
     )
 
     assert carried[0].label is None
     assert carried[0].include_in_coverage is False, carried[0]
 
 
-def test_every_topic_keeps_its_own_index_and_terms() -> None:
-    """Carrying a label must not carry the topic it came from."""
-    carried = carry_labels([FittedTopic(7, SECOND)], previous())
+def test_the_coverage_choice_travels_with_a_person_name() -> None:
+    """A topic taken out of coverage by hand stays out across a refit."""
+    carried, _ = carry_labels(
+        [FittedTopic(0, FIRST)],
+        [
+            FittedTopic(
+                0,
+                FIRST,
+                label="Shipping",
+                labelled_by="person",
+                include_in_coverage=False,
+            )
+        ],
+        before={1: 0, 2: 0},
+        after={1: 0, 2: 0},
+    )
 
+    assert carried[0].label == "Shipping"
+    assert carried[0].include_in_coverage is False, carried[0]
+
+
+def test_passages_new_to_the_corpus_do_not_dilute_the_match() -> None:
+    """Only the passages both fits hold are counted, so a grown topic matches."""
+    carried, _ = carry_labels(
+        [FittedTopic(0, ["return", "refund"])],
+        [FittedTopic(0, ["return", "refund"], label="Returns", labelled_by="person")],
+        before={1: 0, 2: 0, 3: 0},
+        after={1: 0, 2: 0, 3: 0} | dict.fromkeys(range(10, 20), 0),
+    )
+
+    assert carried[0].label == "Returns", carried[0]
+
+
+def test_an_even_split_does_not_carry() -> None:
+    """Half is not most, and two topics cannot both hold most of one."""
+    carried, dropped = carry_labels(
+        [FittedTopic(0, ["card"]), FittedTopic(1, ["fee"])],
+        [FittedTopic(0, ["card", "fee"], label="Card fees", labelled_by="person")],
+        before={1: 0, 2: 0, 3: 0, 4: 0},
+        after={1: 0, 2: 0, 3: 1, 4: 1},
+    )
+
+    assert [one.label for one in carried] == [None, None], carried
+    assert dropped == 1
+
+
+def test_after_a_rechunk_nothing_travels_and_the_loss_is_logged(caplog) -> None:
+    """Re-chunking took the old memberships, so no passage is held by both fits."""
+    with caplog.at_level("WARNING"):
+        carried, dropped = carry_labels(
+            [FittedTopic(0, FIRST)],
+            [FittedTopic(0, FIRST, label="Shipping", labelled_by="person")],
+            before={},
+            after={1: 0, 2: 0},
+        )
+
+    assert carried[0].label is None, carried[0]
+    assert dropped == 1
+    assert "Shipping" in caplog.text, caplog.text
+
+
+def test_a_first_fit_carries_nothing() -> None:
+    """There is no previous fit, and that is not an error."""
+    first, dropped = carry_labels(
+        [FittedTopic(0, FIRST), FittedTopic(1, SECOND)], [], before={}, after={1: 0}
+    )
+
+    assert [one.label for one in first] == [None, None]
+    assert dropped == 0
+
+
+def test_a_refit_that_produced_no_topic_carries_nothing() -> None:
+    """An empty list in, an empty list out, and the decision counted as lost."""
+    carried, dropped = carry_labels(
+        [],
+        [FittedTopic(0, FIRST, label="Shipping", labelled_by="person")],
+        before={1: 0},
+        after={},
+    )
+
+    assert carried == []
+    assert dropped == 1
+
+
+def test_every_topic_keeps_its_own_index_and_terms() -> None:
+    """Carrying a decision must not carry the topic it came from."""
+    carried, _ = carry_labels(
+        [FittedTopic(7, SECOND)],
+        [FittedTopic(1, FIRST, label="Maintenance", labelled_by="person")],
+        before={1: 1, 2: 1},
+        after={1: 7, 2: 7},
+    )
+
+    assert carried[0].label == "Maintenance", carried[0]
     assert carried[0].topic_index == 7, carried[0]
     assert carried[0].top_terms == SECOND, carried[0]
+
+
+def test_a_passage_tied_between_two_topics_is_dominant_in_the_lower_index() -> None:
+    """As the store breaks the tie, so a fit and the one it replaces agree."""
+    weights = [
+        PassageWeight(1, 3, 0.5),
+        PassageWeight(1, 2, 0.5),
+        PassageWeight(2, 0, 0.2),
+        PassageWeight(2, 1, 0.7),
+    ]
+
+    assert dominant(weights) == {1: 2, 2: 1}
 
 
 def test_a_name_taken_that_carries_a_placeholder_is_shown_as_written() -> None:

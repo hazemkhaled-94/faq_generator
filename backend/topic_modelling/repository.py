@@ -226,7 +226,11 @@ class TopicQueue(StageQueue):
             )
 
     def labelled_topics(self, language: str) -> list[FittedTopic]:
-        """Reads one language's topics that hold a label or sit out of coverage."""
+        """Reads one language's topics a person named or took out of coverage.
+
+        Only `describe` sets either, so these are what a person decided. A
+        model's name is not read: the next fit names its topics afresh.
+        """
         with self._session() as session:
             return [
                 FittedTopic(
@@ -248,10 +252,26 @@ class TopicQueue(StageQueue):
                     ).where(
                         Topic.status == Status.MODELLED,
                         Topic.language == language,
-                        Topic.label.is_not(None) | ~Topic.include_in_coverage,
+                        (Topic.labelled_by == "person") | ~Topic.include_in_coverage,
                     )
                 ).all()
             ]
+
+    def dominant_passages(self, language: str) -> dict[int, int]:
+        """Each passage's strongest topic in one language's stored fit, by index.
+
+        What a decision is carried by: read before `replace` takes the fit
+        away.
+        """
+        with self._session() as session:
+            return {
+                row.passage_id: row.topic_index
+                for row in session.execute(
+                    select(_DOMINANT.c.passage_id, Topic.topic_index)
+                    .join(Topic, Topic.id == _DOMINANT.c.topic_id)
+                    .where(~_OUTSTANDING, Topic.language == language)
+                )
+            }
 
     def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
         """Replaces the topics and memberships of each language one run fitted.

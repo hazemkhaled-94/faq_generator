@@ -16,7 +16,7 @@ from topic_modelling.labels import TopicLabeller
 from topic_modelling.models import FittedTopic, Fitting, PassageWeight
 from topic_modelling.repository import TopicQueue
 from topic_modelling.space import dump
-from topic_modelling.topics import NoVocabulary, TopicFitter, carry_labels
+from topic_modelling.topics import NoVocabulary, TopicFitter, carry_labels, dominant
 
 log = logging.getLogger(__name__)
 span = tracer(__name__)
@@ -48,8 +48,8 @@ class TopicModellingService(StageService):
     """Fits the corpus topic model when a run asks for it.
 
     The unit of work is one fit, over every language. Each fit replaces the
-    topics and memberships of every language it fits, carrying labels across
-    by matching top terms.
+    topics and memberships of every language it fits, carrying what a person
+    decided to the topic holding most of the passages it was decided for.
     A fit that fails leaves the previous topics in place, with the reason on
     the request row beside them.
     """
@@ -152,7 +152,9 @@ class TopicModellingService(StageService):
             # factorisation over its own vocabulary and then one model call
             # per topic to name it. Under one span a fit that was slow in
             # German reads as a fit that was slow.
-            with working(span, "fit_language", {"topic_fit.language": language}):
+            with working(
+                span, "fit_language", {"topic_fit.language": language}
+            ) as fitting_span:
                 trace_id, span_id = current_ids()
                 try:
                     fitting = self._fitter.fit(
@@ -162,9 +164,17 @@ class TopicModellingService(StageService):
                 except NoVocabulary as exc:
                     log.warning("no %s model: %s", language, exc)
                     continue
-                carried = carry_labels(
-                    fitting.topics, self._repository.labelled_topics(language)
+                decided = self._repository.labelled_topics(language)
+                carried, dropped = carry_labels(
+                    fitting.topics,
+                    decided,
+                    before=self._repository.dominant_passages(language),
+                    after=dominant(fitting.weights),
                 )
+                fitting_span.set_attribute(
+                    "topic.decisions_carried", len(decided) - dropped
+                )
+                fitting_span.set_attribute("topic.decisions_dropped", dropped)
                 fittings.append(
                     replace(
                         fitting,
@@ -301,23 +311,20 @@ class TopicModellingService(StageService):
     ) -> list[FittedTopic]:
         """Names the topics that hold no label yet, with the model.
 
-        A topic that already carries one - typed by a person, or carried from
-        the last fit - is left alone. Returns `topics` unchanged when no
-        labeller is configured.
+        A topic that already carries one - a person's, carried from the last
+        fit - is left alone. Returns `topics` unchanged when no labeller is
+        configured.
         """
         if self._labeller is None:
             return topics
 
-        dominant: dict[int, PassageWeight] = {}
-        for weight in fitting.weights:
-            strongest = dominant.get(weight.passage_id)
-            if strongest is None or weight.weight > strongest.weight:
-                dominant[weight.passage_id] = weight
+        strongest = dominant(fitting.weights)
         held: dict[int, list[PassageWeight]] = {}
-        for weight in dominant.values():
-            held.setdefault(weight.topic_index, []).append(weight)
-        bearing = self._repository.bearing_facts(list(dominant))
-        sizes = self._repository.sizes(list(dominant))
+        for weight in fitting.weights:
+            if strongest[weight.passage_id] == weight.topic_index:
+                held.setdefault(weight.topic_index, []).append(weight)
+        bearing = self._repository.bearing_facts(list(strongest))
+        sizes = self._repository.sizes(list(strongest))
 
         barren = self._barren(held, bearing)
         # Every name given so far, including those a person typed: the model

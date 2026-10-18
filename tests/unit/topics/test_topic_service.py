@@ -370,6 +370,7 @@ def test_the_names_already_taken_are_shown_to_the_model(service) -> None:
             labelled_by="person",
         )
     ]
+    flow.queue.dominant["de"] = {1: 0, 2: 0}
 
     flow.request_and_run()
 
@@ -398,6 +399,7 @@ def test_a_name_a_person_typed_is_never_offered_to_the_model(service) -> None:
             labelled_by="person",
         )
     ]
+    flow.queue.dominant["de"] = {1: 0, 2: 0}
 
     flow.request_and_run()
 
@@ -405,6 +407,33 @@ def test_a_name_a_person_typed_is_never_offered_to_the_model(service) -> None:
     assert carried, flow.topics_of("de")
     assert carried[0].labelled_by == "person", carried[0]
     assert named.model.calls == 1, f"the model was asked {named.model.calls} times"
+
+
+def test_a_refit_asks_the_labeller_for_a_topic_whose_model_name_did_not_travel(
+    service,
+) -> None:
+    """A model's name is not a decision, so the next fit names the topic again.
+
+    Carried, it skipped the labeller, the spelling held to the excerpts and
+    the shared ending taken off, and it stood in the names already taken.
+    """
+    labeller = LabellerDriver("Lieferung", "Wartung", languages={"de": "German"})
+    flow = service(labeller=labeller)
+    flow.queue.previous["de"] = [
+        FittedTopic(
+            0,
+            ["lieferung", "versand", "transport", "monatlich", "paketdienst"],
+            label="Versand",
+            labelled_by="test-model",
+        )
+    ]
+    flow.queue.dominant["de"] = {1: 0, 2: 0}
+
+    flow.request_and_run()
+
+    assert "Topic 0" in labeller.prompt and "Topic 1" in labeller.prompt
+    assert "Names already taken" not in labeller.prompt, labeller.prompt
+    assert sorted(flow.labels_of("de"), key=str) == ["Lieferung", "Wartung"]
 
 
 def test_the_model_is_shown_the_passages_the_topic_holds_most_strongly(

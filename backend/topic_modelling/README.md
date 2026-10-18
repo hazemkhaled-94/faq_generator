@@ -66,15 +66,19 @@ is an outstanding request, and a row that has one is a topic.
    `TOPIC_PASSAGES_PER_TOPIC` allow and `TOPIC_PASSES` passes, seeded with
    `TOPIC_RANDOM_STATE`.
 6. **Read the topics out.** `TOPIC_TOP_TERMS` highest-weighted terms each.
-   This is also the only signature a label is matched on across a refit.
 7. **Score every passage.** One walk produces the memberships (every weight
    above `TOPIC_MIN_WEIGHT`, clamped to 1.0), the passages placed in no
    topic, and the whole fitted space the figure needs.
-8. **Carry the labels over.** `carry_labels` matches on shared top terms —
-   Jaccard overlap of at least 0.4 — and each previous label is used at most
-   once. The coverage choice and when a person last decided travel with it.
-   A topic whose terms moved too far loses its name. `ponytail:` a
-   greedy pass; the upgrade is to solve it as an assignment problem.
+8. **Carry what a person decided.** `carry_labels` takes an old topic and
+   a new one for the same topic when each holds more than half of the
+   other's dominant passages, counted over the passages both fits hold. Two
+   topics cannot both hold more than half of one, so there is no threshold
+   to set and no decision lands twice. A person's name, the coverage choice
+   and when it was made travel; a model's name does not, and the new topic
+   is named again in step 9. A decision matching no topic - after a
+   re-chunk no passage is held by both fits - is logged as a warning and
+   counted on the span as `topic.decisions_dropped`, beside
+   `topic.decisions_carried`.
 9. **Name the unnamed topics.** Only topics holding no label are offered to
    the model, all of a language's in one call, so it sees the set and can
    tell the topics apart. For each it is shown the terms and up to four
@@ -234,7 +238,7 @@ partial refit.
 | `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2 |
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
 | `TOPIC_RANDOM_STATE` | Seed. Fixed, so the same corpus gives the same topics |
-| `TOPIC_TOP_TERMS` | Terms stored as a topic's signature, and what a label is matched on |
+| `TOPIC_TOP_TERMS` | Terms stored as a topic's signature |
 | `TOPIC_MIN_WEIGHT` | Smallest membership weight stored, exclusive. In `(0, 1)` |
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |
 | `TOPIC_NO_ABOVE` | Drop a term appearing in more than this share. In `(0, 1]` |
@@ -243,11 +247,10 @@ partial refit.
 | `TOPIC_MODEL` | The model that names a topic. Read only when `LLM_MODEL` is set |
 | `LLM_MODEL` | What `TOPIC_MODEL` falls back to. Without it, topics are fitted but not named |
 
-Not configurable, on purpose: the Jaccard threshold for carrying a label
-(0.4), how many excerpts the labeller sees (4), how much of each (400
-characters), the figure's bar-chart length (30) and the streaming batch size
-(500). `include_in_coverage` is a per-topic human decision with no rule
-behind it.
+Not configurable, on purpose: how many excerpts the labeller sees (4), how
+much of each (400 characters), the figure's bar-chart length (30) and the
+streaming batch size (500). `include_in_coverage` is a per-topic human
+decision with no rule behind it.
 
 ## The user interface
 

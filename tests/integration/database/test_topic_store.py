@@ -360,6 +360,58 @@ def test_a_label_is_read_back_for_the_next_fit_to_carry(store) -> None:
     assert (named.labelled_by, named.decided_at) == ("person", decided)
 
 
+def test_labelled_topics_holds_only_what_a_person_decided(store) -> None:
+    """A model's name is given again by the next fit, so it is not read back.
+
+    A coverage choice on a model-named topic is a person's decision, and is.
+    """
+    store.given_passages(de=1)
+    store.store(
+        fitting(
+            "de",
+            topics=[
+                FittedTopic(0, ["karte"], label="Kartengebühren", labelled_by="person"),
+                FittedTopic(
+                    1, ["überweisung"], label="Überweisungen", labelled_by="azure/gpt"
+                ),
+                FittedTopic(
+                    2,
+                    ["konto"],
+                    label="Kontoführung",
+                    labelled_by="azure/gpt",
+                    include_in_coverage=False,
+                ),
+            ],
+        )
+    )
+
+    held = {one.topic_index for one in store.queue.labelled_topics("de")}
+
+    assert held == {0, 2}, held
+
+
+def test_dominant_passages_reads_the_fit_being_replaced(store) -> None:
+    """Each passage's strongest topic by index, a tie to the lower one."""
+    store.given_passages(de=3, en=1)
+    one, two, three = store.passages["de"]
+    store.store(
+        fitting(
+            "de",
+            weights=[
+                PassageWeight(one, 0, 0.9),
+                PassageWeight(one, 1, 0.1),
+                PassageWeight(two, 0, 0.4),
+                PassageWeight(two, 1, 0.6),
+                PassageWeight(three, 0, 0.5),
+                PassageWeight(three, 1, 0.5),
+            ],
+        )
+    )
+
+    assert store.queue.dominant_passages("de") == {one: 0, two: 1, three: 0}
+    assert store.queue.dominant_passages("en") == {}
+
+
 def test_a_label_is_not_read_back_for_another_language(store) -> None:
     """Each language is fitted on its own vocabulary."""
     store.given_passages(de=1, en=1)

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable, Iterator
+from collections import Counter
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import replace
 from itertools import batched
 from typing import cast
@@ -30,10 +31,6 @@ _FEWEST = 2
 #: The corpus, as the fitter takes it: a callable handing back a fresh walk
 #: over every passage.
 Corpus = Callable[[], Iterable[PassageVocabulary]]
-
-#: Smallest share of terms two topics must have in common before a label is
-#: carried from one to the other.
-_LABEL_MATCH = 0.4
 
 
 class NoVocabulary(Exception):
@@ -311,53 +308,84 @@ class TopicFitter:
         )
 
 
-def carry_labels(
-    fitted: list[FittedTopic], previous: list[FittedTopic]
-) -> list[FittedTopic]:
-    """Re-attaches a previous fit's labels to the topics that replaced them.
+def dominant(weights: Iterable[PassageWeight]) -> dict[int, int]:
+    """Each passage's strongest topic, by index.
 
-    Matched on shared top terms, above a Jaccard overlap of `_LABEL_MATCH`.
-    Each previous label is used at most once, on its best match. The coverage
-    flag and the decision time travel with the label.
+    A tie goes to the lower index, as the store's `DOMINANT` breaks one on
+    the topic id, which a fit numbers in index order.
+    """
+    strongest: dict[int, PassageWeight] = {}
+    for weight in weights:
+        held = strongest.get(weight.passage_id)
+        if held is None or (weight.weight, -weight.topic_index) > (
+            held.weight,
+            -held.topic_index,
+        ):
+            strongest[weight.passage_id] = weight
+    return {passage: one.topic_index for passage, one in strongest.items()}
+
+
+def carry_labels(
+    fitted: list[FittedTopic],
+    previous: list[FittedTopic],
+    *,
+    before: Mapping[int, int],
+    after: Mapping[int, int],
+) -> tuple[list[FittedTopic], int]:
+    """Re-attaches what a person decided about the previous fit's topics.
+
+    An old topic and a new one are the same topic when each holds more than
+    half of the other's dominant passages, counted over the passages both
+    fits hold. Two topics cannot both hold more than half of one, so a
+    decision has at most one match and none is used twice. The coverage
+    choice and the decision time travel; the label and what named it travel
+    only when a person named it, since a model's name is given again to
+    the new topic with the rest of the fit's.
 
     Args:
         fitted: The topics this run produced.
-        previous: The topics a person or an earlier run said something about.
+        previous: The topics a person said something about.
+        before: Each passage's dominant topic index in the fit being
+            replaced.
+        after: Each passage's dominant topic index in this one.
 
     Returns:
-        `fitted`, each topic carrying the label it matched or none.
-
-    ponytail: a greedy pass, so a label can land on the second-best topic when
-    two compete for it. The upgrade is to solve it as an assignment problem.
+        `fitted`, each topic carrying the decision it matched or none, and
+        how many decisions matched no topic.
     """
-    taken: set[int] = set()
+    common = before.keys() & after.keys()
+    old = Counter(before[one] for one in common)
+    new = Counter(after[one] for one in common)
+    shared = Counter((before[one], after[one]) for one in common)
+    same = {
+        now: was
+        for (was, now), held in shared.items()
+        if 2 * held > old[was] and 2 * held > new[now]
+    }
+    decisions = {one.topic_index: one for one in previous}
     carried: list[FittedTopic] = []
     for topic in fitted:
-        best, score = None, 0.0
-        for candidate in previous:
-            if candidate.topic_index in taken:
-                continue
-            overlap = _jaccard(topic.top_terms, candidate.top_terms)
-            if overlap > score:
-                best, score = candidate, overlap
-        if best is None or score < _LABEL_MATCH:
+        was = same.get(topic.topic_index)
+        decision = None if was is None else decisions.pop(was, None)
+        if decision is None:
             carried.append(topic)
             continue
-        taken.add(best.topic_index)
+        person = decision.labelled_by == "person"
         carried.append(
             replace(
                 topic,
-                label=best.label,
-                labelled_by=best.labelled_by,
-                include_in_coverage=best.include_in_coverage,
-                decided_at=best.decided_at,
+                label=decision.label if person else topic.label,
+                labelled_by=decision.labelled_by if person else topic.labelled_by,
+                include_in_coverage=decision.include_in_coverage,
+                decided_at=decision.decided_at,
             )
         )
-    return carried
-
-
-def _jaccard(left: list[str], right: list[str]) -> float:
-    """Shared terms as a share of the terms either list holds, 0 for two empties."""
-    first, second = set(left), set(right)
-    union = first | second
-    return len(first & second) / len(union) if union else 0.0
+    for lost in decisions.values():
+        log.warning(
+            "the decision on topic %r (in coverage: %s; terms %s) matched no "
+            "topic holding most of its passages; set it again",
+            lost.label,
+            lost.include_in_coverage,
+            ", ".join(lost.top_terms[:5]),
+        )
+    return carried, len(decisions)

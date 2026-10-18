@@ -28,12 +28,12 @@ class ExportBucket(Bucket):
 
     Losing the model too is a re-fit and not a disaster: the factorisation
     is seeded with TOPIC_RANDOM_STATE, so the same corpus under the same
-    settings comes back the same, and `TopicRepository.labelled_topics`
-    carries the labels a person wrote and the coverage flags they set
-    across by `topic_index`. What it costs is the fit, and what it risks is
-    a corpus or a setting having moved since - in which case the topics
-    move too, and the old figure was describing something that is gone
-    anyway.
+    settings comes back the same, and `TopicQueue.labelled_topics` carries
+    the labels a person wrote and the coverage flags they set across to the
+    topic holding most of the same passages. What it costs is the fit, and
+    what it risks is a corpus or a setting having moved since - in which
+    case the topics move too, and the old figure was describing something
+    that is gone anyway.
 
     It said it "also holds the encrypted hold-out sets, which are not
     regenerable", and there was neither a hold-out draw nor anything doing

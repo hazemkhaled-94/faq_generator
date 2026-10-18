@@ -216,6 +216,8 @@ class RecordingQueue:
         self.corpora = corpora
         self.texts = texts or {}
         self.previous: dict[str, list[FittedTopic]] = {}
+        #: Each passage's dominant topic index in the fit being replaced.
+        self.dominant: dict[str, dict[int, int]] = {}
         self.stored: list[Fitting] = []
         self.failures: dict[int, str] = {}
         self.pending: list[int] = []
@@ -255,6 +257,10 @@ class RecordingQueue:
     def labelled_topics(self, language: str) -> list[FittedTopic]:
         """What a previous fit or a person left on this language."""
         return self.previous.get(language, [])
+
+    def dominant_passages(self, language: str) -> dict[int, int]:
+        """Each passage's strongest topic in the fit being replaced."""
+        return self.dominant.get(language, {})
 
     def bearing_facts(self, passage_ids: list[int]) -> set[int]:
         """Which of these passages carry a validated fact."""

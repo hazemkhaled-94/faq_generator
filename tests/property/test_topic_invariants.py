@@ -11,7 +11,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from topic_modelling.models import FittedTopic, PassageVocabulary
-from topic_modelling.topics import NoVocabulary, TopicFitter, _jaccard, carry_labels
+from topic_modelling.topics import NoVocabulary, TopicFitter, carry_labels
 
 #: A lemma, as chunking stores one: alphabetic, folded, longer than a letter.
 LEMMA = st.text(alphabet="abcdefgh", min_size=2, max_size=4)
@@ -21,6 +21,25 @@ LEMMAS = st.lists(LEMMA, max_size=8)
 
 #: A topic's signature.
 TERMS = st.lists(LEMMA, min_size=1, max_size=6, unique=True)
+
+#: How many topics the carry properties fit, before and after.
+_TOPICS = 5
+
+#: Each passage's dominant topic in one fit.
+DOMINANT = st.dictionaries(
+    st.integers(min_value=1, max_value=12),
+    st.integers(min_value=0, max_value=_TOPICS - 1),
+    max_size=12,
+)
+
+
+def decided(count: int) -> list[FittedTopic]:
+    """That many topics a person named, `L0` on topic 0 and so on."""
+    return [
+        FittedTopic(index, ["x"], label=f"L{index}", labelled_by="person")
+        for index in range(count)
+    ]
+
 
 #: The settings the properties fit under, small enough to stay quick.
 TUNING = {
@@ -154,69 +173,78 @@ def test_a_seeded_fit_is_reproducible(lemmas) -> None:
 # ── Carrying a label ──────────────────────────────────────────────────────
 
 
-@given(left=TERMS, right=TERMS)
-@settings(deadline=None)
-def test_overlap_is_symmetric_and_bounded(left, right) -> None:
-    """A share of terms, so it reads the same in either direction."""
-    assert _jaccard(left, right) == _jaccard(right, left)
-    assert 0 <= _jaccard(left, right) <= 1
-
-
-@given(terms=TERMS)
-@settings(deadline=None)
-def test_a_signature_wholly_overlaps_itself(terms) -> None:
-    """The one case where a label is certain to be carried."""
-    assert _jaccard(terms, terms) == 1.0
-
-
 @given(
     fitted=st.lists(TERMS, max_size=5),
-    previous=st.lists(st.tuples(TERMS, st.text(min_size=1, max_size=8)), max_size=5),
+    decisions=st.integers(min_value=0, max_value=5),
+    before=DOMINANT,
+    after=DOMINANT,
 )
 @settings(deadline=None)
-def test_carrying_labels_keeps_every_topic_as_it_was(fitted, previous) -> None:
-    """Only the label may move; the index and the terms are the fit's."""
+def test_carrying_labels_keeps_every_topic_as_it_was(
+    fitted, decisions, before, after
+) -> None:
+    """Only the decision may move; the index and the terms are the fit's."""
     topics = [FittedTopic(index, terms) for index, terms in enumerate(fitted)]
-    held = [
-        FittedTopic(index, terms, label=label)
-        for index, (terms, label) in enumerate(previous)
-    ]
 
-    carried = carry_labels(topics, held)
+    carried, _ = carry_labels(topics, decided(decisions), before=before, after=after)
 
     assert len(carried) == len(topics)
-    for before, after in zip(topics, carried, strict=True):
-        assert after.topic_index == before.topic_index
-        assert after.top_terms == before.top_terms
+    for was, now in zip(topics, carried, strict=True):
+        assert now.topic_index == was.topic_index
+        assert now.top_terms == was.top_terms
 
 
 @given(
-    fitted=st.lists(TERMS, max_size=5),
-    previous=st.lists(st.tuples(TERMS, st.text(min_size=1, max_size=8)), max_size=5),
+    fitted=st.integers(min_value=0, max_value=5),
+    decisions=st.integers(min_value=0, max_value=5),
+    before=DOMINANT,
+    after=DOMINANT,
 )
 @settings(deadline=None)
-def test_no_previous_label_is_carried_twice(fitted, previous) -> None:
-    """Two topics may compete for a label; only one may have it."""
-    topics = [FittedTopic(index, terms) for index, terms in enumerate(fitted)]
-    held = [
-        FittedTopic(index, terms, label=label)
-        for index, (terms, label) in enumerate(previous)
-    ]
+def test_every_decision_is_carried_once_or_counted_lost(
+    fitted, decisions, before, after
+) -> None:
+    """None is carried twice, and none goes without being counted."""
+    topics = [FittedTopic(index, ["x"]) for index in range(fitted)]
 
-    carried = [one.label for one in carry_labels(topics, held) if one.label]
+    carried, dropped = carry_labels(
+        topics, decided(decisions), before=before, after=after
+    )
 
-    for label in set(carried):
-        available = sum(1 for one in held if one.label == label)
-        assert carried.count(label) <= available, f"{label} was carried too often"
+    labels = [one.label for one in carried if one.label]
+    assert len(labels) == len(set(labels)), labels
+    assert len(labels) + dropped == decisions, (labels, dropped)
 
 
-@given(fitted=st.lists(TERMS, max_size=5))
+@given(before=DOMINANT, after=DOMINANT)
 @settings(deadline=None)
-def test_a_first_fit_carries_no_label(fitted) -> None:
+def test_a_carried_decision_lands_where_most_of_its_passages_went(
+    before, after
+) -> None:
+    """Most both ways, over the passages both fits hold, and only there."""
+    topics = [FittedTopic(index, ["x"]) for index in range(_TOPICS)]
+
+    carried, _ = carry_labels(topics, decided(_TOPICS), before=before, after=after)
+
+    common = before.keys() & after.keys()
+    for old in range(_TOPICS):
+        for new in range(_TOPICS):
+            mine = {one for one in common if before[one] == old}
+            theirs = {one for one in common if after[one] == new}
+            most = 2 * len(mine & theirs) > max(len(mine), len(theirs))
+            assert (carried[new].label == f"L{old}") == most, (old, new)
+
+
+@given(fitted=st.lists(TERMS, max_size=5), before=DOMINANT, after=DOMINANT)
+@settings(deadline=None)
+def test_a_first_fit_carries_no_label(fitted, before, after) -> None:
     """There is nothing to carry from, and that is not an error."""
     topics = [FittedTopic(index, terms) for index, terms in enumerate(fitted)]
 
-    assert all(one.label is None for one in carry_labels(topics, []))
+    carried, dropped = carry_labels(topics, [], before=before, after=after)
+
+    assert all(one.label is None for one in carried)
+    assert dropped == 0
 
 
 # ── The settings the fitter refuses ───────────────────────────────────────
