@@ -337,12 +337,17 @@ class TopicQueue(StageQueue):
                     func.now(),
                 )
             ).one()
-            # The fitted languages only: one the fit skipped, or fitted to no
-            # topic, keeps its topics.
+            # The fitted languages, and any no passage carries any more: one
+            # the fit skipped, or fitted to no topic, keeps its topics, but a
+            # language whose last document went is never fitted again.
             fitted = [fitting.language for fitting in fittings if fitting.topics]
+            gone = Topic.language.not_in(
+                select(Passage.language).where(Passage.language.is_not(None))
+            )
             session.execute(
                 delete(Topic).where(
-                    (~_OUTSTANDING & Topic.language.in_(fitted)) | (Topic.id == fit_id)
+                    (~_OUTSTANDING & (Topic.language.in_(fitted) | gone))
+                    | (Topic.id == fit_id)
                 )
             )
 

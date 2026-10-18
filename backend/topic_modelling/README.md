@@ -92,9 +92,11 @@ is an outstanding request, and a row that has one is a topic.
    the domain the whole corpus shares — are taken off. `Mixed` is stored as
    no name. `labelled_by` records `person` or the model identifier.
 10. **Replace the fitted languages, in one transaction** for all of them. A
-    language the fit skipped keeps its topics and memberships. Topic ids are
-    read back after the insert rather than from `RETURNING`, whose row order
-    for an `executemany` is not guaranteed, and are keyed by
+    language the fit skipped keeps its topics and memberships; one that no
+    passage carries any more, its last document removed, loses its topics,
+    since no fit would reach them again. Topic ids are read back after the
+    insert rather than from `RETURNING`, whose row order for an
+    `executemany` is not guaranteed, and are keyed by
     `(language, topic_index)`. A passage the fit placed in no topic — the
     vocabulary filter dropped its words, or every weight fell below the
     floor — joins its language's topic whose centroid is nearest, held as

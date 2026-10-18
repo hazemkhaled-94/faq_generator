@@ -318,6 +318,21 @@ def test_a_language_the_fit_skipped_keeps_its_topics(store) -> None:
     assert {row["language"] for row in store.stored_topics()} == {"de", "en"}
 
 
+def test_a_language_with_no_passages_loses_its_topics_on_the_next_fit(store) -> None:
+    """Its last document went, so its topics describe nothing the corpus holds.
+
+    The fit lists the languages the passages carry, so it never fits this one
+    again, and nothing else would take its topics away.
+    """
+    store.given_passages(de=1, en=1)
+    store.store(fitting("de"), fitting("en"))
+    store.delete_passages("en")
+
+    store.store(fitting("de"))
+
+    assert {row["language"] for row in store.stored_topics()} == {"de"}
+
+
 def test_a_fit_that_produced_no_topic_writes_nothing(store) -> None:
     """An empty result is not a model, and must not empty the table."""
     from dataclasses import replace
