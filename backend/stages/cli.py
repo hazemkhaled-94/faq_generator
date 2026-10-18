@@ -63,8 +63,11 @@ _RETRY_REPORT_SECONDS = 600.0
 #: How long a watching worker whose service would not build on new settings
 #: waits before building it again, and the ceiling that doubles towards.
 #: Every attempt is a preflight model call and a build, and a value that
-#: parses but cannot build stands until somebody changes it.
-_REBUILD_SECONDS = 300.0
+#: parses but cannot build stands until somebody changes it. Short at first
+#: all the same: the build that fails most is a worker's first, racing the
+#: object store or the model hub as the stack starts, and that one wants
+#: trying again at the next poll rather than in minutes.
+_REBUILD_SECONDS = 5.0
 _REBUILD_CEILING = 3600.0
 
 
@@ -111,7 +114,9 @@ def reloading(
 
     A build that fails drops the service it would have replaced, so nothing
     is worked on settings nobody asks for any more, and is not tried again
-    on those settings for `_REBUILD_SECONDS`, doubling to `_REBUILD_CEILING`.
+    on those settings for `_REBUILD_SECONDS`, doubling to `_REBUILD_CEILING`
+    while those settings stand. Settings that move start again from
+    `_REBUILD_SECONDS`.
 
     ponytail: the wait ignores a stop request. Nothing is claimed while it
     waits, so the supervisor's kill loses nothing; the upgrade is giving
@@ -140,7 +145,11 @@ def reloading(
             try:
                 service = build_service()
             except Exception:
-                wait = held.get("backoff", _REBUILD_SECONDS)
+                wait = (
+                    held["backoff"]
+                    if held.get("failed") == version
+                    else _REBUILD_SECONDS
+                )
                 held.pop("service", None)
                 held.pop("version", None)
                 held.update(

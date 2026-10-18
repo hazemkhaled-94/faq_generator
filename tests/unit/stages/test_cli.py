@@ -554,14 +554,14 @@ def test_the_back_off_doubles_while_the_build_keeps_failing(monkeypatch) -> None
     worker()
     worker.version, worker.failing = "v2", True
     worker()
-    worker.now += 301
+    worker.now += 5
     worker()
 
-    worker.now += 301
+    worker.now += 5
     worker()
 
     assert worker.builds == 3
-    worker.now += 300
+    worker.now += 5
     worker()
     assert worker.builds == 4
 
@@ -594,3 +594,36 @@ def test_a_failed_build_does_not_keep_working_on_the_old_settings(
     worker()
 
     assert worker.drained == [1, 3]
+
+
+def test_a_first_build_that_fails_once_is_serving_within_a_poll(monkeypatch) -> None:
+    """A worker racing the object store or the model hub as the stack starts.
+
+    Nothing about the settings is wrong, so the retry it was owed before
+    the back-off existed, one poll later, is still the one it gets.
+    """
+    worker = _Rebuilt(monkeypatch)
+    worker.failing = True
+    worker()
+
+    worker.now += 5
+    worker.failing = False
+
+    assert worker() == 1
+
+
+def test_a_new_value_that_fails_backs_off_from_the_start(monkeypatch) -> None:
+    """The back-off is the failing value's, not the worker's."""
+    worker = _Rebuilt(monkeypatch)
+    worker()
+    worker.version, worker.failing = "v2", True
+    for _ in range(5):
+        worker()
+        worker.now += 3600
+
+    worker.version = "v3"
+    worker()
+    worker.now += 5
+    worker.failing = False
+
+    assert worker() == 1

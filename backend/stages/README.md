@@ -250,9 +250,11 @@ sits between drains, where nothing is claimed. Before it builds again it runs
 its `preflight` and waits there as it does at start, so a setting that names a
 model which will not answer claims nothing, and then records its prompts
 again. A build that fails drops the service it would have replaced and claims
-nothing, and is tried again on the same settings after five minutes, doubling
-to an hour, rather than at every poll; settings that move again are built at
-once.
+nothing, and is tried again on the same settings after five seconds, doubling
+to an hour while they stand, rather than at every poll. A worker's first build
+that races the object store or the model hub as the stack starts is therefore
+serving a poll later. Settings that move again are built at once, and a build
+of them that fails backs off from five seconds again.
 
 A `make` target runs one drain on the host, in the foreground, against the
 same database the containers use. It is the same code; there is no second
