@@ -125,9 +125,13 @@ Highest first:
 The files stay required. A variable missing from its file stops the service
 at start-up naming itself, bar a few: a setting whose absence means
 something, such as a stage's own model; `LOG_LEVEL`, which falls back to
-INFO; the two pool sizes, which fall back to 5; and `QUESTIONS_MEETS_SHARE`,
-which reads its shipped value when absent. Deleting an override row is what
-returns a setting to the file.
+INFO; the two pool sizes, which fall back to 5; `QUESTIONS_MEETS_SHARE`,
+which reads its shipped value when absent; and `QUESTIONS_CATEGORIZATIONS`,
+which reads `DEFAULT_CATEGORIZATIONS` in
+[`question_generation/config.py`](../backend/question_generation/config.py)
+when absent, because its value is JSON and no file here can hold one (see
+[A JSON value](#a-json-value)). Deleting an override row is what returns a
+setting to the file, or for those few to what their absence reads.
 
 ## Changing one
 
@@ -156,6 +160,36 @@ cheaper rebuild in its catalogue entry, such as `make extract-revalidate` or
 `make questions-balance`, the page and the API name that command; otherwise
 they say to rerun the stage. `make settings-set` names the same command and
 says to rerun the stage either way.
+
+### A JSON value
+
+`QUESTIONS_CATEGORIZATIONS` holds the DataMorgana paper's categorizations as
+JSON: one categorization object as the paper's Figure 2 prints it, or a list
+of them. Each answerable question is written as one category of each, and the
+question records which. Its line in `configs/env/backend.env` is a comment,
+because bash sources that file and would split a JSON value at its spaces and
+strip its quotes. Unset, it reads `DEFAULT_CATEGORIZATIONS` in code; `[]`
+turns categories off.
+
+Set it on the Questions page's Configuration panel, through the API, or with
+`settings.run` in the environment `make` loads, each of which stores the
+value whole:
+
+```bash
+curl -s -X PATCH localhost:8000/settings/questions \
+  -H 'content-type: application/json' \
+  -d '{"values": {"QUESTIONS_CATEGORIZATIONS": "[]"}}'
+
+PYTHONPATH=backend poetry run python -m settings.run --service questions \
+  --set 'QUESTIONS_CATEGORIZATIONS=[]'
+```
+
+Not `make settings-set`: it splits `SET` at its spaces, so a JSON value
+reaches the store in pieces. A value that is not JSON, misspells a key,
+names a category twice, puts an `=` in a name or has probabilities that do
+not sum to 1 is refused, naming the categorization at fault, before
+anything is stored. `make settings-unset SERVICE=questions
+UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default in code.
 
 A stage's rerun is its `-rerun` target, bar topics, which have none:
 `make topics-discover` fits them again and carries what a person decided
@@ -209,6 +243,7 @@ of them.
 | How many topics, and how they are fitted | `configs/env/backend.env`, "Topic modelling", and [`backend/topic_modelling/`](../backend/topic_modelling/README.md) |
 | What a run costs, and what it writes | `configs/env/backend.env`, "Question generation", and [`backend/question_generation/`](../backend/question_generation/README.md) |
 | When two questions count as one | `configs/env/backend.env`, `QUESTIONS_DUPLICATE_COSINE` and `QUESTIONS_DUPLICATE_SHARED_COSINE` |
+| What each question is written as: the paper's categories | `QUESTIONS_CATEGORIZATIONS`, stored rather than in a file; its default is `DEFAULT_CATEGORIZATIONS` in [`question_generation/config.py`](../backend/question_generation/config.py). See [A JSON value](#a-json-value) |
 | Which of the accepted questions ship | `configs/env/backend.env`, "The balanced release" |
 | Whether the judge runs, and who judges | `.env`; which artefacts and how many, `configs/env/backend.env` |
 | A port, an address, a role name | `configs/env/deployment.env` |

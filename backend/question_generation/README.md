@@ -43,6 +43,25 @@ kinds (a mix with none of them writes the slot answerable). A kind that declares
 passage is dealt one passage whatever its band, so it is never told to span. `GET /questions/plan` reports the configured mixes, shares
 and answer bounds the next run will read.
 
+Each slot is also dealt one **category** of every categorization in
+`QUESTIONS_CATEGORIZATIONS`. Categorizations are how the DataMorgana paper
+(Filice et al., ACL 2025) describes the traffic a benchmark should look like:
+each is a set of mutually exclusive categories, each category a description
+of what a question of it is like and how often it is wanted. The setting
+holds them as the paper's Figure 2 JSON. Unset, it reads the paper's two
+natural phrasings at even odds, a concise question of fewer than 10 words
+and a verbose one of more than 9; `[]` deals none.
+
+The deal draws no random number, like the rest of the plan. Each
+categorization's probabilities become an exact quota of the topic's slots,
+rounded up or down by an offset hashed from the topic, so no category takes
+the spare slot in every topic. The quota is then put in an order of its own,
+hashed from the topic id and the categorization, so two categorizations meet
+in every pairing and a topic that runs out of material early has drawn a
+fair sample of the quota rather than its first category. A rerun of a topic
+is dealt the same categories, and a slot swapped to another kind keeps the
+ones it was dealt.
+
 ### Step 2 — Deal the facts
 
 [`selection.py`](selection.py). `QUESTIONS_FACT_SAMPLE` sets how many facts
@@ -129,6 +148,30 @@ scored against, and `answer_explanation` beside it.
 
 Which facts a question cites is the **writer's** answer, not the sample's. A
 sample wider than one passage also carries an instruction to use both halves.
+
+The categories an answerable slot was dealt go into its user message, between
+the passages and the request, one description per line:
+
+```text
+THE QUESTION - besides every rule you were given, it must be:
+- phrased in the way people typically speak, ... less than 10 words.
+Where one of these conflicts with a rule you were given, the rule wins.
+```
+
+The rules win because a category is an operator's text and the rules are
+what keeps a question usable: fewer than ten words does not license dropping
+the subject a searcher has to name. A description is sent as written, and a
+placeholder typed into one fills nothing. An unanswerable slot is dealt
+categories and told none, because the paper asks only questions that have an
+answer, and a follow-up is told none either. A slot asked for as a compound
+question is told none too, because its reply is one question joining two
+asks, which a category written for one ask contradicts; one written single
+for want of a partner is told its categories. A slot told none is sent the
+message prompt version 16 sent, byte for byte. A retry is sent the same block
+as the draft it rewrites. The question records the categories it was told in
+`questions.categories`, as categorization, category and description, so a
+categorization edited later does not rewrite what an earlier question was
+asked to be.
 
 A draft a gate refused for how it was written — two questions welded
 together, its source named, an answer of the wrong shape — is written again
@@ -769,6 +812,12 @@ One workbook, four sheets:
 | Assessment | Judgement of a question. Empty unless the evaluation phase has run |
 | Summary | The counts, off the same quality report the page shows |
 
+The Questions sheet's **Categories** column, after Language, names the
+categories each question's writer was told, as `categorization=category`
+(`Phrasing=concise-and-natural`), comma-joined. It is blank for a question
+told none: an unanswerable one, a compound one, a follow-up, and every
+question written before prompt version 17.
+
 The same on `GET /questions/export` and behind **Build a workbook** on the
 Questions page, built when asked for rather than on every render.
 
@@ -846,7 +895,7 @@ passages it is strongest in, and those passages.
 
 | Table | Holds |
 |---|---|
-| `questions` | the question, its two answers, its type, form and cognitive level, the three scopes and the band derived from them, the planned band, the thread columns, the embedding, the release id, the gate that stopped it, the models that wrote it, verified it and judged its phrasing, and the verdict a person reached |
+| `questions` | the question, its two answers, its type, form and cognitive level, the three scopes and the band derived from them, the planned band, the categories its writer was told, the thread columns, the embedding, the release id, the gate that stopped it, the models that wrote it, verified it and judged its phrasing, and the verdict a person reached |
 | `question_facts` | which facts each question cites. A trigger deletes a question once its last citation is gone, and rejects one that loses a citation and keeps another |
 
 **Serves:** `/questions`, `/questions/{id}`, `/questions/plan`,
@@ -883,6 +932,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
+| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable question is written as one category of each. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=` or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings at even odds from code, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Concise and verbose, 0.5 each** |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |
@@ -926,7 +976,8 @@ poetry run pytest tests/integration/database/test_release.py
 
 | File | Covers |
 |---|---|
-| [`test_planning.py`](../../tests/unit/questions/test_planning.py) | What a topic is planned to be asked |
+| [`test_planning.py`](../../tests/unit/questions/test_planning.py) | What a topic is planned to be asked, and the categories each slot is dealt |
+| [`test_categorizations.py`](../../tests/unit/questions/test_categorizations.py) | What `QUESTIONS_CATEGORIZATIONS` reads, and every value it refuses |
 | [`test_selection.py`](../../tests/unit/questions/test_selection.py) | What the deal offers the writer, and how wide it is |
 | [`test_generation.py`](../../tests/unit/questions/test_generation.py) | What the writer asks the model, and what it makes of the answer |
 | [`test_verification.py`](../../tests/unit/questions/test_verification.py) | Every gate, and the order they are applied in |
