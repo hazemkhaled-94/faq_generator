@@ -12,6 +12,7 @@ running deployment.
 from __future__ import annotations
 
 import pytest
+from pages import Answers
 
 from lib.lineage import elsewhere
 
@@ -114,3 +115,20 @@ def test_a_tool_this_deployment_does_not_publish_is_left_out() -> None:
     """An unfollowable link is worse than none, as with PHOENIX_BASE_URL."""
     assert elsewhere(chain(), {}) == []
     assert len(elsewhere(chain(), {"argilla": "http://localhost:6900"})) == 1
+
+
+def test_an_unanswered_service_list_is_not_remembered(open_view) -> None:
+    """The list is cached for ten minutes, and an unreachable API's was too.
+
+    So a page opened while the API was restarting drew no link into any
+    tool for the next ten minutes.
+    """
+    listed: list[dict] = []
+    health = Answers(services=lambda: list(listed))
+    traced = Answers(lineage=lambda kind, one: chain(kind, label="a question"))
+    opened = open_view("questions", lineage_api=traced, health_api=health).select()
+    assert "Where to look next" not in opened.text()
+
+    listed.extend({"name": name, "url": url} for name, url in PUBLISHED.items())
+
+    assert "Where to look next" in opened.rerun().text()

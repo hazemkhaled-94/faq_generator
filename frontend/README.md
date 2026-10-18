@@ -86,8 +86,9 @@ The addresses come from `GET /services`, which serves `SERVICE_URLS` —
 compose builds it out of the published ports, and that is the only place
 both halves of "grafana serves 3000 and is published on 3001" are written
 down. Cached for ten minutes, because that route opens a socket to every
-service to answer. A tool this deployment does not publish gets no line
-rather than an address nobody can open.
+service to answer; the empty list an unreachable API answers is not cached.
+A tool this deployment does not publish gets no line rather than an address
+nobody can open.
 
 Behind a selection and collapsed, like everything else not needed on
 arrival.

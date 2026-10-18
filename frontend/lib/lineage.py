@@ -34,6 +34,10 @@ STEPS = {
 _RUN_DASHBOARD = "d/qa-pipeline-runs/?var-run="
 
 
+class _Unanswered(Exception):
+    """The service list could not be read: raised, so it is not cached."""
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def addresses() -> dict[str, str]:
     """Where a browser opens each tool, by its compose service name.
@@ -43,13 +47,14 @@ def addresses() -> dict[str, str]:
     written down, so it cannot be derived from anything here.
 
     Cached, because it is a constant for the life of a deployment and the
-    route behind it opens a socket to every service to answer.
+    route behind it opens a socket to every service to answer. Not when it
+    is empty, which is what an unreachable API answers: Streamlit caches no
+    raise, so the next run asks again.
     """
-    return {
-        one["name"]: one["url"]
-        for one in backend.health_api().services()
-        if one.get("url")
-    }
+    services = backend.health_api().services()
+    if not services:
+        raise _Unanswered
+    return {one["name"]: one["url"] for one in services if one.get("url")}
 
 
 def _phoenix(artifact: dict) -> str:
@@ -190,7 +195,10 @@ def elsewhere(chain: dict, at: dict[str, str]) -> list[str]:
 
 def _elsewhere(chain: dict) -> None:
     """Draws those links, if this deployment publishes anything to link to."""
-    lines = elsewhere(chain, addresses())
+    try:
+        lines = elsewhere(chain, addresses())
+    except _Unanswered:
+        return
     if not lines:
         return
     st.markdown("**Where to look next**")
