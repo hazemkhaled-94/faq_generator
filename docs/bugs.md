@@ -905,6 +905,19 @@ counts: see
 [The comparison gate split at the wrong seam](#the-comparison-gate-split-at-the-wrong-seam).
 The ceiling named here still holds.
 
+**The enumeration gate reads two properties of one thing as two kinds.**
+`enumerates` in [`gates.py`](../backend/question_generation/gates.py)
+counted noun phrases only, so a set of kinds written as adjectives,
+`politische, religiöse und persönliche`, was refused as one thing. Since
+v0.3.4 a coordination with no noun phrase is a set where neither a conjunct
+nor what it is joined to is a verb, so `complete and signed` and `geöffnet
+oder benutzt`, two things said of one document or article, are still
+refused. On the v0.3.0 rows this passes 2 wrong `wrong_type` refusals, both
+usable, and loses no right one; whether the later gates keep them needs a
+phrasing-judge call the run never made. The parse cannot tell a kind from a
+property, so `schnell und kostenlos` passes as two items. The comparison
+half of the same fix is held until a model-backed replay measures it.
+
 ## Known trade-offs
 
 Not defects: each is a rule doing what it is for, at a cost in sound rows.

@@ -3254,6 +3254,36 @@ def test_an_enumeration_answering_with_a_set_passes() -> None:
     assert enumerates("by phone, through the web form and by email", "en")
 
 
+@pytest.mark.parametrize(
+    ("answer", "language"),
+    [
+        ("political, religious and personal", "en"),
+        ("domestic and international", "en"),
+        ("politische, religiöse und persönliche", "de"),
+        ("religiös und persönlich", "de"),
+    ],
+)
+def test_an_enumeration_of_adjectives_is_a_set(answer, language) -> None:
+    """Coordinated kinds hold no noun phrase, and are a set all the same."""
+    assert enumerates(answer, language)
+
+
+@pytest.mark.parametrize(
+    ("answer", "language"),
+    [
+        ("complete and signed", "en"),
+        ("signed and complete", "en"),
+        ("opened and used", "en"),
+        ("vollständig und unterschrieben", "de"),
+        ("geöffnet oder benutzt", "de"),
+        ("gilt weltweit und schützt den Kunden", "de"),
+    ],
+)
+def test_coordinated_predicates_are_not_a_set(answer, language) -> None:
+    """`complete and signed` says two things of one document and names none."""
+    assert not enumerates(answer, language)
+
+
 # ── A follow-up, read on its facts rather than its words ───────────────────
 
 

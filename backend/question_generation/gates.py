@@ -1410,6 +1410,13 @@ def _reads_as(token: Token, step: str) -> bool:
 #: nothing enforced it.
 _ENUMERATED = 2
 
+#: How a conjunct hangs off the item before it, in Universal Dependencies
+#: and in TIGER, where it hangs off the conjunction (`cd`) instead.
+_CONJUNCTS = frozenset({"conj", "cj"})
+
+#: The parts of speech that say something of a thing rather than name one.
+_PREDICATES = frozenset({"VERB", "AUX"})
+
 
 def enumerates(answer: str, language: str | None) -> bool:
     """Whether an `enumeration` answer holds a set rather than one thing.
@@ -1425,6 +1432,15 @@ def enumerates(answer: str, language: str | None) -> bool:
     `Junioren-, Senioren-, Behinderten- und Breitenfussball` is one noun
     phrase and four kinds of football; `short- and long-term savings
     accounts` is two kinds of account.
+
+    A coordination with no noun phrase is a set too, `political, religious
+    and personal`, where neither a conjunct nor what it is joined to is a
+    verb. `complete and signed` and `geöffnet oder benutzt` say two things
+    of one document or article and name none, and a participle is tagged a
+    verb in both parsers.
+
+    ponytail: two adjectives of one thing, `schnell und kostenlos`, read as
+    two kinds, because the parse cannot tell a kind from a property.
     """
     read = list(pipeline(language)(answer))
     suspended = sum(
@@ -1434,7 +1450,17 @@ def enumerates(answer: str, language: str | None) -> bool:
         and token.text.endswith("-")
         and (following.text == "," or following.pos_ == "CCONJ")
     )
-    return len(phrases(answer, language)) + suspended >= _ENUMERATED
+    if len(phrases(answer, language)) + suspended >= _ENUMERATED:
+        return True
+    return 1 + sum(map(_coordinated_item, read)) >= _ENUMERATED
+
+
+def _coordinated_item(token: Token) -> bool:
+    """Whether a token is a conjunct naming one more item, not saying one more thing."""
+    if token.dep_ not in _CONJUNCTS:
+        return False
+    joined = token.head.head if token.head.dep_ == "cd" else token.head
+    return token.pos_ not in _PREDICATES and joined.pos_ not in _PREDICATES
 
 
 #: The least share of an answer's content lemmas the question did not carry.
