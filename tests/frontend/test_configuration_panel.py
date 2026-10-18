@@ -318,3 +318,18 @@ def test_an_untouched_decimal_goes_back_as_the_api_wrote_it(open_view) -> None:
     view.save_configuration()
 
     assert configured.calls("change_settings")[0][1][1]["A_SHARE"] == "0.30"
+
+
+def test_a_three_place_decimal_is_drawn_with_three_places(open_view) -> None:
+    """Drawn with two, 0.985 reads as 0.98 and a step lands on 0.99."""
+    finer = [
+        {**one, "value": "0.985", "default": "0.985"}
+        if one["name"] == "A_SHARE"
+        else one
+        for one in SETTINGS["settings"]
+    ]
+    view = open_view("topics", configured=Answers(**settings(settings=finer)))
+
+    box = view.numbers()["A_SHARE"]
+    assert box.proto.format == "%0.3f"
+    assert box.step == pytest.approx(0.001)

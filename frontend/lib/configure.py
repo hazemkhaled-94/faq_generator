@@ -172,10 +172,12 @@ def _control(service: str, setting: dict, version: str) -> str | None:
         )
 
     if setting["kind"] == "decimal":
+        places = max(2, len((value or "").partition(".")[2]))
         drawn = st.number_input(
             label,
             value=float(value or 0),
-            step=0.01,
+            step=10.0**-places,
+            format=f"%0.{places}f",
             min_value=_bound(setting["low"], float),
             max_value=_bound(setting["high"], float),
             key=key,
