@@ -9,6 +9,27 @@ import requests
 
 log = logging.getLogger(__name__)
 
+
+def refusal(
+    error: requests.exceptions.RequestException, fallback: str | None = None
+) -> str:
+    """Reads the sentence the API refused a request with.
+
+    Every deliberate refusal carries `{"code", "detail"}`. An HTTPError
+    stringifies as its status line alone, and a network failure or a 500
+    carries no such body: those read as `fallback`, or as the error itself.
+    """
+    otherwise = str(error) if fallback is None else fallback
+    response = getattr(error, "response", None)
+    if response is None:
+        return otherwise
+    try:
+        body = response.json()
+    except ValueError:
+        return otherwise
+    return body.get("detail") or otherwise
+
+
 #: How long each verb waits, by what it costs the backend. A read is a query;
 #: a delete walks three stores; a post carries a file.
 _TIMEOUTS = {"GET": 10.0, "PATCH": 30.0, "PUT": 30.0, "DELETE": 60.0, "POST": 60.0}

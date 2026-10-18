@@ -27,9 +27,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
+import requests
 import streamlit as st
 
 from lib import page
+from lib.backend.base import refusal
 
 #: How often the controls redraw while a worker is on a queue. Long enough
 #: not to hammer the API, short enough that a long run looks alive.
@@ -322,17 +324,21 @@ def _act(
     to one value. They are reported as one line: somebody who ticked two
     kinds asked for one thing.
     """
-    page.acted()
-    if scopes is None:
-        answer = client.stage_action(stage, action, scope)
-        st.toast(answer.get("detail") or f"{stage}: {action}")
-        st.rerun(scope="app")
+    try:
+        if scopes is None:
+            answer = client.stage_action(stage, action, scope)
+            said = answer.get("detail") or f"{stage}: {action}"
+        else:
+            moved = sum(
+                client.stage_action(stage, action, one).get("rows", 0) for one in scopes
+            )
+            named = ", ".join(value for _, value in scopes)
+            said = f"{stage}: {action} moved {moved:,} row(s) for {named}"
+    except requests.exceptions.RequestException as exc:
+        st.error(refusal(exc))
         return
-    moved = sum(
-        client.stage_action(stage, action, one).get("rows", 0) for one in scopes
-    )
-    named = ", ".join(value for _, value in scopes)
-    st.toast(f"{stage}: {action} moved {moved:,} row(s) for {named}")
+    page.acted()
+    st.toast(said)
     st.rerun(scope="app")
 
 

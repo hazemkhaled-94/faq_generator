@@ -10,9 +10,11 @@ they arrive with. See `lib/pipeline.py`.
 
 from __future__ import annotations
 
+import requests
 import streamlit as st
 
 from lib import backend, catalog, configure, explain, lineage, page, pipeline, stage
+from lib.backend.base import refusal
 
 #: The one stage this page runs. Chunking is the Passages page's and
 #: extraction is the Facts page's; neither can be reached from here.
@@ -301,7 +303,11 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
     )
     if chosen is None:
         return
-    removed = client.delete(sha, derived_only=chosen == "derived")
+    try:
+        removed = client.delete(sha, derived_only=chosen == "derived")
+    except requests.exceptions.RequestException as exc:
+        st.error(refusal(exc))
+        return
     page.acted()
     said = [f"Removed {removed['passages']} passage(s)."]
     if removed["document"]:

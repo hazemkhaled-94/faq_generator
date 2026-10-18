@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import requests
 import streamlit as st
 
 from lib import backend, catalog, configure, explain, lineage, page, stage
+from lib.backend.base import refusal
 
 #: The one stage this page runs. A fit is all-or-nothing over one
 #: vocabulary, so it has no per-topic form.
@@ -431,10 +433,14 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             if fitting
             else "Records the label and the coverage choice.",
         ):
-            client.describe_topic(chosen["id"], label.strip() or None, included)
-            page.acted()
-            st.toast(f"Topic {chosen['language']} #{chosen['topic_index']} saved.")
-            st.rerun()
+            try:
+                client.describe_topic(chosen["id"], label.strip() or None, included)
+            except requests.exceptions.RequestException as exc:
+                st.error(refusal(exc))
+            else:
+                page.acted()
+                st.toast(f"Topic {chosen['language']} #{chosen['topic_index']} saved.")
+                st.rerun()
 
         with st.expander("How this was produced"):
             lineage.panel("topic", chosen["id"])
@@ -462,7 +468,11 @@ def _removal(client, has_topics: bool) -> None:
     )
     if chosen is None:
         return
-    removed = client.delete_topics()
+    try:
+        removed = client.delete_topics()
+    except requests.exceptions.RequestException as exc:
+        st.error(refusal(exc))
+        return
     page.acted()
     st.toast(
         f"Removed {removed['topics']} topic(s), "

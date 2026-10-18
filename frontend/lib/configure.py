@@ -12,13 +12,13 @@ Collapsed by default.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import requests
 import streamlit as st
 
 from lib import backend
+from lib.backend.base import refusal
 
 #: How a flag is written back. Everything goes to the API as text.
 _TRUE, _FALSE = "true", "false"
@@ -28,21 +28,6 @@ _SAID = "settings-said-{service}"
 
 #: The version the panel was drawn from, which a save is sent against.
 _DRAWN = "settings-drawn-{service}"
-
-
-def refusal(error: requests.exceptions.RequestException) -> str:
-    """Reads the sentence the API refused a change with.
-
-    An HTTPError stringifies as its status line alone.
-    """
-    response = getattr(error, "response", None)
-    if response is None:
-        return str(error)
-    try:
-        body = response.json()
-    except (ValueError, json.JSONDecodeError):
-        return str(error)
-    return body.get("detail") or str(error)
 
 
 def panel(service: str) -> None:

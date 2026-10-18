@@ -6,6 +6,7 @@ import requests
 import streamlit as st
 
 from lib import backend, configure, page
+from lib.backend.base import refusal
 from lib.backend.upload import UploadApi
 
 
@@ -59,8 +60,7 @@ def _report(filename: str, client: UploadApi, data: bytes) -> None:
         outcome = client.add_document(filename, data)["outcome"]
     except requests.exceptions.RequestException as exc:
         # The reason for a 413 or 415 is in the response body.
-        body = getattr(exc.response, "text", None)
-        st.error(f"{filename}: {body or exc}")
+        st.error(f"{filename}: {refusal(exc)}")
         return
 
     if outcome == "stored":

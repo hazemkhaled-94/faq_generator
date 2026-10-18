@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import requests
 
+from lib.backend.base import refusal
 from lib.backend.catalog import CatalogApi
 from lib.backend.health import HealthApi
 from lib.backend.pipeline import PipelineApi
@@ -91,3 +92,23 @@ def test_an_error_status_is_raised_rather_than_read() -> None:
         SettingsApi("http://api", session).settings("questions")  # type: ignore[arg-type]
 
     assert session.sent == [("GET", "http://api/settings/questions", 10.0)]
+
+
+def test_one_reader_reads_every_refusal() -> None:
+    """The API's own sentence where it wrote one, and the failure where not.
+
+    An HTTPError stringifies as its status line, which names nothing a
+    person can act on; a timeout has no body to read a sentence from.
+    """
+
+    class Refused:
+        @staticmethod
+        def json() -> dict:
+            return {"code": "unknown_topic", "detail": "no topic 17"}
+
+    refused = requests.exceptions.HTTPError("404 Client Error")
+    refused.response = Refused()  # type: ignore[assignment]
+    late = requests.exceptions.ReadTimeout("read timed out")
+
+    assert refusal(refused) == "no topic 17"
+    assert refusal(late) == "read timed out"

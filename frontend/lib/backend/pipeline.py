@@ -15,7 +15,7 @@ import logging
 
 import requests
 
-from lib.backend.base import Endpoint
+from lib.backend.base import Endpoint, refusal
 
 log = logging.getLogger(__name__)
 
@@ -83,10 +83,6 @@ def _reason(exc: requests.exceptions.RequestException, fallback: str) -> str:
     Every deliberate refusal carries `{"code", "detail"}`; a network failure
     carries no body at all, and neither does a 500.
     """
-    response = getattr(exc, "response", None)
-    if response is None:
+    if getattr(exc, "response", None) is None:
         return f"{fallback} The backend is not answering."
-    try:
-        return response.json().get("detail") or fallback
-    except ValueError:
-        return fallback
+    return refusal(exc, fallback)

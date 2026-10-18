@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 
+import requests
 import streamlit as st
 
 from lib import backend, catalog, config, configure, explain, lineage, page, stage
+from lib.backend.base import refusal
 
 #: What an .xlsx is on the wire, which the download button labels the file
 #: with so a browser hands it to a spreadsheet rather than saving it blind.
@@ -932,10 +934,7 @@ def _verdict(client, question: dict) -> None:
         if not accepted
         else "Already accepted.",
     ):
-        client.decide_question(question["id"], "accepted")
-        st.session_state["questions-decided"] = True
-        st.toast(f"Question {question['id']} accepted.")
-        st.rerun()
+        _decide(client, question["id"], "accepted")
 
     if row.button(
         "Reject",
@@ -946,10 +945,19 @@ def _verdict(client, question: dict) -> None:
         if not rejected
         else "Already rejected.",
     ):
-        client.decide_question(question["id"], "rejected")
-        st.session_state["questions-decided"] = True
-        st.toast(f"Question {question['id']} rejected.")
-        st.rerun()
+        _decide(client, question["id"], "rejected")
+
+
+def _decide(client, question_id: int, verdict: str) -> None:
+    """Records one verdict, or says in the API's words why it was refused."""
+    try:
+        client.decide_question(question_id, verdict)
+    except requests.exceptions.RequestException as exc:
+        st.error(refusal(exc))
+        return
+    st.session_state["questions-decided"] = True
+    st.toast(f"Question {question_id} {verdict}.")
+    st.rerun()
 
 
 page.render(view)

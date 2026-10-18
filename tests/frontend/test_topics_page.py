@@ -8,6 +8,7 @@ to run or delete one topic at a time, and a name a person gives one.
 from __future__ import annotations
 
 import pytest
+import requests
 from pages import FIT, LANGUAGE_FIT, TOPIC, Answers, answers, changed, status
 
 pytestmark = pytest.mark.frontend
@@ -254,6 +255,35 @@ def test_taking_a_topic_out_of_coverage_sends_the_choice(open_view) -> None:
     page.uncheck(f"topics-coverage-{TOPIC['id']}").press("Save")
 
     assert ("describe_topic", (TOPIC["id"], None, False), {}) in client.asked
+
+
+def test_a_refused_save_is_shown_and_the_page_stays(open_view) -> None:
+    """A topic id a refit replaced is a 404, and it replaced the whole page.
+
+    With "Failed to load: 404 Client Error", which names neither the topic
+    nor what to do, and took the lineage fold and the delete box with it.
+    """
+
+    class Refused:
+        """The body every deliberate refusal carries."""
+
+        @staticmethod
+        def json() -> dict:
+            return {"code": "unknown_topic", "detail": "no topic 17"}
+
+    refused = requests.exceptions.HTTPError("404 Client Error")
+    refused.response = Refused()  # type: ignore[assignment]
+    client = Answers(
+        **answers(
+            stage_status=lambda *a, **k: status(modelled=1), describe_topic=refused
+        )
+    )
+
+    after = open_view("topics", client).select(0).press("Save")
+
+    assert "no topic 17" in after.errors()
+    assert "How this was produced" in after.folds()
+    assert after.button("Delete all topics") is not None
 
 
 @pytest.mark.parametrize("queued", ({"pending": 1}, {"in_progress": 1}))
