@@ -263,8 +263,10 @@ class AssessmentMetric(Base):
     metric: Mapped[str] = mapped_column(
         Text,
         comment="hallucination | relevance | qa_correctness | summarization | "
-        "toxicity | conciseness | refusal. Spelled as arize-phoenix-evals "
-        "spells it.",
+        "toxicity | conciseness | refusal, spelled as arize-phoenix-evals "
+        "spells them; or rubric_fluency | rubric_clarity | rubric_conciseness | "
+        "rubric_relevance | rubric_consistency | rubric_answerability, the "
+        "DataMorgana paper's six scores of a question, labelled 1 to 3.",
     )
     label: Mapped[str] = mapped_column(
         Text,

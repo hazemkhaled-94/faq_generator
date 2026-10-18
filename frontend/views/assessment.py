@@ -127,6 +127,53 @@ _METRICS = {
         "non-toxic",
         "The pipeline wrote nothing offensive of its own.",
     ),
+    # The DataMorgana paper's six, each scored 1 to 3 in one call against
+    # the question's passages, in the paper's own words. Only a 3 approves.
+    "rubric_fluency": (
+        "Fluency (paper)",
+        "3",
+        (
+            "Whether the question is wellformed, grammatically correct, coherent, "
+            "and fluent enough to be understood."
+        ),
+    ),
+    "rubric_clarity": (
+        "Clarity (paper)",
+        "3",
+        (
+            "Whether the question is expressed clearly and unambiguously, avoiding "
+            "excessive generality and ambiguity."
+        ),
+    ),
+    "rubric_conciseness": (
+        "Conciseness (paper)",
+        "3",
+        (
+            "Whether the question is concise and not abnormally verbose with "
+            "redundant modifiers."
+        ),
+    ),
+    "rubric_relevance": (
+        "Relevance (paper)",
+        "3",
+        (
+            "Whether the question is relevant to the given passage and asks for key "
+            "information from the passage."
+        ),
+    ),
+    "rubric_consistency": (
+        "Consistency (paper)",
+        "3",
+        (
+            "Whether the information presented in the question is consistent with "
+            "the passage and without any contradictions or hallucinations."
+        ),
+    ),
+    "rubric_answerability": (
+        "Answerability (paper)",
+        "3",
+        "Whether the question can be distinctly answered based on the passage.",
+    ),
 }
 
 #: What Redo deletes, said before it acts.

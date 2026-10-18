@@ -257,6 +257,14 @@ class JudgeMetric(StrEnum):
     The last three were added after the first four. A row judged before
     them carries only the metrics its template version asked for, which is
     what `assessments.prompt_version` is for.
+
+    The six `rubric_` names are not phoenix-evals'. They are the DataMorgana
+    paper's judge (Filice et al., 2025, Figures 5-7), which scores a question
+    1 to 3 on each in one call against the passages it was written from. The
+    prefix is because the paper's relevance and conciseness are not the two
+    above: those ask whether the facts bear on the question and whether the
+    ANSWER is padded, the paper's whether the question asks for what matters
+    in its passage and whether the QUESTION is.
     """
 
     HALLUCINATION = "hallucination"
@@ -266,6 +274,12 @@ class JudgeMetric(StrEnum):
     TOXICITY = "toxicity"
     CONCISENESS = "conciseness"
     REFUSAL = "refusal"
+    RUBRIC_FLUENCY = "rubric_fluency"
+    RUBRIC_CLARITY = "rubric_clarity"
+    RUBRIC_CONCISENESS = "rubric_conciseness"
+    RUBRIC_RELEVANCE = "rubric_relevance"
+    RUBRIC_CONSISTENCY = "rubric_consistency"
+    RUBRIC_ANSWERABILITY = "rubric_answerability"
 
 
 class Rejection(StrEnum):

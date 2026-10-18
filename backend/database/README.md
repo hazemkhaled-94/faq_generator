@@ -132,12 +132,16 @@ nothing downstream reports the difference.
 
 Every revision is reversible, and
 `tests/integration/database/test_migration_rollback.py` applies and takes
-back out every one of them on a real PostgreSQL. Two lose information:
+back out every one of them on a real PostgreSQL. Four lose information:
 `20261019_2300_question_kind.py` backfills `questions.kind` from
 `passage_scope`, so taking it out and putting it back turns every compound
-question into `needs_both`, and `20261020_0100_a_bridge_keeps_its_reading.py`
+question into `needs_both`; `20261020_0100_a_bridge_keeps_its_reading.py`
 holds the relation and probe question of each bridge, which taking it out
-drops.
+drops; `20261020_1200_a_thread_leaves_the_release_whole.py` takes the
+follow-ups of a question that is not accepted out of the release, which
+taking it out does not put back; and
+`20261021_0100_the_papers_judge_scores_a_question.py` deletes the paper's
+`rubric_` scores on the way out, because the narrower CHECK refuses them.
 
 A revision's docstring says **why**; the diff says what.
 
@@ -146,7 +150,7 @@ head these carry ([`revision.py`](qa_generator/revision.py)): until
 `make schema` has applied it, `/status` is not green and a queue claims
 nothing.
 
-The twenty revisions, oldest first:
+The twenty-two revisions, oldest first:
 
 | File | Changes |
 |---|---|
@@ -170,6 +174,8 @@ The twenty revisions, oldest first:
 | `20261018_1200_passages_comment_says_what_a_rechunk_keeps.py` | Comment only: the `passages` table says a re-chunk keeps every passage it cuts again unchanged |
 | `20261019_2300_question_kind.py` | Adds `questions.kind` (single, needs_both, compound, false_premise), NOT NULL with a CHECK, backfilled from `passage_scope` in the table and in archived question payloads |
 | `20261020_0100_a_bridge_keeps_its_reading.py` | Adds `facts.bridge`, a nullable JSONB column holding a bridge's `{relation, question, answer}`, NULL on every other fact and on every bridge already stored, with a CHECK that only a bridge carries it |
+| `20261020_1200_a_thread_leaves_the_release_whole.py` | A trigger takes every follow-up below a question that stops being accepted out of the release, and the upgrade does the same for the threads already split |
+| `20261021_0100_the_papers_judge_scores_a_question.py` | `assessment_metrics.metric` also accepts the DataMorgana paper's six question scores, `rubric_fluency` to `rubric_answerability`, in its CHECK and its comment |
 
 ## Column comments
 

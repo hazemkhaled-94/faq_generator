@@ -121,6 +121,12 @@ def test_every_metric_is_offered_as_a_filter(page) -> None:
         "refusal",
         "conciseness",
         "toxicity",
+        "rubric_fluency",
+        "rubric_clarity",
+        "rubric_conciseness",
+        "rubric_relevance",
+        "rubric_consistency",
+        "rubric_answerability",
     ]
 
 

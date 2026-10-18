@@ -40,6 +40,12 @@ Metric = Literal[
     "toxicity",
     "conciseness",
     "refusal",
+    "rubric_fluency",
+    "rubric_clarity",
+    "rubric_conciseness",
+    "rubric_relevance",
+    "rubric_consistency",
+    "rubric_answerability",
 ]
 
 #: Where a search looks. The artefact is "which fact was this about";

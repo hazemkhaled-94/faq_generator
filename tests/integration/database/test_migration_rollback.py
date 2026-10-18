@@ -39,6 +39,7 @@ KEPT = "8f759a3a3848"
 KINDED = "a41c9e3d7b52"
 BRIDGED = "c3a9e1470b5d"
 THREADED = "d5b2f8a60c14"
+JUDGED = "733a3eadef7c"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -60,6 +61,7 @@ LATER = (
     KINDED,
     BRIDGED,
     THREADED,
+    JUDGED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
@@ -648,3 +650,46 @@ def test_a_thread_already_split_is_whole_after_the_revision(spare: str) -> None:
     command.upgrade(config, THREADED)
 
     assert sql(spare, released) == [(16,), (17,)]
+
+
+def test_the_papers_scores_are_kept_and_taken_back_out(spare: str) -> None:
+    """A rubric row lands at head; stepping down deletes it and keeps the rest.
+
+    The narrower CHECK refuses the six `rubric_` names, so the downgrade
+    deletes their rows before it puts the CHECK back, and every other metric
+    row of the same assessment stays.
+    """
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+
+    config = alembic(spare)
+    command.upgrade(config, "head")
+    sql(
+        spare,
+        "INSERT INTO questions (id, question_text, answerable, language) "
+        "VALUES (1, 'One?', true, 'en')",
+        "INSERT INTO assessments (id, artifact_kind, question_id) "
+        "VALUES (1, 'question', 1)",
+        "INSERT INTO assessment_metrics (assessment_id, metric, label, score, "
+        "approved) VALUES (1, 'relevance', 'relevant', 1.0, true), "
+        "(1, 'rubric_fluency', '3', 1.0, true), "
+        "(1, 'rubric_answerability', '2', 0.5, false)",
+    )
+    held = "SELECT metric FROM assessment_metrics ORDER BY metric"
+
+    command.downgrade(config, THREADED)
+    assert sql(spare, held) == [("relevance",)]
+    with pytest.raises(IntegrityError, match="assessment_metrics_metric_valid"):
+        sql(
+            spare,
+            "INSERT INTO assessment_metrics (assessment_id, metric, label, score, "
+            "approved) VALUES (1, 'rubric_clarity', '3', 1.0, true)",
+        )
+
+    command.upgrade(config, JUDGED)
+    sql(
+        spare,
+        "INSERT INTO assessment_metrics (assessment_id, metric, label, score, "
+        "approved) VALUES (1, 'rubric_clarity', '3', 1.0, true)",
+    )
+    assert sql(spare, held) == [("relevance",), ("rubric_clarity",)]
