@@ -504,6 +504,12 @@ premise** (a closed list or an exception included), or cover its case with a
 writes the reply a careful chatbot would give before its verdict, because a
 model asked only to classify leans to `silent`, and its quote has to be
 words the passages it was shown carry: one from memory reads as `silent`.
+A quote stitched from two items of a list, two cells of a row or two
+passages is looked for piece by piece, split at line breaks, ellipses, cell
+bars, list markers and sentence ends. Each piece has to be whole words of
+one passage, list markers and cell bars aside, and a piece shorter than
+three words counts only in a passage the longest piece is in: `Refunds:`
+heading one passage beside `within 14 days` in another settles nothing.
 First over the passages it cites, then over the probe: the
 `QUESTIONS_ELSEWHERE_PASSAGES` passages nearest by vector fused, by
 reciprocal rank, with those sharing most of its content lemmas, and on top

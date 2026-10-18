@@ -365,6 +365,108 @@ def test_a_quote_the_passages_hold_however_spaced_still_settles(passage) -> None
     assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
 
 
+def _settled_by(quote: str, passages: list[str], language: str = "en"):
+    """What `settle` makes of a `rule` quoting these words, with no probe."""
+    from question_generation.checker import settle
+
+    failed, _ = settle(
+        _Says(Settling.RULE, quote),
+        "When is the fee charged?",
+        language,
+        passages,
+        None,
+    )
+    return failed
+
+
+@pytest.mark.parametrize(
+    ("quote", "passage"),
+    [
+        (
+            "Fees for the current account: Debit card: 10 EUR per year",
+            (
+                "Fees for the current account:\n"
+                "- Account management: 4.90 EUR per month\n"
+                "- Debit card: 10 EUR per year"
+            ),
+        ),
+        (
+            "1. Account management 4.90 EUR per month 2. Debit card 10 EUR per year",
+            "1. Account management 4.90 EUR per month\n2. Debit card 10 EUR per year",
+        ),
+    ],
+    ids=["two bullets of one list", "a numbered list said back on one line"],
+)
+def test_a_quote_stitched_from_the_lines_of_one_list_settles(quote, passage) -> None:
+    """A verifier quoting a list joins its items; the passage holds each one."""
+    from database.qa_generator import QuestionRejection
+
+    failed = _settled_by(quote, ["Opening hours are 9:00 to 18:00.", passage])
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
+
+
+def test_a_quote_stitched_from_the_cells_of_one_table_row_settles() -> None:
+    """A row read as `item | value` skips the cells between."""
+    from database.qa_generator import QuestionRejection
+
+    table = (
+        "| Artikel | Preis | Lieferzeit |\n"
+        "| --- | --- | --- |\n"
+        "| Kaffeemaschine | 89 EUR | 3 Werktage |\n"
+        "| Wasserkocher | 29 EUR | 2 Werktage |"
+    )
+
+    failed = _settled_by("Kaffeemaschine | 3 Werktage", [table], "de")
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
+
+
+@pytest.mark.parametrize(
+    "quote",
+    ["Refunds: within 14 days", "Refunds ... within 14 days"],
+    ids=["joined at a colon", "joined at an ellipsis"],
+)
+def test_a_word_of_one_passage_beside_a_piece_of_another_settles_nothing(
+    quote,
+) -> None:
+    """One word proves nothing away from the passage the rest is quoted from.
+
+    `Refunds:` heads one passage and `within 14 days` is a delivery time in
+    another, so neither says how long a refund takes.
+    """
+    failed = _settled_by(
+        quote,
+        [
+            "Refunds:\nA gift card is paid back to the card it was bought with.",
+            "Orders are delivered within 14 days.",
+        ],
+    )
+
+    assert failed is None
+
+
+@pytest.mark.parametrize(
+    ("quote", "passage", "language"),
+    [
+        ("Ja", "Die Jahresgebühr der Kreditkarte beträgt 30 EUR.", "de"),
+        ("No", "Cash withdrawals abroad are normally not free.", "en"),
+        (
+            "Fees: card",
+            "Fees: cardholders pay 2 % on withdrawals abroad.",
+            "en",
+        ),
+    ],
+)
+def test_a_quote_piece_inside_a_longer_word_settles_nothing(
+    quote, passage, language
+) -> None:
+    """`Ja` is not in `Jahresgebühr`, nor `card` in `cardholders`."""
+    assert _settled_by(quote, [passage], language) is None
+
+
 def test_a_verdict_is_recorded_with_the_prompt_it_was_given_under() -> None:
     """So a rewritten prompt's rejudge can tell its verdicts from the old ones."""
     from question_generation.verifier import Settled
