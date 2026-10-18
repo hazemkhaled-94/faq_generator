@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from database.qa_generator import AnswerForm, Difficulty, QuestionKind
 from question_generation.kinds import KINDS
+from question_generation.models import Categorization, Category
 from question_generation.queue import ASKABLE
 from question_generation.types import SPECS
 from settings import Source, csv, decimal, integer, mapping, optional, required
@@ -134,6 +136,180 @@ def _span(name: str, source: Source = None) -> tuple[int, int]:
     if span[0] > span[1]:
         raise ValueError(f"{name} gives a floor of {span[0]} above its ceiling")
     return span
+
+
+#: The keys the paper's JSON uses, and nothing else, so a misspelt
+#: `probabilty` is refused rather than read as no probability at all.
+_CATEGORIZATION_KEYS = ("categorization_name", "categories", "description")
+_CATEGORY_KEYS = ("description", "name", "probability")
+
+#: What a name may not hold: `=` separates a categorization from its category
+#: in a label, and a line break would split a prompt's line.
+_UNNAMED = re.compile(r"[=\n\r]")
+
+#: How far the probabilities may sum from 1 and still be read as rounding.
+_ROUNDING = 0.01
+
+#: QUESTIONS_CATEGORIZATIONS when it is absent: the paper's two natural
+#: phrasings, its Table 5 descriptions without the examples its caption calls
+#: illustrative. Here rather than in backend.env, which bash sources and so
+#: cannot hold a JSON value.
+DEFAULT_CATEGORIZATIONS = json.dumps(
+    {
+        "categorization_name": "Phrasing",
+        "categories": [
+            {
+                "name": "concise-and-natural",
+                "description": "phrased in the way people typically speak, "
+                "reflecting everyday language use, without formal or artificial "
+                "structure. It is a concise, direct question consisting of less "
+                "than 10 words.",
+            },
+            {
+                "name": "verbose-and-natural",
+                "description": "phrased in the way people typically speak, "
+                "reflecting everyday language use, without formal or artificial "
+                "structure. It is a relatively long question consisting of more "
+                "than 9 words.",
+            },
+        ],
+    }
+)
+
+
+def categorizations(text: str) -> tuple[Categorization, ...]:
+    """Reads QUESTIONS_CATEGORIZATIONS: one Figure 2 object, or a list of them.
+
+    Each object may come wrapped in `{"categorization": ...}` as the paper
+    prints it. A categorization's probabilities are given for every
+    category or none; none is uniform, and a sum within 0.01 of 1 is
+    scaled to 1.
+
+    Raises:
+        ValueError: If the text is not JSON, or a categorization is not as
+            the paper defines one, naming the categorization at fault.
+    """
+    try:
+        read = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"QUESTIONS_CATEGORIZATIONS is not JSON: {error}") from None
+    parsed = [
+        _categorization(one) for one in (read if isinstance(read, list) else [read])
+    ]
+    names = [one.name for one in parsed]
+    for name in names:
+        if names.count(name) > 1:
+            raise ValueError(
+                f"QUESTIONS_CATEGORIZATIONS names the categorization {name!r} twice"
+            )
+    return tuple(parsed)
+
+
+def _categorization(read: object) -> Categorization:
+    """One categorization, unwrapped, checked and its probabilities settled."""
+    if isinstance(read, dict) and list(read) == ["categorization"]:
+        read = read["categorization"]
+    if not isinstance(read, dict):
+        raise ValueError(  # noqa: TRY004 - a bad value, not a caller's bug
+            f"QUESTIONS_CATEGORIZATIONS holds {read!r}, which is not a categorization"
+        )
+    name = read.get("categorization_name")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError(
+            "QUESTIONS_CATEGORIZATIONS holds a categorization with no "
+            "categorization_name"
+        )
+    if _UNNAMED.search(name):
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: the categorization {name!r} holds an = "
+            f"or a line break, which a label cannot"
+        )
+    _known(read, _CATEGORIZATION_KEYS, repr(name))
+    listed = read.get("categories")
+    if not isinstance(listed, list) or not listed:
+        raise ValueError(f"QUESTIONS_CATEGORIZATIONS: {name!r} has no categories")
+    categories = [_category(name, one) for one in listed]
+    seen = [one.name for one in categories]
+    for each in seen:
+        if seen.count(each) > 1:
+            raise ValueError(
+                f"QUESTIONS_CATEGORIZATIONS: {name!r} names the category {each!r} twice"
+            )
+    given = [one.probability for one in categories if one.probability is not None]
+    if not given:
+        weights = [1.0] * len(categories)
+    elif len(given) < len(categories):
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {name!r} gives some categories a "
+            f"probability; give one for every category or none"
+        )
+    else:
+        weights = given
+    total = sum(weights)
+    # A hair over the allowance too: 0.33 three times is 0.010000000000000009 off.
+    if given and abs(total - 1) > _ROUNDING + 1e-9:
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {name!r} has probabilities summing to "
+            f"{total:g}, not 1"
+        )
+    return Categorization(
+        name=name,
+        categories=tuple(
+            Category(name, one.name, one.description, weight / total)
+            for one, weight in zip(categories, weights, strict=True)
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class _Read:
+    """A category as written, before its probability is settled."""
+
+    name: str
+    description: str
+    probability: float | None
+
+
+def _category(categorization: str, read: object) -> _Read:
+    """One category, checked, its probability as given or None."""
+    if not isinstance(read, dict) or not isinstance(read.get("name"), str):
+        raise ValueError(  # noqa: TRY004 - a bad value, not a caller's bug
+            f"QUESTIONS_CATEGORIZATIONS: {categorization!r} holds {read!r}, "
+            f"which is not a category with a name"
+        )
+    name = read["name"]
+    where = f"{categorization!r}'s category {name!r}"
+    if not name.strip() or _UNNAMED.search(name):
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {where} is empty or holds an = or a "
+            f"line break, which a label cannot"
+        )
+    _known(read, _CATEGORY_KEYS, where)
+    description = read.get("description")
+    if not isinstance(description, str) or not description.strip():
+        raise ValueError(f"QUESTIONS_CATEGORIZATIONS: {where} has no description")
+    probability = read.get("probability")
+    if probability is not None and (
+        isinstance(probability, bool)
+        or not isinstance(probability, int | float)
+        or not 0 <= probability <= 1
+    ):
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {where} has the probability "
+            f"{probability!r}; each is between 0 and 1"
+        )
+    # One line in the prompt, whatever the JSON held.
+    return _Read(name, " ".join(description.split()), probability)
+
+
+def _known(read: dict, keys: tuple[str, ...], where: str) -> None:
+    """Refuses a key the paper's JSON does not have."""
+    for key in read:
+        if key not in keys:
+            raise ValueError(
+                f"QUESTIONS_CATEGORIZATIONS: {where} has the key {key!r}, which "
+                f"is not one of {', '.join(keys)}"
+            )
 
 
 @dataclass(frozen=True)
@@ -273,6 +449,9 @@ class Settings:
     meets_share: float = 0.0
     #: Which kind each spanning slot is dealt, in what proportion.
     kind_mix: dict[str, int] = field(default_factory=lambda: dict(_KIND_MIX))
+    #: The paper's categorizations: each answerable question is drawn one
+    #: category of each, which its writer is told to follow. Empty draws none.
+    categorizations: tuple[Categorization, ...] = ()
 
     @classmethod
     def load(cls, source: Source = None) -> Settings:
@@ -386,5 +565,10 @@ class Settings:
                 _languages("QUESTIONS_RELEASE_LANGUAGES", source)
                 if optional("QUESTIONS_RELEASE_LANGUAGES", source)
                 else None
+            ),
+            # Absent reads the shipped default, as QUESTIONS_MEETS_SHARE does;
+            # [] is how an operator draws none.
+            categorizations=categorizations(
+                optional("QUESTIONS_CATEGORIZATIONS", source) or DEFAULT_CATEGORIZATIONS
             ),
         )

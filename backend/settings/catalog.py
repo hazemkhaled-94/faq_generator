@@ -437,6 +437,15 @@ SETTINGS: tuple[Setting, ...] = (
         "`type:weight`. A weight of 0, or a name left out, is never written.",
     ),
     Setting(
+        name="QUESTIONS_CATEGORIZATIONS",
+        service="questions",
+        kind="text",
+        optional=True,
+        help="The paper's categorizations as JSON: each answerable question is "
+        "written as one category of each. Unset writes the paper's two natural "
+        "phrasings at even odds; [] writes none.",
+    ),
+    Setting(
         name="QUESTIONS_DIFFICULTY_MIX",
         service="questions",
         kind="mapping",

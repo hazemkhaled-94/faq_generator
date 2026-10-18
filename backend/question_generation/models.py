@@ -39,6 +39,32 @@ def band(score: int) -> str:
 
 
 @dataclass(frozen=True)
+class Category:
+    """One category of a categorization, as the DataMorgana paper's Figure 2 writes it."""
+
+    #: The categorization it is one of.
+    categorization: str
+    name: str
+    #: What the writer is told a question of this category is like.
+    description: str
+    #: How often it is drawn among its categorization's categories.
+    probability: float
+
+    @property
+    def label(self) -> str:
+        """`categorization=category`, as a filter, an export and a report name it."""
+        return f"{self.categorization}={self.name}"
+
+
+@dataclass(frozen=True)
+class Categorization:
+    """Mutually exclusive categories: a question is drawn one of each."""
+
+    name: str
+    categories: tuple[Category, ...]
+
+
+@dataclass(frozen=True)
 class Criteria:
     """What kind of question this is, read off the facts it cites.
 
