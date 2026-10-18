@@ -49,6 +49,10 @@ class Category:
     description: str
     #: How often it is drawn among its categorization's categories.
     probability: float
+    #: Whom it describes: `question` the question itself, or `user` the
+    #: person asking it, whom the writer is told of in a block of its own
+    #: that the answer and the explanation must ignore.
+    role: str = "question"
 
     @property
     def label(self) -> str:

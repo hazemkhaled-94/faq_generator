@@ -38,6 +38,34 @@ FIGURE_2 = {
     }
 }
 
+#: The paper's Figure 3, verbatim: a categorization of the person asking.
+FIGURE_3 = {
+    "categorization": {
+        "categorization_name": "user-expertise-categorization",
+        "description": "This categorization defines the level of expertise of "
+        "end-users.",
+        "categories": [
+            {
+                "name": "expert",
+                "probability": 0.5,
+                "description": "a specialized user with deep understanding of "
+                "the corpus.",
+            },
+            {
+                "name": "novice",
+                "probability": 0.5,
+                "description": "a regular user with no understanding of "
+                "specialized terms.",
+            },
+        ],
+    }
+}
+
+
+def asking(role: object) -> dict:
+    """Figure 3 with a role, which the paper's JSON leaves to its reader."""
+    return {"categorization": {**FIGURE_3["categorization"], "role": role}}
+
 
 def one(*categories: dict, name: str = "phrasing") -> dict:
     """A bare categorization holding these categories."""
@@ -131,7 +159,7 @@ def test_a_sum_close_to_one_is_scaled_to_one() -> None:
         ({"categories": [category("x")]}, "categorization_name"),
         (one({"name": "x", "description": "  "}), "'phrasing'.*'x'.*description"),
         (one({"name": "x", "description": "d", "probabilty": 1}), "'probabilty'"),
-        ({**one(category("x")), "role": "user"}, "'role'"),
+        ({**one(category("x")), "rolle": "user"}, "'rolle'"),
         ("not a list", "categorization"),
     ],
 )
@@ -139,6 +167,36 @@ def test_a_mistake_is_refused_by_name(value: object, says: str) -> None:
     """Each refusal names the categorization, or the key, that is wrong."""
     with pytest.raises(ValueError, match=f"QUESTIONS_CATEGORIZATIONS.*({says})"):
         read(value)
+
+
+def test_figure_3_reads_as_a_user_categorization() -> None:
+    """Its role on the categorization, given to every category of it."""
+    (expertise,) = read(asking("user"))
+    assert [
+        (each.name, each.role, each.probability) for each in expertise.categories
+    ] == [
+        ("expert", "user", 0.5),
+        ("novice", "user", 0.5),
+    ]
+
+
+def test_a_categorization_with_no_role_describes_the_question() -> None:
+    """The paper's Figure 2 as printed, and every value written before roles."""
+    (factuality,) = read(FIGURE_2)
+    assert {each.role for each in factuality.categories} == {"question"}
+    (expertise,) = read(FIGURE_3)
+    assert {each.role for each in expertise.categories} == {"question"}
+
+
+@pytest.mark.parametrize("role", ["kind", "User", 1])
+def test_a_role_it_does_not_take_is_refused_by_name(role: object) -> None:
+    """Never read off a name: a role is one of two, or the value is wrong."""
+    with pytest.raises(ValueError) as refused:
+        read(asking(role))
+    assert str(refused.value) == (
+        "QUESTIONS_CATEGORIZATIONS: categorization 'user-expertise-categorization' "
+        f"has the role {role!r}; it takes question, user"
+    )
 
 
 def test_text_that_is_not_json_is_refused() -> None:

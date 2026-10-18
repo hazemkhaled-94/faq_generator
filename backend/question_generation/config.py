@@ -140,8 +140,13 @@ def _span(name: str, source: Source = None) -> tuple[int, int]:
 
 #: The keys the paper's JSON uses, and nothing else, so a misspelt
 #: `probabilty` is refused rather than read as no probability at all.
-_CATEGORIZATION_KEYS = ("categorization_name", "categories", "description")
+_CATEGORIZATION_KEYS = ("categorization_name", "categories", "description", "role")
 _CATEGORY_KEYS = ("description", "name", "probability")
+
+#: Whom a categorization describes: the question, or the person asking it, as
+#: the paper's Figure 3 does. Its JSON has no key for which; absent reads as
+#: the question, and the role is never read off a name.
+_ROLES = ("question", "user")
 
 #: What a name may not hold: `=` separates a categorization from its category
 #: in a label, a comma one label from the next in a workbook cell, and a line
@@ -184,7 +189,8 @@ def categorizations(text: str) -> tuple[Categorization, ...]:
     Each object may come wrapped in `{"categorization": ...}` as the paper
     prints it. A categorization's probabilities are given for every
     category or none; none is uniform, and a sum within 0.01 of 1 is
-    scaled to 1.
+    scaled to 1. Its `role` is `question`, or `user` for one describing
+    the person asking, as the paper's Figure 3 does; absent is `question`.
 
     Raises:
         ValueError: If the text is not JSON, or a categorization is not as
@@ -226,6 +232,12 @@ def _categorization(read: object) -> Categorization:
             f"a comma or a line break, which a label cannot"
         )
     _known(read, _CATEGORIZATION_KEYS, repr(name))
+    role = read.get("role", "question")
+    if role not in _ROLES:
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: categorization {name!r} has the role "
+            f"{role!r}; it takes {', '.join(_ROLES)}"
+        )
     listed = read.get("categories")
     if not isinstance(listed, list) or not listed:
         raise ValueError(f"QUESTIONS_CATEGORIZATIONS: {name!r} has no categories")
@@ -256,7 +268,7 @@ def _categorization(read: object) -> Categorization:
     return Categorization(
         name=name,
         categories=tuple(
-            Category(name, one.name, one.description, weight / total)
+            Category(name, one.name, one.description, weight / total, role)
             for one, weight in zip(categories, weights, strict=True)
         ),
     )
