@@ -139,15 +139,19 @@ def _span(name: str, source: Source = None) -> tuple[int, int]:
 
 
 #: The keys the paper's JSON uses, with a categorization's role and a
-#: category's word bounds beside them, and nothing else, so a misspelt
-#: `probabilty` is refused rather than read as no probability at all.
+#: category's word bounds and form beside them, and nothing else, so a
+#: misspelt `probabilty` is refused rather than read as no probability at all.
 _CATEGORIZATION_KEYS = ("categorization_name", "categories", "description", "role")
-_CATEGORY_KEYS = ("description", "name", "probability", "words")
+_CATEGORY_KEYS = ("description", "form", "name", "probability", "words")
 
 #: Whom a categorization describes: the question, or the person asking it, as
 #: the paper's Figure 3 does. Its JSON has no key for which; absent reads as
 #: the question, and the role is never read off a name.
 _ROLES = ("question", "user")
+
+#: How a category's question is put: asked, or typed into a search box as
+#: keywords, which the end-'?' rule does not hold it to. Absent is asked.
+_FORMS = ("question", "query")
 
 #: What a name may not hold: `=` separates a categorization from its category
 #: in a label, a comma one label from the next in a workbook cell, and a line
@@ -215,6 +219,8 @@ def categorizations(text: str) -> tuple[Categorization, ...]:
     category or none; none is uniform, and a sum within 0.01 of 1 is
     scaled to 1. Its `role` is `question`, or `user` for one describing
     the person asking, as the paper's Figure 3 does; absent is `question`.
+    A category's `form` is `question`, or `query` for a search query;
+    absent is `question`.
 
     Raises:
         ValueError: If the text is not JSON, or a categorization is not as
@@ -292,7 +298,15 @@ def _categorization(read: object) -> Categorization:
     return Categorization(
         name=name,
         categories=tuple(
-            Category(name, one.name, one.description, weight / total, role, one.words)
+            Category(
+                name,
+                one.name,
+                one.description,
+                weight / total,
+                role=role,
+                words=one.words,
+                form=one.form,
+            )
             for one, weight in zip(categories, weights, strict=True)
         ),
     )
@@ -306,6 +320,7 @@ class _Read:
     description: str
     probability: float | None
     words: tuple[int | None, int | None]
+    form: str
 
 
 def _category(categorization: str, read: object) -> _Read:
@@ -361,8 +376,14 @@ def _category(categorization: str, read: object) -> _Read:
             f"QUESTIONS_CATEGORIZATIONS: {where} has at least {least} words and "
             f"at most {most}"
         )
+    form = read.get("form", "question")
+    if form not in _FORMS:
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {where} has the form {form!r}; it takes "
+            f"{', '.join(_FORMS)}"
+        )
     # One line in the prompt, whatever the JSON held.
-    return _Read(name, " ".join(description.split()), probability, (least, most))
+    return _Read(name, " ".join(description.split()), probability, (least, most), form)
 
 
 def _known(read: dict, keys: tuple[str, ...], where: str) -> None:

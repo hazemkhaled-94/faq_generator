@@ -252,6 +252,33 @@ def test_words_it_cannot_read_are_refused_by_name(words: object, says: str) -> N
     )
 
 
+def test_a_category_is_written_as_a_question_unless_it_says_query() -> None:
+    """A search query is typed into a box; everything else is asked."""
+    (phrasing,) = read(
+        one(
+            {"name": "x", "description": "d"},
+            {"name": "y", "description": "d", "form": "question"},
+            {"name": "z", "description": "d", "form": "query"},
+        )
+    )
+    assert [each.form for each in phrasing.categories] == [
+        "question",
+        "question",
+        "query",
+    ]
+
+
+@pytest.mark.parametrize("form", ["keywords", "Query", 1])
+def test_a_form_it_does_not_take_is_refused_by_name(form: object) -> None:
+    """Naming the categorization and the category."""
+    with pytest.raises(ValueError) as refused:
+        read(one({"name": "x", "description": "d", "form": form}))
+    assert str(refused.value) == (
+        f"QUESTIONS_CATEGORIZATIONS: 'phrasing''s category 'x' has the form "
+        f"{form!r}; it takes question, query"
+    )
+
+
 def test_text_that_is_not_json_is_refused() -> None:
     """The operator's typo is named as a JSON error, not a crash."""
     with pytest.raises(ValueError, match="QUESTIONS_CATEGORIZATIONS is not JSON"):

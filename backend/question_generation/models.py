@@ -57,6 +57,9 @@ class Category:
     #: None for no bound. Never sent to the writer: a report reads how many
     #: questions of the category came out inside them.
     words: tuple[int | None, int | None] = (None, None)
+    #: How the question is put: `question`, asked, or `query`, typed into a
+    #: search box as keywords, which no rule holds to a question mark.
+    form: str = "question"
 
     @property
     def label(self) -> str:
