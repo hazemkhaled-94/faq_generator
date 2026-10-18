@@ -19,6 +19,7 @@ import and a failure names the codes.
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path
 
@@ -26,11 +27,16 @@ import pytest
 
 from database.qa_generator import (
     AnswerForm,
+    ArtifactKind,
     CognitiveLevel,
+    Difficulty,
+    FactKind,
     JudgeMetric,
     QuestionRejection,
     QuestionType,
+    Status,
 )
+from database.qa_generator.status import SHARED
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -265,19 +271,27 @@ def test_the_page_size_ceiling_is_the_apis() -> None:
         ("questions", "_TYPES", QuestionType),
         ("questions", "_LEVELS", CognitiveLevel),
         ("questions", "_FORMS", AnswerForm),
+        ("questions", "_DIFFICULTY", Difficulty),
+        ("facts", "_KINDS", FactKind),
+        ("assessment", "_KINDS", ArtifactKind),
         ("assessment", "_METRICS", JudgeMetric),
+        ("documents", "_STATES", (*SHARED, Status.PARSED)),
+        ("passages", "_STATES", (*SHARED, Status.CHUNKED)),
     ],
 )
-def test_every_question_kind_level_form_and_metric_is_drawn(
-    page: str, name: str, vocabulary: type[StrEnum]
+def test_every_value_of_a_backend_vocabulary_a_page_copies_is_drawn(
+    page: str, name: str, vocabulary: Iterable[StrEnum]
 ) -> None:
     """A hand copy of an enum the page lists every value of, filter and tooltip.
 
     A value added to the enum and not here is a kind of question nobody can
-    filter to, or a metric whose failures are counted under nothing.
+    filter to, a metric whose failures are counted under nothing, or a
+    state whose documents are in no queue count. A stage's states are the
+    shared ones and its done value, as its CHECK constraint is built.
     """
     drawn = _bound(VIEWS / f"{page}.py", name)
 
-    assert isinstance(drawn, ast.Dict), ast.dump(drawn)
-    keys = {one.value for one in drawn.keys if isinstance(one, ast.Constant)}
-    assert keys == {one.value for one in vocabulary}, name
+    assert isinstance(drawn, ast.Dict | ast.Tuple), ast.dump(drawn)
+    listed = drawn.keys if isinstance(drawn, ast.Dict) else drawn.elts
+    values = {one.value for one in listed if isinstance(one, ast.Constant)}
+    assert values == {one.value for one in vocabulary}, f"{page}.py {name}"
