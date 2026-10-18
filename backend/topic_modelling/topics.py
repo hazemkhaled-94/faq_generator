@@ -28,6 +28,12 @@ _BATCH = 500
 #: The fewest topics a fit is worth. Below two nothing is partitioned.
 _FEWEST = 2
 
+#: How many seeded draws a fit makes, from TOPIC_RANDOM_STATE on, keeping the
+#: one whose members are most alike. Seeds over one corpus differed in that
+#: by as much as two rebuilds' topics did, so keeping the first unread
+#: re-rolled how coherent the topics came out. A draw is a second or two.
+_DRAWS = 8
+
 #: The corpus, as the fitter takes it: a callable handing back a fresh walk
 #: over every passage.
 Corpus = Callable[[], Iterable[PassageVocabulary]]
@@ -126,7 +132,9 @@ class TopicFitter:
         """Fits one language's model and scores its passages against it.
 
         The corpus is walked rather than held: once to build the vocabulary,
-        once per pass, and once more to score.
+        once to read each passage's tf-idf vector, and for each of the
+        `_DRAWS` draws once per pass and once more to score. Those vectors,
+        one per passage, are what is held.
 
         Args:
             corpus: Hands back a fresh walk over the passages each time it is
@@ -197,15 +205,37 @@ class TopicFitter:
             len(dictionary),
             before,
         )
-        model = Nmf(
-            corpus=weighting[bows],
-            id2word=dictionary,
-            num_topics=wanted,
-            passes=self._passes,
-            random_state=self._random_state,
+        vectors = {
+            passage.id: dict(
+                cast(
+                    "list[tuple[int, float]]",
+                    weighting[dictionary.doc2bow(passage.lemmas)],
+                )
+            )
+            for passage in corpus()
+        }
+        best = None
+        for draw in range(_DRAWS):
+            model = Nmf(
+                corpus=weighting[bows],
+                id2word=dictionary,
+                num_topics=wanted,
+                passes=self._passes,
+                random_state=self._random_state + draw,
+            )
+            scored = self._score(model, corpus, dictionary, weighting)
+            held = _cohesion(scored[0], vectors)
+            if best is None or held > best[0]:
+                best = (held, draw, model, scored)
+        assert best is not None, "_DRAWS is at least one"
+        held, draw, model, (weights, unplaced, space) = best
+        log.info(
+            "%s: kept the draw seeded %d of %d, its members %.3f alike",
+            language,
+            self._random_state + draw,
+            _DRAWS,
+            held,
         )
-
-        weights, unplaced, space = self._score(model, corpus, dictionary, weighting)
         return Fitting(
             language=language,
             topics=self._topics(model),
@@ -306,6 +336,38 @@ class TopicFitter:
                 term_frequency=[dictionary.cfs[i] for i in range(len(dictionary))],
             ),
         )
+
+
+def _cohesion(
+    weights: Iterable[PassageWeight], vectors: Mapping[int, Mapping[int, float]]
+) -> float:
+    """How alike a fit's members are: the mean over its topics of their members' mean likeness.
+
+    Likeness is the cosine of two passages' tf-idf vectors, which the fit
+    normalised to length 1. A topic of one passage says nothing and is left out.
+    """
+    members: dict[int, list[Mapping[int, float]]] = {}
+    for weight in weights:
+        # A passage that gained its first fact during the fit was scored but
+        # never weighed: it has no vector, and it is left out of the measure.
+        if weight.passage_id in vectors:
+            members.setdefault(weight.topic_index, []).append(
+                vectors[weight.passage_id]
+            )
+    means = []
+    for held in members.values():
+        if len(held) < 2:
+            continue
+        # The sum of every pair's cosine, from the length of the members' sum:
+        # |sum u|^2 counts each pair twice beside each member's own length.
+        summed: dict[int, float] = {}
+        for vector in held:
+            for term, value in vector.items():
+                summed[term] = summed.get(term, 0.0) + value
+        together = sum(value * value for value in summed.values())
+        alone = sum(value * value for vector in held for value in vector.values())
+        means.append((together - alone) / (len(held) * (len(held) - 1)))
+    return sum(means) / len(means) if means else 0.0
 
 
 def dominant(weights: Iterable[PassageWeight]) -> dict[int, int]:

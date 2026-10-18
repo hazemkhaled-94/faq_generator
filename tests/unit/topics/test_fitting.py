@@ -259,3 +259,72 @@ def test_a_corpus_of_one_passage_has_no_vocabulary_to_tell_apart(settings) -> No
     """Every term appears in the only passage, so the share filter takes it."""
     with pytest.raises(NoVocabulary):
         FitterDriver(settings, corpus("lieferung versand transport")).fit("de")
+
+
+def test_the_fit_keeps_the_most_cohesive_of_its_seeded_draws(
+    settings, passages, monkeypatch
+) -> None:
+    """One seeded draw was kept unread, and seeds differ in how alike their members are.
+
+    Each draw is seeded from TOPIC_RANDOM_STATE on, so the same corpus keeps
+    the same draw twice.
+    """
+    from topic_modelling import topics
+
+    drawn: list[tuple[object, int]] = []
+    kept: list[int] = []
+    real, read = topics.Nmf, topics.TopicFitter._topics
+
+    def seeded(**kwargs):
+        model = real(**kwargs)
+        drawn.append((model, kwargs["random_state"]))
+        return model
+
+    def spied(self, model):
+        kept.append(next(seed for one, seed in drawn if one is model))
+        return read(self, model)
+
+    monkeypatch.setattr(topics, "Nmf", seeded)
+    monkeypatch.setattr(topics.TopicFitter, "_topics", spied)
+    # The fourth draw, seeded 45, is the most cohesive.
+    monkeypatch.setattr(
+        topics, "_cohesion", lambda weights, vectors: -abs(len(drawn) % 8 - 4)
+    )
+
+    FitterDriver(settings, passages).fit("de")
+    FitterDriver(settings, passages).fit("de")
+
+    assert [seed for _, seed in drawn[: topics._DRAWS]] == [
+        42 + draw for draw in range(topics._DRAWS)
+    ]
+    assert kept == [45, 45]
+
+
+def test_a_passage_with_no_vector_is_left_out_of_the_measure() -> None:
+    """One that gained its first fact mid-fit was scored but never weighed."""
+    from topic_modelling.models import PassageWeight
+    from topic_modelling.topics import _cohesion
+
+    vectors = {1: {0: 1.0}, 2: {0: 1.0}}
+    weights = [
+        PassageWeight(1, 0, 0.9),
+        PassageWeight(2, 0, 0.9),
+        PassageWeight(99, 0, 0.9),
+    ]
+
+    assert _cohesion(weights, vectors) == 1.0
+
+
+def test_members_alike_are_more_cohesive_than_members_apart() -> None:
+    """The mean likeness of a topic's members, over the topics holding two or more."""
+    from topic_modelling.models import PassageWeight
+    from topic_modelling.topics import _cohesion
+
+    vectors = {1: {0: 1.0}, 2: {0: 1.0}, 3: {1: 1.0}, 4: {1: 1.0}}
+    alike = [PassageWeight(1, 0, 0.9), PassageWeight(2, 0, 0.9)]
+    alike += [PassageWeight(3, 1, 0.9), PassageWeight(4, 1, 0.9)]
+    apart = [PassageWeight(1, 0, 0.9), PassageWeight(3, 0, 0.9)]
+    apart += [PassageWeight(2, 1, 0.9), PassageWeight(4, 1, 0.9)]
+
+    assert _cohesion(alike, vectors) == 1.0
+    assert _cohesion(apart, vectors) == 0.0
