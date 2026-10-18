@@ -16,7 +16,7 @@ from nlp.models import named as in_language
 #: Recorded on every bridge drawn with the prompt below. Bumped whenever that
 #: prompt changes what counts as a bridge or how one is cited: two prompts are
 #: two datasets.
-PROMPT_VERSION = "4"
+PROMPT_VERSION = "5"
 
 _SYSTEM = """ROLE
 You are a claims analyst working across documents. You read several excerpts
@@ -25,15 +25,16 @@ that need MORE THAN ONE of them.
 
 ACTION
 Write the bridges. A bridge is a claim a reader gets only by holding two
-excerpts together: the same duty stated for two parties, the same limit given
-in two places, one excerpt naming what another defines, two periods of the
-same series.
+excerpts together, because one of them changes what the other says: one
+defines a term the other's rule uses, one sets an exception or a limit to the
+other's rule, one says what follows when the other's rule is met or broken.
 
 STEPS
 1. Read all the excerpts and note what each is about.
-2. Look for pairs that MEET - the same subject seen twice, one defining what
-   another names, two values of one measure, two parties under one duty.
-3. Discard pairs that merely sit near each other. They bridge nothing.
+2. Look for pairs that MEET - one defining what another names, one limiting
+   or excepting what another states, one stating the consequence of another.
+3. Discard pairs that merely sit near each other, and pairs that only state
+   two things side by side. They bridge nothing.
 4. For each pair that does meet, write the one claim that needs both.
 5. Cite it: for each excerpt the claim needs, its number and the numbers of
    ITS OWN sentences you read the claim in.
@@ -48,39 +49,50 @@ EXCERPT. You have no knowledge beyond the excerpts and may use none.
 EXAMPLES
 Two excerpts:
 
-  [P0] Support > Response times
-    [0] Standard requests are answered within 48 hours on working days.
-    [1] The clock starts when the request is acknowledged.
-  [P1] Support > Urgent handling
-    [0] Urgent requests are answered within 4 hours.
-    [1] They may also be raised by phone.
+  [P0] Accounts > Terms
+    [0] An account is dormant when its holder has made no payment for 24 months.
+    [1] Interest is paid on dormant accounts as on any other.
+  [P1] Fees > Yearly fees
+    [0] A dormant account is charged a yearly fee of 10 EUR.
+    [1] The fee is shown on the yearly statement.
 
   RIGHT  passages: [{passage: 0, sentences: [0]},
                     {passage: 1, sentences: [0]}]
-         statement: "Support response times are stated separately for
-                     standard and urgent requests."
+         statement: "An account whose holder has made no payment for 24
+                     months is charged a yearly fee of 10 EUR."
+         (P1 sets the fee and P0 says which accounts it reaches: neither
+          excerpt alone gives the claim)
 
   WRONG  passages: [{passage: 0, sentences: [0]}]
-         statement: "A standard support request is answered within 48 hours."
+         statement: "An account is dormant when its holder has made no
+                     payment for 24 months."
          (one excerpt: an ordinary fact, not a bridge)
 
   WRONG  passages: [{passage: 0, sentences: [0, 1]},
                     {passage: 1, sentences: [0, 1]}]
-         statement: "Support response times are stated separately for
-                     standard and urgent requests."
+         statement: "An account whose holder has made no payment for 24
+                     months is charged a yearly fee of 10 EUR."
          (sentence 1 of each excerpt says nothing about the claim: cite what
           you used, not the whole excerpt)
 
-  WRONG  passages: [{passage: 0, sentences: [0]},
-                    {passage: 1, sentences: [0]}]
-         statement: "A standard request is answered within 48 hours and an
-                     urgent one within 4 hours."
-         (two claims in one sentence: split it, or write the one above)
+  WRONG  passages: [{passage: 0, sentences: [1]},
+                    {passage: 1, sentences: [1]}]
+         statement: "Both interest and the yearly fee apply to dormant
+                     accounts."
+         (two facts side by side: neither changes or explains the other, so
+          no question needs both; "both A and B", "A and B are stated
+          separately" and "X applies to A and to B" bridge nothing)
 
   WRONG  passages: [{passage: 0, sentences: [0]},
                     {passage: 1, sentences: [0]}]
-         statement: "The two response times differ by 44 hours."
-         (44 appears in neither excerpt: that is a calculation, not a claim)
+         statement: "An account becomes dormant after 24 months without a
+                     payment and is then charged 10 EUR a year."
+         (two claims in one sentence: write the one above)
+
+  WRONG  passages: [{passage: 0, sentences: [0]},
+                    {passage: 1, sentences: [0]}]
+         statement: "A dormant account pays 20 EUR in fees over two years."
+         (20 appears in neither excerpt: that is a calculation, not a claim)
 
 FORMAT
 Return `facts`, a list in which every entry has two parts:
@@ -104,6 +116,9 @@ Rules, all of them mandatory:
 - WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPTS. It is their own
   language. It is named there rather than left to you because a model reading
   a corpus that is mostly one language writes that language for all of it.
+- ONE EXCERPT MUST CHANGE WHAT THE OTHER SAYS: define its term, limit or
+  except its rule, or state what follows from it. Two facts that only sit
+  side by side, joined by "both", "and" or "separately", bridge nothing.
 - Excerpts that merely sit near each other bridge nothing. An empty list is a
   correct answer and is better than a forced one.
 """

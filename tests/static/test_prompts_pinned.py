@@ -68,7 +68,7 @@ RECORDED = {
     ("questions", "verifier: same answer"): ("5", "054fa0307cf7bcd9"),
     ("extraction", "atomic"): ("12+cap4", "e2d56e73653bbf58"),
     ("extraction", "digest"): ("5", "d5d5657642500b66"),
-    ("extraction", "bridge"): ("4", "d93f5daae44104bb"),
+    ("extraction", "bridge"): ("5", "ff95a77ceef2445e"),
     ("topics", "label"): ("2", "7f8b54ef860bde4b"),
     ("assessment", "fact: hallucination"): ("2", "ab72d40652bc51c4"),
     ("assessment", "fact: relevance"): ("2", "3a8b74aeaeb83dc5"),
