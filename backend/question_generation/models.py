@@ -670,6 +670,10 @@ class JudgedQuestion:
     #: folded in, its own being gone. Its spread then counts a passage the
     #: fact was only refused against.
     stranded: bool = False
+    #: The categories its writer was told, as `questions.categories` holds
+    #: them, None where it was told none. Their forms decide whether it is
+    #: re-checked as a search query.
+    categories: list[dict] | None = None
 
 
 @dataclass(frozen=True)

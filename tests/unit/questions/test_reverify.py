@@ -233,3 +233,36 @@ def test_a_single_passage_row_with_two_questions_is_still_refused() -> None:
     failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
 
     assert failed is not None and failed[0] == QuestionRejection.COMPOUND
+
+
+#: A stored category, as `queue.store` writes one: a search query.
+QUERY = {
+    "categorization": "Phrasing",
+    "category": "short-search-query",
+    "role": "question",
+    "form": "query",
+    "description": "keywords.",
+}
+
+
+def test_a_stored_query_rechecks_as_a_query() -> None:
+    """The form it was written under, read off its row, lifts the end-'?' rule."""
+    keywords = {"question_text": "transfer abroad fee debit card"}
+
+    stored = _stored(**keywords, categories=[QUERY])
+
+    assert _recheck(None, Settings.load(), stored) is None  # type: ignore[arg-type]
+
+
+def test_a_row_without_a_form_rechecks_as_a_question() -> None:
+    """Every row written before forms, and every question, as before."""
+    keywords = {"question_text": "transfer abroad fee debit card"}
+    unformed = {key: value for key, value in QUERY.items() if key != "form"}
+
+    for categories in ([unformed], None):
+        stored = _stored(**keywords, categories=categories)
+        failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
+        assert failed == (
+            QuestionRejection.MALFORMED,
+            "it does not end in a question mark",
+        )

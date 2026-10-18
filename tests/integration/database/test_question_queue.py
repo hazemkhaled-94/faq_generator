@@ -1143,6 +1143,69 @@ def test_a_question_whose_evidence_moved_is_rejected_when_it_moves(
     assert (row.status, row.rejected_reason) == ("rejected", "source_changed")
 
 
+def test_a_stored_query_is_re_checked_as_the_query_it_was_written_as(
+    engine, database
+) -> None:
+    """The form is read off the row: a query keeps no question mark, a question does.
+
+    The same keywords stored twice, once with the form its category gave it
+    and once as a row written before forms, which is a question.
+    """
+    from question_generation.service import reverify
+
+    query = {
+        "categorization": "Phrasing",
+        "category": "short-search-query",
+        "role": "question",
+        "form": "query",
+        "description": "keywords.",
+    }
+    unformed = {key: value for key, value in query.items() if key != "form"}
+    with Session(engine) as session:
+        session.add(document(digest("a")))
+        session.flush()
+        here = passage(digest("a"), ordinal=1, language="en")
+        session.add(here)
+        session.flush()
+        facts = [
+            fact(here.id, statement="The device weighs 4 kg."),
+            fact(here.id, statement="The device weighs 4 kg exactly."),
+        ]
+        session.add_all(facts)
+        session.flush()
+        asked = [
+            question(
+                question_text="device weight",
+                target_answer="4 kg",
+                status="accepted",
+                difficulty="easy",
+                passage_scope="single_passage",
+                document_scope="single_document",
+                topic_scope="single_topic",
+                answer_chars=4,
+                categories=[categories],
+            )
+            for categories in (query, unformed)
+        ]
+        session.add_all(asked)
+        session.flush()
+        session.add_all(
+            QuestionFact(question_id=one.id, fact_id=held.id)
+            for one, held in zip(asked, facts, strict=True)
+        )
+        session.commit()
+        typed, written = asked[0].id, asked[1].id
+
+    assert reverify(QuestionCatalog(), _settings(fact_kinds=("atomic",))) == 1
+    with engine.connect() as connection:
+        rows = dict(
+            connection.execute(
+                text("SELECT id, rejected_reason FROM questions ORDER BY id")
+            ).all()
+        )
+    assert rows == {typed: None, written: "malformed"}
+
+
 def test_a_re_check_does_not_call_a_question_a_twin_of_one_it_is_rejecting(
     engine, database
 ) -> None:

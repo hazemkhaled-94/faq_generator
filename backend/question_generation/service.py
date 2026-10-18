@@ -344,6 +344,10 @@ def _recheck(
         # What the row was written to be: a compound question asks two things
         # on purpose, and re-read as single it would be refused for it.
         kind=question.kind,
+        # The form it was written as, off its row: a search query is not
+        # held to a question mark, and a row stored before forms is a
+        # question, as it was when it was written.
+        query=any(one.get("form") == "query" for one in question.categories or ()),
     )
     if failed:
         return failed

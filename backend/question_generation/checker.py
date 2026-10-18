@@ -474,6 +474,7 @@ class QuestionChecker:
             bounds=self._bounds,
             titles=candidate.group.titles,
             kind=candidate.kind,
+            query=any(one.form == "query" for one in candidate.categories),
         )
 
         def done(

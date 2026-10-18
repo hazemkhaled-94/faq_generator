@@ -944,6 +944,7 @@ class QuestionCatalog(Repository):
                     Question.embedding,
                     Question.question_type,
                     Question.answer_form,
+                    Question.categories,
                     func.coalesce(func.bool_and(HOLDS), False).label("facts_validated"),
                     func.coalesce(func.bool_or(_STRANDED), False).label("stranded"),
                     func.count(func.distinct(Passage.doc_sha256)).label("documents"),

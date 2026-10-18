@@ -121,6 +121,35 @@ def test_what_counts_as_malformed(why: str, fields: dict) -> None:
     assert code(checked(**fields)) == QuestionRejection.MALFORMED, why
 
 
+def test_a_query_needs_no_question_mark() -> None:
+    """Keywords typed into a search box end where the keywords do."""
+    asked = {
+        "question_text": "transfer abroad fee debit card",
+        "target_answer": "5 euros",
+        "answerable": True,
+        "language": "en",
+    }
+
+    assert structural(**asked, query=True)[0] is None
+    assert structural(**asked, query=False)[0] == (
+        QuestionRejection.MALFORMED,
+        "it does not end in a question mark",
+    )
+
+
+def test_a_query_still_asks_one_thing() -> None:
+    """Only the end-'?' rule is lifted: two question marks are two asks."""
+    failed, _ = structural(
+        question_text="Going abroad? Which fee applies to a card payment?",
+        target_answer="a flat fee of 5 euros",
+        answerable=True,
+        language="en",
+        query=True,
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+
+
 def test_a_fact_handed_straight_back_is_not_a_question() -> None:
     """The laziest thing a model can do with the prompt."""
     failed = checked(
@@ -2590,6 +2619,27 @@ def test_the_categories_it_was_written_as_are_carried_to_the_row() -> None:
     )
 
     assert result.categories == told
+
+
+def test_a_query_category_is_checked_as_a_query() -> None:
+    """Its form decides whether the end-'?' rule reads it; nothing else does."""
+    from dataclasses import replace
+
+    from question_generation.models import Category
+
+    keywords = replace(candidate(), question_text="device weight Hamburg plant")
+    query = Category("Phrasing", "short-search-query", "keywords.", 0.25, form="query")
+    asked = Category("Phrasing", "concise-and-natural", "short.", 0.25)
+
+    typed = build(Recording(recovers="4 kg")).check(
+        replace(keywords, categories=(query,))
+    )
+    written = build(Recording(recovers="4 kg")).check(
+        replace(keywords, categories=(asked,))
+    )
+
+    assert typed.rejected_reason != QuestionRejection.MALFORMED
+    assert written.rejected_reason == QuestionRejection.MALFORMED
 
 
 def test_an_unanswerable_question_carries_no_answer_form() -> None:

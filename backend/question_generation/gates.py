@@ -533,6 +533,7 @@ def structural(
     bounds: Mapping[str, tuple[int, int]] | None = None,
     titles: Sequence[str] = (),
     kind: str = QuestionKind.SINGLE,
+    query: bool = False,
 ) -> tuple[tuple[str, str] | None, str]:
     """The gates that need neither a model nor an index, and the form it took.
 
@@ -552,12 +553,16 @@ def structural(
 
     `kind` is what the slot was dealt to be. A compound question asks two
     things on purpose, so for it the two-question-word refusal is skipped.
+
+    `query` is a search query rather than a question: keywords typed into a
+    box, which nobody ends with a question mark. That one rule is lifted for
+    it and every other holds, two question marks included.
     """
     asked = question_text.strip()
     form = forms[0] if forms else AnswerForm.VALUE
     if not asked:
         return (QuestionRejection.MALFORMED, "the model returned no question"), form
-    if not asked.endswith("?"):
+    if not query and not asked.endswith("?"):
         return (
             QuestionRejection.MALFORMED,
             "it does not end in a question mark",
