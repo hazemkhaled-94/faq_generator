@@ -71,15 +71,18 @@ is an outstanding request, and a row that has one is a topic.
    topic, and the whole fitted space the figure needs.
 8. **Carry what a person decided.** `carry_labels` takes an old topic and
    a new one for the same topic when each holds more than half of the
-   other's dominant passages, counted over the passages both fits hold. Two
-   topics cannot both hold more than half of one, so there is no threshold
-   to set and no decision lands twice. A person's name, the coverage choice
-   and when it was made travel; a model's name does not, and the new topic
-   is named again in step 9. A decision matching no topic - after a
-   re-chunk no passage is held by both fits - is logged as a warning and
-   counted on the span as `topic.decisions_dropped`, beside
-   `topic.decisions_carried`. A decision a person makes while the fit runs
-   is carried the same way in step 10, under a lock on the rows it replaces.
+   other's dominant passages: all of the old topic's, so one passage left of
+   many cannot carry a decision onto a topic of passages new to the corpus,
+   and the new topic's among the passages both fits hold, so a topic grown
+   by new passages still matches. Two topics cannot both hold more than half
+   of one, so there is no threshold to set and no decision lands twice. A
+   person's name, the coverage choice and when it was made travel; a
+   model's name does not, and the new topic is named again in step 9. A
+   decision matching no topic - after a re-chunk no passage is held by both
+   fits - is logged as a warning and counted on the span as
+   `topic.decisions_dropped`, beside `topic.decisions_carried`. A decision
+   a person makes while the fit runs is carried the same way in step 10,
+   under a lock on the rows it replaces.
 9. **Name the unnamed topics.** Only topics holding no label are offered to
    the model, all of a language's in one call, so it sees the set and can
    tell the topics apart. For each it is shown the terms and up to four

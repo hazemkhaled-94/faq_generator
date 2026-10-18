@@ -374,7 +374,7 @@ def test_the_coverage_choice_travels_with_a_person_name() -> None:
 
 
 def test_passages_new_to_the_corpus_do_not_dilute_the_match() -> None:
-    """Only the passages both fits hold are counted, so a grown topic matches."""
+    """The new topic counts only the passages both fits hold, so it can grow."""
     carried, _ = carry_labels(
         [FittedTopic(0, ["return", "refund"])],
         [FittedTopic(0, ["return", "refund"], label="Returns", labelled_by="person")],
@@ -383,6 +383,30 @@ def test_passages_new_to_the_corpus_do_not_dilute_the_match() -> None:
     )
 
     assert carried[0].label == "Returns", carried[0]
+
+
+def test_a_decision_does_not_ride_one_surviving_passage_onto_another_subject() -> None:
+    """One passage of ten left in the new fit is not the topic it was.
+
+    It is the only one of them both fits hold, so over those alone it was
+    all of the old topic, and the twenty new passages beside it in the new
+    topic are about something else.
+    """
+    carried, dropped = carry_labels(
+        [FittedTopic(0, ["mortgage"]), FittedTopic(1, ["loan"])],
+        [
+            FittedTopic(
+                0, ["card"], label="Card fees", labelled_by="person", decided_at=DECIDED
+            )
+        ],
+        before=dict.fromkeys(range(1, 11), 0) | dict.fromkeys(range(11, 21), 1),
+        after={10: 0}
+        | dict.fromkeys(range(100, 120), 0)
+        | dict.fromkeys(range(11, 21), 1),
+    )
+
+    assert [one.label for one in carried] == [None, None], carried
+    assert dropped == 1
 
 
 def test_an_even_split_does_not_carry() -> None:

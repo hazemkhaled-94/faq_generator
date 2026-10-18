@@ -335,9 +335,12 @@ def carry_labels(
     """Re-attaches what a person decided about the previous fit's topics.
 
     An old topic and a new one are the same topic when each holds more than
-    half of the other's dominant passages, counted over the passages both
-    fits hold. Two topics cannot both hold more than half of one, so a
-    decision has at most one match and none is used twice. The coverage
+    half of the other's dominant passages: all of the old topic's, so one
+    passage left of many cannot carry it onto a topic of passages new to the
+    corpus, and the new topic's among the passages both fits hold, so a
+    topic grown by new passages still matches. Two topics cannot both hold
+    more than half of one, so a decision has at most one match and none is
+    used twice. The coverage
     choice and the decision time travel; the label and what named it travel
     only when a person named it, since a model's name is given again to
     the new topic with the rest of the fit's.
@@ -354,7 +357,7 @@ def carry_labels(
         how many decisions matched no topic.
     """
     common = before.keys() & after.keys()
-    old = Counter(before[one] for one in common)
+    old = Counter(before.values())
     new = Counter(after[one] for one in common)
     shared = Counter((before[one], after[one]) for one in common)
     same = {

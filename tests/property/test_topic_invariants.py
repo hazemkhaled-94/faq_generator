@@ -221,7 +221,10 @@ def test_every_decision_is_carried_once_or_counted_lost(
 def test_a_carried_decision_lands_where_most_of_its_passages_went(
     before, after
 ) -> None:
-    """Most both ways, over the passages both fits hold, and only there."""
+    """Most both ways, and only there.
+
+    Of all the old topic's passages, and of the new one's that both fits hold.
+    """
     topics = [FittedTopic(index, ["x"]) for index in range(_TOPICS)]
 
     carried, _ = carry_labels(topics, decided(_TOPICS), before=before, after=after)
@@ -229,7 +232,7 @@ def test_a_carried_decision_lands_where_most_of_its_passages_went(
     common = before.keys() & after.keys()
     for old in range(_TOPICS):
         for new in range(_TOPICS):
-            mine = {one for one in common if before[one] == old}
+            mine = {one for one in before if before[one] == old}
             theirs = {one for one in common if after[one] == new}
             most = 2 * len(mine & theirs) > max(len(mine), len(theirs))
             assert (carried[new].label == f"L{old}") == most, (old, new)
