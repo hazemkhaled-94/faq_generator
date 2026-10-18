@@ -11,8 +11,10 @@ import re
 
 from factories import group, plan, source
 
+from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
 from question_generation.generation import QuestionWriter
 from question_generation.kinds import _Answered
+from question_generation.models import Category
 from question_generation.types import SPECS
 
 
@@ -516,3 +518,159 @@ def test_a_compound_slot_dealt_one_passage_is_written_as_a_single_question() -> 
     assert model.system == SPECS["factoid"].system()
     assert model.shapes[-1] is kinds._Answered
     assert (written.kind, written.parts) == ("single", ())
+
+
+# ── The categories a slot was dealt ───────────────────────────────────────
+
+
+#: What the user message an answerable slot dealt no category is sent, as
+#: version 16 sent it. A deployment that turns categories off with [] is
+#: asking the same questions it asked before them.
+GOLDEN = (
+    "FACTS - your question must be answered by these:\n"
+    "[1] The device weighs 4 kg.\n"
+    "\n"
+    "PASSAGE(S) - context only, so you know what the material is about. Phrase "
+    "the question from these; never quote or name a heading or a title out of "
+    "them, and never ask about anything here that the facts above do not "
+    "state:\n"
+    "[1] Under: Rules > Fees\n"
+    "The device weighs 4 kg. It ships from Hamburg.\n"
+    "\n"
+    "Write the question and both answers in English."
+)
+
+
+def concise() -> Category:
+    """The paper's concise natural phrasing, as the default reads it."""
+    return categorizations(DEFAULT_CATEGORIZATIONS)[0].categories[0]
+
+
+def asked_with(*categories: Category, note: str = "") -> StubModel:
+    """The model an answerable slot dealt `categories` was asked through."""
+    model = StubModel(question="Q?", answer="A")
+    QuestionWriter(model).write(
+        group(source(1, section_path="Rules > Fees")),
+        plan(categories=categories),
+        note,
+    )
+    return model
+
+
+def test_a_slot_dealt_no_category_is_sent_what_it_was_sent_before() -> None:
+    """Byte for byte: no categories is version 16's message."""
+    model = asked_with()
+
+    assert model.user == GOLDEN
+    assert "THE QUESTION -" not in model.user
+
+
+def test_a_category_is_rendered_between_the_passages_and_the_request() -> None:
+    """Its description, under the rules the writer was given rather than over them."""
+    category = concise()
+
+    user = asked_with(category).user
+
+    block = (
+        "\nTHE QUESTION - besides every rule you were given, it must be:\n"
+        f"- {category.description}\n"
+        "Where one of these conflicts with a rule you were given, the rule wins.\n"
+    )
+    assert user == GOLDEN.replace("Hamburg.\n\nWrite", "Hamburg.\n" + block + "\nWrite")
+
+
+def test_every_category_of_a_slot_is_one_line_of_the_block() -> None:
+    """One line per categorization, in the order they were configured."""
+    user = asked_with(
+        Category("Phrasing", "short", "short.", 0.5),
+        Category("Premise", "direct", "asked without a premise.", 1.0),
+    ).user
+
+    assert "it must be:\n- short.\n- asked without a premise.\nWhere one" in user
+
+
+def test_a_question_carries_the_categories_it_was_written_as() -> None:
+    """What was rendered, so what is stored is what the writer was told."""
+    model = StubModel(question="Q?", answer="A")
+
+    written = QuestionWriter(model).write(group(), plan(categories=(concise(),)))
+
+    assert written.categories == (concise(),)
+
+
+def test_a_retry_note_stays_after_the_categories() -> None:
+    """The note is what changed between two drafts, and goes where it weighs most."""
+    user = asked_with(concise(), note="a reviewer found two questions.").user
+
+    assert user.index("THE QUESTION -") < user.index("Write the question")
+    assert user.endswith(
+        "a reviewer found two questions.\nWrite a different question from the "
+        "same facts, following the instructions above."
+    )
+
+
+def test_an_unanswerable_slot_is_written_as_no_category() -> None:
+    """The paper asks only questions that have an answer."""
+    model = StubModel(question="Q?")
+
+    written = QuestionWriter(model).write(
+        group(), plan(answerable=False, categories=(concise(),))
+    )
+
+    assert "THE QUESTION -" not in model.user
+    assert written.categories == ()
+
+
+def test_a_follow_up_is_written_as_no_category() -> None:
+    """A turn of a conversation is phrased by the turns before it."""
+    model = StubModel(question="And why?", answer="because it was rebuilt")
+
+    written = QuestionWriter(model).follow_up(
+        group(),
+        (("How heavy is it?", "4 kg"),),
+        plan(question_type="reason", categories=(concise(),)),
+    )
+
+    assert "THE QUESTION -" not in model.user
+    assert written.categories == ()
+
+
+def test_a_description_cannot_fill_a_placeholder() -> None:
+    """An operator's text is sent as written; the template is filled in one pass."""
+    user = asked_with(
+        Category("Phrasing", "odd", "about {{passages}} in {{language}}.", 1.0)
+    ).user
+
+    assert "- about {{passages}} in {{language}}.\n" in user
+    assert user.count("It ships from Hamburg.") == 1
+
+
+def test_a_compound_slot_is_written_as_no_category() -> None:
+    """Its reply is one question joining two asks, which a category would contradict."""
+    model = StubModel(
+        question="What is the limit, and how is an account closed?",
+        answer="1,000 euros; by letter",
+        facts=[1, 2],
+    )
+    pair = group(
+        source(1, document="a", passage_id=11), source(2, document="b", passage_id=22)
+    )
+
+    written = QuestionWriter(model).write(
+        pair, plan(shape="apart", kind="compound", categories=(concise(),))
+    )
+
+    assert "THE QUESTION -" not in model.user
+    assert written.categories == ()
+
+
+def test_a_compound_slot_written_single_is_told_its_categories() -> None:
+    """Short of its partner it is the single question it can only be, and told them."""
+    model = StubModel(question="What is the limit?", answer="1,000 euros", facts=[1])
+
+    written = QuestionWriter(model).write(
+        group(source(1)), plan(shape="apart", kind="compound", categories=(concise(),))
+    )
+
+    assert "THE QUESTION -" in model.user
+    assert written.categories == (concise(),)

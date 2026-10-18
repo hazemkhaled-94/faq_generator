@@ -25,7 +25,7 @@ from llm.client import Client
 from llm.prompt import fill
 from nlp.models import named
 from question_generation.kinds import KINDS, _Answered, stored
-from question_generation.models import Candidate, FactGroup
+from question_generation.models import Candidate, Category, FactGroup
 from question_generation.planning import Plan
 from question_generation.types import PROMPT_VERSION, READS, TypeSpec
 
@@ -186,8 +186,19 @@ _USER = (
     "heading or a title out of them, and never ask about anything "
     "here that the facts above do not state:\n"
     "{{passages}}\n"
+    "{{profile}}"
     "\n"
     "Write the question and both answers in {{language}}.{{note}}"
+)
+
+#: What the categories a slot was dealt ask of its question, one line each:
+#: the DataMorgana paper's descriptions, under the rules rather than over
+#: them. A category asking for fewer than ten words does not license
+#: dropping the subject a searcher has to name.
+_ASKED = (
+    "\nTHE QUESTION - besides every rule you were given, it must be:\n"
+    "{{lines}}\n"
+    "Where one of these conflicts with a rule you were given, the rule wins.\n"
 )
 
 #: The user message an unanswerable question is asked with.
@@ -222,6 +233,19 @@ def _typed(spec: TypeSpec) -> str:
         f"{spec.guidance}\n"
         f"THE ANSWER IS {spec.answer_rule}\n\n"
         f"EXAMPLES\n{spec.example}"
+    )
+
+
+def _profile(categories: tuple[Category, ...]) -> str:
+    """The question block for a slot's categories, or nothing for none.
+
+    Nothing rather than an empty block, so a slot dealt no category is sent
+    the message it was sent before categories existed.
+    """
+    if not categories:
+        return ""
+    return fill(
+        _ASKED, {"{{lines}}": "\n".join(f"- {one.description}" for one in categories)}
     )
 
 
@@ -280,6 +304,12 @@ class QuestionWriter:
         attempt. The same sample and the same plan: what is being asked for
         has not changed, only what to avoid this time.
 
+        The plan's categories are rendered for an answerable slot only, and
+        the candidate carries what was rendered. An unanswerable question is
+        dealt them and told none: the paper asks only questions that have an
+        answer. A compound question is told none either, as the comment at
+        the call says.
+
         Raises:
             ModelUnavailable: If the model could not be reached or would not
                 answer in the shape.
@@ -295,9 +325,14 @@ class QuestionWriter:
             # Short of the passages it asks about, as any spanning slot is:
             # it is written as the single-passage question it can only be.
             kind, spans = KINDS[QuestionKind.SINGLE], False
+        # A compound reply is ONE question joining two asks, which a category
+        # written for one ask, such as a concise phrasing, would contradict:
+        # it is told none. Keyed on the kind asked for, so a compound slot
+        # short of its partner, written single, is told its categories.
+        told = () if kind.name == QuestionKind.COMPOUND else plan.categories
         written = self._client.answer(
             system=plan.spec.system(spans=spans, instruction=kind.instruction or None),
-            user=self._prompt(sample, note),
+            user=self._prompt(sample, note, categories=told),
             shape=kind.shape,
             prompt_version=PROMPT_VERSION,
         )
@@ -321,6 +356,7 @@ class QuestionWriter:
                 and one.question.strip()
                 and one.answer.strip()
             ),
+            categories=told,
         )
 
     def follow_up(
@@ -406,6 +442,7 @@ class QuestionWriter:
         root_facts: tuple[int, ...] = (),
         parent_passages: tuple[int, ...] = (),
         parts: tuple[tuple[int, str, str], ...] = (),
+        categories: tuple[Category, ...] = (),
     ) -> Candidate:
         """Assembles one written question, whatever kind it was."""
         return Candidate(
@@ -421,6 +458,7 @@ class QuestionWriter:
             planned_difficulty=plan.band,
             kind=stored(kind, len(group.resting)),
             parts=parts,
+            categories=categories,
         )
 
     @staticmethod
@@ -449,12 +487,21 @@ class QuestionWriter:
         return FactGroup(chosen or sample.facts[:1])
 
     @staticmethod
-    def _prompt(sample: FactGroup, note: str = "", template: str = _USER) -> str:
+    def _prompt(
+        sample: FactGroup,
+        note: str = "",
+        template: str = _USER,
+        categories: tuple[Category, ...] = (),
+    ) -> str:
         """Renders one sample: the facts numbered, then their passages.
 
         The passages are fenced and labelled, as extraction fences a heading
         trail, because a model shown them unlabelled asks about them instead
         of about the facts.
+
+        `categories` follow the passages, as what the question itself must
+        be. Their descriptions are an operator's text, and the one-pass fill
+        sends a placeholder written in one as written.
 
         `note` goes last, where a model weighs it most: it is what went
         wrong with the draft before this one, and it is the only thing that
@@ -488,6 +535,7 @@ class QuestionWriter:
                 )
                 if sample.beside
                 else "",
+                "{{profile}}": _profile(categories),
                 "{{language}}": named(sample.language),
                 "{{note}}": again,
             },

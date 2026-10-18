@@ -157,6 +157,21 @@ def test_no_catalogued_prompt_names_what_a_corpus_is_about(
     )
 
 
+def test_no_default_category_names_what_a_corpus_is_about() -> None:
+    """The shipped categories reach the writer too, outside every catalogue.
+
+    A category's description is rendered into the user message of every
+    answerable slot dealt it, and with QUESTIONS_CATEGORIZATIONS unset the
+    descriptions are the code's own.
+    """
+    from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
+
+    for one in categorizations(DEFAULT_CATEGORIZATIONS):
+        for category in one.categories:
+            guilty = [s for s in SUBJECTS if s in category.description.casefold()]
+            assert not guilty, f"{category.label} names {guilty}"
+
+
 #: The lemma lists a new language has to be added to, and the README section
 #: that is supposed to name all of them.
 LEMMA_LISTS = {

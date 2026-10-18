@@ -14,6 +14,7 @@ from preprocessing.chunking.models import Chunking
 from preprocessing.chunking.passages import _Markdown, chunking_of
 from question_generation.models import (
     Candidate,
+    Category,
     FactGroup,
     SourceFact,
     SourcePassage,
@@ -187,6 +188,7 @@ def plan(
     shape: str = Shape.SINGLE,
     answerable: bool = True,
     kind: str = QuestionKind.SINGLE,
+    categories: tuple[Category, ...] = (),
 ) -> Plan:
     """One slot of a topic's plan, as the writer is handed it."""
     return Plan(
@@ -195,6 +197,7 @@ def plan(
         shape=shape,
         answerable=answerable,
         kind=kind,
+        categories=categories,
     )
 
 

@@ -466,6 +466,10 @@ class Candidate:
     #: asked alone, and its answer from that passage only. Empty on any
     #: other kind.
     parts: tuple[tuple[int, str, str], ...] = ()
+    #: The categories the writer was told the question is, as it was told
+    #: them. Empty where none was rendered: an unanswerable question, a
+    #: follow-up, or a slot dealt none.
+    categories: tuple[Category, ...] = ()
 
     @property
     def follows(self) -> bool:
