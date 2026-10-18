@@ -148,7 +148,8 @@ jobs:
           df -h /
 
       - uses: ./.github/actions/setup
-      # compose.yaml requires two variables only .env.example declares.
+      # compose.yaml requires every secret, and the model and address the
+      # containers call, which only .env.example declares.
       - run: cp .env.example .env
       - run: make test-smoke
 

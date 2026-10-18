@@ -65,7 +65,7 @@ x-logging: &logging
 # The api names it too and downloads nothing: it loads neither.
 x-service-env: &service-env
   TZ: UTC
-  DATABASE_URL: postgresql+psycopg://${APP_DB_USER}:${APP_DB_PASSWORD:?make setup writes it to .env}@postgres:5432/${APP_DB_NAME}
+  DATABASE_URL: postgresql+psycopg://${APP_DB_USER}:${APP_DB_PASSWORD:?add it to .env; .env.example names every secret}@postgres:5432/${APP_DB_NAME}
   LOG_LEVEL: ${LOG_LEVEL}
   LOG_DIR: /var/log/qa
   HF_HOME: /home/app/.cache/huggingface
@@ -85,8 +85,8 @@ x-service-env: &service-env
 # verdict is posted with. The workers only: the api exports no span and
 # posts no verdict.
 x-phoenix-env: &phoenix-env
-  OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET:?make setup writes it to .env}
-  PHOENIX_API_KEY: ${PHOENIX_ADMIN_SECRET:?make setup writes it to .env}
+  OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
+  PHOENIX_API_KEY: ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
 
 # Object store readers and writers.
 x-store-env: &store-env
@@ -97,8 +97,8 @@ x-store-env: &store-env
   # S3_CONTAINER_ENDPOINT to the same address its host uses, or to nothing
   # at all for AWS.
   S3_ENDPOINT: ${S3_CONTAINER_ENDPOINT}
-  S3_ACCESS_KEY: ${S3_ACCESS_KEY?make setup writes it to .env}
-  S3_SECRET_KEY: ${S3_SECRET_KEY?make setup writes it to .env}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY?add it to .env; .env.example names every secret}
+  S3_SECRET_KEY: ${S3_SECRET_KEY?add it to .env; .env.example names every secret}
   S3_REGION: ${S3_REGION}
   S3_ADDRESSING_STYLE: ${S3_ADDRESSING_STYLE}
 
@@ -228,7 +228,7 @@ x-dagster: &dagster
     TZ: UTC
     DAGSTER_HOME: /opt/dagster/dagster_home
     DAGSTER_DB_USER: ${DAGSTER_DB_USER}
-    DAGSTER_DB_PASSWORD: ${DAGSTER_DB_PASSWORD:?make setup writes it to .env}
+    DAGSTER_DB_PASSWORD: ${DAGSTER_DB_PASSWORD:?add it to .env; .env.example names every secret}
     DAGSTER_DB_NAME: ${DAGSTER_DB_NAME}
     # The container's view of the database, not the host's. dagster.yaml
     # reads both through `env:`, so one file serves this and `dagster dev`.
@@ -262,25 +262,25 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
-      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?make setup writes it to .env}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?add it to .env; .env.example names every secret}
       POSTGRES_DB: ${APP_DB_NAME}
       APP_DB_USER: ${APP_DB_USER}
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?make setup writes it to .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?add it to .env; .env.example names every secret}
       SEAWEEDFS_DB_NAME: ${SEAWEEDFS_DB_NAME}
       SEAWEEDFS_DB_USER: ${SEAWEEDFS_DB_USER}
-      SEAWEEDFS_DB_PASSWORD: ${SEAWEEDFS_DB_PASSWORD:?make setup writes it to .env}
+      SEAWEEDFS_DB_PASSWORD: ${SEAWEEDFS_DB_PASSWORD:?add it to .env; .env.example names every secret}
       PHOENIX_DB_NAME: ${PHOENIX_DB_NAME}
       PHOENIX_DB_USER: ${PHOENIX_DB_USER}
-      PHOENIX_DB_PASSWORD: ${PHOENIX_DB_PASSWORD:?make setup writes it to .env}
+      PHOENIX_DB_PASSWORD: ${PHOENIX_DB_PASSWORD:?add it to .env; .env.example names every secret}
       DAGSTER_DB_NAME: ${DAGSTER_DB_NAME}
       DAGSTER_DB_USER: ${DAGSTER_DB_USER}
-      DAGSTER_DB_PASSWORD: ${DAGSTER_DB_PASSWORD:?make setup writes it to .env}
+      DAGSTER_DB_PASSWORD: ${DAGSTER_DB_PASSWORD:?add it to .env; .env.example names every secret}
       ARGILLA_DB_NAME: ${ARGILLA_DB_NAME}
       ARGILLA_DB_USER: ${ARGILLA_DB_USER}
-      ARGILLA_DB_PASSWORD: ${ARGILLA_DB_PASSWORD:?make setup writes it to .env}
+      ARGILLA_DB_PASSWORD: ${ARGILLA_DB_PASSWORD:?add it to .env; .env.example names every secret}
       # No database of its own: it reads the application's, and only reads.
       GRAFANA_DB_USER: ${GRAFANA_DB_USER}
-      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?make setup writes it to .env}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?add it to .env; .env.example names every secret}
       TZ: UTC
       PGTZ: UTC
     volumes:
@@ -401,7 +401,7 @@ services:
     environment:
       TZ: UTC
       WEED_POSTGRES_USERNAME: ${SEAWEEDFS_DB_USER}
-      WEED_POSTGRES_PASSWORD: ${SEAWEEDFS_DB_PASSWORD:?make setup writes it to .env}
+      WEED_POSTGRES_PASSWORD: ${SEAWEEDFS_DB_PASSWORD:?add it to .env; .env.example names every secret}
       WEED_POSTGRES_DATABASE: ${SEAWEEDFS_DB_NAME}
       WEED_POSTGRES_SSLMODE: ${SEAWEEDFS_DB_SSLMODE}
     # The image declares /data a volume; the metadata is in Postgres, so
@@ -434,8 +434,8 @@ services:
       - -config=/etc/seaweedfs/s3.json
     environment:
       TZ: UTC
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY?make setup writes it to .env}
-      S3_SECRET_KEY: ${S3_SECRET_KEY?make setup writes it to .env}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY?add it to .env; .env.example names every secret}
+      S3_SECRET_KEY: ${S3_SECRET_KEY?add it to .env; .env.example names every secret}
       S3_BUCKETS: ${S3_BUCKETS}
     volumes:
       - ./configs/seaweedfs/entrypoint.sh:/entrypoint.sh:ro
@@ -736,11 +736,11 @@ services:
     environment:
       TZ: UTC
       PHOENIX_WORKING_DIR: /mnt/data
-      PHOENIX_SQL_DATABASE_URL: postgresql://${PHOENIX_DB_USER}:${PHOENIX_DB_PASSWORD:?make setup writes it to .env}@postgres:5432/${PHOENIX_DB_NAME}
+      PHOENIX_SQL_DATABASE_URL: postgresql://${PHOENIX_DB_USER}:${PHOENIX_DB_PASSWORD:?add it to .env; .env.example names every secret}@postgres:5432/${PHOENIX_DB_NAME}
       PHOENIX_ENABLE_AUTH: ${PHOENIX_ENABLE_AUTH}
-      PHOENIX_ADMIN_SECRET: ${PHOENIX_ADMIN_SECRET:?make setup writes it to .env}
-      PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD: ${PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD:?make setup writes it to .env}
-      PHOENIX_SECRET: ${PHOENIX_SECRET:?make setup writes it to .env}
+      PHOENIX_ADMIN_SECRET: ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
+      PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD: ${PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD:?add it to .env; .env.example names every secret}
+      PHOENIX_SECRET: ${PHOENIX_SECRET:?add it to .env; .env.example names every secret}
       # What the PLAYGROUND calls. Phoenix replays a span there - the
       # prompt as it was sent, against a model of your choosing - which is
       # what turns a refused question into "what would another model have
@@ -815,7 +815,7 @@ services:
     env_file: [configs/env/elasticsearch.env]
     environment:
       TZ: UTC
-      ELASTIC_PASSWORD: ${ELASTICSEARCH_PASSWORD:?make setup writes it to .env}
+      ELASTIC_PASSWORD: ${ELASTICSEARCH_PASSWORD:?add it to .env; .env.example names every secret}
     volumes:
       # One file at a time, so ca.key reaches no container.
       - ./certs/ca.crt:/usr/share/elasticsearch/config/certs/ca.crt:ro
@@ -839,17 +839,17 @@ services:
     restart: unless-stopped
     environment:
       TZ: UTC
-      ARGILLA_DATABASE_URL: postgresql+asyncpg://${ARGILLA_DB_USER}:${ARGILLA_DB_PASSWORD:?make setup writes it to .env}@postgres:5432/${ARGILLA_DB_NAME}
-      ARGILLA_ELASTICSEARCH: https://elastic:${ELASTICSEARCH_PASSWORD:?make setup writes it to .env}@elasticsearch:9200
+      ARGILLA_DATABASE_URL: postgresql+asyncpg://${ARGILLA_DB_USER}:${ARGILLA_DB_PASSWORD:?add it to .env; .env.example names every secret}@postgres:5432/${ARGILLA_DB_NAME}
+      ARGILLA_ELASTICSEARCH: https://elastic:${ELASTICSEARCH_PASSWORD:?add it to .env; .env.example names every secret}@elasticsearch:9200
       ARGILLA_ELASTICSEARCH_CA_PATH: /etc/argilla-certs/ca.crt
       ARGILLA_REDIS_URL: redis://redis:6379/0
       ARGILLA_HOME_PATH: /argilla
       USERNAME: ${ARGILLA_USERNAME}
-      PASSWORD: ${ARGILLA_PASSWORD:?make setup writes it to .env}
+      PASSWORD: ${ARGILLA_PASSWORD:?add it to .env; .env.example names every secret}
       # The owner's key, which the review tool sends. Read when Argilla
       # creates the owner, on a fresh argilla_data; an owner already there
       # keeps the key it has.
-      API_KEY: ${ARGILLA_API_KEY:?make setup writes it to .env}
+      API_KEY: ${ARGILLA_API_KEY:?add it to .env; .env.example names every secret}
     volumes:
       - ./certs/ca.crt:/etc/argilla-certs/ca.crt:ro
       - argilla_data:/argilla
@@ -904,7 +904,7 @@ services:
     command: ["filebeat", "-e", "--strict.perms=false"]
     environment:
       TZ: UTC
-      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:?make setup writes it to .env}
+      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:?add it to .env; .env.example names every secret}
     volumes:
       - ./configs/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - ./certs/ca.crt:/usr/share/filebeat/certs/ca.crt:ro
@@ -942,16 +942,16 @@ services:
     environment:
       TZ: UTC
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?make setup writes it to .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?add it to .env; .env.example names every secret}
       GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY:?Grafana needs its secret key}
       GF_USERS_ALLOW_SIGN_UP: "false"
       # Read by the provisioned datasources, which cannot hold a credential
       # of their own in a file that is in git.
-      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:?make setup writes it to .env}
+      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:?add it to .env; .env.example names every secret}
       APP_DB_NAME: ${APP_DB_NAME}
       PHOENIX_DB_NAME: ${PHOENIX_DB_NAME}
       GRAFANA_DB_USER: ${GRAFANA_DB_USER}
-      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?make setup writes it to .env}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?add it to .env; .env.example names every secret}
     volumes:
       - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./certs/ca.crt:/etc/grafana/certs/ca.crt:ro
