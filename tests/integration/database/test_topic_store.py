@@ -515,6 +515,53 @@ def test_a_label_saved_during_a_fit_survives_it(store) -> None:
     assert held == {0: (None, None, True), 1: ("Kartengebühren", "person", False)}
 
 
+def test_a_decision_the_fit_already_lost_is_not_lost_again(store, caplog) -> None:
+    """The fit's own carry logged and counted it, and the store does neither.
+
+    Made after the fit was asked for, it is in both reads.
+    """
+    store.given_passages(de=3)
+    one, two, three = store.passages["de"]
+    store.store(
+        fitting("de", weights=[PassageWeight(one, 0, 0.9), PassageWeight(two, 1, 0.9)])
+    )
+    running = store.request()
+    store.claim()
+    store.catalog.describe(
+        store.topic_id("de", 0), label="Kartengebühren", include_in_coverage=None
+    )
+
+    with caplog.at_level(logging.WARNING):
+        new = store.carried(fitting("de", weights=[PassageWeight(three, 0, 0.9)]))
+        written = store.store(new, fit_id=running)
+
+    assert written == (1, 0), written
+    assert caplog.text.count("Kartengebühren") == 1, caplog.text
+
+
+def test_a_decision_saved_during_a_fit_that_lands_nowhere_is_counted(
+    store, caplog
+) -> None:
+    """Lost as one the fit's own carry matched to no topic is, and said once."""
+    store.given_passages(de=3)
+    one, two, three = store.passages["de"]
+    store.store(
+        fitting("de", weights=[PassageWeight(one, 0, 0.9), PassageWeight(two, 1, 0.9)])
+    )
+    running = store.request()
+    store.claim()
+    new = store.carried(fitting("de", weights=[PassageWeight(three, 0, 0.9)]))
+    store.catalog.describe(
+        store.topic_id("de", 0), label="Kartengebühren", include_in_coverage=None
+    )
+
+    with caplog.at_level(logging.WARNING):
+        written = store.store(new, fit_id=running)
+
+    assert written == (1, 1), written
+    assert caplog.text.count("Kartengebühren") == 1, caplog.text
+
+
 def test_clearing_a_label_clears_what_named_it(store) -> None:
     """A topic with no name has nothing that named it."""
     store.given_passages(de=1)

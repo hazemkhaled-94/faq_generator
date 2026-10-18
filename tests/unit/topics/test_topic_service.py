@@ -80,6 +80,17 @@ def test_the_fit_counts_every_decision_it_lost(service, passages, monkeypatch) -
     assert (fit.attributes or {})["topic.decisions_dropped"] == 3
 
 
+def test_the_store_is_handed_the_decisions_the_carry_read(service, passages) -> None:
+    """So it carries again only one a person made since, and loses none twice."""
+    flow = service({"de": passages})
+    decided = FittedTopic(0, ["lieferung"], label="Versand", labelled_by="person")
+    flow.queue.previous["de"] = [decided]
+
+    flow.request_and_run()
+
+    assert flow.stored[0].decisions == (decided,), flow.stored[0].decisions
+
+
 def test_a_fit_reports_what_each_language_was_over(service, passages) -> None:
     """The passage count and the vocabulary size travel with the topics."""
     flow = service({"de": passages})

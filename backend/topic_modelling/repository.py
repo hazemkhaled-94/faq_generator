@@ -365,8 +365,9 @@ class TopicQueue(StageQueue):
             topics = {fitting.language: fitting.topics for fitting in fittings}
             # A decision a person made while this fit ran may postdate the
             # read the service carried decisions from, and would be deleted
-            # below. Every one since the fit was asked for is carried again,
-            # which repeats the earlier ones to the same effect; the rows are
+            # below. Every one since the fit was asked for that the read did
+            # not see is carried here; one it saw is on the topics already, or
+            # was logged and counted lost, and is not again. The rows are
             # locked first, so a later one waits for this to commit and then
             # finds its topic gone, which answers 404 rather than losing it
             # quietly.
@@ -380,22 +381,28 @@ class TopicQueue(StageQueue):
                 Topic.language.in_(fitted),
                 *([] if requested_at is None else [Topic.decided_at > requested_at]),
             )
+            dropped = 0
             if late:
                 # Here rather than at the top: the api reads this module, and
                 # that one loads gensim.
                 from topic_modelling.topics import carry_labels, dominant
 
                 for fitting in fittings:
-                    if fitting.language in late:
-                        topics[fitting.language], _ = carry_labels(
+                    unseen = [
+                        one
+                        for one in late.get(fitting.language, [])
+                        if one not in fitting.decisions
+                    ]
+                    if unseen:
+                        topics[fitting.language], unmatched = carry_labels(
                             fitting.topics,
-                            late[fitting.language],
+                            unseen,
                             before=_dominant(session, fitting.language),
                             after=dominant(fitting.weights),
                         )
+                        dropped += unmatched
             # A language no passage carries has no new topic for a decision
             # to go to, so it is lost as one matching no topic is.
-            dropped = 0
             for language, decided in _decisions(
                 session, gone, Topic.language.not_in(fitted)
             ).items():

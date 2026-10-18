@@ -181,6 +181,7 @@ class TopicModellingService(StageService):
                     replace(
                         fitting,
                         topics=self._named(carried, fitting, language),
+                        decisions=tuple(decided),
                         trace_id=trace_id,
                         span_id=span_id,
                     )

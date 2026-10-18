@@ -81,8 +81,13 @@ is an outstanding request, and a row that has one is a topic.
    decision matching no topic - after a re-chunk no passage is held by both
    fits - is logged as a warning and counted on the span as
    `topic.decisions_dropped`, beside `topic.decisions_carried`. A decision
-   a person makes while the fit runs is carried the same way in step 10,
-   under a lock on the rows it replaces.
+   a person makes while the fit runs, after this read, is carried the same
+   way in step 10, under a lock on the rows it replaces; one this read saw
+   is not carried, logged or counted there again. Two are not carried: an
+   undo made while the fit runs - a name cleared, a topic put back in
+   coverage - so the new topic keeps the decision read here; and a decision
+   `make review-pull-topics` records with the time it was given in the
+   review, when that is before the fit was asked for.
 9. **Name the unnamed topics.** Only topics holding no label are offered to
    the model, all of a language's in one call, so it sees the set and can
    tell the topics apart. For each it is shown the terms and up to four
@@ -99,10 +104,10 @@ is an outstanding request, and a row that has one is a topic.
     language the fit skipped keeps its topics and memberships; one that no
     passage carries any more, its last document removed, loses its topics,
     since no fit would reach them again, and each decision a person made on
-    them is logged as a warning. The fit's own span counts those in
-    `topic.decisions_dropped` with every decision a language's carry
-    dropped. Topic ids are read back after the
-    insert rather than from `RETURNING`, whose row order for an
+    them is logged as a warning. The fit's own span counts those, and those
+    made during the fit that match no topic, in `topic.decisions_dropped`
+    with every decision a language's carry dropped. Topic ids are read back
+    after the insert rather than from `RETURNING`, whose row order for an
     `executemany` is not guaranteed, and are keyed by
     `(language, topic_index)`. A passage the fit placed in no topic — the
     vocabulary filter dropped its words, or every weight fell below the

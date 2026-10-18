@@ -77,6 +77,9 @@ class Fitting:
     #: The passages counted in `without_topics`, which the store places in
     #: the topic whose centroid is nearest.
     unplaced: tuple[int, ...] = ()
+    #: The decisions `topics` were carried from, as read when this language
+    #: was fitted. The store carries again only one made since.
+    decisions: tuple[FittedTopic, ...] = ()
 
     @property
     def labelled(self) -> int:

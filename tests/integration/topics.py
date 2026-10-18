@@ -7,6 +7,7 @@ database the fixtures start.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from seed import digest, document, fact, passage
@@ -138,6 +139,20 @@ class TopicStore:
         if fit_id is None:
             fit_id = self.claim() or self.request()
         return self.queue.replace(fit_id, list(fittings))
+
+    def carried(self, fitting: Fitting) -> Fitting:
+        """What the service hands the store: the decisions held now carried."""
+        # Here rather than at the top, as the repository does: it loads gensim.
+        from topic_modelling.topics import carry_labels, dominant
+
+        decided = self.queue.labelled_topics(fitting.language)
+        topics, _ = carry_labels(
+            fitting.topics,
+            decided,
+            before=self.queue.dominant_passages(fitting.language),
+            after=dominant(fitting.weights),
+        )
+        return replace(fitting, topics=topics, decisions=tuple(decided))
 
     def weights_for(self, language: str, *pairs: tuple[int, int, float]):
         """Builds memberships as (passage offset, topic index, weight)."""
