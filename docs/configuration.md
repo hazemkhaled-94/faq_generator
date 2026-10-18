@@ -180,7 +180,7 @@ table gives no probabilities:
 
 | Categorization | Categories |
 |---|---|
-| Phrasing | concise-and-natural, verbose-and-natural |
+| Phrasing | concise-and-natural, verbose-and-natural, short-search-query, long-search-query |
 | Premise | direct, with-premise |
 
 Table 5's Factuality is not among them: whether a question is factoid or
@@ -229,10 +229,11 @@ Not `make settings-set`: it splits `SET` at its spaces, so a JSON value
 reaches the store in pieces. A value is refused, naming the categorization
 at fault, before anything is stored when it is not JSON, misspells a key,
 names a category twice, puts an `=` or a comma in a name, gives a role other
-than `question` or `user`, gives word bounds that are not whole numbers of
-at least 1 or a minimum above its maximum, or has probabilities that do not
-sum to 1. `make settings-unset SERVICE=questions
-UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default in code.
+than `question` or `user` or a form other than `question` or `query`, gives
+word bounds that are not whole numbers of at least 1 or a minimum above its
+maximum, or has probabilities that do not sum to 1. `make settings-unset
+SERVICE=questions UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default
+in code.
 
 A categorization describes the question unless it says `"role": "user"`,
 which makes it describe the person asking. The writer is told the asker in a
@@ -257,13 +258,20 @@ A value replaces the default whole, so a value holding only this one writes
 no phrasing category: list the default's categorizations beside it to keep
 both.
 
+A category is a question asked unless it says `"form": "query"`, which
+makes it a search query: keywords typed into a box. The writer is told the
+question-mark rule does not apply to it, and no gate refuses it for ending
+without one, when it is written or when it is re-checked; every other rule
+holds. The default's short and long search queries are of form `query`.
+
 A category may also carry word bounds, `"words": {"min": 10}`, `{"max": 9}`
 or both, each a whole number of at least 1. They are a label for reading the
 result, never an instruction and never a refusal: the writer is not sent
 them, no question is refused for missing them, and `make diversity
 BY=category` reports the share of each category's questions inside them.
-The default bounds concise-and-natural to at most 9 words and
-verbose-and-natural to at least 10, the counts their descriptions name. The
+The default bounds each phrasing by the count its description names:
+concise-and-natural to at most 9 words, verbose-and-natural to at least 10,
+short-search-query to at most 6 and long-search-query to at least 7. The
 report reads the bounds configured when it runs, so a question written under
 other bounds is counted against today's.
 

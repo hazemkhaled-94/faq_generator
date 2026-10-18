@@ -52,7 +52,8 @@ each is a set of mutually exclusive categories, each category a description
 of what a question of it is like and how often it is wanted. The setting
 holds them as the paper's Figure 2 JSON. Unset, it reads two of the paper's
 Table 5 categorizations, every category at even odds: Phrasing, a concise
-natural question of fewer than 10 words or a verbose one of more than 9; and
+natural question of fewer than 10 words, a verbose one of more than 9, or a
+short or long search query typed as keywords; and
 Premise, a direct question or one opening with a very short premise in which
 the asker says what they need or something about themselves. `[]` deals
 none.
@@ -201,9 +202,9 @@ asks, which a category written for one ask contradicts; one written single
 for want of a partner is told its categories. A slot told none is sent the
 message prompt version 16 sent, byte for byte. A retry is sent the same block
 as the draft it rewrites. The question records the categories it was told in
-`questions.categories`, as categorization, category, role and description,
-so a categorization edited later does not rewrite what an earlier question
-was asked to be.
+`questions.categories`, as categorization, category, role, form and
+description, so a categorization edited later does not rewrite what an
+earlier question was asked to be.
 
 A categorization with `"role": "user"` describes the person asking rather
 than the question, as the paper's Figure 3 does with its novice and expert.
@@ -223,6 +224,22 @@ cannot be got back out of them and is refused as not recoverable. A slot
 dealt only user categories gets no question block. Prompt version 18 is the
 first to send the asker block; a slot dealt no user category is sent what
 version 17 sent.
+
+A category of `"form": "query"` is a search query: keywords typed into a
+box, as Table 5's short and long search queries are. The rules ask for a
+question ending in a question mark, and the rules win, so its question block
+carries one more line, before the rules are said to win:
+
+```text
+This one is typed into a search box: keywords, no question mark. The rule about the question mark does not apply to it; every other rule does.
+```
+
+The gates lift that one rule for it too, and only that one: a query is
+still refused for two question marks, for asking two things, for naming its
+source or for an answer the passages do not give. A malformed query is
+asked again for one well-formed search query in keywords, where a question
+is told to end in a single question mark. Prompt version 19 is the first to
+send the line; a slot dealt no query is sent what version 18 sent.
 
 A draft a gate refused for how it was written — two questions welded
 together, its source named, an answer of the wrong shape — is written again
@@ -452,6 +469,12 @@ its own document, runs in it too.
 | `answer_incomplete` | has a `list` key naming far less than the verifier found, whether recall found the key or the entailment pass rescued it | the same round trip |
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite settles it | a passage probe and a second `settles` call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
+
+A question written as a search query, dealt a category of form `query`, is
+not `malformed` for ending without a question mark, when it is written or
+when it is re-checked: a re-check reads the form off the categories the row
+stores, so a row stored without one is held to the question mark as it was
+when it was written. Every other rule above holds for it.
 
 `questions.rejected_reason` holds exactly these. `source_changed` is the one
 no run of the writer produces — it is `make questions-reverify` carrying a
@@ -829,7 +852,9 @@ Nothing is deleted. The draw re-checks first, as `questions-reverify` does. A
 question is rejected before it can be drawn when a fact it cites no longer
 holds or its passage or document scope moved (`source_changed`), when it fails
 the structural gates other than the document-title check, when it fails its
-type's rules, or when the duplicate probe finds an earlier twin. A question a
+type's rules, or when the duplicate probe finds an earlier twin. A search
+query is held to the structural gates as it was written, without the
+question mark, by the form its row stores. A question a
 person accepted is checked on its facts alone. The topic, explanation,
 source-naming pattern and thread gates (`off_topic`, `explanation_unusable`,
 the pattern half of `leaks_source`, `asks_nothing_new`, `off_thread`) are not
@@ -983,7 +1008,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
-| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them and no question is refused by them, and `make diversity BY=category` reports how many of the category's questions keep to them. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings and its two premises from code, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise and verbose; Premise: direct and with-premise; 0.5 each** |
+| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category's `form` is `question`, the default, or `query` for a search query, which no gate holds to a question mark; any other form is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them and no question is refused by them, and `make diversity BY=category` reports how many of the category's questions keep to them. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's natural phrasings and search queries and its two premises from code, each phrasing bounded by the word count its description names, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise, verbose, short and long search query, 0.25 each; Premise: direct and with-premise, 0.5 each** |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |
