@@ -102,6 +102,12 @@ APPROVED = case((_THIN, None), else_=Assessment.approved)
 #: window is truncated and answered anyway.
 _FACTS_SHOWN = 8
 
+#: How many passages one question's rubric is shown. Most questions rest on
+#: one passage and the rest on two, so this too is a ceiling against a
+#: pathological row: the rubric's own prompt is some two thousand tokens
+#: before any passage arrives.
+_PASSAGES_SHOWN = 4
+
 #: What the pipeline's own checker or gates decided about each artefact,
 #: as one word. `accepted` where nothing refused it or a person accepted a
 #: question over a gate, so it reads the same for all three kinds and the
@@ -145,6 +151,33 @@ def _question_facts():
     )
 
 
+def _question_passages():
+    """The passages one question's facts cite, each once, as the rubric reads them.
+
+    Through the facts rather than beside them, because that is the only path
+    from a question to its source: two facts citing one passage are one
+    passage, and a bridge brings both of its own. In document and then
+    reading order, so two runs show one question the same text and a two-part
+    question reads in the order its document does.
+    """
+    cited = (
+        select(FactPassage.passage_id)
+        .join(QuestionFact, QuestionFact.fact_id == FactPassage.fact_id)
+        .where(QuestionFact.question_id == Question.id)
+        # Two levels down from the question, where auto-correlation does not
+        # reach: left alone, this would join every question in the table.
+        .correlate(Question)
+    )
+    listed = array_agg(
+        aggregate_order_by(Passage.text, Passage.doc_sha256, Passage.ordinal)
+    )
+    return (
+        select(func.array_to_string(listed[1:_PASSAGES_SHOWN], "\n\n"))
+        .where(Passage.id.in_(cited))
+        .scalar_subquery()
+    )
+
+
 def _fields_query(kind: str, artifact_id: int) -> Select:
     """What one artefact's templates substitute, as a query for one row."""
     if kind == ArtifactKind.FACT:
@@ -160,6 +193,11 @@ def _fields_query(kind: str, artifact_id: int) -> Select:
         Question.question_text.label("question"),
         func.coalesce(Question.target_answer, "").label("answer"),
         func.coalesce(_question_facts(), "(none recorded)").label("facts"),
+        func.coalesce(_question_passages(), "(none recorded)").label("passages"),
+        # A follow-up leans on the turn before it, which the rubric is not
+        # shown, so it is asked of a root alone. 'True' or 'False' once the
+        # claim makes every field a string.
+        Question.follows_id.is_(None).label("root"),
     ).where(Question.id == artifact_id)
 
 

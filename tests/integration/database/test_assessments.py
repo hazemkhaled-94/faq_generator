@@ -160,6 +160,68 @@ def test_a_question_is_claimed_with_the_facts_it_rests_on(corpus) -> None:
     assert "A reply is due in five days." in claimed.fields["facts"]
 
 
+def test_a_question_is_shown_its_passages_once_in_reading_order(
+    engine, database
+) -> None:
+    """What the paper's rubric reads: the passages its facts cite, not the facts.
+
+    Two facts cite one passage and a bridge cites two more, so five
+    passages are cited six times. Each is shown once, in document and then
+    reading order, and only the first four. A follow-up is claimed as one,
+    because the rubric is asked of a root alone.
+    """
+    with Session(engine) as session:
+        session.add_all([document(digest("a")), document(digest("b"))])
+        session.flush()
+        held = {
+            (doc, ordinal): passage(
+                digest(doc), ordinal=ordinal, text=f"Passage {doc}{ordinal}."
+            )
+            # Written out of reading order, so ids do not give it away.
+            for doc, ordinal in (("a", 2), ("b", 3), ("a", 1), ("b", 1), ("b", 2))
+        }
+        session.add_all(held.values())
+        session.flush()
+        facts = [
+            fact(held["a", 2].id, statement="One."),
+            fact(held["a", 2].id, statement="Two."),
+            fact(held["a", 1].id, held["b", 3].id, statement="A bridge."),
+            fact(held["b", 1].id, statement="Three."),
+            fact(held["b", 2].id, statement="Four."),
+        ]
+        session.add_all(facts)
+        session.flush()
+        root = question(target_answer="Yes.", status=QuestionStatus.ACCEPTED)
+        session.add(root)
+        session.flush()
+        follow = question(
+            target_answer="No.",
+            status=QuestionStatus.ACCEPTED,
+            follows_id=root.id,
+            thread_position=2,
+        )
+        session.add(follow)
+        session.flush()
+        session.add_all([link(root.id, one.id) for one in facts])
+        session.add(link(follow.id, facts[0].id))
+        session.commit()
+        ids = {"root": root.id, "follow": follow.id}
+        reading = [
+            one.text
+            for one in sorted(held.values(), key=lambda p: (p.doc_sha256, p.ordinal))
+        ]
+
+    queue = AssessmentQueue(kinds=("question",), sample=0, stratify=False)
+    queue.start()
+    claimed = {one.artifact_id: one for one in (queue.claim(), queue.claim()) if one}
+
+    shown = claimed[ids["root"]].fields
+    assert shown["passages"] == "\n\n".join(reading[:4])
+    assert shown["root"] == "True"
+    assert claimed[ids["follow"]].fields["passages"] == "Passage a2."
+    assert claimed[ids["follow"]].fields["root"] == "False"
+
+
 def test_a_topic_is_claimed_with_its_terms_and_its_name(corpus) -> None:
     """A request to refit is not a topic and is never claimed here."""
     queue = AssessmentQueue(kinds=("topic",))
