@@ -200,6 +200,30 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.6
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+make schema
+```
+
+`make schema` applies one migration, which only corrects the passages
+table's comment; its downgrade restores the old wording.
+
+**A re-chunk now keeps what it does not change.** A passage whose text,
+section path, sentences and table cells come out the same keeps its id, its
+facts and its topics, so a parsing fix rebuilds only the passages it
+changed.
+
+**Carrying the fixes into stored data.** The parsing and chunking fixes reach
+stored passages through a re-parse and a re-chunk (`POST /parsing/rerun`,
+then `POST /chunking/rerun`, with the stack up); neither calls a model. The
+passages they change lose their facts and questions, so run extraction,
+topics and questions again after them, as the v0.3.0 upgrade describes. On
+the reviewed rulebook that is 30 passages carrying 237 facts and 86
+questions.
+
 ## Upgrading to v0.3.5
 
 ```bash
