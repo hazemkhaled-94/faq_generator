@@ -1470,7 +1470,8 @@ def enumerates(answer: str, language: str | None) -> bool:
     and personal`, where neither a conjunct nor what it is joined to is a
     verb. `complete and signed` and `geöffnet oder benutzt` say two things
     of one document or article and name none, and a participle is tagged a
-    verb in both parsers.
+    verb in both parsers. Nor is a number a conjunct of one: `one or two
+    days` and `zwei oder drei Werktage` are one span of time.
 
     ponytail: two adjectives of one thing, `schnell und kostenlos`, read as
     two kinds, because the parse cannot tell a kind from a property.
@@ -1490,7 +1491,7 @@ def enumerates(answer: str, language: str | None) -> bool:
 
 def _coordinated_item(token: Token) -> bool:
     """Whether a token is a conjunct naming one more item, not saying one more thing."""
-    if token.dep_ not in _CONJUNCTS:
+    if token.dep_ not in _CONJUNCTS or token.pos_ == "NUM":
         return False
     joined = token.head.head if token.head.dep_ == "cd" else token.head
     return token.pos_ not in _PREDICATES and joined.pos_ not in _PREDICATES
@@ -2292,7 +2293,9 @@ def agrees(
     chatbot wrong - the failure this gate exists for.
 
     A target with nothing to compare either way - a bare `yes` - falls back to
-    containment, which is all that is left.
+    containment, which is all that is left: the target has to be in what came
+    back, never the other way, because `kostenlos und schnell` holds the
+    `kostenlos` a passage says and asserts more.
     """
     # Numbers compared with their separators folded away. This corpus is
     # German and writes `0,3`; the verifier answers `0.3%` as often as not,
@@ -2330,7 +2333,7 @@ def agrees(
         return share is not None and share >= overlap
 
     left, right = normalised(recovered), normalised(target)
-    return bool(left) and (left in right or right in left)
+    return bool(left) and right in left
 
 
 #: A figure as either convention writes one: 1.234,56 and 1,234.56 are the

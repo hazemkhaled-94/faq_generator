@@ -3418,6 +3418,42 @@ def test_coordinated_predicates_are_not_a_set(answer, language) -> None:
     assert not enumerates(answer, language)
 
 
+@pytest.mark.parametrize(
+    ("answer", "language"),
+    [("within one or two days", "en"), ("zwei oder drei Werktage", "de")],
+)
+def test_coordinated_numbers_are_one_range_not_a_set(answer, language) -> None:
+    """`one or two days` is how long something takes, said loosely."""
+    assert not enumerates(answer, language)
+
+
+def test_an_enumeration_key_adding_an_adjective_the_passage_lacks_is_refused() -> None:
+    """`kostenlos und schnell` asserts more than the `kostenlos` that came back.
+
+    `de_core_news_md` tags a predicative adjective an adverb, which is no
+    content lemma, so the two are compared as strings, and a key holding its
+    recovery is not held by it.
+    """
+    text = "Echtzeitüberweisungen sind kostenlos."
+    result = build(Recording(recovers="kostenlos")).check(
+        candidate(
+            question_text="Was bietet die Echtzeitüberweisung?",
+            target_answer="kostenlos und schnell",
+            question_type=QuestionType.ENUMERATION,
+            facts=group(
+                source(
+                    statement=text,
+                    passage_text=text,
+                    language="de",
+                    section_path="Zahlungen > Echtzeit",
+                )
+            ),
+        )
+    )
+
+    assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE, result.status
+
+
 # ── A follow-up, read on its facts rather than its words ───────────────────
 
 
