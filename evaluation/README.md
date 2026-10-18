@@ -120,6 +120,12 @@ to, so the prompt scored is the capped one production sends. Scores recorded
 before that read the shared model uncapped and are not comparable with
 later ones.
 
+A known limit: those settings are read from the environment alone, the files
+the Makefile sources. A value stored through the settings page or
+`make settings-set` does not reach a score, so a stored `EXTRACTION_MODEL`
+or cap is scored only once the same value is set in the environment for the
+run.
+
 ### Two of the three sets are scored
 
 | Set | Scored | Because |

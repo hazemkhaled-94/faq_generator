@@ -169,7 +169,10 @@ behind is started the moment the one before it stops. Its `run` is the oldest
 it stopped, the one that was doing the work, and its `detail` names every run
 it stopped and every one Dagster would not stop, with the reason. Dagster
 stops only a queued or a started run, so a run an earlier press left stopping
-is named as already stopping rather than asked again.
+is named as already stopping rather than asked again. A known limit: it reads
+the five newest runs of the corpus job, the ones `GET /pipeline` shows, so a
+live run older than those is neither stopped nor named; `GET /pipeline/runs`
+lists further back.
 
 ## The full surface
 
