@@ -145,6 +145,32 @@ def test_a_required_interpolation_is_actually_set() -> None:
     )
 
 
+#: A password or a key, by the name it goes by.
+_SECRET = re.compile(r"PASSWORD|SECRET|_KEY")
+
+#: Secrets an empty value is a choice for, so only a missing line is refused:
+#: the blob store hands boto3 None for them, and boto3 then finds an instance
+#: role or a profile.
+MAY_BE_EMPTY = {"S3_ACCESS_KEY", "S3_SECRET_KEY"}
+
+
+def test_every_secret_compose_passes_is_required() -> None:
+    """A secret interpolated bare is a blank string and a warning.
+
+    And a blank admin password is the image's own default, which is the one
+    every copy of that image ships with. `:?` stops compose instead, naming
+    the line that is missing.
+    """
+    loose = sorted(
+        f"${{{name}{tail}}}"
+        for name, tail in re.findall(r"\$\{([A-Z][A-Z0-9_]*)([^}]*)\}", _compose())
+        if _SECRET.search(name)
+        and not tail.startswith("?" if name in MAY_BE_EMPTY else ":?")
+    )
+
+    assert not loose, ", ".join(loose)
+
+
 def test_the_example_is_the_only_file_holding_a_secret() -> None:
     """`.env.example` stands in for the one file that is not in git.
 
@@ -477,7 +503,7 @@ def test_argilla_is_given_the_api_key_setup_writes() -> None:
     """
     argilla = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]["argilla"]
 
-    assert argilla["environment"].get("API_KEY") == "${ARGILLA_API_KEY}"
+    assert str(argilla["environment"].get("API_KEY")).startswith("${ARGILLA_API_KEY:?")
 
 
 def test_grafana_encrypts_its_secrets_with_a_key_of_this_deployment() -> None:

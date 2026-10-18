@@ -39,6 +39,12 @@ the Makefile sources `backend.env`, `deployment.env`, `provider.env` and
 placeholder beside the model names. `make setup` copies one to the other and
 generates the passwords.
 
+compose refuses to start while any password or key it passes is missing
+from `.env` or empty, naming the one it lacks, rather than handing a service
+a blank and letting it fall back to its image's default. `S3_ACCESS_KEY` and
+`S3_SECRET_KEY` alone may be empty, which lets boto3 find an instance role or
+a profile, but their lines have to be there.
+
 ## What compose reads
 
 compose interpolates `${...}` out of **two** files, in this order:
@@ -205,7 +211,7 @@ pins the pair.
 
 | Test | Checks |
 |---|---|
-| `tests/static/test_env_files.py` | One name, one file. Every `${...}` compose interpolates is declared, and one with no fallback is actually set. `.env.example` holds a placeholder for every secret. The image bakes the pipelines `NLP_MODELS` loads |
+| `tests/static/test_env_files.py` | One name, one file. Every `${...}` compose interpolates is declared, and one with no fallback is actually set. Every password and key compose passes is required: `:?`, or `?` for the two S3 keys. `.env.example` holds a placeholder for every secret. The image bakes the pipelines `NLP_MODELS` loads |
 | `tests/static/test_settings_documented.py` | Every setting the code reads is named in a file that declares it |
 | `tests/static/test_language_tables.py` | Every word table keyed by language holds a row for each language `NLP_MODELS` names |
 | `tests/static/test_settings_catalogued.py` | Every setting the code reads is described in `settings/catalog.py`, and every description is read |
