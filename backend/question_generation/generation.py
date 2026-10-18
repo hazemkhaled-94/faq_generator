@@ -201,6 +201,19 @@ _ASKED = (
     "Where one of these conflicts with a rule you were given, the rule wins.\n"
 )
 
+#: Who is asking, as the categories of role `user` describe them: the paper's
+#: Figure 4 block, with its rule that the answer ignores the asker. Apart from
+#: the question block because that rule is its own: the verifier reads the
+#: question and the passages only, so an answer leaning on an asker the
+#: question does not describe cannot be got back out of them.
+_ASKER = (
+    "\nTHE ASKER - write the question as this person would ask it:\n"
+    "{{lines}}\n"
+    "Use this only to write the question. The answer and the explanation must "
+    "ignore it: they assume nothing about the asker that the question does not "
+    "say.\n"
+)
+
 #: The user message an unanswerable question is asked with.
 _USER_PERTURB = (
     "FACT - the question moves this one detail out of reach:\n"
@@ -237,15 +250,17 @@ def _typed(spec: TypeSpec) -> str:
 
 
 def _profile(categories: tuple[Category, ...]) -> str:
-    """The question block for a slot's categories, or nothing for none.
+    """The asker block, then the question block, each only where it has lines.
 
     Nothing rather than an empty block, so a slot dealt no category is sent
-    the message it was sent before categories existed.
+    the message it was sent before categories existed. The asker comes
+    first, as the paper's Figure 4 puts it: who is asking, then what they
+    ask.
     """
-    if not categories:
-        return ""
-    return fill(
-        _ASKED, {"{{lines}}": "\n".join(f"- {one.description}" for one in categories)}
+    return "".join(
+        fill(template, {"{{lines}}": "\n".join(f"- {one.description}" for one in told)})
+        for template, role in ((_ASKER, "user"), (_ASKED, "question"))
+        if (told := [one for one in categories if one.role == role])
     )
 
 
@@ -499,9 +514,9 @@ class QuestionWriter:
         trail, because a model shown them unlabelled asks about them instead
         of about the facts.
 
-        `categories` follow the passages, as what the question itself must
-        be. Their descriptions are an operator's text, and the one-pass fill
-        sends a placeholder written in one as written.
+        `categories` follow the passages, as who is asking and what the
+        question itself must be. Their descriptions are an operator's text,
+        and the one-pass fill sends a placeholder written in one as written.
 
         `note` goes last, where a model weighs it most: it is what went
         wrong with the draft before this one, and it is the only thing that

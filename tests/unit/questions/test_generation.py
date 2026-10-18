@@ -674,3 +674,56 @@ def test_a_compound_slot_written_single_is_told_its_categories() -> None:
 
     assert "THE QUESTION -" in model.user
     assert written.categories == (concise(),)
+
+
+# ── The person asking ─────────────────────────────────────────────────────
+
+
+def novice() -> Category:
+    """The paper's Figure 3 novice, as a categorization of role user reads it."""
+    return Category(
+        "user-expertise-categorization",
+        "novice",
+        "a regular user with no understanding of specialized terms.",
+        0.5,
+        "user",
+    )
+
+
+#: The block a slot dealt the novice is sent, as the paper's Figure 4 splits
+#: it off: the answer and the explanation ignore it.
+ASKER = (
+    "\nTHE ASKER - write the question as this person would ask it:\n"
+    "- a regular user with no understanding of specialized terms.\n"
+    "Use this only to write the question. The answer and the explanation must "
+    "ignore it: they assume nothing about the asker that the question does not "
+    "say.\n"
+)
+
+
+def test_the_asker_is_a_block_of_its_own_before_the_question() -> None:
+    """Who asks, then what the question is, then the request."""
+    user = asked_with(novice(), concise()).user
+
+    assert ASKER in user
+    assert user.index("THE ASKER -") < user.index("THE QUESTION -")
+    assert user.index("THE QUESTION -") < user.index("Write the question")
+
+
+def test_an_asker_alone_is_told_no_question_block() -> None:
+    """Byte for byte: the asker's block where the question block would stand."""
+    user = asked_with(novice()).user
+
+    assert user == GOLDEN.replace("Hamburg.\n\nWrite", "Hamburg.\n" + ASKER + "\nWrite")
+    assert "THE QUESTION -" not in user
+
+
+def test_a_question_carries_its_asker_as_one_of_its_categories() -> None:
+    """Stored with the rest, its role saying it was the person asking."""
+    model = StubModel(question="Q?", answer="A")
+
+    written = QuestionWriter(model).write(
+        group(), plan(categories=(novice(), concise()))
+    )
+
+    assert written.categories == (novice(), concise())

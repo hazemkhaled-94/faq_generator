@@ -1681,6 +1681,110 @@ def test_a_swap_and_a_retry_are_told_the_categories_the_slot_was_dealt() -> None
     assert len(blocks) == 1, blocks
 
 
+def test_the_verifier_is_never_shown_the_asker() -> None:
+    """The real writer and the real round trip, over one served model.
+
+    The writer is told who is asking; the verifier is asked the question
+    and the passages alone, so an answer leaning on an asker the question
+    does not describe cannot be got back out of them.
+    """
+    import json
+
+    from question_generation.checker import QuestionChecker
+    from question_generation.config import categorizations
+    from question_generation.generation import QuestionWriter
+    from question_generation.verifier import Verifier
+
+    expertise = categorizations(
+        json.dumps(
+            {
+                "categorization_name": "user-expertise-categorization",
+                "role": "user",
+                "categories": [
+                    {
+                        "name": "expert",
+                        "description": "a specialized user with deep "
+                        "understanding of the corpus.",
+                    },
+                    {
+                        "name": "novice",
+                        "description": "a regular user with no understanding "
+                        "of specialized terms.",
+                    },
+                ],
+            }
+        )
+    )
+
+    class Served:
+        """Writes one question and gets its answer back, recording every ask."""
+
+        model = "ollama/stub"
+
+        def __init__(self) -> None:
+            """Initialises the model with nothing asked."""
+            self.asked: list[tuple[str, str, str]] = []
+
+        def answer(self, *, system, user, shape, prompt_version=None):
+            """Records the call and answers in the shape asked for."""
+            self.asked.append((shape.__name__, system, user))
+            if "in_passage" in shape.model_fields:
+                return shape(in_passage=True, answer="4 kg")
+            return shape(
+                question="How heavy is the device?",
+                answer="4 kg",
+                explanation="The device weighs 4 kg, which is all the passage "
+                "says of its weight; that it ships from Hamburg has nothing to "
+                "do with how heavy it is, so the answer is the weight alone.",
+                facts=[1],
+            )
+
+    class Embedder:
+        """One vector for every text."""
+
+        def embed(self, text: str) -> list[float]:
+            """The one vector."""
+            return [1.0] + [0.0] * 1023
+
+    served = Served()
+    service, queue = build(
+        topic(),
+        [source(1)],
+        writer=QuestionWriter(served),
+        checker=QuestionChecker(
+            embedder=Embedder(),
+            verifier=Verifier(served),
+            nearest=lambda embedding, **_: None,
+            threshold=0.93,
+            judge_phrasing=False,
+        ),
+        settings=replace(
+            SETTINGS,
+            categorizations=expertise,
+            type_mix={QuestionType.FACTOID: 1},
+            difficulty_mix={Difficulty.EASY: 1},
+            per_topic=1,
+            unanswerable_share=0.0,
+            followup_share=0.0,
+        ),
+    )
+
+    service.process_next()
+
+    described = [one.description for one in expertise[0].categories]
+    written = [user for shape, _, user in served.asked if shape == "_Answered"]
+    verified = [
+        (system, user) for shape, system, user in served.asked if shape != "_Answered"
+    ]
+    assert any(text in written[0] for text in described), "the writer was told no asker"
+    assert verified, "the round trip never ran"
+    assert not [
+        text for text in described for asked in verified if text in "".join(asked)
+    ]
+    assert queue.written[0].accepted
+    assert queue.written[0].categories[0].role == "user"
+
+
 def test_a_release_spreads_over_its_own_kinds() -> None:
     """QUESTIONS_RELEASE_TYPES, where set, decides the kinds a release holds."""
     from uuid import uuid4
