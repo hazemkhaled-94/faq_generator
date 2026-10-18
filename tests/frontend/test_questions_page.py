@@ -7,6 +7,7 @@ rules it shares with every other page are in test_views.py.
 
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 from pages import QUESTION, QUESTION_SOURCE, Answers, answers, changed
 
@@ -211,6 +212,41 @@ def test_a_settles_verdict_says_what_it_is_and_is_never_the_weakest(page) -> Non
     assert "off_topic" in said(opened)
     assert "1 measured reading(s)" in said(opened)
     assert "not part of the confidence" in said(opened)
+
+
+#: An accepted question carrying a gate measured before it gates anything,
+#: read below the bar it will one day refuse at.
+SHADOWED = changed(
+    CALIBRATED,
+    gate_scores=[
+        *CALIBRATED["gate_scores"],
+        {
+            "gate": "coverage",
+            "value": 0.25,
+            "threshold": 0.4,
+            "margin": None,
+            "high_is_safe": True,
+            "safe_end": 1.0,
+            "shadow": True,
+        },
+    ],
+)
+
+
+def test_a_shadow_reading_refuses_nothing(page) -> None:
+    """Below its bar and accepted, which read as a gate that should have fired.
+
+    And counted among the verdicts a model gave, which it is not either.
+    """
+    opened = page(question=_detail(SHADOWED), questions=_one(SHADOWED)).select()
+    table = opened.table_with("Refuses at")
+    refuses = dict(zip(table["Gate"], table["Refuses at"], strict=True))
+    safe = dict(zip(table["Gate"], table["Safe when"], strict=True))
+
+    assert pd.isna(refuses["coverage"]), refuses
+    assert "refuses nothing" in safe["coverage"]
+    assert "verdicts a model gave" not in said(opened)
+    assert "in shadow" in said(opened)
 
 
 # ── A verdict ─────────────────────────────────────────────────────────────

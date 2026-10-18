@@ -240,9 +240,14 @@ def confidence(row: Mapping[str, Any], readings: Mapping[str, Reading]) -> None:
                 "Measured": one["value"],
                 # A model's verdict sits beside the readings with no
                 # threshold of its own and no margin: it is not a measure.
-                "Refuses at": None if one.get("opinion") else one["threshold"],
+                # A shadow reading has a threshold, but nothing refuses at it.
+                "Refuses at": None
+                if one.get("opinion") or one.get("shadow")
+                else one["threshold"],
                 "Safe when": "a verdict, not a measure"
                 if one.get("opinion")
+                else "in shadow, refuses nothing"
+                if one.get("shadow")
                 else direction(one),
                 "Margin": one.get("margin"),
             }
@@ -302,7 +307,8 @@ def _weakest(
     worst = min(measured, key=lambda one: one["margin"])
     reading = readings.get(worst["gate"])
     comfort = "comfortable" if held >= 0.5 else "close" if held < 0.2 else "adequate"
-    opinions = len(scores) - len(measured)
+    shadows = sum(1 for one in scores if one.get("shadow"))
+    opinions = len(scores) - len(measured) - shadows
     said = (
         f"**Confidence {held:.2f} — {comfort}.** The weakest of the "
         f"{len(measured)} measured reading(s) below is `{worst['gate']}`, which "
@@ -315,6 +321,12 @@ def _weakest(
         said += (
             f" The other {opinions} row(s) are verdicts a model gave, kept "
             f"with no margin; they are not part of the confidence."
+        )
+    if shadows:
+        said += (
+            f" {shadows} row(s) are in shadow: gates measured before they "
+            f"refuse anything, so their bar can be set on real readings. They "
+            f"refuse nothing and are not part of the confidence."
         )
     return (
         f"{said} A margin, not a probability — it is the smallest margin of "
