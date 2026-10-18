@@ -73,8 +73,7 @@ class Setting:
     rebuild: str = ""
 
 
-#: Every setting, by service, in the order backend.env declares them, which
-#: is the order a page draws them in.
+#: Every setting, by service, in the order a page draws them in.
 SETTINGS: tuple[Setting, ...] = (
     # ── Ingestion ─────────────────────────────────────────────────────────
     # PIPELINE_VERSION is deliberately absent: it is read from
@@ -106,7 +105,9 @@ SETTINGS: tuple[Setting, ...] = (
         invalidates=("parsing",),
         help="Characters per page below which a document counts as scanned. "
         "OCR is not implemented, so such a document is refused rather than "
-        "converted into an empty one.",
+        "converted into an empty one. Lowered, `make parse-retry` returns the "
+        "documents it refused to the queue; raised, only `make parse-rerun` "
+        "refuses one already kept.",
     ),
     Setting(
         name="PARSING_MIN_CONFIDENCE",
@@ -116,7 +117,11 @@ SETTINGS: tuple[Setting, ...] = (
         high=1,
         invalidates=("parsing",),
         help="Lowest confidence a conversion may carry and still be kept, "
-        "read as the converter's own lower bound.",
+        "read as Docling's low score: each page's 5% quantile of its "
+        "component scores, averaged over the pages, so one bad page among "
+        "many is averaged away. A conversion with no score is not checked. "
+        "Lowered, `make parse-retry` returns the documents it refused to the "
+        "queue; raised, only `make parse-rerun` refuses one already kept.",
     ),
     Setting(
         name="PARSING_TABLE_MODE",
@@ -196,15 +201,18 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="EXTRACTION_MIN_OTHER_SHARE",
+        rebuild="make extract-recap",
         service="extraction",
         kind="decimal",
         low=0,
         high=1,
         invalidates=("extraction",),
         help="Smallest share of a passage's facts that may be something "
-        "other than atomic, which caps how many atomic facts one passage "
-        "keeps - never below the passage's own sentences and list items. 0 turns "
-        "the cap off.",
+        "other than atomic, which caps how many of a model's atomic facts one "
+        "passage keeps - never below the passage's own sentences and list "
+        "items. Table facts are never capped. 0 or 1 turns the cap off, and so "
+        "does naming no digest kind in EXTRACTION_KINDS. `make extract-recap` "
+        "applies a new value to stored facts without calling the model.",
     ),
     Setting(
         name="EXTRACTION_DIGEST_MODEL",
@@ -228,7 +236,9 @@ SETTINGS: tuple[Setting, ...] = (
         "and kind and over the facts of another kind one passage already "
         "kept; a fact naming other numbers is never a twin. Near identity, "
         "because bare statements on one subject score high. 0 turns the gate "
-        "off and writes no vectors.",
+        "off and writes no vectors. Raised, `make extract-dedup` gives back the "
+        "refusals it no longer makes, without calling the model; lowered, only "
+        "`make extract-rerun` refuses the new twins.",
     ),
     Setting(
         name="EXTRACTION_DUPLICATE_FLOOR",
@@ -244,20 +254,26 @@ SETTINGS: tuple[Setting, ...] = (
     ),
     Setting(
         name="EXTRACTION_BRIDGES_PER_TOPIC",
+        rebuild="make extract-bridge",
         service="extraction",
         kind="integer",
         low=0,
         invalidates=("extraction",),
-        help="How many bridge calls one topic is worth.",
+        help="How many bridge calls one topic is worth. `make extract-rerun` "
+        "leaves bridges as they are; `make extract-bridge` replaces them, and "
+        "asks for FORCE=1 while an accepted question cites one.",
     ),
     Setting(
         name="EXTRACTION_BRIDGE_PASSAGES",
+        rebuild="make extract-bridge",
         service="extraction",
         kind="integer",
         low=2,
         invalidates=("extraction",),
         help="How many passages one bridge call is shown. Below two there is "
-        "nothing to bridge.",
+        "nothing to bridge. `make extract-rerun` leaves bridges as they are; "
+        "`make extract-bridge` replaces them, and asks for FORCE=1 while an "
+        "accepted question cites one.",
     ),
     Setting(
         name="EXTRACTION_MODEL",
@@ -275,7 +291,11 @@ SETTINGS: tuple[Setting, ...] = (
         service="topics",
         kind="mapping",
         invalidates=("topics",),
-        help="ISO 639-1 code to the language's name, for the naming prompt.",
+        help="ISO 639-1 code to the language's name, for the naming prompt. "
+        "A new name reaches a topic the next time the model names it, which a "
+        "fit does for every topic it carries no label to; `make "
+        "topics-delete` and a new fit name them all again, and delete every "
+        "label a person typed.",
     ),
     Setting(
         name="TOPIC_NUM_TOPICS",
@@ -293,8 +313,9 @@ SETTINGS: tuple[Setting, ...] = (
         low=0,
         invalidates=("topics",),
         help="How many passages one topic is worth, which scales the count "
-        "to each language's share of the corpus. 0 fits TOPIC_NUM_TOPICS "
-        "whatever the corpus is.",
+        "to each language's share of the corpus, counting only the passages "
+        "that carry a validated fact once the language has any. 0 fits "
+        "TOPIC_NUM_TOPICS whatever the corpus is.",
     ),
     Setting(
         name="TOPIC_PASSES",
@@ -469,8 +490,10 @@ SETTINGS: tuple[Setting, ...] = (
         kind="mapping",
         invalidates=("questions",),
         help="Shortest and longest target answer per form, as "
-        "`form:min:max`. `make questions-reverify` re-judges stored "
-        "questions against new bounds.",
+        "`form:min:max`. Tightened, `make questions-reverify` rejects the "
+        "stored questions the new bounds refuse, other than one a person "
+        "accepted, judging each on the answer form it was written under; "
+        "widened, it gives nothing back, because it never un-rejects.",
     ),
     Setting(
         name="QUESTIONS_EXPLANATION_CHARS",
@@ -534,7 +557,9 @@ SETTINGS: tuple[Setting, ...] = (
         help="How close two question embeddings may be before the later one "
         "is refused as already asked, when the two share a cited passage but "
         "no fact. Sharing nothing, or asking with different question words, "
-        "holds a pair to halfway from this to identical.",
+        "holds a pair to halfway from this to identical. Lowered, `make "
+        "questions-reverify` rejects the stored questions it now reads as "
+        "twins, other than one a person accepted; raised, it gives none back.",
     ),
     Setting(
         name="QUESTIONS_DUPLICATE_SHARED_COSINE",
@@ -546,7 +571,9 @@ SETTINGS: tuple[Setting, ...] = (
         invalidates=("questions",),
         help="How close two questions resting on the same cited fact may be "
         "before the later one is refused as already asked. Absent holds them "
-        "to QUESTIONS_DUPLICATE_COSINE.",
+        "to QUESTIONS_DUPLICATE_COSINE. Lowered, `make questions-reverify` "
+        "rejects the stored questions it now reads as twins, other than one a "
+        "person accepted; raised, it gives none back.",
     ),
     Setting(
         name="QUESTIONS_DUPLICATE_FLOOR",
@@ -578,7 +605,6 @@ SETTINGS: tuple[Setting, ...] = (
         kind="decimal",
         low=0,
         high=1,
-        invalidates=("questions",),
         help="How much of a passage may be the names of people before it is "
         "read as a credits page and never asked about. The furniture the "
         "repetition reading cannot see, because every document thanks "
@@ -590,7 +616,6 @@ SETTINGS: tuple[Setting, ...] = (
         kind="decimal",
         low=0,
         high=1,
-        invalidates=("questions",),
         help="How much a candidate fact must have in common with the fact the "
         "head of its sample offers first before a second passage is offered at "
         "all. 0 offers one whatever it holds. Off by default.",
@@ -602,7 +627,6 @@ SETTINGS: tuple[Setting, ...] = (
         low=0,
         high=1,
         optional=True,
-        invalidates=("questions",),
         help="The share of a topic's closest cross-passage fact pairs a second "
         "passage must be among before it is offered. 0 sets no relative floor; "
         "absent reads the shipped 0.02.",
@@ -613,11 +637,11 @@ SETTINGS: tuple[Setting, ...] = (
         kind="decimal",
         low=0,
         high=1,
-        invalidates=("questions",),
-        help="How alike a passage must be to one in another document before "
-        "it is read as the corpus's furniture - a copyright notice, a "
-        "contents page, a revision table - and never asked about. 0 turns "
-        "the reading off, and a corpus of one document excludes nothing.",
+        help="How alike a passage must be to one in another document of its "
+        "own language before it is read as the corpus's furniture - a "
+        "copyright notice, a contents page, a revision table - and never "
+        "asked about. 0 turns the reading off; a language held by one "
+        "document, and a passage with no embedding, exclude nothing.",
     ),
     Setting(
         name="QUESTIONS_RELEASE_SIZE",
@@ -789,9 +813,11 @@ SETTINGS: tuple[Setting, ...] = (
         kind="text",
         optional=True,
         fixed=True,
-        help="Where a self-hosted runtime is. Read only when a stage "
-        "overrides the model with one served there, because litellm picks "
-        "the provider off the id's prefix and the address has to follow it.",
+        help="Where a self-hosted runtime is. Read when a stage's own model "
+        "moves to or from it: an `ollama*` override is sent here, and a "
+        "hosted override drops LLM_BASE_URL only when LLM_BASE_URL is this "
+        "same address. Where LLM_BASE_URL is Ollama's, set this to the same "
+        "address, or a hosted override is sent to Ollama's port.",
     ),
     Setting(
         name="SERVICE_URLS",
@@ -855,10 +881,10 @@ SETTINGS: tuple[Setting, ...] = (
         kind="integer",
         low=1,
         help="How many times one call is tried before the row fails, and so "
-        "the most calls one answer is billed for. A connection, a timeout, a "
-        "rate limit or an answer that does not fit the shape asked for is "
-        "retried; a rate limit waits as long as the provider asks, two "
-        "minutes at most.",
+        "the most calls one answer is billed for. A connection failure, a "
+        "timeout, a server error, a rate limit or an answer that does not fit "
+        "the shape asked for is retried; a rate limit waits as long as the "
+        "provider asks, two minutes at most.",
     ),
     Setting(
         name="LLM_NUM_CTX",
@@ -868,10 +894,10 @@ SETTINGS: tuple[Setting, ...] = (
         optional=True,
         help="Context window to ask the runtime for. It holds the prompt "
         "AND the answer, so a thinking model needs room for however long it "
-        "reasons. Absent, a self-hosted model is asked for 16,384. A hosted "
-        "model is never sent it. Over the window the oldest tokens "
-        "are dropped - the system prompt first - and the answer comes back "
-        "anyway, so too small fails silently.",
+        "reasons. Absent, an Ollama model is asked for 16,384. Any other "
+        "model, a self-hosted vLLM one included, is never sent it. Over the "
+        "window the oldest tokens are dropped - the system prompt first - and "
+        "the answer comes back anyway, so too small fails silently.",
     ),
     Setting(
         name="LLM_REASONING_EFFORT",
@@ -890,11 +916,11 @@ SETTINGS: tuple[Setting, ...] = (
         name="EMBEDDING_MODEL",
         service="platform",
         kind="text",
-        invalidates=("chunking", "questions"),
-        help="The one embedding model, and the only tokenizer in the "
-        "project: chunking sizes a passage with it and questions are "
-        "embedded by it. Its width must match questions.embedding, which is "
-        "vector(1024).",
+        invalidates=("chunking", "extraction", "questions"),
+        help="The one embedding model, and the tokenizer chunking sizes a "
+        "passage with: extraction embeds passages and facts with it, and "
+        "questions are embedded by it. Its width must match the embedding "
+        "columns, which are vector(1024).",
     ),
     Setting(
         name="EMBEDDING_MAX_TOKENS",
@@ -931,7 +957,7 @@ SETTINGS: tuple[Setting, ...] = (
         kind="csv",
         optional=True,
         fixed=True,
-        invalidates=("extraction", "topics"),
+        invalidates=("chunking", "extraction", "questions"),
         help="Languages that write every noun with a capital, where a "
         "lower-case word tagged as a noun is a word from another language. "
         "Empty means no language is read that way.",
@@ -983,7 +1009,8 @@ SETTINGS: tuple[Setting, ...] = (
         kind="boolean",
         help="Whether the sample spans every language, and every type of "
         "question, in an order fixed by a hash of the id, instead of taking "
-        "the newest rows. Drawn again, it is the same rows.",
+        "the newest rows. Drawn again over the same corpus, it is the same "
+        "rows.",
     ),
     Setting(
         name="WORKER_POLL_SECONDS",
