@@ -757,6 +757,17 @@ Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits wh
 | A figure table or priced list skipped as an identifier grid | the pre-filter took cells of bare figures for noise | a figure in a cell is read as the value it is | 0 stored passages change |
 | A fact citing no sentence dropped | the model's uncited fact vanished without a refusal | stored as `evidence_absent` | — |
 
+### Fixed in v0.3.4: round trip, reasons and typing
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| The entailment rescue overrode a verifier that found nothing | a key the verifier read as not in the passages was rescued by scoring the bare key against each passage | no rescue after that reading ([`checker.py`](../backend/question_generation/checker.py)) | 9 accepted questions refused, 1 of them usable; released invalid 11 to 9 |
+| The round trip asked for what only the writer was shown | a name the question or every heading trail carries, or a lemma only the headings carry, had to come back | given, unless the recovery says more than key and question; figures never ([`gates.py`](../backend/question_generation/gates.py)) | 7 wrong `not_recoverable` refusals freed, 0 right lost; 5 accepted, all usable, none welded |
+| A German adjective tagged as an adverb did not come back | `kostenlos` predicative against `kostenlose` | a lemma comes back under an adjective or adverb, never negated | included above |
+| A set of kinds written as adjectives refused as one thing | `enumerates` counted noun phrases only | a coordination with no noun phrase is a set, unless a conjunct is a verb or a number | 2 wrong `wrong_type` refusals freed, both usable, 0 right lost |
+| German *wo-* question words missed by `compound` | `Worauf …, und was …?` read as one question | a per-language table of question adverbs | 1 question moves between refusal codes; no accepted one changes |
+| The shadow coverage reading stored on half the answers it applies to | 75 of 156 | stored on every eligible answer, still in shadow | 171 readings, 0 verdicts moved |
+
 ### Deferred or low, with the reason
 
 | Defect | Why it stays open |
@@ -769,6 +780,10 @@ Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits wh
 | Duplicate refusals compare statements without their headings | Embedding each statement with its heading trail frees 19 to 31 wrong refusals but makes 71 to 121 new twins on the stored facts. It waits for facts that carry their scope (R23) |
 | Two extract workers can both keep one claim | Each probe sees only committed facts; closing it needs a lock across workers or a uniqueness rule on the statement |
 | Glossary definitions get no facts | A verbless passage under a term heading can be read as a definition, but on this corpus it also reads 13 junk passages made of diagram labels, which the parsing release removes first. It moves to that release |
+| `answer_incomplete` on terse keys | Firing only when the recovery has more items than the key and little in common without the question's words frees 20 of 32 wrong refusals and loses none, but the rows it admits are 68% usable, under the 70% the pool reaches, and two of them are welds |
+| A circular reason caught only below a fixed share of new words | Every bar that separates circular from sound reasons on this corpus sits in the gap between two of its own share values (3/7 and 4/9), and the same sentence scores differently in German and English; it would be a bar fitted to this rulebook |
+| Comparisons refused as `wrong_type` | Reading the two sides by order and parallel structure frees 43 rows, but they are 67% usable, under the pool's 70%; it needs a model-backed replay before it ships |
+| Smaller structural gates: figures read from the question for `explanation_unusable`, pointers the question resolves for `unanchored`, `leaks_source` | Each was re-measured: 4 of 6 and 2 of 3 of the rows they free are usable, under 70%, and `leaks_source`'s rows carry no stored judgement to replay |
 | Tooling odds and ends | The CI cache key hashes the whole Makefile; an unused SeaweedFS UI container; `make dev` waits for Postgres without a timeout. Low |
 
 ## Found on the v0.2.2 rebuild of 2026-10-14

@@ -200,6 +200,21 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.4
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration, no setting and no prompt change.
+
+The round-trip and typing gates change how a question being written is
+judged, so they apply to the questions written from now on. Stored questions
+keep their verdicts: `make questions-reverify` runs only the gates that need
+no model, and these need the verifier's reading. A topic generated again
+(`make questions-start TOPIC=…`, then the worker) is judged the new way.
+
 ## Upgrading to v0.3.3
 
 ```bash
