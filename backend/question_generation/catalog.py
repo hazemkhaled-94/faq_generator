@@ -418,6 +418,7 @@ class QuestionCatalog(Repository):
             Question.question_type,
             Question.follows_id,
             Question.language,
+            Question.categories,
         ).where(
             Question.status == QuestionStatus.ACCEPTED,
             Question.difficulty.is_not(None),
@@ -434,6 +435,12 @@ class QuestionCatalog(Repository):
                     question_type=row.question_type,
                     follows_id=row.follows_id,
                     language=row.language,
+                    categories=tuple(
+                        sorted(
+                            f"{one['categorization']}={one['category']}"
+                            for one in row.categories or ()
+                        )
+                    ),
                 )
                 for row in session.execute(query.order_by(Question.id))
             ]

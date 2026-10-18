@@ -112,6 +112,29 @@ def test_a_question_is_offered_with_its_language(written, engine) -> None:
     assert offered == {ids[0]: "de", ids[1]: "en"}
 
 
+def test_a_released_row_carries_its_categories(written, engine) -> None:
+    """As labels, sorted, from the list of objects the store writes; none for NULL."""
+    ids = written([("easy", "factoid", True, "accepted")] * 2)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                'UPDATE questions SET categories = \'[{"categorization": "Premise", '
+                '"category": "direct", "role": "question", "form": "question", '
+                '"description": "asked without a premise."}, {"categorization": '
+                '"Phrasing", "category": "verbose-and-natural", "description": '
+                '"a relatively long question."}]\' WHERE id = :id'
+            ),
+            {"id": ids[0]},
+        )
+
+    offered = {one.id: one.categories for one in QuestionCatalog().releasable()}
+
+    assert offered == {
+        ids[0]: ("Phrasing=verbose-and-natural", "Premise=direct"),
+        ids[1]: (),
+    }
+
+
 def test_the_twins_are_the_pairs_of_accepted_questions_of_one_language(
     engine, database
 ) -> None:

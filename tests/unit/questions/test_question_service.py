@@ -1932,6 +1932,77 @@ def test_a_release_holds_and_reports_the_languages_its_pool_holds(caplog) -> Non
     ), caplog.messages
 
 
+def test_a_release_reports_its_categories_beside_the_pools(caplog) -> None:
+    """No quota holds a category, so the two counts are how a drift shows.
+
+    The pool is three concise questions to one verbose; whatever the draw
+    takes of it, the pool's own counts are logged on the line after.
+    """
+    from uuid import uuid4
+
+    from question_generation.balance import Row
+    from question_generation.service import balance
+
+    concise, verbose = "Phrasing=concise-and-natural", "Phrasing=verbose-and-natural"
+    pool = [
+        Row(
+            id=at,
+            answerable=True,
+            difficulty=Difficulty.EASY,
+            question_type=QuestionType.FACTOID,
+            categories=(label,),
+        )
+        for at, label in enumerate([concise] * 30 + [verbose] * 10, start=1)
+    ]
+
+    class Catalog:
+        """Offers the pool and keeps what was drawn."""
+
+        drawn: tuple[int, ...] = ()
+
+        def judged(self, within=None):
+            return []
+
+        def reject(self, verdicts):
+            return 0
+
+        def releasable(self, within=None):
+            return pool
+
+        def twins(self, floor):
+            return []
+
+        def release(self, ids):
+            self.drawn = tuple(ids)
+            return uuid4(), len(self.drawn)
+
+    catalog = Catalog()
+    with caplog.at_level("INFO", logger="question_generation.service"):
+        balance(
+            catalog,
+            replace(
+                SETTINGS,
+                release_size=20,
+                release_difficulty={Difficulty.EASY: 1},
+                release_unanswerable=0.0,
+                release_types={QuestionType.FACTOID: 1},
+            ),
+        )
+
+    drawn = [pool[at - 1].categories[0] for at in catalog.drawn]
+    lines = [line.strip() for line in caplog.messages]
+    released = next(at for at, line in enumerate(lines) if line.startswith("category"))
+    assert lines[released] == (
+        f"category    {concise} {drawn.count(concise)} "
+        f"({100 * drawn.count(concise) / 20:.0f}%), {verbose} "
+        f"{drawn.count(verbose)} ({100 * drawn.count(verbose) / 20:.0f}%)"
+    )
+    assert lines[released + 1] == (
+        f"in the pool {concise} 30 (75%), {verbose} 10 (25%)"
+    )
+    assert not any(line.startswith("category") for line in lines[released + 2 :])
+
+
 def _banded(counts: dict[str, int], unanswerable: int = 0):
     """Answerable factoids, this many in each band, then easy unanswerables."""
     from question_generation.balance import Row

@@ -688,6 +688,18 @@ def _report(pool, release, drawn, written: int) -> None:
                 for key, value in sorted(counted.items())
             ),
         )
+    # The pool's categories beside the release's: no quota holds them, so a
+    # release drawn away from the mix it was written in shows only here.
+    log.info(
+        "  %-11s %s",
+        "in the pool",
+        ", ".join(
+            f"{key} {value} ({100.0 * value / len(pool):.0f}%)"
+            for key, value in sorted(
+                composition(pool, [row.id for row in pool])["category"].items()
+            )
+        ),
+    )
     # Signed, every bucket: the warning below names only the short ones, and
     # a bucket drawn past its share is as far off as one drawn under it.
     quota = release.quota
@@ -699,6 +711,7 @@ def _report(pool, release, drawn, written: int) -> None:
         "difficulty": quota.difficulty,
         "type": quota.types,
         "language": quota.languages,
+        "category": {},
     }
     log.info("against its quota of %d, achieved minus asked:", quota.size)
     for name, counted in made.items():

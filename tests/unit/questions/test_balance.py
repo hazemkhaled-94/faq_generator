@@ -503,6 +503,41 @@ def test_the_composition_reports_the_language() -> None:
     assert composition(held, [1, 2, 3])["language"] == {"de": 2, "en": 1}
 
 
+CONCISE = "Phrasing=concise-and-natural"
+VERBOSE = "Phrasing=verbose-and-natural"
+
+
+def told(id: int, *categories: str) -> Row:
+    """One accepted question its writer was told these categories of."""
+    return Row(
+        id=id,
+        answerable=True,
+        difficulty=Difficulty.EASY,
+        question_type=QuestionType.FACTOID,
+        categories=categories,
+    )
+
+
+def test_the_composition_reports_the_categories() -> None:
+    """Each label counted once per question told it; no quota holds them."""
+    held = [told(1, CONCISE), told(2, VERBOSE), told(3, CONCISE)]
+
+    assert composition(held, [1, 2, 3])["category"] == {CONCISE: 2, VERBOSE: 1}
+
+
+def test_a_category_named_like_a_kind_is_its_own_bucket() -> None:
+    """Keyed `categorization=category`, so it never counts as a type."""
+    got = composition([told(1, "Factuality=factoid")], [1])
+
+    assert got["type"] == {QuestionType.FACTOID: 1}
+    assert got["category"] == {"Factuality=factoid": 1}
+
+
+def test_a_question_told_no_category_adds_none() -> None:
+    """An unanswerable question, a follow-up, or one written before categories."""
+    assert composition([row(1), told(2, CONCISE)], [1, 2])["category"] == {CONCISE: 1}
+
+
 # ── Order ──────────────────────────────────────────────────────────────────
 
 

@@ -42,6 +42,9 @@ class Row:
     follows_id: int | None = None
     #: The language it is written in, which a release holds a share of.
     language: str = ""
+    #: The categories its writer was told, as `categorization=category`
+    #: labels, sorted. Reported and never held to a quota.
+    categories: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -399,7 +402,12 @@ def _fillable(
 
 
 def composition(pool: Sequence[Row], ids: Sequence[int]) -> dict[str, dict[str, int]]:
-    """What a chosen set actually came out as, for the report."""
+    """What a chosen set actually came out as, for the report.
+
+    A question counts once under each category it was told, keyed by label
+    on an axis of its own, so a category named like a kind is never counted
+    as one.
+    """
     chosen = set(ids)
     taken = [row for row in pool if row.id in chosen]
     return {
@@ -409,4 +417,5 @@ def composition(pool: Sequence[Row], ids: Sequence[int]) -> dict[str, dict[str, 
         "difficulty": Counter(row.difficulty for row in taken),
         "type": Counter(row.question_type for row in taken),
         "language": Counter(row.language for row in taken),
+        "category": Counter(label for row in taken for label in row.categories),
     }
