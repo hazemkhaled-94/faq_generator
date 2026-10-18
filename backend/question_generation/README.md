@@ -868,6 +868,24 @@ that fills, since a size can fill where a larger one does not. The command repor
 its spread over every share, the languages included, and any quota the pool
 came up short on.
 
+It also reports the categories the released questions' writers were told, as
+`categorization=category` on an axis of its own, so a category named like a
+kind is never counted as one, and on the line after it the pool's counts for
+the same labels:
+
+```text
+  category    Phrasing=concise-and-natural 30 (25%), Phrasing=verbose-and-natural 28 (23%), ...
+  in the pool Phrasing=concise-and-natural 120 (24%), Phrasing=verbose-and-natural 131 (26%), ...
+```
+
+No quota holds a category. The shares the release is held to are kinds,
+bands, languages and answerability, and those correlate with categories: a
+search query tends to be a factoid, and a thread drawn whole brings its
+uncategorised follow-ups. So a release can drift from the mix its questions
+were written in, and the two lines are where that shows. A share is of every
+question in the release or the pool, the unanswerable and the follow-ups
+included, which are told no category.
+
 Nothing is deleted. The draw re-checks first, as `questions-reverify` does. A
 question is rejected before it can be drawn when a fact it cites no longer
 holds or its passage or document scope moved (`source_changed`), when it fails

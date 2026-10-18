@@ -292,6 +292,7 @@ Acceptance falls from 36.3% at the root to 30.4% and 26.4%.
 | Kind | `condition`, `reason` 101; `application`, `definition`, `factoid`, `implication`, `procedure` 100; `consequence`, `enumeration` 99; `aggregation` 91; `comparison` 24 |
 | Difficulty | `easy` 345, `medium` 325, `hard` 345 — 34.0 / 32.0 / 34.0% |
 | Unanswerable | 103 — the ceiling of 10% of the 1,035 places the draw aimed at |
+| Category | Not held to a quota, only reported beside the pool's counts. None here: every question of this rebuild was written before prompt version 17 told a writer any category |
 
 The draw aimed at 1,035 places and filled 1,015. Two quotas could not fill
 from the pool. `aggregation`: all 91 accepted were drawn, 10 short of its
