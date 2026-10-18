@@ -6,6 +6,7 @@ small enough to count its n-grams by eye: joined, it is thirteen words.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -17,11 +18,13 @@ import pytest
 from assessment import run as cli
 from assessment.diversity import (
     compression_ratio,
+    factuality,
     homogenization,
     ngram_diversity,
     p_value,
     self_repetition,
     subsamples,
+    words,
 )
 from assessment.models import StoredAssessment, StoredMetric
 from question_generation.export import workbook
@@ -153,16 +156,51 @@ def test_homogenization_needs_two_questions() -> None:
         homogenization(np.array([[1.0, 0.0]]))
 
 
+@pytest.mark.parametrize(
+    ("text", "count"),
+    [
+        ("What's the fee for using my card abroad?", 8),
+        ("Wie hoch ist die Kontoführungsgebühr?", 5),
+        ("Darf ich eine Online-Bestellung innerhalb von 14 Tagen widerrufen?", 9),
+        ("Can I return an e-mail voucher?", 6),
+        ("refund damaged parcel", 3),
+        ("customer_service", 2),
+        ("", 0),
+    ],
+)
+def test_words_are_counted_as_a_reader_counts_them(text: str, count: int) -> None:
+    """A hyphen or an apostrophe inside a word joins it; punctuation is no word."""
+    assert words(text) == count
+
+
+@pytest.mark.parametrize(
+    ("form", "kind"),
+    [
+        ("value", "factoid"),
+        ("list", "factoid"),
+        ("explanation", "open-ended"),
+        (None, None),
+    ],
+)
+def test_factuality_is_read_off_the_answer_form(
+    form: str | None, kind: str | None
+) -> None:
+    """The paper's factoid and open-ended, from the shape the answer took."""
+    assert factuality(form) == kind
+
+
 def asked(
     id: int,
     text: str,
     language: str,
     categories: tuple[str, ...] = (),
+    answer_form: str | None = None,
     kind: str = "single",
 ) -> StoredQuestion:
     """One accepted question, as the exporter is handed it."""
     return StoredQuestion(
         categories=list(categories),
+        answer_form=answer_form,
         kind=kind,
         id=id,
         question_text=text,
@@ -389,15 +427,23 @@ def judged(question: int, fluency: float) -> StoredAssessment:
 
 
 @pytest.fixture
-def categorized(tmp_path, exported):
+def configured(monkeypatch):
+    """The settings the report reads, as the snapshot holds them: none, at first."""
+    stored: dict[str, str] = {}
+    monkeypatch.setattr(cli, "snapshot", lambda: (stored, "test"))
+    return stored
+
+
+@pytest.fixture
+def categorized(tmp_path, exported, configured):
     """B in German, two concise and one verbose, one English concise, two judged."""
     path = tmp_path / "categorized.xlsx"
     path.write_bytes(
         workbook(
             [
-                asked(1, B[0], "de", (CONCISE,)),
-                asked(2, B[1], "de", (CONCISE,)),
-                asked(3, B[2], "de", (VERBOSE,)),
+                asked(1, B[0], "de", (CONCISE,), "value"),
+                asked(2, B[1], "de", (CONCISE,), "explanation"),
+                asked(3, B[2], "de", (VERBOSE,), "list"),
                 asked(4, "Wie lange dauert eine Antwort?", "en", (CONCISE,)),
             ],
             judged={1: judged(1, 1.0), 2: judged(2, 0.5)},
@@ -475,3 +521,56 @@ def test_a_workbook_without_categories_cannot_be_split(exported) -> None:
     with pytest.raises(SystemExit) as refused:
         cli.main(["--diversity", "--file", str(exported), "--by", "category"])
     assert refused.value.code == 2
+
+
+def conformance(capsys, path: Path) -> tuple[str, list[list[str]]]:
+    """The conformance section's heading and its rows, each split into cells."""
+    assert cli.main(["--diversity", "--file", str(path), "--by", "category"]) == 0
+    section = capsys.readouterr().out.split("Word bounds", 1)[1]
+    section = section.split("\n\n", 1)[0]
+    heading, *rows = section.splitlines()
+    return heading, [row.split() for row in rows if row.startswith(("de", "en"))]
+
+
+def test_the_report_gives_each_category_its_conformance(categorized, capsys) -> None:
+    """In bounds by today's settings; factoid and open-ended by the answer form.
+
+    Unset, the bounds are the default's: at most 9 words for concise and at
+    least 10 for verbose, so the five-word concise questions are in and the
+    three-word verbose one out. The English question has no answer form.
+    """
+    heading, rows = conformance(capsys, categorized)
+
+    assert "today" in heading
+    assert rows == [
+        ["de", CONCISE, "2", "1.000", "0.500", "0.500"],
+        ["de", VERBOSE, "1", "0.000", "1.000", "0.000"],
+        ["en", CONCISE, "1", "1.000", "0.000", "0.000"],
+    ]
+
+
+def test_the_bounds_are_the_ones_configured_now(
+    categorized, configured, capsys
+) -> None:
+    """Read through the setting as the stages read it, so a change moves them."""
+    configured["QUESTIONS_CATEGORIZATIONS"] = json.dumps(
+        {
+            "categorization_name": "Phrasing",
+            "categories": [
+                {
+                    "name": "concise-and-natural",
+                    "description": "d",
+                    "words": {"max": 4},
+                },
+                {"name": "verbose-and-natural", "description": "d"},
+            ],
+        }
+    )
+
+    _, rows = conformance(capsys, categorized)
+
+    assert [row[:4] for row in rows] == [
+        ["de", CONCISE, "2", "0.000"],
+        ["de", VERBOSE, "1", "-"],
+        ["en", CONCISE, "1", "0.000"],
+    ]

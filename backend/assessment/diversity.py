@@ -15,6 +15,7 @@ elsewhere.
 from __future__ import annotations
 
 import gzip
+import re
 import warnings
 from collections import Counter
 from collections.abc import Sequence
@@ -29,6 +30,16 @@ SHARE = 0.8
 #: Below this, two sets' scores differ significantly.
 ALPHA = 0.05
 
+#: One word as a reader counts it against a category's bounds: letters and
+#: digits, joined across a hyphen or an apostrophe, so `e-mail`, `What's`
+#: and `Online-Bestellung` are one word each. An underscore splits.
+WORD = re.compile(r"[^\W_]+(?:[-'’][^\W_]+)*")
+
+#: The paper's factoid and open-ended, read off the shape the answer took:
+#: a value or a list is a short piece of information, an explanation invites
+#: elaboration. An unanswerable question has no form and is neither.
+_FACTUALITY = {"value": "factoid", "list": "factoid", "explanation": "open-ended"}
+
 
 def _words(texts: Sequence[str]) -> list[str]:
     """The set's words, the questions joined end to end.
@@ -40,6 +51,21 @@ def _words(texts: Sequence[str]) -> list[str]:
     if not words:
         raise ValueError("a set with no words has no diversity")
     return words
+
+
+def words(text: str) -> int:
+    """How many words one question has, as a category's bounds count them.
+
+    Not `_words`, which splits the joined set on whitespace with its
+    punctuation kept, as Shaib et al. measure diversity; this counts what a
+    person reading "less than 10 words" would.
+    """
+    return len(WORD.findall(text))
+
+
+def factuality(answer_form: str | None) -> str | None:
+    """`factoid` or `open-ended` for an answer form, or None for none."""
+    return _FACTUALITY.get(answer_form or "")
 
 
 def _grams(words: Sequence[str], n: int) -> list[tuple[str, ...]]:

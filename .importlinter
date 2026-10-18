@@ -71,6 +71,8 @@ ignore_imports =
     settings.changes -> question_generation.config
     settings.changes -> topic_modelling.config
     question_generation.export -> assessment.repository
+    # The third edge's other contract: see stages-are-independent below.
+    assessment.run -> question_generation.config
 
 
 [importlinter:contract:stages-are-independent]
@@ -91,8 +93,17 @@ type = independence
 # Narrow on purpose. `assessment.repository` and nothing else, in the one
 # module that is an entry point. An edge from a SERVICE into another service
 # is what this contract exists to stop and is still stopped.
+#
+# The third is the same kind of edge the other way: `assessment.run`'s
+# `make diversity BY=category` report counts each category's questions
+# against the word bounds QUESTIONS_CATEGORIZATIONS configures, and reads
+# them with `question_generation.config.categorizations`, the parser the
+# question stage reads them with, inside the one function that needs it. A
+# second parser here would drift from the first; the worker this module
+# also starts never calls it.
 ignore_imports =
     question_generation.export -> assessment.repository
+    assessment.run -> question_generation.config
 modules =
     archive
     assessment

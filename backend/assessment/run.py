@@ -30,7 +30,7 @@ from assessment.factory import build_service, judge_model
 from assessment.repository import AssessmentQueue
 from llm.check import before_work
 from llm.config import Settings as ModelSettings
-from settings import decimal, integer, required
+from settings import decimal, integer, optional, required
 from settings.store import snapshot
 from stages.cli import queue_main
 from stages.prompts import record
@@ -161,8 +161,10 @@ def diversity(argv: list[str]) -> int:
     the way the paper tests two methods: each language of both drawn fifty
     times to 80% of the smaller, and every metric's two lists of scores put
     to Welch's t-test. `--by category` measures each category of each
-    language on its own, and `--by kind` each kind. Where the workbook holds
-    the paper's judge, its mean scores follow, over the same groups.
+    language on its own, then says how many of each category's questions
+    keep to its word bounds and how many are factoid and open-ended, and
+    `--by kind` measures each kind. Where the workbook holds the paper's
+    judge, its mean scores follow, over the same groups.
     """
     parser = argparse.ArgumentParser(
         prog="python -m assessment.run --diversity",
@@ -234,6 +236,9 @@ def diversity(argv: list[str]) -> int:
         "HS: the cosine of EMBEDDING_MODEL's vectors, which is not on the "
         "paper's MiniLM scale; compare it only between sets embedded alike"
     )
+    # Word bounds are a category's, so a kind is held to none.
+    if args.by == "category":
+        _conformance(args.file, groups)
     if args.against is None:
         _judged(args.file, groups, args.by)
     return 0
@@ -294,6 +299,58 @@ def _texts(
     return {
         language: [text for _, text in asked] for (language, _), asked in groups.items()
     }
+
+
+def _conformance(
+    path: Path, groups: dict[tuple[str, str], list[tuple[int, str]]]
+) -> None:
+    """Prints, per category, the share in its word bounds, factoid and open-ended.
+
+    The bounds are today's QUESTIONS_CATEGORIZATIONS, read as the question
+    stage reads it, because a question stores the words it was told and not
+    the bounds: a row written under other bounds is counted against these.
+    A category with no bounds today shows none. Factoid and open-ended are
+    read off the Answer form column, so neither counts a question with no
+    answer.
+    """
+    import pandas as pd
+
+    from assessment.diversity import factuality, words
+    from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
+
+    source, _ = snapshot()
+    bounds = {
+        category.label: category.words
+        for one in categorizations(
+            optional("QUESTIONS_CATEGORIZATIONS", source) or DEFAULT_CATEGORIZATIONS
+        )
+        for category in one.categories
+    }
+    frame = pd.read_excel(
+        path, sheet_name="Questions", dtype={"Answer form": str}, keep_default_na=False
+    )
+    forms = dict(zip(frame["ID"], frame["Answer form"], strict=True))
+    print(
+        "\nWord bounds as QUESTIONS_CATEGORIZATIONS sets them today, which need "
+        "not be the ones a question was written under; answer forms as stored:"
+    )
+    print(
+        f"{'language':<9}{'category':<36}{'n':>6}"
+        f"{'in bounds':>11}{'factoid':>9}{'open-ended':>12}"
+    )
+    for (language, label), asked in sorted(groups.items()):
+        least, most = bounds.get(label, (None, None))
+        inside = f"{'-':>11}"
+        if least is not None or most is not None:
+            counts = [words(text) for _, text in asked]
+            kept = sum((least or 0) <= n <= (most or n) for n in counts)
+            inside = f"{kept / len(asked):>11.3f}"
+        kinds = [factuality(forms.get(id)) for id, _ in asked]
+        print(
+            f"{language:<9}{label:<36}{len(asked):>6}{inside}"
+            f"{kinds.count('factoid') / len(asked):>9.3f}"
+            f"{kinds.count('open-ended') / len(asked):>12.3f}"
+        )
 
 
 #: The paper's six scores, in its order, as the judge stores them.
