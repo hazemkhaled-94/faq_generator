@@ -83,7 +83,7 @@ def _form(client, service: str, held: dict) -> None:
     with st.form(f"settings-{service}", border=False):
         values: dict[str, str | None] = {}
         for setting in held["settings"]:
-            drawn = _control(service, setting)
+            drawn = _control(service, setting, held["version"])
             if drawn is not None:
                 values[setting["name"]] = drawn
         submitted = st.form_submit_button("Save", type="primary")
@@ -123,14 +123,16 @@ def _save(client, service: str, values: dict[str, str | None], version: str) -> 
         st.rerun(scope="app")
 
 
-def _control(service: str, setting: dict) -> str | None:
+def _control(service: str, setting: dict, version: str) -> str | None:
     """Draws one setting's control, and reads back what it holds as text.
 
     Returns None for a setting the deployment owns, which is drawn disabled
     and never written.
     """
     name = setting["name"]
-    key = f"setting-{service}-{name}"
+    # The version in the key: a widget keyed on its name alone keeps the
+    # value it was first drawn with whatever the API says afterwards.
+    key = f"setting-{service}-{name}-{version}"
     value = setting["value"]
     label = _label(setting)
     help = _help(setting)

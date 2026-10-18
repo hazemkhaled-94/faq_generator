@@ -265,3 +265,39 @@ def test_a_save_after_the_settings_moved_is_sent_against_the_version_drawn(
     view.save_configuration()
 
     assert configured.calls("change_settings")[0][1][2] == "v1"
+
+
+def test_returning_to_the_file_draws_the_value_the_file_gives(open_view) -> None:
+    """A box keyed on its name kept the stored value the file had replaced.
+
+    So a Save straight after sent the stored value back, and the setting the
+    file was meant to decide again was stored again.
+    """
+    stored = [
+        {**one, "value": "9", "default": "5", "stored": True}
+        if one["name"] == "A_COUNT"
+        else one
+        for one in SETTINGS["settings"]
+    ]
+    held = {"now": {**SETTINGS, "version": "v1", "settings": stored}}
+
+    def change(service, values, version):
+        held["now"] = {**SETTINGS, "version": "v2"}
+        return {
+            "service": service,
+            "version": "v2",
+            "changed": [],
+            "cleared": sorted(values),
+            "stale": [],
+            "detail": "1 setting(s) cleared.",
+        }
+
+    configured = Answers(settings=lambda service: held["now"], change_settings=change)
+
+    after = open_view("topics", configured=configured).press("Return to the file")
+
+    assert after.numbers()["A_COUNT"].value == 5
+    after.save_configuration()
+    *_, (_, (_, values, version), _) = configured.calls("change_settings")
+    assert values["A_COUNT"] == "5"
+    assert version == "v2"
