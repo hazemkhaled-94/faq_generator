@@ -1361,6 +1361,35 @@ def test_an_unanswerable_retry_note_reads_as_feedback_not_as_an_override(gate) -
         assert override not in note.lower(), note
 
 
+def test_a_query_is_not_told_to_end_in_a_question_mark() -> None:
+    """A malformed search query is asked for a query again, in keywords.
+
+    The question's note demands a question mark, which would push a query
+    back into a question; a draft written as a question is told as before.
+    """
+    from question_generation.models import Category
+    from question_generation.service import again
+
+    malformed = replace(
+        accepted_question(),
+        question_text="device weight? kg?",
+        status="rejected",
+        rejected_reason=QuestionRejection.MALFORMED,
+    )
+    query = Category("Phrasing", "short-search-query", "keywords.", 0.25, form="query")
+    asked = Category("Phrasing", "concise-and-natural", "short.", 0.25)
+
+    typed = again(replace(malformed, categories=(query,)))
+    written = again(replace(malformed, categories=(asked,)))
+
+    assert typed is not None
+    assert "search query" in typed
+    assert "question mark" not in typed
+    assert written == again(malformed)
+    assert written is not None
+    assert "ending in a single question mark" in written
+
+
 def test_a_duplicate_is_not_worth_asking_again() -> None:
     """The same sample asked twice gives another twin of the same question."""
     from question_generation.service import again

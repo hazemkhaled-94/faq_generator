@@ -198,7 +198,16 @@ _USER = (
 _ASKED = (
     "\nTHE QUESTION - besides every rule you were given, it must be:\n"
     "{{lines}}\n"
+    "{{query}}"
     "Where one of these conflicts with a rule you were given, the rule wins.\n"
+)
+
+#: Told a slot dealt a search query, in its question block. Without it the
+#: rules win over a category that asks for no punctuation, and the writer
+#: ends its keywords with the question mark the rules ask of a question.
+_QUERY = (
+    "This one is typed into a search box: keywords, no question mark. The rule "
+    "about the question mark does not apply to it; every other rule does.\n"
 )
 
 #: Who is asking, as the categories of role `user` describe them: the paper's
@@ -255,10 +264,18 @@ def _profile(categories: tuple[Category, ...]) -> str:
     Nothing rather than an empty block, so a slot dealt no category is sent
     the message it was sent before categories existed. The asker comes
     first, as the paper's Figure 4 puts it: who is asking, then what they
-    ask.
+    ask. A search query is told that it is exempt from the question mark,
+    which the gates lift for it too.
     """
+    query = _QUERY if any(one.form == "query" for one in categories) else ""
     return "".join(
-        fill(template, {"{{lines}}": "\n".join(f"- {one.description}" for one in told)})
+        fill(
+            template,
+            {
+                "{{lines}}": "\n".join(f"- {one.description}" for one in told),
+                "{{query}}": query,
+            },
+        )
         for template, role in ((_ASKER, "user"), (_ASKED, "question"))
         if (told := [one for one in categories if one.role == role])
     )

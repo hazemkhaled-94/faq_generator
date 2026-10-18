@@ -144,6 +144,16 @@ _NOTES: dict[str, str] = {
     ),
 }
 
+#: What a draft written as a search query is told instead, by the same gate.
+#: The question's MALFORMED note demands a question mark, which would push a
+#: query back into a question.
+_QUERY_NOTES: dict[str, str] = {
+    QuestionRejection.MALFORMED: (
+        "it was not one well-formed search query. Write exactly one, in "
+        "keywords, with the answer in the field for it."
+    ),
+}
+
 #: The gates that read the answer as well as the question. A retry keeping
 #: the question but changing its answer has changed what these read.
 _READS_KEY = frozenset(
@@ -830,14 +840,18 @@ def again(checked: CheckedQuestion) -> str | None:
 
     Only a gate refusing it, and only a gate the writer could have satisfied.
     The draft itself is quoted: told what was wrong but not shown what it
-    wrote, a writer at a low temperature writes the same draft again.
+    wrote, a writer at a low temperature writes the same draft again. A
+    draft written as a search query is told the query's note where the gate
+    has one.
 
     An accepted draft that came out below its band is left alone. Asking it
     to cite every passage it was offered is asking for the weld the span
     rules forbid: the writer narrowed because the facts did not meet, and a
     second draft citing them all was accepted in its place.
     """
-    note = _NOTES.get(checked.rejected_reason or "")
+    reason = checked.rejected_reason or ""
+    query = any(one.form == "query" for one in checked.categories)
+    note = (_QUERY_NOTES.get(reason) if query else None) or _NOTES.get(reason)
     if note is None:
         return None
     answer = (

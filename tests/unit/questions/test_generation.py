@@ -740,3 +740,35 @@ def test_word_bounds_never_reach_the_writer() -> None:
         == asked_with(replace(bounded, words=(None, None))).user
     )
     assert concise().words == (None, 9), "the default bounds it"
+
+
+#: The line a slot dealt a search query is told in its question block.
+QUERY = (
+    "This one is typed into a search box: keywords, no question mark. The rule "
+    "about the question mark does not apply to it; every other rule does.\n"
+)
+
+
+def test_a_query_slot_is_told_the_rule_it_is_exempt_from() -> None:
+    """One line in the question block, before the rules are said to win."""
+    short = Category(
+        "Phrasing",
+        "short-search-query",
+        "phrased as a typed web query for search engines.",
+        0.25,
+        form="query",
+    )
+
+    user = asked_with(novice(), short).user
+
+    assert user.count(QUERY) == 1
+    assert f"- {short.description}\n{QUERY}Where one of these" in user
+    assert user.index("THE ASKER -") < user.index(QUERY)
+
+
+def test_a_question_slot_is_told_no_query_line() -> None:
+    """Byte for byte as version 18 sent it."""
+    user = asked_with(concise()).user
+
+    assert "THE QUESTION -" in user
+    assert "search box" not in user
