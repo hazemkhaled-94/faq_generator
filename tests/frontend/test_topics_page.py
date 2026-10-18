@@ -198,6 +198,22 @@ def test_a_drawn_figure_is_embedded(page) -> None:
     assert drawn.embedded()
 
 
+def test_a_missing_figure_is_not_remembered(open_view) -> None:
+    """The figure cache is keyed on the fit, and a 404 was kept under it.
+
+    So a map the fit drew a moment after the page asked stayed missing
+    until four other figures pushed the miss out.
+    """
+    held = {"figure": None}
+    client = Answers(**answers(topic_visualisation=lambda language: held["figure"]))
+    missing = open_view("topics", client)
+    assert not missing.embedded()
+
+    held["figure"] = "<html>a figure</html>"
+
+    assert missing.rerun().embedded()
+
+
 # ── One topic ─────────────────────────────────────────────────────────────
 
 

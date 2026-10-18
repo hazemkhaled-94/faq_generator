@@ -324,8 +324,12 @@ def _health(fit: dict, topics: list[dict]) -> list[dict[str, str]]:
     return rows
 
 
-@st.cache_data(show_spinner=False, max_entries=4)
-def _figure(_client, language: str | None, fitted_at: str | None) -> str | None:
+class _NoFigure(Exception):
+    """No fit has drawn this language yet: raised, so it is not cached."""
+
+
+@st.cache_data(show_spinner=False, max_entries=4, ttl=120)
+def _figure(_client, language: str | None, fitted_at: str | None) -> str:
     """Fetches one language's figure, remembering the last few.
 
     A pyLDAvis page inlines d3, the LDAvis script and the whole term-topic
@@ -340,8 +344,15 @@ def _figure(_client, language: str | None, fitted_at: str | None) -> str | None:
     redraws a figure, and it is the only thing that moves that timestamp,
     so a refit misses the cache and anything else hits it. `_client` is
     underscored so Streamlit leaves it out of the key.
+
+    A fit moves that timestamp before it draws, so what is asked for in
+    between is a 404 or the last fit's figure. The 404 is raised, which
+    Streamlit never caches, and the ttl lets the old figure go.
     """
-    return _client.topic_visualisation(language)
+    drawn = _client.topic_visualisation(language)
+    if drawn is None:
+        raise _NoFigure(language)
+    return drawn
 
 
 def _map(client, fit: dict) -> None:
@@ -358,8 +369,9 @@ def _map(client, fit: dict) -> None:
         key="topics-map-language",
         help="One figure per language model. Topic numbers match the table.",
     )
-    drawn = _figure(client, language, drawn_at[language])
-    if drawn is None:
+    try:
+        drawn = _figure(client, language, drawn_at[language])
+    except _NoFigure:
         st.caption(f"No map for {language}. A fit draws one.")
         return
     st.iframe(drawn)
