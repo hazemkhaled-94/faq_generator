@@ -280,6 +280,10 @@ def _fit_verbs(client, queue: Queue) -> None:
 
     _state(row, queue, counts, failed)
 
+    # A fit queued or running since it was armed would have a second whole
+    # refit queued behind it.
+    if running:
+        st.session_state.pop(armed, None)
     if _confirmed(armed, _REFIT, "Yes, fit"):
         _act(client, queue.name, None, "discover")
 

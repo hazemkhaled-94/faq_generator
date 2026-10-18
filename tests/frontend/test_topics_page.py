@@ -278,6 +278,22 @@ def test_cancelling_a_fit_queues_nothing(open_view) -> None:
     assert cancelled.button("Yes, fit") is None
 
 
+def test_an_armed_fit_is_withdrawn_once_a_fit_is_running(open_view) -> None:
+    """Fit all goes dead with the poll, and the armed Yes went on being live.
+
+    Pressed then, it queued a second refit of the whole corpus behind the
+    one already running.
+    """
+    queue = {"now": status(new=2)}
+    client = Answers(**answers(stage_status=lambda *a, **k: queue["now"]))
+    armed = open_view("topics", client).press("Fit all")
+    assert armed.button("Yes, fit") is not None
+
+    queue["now"] = status(in_progress=1)
+
+    assert armed.rerun().button("Yes, fit") is None
+
+
 def test_the_fit_control_is_dead_while_a_fit_is_queued(page) -> None:
     """Asking twice would queue one fit behind another."""
     drawn = page(stage_status=lambda *a, **k: status(pending=1))
