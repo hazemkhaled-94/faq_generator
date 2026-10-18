@@ -331,13 +331,13 @@ def _tabled(document: DoclingDocument, data: bytes | None = None) -> DoclingDocu
     joins it, moving to the furniture layer so no reference the passages
     store moves; a picture between the two, a page's decoration, does not
     part them. And a cell wrapped onto a second line comes out as a row of
-    its own: a row with no label in its first column, every filled cell of
-    which goes on in lower case, and over which no cell ends a sentence, is
-    the rest of the row above and joins it; and a row holding a label and
-    nothing else, over a row whose label opens in lower case, is that
-    label's head. Read off the grid and the case alone, never off a word, so
-    it holds for any table in any language with case; a script without case
-    joins no row, which is the safe side.
+    its own: a row with no label in its first column, a cell of which goes
+    on in lower case, and over which no cell ends a sentence, is the rest of
+    the row above and joins it; and a row holding a label and nothing else,
+    over a row whose label opens in lower case, is that label's head. Read
+    off the grid and the case alone, never off a word, so it holds for any
+    table in any language with case; a script without case joins no row,
+    which is the safe side.
 
     The converter may take the rest's first row for a header. That row is
     data, and the rest joins, when each of its cells is set in the font most
@@ -558,7 +558,7 @@ def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
             above is None
             or not filled
             or 0 in filled
-            or not all(cell.text.lstrip()[0].islower() for cell in filled.values())
+            or not any(cell.text.lstrip()[0].islower() for cell in filled.values())
             or any(
                 not above.get(col) or above[col].text.rstrip().endswith(_SENTENCE_END)
                 for col in filled
