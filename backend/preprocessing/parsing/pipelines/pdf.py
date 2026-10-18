@@ -344,7 +344,10 @@ def _tabled(document: DoclingDocument, data: bytes | None = None) -> DoclingDocu
     of the first table's data in its column is set in, and not in the font of
     that column's header: the type the PDF itself sets the two in, so a
     second table whose header is set as the first's stays apart, and so does
-    the rest of a table whose header is set as its data.
+    the rest of a table whose header is set as its data. Nor does a row join
+    that holds no figure in a column most of the first table's data holds
+    one in: a second schedule headed in its data's type names its columns
+    where the first's rows priced them.
 
     Args:
         document: The converted document, modified in place.
@@ -390,7 +393,7 @@ def _continues(
     """Whether a table is the rest of the one before it, broken at a page.
 
     A rest holding a header is one only where the header is its first row,
-    set as the table's data is: `_set_as_data`.
+    set and filled as the table's data is: `_set_as_data`.
     """
     if rest.data.num_cols != table.data.num_cols or not table.prov or not rest.prov:
         return False
@@ -398,24 +401,28 @@ def _continues(
     if gap not in (0, 1):
         return False
     heads = [cell for cell in rest.data.table_cells if cell.column_header]
-    return not heads or _set_as_data(table, own, heads, rest.prov[0].page_no, font)
+    return not heads or _set_as_data(table, own, rest, heads, font)
 
 
 def _set_as_data(
     table: TableItem,
     own: int,
+    rest: TableItem,
     heads: list[TableCell],
-    page: int,
     font: Callable[[int, BoundingBox], _Font | None],
 ) -> bool:
     """Whether a rest's header cells are its first row, set as `table`'s data.
 
     Each is set in the font most of the table's data cells in its column are,
-    and not in the font of the table's header cell there. Only the rows the
-    table printed on its own page are read, where `font` looks for them.
+    and not in the font of the table's header cell there. And the row holds a
+    figure in each column most of whose data cells hold one, as a fee's does,
+    so a second schedule headed in the data's type, its `Frist` over a column
+    of prices, stays apart. Only the rows the table printed on its own page
+    are read, where `font` looks for them.
     """
     if any(cell.start_row_offset_idx != 0 or cell.bbox is None for cell in heads):
         return False
+    page = rest.prov[0].page_no
     first = table.prov[0].page_no
     headed = {
         cell.start_col_offset_idx: cell.bbox
@@ -425,6 +432,7 @@ def _set_as_data(
     if not headed:
         return False
     usual: dict[int, Counter[_Font | None]] = defaultdict(Counter)
+    figured: dict[int, Counter[bool]] = defaultdict(Counter)
     for cell in table.data.table_cells:
         if (
             not cell.column_header
@@ -433,6 +441,16 @@ def _set_as_data(
             and cell.start_row_offset_idx < own
         ):
             usual[cell.start_col_offset_idx][font(first, cell.bbox)] += 1
+            figured[cell.start_col_offset_idx][_figured(cell.text)] += 1
+    # The columns most of whose data cells hold a figure, as a fee column does.
+    figures = {column for column, held in figured.items() if held[True] > held[False]}
+    if any(
+        cell.start_row_offset_idx == 0
+        and cell.start_col_offset_idx in figures
+        and not _figured(cell.text)
+        for cell in rest.data.table_cells
+    ):
+        return False
     for cell in heads:
         column = cell.start_col_offset_idx
         set_in = font(page, cast(BoundingBox, cell.bbox))
@@ -445,6 +463,11 @@ def _set_as_data(
         ):
             return False
     return True
+
+
+def _figured(text: str) -> bool:
+    """Whether a cell holds a figure: a price, a rate, a count or a date."""
+    return any(character.isdigit() for character in text)
 
 
 def _typeface(data: bytes | None) -> Callable[[int, BoundingBox], _Font | None]:

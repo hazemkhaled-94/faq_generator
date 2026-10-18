@@ -438,3 +438,17 @@ def test_a_rest_after_a_table_whose_header_is_set_as_its_data_stays_apart() -> N
     data, document = schedule(rest_font=DATA, header_font=DATA)
 
     assert len(rows(_tabled(document, data))) == 2
+
+
+def test_a_second_schedule_headed_in_the_data_font_is_a_table_of_its_own() -> None:
+    """Its header holds no figure where the first schedule's fees all do."""
+    second = (("Auftrag", "Frist"), ("SEPA-Überweisung", "1 Tag"))
+    data, (one, two) = typeset(
+        [(SCHEDULE[0], HEADER), *((row, DATA) for row in SCHEDULE[1:])],
+        [(row, DATA) for row in second],
+    )
+    document = paged(2)
+    document.add_table(data=boxed(SCHEDULE, one, header=True), prov=on(1))
+    document.add_table(data=boxed(second, two, header=True), prov=on(2))
+
+    assert len(rows(_tabled(document, data))) == 2

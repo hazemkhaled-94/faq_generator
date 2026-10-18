@@ -135,9 +135,12 @@ reading the grid and the case and never a word:
 - a rest whose first row the converter flagged a header is a rest all the
   same when each cell of that row is set in the font most of the first
   table's data in its column is set in, and not in the font of its header
-  there, read off the PDF with pymupdf; the row then joins as data. A second
-  table whose header is set as the first's stays apart, and so does the rest
-  of a table whose header and data share one font
+  there, read off the PDF with pymupdf, and when it holds a figure in each
+  column most of the first table's data holds one in; the row then joins as
+  data. A second table whose header is set as the first's stays apart, so
+  does the rest of a table whose header and data share one font, and so does
+  a second schedule headed in its data's type, `Frist` over a column of
+  prices
 - a row with no label in its first column, one cell of which goes on in
   lower case, and over which no cell ends a sentence (`.`, `!`, `?` — a
   colon opens what follows), is a wrapped cell's rest and joins the row
@@ -257,7 +260,7 @@ the two buckets and Docling itself are stood in for.
 |---|---|
 | [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
-| [`test_tables.py`](../../../tests/unit/parsing/test_tables.py) | A table's rest on the next page joined to it, past a picture, and when its first row was flagged a header but is set in the data's font, and not one with a header in the header's font, after a table whose header is set as its data, of another width or with text between; a wrapped cell's rest, one going on in a bracket or a German noun, and a wrapped label's head joined to their row, a second tier under an empty label joined as well (expected to fail), a cell wrapped at a hyphen made one word and one wrapped inside a compound the document prints keeping its hyphen, and a row whose label did not span kept |
+| [`test_tables.py`](../../../tests/unit/parsing/test_tables.py) | A table's rest on the next page joined to it, past a picture, and when its first row was flagged a header but is set in the data's font, and not one with a header in the header's font, after a table whose header is set as its data, headed in the data's font with no figure over a column of prices, of another width or with text between; a wrapped cell's rest, one going on in a bracket or a German noun, and a wrapped label's head joined to their row, a second tier under an empty label joined as well (expected to fail), a cell wrapped at a hyphen made one word and one wrapped inside a compound the document prints keeping its hyphen, and a row whose label did not span kept |
 | [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge, partial strokes and a short tick beside a price removing nothing; a struck full stop removed; clipped labels removed over visible text, inside a large letter, at the page's edge and spelled apart, and a fake-bold line and an OCR layer kept; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
