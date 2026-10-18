@@ -9,8 +9,8 @@ accepted pool and the release are that run's output as it stands on
 **2026-10-06**: the same 16 documents and the same 5,873 written questions,
 re-verified under fixed gates with two targeted fact repairs applied. It is
 not a fresh extraction, and no model was called for any of it. The run of
-2026-09-26 ran every stage on the host and predates the rule that keeps
-host parse, chunk and extract runs off the dataset.
+2026-09-26 ran every stage on the host and predates the rule that the
+container workers, not a host drain, build the dataset.
 
 The two repairs:
 
@@ -402,9 +402,9 @@ Not a run figure. `make test-coverage` re-measures.
 
 This run cannot be reproduced under today's rules. It ran every stage on the
 host against hosted models. Today the container workers build the dataset,
-their shared model is an Ollama model, each host drain refuses while its
-stage's worker container runs, and host parse, chunk and extract runs are
-kept off the dataset. No run those rules allow repeats the run above.
+their shared model is an Ollama model, and each host drain refuses while its
+stage's worker container runs. No run those rules allow repeats the run
+above.
 
 What can still be read again is what the run left in the tables. The
 evaluation phase ran as `assess-stratified-2026-10-06`, and its figures count
@@ -501,11 +501,12 @@ provider refused no prompt, and no topic failed.
 | Kind | `condition` 57; `application`, `definition`, `factoid`, `reason` 34; `consequence`, `enumeration`, `implication`, `procedure` 33; `aggregation`, `comparison` 9 |
 | Unanswerable | 0, as `QUESTIONS_RELEASE_UNANSWERABLE=0` sets |
 
-Eight kinds came 2 or 3 short of their quota of 36 or 37, because the pool
-held no more of them, and `condition`, which the pool held plenty of, took
-the places they left. The draw put 12 pairs of released questions to the
-verifier as possibly wanting one answer, and released one question of each
-pair it said did.
+Eight kinds came 2 or 3 short of their quota of 36 or 37. The pool still
+held answerable questions of every one of them but `enumeration`: the draw
+takes a thread whole, so `condition` follow-ups drawn with their roots took
+21 places over its quota, the places the short kinds lost. The draw put 394
+pairs of released questions to the verifier as possibly wanting one answer;
+it read 12 of them as twins, and one question of each of those was released.
 
 The first draw weighed `aggregation` 4, like most kinds. The pool held only
 13 aggregations, and that capped the whole release at 133 questions.
