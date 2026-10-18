@@ -15,14 +15,19 @@ elsewhere.
 from __future__ import annotations
 
 import gzip
+import warnings
 from collections import Counter
 from collections.abc import Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-#: How many draws a comparison makes, as the paper's bootstrap does.
+#: The paper's bootstrap: 50 draws, each of 80% of the set, without
+#: replacement, because drawing a question twice would read as repetition.
 DRAWS = 50
+SHARE = 0.8
+#: Below this, two sets' scores differ significantly.
+ALPHA = 0.05
 
 
 def _words(texts: Sequence[str]) -> list[str]:
@@ -107,3 +112,22 @@ def subsamples(
     """
     rng = np.random.default_rng(seed)
     return [rng.choice(n, size, replace=False) for _ in range(draws)]
+
+
+def p_value(a: Sequence[float], b: Sequence[float]) -> float:
+    """How likely two lists of bootstrap scores are if their means do not differ.
+
+    Welch's t-test, since one set's scores can spread far less than
+    another's. The draws overlap, so the value is optimistic, as it is in
+    the paper. NaN where neither list varies: equal constants are no
+    evidence either way.
+    """
+    # Imported here: only a comparison of two sets needs scipy.
+    from scipy.stats import ttest_ind
+
+    # scipy warns, and then answers NaN, when neither list varies.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        result = ttest_ind(a, b, equal_var=False)
+    # scipy's stubs leave `pvalue` off the result its runtime returns.
+    return float(result.pvalue)  # pyright: ignore[reportAttributeAccessIssue]

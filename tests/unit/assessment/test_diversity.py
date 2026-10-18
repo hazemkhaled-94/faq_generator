@@ -19,6 +19,7 @@ from assessment.diversity import (
     compression_ratio,
     homogenization,
     ngram_diversity,
+    p_value,
     self_repetition,
     subsamples,
 )
@@ -108,6 +109,16 @@ def test_subsamples_are_the_same_for_the_same_seed() -> None:
     )
     assert [one.tolist() for one in first] == [one.tolist() for one in again]
     assert [one.tolist() for one in first] != [one.tolist() for one in other]
+
+
+def test_p_value_is_welchs() -> None:
+    """Checked by hand: t = -1.8974 on 5.882 degrees of freedom."""
+    assert p_value([1, 2, 3, 4, 5], [2, 4, 6, 8, 10]) == pytest.approx(0.1075, abs=1e-4)
+
+
+def test_p_value_is_undefined_where_neither_list_varies() -> None:
+    """Equal constants are no evidence either way, and no warning is raised."""
+    assert np.isnan(p_value([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]))
 
 
 def test_homogenization_is_the_mean_cosine_over_ordered_pairs() -> None:
@@ -269,3 +280,77 @@ def test_the_report_runs_as_make_runs_it() -> None:
     )
     assert ran.returncode == 0, ran.stderr
     assert "--file" in ran.stdout
+
+
+def numbered(path: Path, count: int, words: str) -> Path:
+    """A workbook of `count` German questions, each told apart by its number."""
+    path.write_bytes(
+        workbook([asked(i, f"{words} {i}?", "de") for i in range(1, count + 1)])
+    )
+    return path
+
+
+def test_two_sets_are_compared_at_the_same_size(
+    tmp_path, exported, capsys, monkeypatch
+) -> None:
+    """Each side drawn fifty times to 80% of the smaller set: 48 of 100 and of 60."""
+    import assessment.diversity
+
+    drawn = []
+    real = assessment.diversity.subsamples
+
+    def counting(n, size, draws=50, seed=0):
+        drawn.append((n, size, draws))
+        return real(n, size, draws, seed)
+
+    monkeypatch.setattr(assessment.diversity, "subsamples", counting)
+    larger = numbered(tmp_path / "a.xlsx", 100, "Wie hoch ist die Gebühr für Karte")
+    smaller = numbered(tmp_path / "b.xlsx", 60, "Was kostet die Überweisung Nummer")
+
+    assert (
+        cli.main(["--diversity", "--file", str(larger), "--against", str(smaller)]) == 0
+    )
+
+    assert sorted(drawn) == [(60, 48, 50), (100, 48, 50)]
+    table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
+    assert table[0].split() == [
+        "language",
+        "metric",
+        "file",
+        "against",
+        "difference",
+        "p",
+    ]
+    assert [row.split()[:2] for row in table[1:]] == [
+        ["de", "NGD"],
+        ["de", "SR"],
+        ["de", "word-CR"],
+        ["de", "PoS-CR"],
+        ["de", "HS"],
+    ]
+
+
+def test_a_language_in_one_workbook_only_is_named(tmp_path, exported, capsys) -> None:
+    """English is in the first workbook and not the second."""
+    other = numbered(tmp_path / "b.xlsx", 5, "Was kostet die Überweisung Nummer")
+    assert (
+        cli.main(["--diversity", "--file", str(exported), "--against", str(other)]) == 0
+    )
+    assert "en: in one workbook only" in capsys.readouterr().out
+
+
+def test_a_comparison_takes_no_size(tmp_path, exported) -> None:
+    """It draws 80% of the smaller set; a size of its own would contradict that."""
+    with pytest.raises(SystemExit) as refused:
+        cli.main(
+            [
+                "--diversity",
+                "--file",
+                str(exported),
+                "--against",
+                str(exported),
+                "--size",
+                "2",
+            ]
+        )
+    assert refused.value.code == 2

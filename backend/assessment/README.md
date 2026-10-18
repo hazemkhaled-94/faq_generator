@@ -280,12 +280,21 @@ set (a smaller one looks more varied), so `SIZE=` draws that many questions
 from each language, the same ones on every run, and names and leaves out a
 language that has fewer. Two sets compare only at one size.
 
+`AGAINST=` compares two workbooks the way the paper (Appendix E.2) tests
+two methods. Each language of both is drawn fifty times, without
+replacement, to 80% of the smaller set; each draw gets all five scores; and
+each metric's two lists of fifty are put to Welch's t-test. The report
+prints each side's mean and spread, the difference and p, starred below
+0.05. The fifty draws overlap, so p is optimistic, as it is in the paper:
+read the difference beside it.
+
 The export's filter chooses the set. The paper measured answerable
 questions:
 
 ```sh
 make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
 make diversity FILE=set.xlsx SIZE=200
+make diversity FILE=new.xlsx AGAINST=old.xlsx
 ```
 
 ## Layout

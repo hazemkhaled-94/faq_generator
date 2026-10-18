@@ -367,7 +367,7 @@ failed row.
 
 | Target | Does |
 |---|---|
-| `make diversity FILE=<workbook>` | N-gram diversity, self-repetition, the word and part-of-speech compression ratios and the homogenization score of an exported workbook's questions, one row per language, as the DataMorgana paper measures a benchmark. `CODE=de` measures one language; `SIZE=200` draws that many from each, because the metrics move with a set's size. No model is asked, and the phase need not be on |
+| `make diversity FILE=<workbook>` | N-gram diversity, self-repetition, the word and part-of-speech compression ratios and the homogenization score of an exported workbook's questions, one row per language, as the DataMorgana paper measures a benchmark. `CODE=de` measures one language; `SIZE=200` draws that many from each, because the metrics move with a set's size. `AGAINST=<workbook>` compares with a second workbook: both drawn fifty times to 80% of the smaller set, each metric's mean and spread, the difference, and Welch's p, starred below 0.05. No LLM is asked, and the phase need not be on |
 
 ```bash
 make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"

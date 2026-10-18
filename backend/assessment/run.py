@@ -17,8 +17,11 @@ import logging
 import sys
 import time
 from collections import defaultdict
+from collections.abc import Sequence
 from functools import lru_cache
+from math import floor, isnan
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import telemetry
 from assessment import prompts
@@ -31,6 +34,10 @@ from settings import decimal, integer, required
 from settings.store import snapshot
 from stages.cli import queue_main
 from stages.prompts import record
+
+if TYPE_CHECKING:
+    # For the annotation only: the assess-worker never loads numpy.
+    from numpy.typing import ArrayLike
 
 log = logging.getLogger(__name__)
 
@@ -150,66 +157,59 @@ def diversity(argv: list[str]) -> int:
     chooses the set: the paper measured answerable questions, which is
     `--status accepted --answerable --roots-only`. Each language is measured
     on its own, and with `--size` at that many questions drawn from each, so
-    two sets are compared at one size.
+    two sets are compared at one size. `--against` compares two workbooks
+    the way the paper tests two methods: each language of both drawn fifty
+    times to 80% of the smaller, and every metric's two lists of scores put
+    to Welch's t-test.
     """
     parser = argparse.ArgumentParser(
         prog="python -m assessment.run --diversity",
         description="How varied an exported workbook's questions are.",
     )
     parser.add_argument("--file", required=True, type=Path, help="an exported workbook")
+    parser.add_argument(
+        "--against", type=Path, metavar="FILE", help="a second workbook to compare with"
+    )
     parser.add_argument("--language", metavar="CODE", help="measure one language only")
     parser.add_argument(
         "--size", type=int, metavar="N", help="draw N questions from each language"
     )
     args = parser.parse_args(argv)
-    if not args.file.is_file():
-        parser.error(f"--file {args.file} is not a file")
+    for named in (args.file, args.against):
+        if named is not None and not named.is_file():
+            parser.error(f"{named} is not a file")
     if args.size is not None and args.size < 1:
         parser.error("--size takes a whole number of at least 1")
+    if args.size is not None and args.against is not None:
+        parser.error("--against draws 80% of the smaller set; it takes no --size")
 
-    # Here rather than above: the assess-worker imports this module and
-    # never reads a workbook or measures a set.
-    import pandas as pd
+    from assessment.diversity import subsamples
 
-    from assessment.diversity import (
-        compression_ratio,
-        homogenization,
-        ngram_diversity,
-        self_repetition,
-        subsamples,
-    )
-
-    # Text as written: pandas would otherwise read a question "None" or "N/A"
-    # as missing, and measure it as the word "nan".
-    frame = pd.read_excel(
-        args.file,
-        sheet_name="Questions",
-        dtype={"Question": str, "Language": str},
-        keep_default_na=False,
-    ).sort_values("ID")
-    asked: dict[str, list[str]] = defaultdict(list)
-    for language, text in zip(frame["Language"], frame["Question"], strict=True):
-        if args.language in (None, language):
-            asked[language].append(str(text))
-
-    print(
-        f"{'language':<9}{'n':>6}{'NGD':>8}{'SR':>8}{'word-CR':>9}{'PoS-CR':>8}{'HS':>7}"
-    )
-    tagged_by = {}
-    for language, texts in sorted(asked.items()):
-        if args.size:
-            if len(texts) < args.size:
-                print(f"{language:<9}{len(texts):>6}  question, fewer than {args.size}")
-                continue
-            texts = [texts[i] for i in subsamples(len(texts), args.size, draws=1)[0]]
-        tags, tagged_by[language] = _tags(texts, language)
-        # One question has no pair to compare.
-        alike = f"{homogenization(_vectors(texts)):.3f}" if len(texts) > 1 else "-"
-        print(
-            f"{language:<9}{len(texts):>6}{ngram_diversity(texts):>8.3f}"
-            f"{self_repetition(texts):>8.3f}{compression_ratio(texts):>9.3f}"
-            f"{compression_ratio(tags):>8.3f}{alike:>7}"
-        )
+    first = _read(args.file, args.language)
+    tagged_by: dict[str, str] = {}
+    if args.against is not None:
+        _compare(first, _read(args.against, args.language), tagged_by)
+    else:
+        print(f"{'language':<9}{'n':>6}" + "".join(f"{name:>9}" for name in METRICS))
+        for language, texts in sorted(first.items()):
+            if args.size:
+                if len(texts) < args.size:
+                    print(
+                        f"{language:<9}{len(texts):>6}  question, fewer than {args.size}"
+                    )
+                    continue
+                texts = [
+                    texts[i] for i in subsamples(len(texts), args.size, draws=1)[0]
+                ]
+            tags, tagged_by[language] = _tags(texts, language)
+            scores = _metrics(texts, tags, _vectors(texts) if len(texts) > 1 else [])
+            print(
+                f"{language:<9}{len(texts):>6}"
+                + "".join(
+                    f"{'-':>9}" if isnan(score) else f"{score:>9.3f}"
+                    for score in scores.values()
+                )
+            )
     print()
     for language, pipeline in tagged_by.items():
         print(f"{language}: UPOS tags from {pipeline}")
@@ -218,6 +218,108 @@ def diversity(argv: list[str]) -> int:
         "paper's MiniLM scale; compare it only between sets embedded alike"
     )
     return 0
+
+
+#: The report's columns, in the paper's order.
+METRICS = ("NGD", "SR", "word-CR", "PoS-CR", "HS")
+
+
+def _read(path: Path, only: str | None) -> dict[str, list[str]]:
+    """A workbook's questions by language, in the order of their ids."""
+    # Here rather than above: the assess-worker imports this module and
+    # never reads a workbook.
+    import pandas as pd
+
+    # Text as written: pandas would otherwise read a question "None" or "N/A"
+    # as missing, and measure it as the word "nan".
+    frame = pd.read_excel(
+        path,
+        sheet_name="Questions",
+        dtype={"Question": str, "Language": str},
+        keep_default_na=False,
+    ).sort_values("ID")
+    asked: dict[str, list[str]] = defaultdict(list)
+    for language, text in zip(frame["Language"], frame["Question"], strict=True):
+        if only in (None, language):
+            asked[language].append(str(text))
+    return asked
+
+
+def _metrics(texts: list[str], tags: list[str], vectors: ArrayLike) -> dict[str, float]:
+    """The five scores of one set; HS is NaN for a set with no pair in it."""
+    from assessment.diversity import (
+        compression_ratio,
+        homogenization,
+        ngram_diversity,
+        self_repetition,
+    )
+
+    return {
+        "NGD": ngram_diversity(texts),
+        "SR": self_repetition(texts),
+        "word-CR": compression_ratio(texts),
+        "PoS-CR": compression_ratio(tags),
+        "HS": homogenization(vectors) if len(texts) > 1 else float("nan"),
+    }
+
+
+def _compare(
+    first: dict[str, list[str]], second: dict[str, list[str]], tagged_by: dict[str, str]
+) -> None:
+    """Prints each metric's mean over the draws of both sets, and Welch's p."""
+    import numpy as np
+
+    from assessment.diversity import ALPHA, DRAWS, SHARE, p_value, subsamples
+
+    print(
+        f"{'language':<9}{'metric':<9}{'file':>16}{'against':>16}"
+        f"{'difference':>12}{'p':>8}"
+    )
+    drawn = []
+    for language in sorted(first.keys() | second.keys()):
+        if language not in first or language not in second:
+            drawn.append(f"{language}: in one workbook only")
+            continue
+        size = floor(SHARE * min(len(first[language]), len(second[language])))
+        if size < 2:
+            drawn.append(f"{language}: too few questions to draw two")
+            continue
+        scores = []
+        for seed, texts in enumerate((first[language], second[language])):
+            tags, tagged_by[language] = _tags(texts, language)
+            vectors = np.asarray(_vectors(texts))
+            scores.append(
+                [
+                    _metrics(
+                        [texts[i] for i in places],
+                        [tags[i] for i in places],
+                        vectors[places],
+                    )
+                    for places in subsamples(len(texts), size, DRAWS, seed)
+                ]
+            )
+        for metric in METRICS:
+            a, b = ([draw[metric] for draw in side] for side in scores)
+            p = p_value(a, b)
+            shown = "      -" if isnan(p) else f"{p:>7.3f}"
+            print(
+                f"{language:<9}{metric:<9}{_spread(a):>16}{_spread(b):>16}"
+                f"{np.mean(a) - np.mean(b):>+12.3f}{shown}{'*' if p < ALPHA else ' '}"
+            )
+        drawn.append(
+            f"{language}: {DRAWS} draws of {size} from {len(first[language])} "
+            f"and from {len(second[language])}"
+        )
+    print()
+    for line in drawn:
+        print(line)
+
+
+def _spread(scores: Sequence[float]) -> str:
+    """A mean and its standard deviation over the draws, as `0.123 (0.004)`."""
+    import numpy as np
+
+    return f"{np.mean(scores):.3f} ({np.std(scores, ddof=1):.3f})"
 
 
 def _tags(texts: list[str], language: str) -> tuple[list[str], str]:

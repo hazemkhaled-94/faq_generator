@@ -57,6 +57,10 @@ nlp = [
 
 data = [
     "numpy>=2.5.2,<3.0.0",
+    # Welch's t-test, which `assessment.diversity` puts two sets' diversity
+    # scores to. Transitive through gensim and sentence-transformers; named
+    # for the reason transformers is.
+    "scipy>=1.18.1,<2.0.0",
     # The frame `question_generation.export` builds directly and writes the
     # workbook out of. Transitive through the evals package and through pyLDAvis; named for
     # the reason transformers is - a package somebody else pins is one they
