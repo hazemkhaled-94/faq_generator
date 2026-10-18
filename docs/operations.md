@@ -200,6 +200,27 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.5
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration, no setting and no prompt change.
+
+**`make questions-balance` now leaves a record.** Its trace reaches Phoenix
+under the run, and its log names every pair of released questions it put to
+the twin judge, with the round and the verdict, and how far each kind, band
+and language came from its quota.
+
+**Unanswerable questions.** The check that a verifier's quote sits in the
+passages now reads a quote stitched from bullets, cells or a passage's
+continuation piece by piece. It applies to every `settles` judgement made
+from now on: in a question generation and in `make questions-rejudge`, which
+asks again only a row whose stored verdict is from an older prompt version.
+`QUESTIONS_RELEASE_UNANSWERABLE` stays 0.
+
 ## Upgrading to v0.3.4
 
 ```bash

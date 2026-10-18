@@ -768,6 +768,14 @@ Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits wh
 | German *wo-* question words missed by `compound` | `Worauf …, und was …?` read as one question | a per-language table of question adverbs | 1 question moves between refusal codes; no accepted one changes |
 | The shadow coverage reading stored on half the answers it applies to | 75 of 156 | stored on every eligible answer, still in shadow | 171 readings, 0 verdicts moved |
 
+### Fixed in v0.3.5: release record and unanswerables
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| The release draw left no record | the balance ran with no trace, and the twin pairs it judged were logged only as counts | a trace with one span per twin round, one log line per judged pair with both ids and the verdict, and each bucket's distance from its quota ([`service.py`](../backend/question_generation/service.py)) | — |
+| A correct answer silenced because its quote was stitched | a quote taken from two bullets, two cells or a passage and its continuation is not one unbroken run, so the answer was ignored and the question kept as unanswerable | the quote is looked for piece by piece, each piece as whole words of one shown passage ([`checker.py`](../backend/question_generation/checker.py)) | 7 kept unanswerable questions refused, all answered by the corpus; false-omission rate 0.414 to 0.405 in German, 0.456 to 0.431 in English; released invalid 9 to 8 |
+| A quote matched inside a longer word | `Ja` found in `Jahresgebühr` settled a question | pieces match on word boundaries | in the red tests |
+
 ### Deferred or low, with the reason
 
 | Defect | Why it stays open |
@@ -784,6 +792,9 @@ Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits wh
 | A circular reason caught only below a fixed share of new words | Every bar that separates circular from sound reasons on this corpus sits in the gap between two of its own share values (3/7 and 4/9), and the same sentence scores differently in German and English; it would be a bar fitted to this rulebook |
 | Comparisons refused as `wrong_type` | Reading the two sides by order and parallel structure frees 43 rows, but they are 67% usable, under the pool's 70%; it needs a model-backed replay before it ships |
 | Smaller structural gates: figures read from the question for `explanation_unusable`, pointers the question resolves for `unanchored`, `leaks_source` | Each was re-measured: 4 of 6 and 2 of 3 of the rows they free are usable, under 70%, and `leaks_source`'s rows carry no stored judgement to replay |
+| Unanswerable questions the corpus answers are still kept | The false-omission rate is 0.40 in German and 0.43 in English, against the 0.15 a release share needs, so `QUESTIONS_RELEASE_UNANSWERABLE` stays 0. Reading `heard()` only for why-questions regresses reason questions asked without a why-word; holding back a reply that is silent but quotes something removes rows half of which are usable; a second model and a wider probe would cost a calibration and, on the best estimate, still leave the rate near 0.2 |
+| Follow-up gates read ids, not content | Checking a follow-up against every earlier turn's facts would remove rows 53% usable; judging each follow-up against its own thread belongs with the release-draw change above |
+| The release reads no quality signal | The stored confidence does not separate invalid or welded rows, so weighing the draw by it would move the release on noise |
 | Tooling odds and ends | The CI cache key hashes the whole Makefile; an unused SeaweedFS UI container; `make dev` waits for Postgres without a timeout. Low |
 
 ## Found on the v0.2.2 rebuild of 2026-10-14
