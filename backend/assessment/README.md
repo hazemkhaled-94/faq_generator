@@ -351,6 +351,13 @@ prints each side's mean and spread, the difference and p, starred below
 0.05. The fifty draws overlap, so p is optimistic, as it is in the paper:
 read the difference beside it.
 
+`BY=category` measures each category of each language on its own, read
+from the workbook's Categories column, so a question counts once in each of
+its categories. And where the workbook holds the paper's judge (the
+`rubric_*` judgements on its Assessment sheet), the report ends with that
+judge's mean scores for the same groups: the mean stored score, which is
+the paper's normalised mean, from 0 to 1.
+
 The export's filter chooses the set. The paper measured answerable
 questions:
 
@@ -358,6 +365,7 @@ questions:
 make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
 make diversity FILE=set.xlsx SIZE=200
 make diversity FILE=new.xlsx AGAINST=old.xlsx
+make diversity FILE=set.xlsx BY=category
 ```
 
 ## Layout

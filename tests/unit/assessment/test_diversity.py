@@ -23,6 +23,7 @@ from assessment.diversity import (
     self_repetition,
     subsamples,
 )
+from assessment.models import StoredAssessment, StoredMetric
 from question_generation.export import workbook
 from question_generation.models import StoredQuestion
 
@@ -152,9 +153,12 @@ def test_homogenization_needs_two_questions() -> None:
         homogenization(np.array([[1.0, 0.0]]))
 
 
-def asked(id: int, text: str, language: str) -> StoredQuestion:
+def asked(
+    id: int, text: str, language: str, categories: tuple[str, ...] = ()
+) -> StoredQuestion:
     """One accepted question, as the exporter is handed it."""
     return StoredQuestion(
+        categories=list(categories),
         id=id,
         question_text=text,
         target_answer="48 hours",
@@ -353,4 +357,76 @@ def test_a_comparison_takes_no_size(tmp_path, exported) -> None:
                 "2",
             ]
         )
+    assert refused.value.code == 2
+
+
+CONCISE = "Phrasing=concise-and-natural"
+VERBOSE = "Phrasing=verbose-and-natural"
+
+
+def judged(question: int, fluency: float) -> StoredAssessment:
+    """What the paper's judge said of one question's fluency, as stored."""
+    return StoredAssessment(
+        id=question,
+        kind="question",
+        artifact_id=question,
+        status="assessed",
+        approved=True,
+        judge_model="azure/gpt-4.1",
+        prompt_version="3",
+        run_id=None,
+        trace_id=None,
+        span_id=None,
+        assessed_at=None,
+        error=None,
+        metrics=[StoredMetric("rubric_fluency", "3", fluency, True, "")],
+    )
+
+
+@pytest.fixture
+def categorized(tmp_path, exported):
+    """B in German, two concise and one verbose, one English concise, two judged."""
+    path = tmp_path / "categorized.xlsx"
+    path.write_bytes(
+        workbook(
+            [
+                asked(1, B[0], "de", (CONCISE,)),
+                asked(2, B[1], "de", (CONCISE,)),
+                asked(3, B[2], "de", (VERBOSE,)),
+                asked(4, "Wie lange dauert eine Antwort?", "en", (CONCISE,)),
+            ],
+            judged={1: judged(1, 1.0), 2: judged(2, 0.5)},
+        )
+    )
+    return path
+
+
+def test_the_report_splits_by_category(categorized, capsys) -> None:
+    """One row per language and category, a question counted in each of its labels."""
+    assert (
+        cli.main(["--diversity", "--file", str(categorized), "--by", "category"]) == 0
+    )
+    table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
+    assert table[0].split()[:3] == ["language", "category", "n"]
+    assert [row.split()[:3] for row in table[1:]] == [
+        ["de", CONCISE, "2"],
+        ["de", VERBOSE, "1"],
+        ["en", CONCISE, "1"],
+    ]
+
+
+def test_the_report_gives_the_papers_judge_means(categorized, capsys) -> None:
+    """The mean stored score, which is the paper's normalised mean; per category too."""
+    assert (
+        cli.main(["--diversity", "--file", str(categorized), "--by", "category"]) == 0
+    )
+    judge = capsys.readouterr().out.split("The paper's judge", 1)[1].splitlines()
+    rows = [row.split() for row in judge if row.startswith(("de", "en"))]
+    assert rows == [["de", CONCISE, "2", "0.750"]]
+
+
+def test_a_workbook_without_categories_cannot_be_split(exported) -> None:
+    """A workbook written before categories has nothing to split by."""
+    with pytest.raises(SystemExit) as refused:
+        cli.main(["--diversity", "--file", str(exported), "--by", "category"])
     assert refused.value.code == 2

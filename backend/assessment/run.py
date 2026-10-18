@@ -160,7 +160,9 @@ def diversity(argv: list[str]) -> int:
     two sets are compared at one size. `--against` compares two workbooks
     the way the paper tests two methods: each language of both drawn fifty
     times to 80% of the smaller, and every metric's two lists of scores put
-    to Welch's t-test.
+    to Welch's t-test. `--by category` measures each category of each
+    language on its own. Where the workbook holds the paper's judge, its
+    mean scores follow, over the same groups.
     """
     parser = argparse.ArgumentParser(
         prog="python -m assessment.run --diversity",
@@ -174,6 +176,9 @@ def diversity(argv: list[str]) -> int:
     parser.add_argument(
         "--size", type=int, metavar="N", help="draw N questions from each language"
     )
+    parser.add_argument(
+        "--by", choices=("category",), help="one row per category of each language"
+    )
     args = parser.parse_args(argv)
     for named in (args.file, args.against):
         if named is not None and not named.is_file():
@@ -182,20 +187,30 @@ def diversity(argv: list[str]) -> int:
         parser.error("--size takes a whole number of at least 1")
     if args.size is not None and args.against is not None:
         parser.error("--against draws 80% of the smaller set; it takes no --size")
+    if args.by is not None and args.against is not None:
+        parser.error("--by measures one workbook; it takes no --against")
 
     from assessment.diversity import subsamples
 
-    first = _read(args.file, args.language)
+    groups = _read(args.file, args.language, by_category=args.by == "category")
+    if args.by and not groups:
+        parser.error(f"{args.file} holds no categories to split by")
     tagged_by: dict[str, str] = {}
     if args.against is not None:
-        _compare(first, _read(args.against, args.language), tagged_by)
+        _compare(_texts(groups), _texts(_read(args.against, args.language)), tagged_by)
     else:
-        print(f"{'language':<9}{'n':>6}" + "".join(f"{name:>9}" for name in METRICS))
-        for language, texts in sorted(first.items()):
+        named = f"{'category':<36}" if args.by else ""
+        print(
+            f"{'language':<9}{named}{'n':>6}" + "".join(f"{one:>9}" for one in METRICS)
+        )
+        for (language, label), asked in sorted(groups.items()):
+            texts = [text for _, text in asked]
+            shown = f"{label:<36}" if args.by else ""
             if args.size:
                 if len(texts) < args.size:
                     print(
-                        f"{language:<9}{len(texts):>6}  question, fewer than {args.size}"
+                        f"{language:<9}{shown}{len(texts):>6}  question, fewer "
+                        f"than {args.size}"
                     )
                     continue
                 texts = [
@@ -204,7 +219,7 @@ def diversity(argv: list[str]) -> int:
             tags, tagged_by[language] = _tags(texts, language)
             scores = _metrics(texts, tags, _vectors(texts) if len(texts) > 1 else [])
             print(
-                f"{language:<9}{len(texts):>6}"
+                f"{language:<9}{shown}{len(texts):>6}"
                 + "".join(
                     f"{'-':>9}" if isnan(score) else f"{score:>9.3f}"
                     for score in scores.values()
@@ -217,6 +232,8 @@ def diversity(argv: list[str]) -> int:
         "HS: the cosine of EMBEDDING_MODEL's vectors, which is not on the "
         "paper's MiniLM scale; compare it only between sets embedded alike"
     )
+    if args.against is None:
+        _judged(args.file, groups, args.by is not None)
     return 0
 
 
@@ -224,8 +241,16 @@ def diversity(argv: list[str]) -> int:
 METRICS = ("NGD", "SR", "word-CR", "PoS-CR", "HS")
 
 
-def _read(path: Path, only: str | None) -> dict[str, list[str]]:
-    """A workbook's questions by language, in the order of their ids."""
+def _read(
+    path: Path, only: str | None, by_category: bool = False
+) -> dict[tuple[str, str], list[tuple[int, str]]]:
+    """A workbook's questions and their ids by language, in the order of their ids.
+
+    Grouped by language under an empty label, or with `by_category` by
+    language and each `categorization=category` label in the Categories
+    cell, so a question counts once in each of its categories and a
+    question told none in no group.
+    """
     # Here rather than above: the assess-worker imports this module and
     # never reads a workbook.
     import pandas as pd
@@ -238,11 +263,76 @@ def _read(path: Path, only: str | None) -> dict[str, list[str]]:
         dtype={"Question": str, "Language": str},
         keep_default_na=False,
     ).sort_values("ID")
-    asked: dict[str, list[str]] = defaultdict(list)
-    for language, text in zip(frame["Language"], frame["Question"], strict=True):
-        if only in (None, language):
-            asked[language].append(str(text))
+    if by_category and "Categories" not in frame:
+        return {}
+    labels = frame["Categories"] if by_category else [""] * len(frame)
+    asked: dict[tuple[str, str], list[tuple[int, str]]] = defaultdict(list)
+    for id, language, text, held in zip(
+        frame["ID"], frame["Language"], frame["Question"], labels, strict=True
+    ):
+        if only not in (None, language):
+            continue
+        # A comma never stands in a name, so it only ever separates labels.
+        for label in str(held).split(", ") if by_category else [""]:
+            if label or not by_category:
+                asked[(language, label)].append((int(id), str(text)))
     return asked
+
+
+def _texts(
+    groups: dict[tuple[str, str], list[tuple[int, str]]],
+) -> dict[str, list[str]]:
+    """The questions by language alone."""
+    return {
+        language: [text for _, text in asked] for (language, _), asked in groups.items()
+    }
+
+
+#: The paper's six scores, in its order, as the judge stores them.
+_PAPER_ORDER = (
+    "rubric_fluency",
+    "rubric_clarity",
+    "rubric_conciseness",
+    "rubric_relevance",
+    "rubric_consistency",
+    "rubric_answerability",
+)
+
+
+def _judged(
+    path: Path, groups: dict[tuple[str, str], list[tuple[int, str]]], by: bool
+) -> None:
+    """Prints the paper's judge's mean scores per group, where the workbook holds any.
+
+    The mean of the stored score, (s - 1) / 2, is the paper's normalised
+    mean, as its Table 3 reports it. n is how many of the group were judged.
+    """
+    import pandas as pd
+
+    sheet = pd.read_excel(path, sheet_name="Assessment")
+    scored = sheet.loc[sheet["Judgement"].astype(str).isin(_PAPER_ORDER)]
+    if scored.empty:
+        return
+    metrics = [one for one in _PAPER_ORDER if one in set(scored["Judgement"])]
+    named = f"{'category':<36}" if by else ""
+    print("\nThe paper's judge, mean scores from 0 to 1:")
+    print(
+        f"{'language':<9}{named}{'n':>6}"
+        + "".join(f"{one.removeprefix('rubric_'):>14}" for one in metrics)
+    )
+    for (language, label), asked in sorted(groups.items()):
+        held = scored.loc[scored["Question ID"].isin([id for id, _ in asked])]
+        if held.empty:
+            continue
+        means = held.groupby("Judgement")["Score"].mean()
+        shown = f"{label:<36}" if by else ""
+        print(
+            f"{language:<9}{shown}{held['Question ID'].nunique():>6}"
+            + "".join(
+                f"{means[one]:>14.3f}" if one in means else f"{'-':>14}"
+                for one in metrics
+            )
+        )
 
 
 def _metrics(texts: list[str], tags: list[str], vectors: ArrayLike) -> dict[str, float]:

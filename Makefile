@@ -1160,15 +1160,18 @@ assess-rerun:
 # SIZE draws that many from each language, because these metrics move with
 # a set's size and two sets compare only at one. AGAINST compares FILE with
 # a second workbook as the paper compares two methods: both drawn fifty
-# times to 80% of the smaller set, every metric put to Welch's t-test. CODE
-# and not LANG, as for topics-render.
+# times to 80% of the smaller set, every metric put to Welch's t-test.
+# BY=category measures each category of each language on its own. Where the
+# workbook holds the paper's judge, its mean scores follow. CODE and not
+# LANG, as for topics-render.
 #
 #   make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
 #   make diversity FILE=set.xlsx SIZE=200
 #   make diversity FILE=new.xlsx AGAINST=old.xlsx
+#   make diversity FILE=set.xlsx BY=category
 diversity:
-	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [CODE=de] [SIZE=200]'; exit 2; }
-	$(ASSESS) --diversity --file $(FILE) $(if $(AGAINST),--against $(AGAINST)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE))
+	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category] [CODE=de] [SIZE=200]'; exit 2; }
+	$(ASSESS) --diversity --file $(FILE) $(if $(AGAINST),--against $(AGAINST)) $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE))
 
 # ── Question runs ──────────────────────────────────────────────────────────
 
