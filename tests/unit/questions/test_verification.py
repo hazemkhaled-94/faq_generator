@@ -1885,6 +1885,90 @@ def test_a_question_name_is_not_excused_when_the_recovery_names_another() -> Non
 
 
 @pytest.mark.parametrize(
+    ("question", "key", "recovered", "given", "passages", "language"),
+    [
+        (
+            "Was kostet die Kontoführung im Monat?",
+            "beim Premiumkonto 4,90 Euro",
+            "4,90 Euro im Monat",
+            "Konten > Premiumkonto\nKonten > Basiskonto",
+            (
+                "Die Kontoführung kostet 9,90 Euro im Monat.",
+                "Die Kontoführung kostet 4,90 Euro im Monat.",
+            ),
+            "de",
+        ),
+        (
+            "Was kostet die Kontoführung im Monat?",
+            "Das Premiumkonto kostet 4,90 Euro im Monat.",
+            "Das Basiskonto kostet 4,90 Euro im Monat.",
+            "Konten > Premiumkonto\nKonten > Basiskonto",
+            (
+                "Die Kontoführung kostet 9,90 Euro im Monat.",
+                "Das Basiskonto kostet 4,90 Euro im Monat.",
+            ),
+            "de",
+        ),
+        (
+            "What is the annual fee for the card?",
+            "Visa Gold: 40 euros a year",
+            "40 euros a year",
+            "Cards > Visa Gold\nCards > Mastercard Classic",
+            ("The annual fee is 90 euros.", "The annual fee is 40 euros."),
+            "en",
+        ),
+        (
+            "What does standard delivery cost?",
+            "free in Austria",
+            "Standard delivery is free.",
+            "Delivery > Germany\nDelivery > Austria",
+            ("Standard delivery is free.", "Standard delivery costs 4.95 euros."),
+            "en",
+        ),
+    ],
+    ids=["Premiumkonto", "Premiumkonto for Basiskonto", "Visa Gold", "Austria"],
+)
+def test_a_name_one_heading_of_two_carries_is_not_given_to_a_key_about_the_other(
+    question: str,
+    key: str,
+    recovered: str,
+    given: str,
+    passages: tuple[str, ...],
+    language: str,
+) -> None:
+    """Two passages under two products' headings: which one came back?
+
+    The figure may be the other product's, so only what every trail carries
+    is given, `Konten` and not `Premiumkonto`.
+    """
+    assert not agrees(
+        recovered,
+        key,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        given=given,
+        passages=passages,
+    )
+
+
+def test_a_name_every_heading_carries_need_not_come_back() -> None:
+    """Two clauses under one product's headings are both about it."""
+    assert agrees(
+        "a payment that the payee collects from the account of the payer",
+        (
+            "A SEPA direct debit is a payment that the payee collects from the "
+            "account of the payer."
+        ),
+        "en",
+        AnswerForm.EXPLANATION,
+        question="What is a direct debit?",
+        given="Payments > SEPA > Core\nPayments > SEPA > Mandates",
+        passages=(_DEBIT, "A mandate authorises the payee to collect."),
+    )
+
+
+@pytest.mark.parametrize(
     ("question", "key", "recovered", "given", "passage", "language"),
     [
         (

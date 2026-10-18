@@ -25,7 +25,7 @@ does.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from itertools import combinations, pairwise
 from typing import TYPE_CHECKING
 
@@ -2110,14 +2110,28 @@ def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
 _BRIDGED = frozenset({"ADJ", "ADV"})
 
 
+def _every(given: str, read: Callable[[str], frozenset[str]]) -> frozenset[str]:
+    """What every distinct heading trail in `given` carries, as `read` reads it.
+
+    `given` holds one trail a line. Passages under `Konten > Premiumkonto`
+    and `Konten > Basiskonto` are about two products, and a key may pin one's
+    figure on the other, so only `Konten` is given.
+    """
+    trails = [
+        read(trail) for trail in dict.fromkeys(given.splitlines()) if trail.strip()
+    ]
+    return frozenset.intersection(*trails) if trails else frozenset()
+
+
 def _named(
-    recovered: str, target: str, language: str | None, given: str
+    recovered: str, target: str, language: str | None, question: str, given: str
 ) -> frozenset[str]:
     """The names a key may leave out of its recovery, because the reader has them.
 
-    A name the question or the cited passages' heading trail carries: the
-    verifier answers `What is a SEPA direct debit?` without saying `SEPA`
-    again, and is never shown the heading a clause sits under.
+    A name the question carries, or every heading trail of the cited
+    passages, see `_every`: the verifier answers `What is a SEPA direct
+    debit?` without saying `SEPA` again, and is never shown the heading a
+    clause sits under.
 
     Names only, never a figure. `4 hours` must not pass for `48 hours`
     because the question says 48, and a clause numbered `7` or a `30-Day
@@ -2127,7 +2141,7 @@ def _named(
     charges 2 percent` answers for another card than `Visa charges 2
     percent`, however much the question names both.
     """
-    if not given.strip():
+    if not question.strip() and not given.strip():
         return frozenset()
 
     def names(values: frozenset[str]) -> frozenset[str]:
@@ -2135,7 +2149,9 @@ def _named(
 
     if names(_numbers(recovered, language)) - _values(target, language):
         return frozenset()
-    return names(_values(given, language))
+    return names(_values(question, language)) | names(
+        _every(given, lambda trail: _values(trail, language))
+    )
 
 
 def _one_by_article(recovered: str, target: str, language: str | None) -> bool:
@@ -2178,15 +2194,18 @@ def _back(
 
     For a list or an explanation, over what the answer adds to the question,
     where it adds anything. For any form, not over a lemma only the heading
-    trail carries, which the verifier was never shown: a key naming the
-    heading's `Tagesgeldkonto` that its clause never repeats could not have
-    it come back. A lemma comes back under `_BRIDGED` parts of speech too.
+    trails carry, every one of them, which the verifier was never shown: a
+    key naming the heading's `Tagesgeldkonto` that its clause never repeats
+    could not have it come back. A lemma comes back under `_BRIDGED` parts
+    of speech too.
     """
     wanted = _compared(target, language, form)
     if form != AnswerForm.VALUE and question:
         wanted = (wanted - content(question, language)) or wanted
     if given:
-        unseen = content(given, language) - content("\n".join(passages), language)
+        unseen = _every(given, lambda trail: content(trail, language)) - content(
+            "\n".join(passages), language
+        )
         wanted = (wanted - unseen) or wanted
     hit = wanted & _compared(recovered, language, form)
     if wanted - hit:
@@ -2217,8 +2236,8 @@ def recalled(
     the question, where it adds anything. None where the target has no lemma
     to share.
 
-    `given` is the heading trail the cited passages sit under and `passages`
-    what the verifier read, as `agrees` takes them.
+    `given` is the heading trails the cited passages sit under, one a line,
+    and `passages` what the verifier read, as `agrees` takes them.
     """
     wanted, hit = _back(recovered, target, language, form, question, given, passages)
     if not wanted:
@@ -2256,8 +2275,8 @@ def agrees(
     likeness would, because the two are as alike as two answers get. A count
     written out is its figure, in either direction: `zehn Sekunden` is `10
     Sekunden`, and neither is `11 Sekunden`. What the reader is given is not
-    asked back: a name the question or the heading trail `given` carries,
-    see `_named`, and a `one` the recovery says with an article, see
+    asked back: a name the question or every heading trail in `given`
+    carries, see `_named`, and a `one` the recovery says with an article, see
     `_one_by_article`.
 
     And what the target is ABOUT has to occur in what came back, compared on
@@ -2293,7 +2312,7 @@ def agrees(
     found = _values(recovered, language)
     missing = [one for one in _number_readings(target, language) if not one & found]
     if missing:
-        named = _named(recovered, target, language, f"{question}\n{given}")
+        named = _named(recovered, target, language, question, given)
         missing = [one for one in missing if not one & named]
     if any(repr(1.0) in one for one in missing) and _one_by_article(
         recovered, target, language

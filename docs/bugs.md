@@ -524,12 +524,14 @@ figures count a height, not flagposts.
 
 **Fixed further in v0.3.4**, in the same files. The round trip asked the
 verifier to give back what only the writer had been shown. A name the
-question or the heading trail carries no longer has to come back, unless
-the recovery names another; a lemma only the heading carries is not looked
-for; a `one` is met by an indefinite article on the noun it counts; and a
-lemma comes back under an adjective or an adverb, as German predicative
-adjectives are tagged. On the v0.3.0 rows this passes 9 wrong
-`not_recoverable` refusals and loses no right one; 7 are accepted, all
+question carries, or every heading trail of the cited passages, no longer
+has to come back, unless the recovery names another; a lemma only the
+headings carry, every one of them, is not looked for; a `one` is met by an
+indefinite article on the noun it counts; and a lemma comes back under an
+adjective or an adverb, as German predicative adjectives are tagged. Every
+trail, because two passages under two products' headings let a key pin one
+product's figure on the other. On the v0.3.0 rows this passes 8 wrong
+`not_recoverable` refusals and loses no right one; 6 are accepted, all
 usable, and 2 are then refused as near twins of those. Figures stay strict.
 Still open: `answer_incomplete` on terse keys, and German names
 `de_core_news_md` does not tag as proper nouns, which `Visa` is not, so a
