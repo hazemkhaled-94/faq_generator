@@ -37,6 +37,21 @@ _OUTSTANDING = Topic.topic_index.is_(None)
 #: How many passages to hold at once while streaming the corpus.
 _BATCH = 500
 
+#: A passage carrying a validated fact, which is what a fit is over where its
+#: language has any. One clause for the corpus a fit reads and the count the
+#: stale flag compares it with, so the two cannot come to count different
+#: passages.
+#:
+#: ponytail: a count compares sizes, so one passage gaining its first fact as
+#: another loses its last reads as unchanged. The upgrade is to compare the
+#: set against the passages `passage_topics` holds.
+_BEARING = (
+    select(FactPassage.passage_id)
+    .join(Fact, Fact.id == FactPassage.fact_id)
+    .where(Fact.validated, FactPassage.passage_id == Passage.id)
+    .exists()
+)
+
 #: Each topic's centroid, as the mean of its passages' vectors normalised back
 #: to length 1. Written in SQL rather than by a worker: it is an average of a
 #: column, so nothing has to load a model to compute it and it cannot come to
@@ -196,18 +211,12 @@ class TopicQueue(StageQueue):
         Yields:
             Each passage's id and the lemmas chunking stored for it.
         """
-        bearing = (
-            select(FactPassage.passage_id)
-            .join(Fact, Fact.id == FactPassage.fact_id)
-            .where(Fact.validated, FactPassage.passage_id == Passage.id)
-            .exists()
-        )
         with self._session() as session:
             query = select(Passage.id, Passage.lemmas).where(
                 Passage.language == language
             )
-            if session.scalar(select(query.where(bearing).exists())):
-                query = query.where(bearing)
+            if session.scalar(select(query.where(_BEARING).exists())):
+                query = query.where(_BEARING)
             rows = session.execute(
                 query.order_by(Passage.id).execution_options(yield_per=_BATCH)
             )
@@ -549,6 +558,8 @@ class TopicCatalog(Repository):
 
         Each language carries the live passage and membership counts beside
         the ones its fit recorded, which is what makes a stale model readable.
+        The live passages are counted as `passages` reads them, so a fit is
+        not stale the moment it is written.
         The status and error are the newest request row's.
 
         Returns:
@@ -575,13 +586,20 @@ class TopicCatalog(Repository):
                 .group_by(Topic.language)
                 .order_by(Topic.language)
             ).all()
-            live = dict(
-                session.execute(
-                    select(Passage.language, func.count())
-                    .where(Passage.language.is_not(None))
-                    .group_by(Passage.language)
-                ).all()
+            every = select(Passage.language, func.count()).where(
+                Passage.language.is_not(None)
             )
+            bearing = dict(
+                session.execute(every.where(_BEARING).group_by(Passage.language)).all()
+            )
+            # What `passages` would fit now: a language with no fact yet is
+            # fitted whole.
+            live = {
+                language: bearing.get(language) or count
+                for language, count in session.execute(
+                    every.group_by(Passage.language)
+                ).all()
+            }
             held = dict(
                 session.execute(
                     select(Topic.language, func.count(PassageTopic.passage_id))

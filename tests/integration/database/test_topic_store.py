@@ -721,6 +721,57 @@ def test_a_corpus_that_has_grown_leaves_the_model_stale(store, engine) -> None:
     assert state.stale is True
 
 
+def test_a_fit_over_the_fact_bearing_passages_is_not_stale(store) -> None:
+    """A fit reads only the passages carrying a fact, and is compared on them."""
+    store.given_passages(de=3)
+    one, two, _ = store.passages["de"]
+    store.given_facts(one, validated=1).given_facts(two, validated=1)
+    store.store(
+        fitting(
+            "de",
+            passages=2,
+            weights=[PassageWeight(one, 0, 0.9), PassageWeight(two, 1, 0.9)],
+        )
+    )
+
+    state = store.catalog.fit_state()
+
+    assert state.languages[0].live_passages == 2, state.languages
+    assert state.stale is False, state.languages
+
+
+def test_a_new_fact_bearing_passage_makes_the_fit_stale(store) -> None:
+    """A passage extraction found a fact in since is one the fit has not read."""
+    store.given_passages(de=3)
+    one, two, three = store.passages["de"]
+    store.given_facts(one, validated=1).given_facts(two, validated=1)
+    store.store(
+        fitting(
+            "de",
+            passages=2,
+            weights=[PassageWeight(one, 0, 0.9), PassageWeight(two, 1, 0.9)],
+        )
+    )
+
+    store.given_facts(three, validated=1)
+
+    state = store.catalog.fit_state()
+    assert state.languages[0].live_passages == 3, state.languages
+    assert state.stale is True
+
+
+def test_a_language_with_no_fact_compares_every_passage(store) -> None:
+    """It is fitted whole, so it is counted whole; a rejected fact is none."""
+    store.given_passages(de=3)
+    store.given_facts(store.passages["de"][0], validated=0, rejected=1)
+    store.store(fitting("de", passages=3, weights=store.weights_for("de", (0, 0, 0.9))))
+
+    state = store.catalog.fit_state()
+
+    assert state.languages[0].live_passages == 3, state.languages
+    assert state.stale is False, state.languages
+
+
 def test_passages_carrying_no_language_are_reported_separately(store) -> None:
     """No model covers them, whatever the fit did."""
     store.given_passages(de=1, none=3)

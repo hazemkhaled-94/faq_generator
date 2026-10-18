@@ -215,7 +215,10 @@ not collide.
 
 `topics` has no foreign key to anything. `passage_topics` cascades from both
 sides, so re-chunking a document takes its memberships with it — which is
-what leaves a model stale, and what `GET /topics/fit` makes visible.
+what leaves a model stale, and what `GET /topics/fit` makes visible. It
+counts the live passages as a fit reads them, those carrying a validated
+fact or every one of a language holding none, so a fit is not stale the
+moment it is written, and a passage gaining its first fact makes it stale.
 
 The dominant topic is derived, not stored. It is declared once as `DOMINANT`
 beside the table because two services read it, with `DISTINCT ON` so two

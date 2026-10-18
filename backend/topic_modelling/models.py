@@ -119,7 +119,8 @@ class LanguageFit:
     corpus_vocabulary: int | None
     passages_without_topics: int | None
     fitted_at: str | None
-    #: Passages of this language the corpus holds now, and memberships its
+    #: Passages of this language a fit would be over now - those carrying a
+    #: validated fact, or every one where none does - and memberships its
     #: topics hold now.
     live_passages: int = 0
     memberships: int = 0
