@@ -8,9 +8,13 @@ Documents are parsed into passages, read into atomic facts that each cite one
 sentence of their source, grouped into topics, and turned into questions with
 known answers. Every question carries the facts it was written from, and every
 fact carries the sentence it came from, so any answer in the set can be traced
-back to a page. A deliberate share of questions have no answer in the corpus
-at all, which is what measures whether a chatbot recognises the limits of its
-knowledge.
+back to a page. A deliberate share of the questions written have no answer
+in the corpus at all, which is what measures whether a chatbot recognises the
+limits of its knowledge. As shipped, the release holds none of them:
+`QUESTIONS_RELEASE_UNANSWERABLE` is 0 until the verifier's `settles`
+judgement that keeps them can be trusted, so they stay in the accepted pool,
+where `make questions-export FILTER="--status accepted --unanswerable"`
+exports them and `FILTER="--released"` does not.
 
 The pipeline is subject-agnostic: no prompt names a domain, and topics are
 discovered from the corpus's own vocabulary rather than supplied. German and
@@ -122,7 +126,7 @@ Four choices, independent of each other.
 `podman compose`.
 
 ```bash
-make COMPOSE="docker compose" dev    # Docker instead
+make CONTAINER=docker COMPOSE="docker compose" dev    # Docker instead
 ```
 
 **Model provider.** Ollama alone is the simplest and needs no credentials.
@@ -135,7 +139,10 @@ compose gives to the four workers that call a model.
 and friends on the host, never both for one stage: a host drain refuses while
 that stage's worker is running, and prints the command that stops it. The
 container workers build the dataset. A host drain is for developing a stage,
-and host parse, chunk and extract runs are kept off the dataset.
+and nothing keeps its rows out of the dataset: it writes the same tables in
+the same database as the workers, nothing but a `RUN_ID`, where one is set,
+tells its rows apart, and the refusal checks only that the stage's worker is
+stopped. Do not build the dataset with one.
 
 **How the pipeline is driven.**
 
@@ -183,6 +190,7 @@ make chunk-start     && make chunk       # that document becomes passages
 make extract-start   && make extract     # those passages become facts citing a sentence
 make topics-status                       # how many passages are in no topic
 make topics-discover                     # not in corpus: fit the topics, replacing the last fit
+make extract-bridge MISSING=1            # facts joining a topic's passages, for topics holding none yet
 make questions-start && make questions   # each topic's facts become questions
 make questions-balance                   # draw the release again
 make assess-start    && make assess      # the judge, when ASSESSMENT_ENABLED is true
@@ -215,7 +223,7 @@ ASSESSMENT_JUDGE_CONTAINER_MODEL=azure/gpt-4.1    # who judges in assess-worker;
 
 ```bash
 make up                                  # assess-worker reads them
-make assess-enrol                        # what it would cost, before paying
+make assess-enrol                        # enrol and count, before paying; not a dry run
 make assess-start                        # assess-worker judges what this queues
 ```
 
