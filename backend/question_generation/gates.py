@@ -2144,15 +2144,33 @@ def _every(given: str, read: Callable[[str], frozenset[str]]) -> frozenset[str]:
     return frozenset.intersection(*trails) if trails else frozenset()
 
 
+def _says_more(
+    recovered: str, target: str, language: str | None, question: str
+) -> bool:
+    """Whether the recovery holds a content lemma neither the key nor the question does.
+
+    Then the heading is no excuse for what the key adds, because the
+    recovery may say that lemma where the key puts the heading's name: `a
+    debit card and a Mastercard` under `Tariffs > Premium > Visa` is not `a
+    Visa card and a Mastercard`.
+    """
+    return bool(
+        content(recovered, language)
+        - content(target, language)
+        - content(question, language)
+    )
+
+
 def _named(
     recovered: str, target: str, language: str | None, question: str, given: str
 ) -> frozenset[str]:
     """The names a key may leave out of its recovery, because the reader has them.
 
     A name the question carries, or every heading trail of the cited
-    passages, see `_every`: the verifier answers `What is a SEPA direct
-    debit?` without saying `SEPA` again, and is never shown the heading a
-    clause sits under.
+    passages, see `_every`, where the recovery says no more, see
+    `_says_more`: the verifier answers `What is a SEPA direct debit?`
+    without saying `SEPA` again, and is never shown the heading a clause
+    sits under.
 
     Names only, never a figure. `4 hours` must not pass for `48 hours`
     because the question says 48, and a clause numbered `7` or a `30-Day
@@ -2170,9 +2188,10 @@ def _named(
 
     if names(_numbers(recovered, language)) - _values(target, language):
         return frozenset()
-    return names(_values(question, language)) | names(
-        _every(given, lambda trail: _values(trail, language))
-    )
+    headed = frozenset()
+    if not _says_more(recovered, target, language, question):
+        headed = names(_every(given, lambda trail: _values(trail, language)))
+    return names(_values(question, language)) | headed
 
 
 def _back(
@@ -2188,15 +2207,16 @@ def _back(
 
     For a list or an explanation, over what the answer adds to the question,
     where it adds anything. For any form, not over a lemma only the heading
-    trails carry, every one of them, which the verifier was never shown: a
-    key naming the heading's `Tagesgeldkonto` that its clause never repeats
-    could not have it come back. A lemma comes back under `_BRIDGED` parts
-    of speech too, where no negation denies it.
+    trails carry, every one of them, which the verifier was never shown,
+    where the recovery says no more, see `_says_more`: a key naming the
+    heading's `Tagesgeldkonto` that its clause never repeats could not have
+    it come back. A lemma comes back under `_BRIDGED` parts of speech too,
+    where no negation denies it.
     """
     wanted = _compared(target, language, form)
     if form != AnswerForm.VALUE and question:
         wanted = (wanted - content(question, language)) or wanted
-    if given:
+    if given and not _says_more(recovered, target, language, question):
         unseen = _every(given, lambda trail: content(trail, language)) - content(
             "\n".join(passages), language
         )

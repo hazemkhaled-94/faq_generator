@@ -2203,8 +2203,32 @@ def test_a_verb_does_not_bring_back_the_keys_noun() -> None:
             "en",
             AnswerForm.LIST,
         ),
+        (
+            "Which cards does the Premium tariff include?",
+            "a Visa card and a Mastercard",
+            "a debit card and a Mastercard",
+            "Tariffs > Premium > Visa",
+            "The tariff includes a debit card and a Mastercard.",
+            "en",
+            AnswerForm.LIST,
+        ),
+        (
+            "Welche Karten enthält der Tarif Premium?",
+            "Visa und Mastercard",
+            "Debitkarte und Mastercard",
+            "Tarife > Premium > Visa",
+            "Der Tarif enthält eine Debitkarte und eine Mastercard.",
+            "de",
+            AnswerForm.LIST,
+        ),
     ],
-    ids=["the heading's other card", "gutschreiben", "cancel and sign"],
+    ids=[
+        "the heading's other card",
+        "gutschreiben",
+        "cancel and sign",
+        "the heading's card for a debit card",
+        "die Karte der Überschrift für die Debitkarte",
+    ],
 )
 def test_what_the_reader_is_given_lets_no_wrong_key_through(
     question: str,

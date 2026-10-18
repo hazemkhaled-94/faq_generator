@@ -363,13 +363,16 @@ lemma only the heading trails carry, every one of them, is not looked for,
 because the verifier is shown the passages without their headings. Every
 trail, because passages under `Konten > Premiumkonto` and `Konten >
 Basiskonto` are about two products and a key may pin one's figure on the
-other. A key's `one` is never met by an indefinite article: `a debit card for
-each account holder` is not `one debit card`, and `a few weeks` is not `one
-week`. And a lemma comes back under an adjective or an adverb as well as
-its own part of speech, never under a verb and never where the parse puts a
-negation on it or on the word it hangs off: `kostenlose Überweisungen` is
-`Überweisungen sind kostenlos` and not `Überweisungen sind nicht kostenlos`,
-and `das Verpacken` is not `verpackt`.
+other. A heading excuses nothing where the recovery holds a content word the
+key and the question lack: `a debit card and a Mastercard` under `Tariffs >
+Premium > Visa` is not `a Visa card and a Mastercard`. A key's `one` is
+never met by an indefinite article: `a debit card for each account holder`
+is not `one debit card`, and `a few weeks` is not `one week`. And a lemma
+comes back under an adjective or an adverb as well as its own part of
+speech, never under a verb and never where the parse puts a negation on it
+or on the word it hangs off: `kostenlose Überweisungen` is `Überweisungen
+sind kostenlos` and not `Überweisungen sind nicht kostenlos`, and `das
+Verpacken` is not `verpackt`.
 
 The `recall` reading stored beside the verdict is the share the verdict
 read, held to the bar the form was: all of it for a `value`, which records a reading only where it fell
