@@ -3,7 +3,7 @@ name = "qa-generator"
 # The one place the version is written. `backend/ingestion/config.py` reads
 # it from here and stamps it on every stored object, so there is no second
 # copy in an env file to drift from this one.
-version = "0.3.5"
+version = "0.3.6"
 description = "Generates a verified Q&A reference dataset from documents."
 authors = [
     {name = "Hazem Khaled",email = "hazem.mkhaled@icloud.com"}
