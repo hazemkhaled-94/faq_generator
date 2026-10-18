@@ -1,7 +1,7 @@
 # `certs` uses process substitution, which /bin/sh does not have.
 SHELL := /bin/bash
 
-# Override for Docker: make COMPOSE="docker compose" up
+# Override for Docker: make CONTAINER=docker COMPOSE="docker compose" up
 COMPOSE ?= podman compose
 
 # The two files compose interpolates `${...}` out of, in precedence order:
@@ -1034,6 +1034,8 @@ questions-rejudge:
 questions-balance:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --balance
 
+OUT ?= questions.xlsx
+
 # The questions as a spreadsheet: four sheets - Questions, Citations (the
 # facts each cites), Assessment (what the judge said of each) and Summary
 # (counts). A question's own row carries what it rests on
@@ -1059,7 +1061,6 @@ questions-balance:
 #   make questions-export FILTER="--no-citations"      # much faster, questions only
 #
 #   python -m question_generation.export --help        # every filter there is
-OUT ?= questions.xlsx
 questions-export:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.export --out $(OUT) $(FILTER)
 
@@ -1079,7 +1080,7 @@ questions-export:
 #
 #   make assess-start && make assess      # judge everything, then watch
 #   make assess-status                    # how far it has got
-#   make assess-enrol                     # what it WOULD cost, before paying
+#   make assess-enrol                     # enrol and count, before paying; not a dry run
 #
 # Off unless ASSESSMENT_ENABLED is true in .env, and every target below says
 # so and stops rather than quietly doing nothing.
@@ -1098,7 +1099,7 @@ assess:
 	@$(call IDLE,assess-worker)
 	$(ASSESS)
 
-# Report the queue by artefact state, and what the judge has said so far.
+# Report the queue by artefact state, and warn when no judge is named.
 assess-status:
 	$(ASSESS) --status $(ONLY)
 
@@ -1149,7 +1150,9 @@ assess-rerun:
 	@$(call IDLE,assess-worker)
 	$(ASSESS) --rerun $(ONLY)
 
-# Which runs there are, newest first, and how many questions each wrote.
+# ── Question runs ──────────────────────────────────────────────────────────
+
+# The 20 newest runs, newest first, and how many questions each wrote.
 # A run is named by RUN_ID where one was given and by a uuid otherwise; see
 # backend/settings/runs.py. A run marked (deleted) has had its questions
 # removed and is being read out of archived_rows.
@@ -1168,6 +1171,8 @@ questions-runs:
 questions-diff:
 	@test -n "$(RUNS)" || { echo 'usage: make questions-diff RUNS="<older> <newer>"'; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.runs $(RUNS)
+
+# ── Cost ───────────────────────────────────────────────────────────────────
 
 # What the models have cost, read off a CAPTURED log - the text one a drain
 # wrote to a terminal, as `make questions ... | tee run.log` leaves behind.
@@ -1199,7 +1204,8 @@ SPENT = cat $(LOG) \
  | sed -E 's/^([^ ]+) (answered|did not answer) (_[A-Za-z]+) in [0-9.]+s \(([0-9,]+) in, ([0-9,]+) out, \$$([0-9.]+)\)/\1 \3 \4 \5 \6/' \
  | tr -d ','
 
-# The same log, split by which model answered and what it was asked for.
+# What the models have cost, split by which model answered and what it was
+# asked for.
 #
 # The shape is the Pydantic class the call had to return, and every stage
 # has its own: _Facts and _Digest read a passage, _Answered writes a
@@ -1271,7 +1277,7 @@ settings-unset:
 
 # ── Documents ──────────────────────────────────────────────────────────────
 
-# List every stored document with its digest and parse state.
+# List up to 1000 stored documents, each with its digest and parse state.
 documents:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --list
 
@@ -1507,10 +1513,8 @@ check: test
 
 # ── Static checks ──────────────────────────────────────────────────────────
 
-# Every type error, not just the ones above the recorded baseline. What the
-# suite enforces is tests/static/pyright_baseline.json; this is the list to
-# work from when bringing a file's count down. Configuration lives in
-# [tool.pyright] in pyproject.toml.
+# Every type error pyright finds, which the suite holds at zero.
+# Configuration lives in [tool.pyright] in pyproject.toml.
 typecheck:
 	poetry run pyright
 
@@ -1533,7 +1537,8 @@ audit:
 	  poetry run pip-audit --no-deps --progress-spinner off \
 	    -r frontend/requirements.lock && exit $$s
 
-# Configuration lives in [tool.ruff] in pyproject.toml.
+# ruff check and format check over every source directory. Configuration
+# lives in [tool.ruff] in pyproject.toml.
 lint:
 	poetry run ruff check $(SOURCES)
 	poetry run ruff format --check $(SOURCES)
@@ -1716,6 +1721,8 @@ eval-phrasing:
 # `prune` takes a project only when every span in it is a model call AND
 # it could read every span. A project too big to read in one page is left
 # alone: the first fifty spans of a run can be model calls too.
+
+# What Phoenix holds, changing nothing.
 phoenix-projects:
 	$(LOADENV) && poetry run python -m telemetry.projects --list
 
@@ -1849,7 +1856,10 @@ all: up
 # claims nothing. After one upload, parsing, chunking and extraction read
 # that document alone; questions are written only for topics never asked
 # for; the judge enrols only what has no assessment. `questions-balance`
-# draws the release again over every accepted question, with no model.
+# draws the release again over every accepted question each time, and asks
+# the verifier about each released question and its nearest released
+# neighbour, in up to three rounds, because the twin verdicts it gets are
+# not stored.
 #
 # It never fits the topics; `make topics-discover` does. In that step's place
 # it reports how many passages are in no topic.
@@ -1977,10 +1987,10 @@ runs:
 	-@$(COMPOSE_CMD) exec -T dagster-webserver dagster run list --limit 5 2>&1 \
 	  | grep -E "Run: |Job: |Status: "
 
-# Every stage once, through Dagster instead of in the foreground. The work
-# `corpus` does, without the release draw; it is recorded as a run, with a
-# materialisation and a check per stage, and it survives this terminal
-# closing.
+# Every stage once, through Dagster instead of in the foreground. The stages
+# `corpus` drains, without the bridge pass or the release draw and on the
+# containers' model; it is recorded as a run, with a materialisation and a
+# check per stage, and it survives this terminal closing.
 pipeline:
 	@out=$$($(call DAGSTER,job launch -j corpus)) || { printf '%s\n' "$$out" >&2; exit 1; }
 	@$(LOADENV) && echo "Launched. Follow it at http://localhost:$$DAGSTER_WEBSERVER_PORT or with make runs and make pipeline-status; make questions-balance draws the release once it ends."
