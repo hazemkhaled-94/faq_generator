@@ -26,6 +26,9 @@ _TRUE, _FALSE = "true", "false"
 #: Where a message waits out the rerun that a save causes.
 _SAID = "settings-said-{service}"
 
+#: The version the panel was drawn from, which a save is sent against.
+_DRAWN = "settings-drawn-{service}"
+
 
 def refusal(error: requests.exceptions.RequestException) -> str:
     """Reads the sentence the API refused a change with.
@@ -53,6 +56,14 @@ def panel(service: str) -> None:
     except requests.exceptions.RequestException as error:
         st.caption(f"Configuration unavailable: {refusal(error)}")
         return
+    # Kept until a save is tried, so a change made elsewhere meanwhile is
+    # the API's 409 rather than silently undone.
+    held = {
+        **held,
+        "version": st.session_state.setdefault(
+            _DRAWN.format(service=service), held["version"]
+        ),
+    }
 
     changed = sum(one["stored"] for one in held["settings"])
     label = "Configuration" + (f" · {changed} changed" if changed else "")
@@ -95,6 +106,8 @@ def _reset(client, service: str, held: dict) -> None:
 
 def _save(client, service: str, values: dict[str, str | None], version: str) -> None:
     """Sends one change and says what it did, or why it was refused."""
+    # Whatever the answer, the next run draws what the API holds then.
+    st.session_state.pop(_DRAWN.format(service=service), None)
     try:
         answer = client.change_settings(service, values, version)
     except requests.exceptions.RequestException as error:

@@ -241,3 +241,27 @@ def test_a_value_neither_offered_nor_defaulted_is_not_sent(open_view) -> None:
     view.save_configuration()
 
     assert "A_MODE" not in configured.calls("change_settings")[0][1][1]
+
+
+def test_a_save_after_the_settings_moved_is_sent_against_the_version_drawn(
+    open_view,
+) -> None:
+    """The version read in the Save rerun is one the API already holds.
+
+    Sent with that, a save made over a change the CLI or another tab made
+    meanwhile wins silently, and the change it undid is never seen.
+    """
+
+    def held(service):
+        """v1 when the panel is drawn, and v2 from then on."""
+        return {
+            **SETTINGS,
+            "version": "v2" if configured.calls("settings")[1:] else "v1",
+        }
+
+    configured = Answers(**{**settings(), "settings": held})
+    view = open_view("topics", configured=configured)
+
+    view.save_configuration()
+
+    assert configured.calls("change_settings")[0][1][2] == "v1"
