@@ -135,9 +135,13 @@ happens to start with an A. A document whose letters never run, holding
 only one or only letters running backwards, keeps them all. An index whose
 language files a letter outside code-point order, as Swedish files Å before
 Ä, keeps that one letter as text. A trail segment that holds no letter or digit, such as an
-ellipsis, is dropped, and so is one that is a lone conjunction — a single
-stop word the language's spaCy pipeline tags as one — unless it is written in
-capitals, as a manual heads its section on the OR gate.
+ellipsis, is dropped, and so is one that is a lone conjunction — one of the
+language's `_CONJUNCTIONS` in [`furniture.py`](furniture.py), such as `oder`
+or `or` — unless it is written in capitals, as a manual heads its section on
+the OR gate. A heading that is a lone conjunction is the layout reading the
+word between two alternatives as a heading, and is read as the paragraph it
+is before the cut, so both alternatives stay in one passage with the word
+between them.
 
 A document with no running head or foot is cut with today's trail.
 
@@ -203,7 +207,7 @@ moving them would point every citation in the corpus at different text.
 
 ## spaCy here
 
-Used in exactly four places, and the medium models are required:
+Used in exactly three places, and the medium models are required:
 `de_core_news_sm` does not tag a German modal as a finite verb.
 
 - **Sentence segmentation**, once per passage batch. The offsets it produces
@@ -215,8 +219,6 @@ Used in exactly four places, and the medium models are required:
   heading or caption.
 - **Content lemmas**, written here so one segmentation serves both stages and
   a fit reads a column instead of re-tokenising the corpus.
-- **A lone conjunction in the heading trail**, one segment at a time, in the
-  document's language.
 
 Everything else in `nlp/analysis.py` belongs to extraction and question
 generation, bar `normalised`, which parsing hashes the body with. Both models
@@ -297,7 +299,7 @@ and `chunking_of` directly.
 |---|---|
 | [`test_intake_chunking.py`](../../../tests/unit/intake/test_intake_chunking.py) | Numbering, the token budget, block-type labelling, the row-to-line pairing, the cell grids, the bounding boxes, the failure paths and the re-read |
 | [`test_intake_surface.py`](../../../tests/unit/intake/test_intake_surface.py) | The spaCy-backed reading with real pipelines: per-passage language, sentence offsets, predicate counts, table rows, and what becomes vocabulary |
-| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, onto every later chunk of a list longer than one, nowhere across a sub-heading; and, as a property, that no passage holds part of a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, and so does one letter, or letters out of order, whatever line follows, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under its own foot, guide words inside a chaptered guide and a stray foot inside a chapter naming none, a letter-spaced label spelled as the body spells it, a facing page's own topic kept in its chapter, and a page printing part of its chapter's label opening no chapter |
+| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, onto every later chunk of a list longer than one, nowhere across a sub-heading; and, as a property, that no passage holds part of a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, and so does one letter, or letters out of order, whatever line follows, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays and a lone conjunction read as a heading or repeated as a paragraph stays text between its alternatives, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under its own foot, guide words inside a chaptered guide and a stray foot inside a chapter naming none, a letter-spaced label spelled as the body spells it, a facing page's own topic kept in its chapter, and a page printing part of its chapter's label opening no chapter |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | Every non-blank chunk is stored, ordinals run from 1 without a gap, `oversized` never exceeds the passages stored |
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes, the transactional replacement and its cascade, and every listing filter |
@@ -348,6 +350,8 @@ corpus, which is a property of the model rather than of this code.
   heading put before it, a level below the heading it follows, and moves to
   the furniture layer, so it heads the passage after it instead of standing
   as one. Where it repeats the heading right before it, it only moves. A
+  lone conjunction is never one, even where the layout took the same word
+  for a heading elsewhere in the document. A
   paragraph that is a page number — a bare integer of up to four digits,
   framed at most by dashes or brackets: `47`, `– 12 –`, `(3)` — moves there
   too. A price, a rate, a phone number, a date or a time with no letter
@@ -383,8 +387,10 @@ corpus, which is a property of the model rather than of this code.
 - **Text printed inside a picture is passage text.** A diagram whose labels
   the converter reads as body text keeps them, so a passage can hold a run of
   short, verbless labels. Nothing filters text inside a detected picture yet.
-- **A lone conjunction is told by the language's pipeline.** In a language
-  with none, only a segment with no letter or digit leaves the trail.
+- **A lone conjunction is told by a word table.** In a language missing
+  from `_CONJUNCTIONS`, only a segment with no letter or digit leaves the
+  trail, and no heading is read as a paragraph. A real one-word heading
+  that is such a word in lower case is read as text too.
 - **`revocabulary` does not renumber sentences.** A change to how sentences
   are split reaches the corpus only through a re-chunk.
 - **`start` and `rerun` skip a document parsing has not finished.** This is

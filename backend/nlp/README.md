@@ -170,12 +170,13 @@ language added there without its rows fails that test, naming each table.
 | `_FINITE_TAGS` | same | Fine tags of a finite verb: a statement carrying one asserts something, whatever part of speech the tagger gave the word | `VVFIN`, `VBZ` |
 | `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence before a lower-case word or a figure | `ca.`, `approx.` |
 | `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
+| `_CONJUNCTIONS` | [`preprocessing/chunking/furniture.py`](../preprocessing/chunking/furniture.py) | Conjunctions joining two alternatives or items: one printed alone is no heading, in the trail or as a heading the layout made of it | `oder`, `or` |
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
-by the word as written, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
+by the word as written, `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
 `_EXCEPTIVE` and `_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.

@@ -104,7 +104,7 @@ def chunks_of(
         unless its furniture changed something, and the chunks.
     """
     furniture = furniture_of(document)
-    tidy, titles = tidied(document, furniture)
+    tidy, titles = tidied(document, furniture, language)
     tidy = nested(tidy)
     chunks = headed(
         cast(list[DocChunk], list(chunker.chunk(tidy))), furniture, titles, language

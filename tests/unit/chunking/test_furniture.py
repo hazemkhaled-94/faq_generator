@@ -226,7 +226,6 @@ def test_an_ellipsis_is_not_a_path_segment(segment: str) -> None:
     assert trails(document) == [("A transfer costs a flat fee.", ["Fees"])]
 
 
-@pytest.mark.nlp
 @pytest.mark.parametrize(
     ("language", "heading", "conjunction", "text"),
     [
@@ -243,10 +242,9 @@ def test_a_lone_conjunction_is_not_a_path_segment(
     document.add_heading(text=conjunction, level=2)
     document.add_text(label=DocItemLabel.TEXT, text=text)
 
-    assert trails(document, language) == [(text, [heading])]
+    assert [headings for _, headings in trails(document, language)] == [[heading]]
 
 
-@pytest.mark.nlp
 def test_a_heading_that_is_a_noun_stays_a_segment() -> None:
     """A stop word that is not a conjunction, like "Beispiel", still heads."""
     document = DoclingDocument(name="fees")
@@ -259,7 +257,18 @@ def test_a_heading_that_is_a_noun_stays_a_segment() -> None:
     assert trails(document, "de")[0][1] == ["Gebühren", "Beispiel"]
 
 
-@pytest.mark.nlp
+def test_a_heading_a_tagger_calls_a_conjunction_stays_a_segment() -> None:
+    """A shop heads its answer "When"; given the word alone, spaCy tags it SCONJ."""
+    document = DoclingDocument(name="delivery")
+    document.add_heading(text="Delivery", level=1)
+    document.add_heading(text="When", level=2)
+    document.add_text(
+        label=DocItemLabel.TEXT, text="An order placed by noon ships the same day."
+    )
+
+    assert trails(document, "en")[0][1] == ["Delivery", "When"]
+
+
 def test_a_conjunction_in_capitals_stays_a_segment() -> None:
     """A technical manual heads a section "OR"; the layout's stray word is lower case."""
     document = DoclingDocument(name="gates")
@@ -270,6 +279,45 @@ def test_a_conjunction_in_capitals_stays_a_segment() -> None:
     )
 
     assert trails(document, "en")[0][1] == ["Logic gates", "OR"]
+
+
+def test_a_lone_conjunction_heading_is_read_as_text() -> None:
+    """A shop's two ways back with the "or" between them are one rule."""
+    document = paged(1)
+    document.add_heading(text="Returns", level=1, prov=on(1, 60))
+    say(document, 1, "Send the item back unworn within 30 days for a refund")
+    document.add_heading(text="or", level=2, prov=on(1, 140))
+    say(document, 1, "exchange it in a store within 60 days.")
+
+    assert trails(document, "en") == [
+        (
+            (
+                "Send the item back unworn within 30 days for a refund\n"
+                "or\n"
+                "exchange it in a store within 60 days."
+            ),
+            ["Returns"],
+        )
+    ]
+
+
+def test_a_lone_conjunction_paragraph_is_not_promoted_to_a_heading() -> None:
+    """The layout read an "oder" as a heading on another page; this one is text."""
+    document = paged(2)
+    document.add_heading(text="Karten", level=1, prov=on(1, 60))
+    say(document, 1, "Die Karte wird per Post zugestellt")
+    say(document, 1, "oder")
+    say(document, 1, "in einer Filiale abgeholt.")
+    document.add_heading(text="Gebühren", level=1, prov=on(2, 60))
+    say(document, 2, "Eine Überweisung kostet 1,50 EUR beleghaft")
+    document.add_heading(text="oder", level=2, prov=on(2, 140))
+    say(document, 2, "0,10 EUR online.")
+
+    texts = [text for text, _ in trails(document, "de")]
+
+    assert any(
+        "zugestellt\noder\nin einer Filiale abgeholt." in text for text in texts
+    ), texts
 
 
 def unfurnished() -> DoclingDocument:

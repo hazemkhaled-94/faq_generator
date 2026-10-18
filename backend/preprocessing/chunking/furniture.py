@@ -19,7 +19,6 @@ from bisect import bisect_right
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cache
 from itertools import pairwise
 
 from docling_core.transforms.chunker.doc_chunk import DocChunk
@@ -30,7 +29,6 @@ from docling_core.types.doc.items.node import DocItem, NodeItem
 from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
 
-from nlp.pipelines import languages, pipeline
 from nlp.text import rejoined
 
 log = logging.getLogger(__name__)
@@ -69,8 +67,14 @@ _RESPACE_WORDS = 8
 #: before a page or column break goes on in the next one.
 _ENDS = (".", "!", "?", ":", ";")
 
-#: The parts of speech of a conjunction, in spaCy's universal tag set.
-_CONJUNCTIONS = frozenset({"CCONJ", "SCONJ"})
+#: The conjunctions that join two alternatives or two items, by ISO 639-1
+#: code: printed alone between two blocks, the layout reads one as a heading.
+_CONJUNCTIONS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {"und", "oder", "aber", "sondern", "sowie", "bzw", "beziehungsweise"}
+    ),
+    "en": frozenset({"and", "or", "but", "nor"}),
+}
 
 
 def fields(text: str) -> list[str]:
@@ -332,24 +336,28 @@ def _contiguous(pages: set[int], position: dict[int, int]) -> bool:
 
 
 def tidied(
-    document: DoclingDocument, furniture: Furniture
+    document: DoclingDocument, furniture: Furniture, language: str | None
 ) -> tuple[DoclingDocument, dict[str, tuple[str, ...]]]:
     """Prepares a document for the chunker: debris out, a title at each chapter.
 
-    A paragraph that starts with a running head or foot, field for field and
-    with whitespace removed, is the converter reading furniture as body
-    text. A paragraph of one letter, followed by entries under that letter,
-    is a glossary's index divider, where the document holds two or more in
-    ascending order. Both move to the furniture layer. A sentence the
-    converter cut at a page or column break is joined back: a paragraph or
-    list item ending in no `_ENDS` mark, followed on the next page or in the
-    next column by a paragraph opening in lower case, takes that paragraph's
-    text, which moves to the furniture layer. A paragraph that is a page
-    number read as body text moves there too; a price, a rate, a phone
-    number or a date with no letter beside it stays, and so does an elision
-    mark, `(…)`. A paragraph
-    that only repeats a running field or a heading of the document - a
-    chapter title the converter read as body text - is a heading: one is
+    A heading that is a lone conjunction, as `_junk` tells one, is the
+    layout reading the word between two alternatives as a heading: it is
+    read as the paragraph it is, so the alternatives stay in one passage
+    with the word between them. A paragraph that starts with a running head
+    or foot, field for field and with whitespace removed, is the converter
+    reading furniture as body text. A paragraph of one letter, followed by
+    entries under that letter, is a glossary's index divider, where the
+    document holds two or more in ascending order. Both move to the
+    furniture layer. A sentence the converter cut at a page or column break
+    is joined back: a paragraph or list item ending in no `_ENDS` mark,
+    followed on the next page or in the next column by a paragraph opening
+    in lower case, takes that paragraph's text, which moves to the furniture
+    layer. A paragraph that is a page number read as body text moves there
+    too; a price, a rate, a phone number or a date with no letter beside it
+    stays, and so does an elision mark, `(…)`. A paragraph that only
+    repeats a running field or a heading of the document - a chapter title
+    the converter read as body text - is a heading, unless it or what it
+    repeats is a lone conjunction: one is
     put before it, a level below the heading it follows, so it heads what
     comes next, and it moves to the furniture layer; where it repeats the
     heading right before it, it only moves. Before the first block of each
@@ -359,12 +367,16 @@ def tidied(
     Args:
         document: The converted document, which is not modified.
         furniture: What its running heads and feet say.
+        language: The document's language, whose `_CONJUNCTIONS` tell a
+            lone conjunction.
 
     Returns:
         The document to cut, a copy when anything changed and `document`
         itself when nothing did; and every title put in, by its text, with
         the chapter label it stands for.
     """
+    junk = _junk(language)
+    given, document = document, _demoted(document, junk)
     debris = _dividers(document) | {
         item.self_ref
         for item in document.texts
@@ -372,7 +384,7 @@ def tidied(
         and item.label in _PROSE
         and (_repeats(item.text, furniture.running) or _page_number(item.text))
     }
-    restated = _restated(document, debris)
+    restated = _restated(document, debris, junk)
     debris |= {reference for reference, level in restated if level is None}
     promoted = [(reference, level) for reference, level in restated if level]
     debris |= {reference for reference, _ in promoted}
@@ -381,7 +393,8 @@ def tidied(
     if not debris and not starts and not joins:
         return document, {}
 
-    tidy = document.model_copy(deep=True)
+    # A document a heading was demoted in is a copy already.
+    tidy = document.model_copy(deep=True) if document is given else document
     for reference, level in promoted:
         node = _resolved(reference, tidy)
         if isinstance(node, TextItem):
@@ -454,7 +467,7 @@ def _dividers(document: DoclingDocument) -> set[str]:
 
 
 def _restated(
-    document: DoclingDocument, skipped: set[str]
+    document: DoclingDocument, skipped: set[str], junk: Callable[[str], bool]
 ) -> list[tuple[str, int | None]]:
     """The paragraphs that only repeat a running field or a heading.
 
@@ -462,14 +475,21 @@ def _restated(
     so `See Section 5 for the diagrams.` is not `5. Diagrams`. Each comes
     with the level a heading put before it takes - one below the heading it
     follows - or None where it repeats that heading itself and so heads
-    nothing new.
+    nothing new. A paragraph `junk` flags is none, and neither is one that
+    repeats a name it flags: a lone `oder` between two alternatives is text
+    wherever else the layout took one for a heading.
     """
     names = {
         _plain(name)
         for item in document.texts
         if item.label in _RUNNING
         for name in (item.text, *fields(item.text))
-    } | {_plain(item.text) for item in document.texts if item.label in _HEADINGS}
+        if not junk(name)
+    } | {
+        _plain(item.text)
+        for item in document.texts
+        if item.label in _HEADINGS and not junk(item.text)
+    }
     names.discard("")
     found: list[tuple[str, int | None]] = []
     level, last = 0, ""
@@ -483,12 +503,46 @@ def _restated(
             and item.label in _PROSE
             and item.content_layer == ContentLayer.BODY
             and item.self_ref not in skipped
+            and not junk(item.text)
             and (plain := _plain(item.text)) in names
         ):
             found.append(
                 (item.self_ref, None if plain == last else min(level + 1, 100))
             )
     return found
+
+
+def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingDocument:
+    """The document with each heading that is a lone conjunction a paragraph.
+
+    One holding no letter or digit stays a heading, which names nothing and
+    leaves the trail in `headed`.
+
+    Returns:
+        `document` itself when no heading is one, otherwise a copy.
+    """
+    found = [
+        index
+        for index, item in enumerate(document.texts)
+        if isinstance(item, SectionHeaderItem)
+        and any(character.isalnum() for character in item.text)
+        and junk(item.text)
+    ]
+    if not found:
+        return document
+    demoted = document.model_copy(deep=True)
+    for index in found:
+        heading = demoted.texts[index]
+        # In its place in the texts, so every reference to it still holds.
+        demoted.texts[index] = TextItem(
+            **{
+                name: getattr(heading, name)
+                for name in TextItem.model_fields
+                if name != "label"
+            },
+            label=DocItemLabel.TEXT,
+        )
+    return demoted
 
 
 def _page_number(text: str) -> bool:
@@ -599,8 +653,9 @@ def headed(
         chunks: What the chunker cut from the tidied document.
         furniture: What the document's running heads and feet say.
         titles: The titles `tidied` put in, with their labels.
-        language: The document's language, whose pipeline tells a
-            conjunction; one with no pipeline is read for punctuation only.
+        language: The document's language, whose `_CONJUNCTIONS` tell a
+            lone conjunction; one missing from them is read for punctuation
+            only.
 
     Returns:
         The chunks, each with its heading trail rewritten.
@@ -643,23 +698,18 @@ def _junk(language: str | None) -> Callable[[str], bool]:
     """Tells a heading segment that names nothing, in one language.
 
     A segment holding no letter or digit is an ellipsis or a stray mark. A
-    segment that is one token, a stop word tagged as a conjunction, is the
-    layout reading the word between two headings as a heading of its own;
-    not when it is written in capitals, as a manual heads its section on the
-    OR gate. The second needs the language's pipeline; without one, only the
-    first is read.
+    segment that is only one of the language's `_CONJUNCTIONS` is the layout
+    reading the word between two alternatives as a heading of its own; not
+    when it is written in capitals, as a manual heads its section on the OR
+    gate. Read off a table rather than a tagger: a word alone gives a tagger
+    no context, and it tags a heading `When` a conjunction too. A language
+    missing from the table is read for the first only.
     """
-    readable = language is not None and language in languages()
+    conjunctions = _CONJUNCTIONS.get(language or "", frozenset())
 
-    @cache
     def junk(segment: str) -> bool:
         if not any(character.isalnum() for character in segment):
             return True
-        if not readable or segment.isupper():
-            return False
-        tokens = pipeline(language)(segment)
-        return (
-            len(tokens) == 1 and tokens[0].is_stop and tokens[0].pos_ in _CONJUNCTIONS
-        )
+        return not segment.isupper() and _plain(segment) in conjunctions
 
     return junk
