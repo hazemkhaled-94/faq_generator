@@ -186,7 +186,7 @@ PYTHONPATH=backend poetry run python -m settings.run --service questions \
 
 Not `make settings-set`: it splits `SET` at its spaces, so a JSON value
 reaches the store in pieces. A value that is not JSON, misspells a key,
-names a category twice, puts an `=` in a name or has probabilities that do
+names a category twice, puts an `=` or a comma in a name or has probabilities that do
 not sum to 1 is refused, naming the categorization at fault, before
 anything is stored. `make settings-unset SERVICE=questions
 UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default in code.

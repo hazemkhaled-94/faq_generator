@@ -124,6 +124,7 @@ def test_a_sum_close_to_one_is_scaled_to_one() -> None:
         (one(category("x", 0), category("y", 0)), "'phrasing'.*summing to 0,"),
         (one(category("x"), category("x")), "'phrasing'.*'x' twice"),
         (one(category("x"), name="a=b"), "'a=b'.*an ="),
+        (one(category("x"), name="a, b"), "'a, b'.*a comma"),
         (one(category("x=y")), "'x=y'.*an ="),
         ([one(category("x")), one(category("y"))], "'phrasing' twice"),
         (one(), "'phrasing'.*no categories"),

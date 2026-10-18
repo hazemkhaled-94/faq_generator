@@ -144,8 +144,9 @@ _CATEGORIZATION_KEYS = ("categorization_name", "categories", "description")
 _CATEGORY_KEYS = ("description", "name", "probability")
 
 #: What a name may not hold: `=` separates a categorization from its category
-#: in a label, and a line break would split a prompt's line.
-_UNNAMED = re.compile(r"[=\n\r]")
+#: in a label, a comma one label from the next in a workbook cell, and a line
+#: break would split a prompt's line.
+_UNNAMED = re.compile(r"[=,\n\r]")
 
 #: How far the probabilities may sum from 1 and still be read as rounding.
 _ROUNDING = 0.01
@@ -221,8 +222,8 @@ def _categorization(read: object) -> Categorization:
         )
     if _UNNAMED.search(name):
         raise ValueError(
-            f"QUESTIONS_CATEGORIZATIONS: the categorization {name!r} holds an = "
-            f"or a line break, which a label cannot"
+            f"QUESTIONS_CATEGORIZATIONS: the categorization {name!r} holds an =, "
+            f"a comma or a line break, which a label cannot"
         )
     _known(read, _CATEGORIZATION_KEYS, repr(name))
     listed = read.get("categories")
@@ -281,8 +282,8 @@ def _category(categorization: str, read: object) -> _Read:
     where = f"{categorization!r}'s category {name!r}"
     if not name.strip() or _UNNAMED.search(name):
         raise ValueError(
-            f"QUESTIONS_CATEGORIZATIONS: {where} is empty or holds an = or a "
-            f"line break, which a label cannot"
+            f"QUESTIONS_CATEGORIZATIONS: {where} is empty or holds an =, a "
+            f"comma or a line break, which a label cannot"
         )
     _known(read, _CATEGORY_KEYS, where)
     description = read.get("description")
