@@ -937,6 +937,14 @@ class View:
         """Runs the page again, as its poll does."""
         return self._rerun()
 
+    def visit(self, name: str) -> View:
+        """Goes to another page in the same session, as the sidebar does.
+
+        Only on a run of the whole app, which `open_app` opens.
+        """
+        self.app.switch_page(f"views/{name}.py")
+        return page_for(name)(self.app.run(), name)
+
     def save_configuration(self) -> View:
         """Presses Save in the configuration panel every page draws.
 

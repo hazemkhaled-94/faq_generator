@@ -102,6 +102,36 @@ def open_view(run_view):
     return opened
 
 
+@pytest.fixture
+def open_app(monkeypatch):
+    """Opens the whole app on one page, so a test can go on to another.
+
+    A view run on its own has no other page to go to, and what one page
+    leaves in the session for the next is only seen through app.py's
+    navigation. Every client every page reaches for is given.
+    """
+    from pages import OUTSIDE, Answers, answers, page_for, settings
+    from streamlit.testing.v1 import AppTest
+
+    import lib.backend as module
+
+    def opened(name: str, configured: Answers | None = None):
+        """Opens app.py, which lands on Upload, and goes to `name`."""
+        held = {
+            factory: Answers(**scripted)
+            for clients in OUTSIDE.values()
+            for factory, scripted in clients.items()
+        }
+        held["catalog_api"] = Answers(**answers())
+        held["settings_api"] = configured or Answers(**settings())
+        for factory, stub in held.items():
+            monkeypatch.setattr(module, factory, lambda stub=stub: stub)
+        app = AppTest.from_file(str(ROOT / "frontend/app.py"), default_timeout=30)
+        return page_for("upload")(app.run(), "upload").visit(name)
+
+    return opened
+
+
 def _without(given: dict, names: list[str]) -> dict:
     """Whatever is left once the clients are taken out of the answers."""
     return {key: value for key, value in given.items() if key not in names}

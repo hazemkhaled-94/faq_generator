@@ -267,6 +267,48 @@ def test_a_save_after_the_settings_moved_is_sent_against_the_version_drawn(
     assert configured.calls("change_settings")[0][1][2] == "v1"
 
 
+def test_a_save_on_another_page_does_not_refuse_the_next_save_here(open_app) -> None:
+    """The version drawn outlived the page it was drawn on.
+
+    One version covers every service's settings, so a save on Questions
+    moves it under the Topics panel drawn earlier in the session. Back on
+    Topics the controls are drawn again from what the API holds, yet Save
+    went against the old version, was refused, and the edit was lost.
+    """
+    held = {"version": "v1"}
+
+    def change(service, values, version):
+        """Refuses a version that moved, as the API does, and moves it."""
+        if version != held["version"]:
+            refused = requests.exceptions.HTTPError("409 Client Error")
+            refused.response = _refusal(
+                "version_moved", f"this was sent against version {version}"
+            )
+            raise refused
+        held["version"] = f"v{int(held['version'][1:]) + 1}"
+        return {
+            "service": service,
+            "version": held["version"],
+            "changed": sorted(values),
+            "cleared": [],
+            "stale": [],
+            "detail": "1 setting(s) changed.",
+        }
+
+    configured = Answers(
+        settings=lambda service: {**SETTINGS, "version": held["version"]},
+        change_settings=change,
+    )
+    topics = open_app("topics", configured=configured)
+
+    topics.visit("questions").save_configuration()
+    after = topics.visit("topics").save_configuration()
+
+    assert after.errors() == []
+    *_, (_, (service, _, version), _) = configured.calls("change_settings")
+    assert (service, version) == ("topics", "v2")
+
+
 def test_returning_to_the_file_draws_the_value_the_file_gives(open_view) -> None:
     """A box keyed on its name kept the stored value the file had replaced.
 

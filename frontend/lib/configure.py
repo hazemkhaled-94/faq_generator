@@ -29,6 +29,10 @@ _SAID = "settings-said-{service}"
 #: The version the panel was drawn from, which a save is sent against.
 _DRAWN = "settings-drawn-{service}"
 
+#: Each control's key. The version in it: a widget keyed on its name alone
+#: keeps the value it was first drawn with whatever the API says afterwards.
+_KEY = "setting-{service}-{name}-{version}"
+
 
 def panel(service: str) -> None:
     """Draws one service's configuration, inside the panel that runs it.
@@ -42,13 +46,19 @@ def panel(service: str) -> None:
         st.caption(f"Configuration unavailable: {refusal(error)}")
         return
     # Kept until a save is tried, so a change made elsewhere meanwhile is
-    # the API's 409 rather than silently undone.
-    held = {
-        **held,
-        "version": st.session_state.setdefault(
-            _DRAWN.format(service=service), held["version"]
-        ),
-    }
+    # the API's 409 rather than silently undone. Taken again once no control
+    # drawn from it is left, as after a visit to another page: the controls
+    # are then drawn from what the API holds now, and the version is global,
+    # so a save on that page would refuse the next one here for nothing.
+    drawn = _DRAWN.format(service=service)
+    version = st.session_state.get(drawn)
+    if not any(
+        _KEY.format(service=service, name=one["name"], version=version)
+        in st.session_state
+        for one in held["settings"]
+    ):
+        st.session_state[drawn] = held["version"]
+    held = {**held, "version": st.session_state[drawn]}
 
     changed = sum(one["stored"] for one in held["settings"])
     label = "Configuration" + (f" · {changed} changed" if changed else "")
@@ -114,10 +124,7 @@ def _control(service: str, setting: dict, version: str) -> str | None:
     Returns None for a setting the deployment owns, which is drawn disabled
     and never written.
     """
-    name = setting["name"]
-    # The version in the key: a widget keyed on its name alone keeps the
-    # value it was first drawn with whatever the API says afterwards.
-    key = f"setting-{service}-{name}-{version}"
+    key = _KEY.format(service=service, name=setting["name"], version=version)
     value = setting["value"]
     label = _label(setting)
     help = _help(setting)
