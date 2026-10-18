@@ -454,6 +454,39 @@ def test_naming_a_topic_records_that_a_person_did(store) -> None:
     assert store.queue.labelled_topics("de")[0].decided_at is not None
 
 
+def test_a_label_saved_during_a_fit_survives_it(store) -> None:
+    """The fit read the decisions when it started; one made since is not lost.
+
+    It lands on the new topic holding most of its passages, as the fit's own
+    carry would have put it.
+    """
+    store.given_passages(de=2)
+    one, two = store.passages["de"]
+    store.store(
+        fitting("de", weights=[PassageWeight(one, 0, 0.9), PassageWeight(two, 1, 0.9)])
+    )
+    running = store.request()
+    store.claim()
+    store.catalog.describe(
+        store.topic_id("de", 0), label="Kartengebühren", include_in_coverage=False
+    )
+
+    store.store(
+        fitting("de", weights=[PassageWeight(one, 1, 0.9), PassageWeight(two, 0, 0.9)]),
+        fit_id=running,
+    )
+
+    held = {
+        row["topic_index"]: (
+            row["label"],
+            row["labelled_by"],
+            row["include_in_coverage"],
+        )
+        for row in store.stored_topics()
+    }
+    assert held == {0: (None, None, True), 1: ("Kartengebühren", "person", False)}
+
+
 def test_clearing_a_label_clears_what_named_it(store) -> None:
     """A topic with no name has nothing that named it."""
     store.given_passages(de=1)

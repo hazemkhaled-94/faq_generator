@@ -78,7 +78,8 @@ is an outstanding request, and a row that has one is a topic.
    is named again in step 9. A decision matching no topic - after a
    re-chunk no passage is held by both fits - is logged as a warning and
    counted on the span as `topic.decisions_dropped`, beside
-   `topic.decisions_carried`.
+   `topic.decisions_carried`. A decision a person makes while the fit runs
+   is carried the same way in step 10, under a lock on the rows it replaces.
 9. **Name the unnamed topics.** Only topics holding no label are offered to
    the model, all of a language's in one call, so it sees the set and can
    tell the topics apart. For each it is shown the terms and up to four

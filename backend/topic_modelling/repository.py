@@ -95,6 +95,50 @@ _NEAREST = text(
 )
 
 
+#: What a person decided about a topic. Only `describe` names one `person` or
+#: takes one out of coverage; a model's name is given again by the next fit.
+_DECIDED = (Topic.labelled_by == "person") | ~Topic.include_in_coverage
+
+
+def _decisions(session, *criteria) -> dict[str, list[FittedTopic]]:
+    """The decisions on the topics `criteria` pick, by language."""
+    held: dict[str, list[FittedTopic]] = {}
+    for row in session.execute(
+        select(
+            Topic.language,
+            Topic.topic_index,
+            Topic.top_terms,
+            Topic.label,
+            Topic.labelled_by,
+            Topic.include_in_coverage,
+            Topic.decided_at,
+        ).where(Topic.status == Status.MODELLED, _DECIDED, *criteria)
+    ):
+        held.setdefault(row.language, []).append(
+            FittedTopic(
+                topic_index=row.topic_index,
+                top_terms=list(row.top_terms or []),
+                label=row.label,
+                labelled_by=row.labelled_by,
+                include_in_coverage=row.include_in_coverage,
+                decided_at=row.decided_at,
+            )
+        )
+    return held
+
+
+def _dominant(session, language: str) -> dict[int, int]:
+    """Each passage's strongest topic in one language's stored fit, by index."""
+    return {
+        row.passage_id: row.topic_index
+        for row in session.execute(
+            select(_DOMINANT.c.passage_id, Topic.topic_index)
+            .join(Topic, Topic.id == _DOMINANT.c.topic_id)
+            .where(~_OUTSTANDING, Topic.language == language)
+        )
+    }
+
+
 #: The next fit to run. Both conditions are load-bearing: status alone would
 #: let a fitted topic that somehow reached `pending` be claimed as a request.
 _NEXT_PENDING = (
@@ -242,30 +286,7 @@ class TopicQueue(StageQueue):
         model's name is not read: the next fit names its topics afresh.
         """
         with self._session() as session:
-            return [
-                FittedTopic(
-                    topic_index=row.topic_index,
-                    top_terms=list(row.top_terms or []),
-                    label=row.label,
-                    labelled_by=row.labelled_by,
-                    include_in_coverage=row.include_in_coverage,
-                    decided_at=row.decided_at,
-                )
-                for row in session.execute(
-                    select(
-                        Topic.topic_index,
-                        Topic.top_terms,
-                        Topic.label,
-                        Topic.labelled_by,
-                        Topic.include_in_coverage,
-                        Topic.decided_at,
-                    ).where(
-                        Topic.status == Status.MODELLED,
-                        Topic.language == language,
-                        (Topic.labelled_by == "person") | ~Topic.include_in_coverage,
-                    )
-                ).all()
-            ]
+            return _decisions(session, Topic.language == language).get(language, [])
 
     def without_topics(self) -> dict[str, int]:
         """How many of each language's fitted passages no topic holds, as stored.
@@ -289,14 +310,7 @@ class TopicQueue(StageQueue):
         away.
         """
         with self._session() as session:
-            return {
-                row.passage_id: row.topic_index
-                for row in session.execute(
-                    select(_DOMINANT.c.passage_id, Topic.topic_index)
-                    .join(Topic, Topic.id == _DOMINANT.c.topic_id)
-                    .where(~_OUTSTANDING, Topic.language == language)
-                )
-            }
+            return _dominant(session, language)
 
     def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
         """Replaces the topics and memberships of each language one run fitted.
@@ -341,6 +355,37 @@ class TopicQueue(StageQueue):
             # the fit skipped, or fitted to no topic, keeps its topics, but a
             # language whose last document went is never fitted again.
             fitted = [fitting.language for fitting in fittings if fitting.topics]
+            topics = {fitting.language: fitting.topics for fitting in fittings}
+            # A decision a person made while this fit ran may postdate the
+            # read the service carried decisions from, and would be deleted
+            # below. Every one since the fit was asked for is carried again,
+            # which repeats the earlier ones to the same effect; the rows are
+            # locked first, so a later one waits for this to commit and then
+            # finds its topic gone, which answers 404 rather than losing it
+            # quietly.
+            session.execute(
+                select(Topic.id)
+                .where(~_OUTSTANDING, Topic.language.in_(fitted))
+                .with_for_update()
+            ).all()
+            late = _decisions(
+                session,
+                Topic.language.in_(fitted),
+                *([] if requested_at is None else [Topic.decided_at > requested_at]),
+            )
+            if late:
+                # Here rather than at the top: the api reads this module, and
+                # that one loads gensim.
+                from topic_modelling.topics import carry_labels, dominant
+
+                for fitting in fittings:
+                    if fitting.language in late:
+                        topics[fitting.language], _ = carry_labels(
+                            fitting.topics,
+                            late[fitting.language],
+                            before=_dominant(session, fitting.language),
+                            after=dominant(fitting.weights),
+                        )
             gone = Topic.language.not_in(
                 select(Passage.language).where(Passage.language.is_not(None))
             )
@@ -372,7 +417,7 @@ class TopicQueue(StageQueue):
                     "span_id": fitting.span_id or None,
                 }
                 for fitting in fittings
-                for topic in fitting.topics
+                for topic in topics[fitting.language]
             ]
             if not rows:
                 return 0
