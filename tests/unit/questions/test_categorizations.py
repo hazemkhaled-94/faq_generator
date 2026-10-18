@@ -205,7 +205,7 @@ def test_a_role_it_does_not_take_is_refused_by_name(role: object) -> None:
 
 def test_the_default_bounds_its_phrasings_words() -> None:
     """Table 5's "less than 10" and "more than 9", which a report reads."""
-    (phrasing,) = read(json.loads(DEFAULT_CATEGORIZATIONS))
+    phrasing = categorizations(DEFAULT_CATEGORIZATIONS)[0]
     assert [each.words for each in phrasing.categories] == [(None, 9), (10, None)]
 
 
@@ -256,16 +256,32 @@ def test_text_that_is_not_json_is_refused() -> None:
         categorizations("[{")
 
 
-def test_the_setting_unset_draws_the_papers_two_natural_phrasings(
-    monkeypatch,
-) -> None:
-    """On by default, with the descriptions of the paper's Table 5."""
+def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None:
+    """On by default, with the descriptions of the paper's Table 5, each uniform."""
     monkeypatch.delenv("QUESTIONS_CATEGORIZATIONS", raising=False)
-    (phrasing,) = Settings.load().categorizations
-    assert phrasing.name == "Phrasing"
-    assert [(one.name, one.probability) for one in phrasing.categories] == [
-        ("concise-and-natural", 0.5),
-        ("verbose-and-natural", 0.5),
+    read_ = Settings.load().categorizations
+    assert [one.name for one in read_] == ["Phrasing", "Premise"]
+    assert [
+        [(one.name, one.probability, one.role) for one in each.categories]
+        for each in read_
+    ] == [
+        [
+            ("concise-and-natural", 0.5, "question"),
+            ("verbose-and-natural", 0.5, "question"),
+        ],
+        [("direct", 0.5, "question"), ("with-premise", 0.5, "question")],
+    ]
+
+
+def test_the_default_premise_is_table_5s() -> None:
+    """Its descriptions without the examples the caption calls illustrative."""
+    premise = categorizations(DEFAULT_CATEGORIZATIONS)[1]
+    assert [one.description for one in premise.categories] == [
+        "question that does not contain any premise or any information about the user.",
+        (
+            "question starting with a very short premise, where the user reveals "
+            "their needs or some information about himself."
+        ),
     ]
 
 

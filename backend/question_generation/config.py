@@ -157,33 +157,53 @@ _UNNAMED = re.compile(r"[=,\n\r]")
 #: How far the probabilities may sum from 1 and still be read as rounding.
 _ROUNDING = 0.01
 
-#: QUESTIONS_CATEGORIZATIONS when it is absent: the paper's two natural
-#: phrasings, its Table 5 descriptions without the examples its caption calls
-#: illustrative, each bounded by the word count its description names. Here
-#: rather than in backend.env, which bash sources and so cannot hold a JSON
-#: value.
+#: QUESTIONS_CATEGORIZATIONS when it is absent: categorizations of the
+#: paper's Table 5, its descriptions without the examples its caption calls
+#: illustrative, every category at even odds because the table gives none.
+#: The two natural phrasings are bounded by the word counts their
+#: descriptions name. The table's `direct` ends on a stray closing
+#: parenthesis, left out here. Here rather than in backend.env, which bash
+#: sources and so cannot hold a JSON value.
 DEFAULT_CATEGORIZATIONS = json.dumps(
-    {
-        "categorization_name": "Phrasing",
-        "categories": [
-            {
-                "name": "concise-and-natural",
-                "description": "phrased in the way people typically speak, "
-                "reflecting everyday language use, without formal or artificial "
-                "structure. It is a concise, direct question consisting of less "
-                "than 10 words.",
-                "words": {"max": 9},
-            },
-            {
-                "name": "verbose-and-natural",
-                "description": "phrased in the way people typically speak, "
-                "reflecting everyday language use, without formal or artificial "
-                "structure. It is a relatively long question consisting of more "
-                "than 9 words.",
-                "words": {"min": 10},
-            },
-        ],
-    }
+    [
+        {
+            "categorization_name": "Phrasing",
+            "categories": [
+                {
+                    "name": "concise-and-natural",
+                    "description": "phrased in the way people typically speak, "
+                    "reflecting everyday language use, without formal or "
+                    "artificial structure. It is a concise, direct question "
+                    "consisting of less than 10 words.",
+                    "words": {"max": 9},
+                },
+                {
+                    "name": "verbose-and-natural",
+                    "description": "phrased in the way people typically speak, "
+                    "reflecting everyday language use, without formal or "
+                    "artificial structure. It is a relatively long question "
+                    "consisting of more than 9 words.",
+                    "words": {"min": 10},
+                },
+            ],
+        },
+        {
+            "categorization_name": "Premise",
+            "categories": [
+                {
+                    "name": "direct",
+                    "description": "question that does not contain any premise "
+                    "or any information about the user.",
+                },
+                {
+                    "name": "with-premise",
+                    "description": "question starting with a very short premise, "
+                    "where the user reveals their needs or some information "
+                    "about himself.",
+                },
+            ],
+        },
+    ]
 )
 
 
