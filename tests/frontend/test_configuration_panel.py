@@ -54,6 +54,51 @@ def test_a_share_is_drawn_with_the_bounds_it_has(open_view) -> None:
     assert view.numbers()["A_SHARE"].value == 0.5
 
 
+def test_a_number_stored_under_a_floor_raised_since_is_drawn_and_named(
+    open_view,
+) -> None:
+    """Drawn with a floor above it, Streamlit raised and the whole page failed.
+
+    A value stored while the floor was 1 is still held once it is 2, and the
+    panel that could correct it failed with the page.
+    """
+    stored = [
+        {**one, "value": "1", "stored": True, "low": 2}
+        if one["name"] == "A_COUNT"
+        else one
+        for one in SETTINGS["settings"]
+    ]
+    view = open_view("topics", configured=Answers(**settings(settings=stored)))
+
+    assert "Failed to load" not in view.text(), view.text()[:300]
+    assert view.raised == [], view.raised
+    box = view.numbers()["A_COUNT ·"]
+    assert (box.value, box.min) == (1, None)
+    assert any("A_COUNT" in one and "at least 2" in one for one in view.warnings())
+
+
+def test_a_decimal_stored_over_its_ceiling_is_drawn_and_named(open_view) -> None:
+    """The same for a ceiling, and for a decimal."""
+    stored = [
+        {**one, "value": "1.5", "stored": True} if one["name"] == "A_SHARE" else one
+        for one in SETTINGS["settings"]
+    ]
+    view = open_view("topics", configured=Answers(**settings(settings=stored)))
+
+    box = view.numbers()["A_SHARE ·"]
+    assert (box.value, box.max) == (1.5, None)
+    assert any("A_SHARE" in one and "at most 1" in one for one in view.warnings())
+
+
+def test_a_number_inside_its_bounds_is_drawn_with_them(open_view) -> None:
+    """And nothing is said about it."""
+    view = open_view("topics")
+
+    box = view.numbers()["A_SHARE"]
+    assert (box.min, box.max) == (0, 1)
+    assert view.warnings() == []
+
+
 def test_a_flag_is_drawn_as_a_checkbox(open_view) -> None:
     """Read the way the backend's own reader reads it."""
     view = open_view("topics")

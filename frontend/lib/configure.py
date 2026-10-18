@@ -151,12 +151,12 @@ def _control(service: str, setting: dict, version: str) -> str | None:
     if setting["kind"] == "integer":
         return str(
             int(
-                st.number_input(
-                    label,
-                    value=int(value or 0),
+                _number(
+                    setting,
+                    int(value or 0),
+                    int,
+                    label=label,
                     step=1,
-                    min_value=_bound(setting["low"], int),
-                    max_value=_bound(setting["high"], int),
                     key=key,
                     help=help,
                 )
@@ -165,13 +165,13 @@ def _control(service: str, setting: dict, version: str) -> str | None:
 
     if setting["kind"] == "decimal":
         places = max(2, len((value or "").partition(".")[2]))
-        drawn = st.number_input(
-            label,
-            value=float(value or 0),
+        drawn = _number(
+            setting,
+            float(value or 0),
+            float,
+            label=label,
             step=10.0**-places,
             format=f"%0.{places}f",
-            min_value=_bound(setting["low"], float),
-            max_value=_bound(setting["high"], float),
             key=key,
             help=help,
         )
@@ -180,6 +180,31 @@ def _control(service: str, setting: dict, version: str) -> str | None:
         return value if value and float(value) == drawn else _written(drawn)
 
     return st.text_input(label, value=value or "", key=key, help=help)
+
+
+def _number(setting: dict, held: float, kind: type, **drawn: Any) -> Any:
+    """Draws a number box held to the setting's bounds, if it lies inside them.
+
+    One stored before a bound moved past it is drawn without them and said
+    to be outside them: drawn with them, Streamlit raises, and the page fails
+    with the panel that could correct it.
+    """
+    low, high = _bound(setting["low"], kind), _bound(setting["high"], kind)
+    outside = (low is not None and held < low) or (high is not None and held > high)
+    number = st.number_input(
+        value=held,
+        min_value=None if outside else low,
+        max_value=None if outside else high,
+        **drawn,
+    )
+    if outside:
+        must = " and ".join(
+            f"{word} {bound}"
+            for word, bound in (("at least", low), ("at most", high))
+            if bound is not None
+        )
+        st.warning(f"{setting['name']} holds {held}, but must be {must}.")
+    return number
 
 
 def _chosen(setting: dict, label: str, key: str, help: str) -> str | None:
