@@ -138,9 +138,9 @@ flowchart TD
 | `stages-are-independent` | No backend service imports another |
 
 There are two deliberate edges the contracts name. `settings.changes`
-imports `llm.config` and the `config` submodule of every stage but
-`assessment`, because refusing a setting that would stop a service means
-calling that service's own `Settings.load`. And
+imports `llm.config` and the `config` submodule of every stage, `assessment`
+included, because refusing a setting that would stop a service means calling
+that service's own `Settings.load`. And
 `question_generation.export` imports `assessment.repository` — one import,
 in a function body, in the module that is a command line rather than a
 library: `workbook()` takes the judgements as an argument and imports
@@ -211,8 +211,11 @@ Some credentials exist only where a person is — an interactive cloud login, a
 key in a login keychain — and a container holds none of them.
 `LLM_CONTAINER_MODEL` is the split: the containers call a model they can
 authenticate to, and the host calls the one it can. The container workers
-build the dataset; a host drain is for developing a stage, and host parse,
-chunk and extract runs are kept off the dataset. Comparing two models means
+build the dataset; a host drain is for developing a stage. Nothing keeps a
+host run out of the dataset, though: a host drain writes the same tables in
+the same database as the workers, nothing but a `RUN_ID`, where one is set,
+tells its rows apart, and the refusal checks only that the stage's worker is
+stopped. Do not build the dataset with one. Comparing two models means
 running them over the same rows under two `RUN_ID`s.
 
 `LOG_DIR` names `./logs` on the host and the `logs` volume in a container,
@@ -262,7 +265,7 @@ run. The first ages the Elasticsearch index, the second the files.
 | To change | Go to |
 |---|---|
 | Any behaviour setting | [`backend/settings/catalog.py`](../backend/settings/catalog.py) |
-| Which model, or which provider | `LLM_MODEL` in `.env`; credentials in `configs/env/provider.env` |
+| Which model, or which provider | `LLM_MODEL` in `.env` for the host and `LLM_CONTAINER_MODEL` for the containers, with the verifier's `QUESTIONS_VERIFIER_MODEL` and the judge's `ASSESSMENT_JUDGE_MODEL` beside them; a stage's own model (`EXTRACTION_MODEL`, `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL`, `QUESTIONS_MODEL`, `QUESTIONS_PHRASING_MODEL`) in `configs/env/backend.env`, which ships the digest, topic-naming and phrasing models set, so those calls do not follow `LLM_MODEL`; credentials in `configs/env/provider.env` |
 | Secrets | `.env` |
 | Ports, addresses, role names | `configs/env/deployment.env` |
 | How the pipeline behaves, by default | `configs/env/backend.env` |
