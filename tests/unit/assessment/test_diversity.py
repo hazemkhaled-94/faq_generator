@@ -11,11 +11,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from assessment import run as cli
 from assessment.diversity import (
     compression_ratio,
+    homogenization,
     ngram_diversity,
     self_repetition,
     subsamples,
@@ -108,6 +110,37 @@ def test_subsamples_are_the_same_for_the_same_seed() -> None:
     assert [one.tolist() for one in first] != [one.tolist() for one in other]
 
 
+def test_homogenization_is_the_mean_cosine_over_ordered_pairs() -> None:
+    """Of the six ordered pairs, only the two between the copies of (1, 0) are alike."""
+    assert homogenization(np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 0.0]])) == (
+        pytest.approx(1 / 3)
+    )
+
+
+def test_homogenization_equals_the_pairwise_loop() -> None:
+    """The sum identity gives what averaging every pair one by one gives."""
+    vectors = np.random.default_rng(0).normal(size=(50, 8))
+    unit = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+    pairs = [unit[i] @ unit[j] for i in range(50) for j in range(50) if i != j]
+    assert homogenization(vectors) == pytest.approx(np.mean(pairs), abs=1e-9)
+
+
+def test_homogenization_ignores_length() -> None:
+    """Cosine, so a vector and its double are the same direction."""
+    assert homogenization(np.array([[1.0, 0.0], [2.0, 0.0]])) == pytest.approx(1.0)
+
+
+def test_homogenization_of_orthogonal_vectors_is_zero() -> None:
+    """No two directions alike."""
+    assert homogenization(np.eye(3)) == pytest.approx(0.0)
+
+
+def test_homogenization_needs_two_questions() -> None:
+    """One question has no pair to compare."""
+    with pytest.raises(ValueError):
+        homogenization(np.array([[1.0, 0.0]]))
+
+
 def asked(id: int, text: str, language: str) -> StoredQuestion:
     """One accepted question, as the exporter is handed it."""
     return StoredQuestion(
@@ -152,24 +185,45 @@ def exported(tmp_path, monkeypatch):
         raise AssertionError("the diversity report read a setting")
 
     monkeypatch.setattr(cli, "snapshot", unread)
+    # No spaCy model and no 2 GB encoder in a unit test: every question is a
+    # noun and a verb, and B's vectors are the homogenization fixture's.
+    monkeypatch.setattr(
+        cli, "_tags", lambda texts, language: (["NOUN VERB"] * len(texts), "stub 1.0")
+    )
+    directions = {B[0]: [1.0, 0.0], B[1]: [0.0, 1.0], B[2]: [1.0, 0.0]}
+    monkeypatch.setattr(
+        cli,
+        "_vectors",
+        lambda texts: [directions.get(text, [0.6, 0.8]) for text in texts],
+    )
     return path
 
 
 def report(capsys, *argv: str) -> list[list[str]]:
     """The report's rows below its heading, each split into its cells."""
     assert cli.main(["--diversity", *argv]) == 0
-    heading, *rows = capsys.readouterr().out.strip().splitlines()
-    assert heading.split() == ["language", "n", "NGD", "SR", "word-CR"]
+    table, _ = capsys.readouterr().out.split("\n\n", 1)
+    heading, *rows = table.strip().splitlines()
+    assert heading.split() == ["language", "n", "NGD", "SR", "word-CR", "PoS-CR", "HS"]
     return [row.split() for row in rows]
 
 
 def test_the_command_line_measures_a_workbook_per_language(exported, capsys) -> None:
     """One row a language, each set measured on its own."""
     rows = report(capsys, "--file", str(exported))
-    assert [row[:4] for row in rows] == [
-        ["de", "3", "3.160", "0.667"],
-        ["en", "1", "4.000", "0.000"],
+    tagged = f"{compression_ratio(['NOUN VERB'] * 3):.3f}"
+    assert [row[:4] + row[5:] for row in rows] == [
+        ["de", "3", "3.160", "0.667", tagged, "0.333"],
+        ["en", "1", "4.000", "0.000", f"{compression_ratio(['NOUN VERB']):.3f}", "-"],
     ]
+
+
+def test_the_report_names_what_tagged_and_embedded(exported, capsys) -> None:
+    """PoS-CR moves with the tagset and HS with the model, so both are named."""
+    assert cli.main(["--diversity", "--file", str(exported)]) == 0
+    _, notes = capsys.readouterr().out.split("\n\n", 1)
+    assert "de: UPOS tags from stub 1.0" in notes
+    assert "not on the paper's MiniLM scale" in notes
 
 
 def test_the_command_line_measures_one_language(exported, capsys) -> None:
@@ -199,22 +253,19 @@ def test_a_size_is_at_least_one(exported, size) -> None:
     assert refused.value.code == 2
 
 
-def test_the_report_runs_as_make_runs_it(exported) -> None:
-    """`python -m assessment.run`, which imports the module as __main__."""
+def test_the_report_runs_as_make_runs_it() -> None:
+    """`python -m assessment.run`, which imports the module as __main__.
+
+    Asked for its usage, so the subprocess loads no tagger and no encoder:
+    what this proves is that the flag reaches the report at all.
+    """
     backend = Path(__file__).parents[3] / "backend"
     ran = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "assessment.run",
-            "--diversity",
-            "--file",
-            str(exported),
-        ],
+        [sys.executable, "-m", "assessment.run", "--diversity", "--help"],
         capture_output=True,
         text=True,
         env={**os.environ, "PYTHONPATH": str(backend)},
         check=False,
     )
     assert ran.returncode == 0, ran.stderr
-    assert ran.stdout.split()[:5] == ["language", "n", "NGD", "SR", "word-CR"]
+    assert "--file" in ran.stdout

@@ -17,6 +17,7 @@ import logging
 import sys
 import time
 from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path
 
 import telemetry
@@ -26,7 +27,7 @@ from assessment.factory import build_service, judge_model
 from assessment.repository import AssessmentQueue
 from llm.check import before_work
 from llm.config import Settings as ModelSettings
-from settings import decimal
+from settings import decimal, integer, required
 from settings.store import snapshot
 from stages.cli import queue_main
 from stages.prompts import record
@@ -172,6 +173,7 @@ def diversity(argv: list[str]) -> int:
 
     from assessment.diversity import (
         compression_ratio,
+        homogenization,
         ngram_diversity,
         self_repetition,
         subsamples,
@@ -190,18 +192,63 @@ def diversity(argv: list[str]) -> int:
         if args.language in (None, language):
             asked[language].append(str(text))
 
-    print(f"{'language':<9}{'n':>6}{'NGD':>8}{'SR':>8}{'word-CR':>9}")
+    print(
+        f"{'language':<9}{'n':>6}{'NGD':>8}{'SR':>8}{'word-CR':>9}{'PoS-CR':>8}{'HS':>7}"
+    )
+    tagged_by = {}
     for language, texts in sorted(asked.items()):
         if args.size:
             if len(texts) < args.size:
                 print(f"{language:<9}{len(texts):>6}  question, fewer than {args.size}")
                 continue
             texts = [texts[i] for i in subsamples(len(texts), args.size, draws=1)[0]]
+        tags, tagged_by[language] = _tags(texts, language)
+        # One question has no pair to compare.
+        alike = f"{homogenization(_vectors(texts)):.3f}" if len(texts) > 1 else "-"
         print(
             f"{language:<9}{len(texts):>6}{ngram_diversity(texts):>8.3f}"
             f"{self_repetition(texts):>8.3f}{compression_ratio(texts):>9.3f}"
+            f"{compression_ratio(tags):>8.3f}{alike:>7}"
         )
+    print()
+    for language, pipeline in tagged_by.items():
+        print(f"{language}: UPOS tags from {pipeline}")
+    print(
+        "HS: the cosine of EMBEDDING_MODEL's vectors, which is not on the "
+        "paper's MiniLM scale; compare it only between sets embedded alike"
+    )
     return 0
+
+
+def _tags(texts: list[str], language: str) -> tuple[list[str], str]:
+    """Each question's part-of-speech tags, and the pipeline that read them.
+
+    UPOS, the tagset every language's pipeline shares, so German and English
+    are tagged alike; it moves the ratio, so the pipeline is named.
+    """
+    from nlp.pipelines import name, pipeline, version
+
+    tagged = [
+        " ".join(token.pos_ for token in doc) for doc in pipeline(language).pipe(texts)
+    ]
+    return tagged, f"{name(language)} {version(language)}"
+
+
+def _vectors(texts: list[str]) -> list[list[float]]:
+    """Each question's vector, from the model that embeds the corpus.
+
+    Embedded here rather than read from the stored column: a workbook holds
+    none, and every set measured through one model is comparable.
+    """
+    return _embedder().embed_all(texts)
+
+
+@lru_cache(maxsize=1)
+def _embedder():
+    """The embedding model, loaded once and only when a set is measured."""
+    from nlp.embedding import Embedder
+
+    return Embedder(required("EMBEDDING_MODEL"), integer("EMBEDDING_MAX_TOKENS"))
 
 
 if __name__ == "__main__":

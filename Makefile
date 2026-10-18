@@ -1152,8 +1152,9 @@ assess-rerun:
 
 # How varied an exported workbook's questions are, the way the DataMorgana
 # paper measures a benchmark: n-gram diversity (higher is more varied),
-# self-repetition and the word compression ratio (lower is more varied), one
-# row per language. No model is asked. FILE is what questions-export wrote;
+# self-repetition, the word and part-of-speech compression ratios and the
+# homogenization score (lower is more varied), one row per language. No LLM
+# is asked; the spaCy pipeline and the embedding model are loaded. FILE is what questions-export wrote;
 # its FILTER chooses the set, and the paper's is the answerable questions.
 # SIZE draws that many from each language, because these metrics move with
 # a set's size and two sets compare only at one. CODE and not LANG, as for

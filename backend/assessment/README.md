@@ -257,6 +257,8 @@ wrote, asks no model, and runs whether or not this phase is switched on.
 | NGD, n-gram diversity | For n = 1 to 4, the distinct n-grams over all n-grams, summed. The questions are joined end to end, so an n-gram may run from one question into the next | higher |
 | SR, self-repetition | The share of questions holding a four-word run that another question also holds | lower |
 | word-CR, compression ratio | The joined text's size over its size gzipped at level 9 | lower |
+| PoS-CR | The same ratio over the questions' part-of-speech tags, so it reads the shape of the sentences rather than their words | lower |
+| HS, homogenization | The mean cosine between every two questions' vectors | lower |
 
 Words are split at whitespace with case and punctuation kept, so "card?" and
 "card" are two words. Joining the questions with one space and gzipping at
@@ -264,6 +266,14 @@ level 9 are this project's reading of the paper, which does not say. A
 language written without spaces between words, such as Chinese or Japanese,
 would need its words split by its spaCy pipeline first; until one is
 configured, its scores mean nothing.
+
+PoS-CR reads UPOS tags from the language's spaCy pipeline in `NLP_MODELS`,
+the tagset every language shares; the report names the pipeline and its
+version, because another tagset or version moves the ratio. HS embeds each
+question with `EMBEDDING_MODEL`, the model that embeds the corpus, rather
+than the paper's English-only MiniLM. Its cosines sit higher, so its HS is
+on a scale of its own: compare it only between sets embedded alike. The
+report loads both models, so it takes a minute on the host.
 
 Each language is measured on its own. These metrics move with the size of a
 set (a smaller one looks more varied), so `SIZE=` draws that many questions

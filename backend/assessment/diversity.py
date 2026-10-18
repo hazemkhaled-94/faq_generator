@@ -8,7 +8,8 @@ function here takes the whole set, because none of them is an average of
 per-question scores: that is also why a set is only ever compared with
 another of the same size and language.
 
-Pure functions over the questions' text.
+Pure functions: the tags and the vectors a caller passes in come from
+elsewhere.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from collections import Counter
 from collections.abc import Sequence
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 #: How many draws a comparison makes, as the paper's bootstrap does.
 DRAWS = 50
@@ -76,6 +78,22 @@ def compression_ratio(texts: Sequence[str]) -> float:
     """
     raw = " ".join(_words(texts)).encode("utf-8")
     return len(raw) / len(gzip.compress(raw, compresslevel=9, mtime=0))
+
+
+def homogenization(vectors: ArrayLike) -> float:
+    """The mean cosine over every ordered pair of distinct questions; lower is more varied.
+
+    The paper's HS. With unit rows u, the pairs sum to |sum(u)|^2 - n, so
+    the mean needs no loop over the n(n - 1) pairs. The scale belongs to
+    the model the vectors came from: compare two sets only through one model.
+    """
+    rows = np.asarray(vectors, dtype=float)
+    n = len(rows)
+    if n < 2:
+        raise ValueError("homogenization needs at least two questions")
+    unit = rows / np.linalg.norm(rows, axis=1, keepdims=True)
+    total = unit.sum(axis=0)
+    return float((total @ total - n) / (n * (n - 1)))
 
 
 def subsamples(
