@@ -7,7 +7,9 @@ and the gates all differ by type.
 
 Nothing here draws a random number. Two mixes are turned into an exact,
 repeatable sequence of slots, so the same settings over the same corpus give
-the same plan twice.
+the same plan twice. The paper's categories are dealt the same way: an exact
+quota per categorization, put in an order hashed from the topic, so the same
+topic is told the same categories twice.
 
 The band is a request, not a verdict. `difficulty` is still read off what the
 question turned out to cite; `planned_difficulty` is this, stored beside it,
@@ -16,10 +18,13 @@ and the two disagreeing is a measurement of how often the plan was met.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import hashlib
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from math import floor
 
 from database.qa_generator import Difficulty, QuestionKind, QuestionType
+from question_generation.models import Categorization, Category
 from question_generation.selection import Shape, spread
 from question_generation.types import SPECS, TypeSpec
 
@@ -55,6 +60,10 @@ class Plan:
     #: What the slot is dealt to be: `single` for a one-passage slot, and
     #: for a spanning one the kind the mix chose. Looked up in `KINDS`.
     kind: str = QuestionKind.SINGLE
+    #: The category of each categorization the question is written as. An
+    #: unanswerable slot is dealt them too and the writer renders none: the
+    #: paper asks only questions that have an answer.
+    categories: tuple[Category, ...] = ()
 
     @property
     def spans(self) -> bool:
@@ -97,6 +106,8 @@ def plans(
     bands: Mapping[str, int],
     unanswerable_share: float,
     kinds: Mapping[str, int] | None = None,
+    categorizations: Sequence[Categorization] = (),
+    seed: str = "",
 ) -> list[Plan]:
     """The questions one topic is to be asked, in the order they are written.
 
@@ -129,12 +140,16 @@ def plans(
     Every slot carries a kind. A one-passage slot is `single`; a slot whose
     type spans is `needs_both` by construction; the other spanning slots
     share out `kinds` in order, which holds `needs_both` alone when not given.
+
+    Every slot is dealt `categorizations`, in an order keyed on `seed`; see
+    `categories`.
     """
     typed = allocate(types, wanted)
     banded = allocate(bands, wanted)
     if not typed or not banded:
         return []
 
+    dealt = categories(categorizations, len(typed), seed)
     detail = _perturbable(types)
     planned = []
     perturbed = 0
@@ -147,7 +162,7 @@ def plans(
                 perturbed += 1
             else:
                 answerable = True
-        planned.append(_slot(name, band, answerable))
+        planned.append(_slot(name, band, answerable, dealt[index]))
     return _kinded(planned, kinds or {QuestionKind.NEEDS_BOTH: 1})
 
 
@@ -169,6 +184,49 @@ def _dealt(plan: Plan, kind: str) -> Plan:
     if kind == QuestionKind.COMPOUND:
         return replace(plan, kind=kind, shape=Shape.APART)
     return replace(plan, kind=kind)
+
+
+def categories(
+    categorizations: Sequence[Categorization], slots: int, seed: str
+) -> list[tuple[Category, ...]]:
+    """The category of every categorization for each of `slots` questions.
+
+    Each categorization's quota gives every category its share of the slots,
+    rounded up or down. The quota is then put in an order of its own, hashed
+    from the seed, the categorization and the place. Two categorizations in
+    step would only ever pair their first categories and their second ones;
+    in orders of their own every pairing occurs, as the paper's independent
+    draws give. And a topic that runs out of material after its first slots
+    has drawn a fair sample of the quota rather than its first category.
+    """
+    columns = []
+    for one in categorizations:
+        quota = _quota(one, slots, seed)
+        order = sorted(range(slots), key=lambda place: _hashed(seed, one.name, place))
+        columns.append([quota[place] for place in order])
+    return [tuple(column[slot] for column in columns) for slot in range(slots)]
+
+
+def _quota(categorization: Categorization, slots: int, seed: str) -> list[Category]:
+    """Each category's share of the slots, rounded where the seed says.
+
+    Systematic rounding: one offset per topic, hashed from the seed, decides
+    which shares round up. Rounding the same way for every topic would hand
+    the spare slot to the same category each time - at 11 slots, 6 to 5 for
+    an even pair in every topic of a run.
+    """
+    offset = int.from_bytes(_hashed(seed, categorization.name)[:8]) / 2**64
+    quota: list[Category] = []
+    share = 0.0
+    for category in categorization.categories[:-1]:
+        share += category.probability
+        quota += [category] * (floor(slots * share + offset) - len(quota))
+    return quota + [categorization.categories[-1]] * (slots - len(quota))
+
+
+def _hashed(seed: str, *parts: object) -> bytes:
+    """A digest of the seed and the parts, which nothing random could repeat."""
+    return hashlib.md5("|".join(map(str, (seed, *parts))).encode()).digest()
 
 
 def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
@@ -198,7 +256,9 @@ def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
     ]
     if not others:
         return None
-    other = _slot(others[turn % len(others)], plan.band, plan.answerable)
+    other = _slot(
+        others[turn % len(others)], plan.band, plan.answerable, plan.categories
+    )
     other = replace(other, shape=plan.shape)
     return _dealt(other, plan.kind if other.spans else QuestionKind.SINGLE)
 
@@ -220,7 +280,12 @@ def _one_passage(spec: TypeSpec) -> bool:
     return spec.least is not None and not spec.spans
 
 
-def _slot(name: str, band: str, answerable: bool) -> Plan:
+def _slot(
+    name: str,
+    band: str,
+    answerable: bool,
+    categories: tuple[Category, ...] = (),
+) -> Plan:
     """One slot of a kind, its band raised to the kind's floor and shaped."""
     spec = SPECS[name]
     if band == Difficulty.EASY:
@@ -229,4 +294,10 @@ def _slot(name: str, band: str, answerable: bool) -> Plan:
         band = Difficulty.EASY
     single = not answerable or _one_passage(spec)
     shape = Shape.SINGLE if single else SHAPES[band]
-    return Plan(spec=spec, band=band, shape=shape, answerable=answerable)
+    return Plan(
+        spec=spec,
+        band=band,
+        shape=shape,
+        answerable=answerable,
+        categories=categories,
+    )

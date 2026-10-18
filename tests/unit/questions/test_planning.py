@@ -8,9 +8,11 @@ about a question. Nothing here calls a model.
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 
 from database.qa_generator import Difficulty, QuestionKind, QuestionType
-from question_generation.planning import allocate, instead, plans
+from question_generation.models import Categorization, Category
+from question_generation.planning import allocate, categories, instead, plans
 from question_generation.selection import Shape, spread
 from question_generation.types import SPECS
 
@@ -612,3 +614,92 @@ def test_the_kind_mix_default_deals_one_compound_slot_in_six_spanning_slots() ->
 
     assert mix == {"needs_both": 5, "compound": 1}
     assert [one.kind for one in built].count("compound") == 6
+
+
+# ── The paper's categories, drawn per slot ───────────────────────────────
+
+
+def categorization(name: str, *weights: float) -> Categorization:
+    """A categorization of categories named `<name>0`, `<name>1`, ..."""
+    return Categorization(
+        name=name,
+        categories=tuple(
+            Category(name, f"{name}{i}", f"a {name}{i} question", weight)
+            for i, weight in enumerate(weights)
+        ),
+    )
+
+
+PHRASING = categorization("phrasing", 0.5, 0.5)
+
+
+def names(drawn) -> tuple[str, ...]:
+    """The category names one slot was dealt."""
+    return tuple(category.name for category in drawn)
+
+
+def test_without_categorizations_a_slot_draws_none() -> None:
+    """The setting unset is the plan as it was."""
+    assert {plan.categories for plan in planned()} == {()}
+
+
+def test_categories_never_move_the_kind_the_band_or_the_answer() -> None:
+    """They are drawn beside the plan, not into it."""
+    alone = planned(wanted=40, unanswerable_share=0.25)
+    drawn = planned(
+        wanted=40, unanswerable_share=0.25, categorizations=(PHRASING,), seed="7"
+    )
+    assert [replace(plan, categories=()) for plan in drawn] == alone
+
+
+def test_another_topic_draws_another_order() -> None:
+    """The order is hashed from the topic, so topics differ."""
+    assert categories((PHRASING,), 40, "7") != categories((PHRASING,), 40, "8")
+
+
+def test_no_category_is_favoured_across_topics() -> None:
+    """At 11 slots an even pair cannot split evenly in any one topic.
+
+    Which category takes the spare slot is the topic's own draw, so over a
+    run each gets its half - and each of four phrasings its quarter - rather
+    than the same one rounding up every time.
+    """
+    for weights in ((0.5, 0.5), (0.25, 0.25, 0.25, 0.25)):
+        dealt = [
+            one
+            for seed in range(1000)
+            for one in categories((categorization("p", *weights),), 11, str(seed))
+        ]
+        shares = Counter(names(one)[0] for one in dealt)
+        assert all(
+            abs(count / len(dealt) - weight) < 0.01
+            for count, weight in zip(
+                (shares[f"p{i}"] for i in range(len(weights))), weights, strict=True
+            )
+        )
+
+
+def test_every_slot_is_dealt_a_category_of_each_categorization() -> None:
+    """Unanswerable slots too, so one recycled as answerable has its own.
+
+    The writer renders none for an unanswerable question.
+    """
+    drawn = planned(
+        wanted=40, unanswerable_share=0.25, categorizations=(PHRASING,), seed="7"
+    )
+    assert Counter(names(plan.categories) for plan in drawn) == {
+        ("phrasing0",): 20,
+        ("phrasing1",): 20,
+    }
+
+
+def test_a_swapped_slot_keeps_its_categories() -> None:
+    """A reason slot written as another kind is still the slot it was drawn as."""
+    (plan,) = [
+        one
+        for one in planned(categorizations=(PHRASING,), seed="7")
+        if one.spec.name == QuestionType.REASON
+    ][:1]
+    other = instead(plan, MIX, 0)
+    assert other is not None
+    assert other.categories == plan.categories

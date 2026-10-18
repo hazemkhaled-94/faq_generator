@@ -13,7 +13,8 @@ pure all the same.
 
 from __future__ import annotations
 
-from math import isinf, isnan
+from collections import Counter
+from math import ceil, floor, isinf, isnan
 
 import pytest
 from hypothesis import given
@@ -29,7 +30,8 @@ from question_generation.balance import (
     shares,
 )
 from question_generation.gates import BOUNDS, agrees, figures, fitting, restates
-from question_generation.models import band, criteria_of
+from question_generation.models import Categorization, Category, band, criteria_of
+from question_generation.planning import categories
 from question_generation.selection import spread, strided
 from question_generation.types import SPECS
 
@@ -486,3 +488,55 @@ def test_a_count_is_the_same_count_in_words_or_digits_and_no_other(
     assert agrees(recovered, _written(n, language, target_in_words), language)
     assert not agrees(recovered, _written(n + 1, language, target_in_words), language)
     assert not agrees(_written(n + 1, language, target_in_words), recovered, language)
+
+
+# ── Dealing the paper's categories ───────────────────────────────────────
+
+
+def _categorization(name: str, weights: list[float]) -> Categorization:
+    """A categorization whose probabilities are these weights, scaled to 1."""
+    total = sum(weights)
+    return Categorization(
+        name=name,
+        categories=tuple(
+            Category(name, f"{name}{i}", "a question", weight / total)
+            for i, weight in enumerate(weights)
+        ),
+    )
+
+
+#: Two even categorizations, the smallest case where pairings can be missed.
+_PAIRED = (_categorization("a", [1, 1]), _categorization("b", [1, 1]))
+
+
+@given(
+    weights=st.lists(st.floats(0, 1), min_size=1, max_size=5).filter(
+        lambda weights: sum(weights) > 0
+    ),
+    slots=st.integers(0, 300),
+    seed=st.text(max_size=8),
+)
+def test_each_category_is_dealt_its_share_rounded_one_way_or_the_other(
+    weights, slots, seed
+) -> None:
+    """A quota, not a draw: no category is short of its share by a whole slot."""
+    one = _categorization("c", weights)
+    dealt = categories((one,), slots, seed)
+    assert len(dealt) == slots
+    counted = Counter(category.name for (category,) in dealt)
+    for category in one.categories:
+        exact = slots * category.probability
+        assert floor(exact) <= counted[category.name] <= ceil(exact)
+
+
+@given(slots=st.integers(0, 200), seed=st.text(max_size=8))
+def test_the_same_seed_deals_the_same_categories(slots, seed) -> None:
+    """Nothing random: a rerun over a topic is told what the first run was."""
+    assert categories(_PAIRED, slots, seed) == categories(_PAIRED, slots, seed)
+
+
+@given(seed=st.text(max_size=8))
+def test_two_categorizations_meet_in_every_pairing(seed) -> None:
+    """Over a topic's 120 slots, every combination of the two is written."""
+    dealt = categories(_PAIRED, 120, seed)
+    assert len({tuple(category.name for category in one) for one in dealt}) == 4
