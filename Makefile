@@ -1155,24 +1155,28 @@ assess-rerun:
 # paper measures a benchmark: n-gram diversity (higher is more varied),
 # self-repetition, the word and part-of-speech compression ratios and the
 # homogenization score (lower is more varied), one row per language. No LLM
-# is asked; the spaCy pipeline and the embedding model are loaded. FILE is what questions-export wrote;
-# its FILTER chooses the set, and the paper's is the answerable questions.
+# is asked; the spaCy pipeline and the embedding model are loaded. FILE is
+# what questions-export wrote; its FILTER chooses the set, and the paper's
+# is the answerable questions.
 # SIZE draws that many from each language, because these metrics move with
 # a set's size and two sets compare only at one. AGAINST compares FILE with
 # a second workbook as the paper compares two methods: both drawn fifty
 # times to 80% of the smaller set, every metric put to Welch's t-test.
 # BY=category measures each category of each language on its own, and
 # BY=kind each kind (single, needs_both, compound). Where the workbook holds
-# the paper's judge, its mean scores follow. CODE and not LANG, as for
-# topics-render.
+# the paper's judge, its mean scores follow. BY=document draws the paper's
+# Figure 1: the part-of-speech compression ratio of SIZE questions (200
+# unless given) drawn from 5, 10, 15 ... documents, for a corpus of many
+# documents. CODE and not LANG, as for topics-render.
 #
 #   make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
 #   make diversity FILE=set.xlsx SIZE=200
 #   make diversity FILE=new.xlsx AGAINST=old.xlsx
 #   make diversity FILE=set.xlsx BY=category
 #   make diversity FILE=set.xlsx BY=kind
+#   make diversity FILE=pool.xlsx BY=document SIZE=200
 diversity:
-	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category|kind] [CODE=de] [SIZE=200]'; exit 2; }
+	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category|kind|document] [CODE=de] [SIZE=200]'; exit 2; }
 	$(ASSESS) --diversity --file $(FILE) $(if $(AGAINST),--against $(AGAINST)) $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE))
 
 # ── Question runs ──────────────────────────────────────────────────────────

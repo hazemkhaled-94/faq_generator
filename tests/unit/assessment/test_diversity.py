@@ -19,6 +19,7 @@ from assessment import run as cli
 from assessment.diversity import (
     compression_ratio,
     factuality,
+    few_documents,
     homogenization,
     ngram_diversity,
     p_value,
@@ -28,7 +29,7 @@ from assessment.diversity import (
 )
 from assessment.models import StoredAssessment, StoredMetric
 from question_generation.export import workbook
-from question_generation.models import StoredQuestion
+from question_generation.models import Citation, StoredQuestion
 
 B = ["a b c d e", "a b c d f", "x y z"]
 
@@ -574,3 +575,68 @@ def test_the_bounds_are_the_ones_configured_now(
         ["de", VERBOSE, "1", "-"],
         ["en", CONCISE, "1", "0.000"],
     ]
+
+
+def test_identical_documents_give_a_flat_curve() -> None:
+    """Every question tagged alike: each point is the same ratio, with no spread."""
+    curve = few_documents(["a"] * 4 + ["b"] * 4, ["NOUN VERB"] * 8, [1, 2], 4, draws=3)
+    flat = compression_ratio(["NOUN VERB"] * 4)
+    assert [(k, round(mean, 9), sd) for k, mean, sd in curve] == [
+        (1, round(flat, 9), 0.0),
+        (2, round(flat, 9), 0.0),
+    ]
+
+
+def test_a_point_needing_more_documents_than_qualify_is_left_out() -> None:
+    """Two documents cannot make a point of three."""
+    assert few_documents(["a"] * 4 + ["b"] * 4, ["NOUN"] * 8, [3], 4, draws=3) == []
+
+
+def test_a_document_too_small_for_its_share_is_not_drawn() -> None:
+    """n=4 over k=1 needs one document of four; only `a` has four."""
+    curve = few_documents(
+        ["a"] * 4 + ["b"] * 2, ["NOUN"] * 4 + ["VERB"] * 2, [1], 4, draws=5
+    )
+    assert [(k, sd) for k, _, sd in curve] == [(1, 0.0)]
+    assert curve[0][1] == pytest.approx(compression_ratio(["NOUN"] * 4))
+
+
+def test_the_curve_is_the_same_twice() -> None:
+    """Seeded: a rerun draws the same documents and questions."""
+    units = [f"d{i % 6}" for i in range(60)]
+    tags = [f"NOUN {'VERB ' * (i % 5)}PUNCT" for i in range(60)]
+    assert few_documents(units, tags, [2, 4, 6], 12) == few_documents(
+        units, tags, [2, 4, 6], 12
+    )
+
+
+def test_the_command_line_draws_the_curve_by_document(
+    tmp_path, exported, capsys
+) -> None:
+    """Ten German questions over five documents: points at five documents and fewer."""
+    path = tmp_path / "documents.xlsx"
+    rows = [asked(i, f"Frage Nummer {i}?", "de") for i in range(1, 11)]
+    cited = [
+        Citation(
+            question_id=i,
+            fact_id=i,
+            statement="s",
+            evidence_text="e",
+            validated=True,
+            document=f"Seite {(i - 1) % 5}",
+            doc_sha256="0" * 64,
+            ordinal=1,
+            page=1,
+        )
+        for i in range(1, 11)
+    ]
+    path.write_bytes(workbook(rows, cited))
+    assert (
+        cli.main(
+            ["--diversity", "--file", str(path), "--by", "document", "--size", "10"]
+        )
+        == 0
+    )
+    table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
+    assert table[0].split() == ["language", "documents", "n", "PoS-CR", "sd"]
+    assert [row.split()[:3] for row in table[1:]] == [["de", "5", "10"]]

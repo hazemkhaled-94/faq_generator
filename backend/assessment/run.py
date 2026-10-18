@@ -180,8 +180,9 @@ def diversity(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--by",
-        choices=tuple(_BY),
-        help="one row per category or per kind of each language",
+        choices=(*_BY, "document"),
+        help="one row per category or per kind of each language, or the "
+        "few-documents curve",
     )
     args = parser.parse_args(argv)
     for named in (args.file, args.against):
@@ -193,6 +194,9 @@ def diversity(argv: list[str]) -> int:
         parser.error("--against draws 80% of the smaller set; it takes no --size")
     if args.by is not None and args.against is not None:
         parser.error("--by measures one workbook; it takes no --against")
+
+    if args.by == "document":
+        return _curve(args.file, args.language, args.size or 200)
 
     from assessment.diversity import subsamples
 
@@ -290,6 +294,55 @@ def _read(
             if label or not column:
                 asked[(language, label)].append((int(id), str(text)))
     return asked
+
+
+def _curve(path: Path, only: str | None, n: int) -> int:
+    """Prints the paper's Figure 1: PoS-CR of n questions drawn from k documents.
+
+    Each question's document is the first its Citations rows name, so a
+    question citing two counts under the first. k runs 5, 10, 15 ... up to
+    the language's documents and that count itself; a k too few documents
+    can fill is left out. Drawn from questions already written, so it reads
+    lower than writing n anew from k documents would: those questions were
+    deduplicated against the whole corpus.
+    """
+    import pandas as pd
+
+    from assessment.diversity import few_documents
+
+    groups = _read(path, only)
+    cited = pd.read_excel(path, sheet_name="Citations")
+    # The first row citing a question names its document.
+    first = {
+        int(id): str(document)
+        for id, document in cited.drop_duplicates("Question ID")[
+            ["Question ID", "Document"]
+        ].itertuples(index=False, name=None)
+    }
+    print(f"{'language':<9}{'documents':>10}{'n':>6}{'PoS-CR':>9}{'sd':>8}")
+    notes = []
+    for (language, _), asked in sorted(groups.items()):
+        held = [(first[id], text) for id, text in asked if id in first]
+        if len(held) < len(asked):
+            notes.append(
+                f"{language}: {len(asked) - len(held)} question(s) cite no document"
+            )
+        units = [unit for unit, _ in held]
+        tags, pipeline = _tags([text for _, text in held], language)
+        count = len(set(units))
+        ks = sorted({*range(5, count + 1, 5), count})
+        curve = few_documents(units, tags, ks, n)
+        if not curve:
+            notes.append(
+                f"{language}: too few documents or questions for any point at n={n}"
+            )
+        for k, mean, spread in curve:
+            print(f"{language:<9}{k:>10}{n:>6}{mean:>9.3f}{spread:>8.3f}")
+        notes.append(f"{language}: UPOS tags from {pipeline}, {count} documents")
+    print()
+    for line in notes:
+        print(line)
+    return 0
 
 
 def _texts(

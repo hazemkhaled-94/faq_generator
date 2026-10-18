@@ -378,6 +378,17 @@ its Assessment sheet), the report ends with that judge's mean scores for the
 same groups: the mean stored score, which is the paper's normalised mean,
 from 0 to 1.
 
+`BY=document` draws the paper's Figure 1, which asks whether a set stays
+varied when it comes from few documents. For k = 5, 10, 15 ... up to the
+language's documents, it draws fifty times k documents and SIZE questions
+from them (200 unless given), each document giving its share, and prints
+the mean part-of-speech compression ratio and its spread. A question counts
+under the first document its Citations rows name, so export with citations.
+It draws from questions already written, which were deduplicated against
+the whole corpus, so it reads lower than writing SIZE questions anew from
+k documents would. It needs a corpus of many documents: one of a single
+document per language has no curve.
+
 The export's filter chooses the set. The paper measured answerable
 questions:
 
@@ -387,6 +398,7 @@ make diversity FILE=set.xlsx SIZE=200
 make diversity FILE=new.xlsx AGAINST=old.xlsx
 make diversity FILE=set.xlsx BY=category
 make diversity FILE=set.xlsx BY=kind
+make diversity FILE=pool.xlsx BY=document SIZE=200
 ```
 
 ## Layout

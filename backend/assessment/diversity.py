@@ -17,8 +17,9 @@ from __future__ import annotations
 import gzip
 import re
 import warnings
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Sequence
+from math import ceil
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -157,3 +158,41 @@ def p_value(a: Sequence[float], b: Sequence[float]) -> float:
         result = ttest_ind(a, b, equal_var=False)
     # scipy's stubs leave `pvalue` off the result its runtime returns.
     return float(result.pvalue)  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def few_documents(
+    units: Sequence[str],
+    tags: Sequence[str],
+    ks: Sequence[int],
+    n: int,
+    draws: int = DRAWS,
+    seed: int = 0,
+) -> list[tuple[int, float, float]]:
+    """PoS-CR of n questions drawn from only k documents, for each k: the paper's Figure 1.
+
+    `units` names each question's document and `tags` holds its tag
+    sequence. For each k, `draws` times: k documents among those holding at
+    least ceil(n / k) questions, that many questions from each, cut to n.
+    Returns (k, mean, standard deviation) for each k that enough documents
+    can fill; the others are left out.
+    """
+    held: dict[str, list[int]] = defaultdict(list)
+    for place, unit in enumerate(units):
+        held[unit].append(place)
+    curve = []
+    for k in ks:
+        each = ceil(n / k)
+        eligible = sorted(unit for unit, places in held.items() if len(places) >= each)
+        if len(eligible) < k:
+            continue
+        scores = []
+        for draw, chosen in enumerate(subsamples(len(eligible), k, draws, seed)):
+            picked: list[int] = []
+            for unit in sorted(eligible[i] for i in chosen):
+                places = held[unit]
+                taken = subsamples(len(places), each, draws=1, seed=seed + draw)[0]
+                picked += [places[i] for i in taken]
+            scores.append(compression_ratio([tags[i] for i in picked[:n]]))
+        spread = float(np.std(scores, ddof=1)) if len(scores) > 1 else 0.0
+        curve.append((k, float(np.mean(scores)), spread))
+    return curve
