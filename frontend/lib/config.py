@@ -29,8 +29,17 @@ def _integer(name: str) -> int:
         raise RuntimeError(f"{name}={raw!r} is not a whole number") from None
 
 
+#: The most rows a listing route returns: the API's own PAGE_MAX, copied
+#: because this image carries no backend, and held to it by a static test.
+PAGE_MAX = 500
+
 #: Rows per page in the listings.
 PAGE_SIZE = _integer("PAGE_SIZE")
+if not 1 <= PAGE_SIZE <= PAGE_MAX:
+    raise RuntimeError(
+        f"PAGE_SIZE={PAGE_SIZE} must be between 1 and {PAGE_MAX}, the most a "
+        f"listing route returns"
+    )
 
 #: Where a BROWSER reaches Phoenix, for the link from a question to the
 #: trace that produced it. The host's address and not the container's,

@@ -228,7 +228,8 @@ versions. `footer` no longer matches anything.
 The first two are **required**. Being in an env file alone is not enough —
 the variable also has to be listed in the `streamlit` service's
 `environment` in `compose.yaml`. A missing `PAGE_SIZE` raises an error that
-says so; a missing `BACKEND_URL` raises a bare `KeyError`.
+says so, and so does one outside 1 to 500, the most a listing route returns;
+a missing `BACKEND_URL` raises a bare `KeyError`.
 
 `server.maxUploadSize` in [`.streamlit/config.toml`](.streamlit/config.toml)
 must be kept in step with `MAX_FILE_SIZE_MB`.

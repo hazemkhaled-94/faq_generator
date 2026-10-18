@@ -261,6 +261,19 @@ def test_the_search_and_filters_wrap_only_once_a_row_is_full() -> None:
     assert len(wrapped([_WORDS, _COLUMN, *[_FILTER] * 3, _PAGER])) == 1
 
 
+@pytest.mark.parametrize("size", ["0", "600"])
+def test_a_page_size_the_api_refuses_stops_the_frontend(monkeypatch, size) -> None:
+    """Every listing asked for that many rows and got an unnamed 422 back."""
+    import runpy
+
+    from lib import config
+
+    monkeypatch.setenv("PAGE_SIZE", size)
+
+    with pytest.raises(RuntimeError, match="PAGE_SIZE"):
+        runpy.run_path(config.__file__)
+
+
 def test_a_page_the_corpus_shrank_under_goes_back_to_the_first(open_view) -> None:
     """Page 2 answering no rows is read again as page 1."""
     held = {"total": 30}

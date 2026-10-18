@@ -237,3 +237,16 @@ def test_the_facts_page_lists_exactly_the_codes_a_fact_can_be_rejected_under() -
         f"the Facts page lists {sorted(listed - held)} that no fact can be "
         f"rejected under, and is missing {sorted(held - listed)} that one can"
     )
+
+
+def test_the_page_size_ceiling_is_the_apis() -> None:
+    """The frontend refuses a PAGE_SIZE the listing routes would refuse.
+
+    A copy, because the frontend image carries no backend to import it from.
+    """
+    from api.params import PAGE_MAX
+
+    ceiling = _bound(ROOT / "frontend/lib/config.py", "PAGE_MAX")
+
+    assert isinstance(ceiling, ast.Constant), ast.dump(ceiling)
+    assert ceiling.value == PAGE_MAX
