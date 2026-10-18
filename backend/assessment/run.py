@@ -22,12 +22,6 @@ from pathlib import Path
 import telemetry
 from assessment import prompts
 from assessment.config import OFF, UNNAMED, Settings, judged_kinds
-from assessment.diversity import (
-    compression_ratio,
-    ngram_diversity,
-    self_repetition,
-    subsamples,
-)
 from assessment.factory import build_service, judge_model
 from assessment.repository import AssessmentQueue
 from llm.check import before_work
@@ -57,8 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     # Before the flag: the report reads a workbook and asks no model, so the
     # phase being off is no reason to refuse it. By hand, because
     # queue_main's parser takes the queue verbs only.
-    if argv[:1] == ["--diversity"]:
-        return diversity(argv[1:])
+    if "--diversity" in argv:
+        return diversity([one for one in argv if one != "--diversity"])
 
     # The flag alone, and deliberately not through `configured`: that one
     # also reads the model settings, which are required and have no
@@ -148,10 +142,6 @@ def main(argv: list[str] | None = None) -> int:
     return code
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 def diversity(argv: list[str]) -> int:
     """Prints how varied a workbook's questions are, one row per language.
 
@@ -171,12 +161,30 @@ def diversity(argv: list[str]) -> int:
         "--size", type=int, metavar="N", help="draw N questions from each language"
     )
     args = parser.parse_args(argv)
+    if not args.file.is_file():
+        parser.error(f"--file {args.file} is not a file")
+    if args.size is not None and args.size < 1:
+        parser.error("--size takes a whole number of at least 1")
 
     # Here rather than above: the assess-worker imports this module and
-    # never reads a workbook.
+    # never reads a workbook or measures a set.
     import pandas as pd
 
-    frame = pd.read_excel(args.file, sheet_name="Questions").sort_values("ID")
+    from assessment.diversity import (
+        compression_ratio,
+        ngram_diversity,
+        self_repetition,
+        subsamples,
+    )
+
+    # Text as written: pandas would otherwise read a question "None" or "N/A"
+    # as missing, and measure it as the word "nan".
+    frame = pd.read_excel(
+        args.file,
+        sheet_name="Questions",
+        dtype={"Question": str, "Language": str},
+        keep_default_na=False,
+    ).sort_values("ID")
     asked: dict[str, list[str]] = defaultdict(list)
     for language, text in zip(frame["Language"], frame["Question"], strict=True):
         if args.language in (None, language):
@@ -194,3 +202,7 @@ def diversity(argv: list[str]) -> int:
             f"{self_repetition(texts):>8.3f}{compression_ratio(texts):>9.3f}"
         )
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

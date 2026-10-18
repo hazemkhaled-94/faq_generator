@@ -29,9 +29,10 @@ def _words(texts: Sequence[str]) -> list[str]:
     Split on whitespace with case and punctuation kept, as Shaib et al.'s
     reference code does, so "card?" and "card" are two words.
     """
-    if not texts:
-        raise ValueError("an empty set has no diversity")
-    return " ".join(texts).split()
+    words = " ".join(texts).split()
+    if not words:
+        raise ValueError("a set with no words has no diversity")
+    return words
 
 
 def _grams(words: Sequence[str], n: int) -> list[tuple[str, ...]]:
@@ -60,8 +61,7 @@ def self_repetition(texts: Sequence[str], n: int = 4) -> float:
     The paper's definition, a fraction. Shaib et al.'s package computes a
     log-scaled count under the same name, which is not this.
     """
-    if not texts:
-        raise ValueError("an empty set has no diversity")
+    _words(texts)
     grams = [set(_grams(text.split(), n)) for text in texts]
     # How many questions hold each n-gram, each question counted once.
     held = Counter(gram for own in grams for gram in own)

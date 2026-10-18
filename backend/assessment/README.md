@@ -260,7 +260,10 @@ wrote, asks no model, and runs whether or not this phase is switched on.
 
 Words are split at whitespace with case and punctuation kept, so "card?" and
 "card" are two words. Joining the questions with one space and gzipping at
-level 9 are this project's reading of the paper, which does not say.
+level 9 are this project's reading of the paper, which does not say. A
+language written without spaces between words, such as Chinese or Japanese,
+would need its words split by its spaCy pipeline first; until one is
+configured, its scores mean nothing.
 
 Each language is measured on its own. These metrics move with the size of a
 set (a smaller one looks more varied), so `SIZE=` draws that many questions

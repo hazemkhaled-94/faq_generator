@@ -6,6 +6,11 @@ small enough to count its n-grams by eye: joined, it is thirteen words.
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from assessment import run as cli
@@ -77,10 +82,11 @@ def test_compression_ratio_joins_with_one_space() -> None:
 @pytest.mark.parametrize(
     "measure", [ngram_diversity, self_repetition, compression_ratio]
 )
-def test_an_empty_set_has_no_diversity(measure) -> None:
+@pytest.mark.parametrize("texts", [[], ["   "], ["", ""]])
+def test_an_empty_set_has_no_diversity(measure, texts) -> None:
     """Nothing to measure is an error, not a zero a report would print."""
     with pytest.raises(ValueError):
-        measure([])
+        measure(texts)
 
 
 def test_subsamples_are_drawn_without_replacement() -> None:
@@ -177,3 +183,38 @@ def test_a_size_draws_each_language_to_it(exported, capsys) -> None:
     rows = report(capsys, "--file", str(exported), "--size", "2")
     assert rows[0][:2] == ["de", "2"]
     assert rows[1] == ["en", "1", "question,", "fewer", "than", "2"]
+
+
+def test_the_flag_is_read_wherever_it_stands(exported, capsys) -> None:
+    """Not only first: anywhere else it would reach the queue's parser."""
+    assert cli.main(["--file", str(exported), "--diversity"]) == 0
+    assert "language" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("size", ["0", "-1"])
+def test_a_size_is_at_least_one(exported, size) -> None:
+    """Zero would quietly measure everything, and below it nothing can be drawn."""
+    with pytest.raises(SystemExit) as refused:
+        cli.main(["--diversity", "--file", str(exported), "--size", size])
+    assert refused.value.code == 2
+
+
+def test_the_report_runs_as_make_runs_it(exported) -> None:
+    """`python -m assessment.run`, which imports the module as __main__."""
+    backend = Path(__file__).parents[3] / "backend"
+    ran = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "assessment.run",
+            "--diversity",
+            "--file",
+            str(exported),
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(backend)},
+        check=False,
+    )
+    assert ran.returncode == 0, ran.stderr
+    assert ran.stdout.split()[:5] == ["language", "n", "NGD", "SR", "word-CR"]
