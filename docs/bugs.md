@@ -528,7 +528,7 @@ question carries, or every heading trail of the cited passages, no longer
 has to come back, unless the recovery names another; a lemma only the
 headings carry, every one of them, is not looked for; and a lemma comes
 back under an adjective or an adverb, as German predicative adjectives are
-tagged. Every trail, because two passages under two products' headings let
+tagged, where no negation denies it. Every trail, because two passages under two products' headings let
 a key pin one product's figure on the other. On the v0.3.0 rows this passes
 7 wrong `not_recoverable` refusals and loses no right one; 5 are accepted,
 all usable, and 2 are then refused as near twins of those. Figures stay

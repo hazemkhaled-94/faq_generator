@@ -2129,6 +2129,29 @@ def test_a_lemma_back_under_another_part_of_speech_counts() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("question", "key", "recovered"),
+    [
+        (
+            "Welche Überweisungen sind im Girokonto enthalten?",
+            "kostenlose Überweisungen",
+            "Überweisungen sind nicht kostenlos.",
+        ),
+        (
+            "Wie wird die Kontoführungsgebühr berechnet?",
+            "monatliche Kontoführungsgebühr",
+            "Die Kontoführungsgebühr wird nicht monatlich, sondern jährlich berechnet.",
+        ),
+    ],
+    ids=["nicht kostenlos", "nicht monatlich"],
+)
+def test_a_negated_adjective_does_not_bring_the_keys_adjective_back(
+    question: str, key: str, recovered: str
+) -> None:
+    """`Überweisungen sind nicht kostenlos` denies what the key asserts."""
+    assert not agrees(recovered, key, "de", AnswerForm.VALUE, question=question)
+
+
 def test_a_verb_does_not_bring_back_the_keys_noun() -> None:
     """`das Verpacken` is not `verpackt`.
 

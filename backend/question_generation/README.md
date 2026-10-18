@@ -366,8 +366,10 @@ Basiskonto` are about two products and a key may pin one's figure on the
 other. A key's `one` is never met by an indefinite article: `a debit card for
 each account holder` is not `one debit card`, and `a few weeks` is not `one
 week`. And a lemma comes back under an adjective or an adverb as well as
-its own part of speech, never under a verb: `kostenlose Überweisungen` is
-`Überweisungen sind kostenlos`, and `das Verpacken` is not `verpackt`.
+its own part of speech, never under a verb and never where the parse puts a
+negation on it or on the word it hangs off: `kostenlose Überweisungen` is
+`Überweisungen sind kostenlos` and not `Überweisungen sind nicht kostenlos`,
+and `das Verpacken` is not `verpackt`.
 
 The `recall` reading stored beside the verdict is the share the verdict
 read, held to the bar the form was: all of it for a `value`, which records a reading only where it fell

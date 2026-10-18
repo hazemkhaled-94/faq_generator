@@ -2106,8 +2106,28 @@ def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
 #: the key's own. `de_core_news_md` tags a predicative adjective an adverb,
 #: so `kostenlose Überweisungen` met `Überweisungen sind kostenlos` on no
 #: lemma it compared. Not a verb: `das Verpacken` is not `verpackt`, and
-#: reading it as one passes a key whose other items never came back.
+#: reading it as one passes a key whose other items never came back. And not
+#: one a negation denies, see `_negated`.
 _BRIDGED = frozenset({"ADJ", "ADV"})
+
+#: How a negation hangs off what it negates, in Universal Dependencies and in
+#: TIGER.
+_NEGATIONS = frozenset({"neg", "ng"})
+
+
+def _negated(token: Token) -> bool:
+    """Whether the parse puts a negation on a token or on the word it hangs off.
+
+    Both parsers hang `nicht` and `not` off the copula or the verb rather
+    than off the predicate it denies, `Überweisungen sind nicht kostenlos`,
+    or hang the predicate off the negation, `nicht monatlich, sondern
+    jährlich`.
+    """
+    return token.head.dep_ in _NEGATIONS or any(
+        child.dep_ in _NEGATIONS
+        for one in (token, token.head)
+        for child in one.children
+    )
 
 
 def _every(given: str, read: Callable[[str], frozenset[str]]) -> frozenset[str]:
@@ -2170,7 +2190,7 @@ def _back(
     trails carry, every one of them, which the verifier was never shown: a
     key naming the heading's `Tagesgeldkonto` that its clause never repeats
     could not have it come back. A lemma comes back under `_BRIDGED` parts
-    of speech too.
+    of speech too, where no negation denies it.
     """
     wanted = _compared(target, language, form)
     if form != AnswerForm.VALUE and question:
@@ -2185,7 +2205,7 @@ def _back(
         bridged = frozenset(
             one
             for token in pipeline(language)(recovered)
-            if token.pos_ in _BRIDGED
+            if token.pos_ in _BRIDGED and not _negated(token)
             for one in (token.lemma_.casefold(), token.text.casefold())
         )
         hit |= (wanted - hit) & bridged
