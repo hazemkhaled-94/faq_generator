@@ -432,21 +432,101 @@ def test_depth_open_at_a_column_foot_does_not_carry_into_the_next_column() -> No
     ]
 
 
-def test_depth_survives_a_page_break() -> None:
-    """A bank's sub-items go on on a page whose margin lies further left."""
+#: A bank's card-blocking list going on over a page, nested as printed.
+BLOCKING = (
+    (1, 54, 700, "Die Bank sperrt die Karte, wenn:"),
+    (1, 72, 714, "der Karteninhaber die Sperre verlangt,"),
+    (2, 72, 60, "der Verdacht einer missbräuchlichen Nutzung besteht."),
+    (2, 54, 74, "Die Sperre wird dem Karteninhaber mitgeteilt."),
+)
+NESTED = [
+    "- Die Bank sperrt die Karte, wenn:",
+    "    - der Karteninhaber die Sperre verlangt,",
+    "    - der Verdacht einer missbräuchlichen Nutzung besteht.",
+    "- Die Sperre wird dem Karteninhaber mitgeteilt.",
+]
+
+
+def blocking(document: DoclingDocument) -> list[str]:
+    """The lines `BLOCKING` cuts to after what `document` already holds."""
+    group = document.add_list_group()
+    for page, left, top, text in BLOCKING:
+        document.add_list_item(text=text, parent=group, prov=placed(page, left, top))
+    document.add_text(
+        label=DocItemLabel.TEXT,
+        text="Die Bank haftet nicht für Schäden durch die Sperre.",
+        prov=placed(2, 54, 100),
+    )
+
+    _, chunks = chunks_of(document, word_chunker(200), "de")
+    lines = chunks[0].text.splitlines()
+    at = lines.index(NESTED[0])
+    return lines[at : at + len(NESTED)]
+
+
+def two_pages() -> DoclingDocument:
+    """An empty document of two A4 pages."""
+    document = DoclingDocument(name="terms")
+    for page in (1, 2):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    return document
+
+
+def test_depth_survives_a_page_break_after_a_page_wide_banner() -> None:
+    """A picture across the page is no column's edge."""
+    document = two_pages()
+    document.add_picture(
+        prov=ProvenanceItem(
+            page_no=1,
+            bbox=BoundingBox(l=0, t=0, r=595, b=120, coord_origin=CoordOrigin.TOPLEFT),
+            charspan=(0, 0),
+        )
+    )
+    document.add_text(
+        label=DocItemLabel.TEXT,
+        text="Bedingungen für die Debitkarte.",
+        prov=placed(1, 54, 140),
+    )
+
+    assert blocking(document) == NESTED
+
+
+def test_depth_survives_a_page_break_after_a_fee_table_set_into_the_margin() -> None:
+    """A table 14 points left of the text is no column's edge either."""
+    document = two_pages()
+    rows = (("Leistung", "Entgelt", 100), ("Kontoführung", "4,90 EUR", 114))
+    cells = [
+        priced(text, row, col, top)
+        for row, (*texts, top) in enumerate(rows)
+        for col, text in enumerate(texts)
+    ]
+    document.add_table(
+        data=TableData(num_rows=len(rows), num_cols=2, table_cells=cells),
+        prov=ProvenanceItem(
+            page_no=1,
+            bbox=BoundingBox(
+                l=40, t=100, r=555, b=126, coord_origin=CoordOrigin.TOPLEFT
+            ),
+            charspan=(0, 0),
+        ),
+    )
+
+    assert blocking(document) == NESTED
+
+
+def test_depth_survives_onto_a_last_page_holding_only_sub_items() -> None:
+    """The last page's edge is its sub-items', so it is not read there."""
     lines = listed_at(
         2,
-        (1, 70, 700, "Die Bank sperrt die Karte, wenn:"),
-        (1, 88, 714, "der Karteninhaber die Sperre verlangt,"),
-        (2, 72, 60, "der Verdacht einer missbräuchlichen Nutzung besteht."),
-        (2, 54, 74, "Die Sperre wird dem Karteninhaber mitgeteilt."),
+        (1, 54, 700, "Ausgeschlossen sind:"),
+        (1, 72, 714, "versiegelte Hygieneartikel,"),
+        (2, 72, 60, "Gutscheine und Geschenkkarten."),
     )
 
     assert lines == [
-        "- Die Bank sperrt die Karte, wenn:",
-        "    - der Karteninhaber die Sperre verlangt,",
-        "    - der Verdacht einer missbräuchlichen Nutzung besteht.",
-        "- Die Sperre wird dem Karteninhaber mitgeteilt.",
+        "- Ausgeschlossen sind:",
+        "    - versiegelte Hygieneartikel,",
+        "    - Gutscheine und Geschenkkarten.",
     ]
 
 

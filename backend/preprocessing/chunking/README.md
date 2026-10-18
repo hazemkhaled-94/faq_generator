@@ -305,7 +305,7 @@ and `chunking_of` directly.
 |---|---|
 | [`test_intake_chunking.py`](../../../tests/unit/intake/test_intake_chunking.py) | Numbering, the token budget, block-type labelling, the row-to-line pairing, the cell grids, the bounding boxes, the failure paths and the re-read |
 | [`test_intake_surface.py`](../../../tests/unit/intake/test_intake_surface.py) | The spaCy-backed reading with real pipelines: per-passage language, sentence offsets, predicate counts, table rows, and what becomes vocabulary |
-| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, a list nested by its indents, within a column and across a column or page break but never side by side nor by another list's type size, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, onto every later chunk of a list longer than one, nowhere across a sub-heading; and, as a property, that no passage holds part of a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, and so does one letter, or letters out of order, whatever line follows, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays and a lone conjunction read as a heading or repeated as a paragraph stays text between its alternatives, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under its own foot, guide words inside a chaptered guide and a stray foot inside a chapter naming none, a letter-spaced label spelled as the body spells it, a facing page's own topic kept in its chapter, and a page printing part of its chapter's label opening no chapter |
+| [`tests/unit/chunking/`](../../../tests/unit/chunking) | The chunk reader's decisions, the numbering of a rendered table, a list nested by its indents, within a column and across a column or page break, past a banner or a table set into the margin, but never side by side nor by another list's type size, and where a list's lead-in goes: into the list's chunk when it fits, into its heading trail when it does not, onto every later chunk of a list longer than one, nowhere across a sub-heading; and, as a property, that no passage holds part of a list cut from its lead-in or exceeds the budget. [`test_furniture.py`](../../../tests/unit/chunking/test_furniture.py): a chapter named only in its running foot not inheriting the chapter before, a trail not naming its chapter twice, a running foot read as body text and a one-letter index divider dropped while a lone letter that heads nothing stays, and so does one letter, or letters out of order, whatever line follows, ellipses and lone lower-case conjunctions out of the trail while one in capitals stays and a lone conjunction read as a heading or repeated as a paragraph stays text between its alternatives, and a document with no running head, with only title and page numbers, with alternating heads, with a stray one-page header or with heads that differ on every page cut as before; a chapter headed on one page filed under its own foot, guide words inside a chaptered guide and a stray foot inside a chapter naming none, a letter-spaced label spelled as the body spells it, a facing page's own topic kept in its chapter, and a page printing part of its chapter's label opening no chapter |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | Every non-blank chunk is stored, ordinals run from 1 without a gap, `oversized` never exceeds the passages stored |
 | [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes, the transactional replacement and its cascade, and every listing filter |
@@ -348,21 +348,24 @@ corpus, which is a property of the model rather than of this code.
   every list flat. Within one list, an item whose left edge lies more than
   half a line right of the item before it, in the same column of the same
   page and inside that item's width, nests under it, and a later item back
-  at an outer edge returns to that level. Across a column or page break no
-  level opens: the item there returns to the open level its indent from
-  its own column's left edge matches — the leftmost edge of the page's
-  body blocks reaching across it — so depth open at a column's foot is not
-  carried into the next column, and sub-items going on on a page with
-  another margin stay nested. An item genuinely nested right at the top of
-  a column stays at the level before it. A line is the height of the
-  list's shortest item, one line in nearly every list, where the median is
-  a two-line item's wherever items wrap. A block spanning both columns, such
-  as a heading across the page, puts the second column's edge at the
-  page's, and an item at the top of that column keeps the depth the column
-  before ended on. A nested item is
-  rendered indented four spaces per level, as the converter renders a list
-  it nested itself; the chunker renders each item on its own, so the
-  indent is put back after the cut.
+  at an outer edge returns to that level. Across a column break no level
+  opens: the item there returns to the open level its indent from its own
+  column's left edge matches — the leftmost edge of the page's paragraphs
+  and list items reaching across it, never a picture's, a table's or a
+  heading's, which may be set into the margin or run across the page — so
+  depth open at a column's foot is not carried into the next column.
+  Across a page break no level opens either, and the indent is read off the
+  edge before it, so sub-items going on onto a page that holds nothing
+  else stay nested; a page with another margin is read on the margin of the
+  page before. An item genuinely nested right at the top of a column stays
+  at the level before it. A line is the height of the list's shortest
+  item, one line in nearly every list, where the median is a two-line
+  item's wherever items wrap. A paragraph spanning both columns puts the
+  second column's edge at the page's, and an item at the top of that column
+  keeps the depth the column before ended on. A nested item is rendered
+  indented four spaces per level, as the converter renders a list it nested
+  itself; the chunker renders each item on its own, so the indent is put
+  back after the cut.
 - **A paragraph that only repeats a heading is a heading.** One whose whole
   text, spaces, punctuation and case aside, is a running field or a heading
   of its document (a chapter title the converter read as body text) gets a

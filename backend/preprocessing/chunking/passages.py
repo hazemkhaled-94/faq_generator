@@ -120,15 +120,17 @@ def nested(document: DoclingDocument) -> DoclingDocument:
     left edge lies more than half a line right of the item before it, in
     the same column of the same page and inside that item's width, nests
     under it; a later item back at an outer edge returns to that level.
-    Across a column or a page break no level opens: the item there returns
-    to the open level its indent matches, each indent measured from the
-    left edge of its own column - the leftmost edge of the page's body
-    blocks reaching across the item's - so depth open at a column's foot
-    is not carried into the next, and a page with another margin keeps it.
-    A line is the height of the list's shortest item, which is one line in
-    nearly every list: the median is a two-line item's wherever items wrap.
-    A nested list is rendered as indented Markdown, as the converter renders
-    one it built itself.
+    Across a column break no level opens: the item there returns to the
+    open level its indent matches, each indent measured from the left edge
+    of its own column - the leftmost edge of the page's paragraphs and list
+    items reaching across the item's - so depth open at a column's foot is
+    not carried into the next. Across a page break no level opens either,
+    and the indent is read off the edge before it: a page holding only a
+    list's sub-items would put its own edge at theirs. A line is the height
+    of the list's shortest item, which is one line in nearly every list: the
+    median is a two-line item's wherever items wrap. A nested list is
+    rendered as indented Markdown, as the converter renders one it built
+    itself.
 
     Returns:
         `document` itself when no list is indented, otherwise a copy.
@@ -158,10 +160,11 @@ def nested(document: DoclingDocument) -> DoclingDocument:
         moves: list[tuple[str, str]] = []
         for before, item in pairwise(items):
             here, there = item.prov[0], before.prov[0]
-            if here.page_no != there.page_no or here.bbox.l >= there.bbox.r:
-                edge = _column_edge(here, blocks)
-            elif there.bbox.l + step < here.bbox.l:
-                levels.append((here.bbox.l - edge, before.self_ref))
+            if here.page_no == there.page_no:
+                if here.bbox.l >= there.bbox.r:
+                    edge = _column_edge(here, blocks)
+                elif there.bbox.l + step < here.bbox.l:
+                    levels.append((here.bbox.l - edge, before.self_ref))
             indent = here.bbox.l - edge
             while len(levels) > 1 and indent < levels[-1][0] - step:
                 levels.pop()
@@ -187,11 +190,19 @@ def nested(document: DoclingDocument) -> DoclingDocument:
     return tidy
 
 
+#: The blocks a column's left edge is read off: its paragraphs and list
+#: items. A picture, a table or a heading may be set into the margin or run
+#: across the page, and is no column's edge.
+_COLUMN_BLOCKS = frozenset(
+    {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH, DocItemLabel.LIST_ITEM}
+)
+
+
 def _blocks(document: DoclingDocument) -> dict[int, list[tuple[float, float]]]:
-    """The left and right edges of every body block, by page."""
+    """The left and right edges of every paragraph and list item, by page."""
     found: dict[int, list[tuple[float, float]]] = {}
     for item, _ in document.iterate_items():
-        if isinstance(item, DocItem):
+        if isinstance(item, DocItem) and item.label in _COLUMN_BLOCKS:
             for prov in item.prov:
                 found.setdefault(prov.page_no, []).append((prov.bbox.l, prov.bbox.r))
     return found
