@@ -163,8 +163,10 @@ says to rerun the stage either way.
 
 ### A JSON value
 
-`QUESTIONS_CATEGORIZATIONS` holds the DataMorgana paper's categorizations as
-JSON: one categorization object as the paper's Figure 2 prints it, or a list
+`QUESTIONS_CATEGORIZATIONS` holds the categorizations of the DataMorgana paper
+(Filice et al., [*Generating Q&A Benchmarks for RAG Evaluation in Enterprise
+Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Track)
+as JSON: one categorization object as the paper's Figure 2 prints it, or a list
 of them. Each answerable question is written as one category of each, and the
 question records which. Its line in `configs/env/backend.env` is a comment,
 because bash sources that file and would split a JSON value at its spaces and

@@ -45,7 +45,9 @@ and answer bounds the next run will read.
 
 Each slot is also dealt one **category** of every categorization in
 `QUESTIONS_CATEGORIZATIONS`. Categorizations are how the DataMorgana paper
-(Filice et al., ACL 2025) describes the traffic a benchmark should look like:
+(Filice et al., [*Generating Q&A Benchmarks for RAG Evaluation in Enterprise
+Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Track)
+describes the traffic a benchmark should look like:
 each is a set of mutually exclusive categories, each category a description
 of what a question of it is like and how often it is wanted. The setting
 holds them as the paper's Figure 2 JSON. Unset, it reads the paper's two
