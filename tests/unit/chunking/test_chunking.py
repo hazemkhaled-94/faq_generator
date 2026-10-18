@@ -14,14 +14,24 @@ from typing import Any
 
 import pytest
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
-from docling_core.types.doc.document import DoclingDocument, ProvenanceItem
+from docling_core.types.doc.document import (
+    DoclingDocument,
+    ProvenanceItem,
+    TableCell,
+    TableData,
+)
 from docling_core.types.doc.labels import DocItemLabel
 from factories import Words, chunked, word_chunker
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from preprocessing.chunking.models import Chunking
-from preprocessing.chunking.passages import NoPassages, chunks_of, lead_ins_kept
+from preprocessing.chunking.passages import (
+    NoPassages,
+    PassageBuilder,
+    chunks_of,
+    lead_ins_kept,
+)
 
 
 def test_every_chunk_is_stored_and_numbered() -> None:
@@ -72,6 +82,70 @@ def test_a_fee_paragraph_keeps_its_price() -> None:
     text = "\n".join(chunk.text for chunk in chunks)
 
     assert "4,90 €" in text and "0800 123 4567" in text, text
+
+
+def priced(text: str, row: int, col: int, top: float) -> TableCell:
+    """One cell of a fee table, a line high, placed from the page's top."""
+    return TableCell(
+        text=text,
+        start_row_offset_idx=row,
+        end_row_offset_idx=row + 1,
+        start_col_offset_idx=col,
+        end_col_offset_idx=col + 1,
+        column_header=row == 0,
+        bbox=BoundingBox(
+            l=60 + 200 * col,
+            t=top,
+            r=240 + 200 * col,
+            b=top + 12,
+            coord_origin=CoordOrigin.TOPLEFT,
+        ),
+    )
+
+
+def test_a_table_joined_across_a_page_cites_both_pages() -> None:
+    """A fee schedule's rest on page 4 joined it; its rows are printed there."""
+    document = DoclingDocument(name="fees")
+    for page in (3, 4):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    rows = (
+        ("Leistung", "Entgelt", 700),
+        ("Kontoführung", "4,90 EUR", 720),
+        ("Girocard", "12,00 EUR", 740),
+        ("Kreditkarte", "39,00 EUR", 60),
+        ("Ersatzkarte", "15,00 EUR", 80),
+    )
+    cells = [
+        priced(text, row, col, top)
+        for row, (*texts, top) in enumerate(rows)
+        for col, text in enumerate(texts)
+    ]
+    document.add_table(
+        data=TableData(num_rows=len(rows), num_cols=2, table_cells=cells),
+        prov=ProvenanceItem(
+            page_no=3,
+            bbox=BoundingBox(
+                l=60, t=700, r=440, b=752, coord_origin=CoordOrigin.TOPLEFT
+            ),
+            charspan=(0, 0),
+        ),
+    )
+    document.tables[0].prov.append(
+        ProvenanceItem(
+            page_no=4,
+            bbox=BoundingBox(l=60, t=60, r=440, b=92, coord_origin=CoordOrigin.TOPLEFT),
+            charspan=(0, 0),
+        )
+    )
+
+    tidy, (chunk,) = chunks_of(document, word_chunker(200), "de")
+    passage = PassageBuilder._passage(tidy, 1, chunk)
+
+    assert (passage.page_from, passage.page_to) == (3, 4)
+    assert passage.bbox == [
+        {"page": 3, "l": 60.0, "t": 720.0, "r": 440.0, "b": 752.0},
+        {"page": 4, "l": 60.0, "t": 60.0, "r": 440.0, "b": 92.0},
+    ]
 
 
 # ── A list keeps its lead-in ─────────────────────────────────────────────

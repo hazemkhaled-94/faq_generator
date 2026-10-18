@@ -626,8 +626,8 @@ def _tables_rendered(
     return tables
 
 
-def _cell_box(table, rows: list[tuple[list, dict | None]]) -> tuple[int, list] | None:
-    """Locates the rows of a table that one passage renders.
+def _cell_box(table, rows: list[tuple[list, dict | None]]) -> list[tuple[int, list]]:
+    """Locates the rows of a table that one passage renders, page by page.
 
     Header cells are left out although the piece repeats them.
 
@@ -636,19 +636,46 @@ def _cell_box(table, rows: list[tuple[list, dict | None]]) -> tuple[int, list] |
         rows: Its rows, each paired with the line rendering it or None.
 
     Returns:
-        The page and the cell boxes on it, or None when either is missing.
+        Each page and the cell boxes on it, in page order; empty when the
+        table has no page or the rows no box.
     """
-    boxes = [
-        cell.bbox
-        for cells, line in rows
-        if line is not None
-        for cell in cells
-        if cell.bbox is not None
-    ]
-    page = next((prov.page_no for prov in table.prov or []), None)
-    # ponytail: one page per table. A table broken across a page boundary
-    # would need its cells grouped by which page each one falls on.
-    return (page, boxes) if page is not None and boxes else None
+    pages = _row_pages(table)
+    by_page: dict[int, list] = {}
+    for cells, line in rows:
+        if line is None:
+            continue
+        for cell in cells:
+            if cell.bbox is not None and cell.start_row_offset_idx in pages:
+                by_page.setdefault(pages[cell.start_row_offset_idx], []).append(
+                    cell.bbox
+                )
+    return sorted(by_page.items())
+
+
+def _row_pages(table) -> dict[int, int]:
+    """The page each row of a table is printed on, by row index.
+
+    A table parsing joined across a page holds one place per piece, in
+    order, and each cell's box is on its own piece's page: walked in row
+    order, a row whose top lies above the top of the row before it opens
+    the next piece. A table in two columns of one page holds both places
+    on that page.
+    """
+    places = [prov.page_no for prov in table.prov or []]
+    if not places:
+        return {}
+    tops: dict[int, float] = {}
+    for cell in table.data.table_cells:
+        if (box := cell.bbox) is not None:
+            row = cell.start_row_offset_idx
+            tops[row] = min(box.t, tops[row]) if row in tops else box.t
+    pages: dict[int, int] = {}
+    piece, above = 0, None
+    for row, top in sorted(tops.items()):
+        if above is not None and top < above:
+            piece = min(piece + 1, len(places) - 1)
+        pages[row], above = places[piece], top
+    return pages
 
 
 def _boxes(
@@ -670,9 +697,9 @@ def _boxes(
     for reference in items:
         if reference.self_ref in tables:
             placed = _cell_box(*tables[reference.self_ref])
-            if placed is not None:
-                page_no, boxes = placed
+            for page_no, boxes in placed:
                 by_page.setdefault(page_no, []).extend(boxes)
+            if placed:
                 continue
         for provenance in reference.prov or []:
             page = document.pages.get(provenance.page_no)

@@ -157,6 +157,12 @@ piece of a table the chunker split. Header rows are kept whether matched or
 not and carry no line. A `row_header` cell does **not** make its row a header
 row — it marks the stub in the first column of an ordinary data row.
 
+A table is boxed over the rows the passage renders, on the page each row is
+printed on. A table parsing joined across a page holds one place per piece,
+in order: walked in row order, a row whose top lies above the row before it
+opens the next piece, so a passage of the rows on the second page cites that
+page, and one of rows from both cites both.
+
 ### Step 4 — Read the linguistic surface
 
 `_read` detects each passage's language on its own text, falling back to the
