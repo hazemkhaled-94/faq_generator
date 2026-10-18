@@ -172,7 +172,7 @@ def _control(service: str, setting: dict) -> str | None:
     return st.text_input(label, value=value or "", key=key, help=help)
 
 
-def _chosen(setting: dict, label: str, key: str, help: str) -> str:
+def _chosen(setting: dict, label: str, key: str, help: str) -> str | None:
     """Draws the control for a setting with a closed set of values."""
     choices = setting["choices"]
     if setting["kind"] in ("csv", "mapping"):

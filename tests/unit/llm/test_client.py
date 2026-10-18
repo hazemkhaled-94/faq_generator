@@ -983,7 +983,9 @@ def test_a_hosted_override_is_sent_neither_local_option(monkeypatch) -> None:
     assert not {"num_ctx", "reasoning_effort"} & set(served.calls[0])
 
 
-def test_the_spend_parser_reads_the_line_a_failed_call_logs(monkeypatch, caplog) -> None:
+def test_the_spend_parser_reads_the_line_a_failed_call_logs(
+    monkeypatch, caplog
+) -> None:
     """The Makefile's parser and this line are one contract, held in two files.
 
     Reworded here alone, a failed call would drop out of `make spend` silently.
