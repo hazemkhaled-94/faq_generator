@@ -249,6 +249,26 @@ def test_a_shadow_reading_refuses_nothing(page) -> None:
     assert "in shadow" in said(opened)
 
 
+def test_a_new_search_starts_on_the_first_page(open_view) -> None:
+    """The page number outlived the search, so the first matches were skipped.
+
+    Three pages of them, for a search on page 4, and a search matching fewer
+    than that read as matching nothing until the corpus shrank under it.
+    """
+    client = Answers(
+        **answers(questions=lambda **asked: {"total": 100, "questions": [QUESTION]})
+    )
+    opened = open_view("questions", client)
+    opened.numbers()["Page of 4"].set_value(4)
+    opened.rerun()
+    assert client.calls("questions")[-1][2]["offset"] == 75
+
+    searched = opened.type_in("questions-search", "hours")
+
+    assert client.calls("questions")[-1][2]["offset"] == 0
+    assert searched.numbers()["Page of 4"].value == 1
+
+
 # ── A verdict ─────────────────────────────────────────────────────────────
 
 

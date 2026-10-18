@@ -93,6 +93,14 @@ def find(
                 else None
             )
         pager = next(cells)
+
+    # A new search starts on the first page: the one somebody was on is a
+    # position among the old matches. Dropped rather than set to 1, which
+    # Streamlit warns about on a widget drawn with a default.
+    held = (typed, heading, tuple(chosen.items()))
+    if st.session_state.get(f"{key}-filter", held) != held:
+        st.session_state.pop(f"{key}-page", None)
+    st.session_state[f"{key}-filter"] = held
     return typed, fields[heading], chosen, pager
 
 
