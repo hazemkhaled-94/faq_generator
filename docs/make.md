@@ -1,16 +1,19 @@
 # Make commands
 
-Every target, grouped. `make` sources the same configuration the containers
-read, so one value reaches both.
+Every target, grouped. A host target and the backend's containers read
+`configs/env/backend.env`, so a tuning value set there reaches both. The
+model does not: see
+[Configuration and the container engine](#configuration-and-the-container-engine).
 
 ```bash
 make help            # or just `make`
 make help | grep -i topic
 ```
 
-`help` reads the Makefile itself — a target's group is the section banner it
-sits below and its description is the comment above it — so it cannot fall
-behind. This page is the long form.
+`help` reads the Makefile itself: a target's group is the section banner it
+sits below and its description is the first sentence of the comment directly
+above it. A target with no comment directly above it is not listed. This page
+is the long form.
 
 ## First run
 
@@ -19,15 +22,15 @@ behind. This page is the long form.
 | `make setup` | Write `.env` and `configs/env/provider.env`, and fill in every placeholder |
 | `make install` | The Python dependencies, the spaCy pipelines and Docling's weights |
 | `make doctor` | Check the tools and the configuration, compare the settings the api serves with the checkout's (a warning when the api is down), then ask the model one question |
-| `make dev` | Certificates, every service, the schema and the Grafana grants |
+| `make dev` | `make install` first, then certificates, every service, the schema and the Grafana grants |
 
 `setup` is safe to run twice: it replaces `change_me_*` placeholders and
 nothing else. It gives one secret per distinct placeholder and substitutes it
 everywhere that placeholder appears.
 
-`doctor` ends with a real call to the configured model, so an unknown model
-id, an unreachable address or a stale credential fails here rather than on
-the first passage of a run:
+`doctor` ends with a real call to `LLM_MODEL`, as the host calls it, so an
+unknown model id, an unreachable address or a stale credential fails here
+rather than on the first passage of a run:
 
 ```text
   ok       podman
@@ -44,16 +47,22 @@ the first passage of a run:
 Asking <LLM_MODEL> one question, as the host calls it...
 ```
 
+The verifier, the judge and the containers' model are not called here: each
+is first called at its own stage's preflight. A container may call only
+Ollama: `doctor` fails when `OLLAMA_CONTAINER_URL` or `LLM_CONTAINER_MODEL`
+is unset, or when `LLM_CONTAINER_MODEL` (or a set
+`QUESTIONS_VERIFIER_CONTAINER_MODEL`) does not start with `ollama`.
+
 ## The short list
 
 | Target | Does |
 |---|---|
 | `make all` | Bring the stack up, wait for Dagster to list the corpus job, and launch it. The container workers drain every stage but the topic fit, which Fit all on the Topics page asks for |
-| `make corpus` | Every stage but the topic fit, drained on the host in order, with the bridge pass for the topics holding none after the topics, then the release draw and the judge, stopping at the first failure. For developing a stage. Incremental. Says how many passages are in no topic; `make topics-discover` fits them |
+| `make corpus` | Every stage but the topic fit, drained on the host in order, with the bridge pass for the topics holding none after the topics, then the release draw and the judge, stopping at the first failure. For developing a stage: each drain refuses while that stage's container worker runs, and `make up` and `make dev` start them all, so stop `parse-worker`, `chunk-worker`, `extract-worker`, `question-worker` and `assess-worker` first. Incremental up to the release: a stage already done queues and claims nothing, but the release draw runs again over every accepted question and asks the verifier about each released question and its nearest released neighbour, in up to three rounds, because those verdicts are not stored; it stops before the judge when the verifier does not answer. Says how many passages are in no topic; `make topics-discover` fits them |
 | `make pipeline-status` | Where the corpus has got to, every stage in one call |
 | `make services` | Every container, whether it is listening, and where to open it |
 | `make open` | The same, and open the application |
-| `make review` | Push a sample of facts, topic labels and questions to Argilla |
+| `make review` | Push a sample of facts and questions, and every topic label, to Argilla |
 | `make pull` | Pull every decision made there back into the database |
 
 `make auto` hands the whole thing to Dagster — see
@@ -62,8 +71,23 @@ Asking <LLM_MODEL> one question, as the host calls it...
 ## Configuration and the container engine
 
 Targets read `configs/env/backend.env`, `configs/env/deployment.env`,
-`configs/env/provider.env` then `.env`, in the order the containers do. A
-variable given on the command line beats them all:
+`configs/env/provider.env` then `.env`, and a later file wins; the review and
+evaluation targets and `dagster-dev` also read `review.env`,
+`evaluation.env` or `orchestration.env` after `deployment.env`. The api and
+the six workers take only `backend.env` whole, and `provider.env` where they
+call a model; compose reads `deployment.env` and `.env` only for the values
+`compose.yaml` names.
+
+The model is named apart for the containers: a container calls
+`LLM_CONTAINER_MODEL` at `OLLAMA_CONTAINER_URL`, its verifier is
+`QUESTIONS_VERIFIER_CONTAINER_MODEL` and its judge
+`ASSESSMENT_JUDGE_CONTAINER_MODEL`, never `.env`'s `LLM_MODEL`,
+`QUESTIONS_VERIFIER_MODEL` or `ASSESSMENT_JUDGE_MODEL`.
+
+A setting stored with `make settings-set` or a service's Configuration panel
+beats every file, on the host and in the containers, until
+`make settings-unset` removes it. A variable given on the command line beats
+them all, the stored setting included:
 
 ```bash
 make topics-discover TOPIC_PASSES=20
@@ -74,24 +98,25 @@ because sourcing would otherwise overwrite them, and before it builds the
 addresses out of them, so `make schema POSTGRES_PORT=5433` connects to that
 port.
 
-The Makefile invokes `podman compose`. For Docker:
+The Makefile invokes `podman compose` and `podman`. For Docker, set both:
 
 ```bash
-make COMPOSE="docker compose" up
+make CONTAINER=docker COMPOSE="docker compose" up
 ```
 
-`CONTAINER` is the engine itself, used by `lock`, which needs a build and a
-run compose has no equivalent of.
+`CONTAINER` is the engine itself: `doctor` checks for it, `prune` (and so
+`down`) runs it, and `lock` uses it for a build and a run compose has no
+equivalent of.
 
 ## Starting and stopping
 
 | Target | Does |
 |---|---|
-| `make dev` | Certificates, every service, wait for PostgreSQL, create the schema, then the grants `make up` makes |
+| `make dev` | `make install` first (poetry install, the spaCy downloads and Docling's weights, which need the network), then certificates, every service, wait for PostgreSQL, create the schema, then the grants `make up` makes. Use `make up` to start an installed stack |
 | `make install` | `make install-python`, then `make docling-weights` |
 | `make install-python` | Dependencies and the spaCy pipelines `NLP_MODELS` names, on the host alone. What CI's setup runs |
 | `make docling-weights` | Download Docling's weights into the `models` volume parse-worker reads offline. Needs the container engine; fetches nothing already cached |
-| `make up` | Start services, then grant Grafana's reader the five Phoenix tables the run dashboard queries, once Phoenix has made them |
+| `make up` | Start services, then grant Grafana's reader the five Phoenix tables the run dashboard queries. It waits up to 150 seconds for Phoenix to make them and then grants anyway, so a slow first boot fails here with the stack up; run `make grafana-grants` again |
 | `make grafana-grants` | Those grants alone. Safe to run again |
 | `make down` | Stop services, keep data, and remove dangling images |
 | `make down-volumes` | Stop services and **delete all data** |
@@ -132,11 +157,14 @@ There is no `pipeline-start`: `make pipeline` is the better one for a
 terminal, because it starts each stage **and waits for it to drain** before
 the next, which is the whole difficulty. It and the Run button ask Dagster to
 hold that wait while the container workers drain; `make corpus` holds it in
-the shell and drains on the host.
+the shell and drains on the host, so it refuses at its first drain until
+those workers are stopped.
 
-## The five verbs every stage answers
+## The six verbs every stage answers
 
-Each is the same operation as the route beside it.
+Each but the drain is the same operation as the stage's route of that name,
+`make parse-start` as `POST /parsing/start`; no route drains. See
+[`backend/stages/`](../backend/stages/README.md).
 
 | | Parsing | Chunking | Extraction | Questions | Assessment |
 |---|---|---|---|---|---|
@@ -178,22 +206,29 @@ one vocabulary.
 | `make topics-retry` | Return a failed fit to the queue |
 | `make topics-visualise` | Write each language's stored pyLDAvis page to `./topics/` |
 | `make topics-render` | Redraw those pages from the stored models, without re-fitting. `CODE=de` for one |
-| `make topics-delete` | Delete every topic and membership, any queued fit and the judge's verdicts on the topics. The figures and models go to the archive. Waits 5 seconds first |
+| `make topics-delete` | Delete every topic and membership, any fit queued or running, and the judge's verdicts on the topics. The figures and models go to the archive. Waits 5 seconds first |
 
 ### Narrowing to one item
 
-Any verb narrows with `SHA`, `PASSAGE` or `TOPIC`:
+Any verb but the bare drain narrows with `SHA`, `PASSAGE` or `TOPIC`, and
+`SHA` wins over `PASSAGE` over `TOPIC`:
 
 ```bash
 make parse-start SHA=<sha256>     # queue one document for parsing
 make chunk-rerun SHA=<sha256>     # rebuild one document's passages
 make extract-start SHA=<sha256>   # queue every passage of one document
 make extract-retry PASSAGE=<id>   # return one failed passage to the queue
-make questions-start TOPIC=<id>   # write the questions for one topic
+make questions-start TOPIC=<id>   # queue one topic for question generation
 ```
 
 Parsing and chunking narrow to a document, extraction to a document or a
-passage, question generation to a topic, topic modelling to nothing.
+passage, question generation to a topic, assessment to a kind through
+`ONLY=--only\ kind=<kind>`, topic modelling to nothing. `questions-balance`
+always draws over every topic.
+
+A bare drain is never narrowed: it takes the whole queue. So a narrowed
+`-rerun` refuses while any row outside it is queued; take those back with
+`make <stage>-stop` first.
 
 ## Replaying a stage without redoing it
 
@@ -212,10 +247,10 @@ expensive part:
 | `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first and deletes nothing if it does not answer. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway; `MISSING=1` deletes nothing and reads only the topics holding no bridge yet, which is how `make corpus` runs it |
 | `make confidence-recalibrate` | Take every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR` or `EXTRACTION_DUPLICATE_FLOOR`. No model call, and no verdict moves |
 
-`chunk-revocabulary` and `extract-revalidate` take `SHA`;
-`extract-revalidate`, `extract-recap`, `extract-dedup` and `extract-embed` take
-`PASSAGE`;
-`questions-reverify` and `questions-rescore` take `TOPIC`.
+`chunk-revocabulary` takes `SHA`; `extract-revalidate`, `extract-recap`,
+`extract-dedup`, `extract-embed` and `extract-bridge` take `SHA` or `PASSAGE`;
+`questions-reverify`, `questions-rescore` and `questions-rejudge` take
+`TOPIC`.
 
 The alternative is destructive: `extract-rerun` calls the model again over
 the whole corpus, and `chunk-rerun` deletes every passage of a document the
@@ -232,7 +267,7 @@ warn and wait 5 seconds first.
 | `make questions-reverify` | Re-check stored questions; no model call |
 | `make questions-rejudge` | Ask the verifier whether the passages settle each accepted unanswerable question, and reject those they do. **Calls the verifier model**; takes `TOPIC` |
 | `make questions-rescore` | Rewrite stored scopes and difficulty from current citations, only after the upgrade's `extract-dedup`; no model call |
-| `make questions-runs` | Which runs there are, newest first |
+| `make questions-runs` | The 20 newest runs, newest first, and how many questions each wrote |
 | `make questions-diff` | Two runs side by side, on the gate that stopped each |
 | `make questions-reclaim` | Return a topic a dead worker still holds. **Narrow it** |
 
@@ -243,9 +278,10 @@ make questions-diff RUNS="a-gpt-4.1 b-gemma4-12b"
 
 ### Getting the dataset out
 
-`OUT` names the file and `FILTER` takes the same narrowing the Questions page
-and `GET /questions` do. **There is no default scope** — ask for nothing and
-you get everything, rejected rows included.
+`OUT` names the file, `questions.xlsx` unless given, which it overwrites, and
+`FILTER` takes the same narrowing the Questions page and `GET /questions` do.
+**There is no default scope** — ask for nothing and you get everything,
+rejected rows included.
 
 ```bash
 make questions-export OUT=release.xlsx FILTER="--released"   # what questions-balance drew
@@ -269,9 +305,10 @@ passage ordinal, which is what checking an answer against the source needs.
 The Assessment sheet and the three `Judge` columns are empty unless the
 judge has run.
 
-`questions-diff` reads live questions **and** archived ones, so a run
-`questions-rerun` replaced still answers. A run listed `(deleted)` is being
-read out of `archived_rows`.
+`questions-diff` reads live questions **and** archived ones. A rerun appends,
+so two runs' questions stand side by side; the archive keeps the rows a
+deletion or a re-chunk took since. A run listed `(deleted)` is being read out
+of `archived_rows`.
 
 ```bash
 make questions-reclaim TOPIC=473   # one topic, while a worker may be up
@@ -283,15 +320,18 @@ which skips what a worker holds. Narrow it while a worker may be up: nothing
 can tell a dead claim from a live one. Not narrowed, it refuses while the
 stage's worker runs.
 
-It has a route now as well — `POST /{stage}/{scope}/{value}/reclaim`, with
-`?confirm=true` needed for the unnarrowed form. See
+It has routes now as well: `POST /{stage}/{scope}/{value}/reclaim` for one
+scope, and `POST /{stage}/reclaim?confirm=true` for the whole stage, which
+refuses without `confirm`. See
 [`backend/stages/`](../backend/stages/README.md).
 
 ## The evaluation phase
 
 An LLM judge over every fact, topic and question, run after the pipeline and
-never during it. Off unless `ASSESSMENT_ENABLED` is true in `.env`, and every
-target says so and stops rather than quietly doing nothing.
+never during it. Off unless `ASSESSMENT_ENABLED` is true, in `.env` or as a
+stored setting (`make settings-set SERVICE=assessment`, which wins over
+`.env`), and every target says so and stops rather than quietly doing
+nothing.
 
 **It decides nothing.** The verdict goes in a column of its own beside the
 checker's, and no stage reads it. See
@@ -300,17 +340,17 @@ be a gate.
 
 | Target | Does |
 |---|---|
-| `make assess-enrol` | Create the rows without queuing any, and say how many there are |
+| `make assess-enrol` | Create the rows without queuing any, and say how many it enrolled this time, so a second run over an unchanged corpus says 0. `make assess-status` shows the whole queue |
 | `make assess-start` | Enrol and queue everything that has no verdict |
 | `make assess` | Drain the judging queue here, in the foreground |
-| `make assess-status` | The queue, and what the judge has said so far |
+| `make assess-status` | The queue by state, and a warning when no judge is named. What the judge said is on the Assessment page, and for the questions in the Assessment sheet `make questions-export` writes |
 | `make assess-stop` | Take back what has not begun |
 | `make assess-retry` | Return the artefacts the judge could not be reached for |
 | `make assess-rerun` | Judge everything again, under the current templates |
 | `make assess-reclaim` | Return an artefact a dead worker holds. **Narrow it** |
 
 ```bash
-make assess-enrol                              # count the cost first
+make assess-enrol                              # enrol and count first; not a dry run
 make assess-start ONLY=--only\ kind=question   # the deliverable only
 make assess
 ```
@@ -325,14 +365,19 @@ failed row.
 
 ## Documents
 
-Documents are ingestion's, not a stage's. **All of these are irreversible.**
+Documents are ingestion's, not a stage's. A deletion here is the first of
+two: its rows are archived and its objects moved to the `archive` bucket, so
+`make restore-documents SINCE=<time>` puts them back until
+`make archive-purge` empties the archive, which `make wipe-all` does too.
+`make documents` only lists. What `wipe` takes from Phoenix, Argilla, the
+logs and Dagster is final.
 
 | Target | Does |
 |---|---|
 | `make documents` | List the newest 1000 documents with their parse state, and warn when the corpus holds more |
-| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed`. Then `extract-dedup` over the whole corpus, which gives back a fact another document repeats and had refused as a duplicate of this one's. If that fails, the document is already gone: run `make extract-dedup` |
-| `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Then the same replay as `make delete` |
-| `make wipe` | Every document, the topics, and the four services that describe them. Waits 5 seconds first |
+| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed`. Refuses, deleting nothing, while `extract-worker` runs, which it does after `make up` or `make dev`: stop it first. Then `extract-dedup` over the whole corpus, which gives back a fact another document repeats and had refused as a duplicate of this one's. If that replay fails, the document is already gone: run `make extract-dedup`. A deletion through the API or the UI runs no replay: run `make extract-dedup` after one |
+| `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Refuses while `extract-worker` runs, as `make delete` does, then runs the same replay |
+| `make wipe` | Every document, the topics, then Phoenix, Argilla, the logs and Dagster, in that order, stopping at the first that fails: run it again once that service answers. Waits 5 seconds first |
 | `make wipe-all` | The same, then the archive. The one command for "leave nothing" |
 | `make wipe KEEP=golden,runs` | Spare the Phoenix datasets and the Dagster run history |
 
@@ -371,7 +416,7 @@ nothing there a wipe could take.
 
 | `KEEP=` | Leaves |
 |---|---|
-| `golden` | The Phoenix datasets and the experiments under them. `make eval-upload` puts them back |
+| `golden` | The Phoenix datasets and the experiments under them. `make eval-upload` puts `extraction-golden` back and `make eval-phrasing` `phrasing-golden` |
 | `runs` | The Dagster run history |
 | `golden,runs` | Both |
 
@@ -386,7 +431,7 @@ Every deletion of a row or an object above is the first of two.
 | Target | Does |
 |---|---|
 | `make archive` | What is held, by table, with its age |
-| `make restore-documents` | Without `SINCE`, when each deletion happened. With `SINCE=<time>`, put back every row and object archived from then on. Run it before `archive-purge` |
+| `make restore-documents` | Without `SINCE`, the 20 newest minutes that hold a deletion, and it exits 2, so make reports an error; an older start is read off `archived_rows`. With `SINCE=<time>`, put back every row and object archived from then on. Run it before `archive-purge` |
 | `make archive-purge` | The second deletion. **This one is final** |
 
 ```bash
@@ -429,7 +474,7 @@ a trigger, a data backfill, or anything ordered.
 | Target | Does |
 |---|---|
 | `make review-push-facts` / `review-pull-facts` | Send a sample of facts to Argilla; bring the verdicts back |
-| `make review-push-topics` / `review-pull-topics` | The same, for topic labels |
+| `make review-push-topics` / `review-pull-topics` | The same, for topic labels, except that every topic is pushed rather than a sample |
 | `make review-push-questions` / `review-pull-questions` | The same, for questions |
 | `make review-status` | How much has been looked at |
 | `make review-delete` | Delete the three review datasets: facts, topic labels and questions. A dataset under another name is left. **Irreversible** - pull first. What `make wipe` runs |
@@ -480,7 +525,7 @@ calls too, and so is one whose spans Phoenix would not hand over.
 | `make check` | An alias for `make test` |
 | `make test-fast` | Only the fast layers: no spaCy, no pyright, no containers |
 | `make test-unit` | Everything but integration, smoke, eval and perf |
-| `make test-integration` | The container layers |
+| `make test-integration` | The container layers, end to end aside, which is `make test-e2e` |
 | `make test-e2e` | One document through every stage, in this process |
 | `make test-smoke` | Build both images and look inside them |
 | `make test-eval` | Score the served model against the golden passages. Never gates |
@@ -490,17 +535,19 @@ calls too, and so is one whose spans Phoenix would not hand over.
 | `make lint` | ruff check and format check |
 | `make format` | Apply every fix ruff can make |
 | `make typecheck` | pyright, at zero |
-| `make audit` | Known advisories against the two locks. Fails on one, after reading both |
+| `make audit` | Known advisories against the two locks, torch and torchvision left out. Fails on one, after reading both |
 | `make lint-imports` | The two architecture rules, as import-linter contracts |
 | `make deps` | A declared dependency nothing imports, and an import nothing declares |
 | `make lock` | Rewrite `backend/api/requirements.lock` |
 
-`lint`, `format` and `typecheck` cover `backend`, `frontend`, `telemetry`,
-`orchestration`, `review`, `evaluation` and `tests`.
+`lint` and `format` cover `backend`, `frontend`, `telemetry`,
+`orchestration`, `review`, `evaluation` and `tests`; `typecheck` covers the
+same but `tests`.
 
-`test-perf` and `mutation` are the two nightly ones. Which modules and layers
-mutation covers is `[tool.mutmut]` in `pyproject.toml`; `mutmut browse` reads
-the survivors.
+`test-perf` and `mutation` run only in the nightly workflow, which also runs
+`make audit`, every layer but eval and perf, and the eval layer
+`make test-eval` runs. Which modules and layers mutation covers is
+`[tool.mutmut]` in `pyproject.toml`; `mutmut browse` reads the survivors.
 
 ## Cost
 
@@ -531,9 +578,12 @@ The asset graph already chains the stages. These decide **when**.
 | `make manual` | Stop it again |
 | `make dagster-dev` | Run the code location on the host |
 
-`auto` is the unattended mode and ships stopped. `pipeline` does the work of
-`make corpus` without the release draw, in the container workers rather than
-on the host, and survives the terminal closing.
+`auto` is the unattended mode and ships stopped. `pipeline` runs the stages
+of `make corpus` in the container workers rather than on the host, and
+survives the terminal closing. It is not the same build: it skips the bridge
+pass (`make extract-bridge MISSING=1`) and the release draw, and the workers
+call `LLM_CONTAINER_MODEL` at `OLLAMA_CONTAINER_URL`, not `.env`'s
+`LLM_MODEL`. `make questions-balance` draws the release once it ends.
 
 All four have an equivalent through the api, for a deployment nobody drives
 from a terminal: `POST /pipeline/run` is `make pipeline`, and
