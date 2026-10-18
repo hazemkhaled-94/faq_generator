@@ -291,7 +291,7 @@ def test_a_change_names_what_it_staled(client) -> None:
         "/settings/platform", json={"values": {"EMBEDDING_MODEL": "intfloat/other"}}
     ).json()
 
-    assert answered["stale"] == ["chunking", "questions"]
+    assert answered["stale"] == ["chunking", "extraction", "questions"]
     assert "rerun" in answered["detail"]
 
 

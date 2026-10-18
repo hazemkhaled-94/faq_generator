@@ -152,7 +152,7 @@ def test_a_change_that_stales_something_says_so(cli, store) -> None:
 
     said = change("platform", {"EMBEDDING_MODEL": "intfloat/other"}, store)
 
-    assert any("chunking, questions" in line for line in said)
+    assert any("chunking, extraction, questions" in line for line in said)
     assert any("rerun" in line for line in said)
 
 
