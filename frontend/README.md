@@ -257,7 +257,7 @@ does with an answer, including the answers that are refusals.
 | [`test_configuration_panel.py`](../tests/frontend/test_configuration_panel.py) | The configuration panel |
 | [`test_lineage_panel.py`](../tests/frontend/test_lineage_panel.py) | The links the lineage panel offers into the other four tools |
 | [`pages.py`](../tests/frontend/pages.py) | One page object over every view, and the answers each view needs |
-| [`test_frontend_vocabularies.py`](../tests/static/test_frontend_vocabularies.py) | That the gate list on the Questions page is exactly what the checker can reject under |
+| [`test_frontend_vocabularies.py`](../tests/static/test_frontend_vocabularies.py) | That the gate list on the Questions page is exactly what the checker can reject under, and every other list a page copies from a backend enum is exactly that enum |
 
 These need no container and no spaCy. `make test-fast` runs them.
 

@@ -19,11 +19,18 @@ import and a failure names the codes.
 from __future__ import annotations
 
 import ast
+from enum import StrEnum
 from pathlib import Path
 
 import pytest
 
-from database.qa_generator import QuestionRejection
+from database.qa_generator import (
+    AnswerForm,
+    CognitiveLevel,
+    JudgeMetric,
+    QuestionRejection,
+    QuestionType,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -250,3 +257,27 @@ def test_the_page_size_ceiling_is_the_apis() -> None:
 
     assert isinstance(ceiling, ast.Constant), ast.dump(ceiling)
     assert ceiling.value == PAGE_MAX
+
+
+@pytest.mark.parametrize(
+    ("page", "name", "vocabulary"),
+    [
+        ("questions", "_TYPES", QuestionType),
+        ("questions", "_LEVELS", CognitiveLevel),
+        ("questions", "_FORMS", AnswerForm),
+        ("assessment", "_METRICS", JudgeMetric),
+    ],
+)
+def test_every_question_kind_level_form_and_metric_is_drawn(
+    page: str, name: str, vocabulary: type[StrEnum]
+) -> None:
+    """A hand copy of an enum the page lists every value of, filter and tooltip.
+
+    A value added to the enum and not here is a kind of question nobody can
+    filter to, or a metric whose failures are counted under nothing.
+    """
+    drawn = _bound(VIEWS / f"{page}.py", name)
+
+    assert isinstance(drawn, ast.Dict), ast.dump(drawn)
+    keys = {one.value for one in drawn.keys if isinstance(one, ast.Constant)}
+    assert keys == {one.value for one in vocabulary}, name
