@@ -263,19 +263,25 @@ def _spelled(name: str, excerpts: str) -> str:
     """A name in the excerpts' own spelling, its own case kept.
 
     A word the excerpts print, case aside but not spelling, takes their
-    form: `Großkunden` where they write `Grosskunden`. Then a letter they
-    never use is replaced by its case fold, which is what reaches a
-    compound they do not print. Read off the excerpts alone, so it holds
-    for any language and any spelling convention.
+    form: `Großkunden` where they write `Grosskunden`. A word they print as
+    written keeps its spelling, since a case fold joins two words as well
+    as two spellings of one: `Masse` and `Maße`. Then a letter they never
+    use is replaced by its case fold, which is what reaches a compound they
+    do not print. Read off the excerpts alone, so it holds for any language
+    and any spelling convention.
     """
     forms: dict[str, str] = {}
+    printed: set[str] = set()
     for word in _WORD.findall(excerpts):
         forms.setdefault(word.casefold(), word)
+        printed.add(word.lower())
 
     def respelled(found: re.Match[str]) -> str:
         word = found[0]
+        if word.lower() in printed:
+            return word
         form = forms.get(word.casefold())
-        if form is None or form.lower() == word.lower():
+        if form is None:
             return word
         first = form[0].upper() if word[0].isupper() else form[0].lower()
         return first + form[1:]

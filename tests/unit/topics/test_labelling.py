@@ -191,6 +191,30 @@ def test_a_letter_the_excerpts_never_use_is_folded() -> None:
     assert named == {0: "Grosskundenkonten"}
 
 
+def test_a_word_the_excerpts_print_as_written_is_kept() -> None:
+    """`Masse` and `Maße` fold to one key and are two words.
+
+    The excerpts printing `Maße` first used to respell the `Masse` they also
+    print, which named a parcel's weight after its dimensions.
+    """
+    driver = LabellerDriver("Masse des Pakets")
+
+    named = driver.labeller.label_all(
+        [
+            (
+                FittedTopic(0, FIRST),
+                [
+                    "Die Maße des Pakets dürfen 120 x 60 x 60 cm nicht überschreiten.",
+                    "Die Masse des Pakets darf 31,5 kg nicht überschreiten.",
+                ],
+            )
+        ],
+        "de",
+    )
+
+    assert named == {0: "Masse des Pakets"}
+
+
 def test_words_most_names_end_on_are_left_out() -> None:
     """The domain the whole corpus shares tells no topic apart."""
     driver = LabellerDriver(
