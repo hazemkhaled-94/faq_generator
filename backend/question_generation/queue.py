@@ -555,6 +555,18 @@ class QuestionQueue(RowQueue):
                             answerable=question.answerable,
                             difficulty=question.criteria.difficulty,
                             planned_difficulty=question.planned_difficulty,
+                            # In the words the writer was told them, so a
+                            # categorization edited later cannot rewrite
+                            # what an earlier row was asked to be.
+                            categories=[
+                                {
+                                    "categorization": one.categorization,
+                                    "category": one.name,
+                                    "description": one.description,
+                                }
+                                for one in question.categories
+                            ]
+                            or None,
                             question_type=question.question_type,
                             cognitive_level=question.cognitive_level,
                             answer_form=question.answer_form,

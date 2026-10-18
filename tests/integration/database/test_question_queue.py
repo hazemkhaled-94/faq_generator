@@ -637,6 +637,59 @@ def test_a_stored_question_names_the_models_that_wrote_and_checked_it(
         ).one() == ("ollama/writer", "ollama/verifier", "ollama/judge")
 
 
+def test_a_stored_question_keeps_the_categories_its_writer_was_told(
+    corpus, engine
+) -> None:
+    """In the words it was told them, and NULL where it was told none."""
+    from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
+    from question_generation.models import CheckedQuestion, criteria_of
+
+    concise = categorizations(DEFAULT_CATEGORIZATIONS)[0].categories[0]
+    written = corpus(topics=1, facts_per_topic=2)
+    topic_id = written["topics"][0]
+
+    def asked(question: str, fact_id: int, *categories) -> CheckedQuestion:
+        return CheckedQuestion(
+            question_text=question,
+            target_answer="4 kg",
+            answerable=True,
+            criteria=criteria_of(passages=1, documents=1, topics=1, answer_chars=4),
+            language="en",
+            status="accepted",
+            rejected_reason=None,
+            fact_ids=(fact_id,),
+            categories=categories,
+        )
+
+    first, second = written["facts"][topic_id]
+    QuestionQueue().store(
+        topic_id,
+        [
+            [asked("What does the device weigh?", first, concise)],
+            [asked("How heavy is the device?", second)],
+        ],
+    )
+
+    with engine.connect() as connection:
+        stored = connection.execute(
+            text("SELECT categories, categories IS NULL FROM questions ORDER BY id")
+        ).all()
+    # SQL NULL, not a JSON null, where it was told none.
+    assert stored == [
+        (
+            [
+                {
+                    "categorization": "Phrasing",
+                    "category": "concise-and-natural",
+                    "description": concise.description,
+                }
+            ],
+            False,
+        ),
+        (None, True),
+    ]
+
+
 def test_a_second_run_adds_to_the_questions_rather_than_replacing_them(
     corpus, engine
 ) -> None:

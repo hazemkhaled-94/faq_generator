@@ -511,6 +511,8 @@ class CheckedQuestion:
     question_type: str | None = None
     answer_form: str | None = None
     planned_difficulty: str | None = None
+    #: The categories its writer was told, as `Candidate.categories`.
+    categories: tuple[Category, ...] = ()
     #: What the question's type asks of whoever answers it. Carried from
     #: the spec rather than judged, like the type itself.
     cognitive_level: str | None = None

@@ -241,6 +241,13 @@ class Question(Base):
         "The two disagree when the writer cited fewer facts than it was offered, "
         "which is a measurement of the plan rather than a fault in the row.",
     )
+    categories: Mapped[list[dict] | None] = mapped_column(
+        JSONB(none_as_null=True),
+        comment="The categories QUESTIONS_CATEGORIZATIONS dealt this question, each "
+        "as its writer was told it, one JSON object per categorization. NULL "
+        "where none was rendered: an unanswerable question, a follow-up, a run "
+        "with no categorizations, and every question written before this column.",
+    )
     passage_scope: Mapped[str | None] = mapped_column(
         Text,
         comment="single_passage | multi_passage, enforced by a CHECK constraint. "

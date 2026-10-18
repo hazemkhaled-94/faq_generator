@@ -1476,6 +1476,7 @@ class QuestionChecker:
             # column says what shape the answer takes and there is none.
             answer_form=(form or candidate.spec.form) if candidate.answerable else None,
             planned_difficulty=candidate.planned_difficulty,
+            categories=candidate.categories,
             gates_ran=tuple(ran),
             readings=tuple(readings),
             gates_abstained=tuple(abstained),

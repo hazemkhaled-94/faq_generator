@@ -2577,6 +2577,21 @@ def test_the_type_and_the_form_are_stored_on_the_question() -> None:
     assert result.planned_difficulty == "easy"
 
 
+def test_the_categories_it_was_written_as_are_carried_to_the_row() -> None:
+    """What the writer was told, beside what the gates made of it."""
+    from dataclasses import replace
+
+    from question_generation.models import Category
+
+    told = (Category("Phrasing", "concise-and-natural", "short.", 0.5),)
+
+    result = build(Recording(recovers="4 kg")).check(
+        replace(candidate(), categories=told)
+    )
+
+    assert result.categories == told
+
+
 def test_an_unanswerable_question_carries_no_answer_form() -> None:
     """It has no answer, so there is no shape for one to take."""
     result = build(Recording(recovers=None)).check(

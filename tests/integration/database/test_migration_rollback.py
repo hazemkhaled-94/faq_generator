@@ -40,6 +40,7 @@ KINDED = "a41c9e3d7b52"
 BRIDGED = "c3a9e1470b5d"
 THREADED = "d5b2f8a60c14"
 JUDGED = "733a3eadef7c"
+CATEGORIZED = "626a5b07ae34"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -62,6 +63,7 @@ LATER = (
     BRIDGED,
     THREADED,
     JUDGED,
+    CATEGORIZED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
@@ -414,6 +416,34 @@ def test_a_topic_decision_time_is_added_empty_and_taken_back_out(spare: str) -> 
     assert sql(spare, "SELECT * FROM topics") == [(*held[0], None)]
 
 
+def test_a_question_s_categories_are_added_empty_and_taken_back_out(spare: str) -> None:
+    """NULL on every question already there, and the question intact without it."""
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, THREADED)
+    sql(
+        spare,
+        "INSERT INTO questions (id, question_text, answerable, language, status) "
+        "VALUES (1, 'Q?', true, 'en', 'accepted')",
+    )
+    held = sql(spare, "SELECT * FROM questions")
+
+    command.upgrade(config, CATEGORIZED)
+    assert sql(spare, "SELECT * FROM questions") == [(*held[0], None)]
+    sql(
+        spare,
+        'UPDATE questions SET categories = \'[{"categorization": "Phrasing", '
+        '"category": "concise-and-natural", "description": "short."}]\'',
+    )
+
+    command.downgrade(config, THREADED)
+    assert sql(spare, "SELECT * FROM questions") == held
+
+    command.upgrade(config, CATEGORIZED)
+    assert sql(spare, "SELECT * FROM questions") == [(*held[0], None)]
+
+
 def test_a_citation_naming_sentences_needs_both_bounds(spare: str) -> None:
     """Refused once the revision is on; an upgrade over such a row names the check."""
     from alembic import command
@@ -482,10 +512,11 @@ def test_the_later_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> 
     before = held()
     command.upgrade(config, "head")
     at_head = held()
-    # The three model columns, NULL on every question already there, and the
-    # kind, single on each of these: none of them has a passage scope.
+    # The three model columns, NULL on every question already there, the
+    # kind, single on each of these: none of them has a passage scope, and
+    # the categories, NULL.
     assert at_head["questions"] == [
-        (*row, None, None, None, "single") for row in before["questions"]
+        (*row, None, None, None, "single", None) for row in before["questions"]
     ]
 
     for _ in LATER:

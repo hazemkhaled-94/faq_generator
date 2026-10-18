@@ -132,16 +132,18 @@ nothing downstream reports the difference.
 
 Every revision is reversible, and
 `tests/integration/database/test_migration_rollback.py` applies and takes
-back out every one of them on a real PostgreSQL. Four lose information:
+back out every one of them on a real PostgreSQL. Five lose information:
 `20261019_2300_question_kind.py` backfills `questions.kind` from
 `passage_scope`, so taking it out and putting it back turns every compound
 question into `needs_both`; `20261020_0100_a_bridge_keeps_its_reading.py`
 holds the relation and probe question of each bridge, which taking it out
 drops; `20261020_1200_a_thread_leaves_the_release_whole.py` takes the
 follow-ups of a question that is not accepted out of the release, which
-taking it out does not put back; and
+taking it out does not put back;
 `20261021_0100_the_papers_judge_scores_a_question.py` deletes the paper's
-`rubric_` scores on the way out, because the narrower CHECK refuses them.
+`rubric_` scores on the way out, because the narrower CHECK refuses them;
+and `20261021_0200_a_question_records_its_categories.py` holds the
+categories each question's writer was told, which taking it out drops.
 
 A revision's docstring says **why**; the diff says what.
 
@@ -150,7 +152,7 @@ head these carry ([`revision.py`](qa_generator/revision.py)): until
 `make schema` has applied it, `/status` is not green and a queue claims
 nothing.
 
-The twenty-two revisions, oldest first:
+The twenty-three revisions, oldest first:
 
 | File | Changes |
 |---|---|
@@ -176,6 +178,7 @@ The twenty-two revisions, oldest first:
 | `20261020_0100_a_bridge_keeps_its_reading.py` | Adds `facts.bridge`, a nullable JSONB column holding a bridge's `{relation, question, answer}`, NULL on every other fact and on every bridge already stored, with a CHECK that only a bridge carries it |
 | `20261020_1200_a_thread_leaves_the_release_whole.py` | A trigger takes every follow-up below a question that stops being accepted out of the release, and the upgrade does the same for the threads already split |
 | `20261021_0100_the_papers_judge_scores_a_question.py` | `assessment_metrics.metric` also accepts the DataMorgana paper's six question scores, `rubric_fluency` to `rubric_answerability`, in its CHECK and its comment |
+| `20261021_0200_a_question_records_its_categories.py` | Adds `questions.categories`, a nullable JSONB column holding the categories `QUESTIONS_CATEGORIZATIONS` dealt a question as its writer was told them, NULL where none was rendered and on every question already stored |
 
 ## Column comments
 
