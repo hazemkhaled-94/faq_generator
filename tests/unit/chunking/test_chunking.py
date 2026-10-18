@@ -450,6 +450,35 @@ def test_depth_survives_a_page_break() -> None:
     ]
 
 
+def test_items_every_one_of_which_wraps_still_nest() -> None:
+    """A fee schedule's two-line items are indented by less than a line of theirs.
+
+    Its one-line list of prices above says how high a line is.
+    """
+    document = DoclingDocument(name="fees")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    prices = document.add_list_group()
+    for top, text in ((100, "Kontoführung 4,90 EUR"), (114, "Girocard 12,00 EUR")):
+        document.add_list_item(text=text, parent=prices, prov=placed(1, 54, top))
+    transfers = document.add_list_group()
+    for top, left, text in (
+        (300, 54, "Überweisungen kosten je Auftrag, auch als Dauerauftrag:"),
+        (326, 63, "beleghaft 1,50 EUR, am Schalter oder per Post eingereicht,"),
+        (352, 63, "online 0,10 EUR, im Online-Banking oder in der App."),
+    ):
+        document.add_list_item(
+            text=text, parent=transfers, prov=placed(1, left, top, height=22)
+        )
+
+    _, chunks = chunks_of(document, word_chunker(200), "de")
+
+    assert chunks[0].text.splitlines()[-3:] == [
+        "- Überweisungen kosten je Auftrag, auch als Dauerauftrag:",
+        "    - beleghaft 1,50 EUR, am Schalter oder per Post eingereicht,",
+        "    - online 0,10 EUR, im Online-Banking oder in der App.",
+    ]
+
+
 def test_side_by_side_min_max_columns_are_not_nested() -> None:
     """Under a paragraph across both, a fee's minimum and maximum stay apart."""
     document = DoclingDocument(name="fees")
