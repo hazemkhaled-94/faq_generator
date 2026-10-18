@@ -200,27 +200,13 @@ pronoun's own clause, that agrees with it in gender and number where the
 language marks them, or that is a subject or an object where it does not -
 "The card is blocked if it is reported stolen" - and a German `es` standing
 beside the object or clause it anticipates, under a verb that does not agree
-with it in number. A German condition opening on its verb, "Geht die Karte
-verloren, sperrt die Bank sie", is a clause of its own. A subject or an
-object of the pronoun's own clause never resolves it: "The customer must
-return it" points outside, and so does "The customer has the right to return
-it", since a to-infinitive has no subject of its own and reads as the clause
-it hangs in. A noun inside a phrase of that clause resolves it only when the
-pronoun's verb is a participle or an infinitive with no finite verb above
-it: "the person wearing it" names the cover worn, "At the branch, the
-customer must return it" names nothing. A possessive determiner may
+with it in number. A noun of the pronoun's own clause never resolves it:
+"The customer must return it" points outside, and so does "The customer has
+the right to return it", since a to-infinitive has no subject of its own and
+reads as the clause it hangs in. A possessive determiner may
 name one, as in "The bank replaces its cards"; a standalone possessive,
-"hers", may not. A demonstrative pronoun is read as a personal one in
-German and English, and `dies` or `this` may stand for a finite clause
-before it, "If the card is lost, this must be reported"; one opening its
-statement with no noun before it is refused as before.
-
-An `it` or `es` before a predicate is no reference when it stands for the
-clause after it: an infinitive, "It is very important for the customer to
-keep the PIN secret", or a condition, "It is an offence if the PIN is
-shared", but a condition only where nothing the passage said before the
-cited sentences agrees with the pronoun. After "The current account costs 5
-EUR a month.", "It is free if ..." is the account and is refused.
+"hers", may not. A demonstrative, and a pronoun opening its statement with
+no noun before it, are refused as before.
 
 What `nothing invented` compares is **numbers and proper nouns only** — both
 are things a writer reports rather than chooses. A number keeps its surface

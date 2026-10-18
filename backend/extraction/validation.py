@@ -432,10 +432,6 @@ class FactChecker:
         added. A number is read in any spelling ("1st" is "1 st"), a
         hyphenated unit by its parts, and a name the tagger took for a proper
         noun by the common noun it is.
-
-        What the passage says ahead of the last cited sentence is what a
-        reader met before the statement: an `it` before a condition that
-        nothing there agrees with stands for the condition.
         """
         start, end = cited[0].start, cited[-1].end
         evidence = _cited_text(passage, cited)
@@ -444,7 +440,7 @@ class FactChecker:
             part for part in (passage.section_path, passage.title) if part
         )
         statement = candidate.statement.strip()
-        said = claim(statement, language, before=passage.text[: cited[-1].start])
+        said = claim(statement, language)
         known = vocabulary(evidence, language)
         numbers = numerals(evidence, language)
         if headings:

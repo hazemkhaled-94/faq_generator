@@ -229,6 +229,26 @@ STILL_REFUSED: tuple[tuple[str, str, str, int, str], ...] = (
     (
         "en",
         (
+            "The current account costs 5 EUR a month. It is free if the holder "
+            "agrees to receive statements online."
+        ),
+        "It is free if the holder agrees to receive statements online.",
+        1,
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "de",
+        (
+            "Das Girokonto kostet 5 EUR im Monat. Es ist kostenlos, wenn der Kunde "
+            "zustimmt, Kontoauszüge online zu erhalten."
+        ),
+        "Es ist kostenlos, wenn der Kunde zustimmt, Kontoauszüge online zu erhalten.",
+        1,
+        Rejection.UNRESOLVED_REFERENCE,
+    ),
+    (
+        "en",
+        (
             "Credit cards have a daily limit of 1,000 EUR. Debit cards can be blocked "
             "abroad."
         ),
@@ -267,31 +287,31 @@ def test_a_bank_or_shop_statement_saying_too_much_is_still_refused(
 
 
 @pytest.mark.parametrize(
-    ("language", "text", "statement"),
+    ("language", "text", "section"),
     [
         (
             "en",
-            "Payments are checked daily. It is an offence if the PIN is shared.",
-            "It is an offence if the PIN is shared.",
+            "It is free of charge if at least 1,000 EUR is paid in each month.",
+            "Current account",
         ),
         (
             "de",
-            (
-                "Zahlungen werden täglich geprüft. Es ist ein Verstoß, wenn die PIN "
-                "weitergegeben wird."
-            ),
-            "Es ist ein Verstoß, wenn die PIN weitergegeben wird.",
+            "Es ist kostenlos, wenn der Kunde jünger als 25 Jahre ist.",
+            "Studentenkonto",
         ),
     ],
 )
-def test_it_standing_for_the_condition_after_it_is_no_reference(
-    language, text, statement
+def test_it_before_a_condition_only_its_heading_names_is_still_refused(
+    language, text, section
 ) -> None:
-    """Nothing the passage said before agrees with `it`: the condition is the offence."""
-    judged = Checker(passage(text, language=language)).atomic(statement, 1)
+    """The heading names the account `it` is, and a reader of the fact sees none."""
+    read = passage(text, language=language, section_path=section)
 
-    assert judged.validated, judged.validation_error
-    assert not judged.unresolved_references
+    judged = Checker(read).atomic(text, 0)
+
+    assert judged.rejection_code == Rejection.UNRESOLVED_REFERENCE, (
+        judged.validation_error
+    )
 
 
 def test_a_statement_with_no_finite_verb_is_refused(checker) -> None:
@@ -368,9 +388,6 @@ def test_a_statement_that_cannot_be_read_alone_is_refused(checker) -> None:
         ("A customer who moves must give their new address.", "en"),
         ("Die Rückgabe ist kostenlos, es sei denn, die Ware ist beschädigt.", "de"),
         ("It is easy to close the account online.", "en"),
-        ("The card is blocked if this is reported stolen.", "en"),
-        ("Geht die Karte verloren, sperrt die Bank sie sofort.", "de"),
-        ("The card is replaced free of charge for a customer losing it abroad.", "en"),
         (
             "Die Filialen tragen Schilder, durch die sie sich voneinander unterscheiden.",
             "de",
@@ -396,6 +413,7 @@ def test_a_pronoun_its_own_statement_resolves_is_not_dangling(
     [
         ("Er wird gekündigt, wenn der Kredit nicht bedient wird.", "de", "er"),
         ("Der Kredit wird gekündigt, wenn sie ihn nicht bedient.", "de", "sie"),
+        ("The card is blocked if this is reported stolen.", "en", "this"),
         ("This is blocked if the card is reported stolen.", "en", "this"),
         ("The customer must return it within 14 days.", "en", "it"),
         ("At the branch, the customer must return it within 14 days.", "en", "it"),
