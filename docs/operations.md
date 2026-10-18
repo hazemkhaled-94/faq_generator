@@ -200,6 +200,42 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.8
+
+Check that `.env` sets every secret compose now requires, then rebuild:
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env config -q
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no prompt change.
+
+**Secrets.** Every password and key compose passes is now required, and
+compose stops naming the first one missing. `.env.example` names every one;
+an `.env` written before this release may lack a line, which must be added by
+hand, since `make setup` writes `.env` only when there is none.
+
+**Settings refused that were accepted.** A number that is `nan` or infinite,
+a flag spelled other than as true or false, `TOPIC_NUM_TOPICS` below 2,
+`TOPIC_RANDOM_STATE` outside 0 to 2^32 - 1 and a `TOPIC_NO_ABOVE` of 0 are
+refused when written. One already stored keeps working where it did; the
+settings page shows it with a warning so it can be corrected.
+
+**What else an operator will notice.**
+
+- The frontend answers only at `localhost` and `127.0.0.1`.
+- `PAGE_SIZE` outside 1 to 500 stops the frontend at start-up.
+- `/redoc` is gone; `/docs` stays.
+- Stop stops every queued or started run, not only the newest, and says
+  which were already stopping.
+- A topic `PATCH` changes only the fields its body names.
+- The Argilla topics dataset makes the corrected label optional for a newly
+  created dataset; recreate an existing one to take the change.
+- `make eval-score` figures are not comparable with earlier ones: it now
+  scores the reader production runs.
+
 ## Upgrading to v0.3.7
 
 ```bash
@@ -466,7 +502,7 @@ commands that call no model come first:
 Struck-through text, list lead-ins and chapter-aware section paths change
 the passages themselves. They reach stored rows only through a rebuild by the container workers:
 `POST /parsing/rerun`, then `POST /chunking/rerun`, then extraction, topics,
-the bridge pass (`make extract-bridge`) and questions again, all of which
+the bridge pass (`make extract-bridge MISSING=1`) and questions again, all of which
 from extraction on call models. A fresh question generation also carries
 the fixes that live in how questions are written: the widen retry, the deal,
 the reason and application slots, the perturbation prompt, and the gates that
