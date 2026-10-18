@@ -316,11 +316,10 @@ class FactGroup:
 
         What the writer is shown above the passages and the verifier is not,
         so the round trip does not ask the verifier to give back a name only
-        a heading carries.
+        a heading carries. A passage under no heading is an empty line, so a
+        name one passage's heading carries is not taken as the other's too.
         """
-        return "\n".join(
-            passage.section_path for passage in self.resting if passage.section_path
-        )
+        return "\n".join(passage.section_path or "" for passage in self.resting)
 
     @property
     def context(self) -> tuple[tuple[str, str], ...]:

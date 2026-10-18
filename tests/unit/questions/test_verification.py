@@ -2221,6 +2221,15 @@ def test_a_verb_does_not_bring_back_the_keys_noun() -> None:
             "de",
             AnswerForm.LIST,
         ),
+        (
+            "Was kostet die Kontoführung im Monat?",
+            "beim Premiumkonto 4,90 Euro",
+            "4,90 Euro im Monat",
+            "\nKonten > Premiumkonto",
+            "Die Kontoführung kostet 4,90 Euro im Monat.",
+            "de",
+            AnswerForm.VALUE,
+        ),
     ],
     ids=[
         "the heading's other card",
@@ -2228,6 +2237,7 @@ def test_a_verb_does_not_bring_back_the_keys_noun() -> None:
         "cancel and sign",
         "the heading's card for a debit card",
         "die Karte der Überschrift für die Debitkarte",
+        "a heading one of two passages carries",
     ],
 )
 def test_what_the_reader_is_given_lets_no_wrong_key_through(

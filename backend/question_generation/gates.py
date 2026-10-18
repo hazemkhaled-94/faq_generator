@@ -2138,9 +2138,8 @@ def _every(given: str, read: Callable[[str], frozenset[str]]) -> frozenset[str]:
     and `Konten > Basiskonto` are about two products, and a key may pin one's
     figure on the other, so only `Konten` is given.
     """
-    trails = [
-        read(trail) for trail in dict.fromkeys(given.splitlines()) if trail.strip()
-    ]
+    # An empty line is a passage under no heading, which carries nothing.
+    trails = [read(trail) for trail in dict.fromkeys(given.splitlines())]
     return frozenset.intersection(*trails) if trails else frozenset()
 
 
