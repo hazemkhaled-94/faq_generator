@@ -695,6 +695,22 @@ rebuild.
 | `make test` failed in one run | the question CLI's tests wrote prompt rows into the test container; a logging test depended on order | the recorder stubbed; a unit test opening a database fails | green in one run, in any order |
 | Make targets that misbehaved | `make audit` always passed; command-line ports missed the derived URLs; `make delete` refused only after deleting; `logs-wipe` unlinked open files; `certs` and `logs-prune` reported success after a failure; Argilla had no API key; the run dashboard matched other runs | each fixed ([`Makefile`](../Makefile), [`compose.yaml`](../compose.yaml)) | static tests per target |
 
+### Fixed in v0.3.2: reading text and numbers
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| An abbreviation before a figure ended a sentence | `approx. 3 days`, `incl. 19 % VAT` split in two | an abbreviation is followed by a figure, not a sentence ([`nlp/analysis.py`](../backend/nlp/analysis.py)), unless a line break or an item number follows | 0 boundaries move in this rulebook |
+| Two rules each ending in a full stop read as one sentence | a dash or slash after a sentence's end joined it to the next | a free dash or slash after a full stop and a space opens the next sentence, not after an abbreviation's | 7 English sentence cuts, all correct, 0 German; the audit's broader rule was measured wrong on 42 of 53 new pieces and not used |
+| `provided` read as an exception | "The bank provided the card" lost its main verb | a finite `provided` is read as the verb it is, from the parse's morphology | 0 statements move here |
+| Times and glued figures carried no number | `08:00`, `2.5x` asserted nothing a gate could check | read into their own claim field, compared group by group, so `08:00` is `8:00` and not `09:00` | 0 fact or question verdicts move here |
+| A German decimal read as an integer | `0,125` read as 125, so the guard against 4 against 48 passed a wrong rate | a per-language `DECIMAL_MARK`; one mark before three digits that a key writes is read both ways, a zero head always a fraction | 0 of 2,371 German and 2,204 English texts read differently |
+| An aggregation key accepted unasked | a key equal to any sum of passage figures skipped the verifier | the verifier is asked for every aggregation | 2 accepted rows now need the verifier's call |
+| A relabelled aggregation kept its old level | a count typed as a factoid still counted as analysed | the relabel takes the new kind's level | 24 stored rows carried the wrong level |
+| Figures-only paragraphs dropped | a price, a phone number or a date with no letter went as a page number | only a page number's shape is dropped ([`chunking/furniture.py`](../backend/preprocessing/chunking/furniture.py)) | 0 passages change here; fee-schedule fixtures keep their figures |
+| A hyphenated word broken across a table cell or a page stayed broken | the mend ran before the joins | the mend runs after them too, with a per-language table of completing words ([`nlp/text.py`](../backend/nlp/text.py)) | 0 such breaks in this rulebook |
+
+Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits when `Mon.` is not in the language's abbreviation table; `1.234,567` reads as one integer; a German `8.30 Uhr` and `08:30` do not agree; a key `1000 EUR` does not agree with a German reply `1,000 EUR`.
+
 ### Deferred or low, with the reason
 
 | Defect | Why it stays open |

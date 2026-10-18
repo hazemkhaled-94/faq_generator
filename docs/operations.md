@@ -200,6 +200,26 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.2
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration, no setting and no prompt change.
+
+The fixes change how text and numbers are read: where sentences end, which
+figure-only paragraphs are page numbers, how a hyphen broken across a table
+cell or a page is mended, and how a German decimal, a time or a total is
+compared. Everything the stages produce from now on reads them the new way.
+What is already stored keeps its old reading until it is built again: the
+sentence and hyphen fixes reach stored passages and facts through a re-parse
+and a re-chunk and the stages after them (see [Upgrading to
+v0.3.0](#upgrading-to-v030) for the order), and the number readings reach a
+stored question only when it is written again. Parsing and chunking call no
+model.
+
 ## Upgrading to v0.3.1
 
 Rebuild the images, since the code they run has changed, and let `make doctor`
