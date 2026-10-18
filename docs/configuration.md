@@ -188,12 +188,13 @@ PYTHONPATH=backend poetry run python -m settings.run --service questions \
 ```
 
 Not `make settings-set`: it splits `SET` at its spaces, so a JSON value
-reaches the store in pieces. A value that is not JSON, misspells a key,
+reaches the store in pieces. A value is refused, naming the categorization
+at fault, before anything is stored when it is not JSON, misspells a key,
 names a category twice, puts an `=` or a comma in a name, gives a role other
-than `question` or `user` or has probabilities that do not sum to 1 is
-refused, naming the categorization at fault, before anything is stored.
-`make settings-unset SERVICE=questions UNSET=QUESTIONS_CATEGORIZATIONS` goes
-back to the default in code.
+than `question` or `user`, gives word bounds that are not whole numbers of
+at least 1 or a minimum above its maximum, or has probabilities that do not
+sum to 1. `make settings-unset SERVICE=questions
+UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default in code.
 
 A categorization describes the question unless it says `"role": "user"`,
 which makes it describe the person asking. The writer is told the asker in a
@@ -217,6 +218,16 @@ customer, at even odds:
 A value replaces the default whole, so a value holding only this one writes
 no phrasing category: list the default's categorizations beside it to keep
 both.
+
+A category may also carry word bounds, `"words": {"min": 10}`, `{"max": 9}`
+or both, each a whole number of at least 1. They are a label for reading the
+result, never an instruction and never a refusal: the writer is not sent
+them, no question is refused for missing them, and `make diversity
+BY=category` reports the share of each category's questions inside them.
+The default bounds concise-and-natural to at most 9 words and
+verbose-and-natural to at least 10, the counts their descriptions name. The
+report reads the bounds configured when it runs, so a question written under
+other bounds is counted against today's.
 
 A stage's rerun is its `-rerun` target, bar topics, which have none:
 `make topics-discover` fits them again and carries what a person decided

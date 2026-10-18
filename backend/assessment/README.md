@@ -353,13 +353,30 @@ read the difference beside it.
 
 `BY=category` measures each category of each language on its own, read
 from the workbook's Categories column, so a question counts once in each of
-its categories. `BY=kind` measures each kind of each language on its own
-(single, needs_both, compound), read from the Kind column: the paper's judge
-is not told a question's kind, and a compound question asks two things it
-was never shown how to score. And where the workbook holds the paper's judge
-(the `rubric_*` judgements on its Assessment sheet), the report ends with
-that judge's mean scores for the same groups: the mean stored score, which
-is the paper's normalised mean, from 0 to 1.
+its categories. A second table follows with three shares per category:
+
+| Column | The share of the category's questions |
+|---|---|
+| in bounds | whose word count is inside the category's `words` bounds in `QUESTIONS_CATEGORIZATIONS`, a dash where it has none. A word is letters and digits, joined across a hyphen or an apostrophe, so `e-mail` and `What's` are one each |
+| factoid | whose Answer form is a value or a list |
+| open-ended | whose Answer form is an explanation |
+
+The bounds are the ones configured when the report runs, read from the
+stored settings through the question stage's own parser, so this table needs
+the database the settings live in. A question stores the words its writer
+was told and not the bounds, so one written under other bounds is counted
+against today's, and the report says so.
+
+`BY=kind` measures each kind of each language on its own (single,
+needs_both, compound), read from the Kind column: the paper's judge is not
+told a question's kind, and a compound question asks two things it was
+never shown how to score. Word bounds are a category's, so it has no second
+table.
+
+And where the workbook holds the paper's judge (the `rubric_*` judgements on
+its Assessment sheet), the report ends with that judge's mean scores for the
+same groups: the mean stored score, which is the paper's normalised mean,
+from 0 to 1.
 
 The export's filter chooses the set. The paper measured answerable
 questions:
@@ -382,12 +399,15 @@ make diversity FILE=set.xlsx BY=kind
 | [`service.py`](service.py) | The drain loop, and the annotations it posts |
 | [`config.py`](config.py) | The flag, the judge and the two cost dials |
 | [`factory.py`](factory.py) | Wiring |
-| [`diversity.py`](diversity.py) | How varied a set of questions is: the paper's metrics, as pure functions |
+| [`diversity.py`](diversity.py) | How varied a set of questions is: the paper's metrics, as pure functions, and the word count and factuality a category is read by |
 | [`run.py`](run.py) | The command line, and the diversity report on a workbook |
 
 Reads `database.qa_generator` directly and no other service's repository —
 this stage is about facts, topics and questions at once, and a package
-importing all three services to read them would weld the four together.
+importing all three services to read them would weld the four together. The
+one exception is the diversity report's `BY=category`, which reads the
+configured word bounds with `question_generation.config`'s parser rather
+than a second one; `.importlinter` says why.
 
 ## Tests
 
