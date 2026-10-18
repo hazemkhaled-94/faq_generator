@@ -174,6 +174,20 @@ because bash sources that file and would split a JSON value at its spaces and
 strip its quotes. Unset, it reads `DEFAULT_CATEGORIZATIONS` in code; `[]`
 turns categories off.
 
+The default is four of the paper's Table 5 categorizations, in its
+descriptions without the examples, every category at even odds because the
+table gives no probabilities:
+
+| Categorization | Categories |
+|---|---|
+| Phrasing | concise-and-natural, verbose-and-natural |
+| Premise | direct, with-premise |
+| Linguistic variation | similar-to-document, distant-from-document |
+| User expertise, of role `user` | expert, novice |
+
+Table 5's Factuality is not among them: whether a question is factoid or
+open-ended is read off the answer form its type gives it.
+
 Set it on the Questions page's Configuration panel, through the API, or with
 `settings.run` in the environment `make` loads, each of which stores the
 value whole:
