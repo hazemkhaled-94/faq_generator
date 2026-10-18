@@ -340,12 +340,13 @@ def tidied(
 ) -> tuple[DoclingDocument, dict[str, tuple[str, ...]]]:
     """Prepares a document for the chunker: debris out, a title at each chapter.
 
-    A heading that is a lone conjunction, as `_junk` tells one, is the
-    layout reading the word between two alternatives as a heading: it is
-    read as the paragraph it is, so the alternatives stay in one passage
-    with the word between them. A paragraph that starts with a running head
-    or foot, field for field and with whitespace removed, is the converter
-    reading furniture as body text. A paragraph of one letter, followed by
+    A heading that is a lone conjunction, as `_junk` tells one, between two
+    list items or two paragraphs, is the layout reading the word between two
+    alternatives as a heading: it is read as the paragraph it is, so the
+    alternatives stay in one passage with the word between them. A
+    paragraph that starts with a running head or foot, field for field and
+    with whitespace removed, is the converter reading furniture as body
+    text. A paragraph of one letter, followed by
     entries under that letter, is a glossary's index divider, where the
     document holds two or more in ascending order. Both move to the
     furniture layer. A sentence the converter cut at a page or column break
@@ -519,20 +520,35 @@ def _restated(
 
 
 def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingDocument:
-    """The document with each heading that is a lone conjunction a paragraph.
+    """The document with each lone conjunction between alternatives a paragraph.
 
-    One holding no letter or digit stays a heading, which names nothing and
-    leaves the trail in `headed`.
+    A heading that is one, between two list items or two paragraphs - a
+    picture between aside - is the word joining them. Anywhere else it
+    stays a heading, which `headed` leaves out of the trail: the word
+    between two headed sections belongs to neither. So does one holding no
+    letter or digit, which names nothing.
 
     Returns:
         `document` itself when no heading is one, otherwise a copy.
     """
-    found = [
-        index
-        for index, item in enumerate(document.texts)
+    blocks = [
+        item
+        for item, _ in document.iterate_items()
+        if isinstance(item, DocItem) and item.label != DocItemLabel.PICTURE
+    ]
+    between = {
+        item.self_ref
+        for before, item, after in zip(blocks, blocks[1:], blocks[2:], strict=False)
         if isinstance(item, SectionHeaderItem)
         and any(character.isalnum() for character in item.text)
         and junk(item.text)
+        and (
+            before.label == after.label == DocItemLabel.LIST_ITEM
+            or {before.label, after.label} <= _PROSE
+        )
+    }
+    found = [
+        index for index, item in enumerate(document.texts) if item.self_ref in between
     ]
     if not found:
         return document

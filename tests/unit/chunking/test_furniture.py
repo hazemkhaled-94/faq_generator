@@ -320,6 +320,48 @@ def test_a_lone_conjunction_paragraph_is_not_promoted_to_a_heading() -> None:
     ), texts
 
 
+def test_a_lone_conjunction_heading_between_list_items_is_read_as_text() -> None:
+    """A bank's replacement card is posted, "oder", handed over at a branch."""
+    document = paged(1)
+    document.add_heading(text="Ersatzkarte", level=1, prov=on(1, 60))
+    say(document, 1, "Die Ersatzkarte wird")
+    for top, item in (
+        (120, "per Post an die hinterlegte Anschrift gesandt"),
+        (152, "in der Filiale gegen Vorlage des Ausweises ausgehändigt."),
+    ):
+        group = document.add_list_group()
+        document.add_list_item(text=item, parent=group, prov=on(1, top))
+        if top == 120:
+            document.add_heading(text="oder", level=2, prov=on(1, 136))
+
+    assert trails(document, "de") == [
+        (
+            (
+                "Die Ersatzkarte wird\n"
+                "- per Post an die hinterlegte Anschrift gesandt\n"
+                "oder\n"
+                "- in der Filiale gegen Vorlage des Ausweises ausgehändigt."
+            ),
+            ["Ersatzkarte"],
+        )
+    ]
+
+
+def test_a_lone_or_between_two_headed_sections_is_glued_to_neither() -> None:
+    """A shop's "Or" between two delivery options heads nothing and ends nothing."""
+    document = paged(1)
+    document.add_heading(text="Collect in store", level=1, prov=on(1, 60))
+    say(document, 1, "Collect your order from any store within 7 days.")
+    document.add_heading(text="Or", level=1, prov=on(1, 120))
+    document.add_heading(text="Home delivery", level=1, prov=on(1, 140))
+    say(document, 1, "Delivery costs 4.95 GBP.")
+
+    assert trails(document, "en") == [
+        ("Collect your order from any store within 7 days.", ["Collect in store"]),
+        ("Delivery costs 4.95 GBP.", ["Home delivery"]),
+    ]
+
+
 def unfurnished() -> DoclingDocument:
     """Headings, paragraphs and a list, with no running head or foot."""
     document = paged(2)
