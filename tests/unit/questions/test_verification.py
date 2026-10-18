@@ -2302,6 +2302,7 @@ def test_a_question_asking_two_things_is_refused(question) -> None:
         ),
         ("How do the reply times for standard and urgent requests differ?", "en"),
         ("How is a support request raised and confirmed?", "en"),
+        ("Wodurch unterscheiden sich Tagesgeld und Festgeld?", "de"),
     ],
 )
 def test_one_question_about_two_things_is_kept(question, language) -> None:
@@ -2362,6 +2363,14 @@ def test_a_question_word_opening_a_clause_is_not_a_second_question(
         ("When is a card blocked and when is it unblocked?", "en"),
         ("Wann wird ein Konto gesperrt und wann wird es wieder freigegeben?", "de"),
         ("What does a transfer cost and for how long is it held?", "en"),
+        (
+            "Worauf muss der Kunde bei der Rücksendung achten und wer trägt die Kosten?",
+            "de",
+        ),
+        (
+            "Woran erkennt der Kunde eine gefälschte E-Mail, und was soll er tun?",
+            "de",
+        ),
     ],
 )
 def test_a_question_word_after_a_conjunction_is_a_second_question(

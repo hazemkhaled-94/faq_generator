@@ -546,6 +546,13 @@ A further question word counts as a second question only after a
 coordinating conjunction. **Trade-off:** a comma splice with no conjunction
 ("Wann ist sie fällig, wie viel kostet sie?") now passes as one question.
 
+**Fixed further in v0.3.4.** `de_core_news_md` tags some German question
+words, `Worauf` and `Woran`, as pronominal adverbs, so "Worauf ..., und was
+...?" read as one question. `compound` now reads the closed class of
+`wo(r)` and a preposition as question words through a per-language table.
+On the v0.3.0 rows this moves one question, already refused as
+`answer_incomplete`, to `compound`, and changes no accepted one.
+
 ## A pronoun its own statement resolves read as dangling
 
 `unresolved_reference` refused any third-person pronoun, even one whose

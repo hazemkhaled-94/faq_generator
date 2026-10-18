@@ -345,6 +345,38 @@ def _stated(count: int, statements: Sequence[str], language: str | None) -> bool
     return any(figure in _values(statement, language) for statement in statements)
 
 
+#: Question words a language's tagger may read as something else, by ISO
+#: 639-1 code. `de_core_news_md` tags `Worauf` and `Woran` as the pronominal
+#: adverb `darauf` is (PROAV) rather than as the question word `Wofür` is
+#: (PWAV), so `Worauf ... achten und wer trägt die Kosten?` read as one
+#: question. The closed class of `wo(r)` and a preposition; English has no
+#: such word.
+_ASKING_ADVERBS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "wobei",
+            "wodurch",
+            "wofür",
+            "wogegen",
+            "womit",
+            "wonach",
+            "woran",
+            "worauf",
+            "woraus",
+            "worin",
+            "worüber",
+            "worum",
+            "worunter",
+            "wovon",
+            "wovor",
+            "wozu",
+            "wozwischen",
+        }
+    ),
+    "en": frozenset(),
+}
+
+
 def _asks(question: str, language: str | None) -> tuple[str, ...]:
     """The question words that each open a question of their own.
 
@@ -360,9 +392,10 @@ def _asks(question: str, language: str | None) -> tuple[str, ...]:
     question asked with an auxiliary as embedded too.
     """
     words = interrogatives(question, language)
-    if len(words) < 2:
+    misread = _ASKING_ADVERBS.get((language or "").strip().lower(), frozenset())
+    if len(words) < 2 and not misread:
         return words
-    asking = {word.casefold() for word in words}
+    asking = {word.casefold() for word in words} | misread
     tokens = list(pipeline(language)(question))
     at = [token.i for token in tokens if token.lower_ in asking]
     return tuple(
