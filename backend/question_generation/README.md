@@ -50,9 +50,12 @@ Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Tr
 describes the traffic a benchmark should look like:
 each is a set of mutually exclusive categories, each category a description
 of what a question of it is like and how often it is wanted. The setting
-holds them as the paper's Figure 2 JSON. Unset, it reads the paper's two
-natural phrasings at even odds, a concise question of fewer than 10 words
-and a verbose one of more than 9; `[]` deals none.
+holds them as the paper's Figure 2 JSON. Unset, it reads two of the paper's
+Table 5 categorizations, every category at even odds: Phrasing, a concise
+natural question of fewer than 10 words or a verbose one of more than 9; and
+Premise, a direct question or one opening with a very short premise in which
+the asker says what they need or something about themselves. `[]` deals
+none.
 
 The deal draws no random number, like the rest of the plan. Each
 categorization's probabilities become an exact quota of the topic's slots,
@@ -953,7 +956,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
-| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them and no question is refused by them, and `make diversity BY=category` reports how many of the category's questions keep to them. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings at even odds from code, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Concise and verbose, 0.5 each** |
+| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them and no question is refused by them, and `make diversity BY=category` reports how many of the category's questions keep to them. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings and its two premises from code, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise and verbose; Premise: direct and with-premise; 0.5 each** |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |
