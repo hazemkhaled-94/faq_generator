@@ -355,7 +355,8 @@ make assess-start ONLY=--only\ kind=question   # the deliverable only
 make assess
 ```
 
-A fact costs three model calls, a topic two and a question six.
+A fact costs three model calls, a topic two and a question seven, one of them
+returning six scores (a follow-up six, without that one).
 `ASSESSMENT_KINDS` and `ASSESSMENT_SAMPLE` in `configs/env/backend.env` are
 the dials, and the default is a sample per kind rather than a corpus.
 

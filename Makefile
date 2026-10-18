@@ -1116,7 +1116,8 @@ assess-start:
 # Enrol without queuing. Not a dry run: it writes a `new` assessment for
 # every artefact it draws, which no worker claims until `assess-start`
 # queues it, and reports how many there are before anybody pays for them.
-# A fact costs three model calls, a topic two and a question six.
+# A fact costs three model calls, a topic two and a question seven, one of
+# them returning six scores (a follow-up six, without that one).
 # `assess-start` enrols again first, and under the same settings draws the
 # same rows.
 assess-enrol:

@@ -34,6 +34,12 @@ def test_the_plan_says_whether_the_phase_is_on(client) -> None:
         "refusal",
         "conciseness",
         "toxicity",
+        "rubric_fluency",
+        "rubric_clarity",
+        "rubric_conciseness",
+        "rubric_relevance",
+        "rubric_consistency",
+        "rubric_answerability",
     ]
     assert plan["prompt_version"]
 

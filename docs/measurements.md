@@ -424,6 +424,40 @@ are too small to tell. The two do not measure the same thing: the checker
 asks whether a citation resolves and a gate holds, the judge whether an
 artefact reads as sound. The disagreeing pairs are the queue for a person.
 
+### The paper's judge
+
+From template version 3, a question that opens its thread is also scored by
+the DataMorgana paper's judge (Filice et al., ACL 2025 Industry Track,
+Appendix D). The run above was judged under version 2 and carries none of
+these scores.
+
+The judge is the paper's prompt, in its words and with its six Wikipedia
+examples. It is shown the passages the question's facts cite, each once and at
+most four, and in one call it scores the question 1 to 3 on fluency, clarity,
+conciseness, relevance, consistency and answerability. Each score is stored as
+its own metric, `rubric_fluency` to `rubric_answerability`, with the score
+(s − 1) / 2.
+
+The paper reports, per benchmark, the mean of each score shifted by
+(mean − 1) / 2 into the range 0 to 1. The shift is linear, so that figure
+equals the mean of the stored scores over the same questions, and it can be
+read straight from `assessment_metrics`:
+
+```sql
+SELECT q.language, m.metric, count(*) AS questions,
+       round(avg(m.score)::numeric, 3) AS normalised
+FROM assessment_metrics m
+JOIN assessments a ON a.id = m.assessment_id
+JOIN questions q ON q.id = a.question_id
+WHERE m.metric LIKE 'rubric%'
+GROUP BY q.language, m.metric
+ORDER BY q.language, m.metric;
+```
+
+The figures are per language, as everything on this page is: the paper
+judged English questions with an English prompt, and this corpus is half
+German.
+
 ## Model latency
 
 Per call, over the run:

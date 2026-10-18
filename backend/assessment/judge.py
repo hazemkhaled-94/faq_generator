@@ -53,43 +53,70 @@ class Judge:
         """The model answering, recorded beside what it answered."""
         return self._client.model
 
+    def asked(self, artifact: ArtifactToJudge) -> tuple[Template, ...]:
+        """The templates this artefact is asked: its kind's, less any meant for a root.
+
+        A follow-up is the one artefact a template can be wrong for. It
+        leans on the turn before it, which the paper's rubric is not shown,
+        so a rubric asked of one would score the thread's context as the
+        question's fault. Only a question claimed as a follow-up is spared:
+        nothing else carries a `root` at all.
+        """
+        return tuple(
+            one
+            for one in TEMPLATES[artifact.kind]
+            if not (one.roots_only and artifact.fields.get("root") == "False")
+        )
+
+    def due(self, artifact: ArtifactToJudge) -> int:
+        """How many metrics this artefact is due, which is not how many calls.
+
+        The rubric is one call returning six, so a root question is due
+        twelve metrics from seven calls. Counted in calls, a rubric that
+        abstained would cost a verdict one metric rather than six.
+        """
+        return sum(len(one.metrics) for one in self.asked(artifact))
+
     def judge(self, artifact: ArtifactToJudge) -> tuple[Judgement, ...]:
-        """Asks every metric this artefact's kind declares.
+        """Asks every metric this artefact is due.
 
         One call per metric, deliberately. Three judgements in one call is
-        what `question_generation/phrasing.py` exists to undo.
+        what `question_generation/phrasing.py` exists to undo. The paper's
+        rubric is the one exception, asked as the paper asked it - see
+        `templates.Rubric`.
 
         Returns:
             One judgement per metric that answered, in template order. Short
-            of the full set where a metric abstained.
+            of the full set where a call abstained.
 
         Raises:
             JudgeUnavailable: If no metric answered, which means the model
                 is down rather than that the artefact is bad.
         """
-        asked = TEMPLATES[artifact.kind]
+        asked = self.asked(artifact)
         answered = [
-            judged
-            for template in asked
-            if (judged := self._one(template, artifact)) is not None
+            judged for template in asked for judged in self._one(template, artifact)
         ]
         if not answered:
             raise JudgeUnavailable(
                 f"{self.model} answered none of the {len(asked)} judgement(s) "
                 f"about {artifact.kind} {artifact.artifact_id}"
             )
-        if len(answered) < len(asked):
+        due = self.due(artifact)
+        if len(answered) < due:
             log.warning(
-                "%s %d: %d of %d judgement(s) answered; the rest abstained",
+                "%s %d: %d of %d metric(s) answered; the rest abstained",
                 artifact.kind,
                 artifact.artifact_id,
                 len(answered),
-                len(asked),
+                due,
             )
         return tuple(answered)
 
-    def _one(self, template: Template, artifact: ArtifactToJudge) -> Judgement | None:
-        """One metric, or None where the model could not be reached."""
+    def _one(
+        self, template: Template, artifact: ArtifactToJudge
+    ) -> tuple[Judgement, ...]:
+        """One call's metrics, or none where the model could not be reached."""
         try:
             said = self._client.answer(
                 system=template.system,
@@ -107,15 +134,5 @@ class Judge:
                 artifact.artifact_id,
                 exc,
             )
-            return None
-
-        label = str(said.label)  # pyright: ignore[reportAttributeAccessIssue]
-        return Judgement(
-            metric=template.metric,
-            label=label,
-            score=template.scores[label],
-            approved=label == template.good,
-            explanation=" ".join(
-                str(said.explanation).split()  # pyright: ignore[reportAttributeAccessIssue]
-            ),
-        )
+            return ()
+        return template.judged(said)

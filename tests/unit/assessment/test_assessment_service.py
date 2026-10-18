@@ -70,6 +70,10 @@ class _Judge:
             raise JudgeUnavailable("nothing answered")
         return self._judgements
 
+    def due(self, artifact) -> int:
+        """Every metric the kind declares, as the judge counts them."""
+        return len(metrics_of(artifact.kind))
+
 
 class _Evaluations:
     """A Phoenix that records what it was posted."""
@@ -399,3 +403,54 @@ def test_the_refused_metrics_reach_the_span_as_plain_strings() -> None:
     assert recorded["assessment.refused"] == ["hallucination"]
     assert all(type(one) is str for one in recorded["assessment.refused"])
     assert type(recorded["assessment.hallucination"]) is str
+
+
+#: The label that approves each answer-level metric a question is asked.
+APPROVES = {"factual", "correct", "relevant", "answered", "concise", "non-toxic"}
+
+
+def test_a_rubric_that_abstains_leaves_the_verdict_thin() -> None:
+    """Six scores lost to one call are six metrics due and missing.
+
+    The rubric is one call returning six metrics, so what a root question is
+    due is counted in metrics, not in calls. Counted in calls, the six lost
+    here would be one, and a verdict missing half its metrics would read
+    nearly whole.
+    """
+    from assessment.judge import Judge
+    from llm.client import ModelUnavailable
+
+    class _Client:
+        """Answers every metric but the rubric, with its approving label."""
+
+        model = "test/judge"
+
+        def answer(self, *, system, user, shape, prompt_version=None):
+            """Approves, or cannot be reached for the rubric."""
+            if shape.__name__ == "_Rubric":
+                raise ModelUnavailable("the runtime is restarting")
+            good = shape.model_fields["label"].annotation.__args__
+            label = next(one for one in good if one in APPROVES)
+            return shape(label=label, explanation="so")
+
+    queue = _Queue(
+        ArtifactToJudge(
+            assessment_id=12,
+            kind=ArtifactKind.QUESTION,
+            artifact_id=9,
+            fields={
+                "question": "How long is allowed for a reply?",
+                "answer": "Five days.",
+                "facts": "- A reply is due in five days.",
+                "passages": "A reply is due in five days.",
+                "root": "True",
+            },
+        )
+    )
+
+    _service(queue, Judge(_Client())).process_next()
+
+    written = queue.recorded[0]
+    assert (len(written.judgements), written.metrics_due) == (6, 12)
+    assert written.abstained == 6
+    assert written.approved is False

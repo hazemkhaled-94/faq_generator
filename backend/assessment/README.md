@@ -56,12 +56,13 @@ nothing here keeps one.
 | | `toxicity` | Did the pipeline write something offensive of its own? | |
 | `topic` | `summarization` | Is the label a good short name for these terms? | 2 |
 | | `relevance` | Are these terms a subject, or the document's furniture? | |
-| `question` | `hallucination` | Do the facts support every part of the answer? | 6 |
+| `question` | `hallucination` | Do the facts support every part of the answer? | 7 |
 | | `qa_correctness` | Does the answer answer the question that was asked? | |
 | | `relevance` | Do the facts contain what the question needs? | |
 | | `refusal` | Is the answer an answer, or a refusal written down as one? | |
 | | `conciseness` | Does the answer give what was asked for and stop? | |
 | | `toxicity` | Did the pipeline write something offensive of its own? | |
+| | `rubric_fluency` … `rubric_answerability` | The DataMorgana paper's six scores of the question, from one call; root questions only | |
 
 ### `refusal` is the one no gate makes
 
@@ -81,7 +82,8 @@ the two would flag the most careful part of a difficult corpus.
 
 ### What is deliberately not asked
 
-Of the evaluators phoenix-evals ships, the seven above are the ones that apply.
+Of the evaluators phoenix-evals ships, the seven named above without a
+`rubric_` prefix are the ones that apply.
 
 | Not asked | Why |
 |---|---|
@@ -96,13 +98,62 @@ Of the evaluators phoenix-evals ships, the seven above are the ones that apply.
 
 **An artefact is approved only when every one of its metrics approves.** Not
 a majority: an answer that is well-sourced and answers the wrong question is
-worth somebody's time even though five of its six passed.
+worth somebody's time even though five of its six passed. The paper's six
+scores count too, and only a 3 approves.
 
 ### Unanswerable questions are not judged
 
 Two of the six question metrics ask whether the facts support the answer,
 and a deliberately unanswerable question has none. Scoring it anyway would
 report the pipeline's most careful output as its worst.
+
+## The paper's judge
+
+The DataMorgana paper (Filice et al., ACL 2025 Industry Track, Appendix D)
+measures a benchmark's questions with one judge prompt that scores each
+question 1 to 3 on six dimensions: fluency, clarity and conciseness of the
+question itself, and its relevance, consistency and answerability against the
+passage it came from. That prompt is the `Rubric` template in
+[`templates.py`](templates.py), so the scores here can be read beside the
+paper's Table 3.
+
+| Stored as | The paper asks whether the question… |
+|---|---|
+| `rubric_fluency` | is well formed, grammatical and fluent enough to be understood |
+| `rubric_clarity` | is expressed clearly and unambiguously |
+| `rubric_conciseness` | is concise, without redundant modifiers |
+| `rubric_relevance` | asks for key information from the passage |
+| `rubric_consistency` | agrees with the passage, without contradiction or hallucination |
+| `rubric_answerability` | can be answered definitively from the passage |
+
+It differs from the other templates in four ways, each for the comparison's
+sake:
+
+- **The words are the paper's.** Its definitions, its scoring guidelines and
+  its six Wikipedia examples are kept, laid out under the same six headings
+  every prompt here carries, with the sentence saying the material may be in
+  any language. The one edit is Example 1's reply, which the paper prints as
+  malformed JSON.
+- **One call returns all six.** That is how the paper asked them, and scores
+  asked another way would not compare. Each score is still stored as its own
+  metric row.
+- **It reads passages, not facts.** The judge is shown the passages the
+  question's facts cite, each once, in document and reading order, at most
+  four.
+- **No explanation.** The paper asks for none, so these rows carry an empty
+  one.
+
+A score of 1, 2 or 3 is stored as its label, and as the score
+(s − 1) / 2: 0, 0.5 or 1. The paper normalises a benchmark's mean the same way,
+so the mean of a `rubric_` metric's stored scores over a set is the paper's
+normalised figure for that set. Only a 3 approves. The prefix keeps these
+apart from phoenix-evals' `relevance` and `conciseness`, which judge other
+things.
+
+Only a question that opens its thread is asked. A follow-up leans on the turn
+before it, which the rubric is not shown, so it would be scored down for
+context it was never given. A root question is due twelve metrics from seven
+calls, and a follow-up six from six.
 
 ## The names are phoenix-evals'. The prompts are not.
 
@@ -148,7 +199,7 @@ the tokens and the spend are recorded.
 
 **One call per judgement.** Three in one call is what
 [`question_generation/phrasing.py`](../question_generation/README.md) exists
-to undo.
+to undo. The paper's rubric is the one exception, for the reason above.
 
 ## Where a verdict shows up
 
@@ -214,7 +265,8 @@ this codebase does nowhere else.
 
 ## Cost
 
-A model call per metric: **three per fact, two per topic, six per question.**
+A model call per metric: **three per fact, two per topic, six per question**,
+and one more for the paper's six scores of a root question.
 A corpus of twenty thousand facts is sixty thousand calls, which is why the
 default is a **sample per kind (`ASSESSMENT_SAMPLE`), newest first** and why
 the phase ships off.
@@ -301,7 +353,7 @@ make diversity FILE=new.xlsx AGAINST=old.xlsx
 
 | File | Holds |
 |---|---|
-| [`templates.py`](templates.py) | The eleven judging templates (three fact, two topic, six question) over seven metric names, and the names, labels and scores borrowed from phoenix-evals |
+| [`templates.py`](templates.py) | The twelve judging templates (three fact, two topic, seven question) over thirteen metric names: the names, labels and scores borrowed from phoenix-evals, and the DataMorgana paper's judge |
 | [`judge.py`](judge.py) | Asking one model one judgement, and abstaining when it will not answer |
 | [`repository.py`](repository.py) | The queue, the enrolment, and reading the verdicts back |
 | [`service.py`](service.py) | The drain loop, and the annotations it posts |
@@ -323,7 +375,7 @@ poetry run pytest tests/unit/assessment
 | File | Covers |
 |---|---|
 | [`test_templates.py`](../../tests/unit/assessment/test_templates.py) | The metric names, labels, scores and directions holding together, and every placeholder against the fields that fill it |
-| [`test_judge.py`](../../tests/unit/assessment/test_judge.py) | One call per metric, and an abstention against a refusal |
+| [`test_judge.py`](../../tests/unit/assessment/test_judge.py) | One call per metric, the paper's six from one, the rubric spared a follow-up, and an abstention against a refusal |
 | [`test_assessment_service.py`](../../tests/unit/assessment/test_assessment_service.py) | The row, the annotations, and the columns this phase does not write |
 | [`test_assessment_config.py`](../../tests/unit/assessment/test_assessment_config.py) | The flag, the judge and the two cost dials |
 | [`test_assessment_prompts.py`](../../tests/unit/assessment/test_assessment_prompts.py) | Every template recorded under a name of its own, with both halves and its version |
@@ -342,10 +394,11 @@ poetry run pytest tests/unit/assessment
   Read the direction.
 - **A sample is the default.** `ASSESSMENT_SAMPLE=0` judges the corpus, and
   on a large one that is tens of thousands of model calls.
-- **A question costs six calls and a fact three.** Judging questions alone
-  is the setting that buys the most.
-- **A row judged under template version 1 carries three metrics fewer.**
-  The version is on the row; `make assess-rerun` re-judges it.
+- **A root question costs seven calls, a follow-up six and a fact three.**
+  Judging questions alone is the setting that buys the most.
+- **A row judged under template version 1 carries three metrics fewer, and
+  one under version 2 none of the paper's six.** The version is on the row;
+  `make assess-rerun` re-judges it.
 - **Enrolment ignores `--only`.** The requeue after it does not.
 - **A judge named as `LLM_MODEL` is marking its own work.** Warned, not
   refused. A judge named as nothing is refused.

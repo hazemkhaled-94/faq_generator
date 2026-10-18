@@ -29,6 +29,12 @@ shipped ones cannot meet:
 
 The examples are deliberately about nothing - see
 `tests/static/test_prompts_name_no_domain.py`, which reads this file.
+
+One template departs from all of this but the language: `Rubric`, the
+DataMorgana paper's judge, is the paper's prompt and not this repository's,
+with its Wikipedia examples, its own names and no explanation asked for,
+because its scores are only worth having where they compare with the
+paper's.
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from assessment.models import Judgement
 from database.qa_generator import ArtifactKind, JudgeMetric
 from llm.prompt import fill
 
@@ -49,7 +56,24 @@ from llm.prompt import fill
 #: Version 2 added `toxicity`, `conciseness` and `refusal`. A row judged
 #: under version 1 carries three metrics fewer, and that is readable rather
 #: than mysterious because the version is on the row.
-PROMPT_VERSION = "2"
+#:
+#: Version 3 added the DataMorgana paper's rubric: one more call for a root
+#: question, returning six scores, so a root is due twelve metrics and a
+#: follow-up six.
+PROMPT_VERSION = "3"
+
+#: The DataMorgana paper's six dimensions (Filice et al., 2025, Appendix D),
+#: in its order, by the name each score is stored under. One call answers
+#: all six, which is how the paper asks them and the only way its Table 3
+#: compares.
+RUBRIC: tuple[str, ...] = (
+    JudgeMetric.RUBRIC_FLUENCY,
+    JudgeMetric.RUBRIC_CLARITY,
+    JudgeMetric.RUBRIC_CONCISENESS,
+    JudgeMetric.RUBRIC_RELEVANCE,
+    JudgeMetric.RUBRIC_CONSISTENCY,
+    JudgeMetric.RUBRIC_ANSWERABILITY,
+)
 
 #: Each metric's labels and the score phoenix-evals gives them, and which
 #: label is the good one. Taken from that package's own evaluator configs:
@@ -73,6 +97,11 @@ _CHOICES: dict[str, tuple[dict[str, float], str]] = {
     # question whose stored answer is "the document does not say" is a row
     # nothing else in this pipeline rejects.
     JudgeMetric.REFUSAL: ({"refused": 1.0, "answered": 0.0}, "answered"),
+    # The paper's 1 to 3, scored (s - 1) / 2: the shift it applies to a
+    # benchmark's mean, applied per question, so its normalised mean of a
+    # set is the mean of the stored scores. Only a 3 approves - a 2 is the
+    # paper's "partly", and `approved` is every metric on its good side.
+    **dict.fromkeys(RUBRIC, ({"1": 0.0, "2": 0.5, "3": 1.0}, "3")),
 }
 
 #: How each metric is optimised, as phoenix-evals declares it. Recorded on
@@ -92,6 +121,7 @@ _DIRECTION: dict[str, str] = {
     #: repository thinks of a refusal is in `_CHOICES` above, where
     #: `answered` is the label that approves.
     JudgeMetric.REFUSAL: "neutral",
+    **dict.fromkeys(RUBRIC, "maximize"),
 }
 
 #: The sentence every template carries, because the corpus is not in one
@@ -125,6 +155,14 @@ class Template:
     #: `tests/unit/assessment/test_templates.py` rather than reaching a
     #: model as the braces themselves.
     fields: tuple[str, ...]
+    #: Asked of a question that opens its thread and not of a follow-up,
+    #: which leans on a turn before it that the template is not shown.
+    roots_only: bool = False
+
+    @property
+    def metrics(self) -> tuple[str, ...]:
+        """The metrics one answer to this template is recorded as."""
+        return (self.metric,)
 
     @property
     def labels(self) -> tuple[str, ...]:
@@ -192,6 +230,74 @@ class Template:
         # every one of the seven would arrive as `Judgement`.
         Judgement.__name__ = f"_{self.metric.title().replace('_', '')}"
         return Judgement
+
+    def judged(self, said: BaseModel) -> tuple[Judgement, ...]:
+        """What one answer in this template's shape is recorded as."""
+        label = str(said.label)  # pyright: ignore[reportAttributeAccessIssue]
+        return (
+            Judgement(
+                metric=self.metric,
+                label=label,
+                score=self.scores[label],
+                approved=label == self.good,
+                explanation=" ".join(
+                    str(said.explanation).split()  # pyright: ignore[reportAttributeAccessIssue]
+                ),
+            ),
+        )
+
+
+class _Rubric(BaseModel):
+    """The paper's reply: six scores, named as it names them, and no reason."""
+
+    fluency: Literal[1, 2, 3]
+    clarity: Literal[1, 2, 3]
+    conciseness: Literal[1, 2, 3]
+    relevance: Literal[1, 2, 3]
+    consistency: Literal[1, 2, 3]
+    answerability: Literal[1, 2, 3]
+
+
+@dataclass(frozen=True)
+class Rubric(Template):
+    """The DataMorgana paper's judge: one call, six scores, about the question.
+
+    The six phoenix-evals templates above it judge the ANSWER, one call
+    each. This one judges the question against the passages it was written
+    from, and asks the six together because that is how the paper asked
+    them: its Table 3 compares with nothing asked another way. The single
+    call is what `question_generation/phrasing.py` warns against, and here
+    it is the price of the comparison.
+
+    No explanation, as the paper asks for none. What it produces is a
+    measurement to put beside the paper's, not a reason for a reviewer.
+    """
+
+    @property
+    def metrics(self) -> tuple[str, ...]:
+        """The paper's six, in its order."""
+        return RUBRIC
+
+    def shape(self) -> type[BaseModel]:
+        """Six scores of 1 to 3, a reply outside them a schema failure."""
+        return _Rubric
+
+    def judged(self, said: BaseModel) -> tuple[Judgement, ...]:
+        """One judgement per score, labelled with the score as the paper gave it."""
+        recorded = []
+        for metric in self.metrics:
+            label = str(getattr(said, metric.removeprefix("rubric_")))
+            scores, good = _CHOICES[metric]
+            recorded.append(
+                Judgement(
+                    metric=metric,
+                    label=label,
+                    score=scores[label],
+                    approved=label == good,
+                    explanation="",
+                )
+            )
+        return tuple(recorded)
 
 
 # ── Facts ────────────────────────────────────────────────────────────────
@@ -659,6 +765,191 @@ FACTS IT WAS WRITTEN FROM
 {{facts}}"""
 
 
+#: Figures 5-7 of the paper, its words and its six examples, in the six
+#: sections every prompt here carries. The examples are about Wikipedia and
+#: not about nothing, as every other example in this module is: they are the
+#: paper's, kept so the scores compare with its Table 3. Example 1's reply is
+#: corrected, because the paper prints it as `"clarity: 1` and a judge shown
+#: malformed JSON as the answer to give is being taught to give it.
+_RUBRIC_STEPS = """## Fluency
+Whether the question is wellformed, grammatically correct, coherent, and fluent
+enough to be understood. Provide it one of 3 scores according to these
+guidelines
+
+Score 1: The question is incoherent, with imprecise wording or significant
+grammatical errors, making it difficult to comprehend its meaning.
+Score 2: The question is slightly incoherent or contains minor grammatical
+errors, but it does not hinder the understanding of the question's meaning.
+Score 3: The question is fluent and grammatically correct.
+
+## Clarity
+Whether the question is expressed clearly and unambiguously, avoiding excessive
+generality and ambiguity
+
+Score 1: The question is too broad or expressed in a confusing manner, making
+it difficult to understand or leading to ambiguity. Particularly, if the
+generated sentence is not a question but a declarative sentence, it should be
+considered in this situation.
+Score 2: The question is not expressed very clearly and specifically, but it is
+possible to infer the question's meaning based on the given passage.
+Score 3: The question is clear and specific, without any ambiguity.
+
+## Conciseness
+Whether the question is concise and not abnormally verbose with redundant
+modifiers
+
+Score 1: The question contains too much redundant information, making it
+difficult to understand its intent.
+Score 2: The question includes some redundant information, but it does not
+impact the understanding of its meaning.
+Score 3: The question is concise and does not contain any unnecessary
+information.
+
+## Relevance
+Whether the question is relevant to the given passage and asks for key
+information from the passage
+
+Score 1: The question is completely unrelated to the passage.
+Score 2: The question is somewhat related to the passage and it asks for
+non-crucial information related to the passage.
+Score 3: The question is relevant to the context, and the information it seeks
+is crucial to the passage.
+
+## Consistency
+Whether the information presented in the question is consistent with the
+passage and without any contradictions or hallucinations
+
+Score 1: The question contains factual contradictions with the passage or
+logical errors.
+Score 2: The information sought in the question is not fully described in the
+passage.
+Score 3: The information in the question is entirely consistent with the
+passage.
+
+## Answerability
+Whether the question can be distinctly answered based on the passage
+
+Score 1: The question cannot be answered based on the provided passage.
+Score 2: The question can be partially answered based on the provided passage,
+or the answer to the question can be inferred to some extent.
+Score 3: The question can be answered definitively based on the given passage."""
+
+_RUBRIC_EXAMPLES = """Example 1
+Passage: Richard "Rick" Ducommun (July 3, 1952 - June 12, 2015) was a Canadian
+actor, comedian and writer who appeared in films and television. The Burbs is a
+1989 American comedy thriller film directed by Joe Dante starring Tom Hanks,
+Bruce Dern, Carrie Fisher, Rick Ducommun, Corey Feldman, Wendy Schaal and Henry
+Gibson. The film was written by Dana Olsen, who also has a cameo in the movie.
+The film pokes fun at suburban environments and their eccentric dwellers.
+
+Question: What star if the Burbs was Canadian?
+Scores: {"fluency": 1, "clarity": 1, "conciseness": 3, "relevance": 3, "consistency": 3, "answerability": 1}
+
+Example 2
+Passage: At the same time the Mongols imported Central Asian Muslims to serve
+as administrators in China, the Mongols also sent Han Chinese and Khitans from
+China to serve as administrators over the Muslim population in Bukhara in
+Central Asia, using foreigners to curtail the power of the local peoples of
+both lands. Han Chinese were moved to Central Asian areas like Besh Baliq,
+Almaliq, and Samarqand by the Mongols where they worked as artisans and
+farmers. Alans were recruited into the Mongol forces with one unit called
+"Right Alan Guard" which was combined with "recently surrendered" soldiers,
+Mongols, and Chinese soldiers stationed in the area of the former Kingdom of
+Qocho and in Besh Balikh the Mongols established a Chinese military colony led
+by Chinese general Qi Kongzhi (Ch'i Kung-chih). After the Mongol conquest of
+Central Asia by Genghis Khan, foreigners were chosen as administrators and
+co-management with Chinese and Qara-Khitays (Khitans) of gardens and fields in
+Samarqand was put upon the Muslims as a requirement since Muslims were not
+allowed to manage without them. The Mongol appointed Governor of Samarqand was
+a Qara-Khitay (Khitan), held the title Taishi, familiar with Chinese culture
+his name was Ahai.
+
+Question: Where did the Mongols work?
+Scores: {"fluency": 3, "clarity": 2, "conciseness": 3, "relevance": 3, "consistency": 3, "answerability": 1}
+
+Example 3
+Passage: "Domino Dancing" is a song recorded by the British synthpop duo Pet
+Shop Boys, released as the lead single from their 1988 album, "Introspective".
+It reached number 7 on the UK Singles Chart. Introspective is the third studio
+album by English synthpop duo Pet Shop Boys. It was first released on 11
+October 1988 and is the Pet Shop Boys' second-best-selling album, selling over
+4.5 million copies worldwide. (Their fifth studio album, "Very", sold more than
+5 million copies worldwide.).
+
+Question: "Domino Dancing" is a song recorded by the British synthpop duo Pet
+Shop Boys, released as the lead single from their 1988 album, "Introspective".
+It reached number 7 on the UK Singles Chart, which month was the album
+"Introspective" first released?
+Scores: {"fluency": 2, "clarity": 3, "conciseness": 2, "relevance": 3, "consistency": 3, "answerability": 3}
+
+Example 4
+Passage: With International Criminal Court trial dates in 2013 for both
+President Kenyatta and Deputy President William Ruto related to the 2007
+election aftermath, US President Barack Obama chose not to visit the country
+during his mid-2013 African trip. Later in the summer, Kenyatta visited China
+at the invitation of President Xi Jinping after a stop in Russia and not having
+visited the United States as president. In July 2015 Obama visited Kenya, as
+the first American president to visit the country while in office.
+
+Question: Why did President Kenyatta and Deputy President William Ruto not
+visit the United States in 2013?
+Scores: {"fluency": 3, "clarity": 3, "conciseness": 3, "relevance": 3, "consistency": 2, "answerability": 1}
+
+Example 5
+Passage: Even before Washington returned, Dinwiddie had sent a company of 40
+men under William Trent to that point, where in the early months of 1754 they
+began construction of a small stockaded fort. Governor Duquesne sent additional
+french forces under Claude-Pierre Pecaudy de Contrecœur to relieve Saint-Pierre
+during the same period, and Contrecœur led 500 men south from Fort Venango on
+April 5, 1754. When these forces arrived at the fort on April 16, Contrecœur
+generously allowed Trent's small company to withdraw. He purchased their
+construction tools to continue building what became Fort Duquesne.
+
+Question: How many men did Duquesne send to relieve Saint-Pierre?
+Scores: {"fluency": 3, "clarity": 3, "conciseness": 3, "relevance": 3, "consistency": 3, "answerability": 3}
+
+Example 6
+Passage: There are fifteen fraternities and seven sororities at the University
+of Chicago, as well as one co-ed community service fraternity, Alpha Phi Omega.
+Four of the sororities are members of the National Panhellenic Conference, and
+ten of the fraternities form the University of Chicago Interfraternity Council.
+In 2002, the Associate Director of Student Activities estimated that 8-10
+percent of undergraduates were members of fraternities or sororities. The
+student activities office has used similar figures, stating that one in ten
+undergraduates participate in Greek life.
+
+Question: How many fraternities are at the University of Chicago?
+Scores: {"fluency": 3, "clarity": 3, "conciseness": 3, "relevance": 3, "consistency": 3, "answerability": 3}"""
+
+_RUBRIC = f"""ROLE
+You are given a passage of text along with a question about its content
+generated by an automated process.
+
+ACTION
+You must score it in multiple dimensions, as define below. For each
+dimension, we provide a description of it, as well as guidelines for a
+numeric score. In all cases, the score is a number between 1 and 3.
+
+STEPS
+{_RUBRIC_STEPS}
+
+CONTEXT
+{_ANY_LANGUAGE}
+
+EXAMPLES
+{_RUBRIC_EXAMPLES}
+
+FORMAT
+Please provide your answer as a json response in the format {{score name: score}}
+as shown in the examples above. Do not provide an explanation, just the json
+output."""
+
+#: The paper's own layout, which its examples follow.
+_RUBRIC_USER = """Passage: {{passages}}
+
+Question: {{question}}"""
+
+
 #: Every template, by artefact and then by metric, in the order a reader
 #: should see them. What a kind is asked is exactly what is listed here:
 #: adding a metric is adding an entry, and nothing else reads a metric name.
@@ -745,13 +1036,23 @@ TEMPLATES: dict[str, tuple[Template, ...]] = {
             user=_QUESTION_TEXT_ONLY,
             fields=("question", "answer"),
         ),
+        # Recorded as six metrics, under the one name the prompt catalogue
+        # files it by.
+        Rubric(
+            metric="rubric",
+            kind=ArtifactKind.QUESTION,
+            system=_RUBRIC,
+            user=_RUBRIC_USER,
+            fields=("passages", "question"),
+            roots_only=True,
+        ),
     ),
 }
 
 
 def metrics_of(kind: str) -> tuple[str, ...]:
-    """Which metrics one artefact kind is judged on."""
-    return tuple(one.metric for one in TEMPLATES[kind])
+    """Which metrics one artefact kind is judged on, every one a template reports."""
+    return tuple(metric for one in TEMPLATES[kind] for metric in one.metrics)
 
 
 def direction_of(metric: str) -> str:

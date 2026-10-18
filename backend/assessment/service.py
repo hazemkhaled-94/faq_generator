@@ -29,7 +29,7 @@ from typing import ClassVar
 from assessment.judge import Judge, JudgeUnavailable
 from assessment.models import ArtifactToJudge, Assessed
 from assessment.repository import AssessmentQueue
-from assessment.templates import PROMPT_VERSION, direction_of, metrics_of
+from assessment.templates import PROMPT_VERSION, direction_of
 from stages import StageService
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
@@ -96,11 +96,11 @@ class AssessmentService(StageService):
                     judgements=judgements,
                     judge_model=self._judge.model,
                     prompt_version=PROMPT_VERSION,
-                    # What the kind was DUE, which is not what came back: the
-                    # judge abstains per metric when the model will not
+                    # What the artefact was DUE, which is not what came back:
+                    # the judge abstains per call when the model will not
                     # answer, and the row would otherwise read `assessed`
-                    # whether it got six judgements or two.
-                    metrics_due=len(metrics_of(artifact.kind)),
+                    # whether it got twelve judgements or six.
+                    metrics_due=self._judge.due(artifact),
                     trace_id=trace_id,
                     span_id=span_id,
                 )

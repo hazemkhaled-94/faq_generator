@@ -12,14 +12,20 @@ import pytest
 
 from assessment.judge import Judge, JudgeUnavailable
 from assessment.models import ArtifactToJudge
-from assessment.templates import TEMPLATES
+from assessment.templates import RUBRIC, TEMPLATES, Rubric
 from database.qa_generator import ArtifactKind, JudgeMetric
 from llm.client import ModelUnavailable
 
 #: Which of each metric's two labels approves, by the shape's name.
 _GOOD = {
-    one.shape().__name__: one.good for group in TEMPLATES.values() for one in group
+    one.shape().__name__: one.good
+    for group in TEMPLATES.values()
+    for one in group
+    if not isinstance(one, Rubric)
 }
+
+#: The paper's six scores, all of them 3, by the name its reply gives them.
+_FULL_MARKS = {one.removeprefix("rubric_"): 3 for one in RUBRIC}
 
 
 def _approving(shape) -> str:
@@ -32,10 +38,16 @@ class _Answering:
 
     model = "test/judge"
 
-    def __init__(self, *labels: str, fails: int = 0) -> None:
-        """Answers with each label in turn, after `fails` refusals."""
+    def __init__(
+        self, *labels: str, fails: int = 0, scores: dict[str, int] | None = None
+    ) -> None:
+        """Answers with each label in turn, after `fails` refusals.
+
+        The rubric is answered with `scores`, or full marks.
+        """
         self._labels = list(labels)
         self._fails = fails
+        self._scores = scores or _FULL_MARKS
         self.asked: list[tuple[str, str]] = []
 
     def answer(self, *, system, user, shape, prompt_version=None):
@@ -44,6 +56,8 @@ class _Answering:
         if self._fails:
             self._fails -= 1
             raise ModelUnavailable("the runtime is restarting")
+        if shape.__name__ == "_Rubric":
+            return shape(**self._scores)
         # Left to itself, each metric's own approving label. A fixed
         # default would fail the shape's Literal the moment a test asked
         # about a metric whose rails are not the hallucination pair.
@@ -143,28 +157,35 @@ def test_no_metric_answering_is_a_failed_row_and_not_a_refusal() -> None:
         Judge(client).judge(_fact())
 
 
-def test_a_question_is_asked_every_metric_its_kind_declares() -> None:
-    """Six of them, and three have no counterpart anywhere upstream.
-
-    `qa_correctness` asks whether the answer answers the question,
-    `refusal` whether it is an answer at all, and `conciseness` whether it
-    is only the answer. No gate asks any of those.
-    """
-    client = _Answering(
-        "factual", "correct", "relevant", "answered", "concise", "non-toxic"
-    )
-    question = ArtifactToJudge(
+def _question(answer: str = "Five days.", root: str = "True") -> ArtifactToJudge:
+    """One question, with every field the repository claims it with."""
+    return ArtifactToJudge(
         assessment_id=2,
         kind=ArtifactKind.QUESTION,
         artifact_id=9,
         fields={
             "question": "How long is allowed for a reply?",
-            "answer": "Five days.",
+            "answer": answer,
             "facts": "- A reply is due in five days.",
+            "passages": "A reply is due in five days of the request.",
+            "root": root,
         },
     )
 
-    judged = Judge(client).judge(question)
+
+def test_a_question_is_asked_every_metric_its_kind_declares() -> None:
+    """Twelve of them, and three have no counterpart anywhere upstream.
+
+    `qa_correctness` asks whether the answer answers the question,
+    `refusal` whether it is an answer at all, and `conciseness` whether it
+    is only the answer. No gate asks any of those. The paper's six come
+    after them, about the question rather than its answer.
+    """
+    client = _Answering(
+        "factual", "correct", "relevant", "answered", "concise", "non-toxic"
+    )
+
+    judged = Judge(client).judge(_question())
 
     assert [one.metric for one in judged] == [
         JudgeMetric.HALLUCINATION,
@@ -173,6 +194,7 @@ def test_a_question_is_asked_every_metric_its_kind_declares() -> None:
         JudgeMetric.REFUSAL,
         JudgeMetric.CONCISENESS,
         JudgeMetric.TOXICITY,
+        *RUBRIC,
     ]
     assert all(one.approved for one in judged)
 
@@ -188,19 +210,68 @@ def test_an_answer_that_declines_to_answer_is_caught_by_nothing_else() -> None:
     client = _Answering(
         "factual", "correct", "relevant", "refused", "concise", "non-toxic"
     )
-    question = ArtifactToJudge(
-        assessment_id=3,
-        kind=ArtifactKind.QUESTION,
-        artifact_id=11,
-        fields={
-            "question": "How long is allowed for a reply?",
-            "answer": "The document does not specify a period.",
-            "facts": "- A reply is due in five days.",
-        },
-    )
+    question = _question(answer="The document does not specify a period.")
 
     judged = {one.metric: one for one in Judge(client).judge(question)}
 
     assert judged[JudgeMetric.REFUSAL].label == "refused"
     assert judged[JudgeMetric.REFUSAL].approved is False
     assert judged[JudgeMetric.REFUSAL].score == 1.0
+
+
+def test_one_call_returns_the_six_scores() -> None:
+    """The paper's judge, asked the paper's way: all six in one reply.
+
+    Each score is its own judgement, labelled as the paper scored it and
+    normalised as the paper normalises a mean. Only a 3 approves.
+    """
+    client = _Answering(
+        scores={
+            "fluency": 1,
+            "clarity": 1,
+            "conciseness": 3,
+            "relevance": 3,
+            "consistency": 3,
+            "answerability": 1,
+        }
+    )
+
+    judged = Judge(client).judge(_question())
+
+    assert [
+        (one.metric, one.label, one.score, one.approved)
+        for one in judged
+        if one.metric in RUBRIC
+    ] == [
+        (JudgeMetric.RUBRIC_FLUENCY, "1", 0.0, False),
+        (JudgeMetric.RUBRIC_CLARITY, "1", 0.0, False),
+        (JudgeMetric.RUBRIC_CONCISENESS, "3", 1.0, True),
+        (JudgeMetric.RUBRIC_RELEVANCE, "3", 1.0, True),
+        (JudgeMetric.RUBRIC_CONSISTENCY, "3", 1.0, True),
+        (JudgeMetric.RUBRIC_ANSWERABILITY, "1", 0.0, False),
+    ]
+    assert len(client.asked) == 7
+    assert (
+        "_Rubric",
+        (
+            "Passage: A reply is due in five days of the request.\n\n"
+            "Question: How long is allowed for a reply?"
+        ),
+    ) in client.asked
+
+
+@pytest.mark.parametrize(("root", "calls", "due"), [("False", 6, 6), ("True", 7, 12)])
+def test_a_follow_up_is_not_asked_the_rubric(root: str, calls: int, due: int) -> None:
+    """A follow-up leans on the turn before it, which the rubric is not shown.
+
+    So it is asked the six about its answer and not the paper's six, and is
+    due six metrics where a root is due twelve from seven calls.
+    """
+    client = _Answering()
+    judge = Judge(client)
+
+    judged = judge.judge(_question(root=root))
+
+    assert len(client.asked) == calls
+    assert judge.due(_question(root=root)) == due
+    assert len(judged) == due

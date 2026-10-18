@@ -58,15 +58,17 @@ class Assessed:
 
     Attributes:
         assessment_id: The queue row this belongs to.
-        judgements: One per metric the kind declares, in template order.
+        judgements: One per metric the artefact is due, in template order.
         judge_model: Which model answered.
         prompt_version: Which template version it was asked under.
-        metrics_due: How many metrics the kind declares under that version.
-            Recorded because `judgements` is short of it wherever a metric
-            ABSTAINED - the model would not answer - and without the count
-            a thin verdict and a whole one are the same row. The count is
-            in the source under a version the row outlives, which is the
-            argument the `prompts` table is built on.
+        metrics_due: How many metrics the artefact was due under that
+            version: its kind's, less the paper's six for a follow-up
+            question, which is not asked them. Recorded because
+            `judgements` is short of it wherever a call ABSTAINED - the
+            model would not answer - and without the count a thin
+            verdict and a whole one are the same row. The count is in the
+            source under a version the row outlives, which is the argument
+            the `prompts` table is built on.
         trace_id: The trace it was judged in, for the row to link to.
         span_id: The span its annotations hang off.
     """

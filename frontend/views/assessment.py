@@ -258,7 +258,7 @@ def _judging(plan: dict) -> list[tuple[str, str]]:
             label,
             key=f"assessment-judge-{kind}",
             value=kind in configured,
-            help=f"{metrics} model call(s) per {label.lower().rstrip('s')}.",
+            help=f"{metrics} judgement(s) per {label.lower().rstrip('s')}.",
         ):
             picked.append(("kind", kind))
     judge = plan["judge_model"]

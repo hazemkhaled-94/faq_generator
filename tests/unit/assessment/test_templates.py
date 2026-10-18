@@ -20,7 +20,9 @@ import pytest
 
 from assessment.templates import (
     PROMPT_VERSION,
+    RUBRIC,
     TEMPLATES,
+    Rubric,
     direction_of,
     metrics_of,
 )
@@ -28,6 +30,12 @@ from database.qa_generator import ArtifactKind, JudgeMetric
 
 #: Every template, flattened, so one failure names one judgement.
 EVERY = [one for group in TEMPLATES.values() for one in group]
+
+#: The templates answering with one label, which is all but the rubric.
+SINGLE = [one for one in EVERY if not isinstance(one, Rubric)]
+
+#: The paper's judge, as the question kind asks it.
+THE_RUBRIC = next(one for one in EVERY if isinstance(one, Rubric))
 
 #: A `{{name}}` in a template.
 PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
@@ -46,7 +54,7 @@ def test_every_kind_is_judged() -> None:
 @pytest.mark.parametrize("one", EVERY, ids=lambda one: f"{one.kind}-{one.metric}")
 def test_a_metric_is_one_the_database_accepts(one) -> None:
     """A metric outside the CHECK constraint fails at write, not at ask."""
-    assert one.metric in set(JudgeMetric)
+    assert set(one.metrics) <= set(JudgeMetric)
 
 
 @pytest.mark.parametrize("one", EVERY, ids=lambda one: f"{one.kind}-{one.metric}")
@@ -77,7 +85,7 @@ def test_rendering_leaves_no_placeholder_behind(one) -> None:
     assert all(f"<{name}>" in filled for name in one.fields)
 
 
-@pytest.mark.parametrize("one", EVERY, ids=lambda one: f"{one.kind}-{one.metric}")
+@pytest.mark.parametrize("one", SINGLE, ids=lambda one: f"{one.kind}-{one.metric}")
 def test_a_score_is_zero_or_one_and_the_shape_is_closed(one) -> None:
     """The column is CHECKed between 0 and 1, and the answer is a Literal.
 
@@ -177,12 +185,13 @@ def test_a_shape_is_named_after_its_metric() -> None:
 
 
 def test_a_question_is_judged_on_more_than_a_fact() -> None:
-    """Six judgements against three, and the extra ones are about the answer.
+    """Twelve judgements against three, and most are about the answer.
 
     A fact is asked whether its evidence supports it and whether the
     evidence is about the right thing. A question is asked both of those
     about its ANSWER, plus whether the answer answers the question - which
-    is the judgement that has no counterpart upstream.
+    is the judgement that has no counterpart upstream - and then the
+    paper's six about the question itself, from one call.
     """
     assert metrics_of(ArtifactKind.QUESTION) == (
         JudgeMetric.HALLUCINATION,
@@ -191,6 +200,12 @@ def test_a_question_is_judged_on_more_than_a_fact() -> None:
         JudgeMetric.REFUSAL,
         JudgeMetric.CONCISENESS,
         JudgeMetric.TOXICITY,
+        JudgeMetric.RUBRIC_FLUENCY,
+        JudgeMetric.RUBRIC_CLARITY,
+        JudgeMetric.RUBRIC_CONCISENESS,
+        JudgeMetric.RUBRIC_RELEVANCE,
+        JudgeMetric.RUBRIC_CONSISTENCY,
+        JudgeMetric.RUBRIC_ANSWERABILITY,
     )
     assert metrics_of(ArtifactKind.FACT) == (
         JudgeMetric.HALLUCINATION,
@@ -212,3 +227,96 @@ def test_a_template_says_the_material_may_be_in_any_language() -> None:
 def test_the_version_is_a_version() -> None:
     """Recorded on every row, so two template versions are two judgements."""
     assert PROMPT_VERSION and PROMPT_VERSION.strip() == PROMPT_VERSION
+
+
+@pytest.mark.parametrize("metric", RUBRIC)
+@pytest.mark.parametrize(("score", "normalised"), [(1, 0.0), (2, 0.5), (3, 1.0)])
+def test_a_rubric_score_is_the_papers_normalised_score(
+    metric: str, score: int, normalised: float
+) -> None:
+    """(s - 1) / 2, the shift the paper puts each benchmark's mean through.
+
+    Stored per question, so the paper's normalised mean of a set is the mean
+    of this column over it. Only a 3 approves: a 2 is the paper's "partly",
+    and `approved` means every metric landed on its good side. No
+    explanation, because the paper asks for none.
+    """
+    said = THE_RUBRIC.shape()(**{one.removeprefix("rubric_"): score for one in RUBRIC})
+
+    one = next(one for one in THE_RUBRIC.judged(said) if one.metric == metric)
+
+    assert (one.label, one.score, one.approved, one.explanation) == (
+        str(score),
+        normalised,
+        score == 3,
+        "",
+    )
+    assert direction_of(metric) == "maximize"
+
+
+#: The paper's six dimensions, each heading and its definition as Figures 5-7
+#: print them.
+DIMENSIONS = (
+    (
+        "## Fluency Whether the question is wellformed, grammatically correct, "
+        "coherent, and fluent enough to be understood."
+    ),
+    (
+        "## Clarity Whether the question is expressed clearly and unambiguously, "
+        "avoiding excessive generality and ambiguity"
+    ),
+    (
+        "## Conciseness Whether the question is concise and not abnormally verbose "
+        "with redundant modifiers"
+    ),
+    (
+        "## Relevance Whether the question is relevant to the given passage and asks "
+        "for key information from the passage"
+    ),
+    (
+        "## Consistency Whether the information presented in the question is "
+        "consistent with the passage and without any contradictions or "
+        "hallucinations"
+    ),
+    (
+        "## Answerability Whether the question can be distinctly answered based on "
+        "the passage"
+    ),
+)
+
+#: The paper's six example questions.
+EXAMPLES = (
+    "Question: What star if the Burbs was Canadian?",
+    "Question: Where did the Mongols work?",
+    (
+        'Question: "Domino Dancing" is a song recorded by the British synthpop duo '
+        "Pet Shop Boys, released as the lead single from their 1988 album, "
+        '"Introspective". It reached number 7 on the UK Singles Chart, which month '
+        'was the album "Introspective" first released?'
+    ),
+    (
+        "Question: Why did President Kenyatta and Deputy President William Ruto not "
+        "visit the United States in 2013?"
+    ),
+    "Question: How many men did Duquesne send to relieve Saint-Pierre?",
+    "Question: How many fraternities are at the University of Chicago?",
+)
+
+
+def test_the_rubric_is_the_papers_prompt() -> None:
+    """Figures 5-7 in the paper's words, under this repository's headings.
+
+    Read with its whitespace folded, because the words are the paper's and
+    the line breaks were its PDF's. Example 1's reply is the one change: the
+    paper prints `"clarity: 1`, and a judge shown malformed JSON as the
+    answer it should give is being taught to give it.
+    """
+    said = " ".join(THE_RUBRIC.system.split())
+
+    for one in (*DIMENSIONS, *EXAMPLES):
+        assert one in said, one[:40]
+    assert '"clarity": 1' in said
+    assert '"clarity: 1' not in said
+    assert "any language" in said
+    assert THE_RUBRIC.user == "Passage: {{passages}}\n\nQuestion: {{question}}"
+    assert THE_RUBRIC.roots_only
