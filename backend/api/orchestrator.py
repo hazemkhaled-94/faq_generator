@@ -61,6 +61,10 @@ _TIMEOUT = 10.0
 #: of them is why `POST /pipeline/run` refuses to start a second.
 LIVE = ("QUEUED", "NOT_STARTED", "STARTING", "STARTED", "MANAGED", "CANCELING")
 
+#: The ones of those Dagster's terminateRuns accepts. It refuses the rest,
+#: a run it is already stopping among them.
+CANCELABLE = ("QUEUED", "STARTED")
+
 
 class Unavailable(Exception):
     """Dagster is not configured, or not answering."""

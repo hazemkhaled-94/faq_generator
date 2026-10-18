@@ -167,7 +167,9 @@ Dagster run, set only by `stop` when it stopped one.
 **`stop` stops every live run, newest first,** because a queued run left
 behind is started the moment the one before it stops. Its `run` is the oldest
 it stopped, the one that was doing the work, and its `detail` names every run
-it stopped and every one Dagster would not stop, with the reason.
+it stopped and every one Dagster would not stop, with the reason. Dagster
+stops only a queued or a started run, so a run an earlier press left stopping
+is named as already stopping rather than asked again.
 
 ## The full surface
 

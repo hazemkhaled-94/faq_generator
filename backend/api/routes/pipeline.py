@@ -45,7 +45,14 @@ from api.dependencies import (
     topics_queue,
 )
 from api.errors import ApiError, ErrorBody
-from api.orchestrator import Automation, Orchestration, Refused, Run, Unavailable
+from api.orchestrator import (
+    CANCELABLE,
+    Automation,
+    Orchestration,
+    Refused,
+    Run,
+    Unavailable,
+)
 from api.routes.stage import StageStatus, answered, status_of
 from database.qa_generator import engine
 
@@ -285,14 +292,25 @@ def stop() -> PipelineAction:
 
     Every live run, newest first: a queued run left behind is started the
     moment the one before it stops. `run` is the oldest stopped, the one that
-    was doing the work.
+    was doing the work. A run an earlier press left stopping is said to be,
+    not asked again: Dagster refuses that as it refuses any run neither
+    queued nor started.
 
     Whatever a worker holds right now finishes. Nothing here interrupts an
     item in progress - `reclaim` is the only verb that does.
     """
     stopped: list[Run] = []
+    stopping: list[str] = []
     refused: list[str] = []
     for live in [one for one in orchestrator.state().recent if one.live]:
+        if live.status == "CANCELING":
+            stopping.append(live.id)
+            continue
+        if live.status not in CANCELABLE:
+            refused.append(
+                f"{live.id} ({live.status}: Dagster stops only a queued or started run)"
+            )
+            continue
         try:
             if orchestrator.terminate(live.id):
                 stopped.append(live)
@@ -317,6 +335,7 @@ def stop() -> PipelineAction:
                 if stopped
                 else ""
             )
+            + (f"; run(s) {', '.join(stopping)} already stopping" if stopping else "")
             + (f"; run(s) {'; '.join(refused)} could NOT be stopped" if refused else "")
             + ". Whatever a worker holds right now finishes."
         ),

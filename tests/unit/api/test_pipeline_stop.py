@@ -91,3 +91,32 @@ def test_the_others_are_stopped_when_one_will_not_be(stopping) -> None:
     assert runs.terminated == ["R2", "R1"]
     assert answer.run is not None and answer.run.id == "R1"
     assert "R2 (no) could NOT be stopped" in answer.detail
+
+
+def test_a_second_stop_does_not_call_a_stopping_run_unstoppable(stopping) -> None:
+    """The first press left R1 CANCELING, and Dagster refuses to stop it twice."""
+    runs = Runs(
+        Run(id="R1", status="CANCELING"),
+        refuses={
+            "R1": Refused(
+                "Run R1 could not be terminated due to having status CANCELING."
+            )
+        },
+    )
+
+    answer = stopping(runs)
+
+    assert "could NOT be stopped" not in answer.detail, answer.detail
+    assert "R1 already stopping" in answer.detail
+    assert runs.terminated == []
+
+
+def test_a_run_dagster_cannot_stop_yet_is_named_and_not_asked(stopping) -> None:
+    """Dagster terminates only a queued or a started run."""
+    runs = Runs(Run(id="R1", status="STARTING"))
+
+    answer = stopping(runs)
+
+    assert runs.terminated == []
+    assert "R1 (STARTING" in answer.detail
+    assert "could NOT be stopped" in answer.detail
