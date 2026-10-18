@@ -92,7 +92,7 @@ _STEPS = (
     explain.Step(
         "Name and carry the labels over",
         "A served model names each topic from its terms. Labels from the "
-        "previous fit are carried across where the top terms still overlap, "
+        "previous fit a person gave go where most of their passages went, "
         "each used at most once, so a refit does not rename the corpus.",
         ("service.py",),
         ("TOPIC_MODEL", "TOPIC_LABEL_MIN_FACT_SHARE"),

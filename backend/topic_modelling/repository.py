@@ -98,8 +98,9 @@ _NEAREST = text(
 )
 
 
-#: What a person decided about a topic. Only `describe` names one `person` or
-#: takes one out of coverage; a model's name is given again by the next fit.
+#: What a person decided about a topic. Only `describe` names one `person`,
+#: and only it and the review pull's `cover` in `review/records.py` take one
+#: out of coverage; a model's name is given again by the next fit.
 _DECIDED = (Topic.labelled_by == "person") | ~Topic.include_in_coverage
 
 
@@ -285,8 +286,9 @@ class TopicQueue(StageQueue):
     def labelled_topics(self, language: str) -> list[FittedTopic]:
         """Reads one language's topics a person named or took out of coverage.
 
-        Only `describe` sets either, so these are what a person decided. A
-        model's name is not read: the next fit names its topics afresh.
+        Only `describe` and the review pull's `cover` set either, so these
+        are what a person decided. A model's name is not read: the next fit
+        names its topics afresh.
         """
         with self._session() as session:
             return _decisions(session, Topic.language == language).get(language, [])

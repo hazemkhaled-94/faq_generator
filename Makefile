@@ -841,7 +841,8 @@ topics-status:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --status
 
 # Queue a fit and run it. Replaces the topics and memberships of each
-# language it fits; labels are carried over where the top terms still match.
+# language it fits; a name or coverage choice a person gave goes to the new
+# topic holding most of its passages.
 topics-discover:
 	@$(call IDLE,topic-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --discover

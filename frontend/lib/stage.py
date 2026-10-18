@@ -42,7 +42,7 @@ _ORDER = ("new", "pending", "in_progress", "failed")
 #: What Fit all asks before it queues the fit.
 _REFIT = (
     "A fit replaces the topics of every language it fits. A name or a "
-    "coverage choice a person gave stays only where the new top terms carry "
+    "coverage choice a person gave stays only where most of its passages carry "
     "it over, and the questions written per topic follow the new topics."
 )
 

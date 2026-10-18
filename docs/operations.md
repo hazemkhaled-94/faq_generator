@@ -390,12 +390,12 @@ the host. The host drains - `make parse-rerun`, `make chunk-rerun`,
 stage's worker runs, and are for developing a stage. Parsing and chunking
 call no model; every step from extraction on does.
 
-`make topics-discover` carries a topic's name over wherever its top terms
-still match, so such a topic keeps the name the last fit gave it. Only the
-topics it names afresh are named the v0.3.0 way: in one call per language,
-in the corpus's own spelling, without the domain every name shares. A
-carried name can be changed in the topic review: `make review-push-topics`,
-then `make review-pull-topics`.
+`make topics-discover` carries a name a person gave to the new topic holding
+most of the passages it was given for, and no name a model gave, so every
+topic it names is named the v0.3.0 way: in one call per language, in the
+corpus's own spelling, without the domain every name shares. A name can be
+changed in the topic review: `make review-push-topics`, then
+`make review-pull-topics`.
 
 ## Upgrading to v0.2.2
 
