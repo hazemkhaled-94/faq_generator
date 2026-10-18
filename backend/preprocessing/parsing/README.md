@@ -68,8 +68,7 @@ pymupdf and finds every word a stroke deletes. A stroke qualifies when it:
 
 - is horizontal — a line of a stroked path made of nothing but level lines
   (each rising or falling less than 0.3 pt), or a filled bar — and longer
-  than 2 pt, or than 0.15 × the font size where that is less, so a full stop
-  struck in small type goes
+  than 2 pt
 - covers at least 60% of the word's width
 - sits, its own line width included, between 0.15 and 0.55 × the font size
   above the word's baseline: through the x-height, in any colour
@@ -261,7 +260,7 @@ the two buckets and Docling itself are stood in for.
 | [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
 | [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
 | [`test_tables.py`](../../../tests/unit/parsing/test_tables.py) | A table's rest on the next page joined to it, past a picture, and when its first row was flagged a header but is set in the data's font, and not one with a header in the header's font, after a table whose header is set as its data, headed in the data's font with no figure over a column of prices, of another width or with text between; a wrapped cell's rest, one going on in a bracket or a German noun, and a wrapped label's head joined to their row, a second tier under an empty label joined as well (expected to fail), a cell wrapped at a hyphen made one word and one wrapped inside a compound the document prints keeping its hyphen, and a row whose label did not span kept |
-| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge, partial strokes and a short tick beside a price removing nothing; a struck full stop removed; clipped labels removed over visible text, inside a large letter, at the page's edge and spelled apart, and a fake-bold line and an OCR layer kept; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
+| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge, partial strokes and a short mark over a decimal comma removing nothing; clipped labels removed over visible text, inside a large letter, at the page's edge and spelled apart, and a fake-bold line and an OCR layer kept; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
 | [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
 | [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
 | [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | The repair is idempotent and leaves no control character |

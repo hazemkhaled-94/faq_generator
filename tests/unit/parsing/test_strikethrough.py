@@ -526,31 +526,19 @@ def test_the_struck_half_of_a_slash_joined_word_goes() -> None:
     assert "eight devices." in result
 
 
-def test_a_struck_full_stop_goes() -> None:
-    """A full stop in small type is struck by a stroke shorter than a word's."""
-    text = "Refunds are paid within 14 days. Credits are not."
-    pdf, page = printed((LEFT, BASELINE, text))
-    found = word(page, "days.")
-    stop = pymupdf.get_text_length(".", fontsize=FONT)
-    middle, height = found.x1 - stop / 2, BASELINE - 0.33 * FONT
-    page.draw_line((middle - 0.9, height), (middle + 0.9, height), color=INK, width=1)
-
-    assert (
-        converted(pdf, paragraph(page, text)).texts[0].text
-        == "Refunds are paid within 14 days Credits are not."
-    )
-
-
-def test_a_short_tick_beside_a_price_strikes_nothing() -> None:
-    """A mark as short as a struck full stop, beside a figure, is no deletion."""
-    text = "Kontoführung monatlich 4,90 EUR."
-    pdf, page = printed((LEFT, BASELINE, text))
-    price, height = word(page, "4,90"), BASELINE - 0.33 * FONT
+def test_a_short_mark_over_a_decimal_comma_strikes_nothing() -> None:
+    """A 1.5-point mark over the comma of a fee in 7-point type is no deletion."""
+    text = "Online-Überweisung 0,10 EUR je Auftrag"
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=WIDTH, height=HEIGHT)
+    page.insert_text((LEFT, BASELINE), text, fontsize=7, color=INK)
+    comma = next(r for r in page.search_for(",") if r.y0 < BASELINE < r.y1)
+    height = BASELINE - 0.33 * 7
     page.draw_line(
-        (price.x0 - 0.8, height), (price.x0 + 1.0, height), color=INK, width=1
+        (comma.x0 - 0.3, height), (comma.x0 + 1.2, height), color=INK, width=0.4
     )
 
-    assert converted(pdf, paragraph(page, text)).texts[0].text == text
+    assert unstruck(pdf, paragraph(page, text)).texts[0].text == text
 
 
 # ── Text the page does not paint ───────────────────────────────────────────
