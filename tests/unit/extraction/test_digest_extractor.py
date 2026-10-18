@@ -110,6 +110,17 @@ def test_a_heading_trail_is_fenced_off_and_labelled() -> None:
     assert sent.index("Context") < sent.index("Excerpt:")
 
 
+def test_the_digest_prompt_keeps_modality() -> None:
+    """A summary turning "should" into "must" states a rule the excerpt does not."""
+    model = Model(ANSWER)
+    DigestExtractor(model, BOTH).extract(passage())
+
+    assert (
+        "Keep the strength of what the excerpt says: should stays should, may "
+        "stays may" in " ".join(model.sent["system"].split())
+    )
+
+
 def test_the_whole_passage_is_sent_rather_than_numbered_sentences() -> None:
     """A digest cites nothing by number, so nothing is numbered for it."""
     model = Model(ANSWER)

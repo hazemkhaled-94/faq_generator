@@ -16,8 +16,9 @@ from nlp.models import named
 
 #: Recorded on every summary and outline drawn with the prompt below. 4 asks
 #: what the excerpt establishes, about its subject, where 3 asked what it is
-#: about and got summaries describing "the excerpt".
-PROMPT_VERSION = "4"
+#: about and got summaries describing "the excerpt". 5 keeps "should" and
+#: "may" as the excerpt wrote them.
+PROMPT_VERSION = "5"
 
 _SYSTEM = """ROLE
 You are a technical editor. You condense one excerpt of a document into
@@ -84,6 +85,8 @@ Rules, all of them mandatory:
   a corpus that is mostly one language writes that language for all of it.
 - Keep the qualifiers that make a point true: the date, the place, the
   party, the unit, the condition.
+- Keep the strength of what the excerpt says: should stays should, may
+  stays may.
 - Say what the excerpt says, not what it implies and not what you know.
 """
 
