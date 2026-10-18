@@ -260,7 +260,12 @@ def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None
     """On by default, with the descriptions of the paper's Table 5, each uniform."""
     monkeypatch.delenv("QUESTIONS_CATEGORIZATIONS", raising=False)
     read_ = Settings.load().categorizations
-    assert [one.name for one in read_] == ["Phrasing", "Premise"]
+    assert [one.name for one in read_] == [
+        "Phrasing",
+        "Premise",
+        "Linguistic variation",
+        "User expertise",
+    ]
     assert [
         [(one.name, one.probability, one.role) for one in each.categories]
         for each in read_
@@ -270,6 +275,33 @@ def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None
             ("verbose-and-natural", 0.5, "question"),
         ],
         [("direct", 0.5, "question"), ("with-premise", 0.5, "question")],
+        [
+            ("similar-to-document", 0.5, "question"),
+            ("distant-from-document", 0.5, "question"),
+        ],
+        [("expert", 0.5, "user"), ("novice", 0.5, "user")],
+    ]
+
+
+def test_the_default_wording_and_asker_are_table_5s() -> None:
+    """The asker described as the paper describes them, in the block of its own."""
+    _, _, variation, expertise = categorizations(DEFAULT_CATEGORIZATIONS)
+    assert [one.description for one in variation.categories] == [
+        "phrased using the same terminology and phrases appearing in the document.",
+        (
+            "phrased using terms completely different from the ones appearing in "
+            "the document."
+        ),
+    ]
+    assert [one.description for one in expertise.categories] == [
+        (
+            "The user asking the question is a specialized user with a deep "
+            "understanding of the corpus."
+        ),
+        (
+            "The user asking the question is a regular user with no understanding "
+            "of specialized terms."
+        ),
     ]
 
 
