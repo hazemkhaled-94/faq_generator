@@ -280,6 +280,7 @@ def _listing() -> Select:
                 Question.cognitive_level,
                 Question.answer_form,
                 Question.planned_difficulty,
+                Question.categories,
                 Question.prompt_version,
                 Question.trace_id,
                 Question.span_id,
@@ -323,6 +324,12 @@ def _stored(row: Any) -> StoredQuestion:
             "statements": _present(row.statements),
             "evidence": _present(row.evidence),
             "gate_scores": list(row.gate_scores or ()),
+            # As `Category.label` writes one, which is what a reader filters
+            # a workbook or groups a report by.
+            "categories": [
+                f"{one['categorization']}={one['category']}"
+                for one in row.categories or ()
+            ],
         }
     )
 

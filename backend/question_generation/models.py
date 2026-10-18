@@ -709,6 +709,10 @@ class StoredQuestion:
     #: What it was written to be: single, needs_both, compound or
     #: false_premise. Follows its citations, as `passage_scope` does.
     kind: str = QuestionKind.SINGLE
+    #: The categories its writer was told, as `Category.label` names them.
+    #: Empty where none was rendered, and on every question written before
+    #: the column existed.
+    categories: list[str] = field(default_factory=list)
     #: What its type asks of whoever answers it. A different axis from
     #: `difficulty`, which says how far the answer is spread.
     cognitive_level: str | None = None

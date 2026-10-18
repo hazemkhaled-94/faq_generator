@@ -130,6 +130,19 @@ def test_a_question_says_whether_it_is_in_the_release() -> None:
     )
 
 
+def test_a_question_names_the_categories_it_was_written_as() -> None:
+    """As `categorization=category`, after its language; blank where it has none."""
+    read = sheets(
+        workbook([stored(1, categories=["Phrasing=concise-and-natural"]), stored(2)])
+    )["Questions"]
+
+    assert read.iloc[0]["Categories"] == "Phrasing=concise-and-natural"
+    assert pd.isna(read.iloc[1]["Categories"])
+    assert list(read.columns).index("Categories") == (
+        list(read.columns).index("Language") + 1
+    )
+
+
 def test_sentences_are_one_per_line_rather_than_comma_joined() -> None:
     """A comma between two sentences reads as one sentence."""
     cited = ["The first holds.", "The second holds."]

@@ -688,6 +688,9 @@ def test_a_stored_question_keeps_the_categories_its_writer_was_told(
         ),
         (None, True),
     ]
+    # Read back as the export and the page show them.
+    _, rows = QuestionCatalog().page()
+    assert [one.categories for one in rows] == [["Phrasing=concise-and-natural"], []]
 
 
 def test_a_second_run_adds_to_the_questions_rather_than_replacing_them(
