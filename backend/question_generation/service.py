@@ -966,12 +966,16 @@ class QuestionGenerationService(StageService):
             floor=self._settings.meets_floor,
             share=self._settings.meets_share,
         )
+        # Keyed on the topic, so a rerun of it is told the same categories.
+        # A swap or a retry rewrites a slot and keeps what it was dealt.
         planned = plans(
             wanted=self._settings.per_topic,
             types=self._settings.type_mix,
             bands=self._settings.difficulty_mix,
             unanswerable_share=self._settings.unanswerable_share,
             kinds=self._settings.kind_mix,
+            categorizations=self._settings.categorizations,
+            seed=str(topic.id),
         )
 
         threads: list[list[CheckedQuestion]] = []

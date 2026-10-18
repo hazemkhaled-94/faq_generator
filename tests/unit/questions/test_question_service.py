@@ -1598,6 +1598,89 @@ def test_a_retry_is_numbered_by_the_draft_that_wrote_it() -> None:
     assert drafts[-1][0] == 2
 
 
+# ── The paper's categories ─────────────────────────────────────────────────
+
+
+def categorized(**changes) -> Settings:
+    """SETTINGS with the shipped categorizations, as an unset value reads them."""
+    from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
+
+    return replace(
+        SETTINGS, categorizations=categorizations(DEFAULT_CATEGORIZATIONS), **changes
+    )
+
+
+def test_a_topic_is_dealt_its_categories_by_its_own_id(monkeypatch) -> None:
+    """Keyed on the topic, so a rerun of it is told the categories it was told."""
+    from question_generation import service as module
+
+    given: list[dict] = []
+    real = module.plans
+
+    def recorded(**arguments):
+        given.append(arguments)
+        return real(**arguments)
+
+    monkeypatch.setattr(module, "plans", recorded)
+    settings = categorized()
+    service, _ = build(topic(id=12), [source(1)], settings=settings)
+
+    service.process_next()
+
+    assert given[0]["seed"] == "12"
+    assert given[0]["categorizations"] == settings.categorizations
+
+
+def test_a_swap_and_a_retry_are_told_the_categories_the_slot_was_dealt() -> None:
+    """Both write the slot again; neither deals it again.
+
+    The real writer, so what is compared is the block each draft was sent:
+    the slot declined, the kind it was swapped to, and that kind's retry.
+    """
+    from question_generation.generation import QuestionWriter
+
+    class Scripted:
+        """Declines the first ask, then writes drafts 1 and 2."""
+
+        model = "ollama/stub"
+
+        def __init__(self) -> None:
+            """Initialises the model with nothing asked."""
+            self.users: list[str] = []
+
+        def answer(self, *, system, user, shape, prompt_version=None):
+            """Records the user message and answers as scripted."""
+            self.users.append(user)
+            if len(self.users) == 1:
+                return shape(question="", answer="", declined=True)
+            return shape(question=f"draft {len(self.users) - 1}?", answer="4 kg")
+
+    model = Scripted()
+    service, _ = build(
+        topic(),
+        [source(n, document="a", passage_id=n) for n in range(1, 5)],
+        writer=QuestionWriter(model),
+        checker=RefusesTheFirstDraft(),
+        settings=categorized(
+            type_mix={QuestionType.CONDITION: 1, QuestionType.FACTOID: 1},
+            difficulty_mix={Difficulty.EASY: 1},
+            per_topic=1,
+            retries=1,
+            unanswerable_share=0.0,
+            followup_share=0.0,
+        ),
+    )
+
+    service.process_next()
+
+    blocks = {
+        user[user.index("\nTHE QUESTION -") : user.index("\nWrite the question")]
+        for user in model.users
+    }
+    assert len(model.users) == 3, "declined, swapped, retried"
+    assert len(blocks) == 1, blocks
+
+
 def test_a_release_spreads_over_its_own_kinds() -> None:
     """QUESTIONS_RELEASE_TYPES, where set, decides the kinds a release holds."""
     from uuid import uuid4

@@ -187,12 +187,19 @@ def test_every_setting_described_is_also_declared_for_a_deployment() -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["QUESTIONS_MEETS_SHARE", "QUESTIONS_DUPLICATE_SHARED_COSINE"]
+    "name",
+    [
+        "QUESTIONS_MEETS_SHARE",
+        "QUESTIONS_DUPLICATE_SHARED_COSINE",
+        "QUESTIONS_CATEGORIZATIONS",
+    ],
 )
 def test_a_setting_whose_absence_reads_a_default_may_be_left_empty(name: str) -> None:
     """Drawn as a number box, an absent value is a 0 the next Save stores.
 
     And 0 is not the default the code reads when the line is missing: for
     QUESTIONS_MEETS_SHARE it turns off the floor that keeps welds out.
+    QUESTIONS_CATEGORIZATIONS is text, and required it would be a value
+    backend.env cannot declare: bash cannot source a JSON one.
     """
     assert BY_NAME[name].optional
