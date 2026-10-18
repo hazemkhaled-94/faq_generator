@@ -392,7 +392,9 @@ An `explanation` key of a `condition`, `procedure`, `enumeration`,
 **shadow**: the share of the recovery's content words the key carries is
 stored in `gate_scores` as `coverage`, marked `shadow`, with
 `QUESTIONS_ANSWER_COVERAGE` beside it, no margin and no part in the
-confidence, and nothing is refused on it. It is there to set a bar on real
+confidence, and nothing is refused on it. It is stored on every such key
+the verifier recovered, whichever way the round trip goes, and is 1 where
+the recovery says no more than the key. It is there to set a bar on real
 keys before it gates any.
 
 Three things about it are load-bearing. The verifier is meant to be a

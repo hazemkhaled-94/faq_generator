@@ -830,6 +830,14 @@ class QuestionChecker:
                         f"in the cited passages, {read.recovered!r}"
                     ),
                 )
+            # The completeness reading on a prose key, in shadow: stored so a
+            # bar can be set on real keys, refusing nothing yet. Ahead of the
+            # verdict, so a bar is measured on the keys refused here too.
+            if form == AnswerForm.EXPLANATION and candidate.spec.name in SHADOWED:
+                share = covered(read.recovered, target, candidate.group.language)
+                readings.append(
+                    Measurement("coverage", share, self._coverage, shadow=True)
+                )
             # A key the entailment pass rescues goes on to the reading below:
             # the rescue says the key is true, not that it is the whole of
             # what the passages gave back.
@@ -850,14 +858,6 @@ class QuestionChecker:
                         f"target answer is {target!r}"
                     ),
                 )
-            # The reading below on a prose key, in shadow: stored so a bar can
-            # be set on real keys, refusing nothing yet.
-            if form == AnswerForm.EXPLANATION and candidate.spec.name in SHADOWED:
-                share = covered(read.recovered, target, candidate.group.language)
-                if share is not None:
-                    readings.append(
-                        Measurement("coverage", share, self._coverage, shadow=True)
-                    )
             # The same recovery read the other way. `agrees` asks whether
             # everything the target asserts came back; this asks whether
             # the target is most of what did. A key naming one of seven

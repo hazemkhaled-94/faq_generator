@@ -3585,6 +3585,52 @@ def test_an_explanation_key_is_read_for_completeness_and_refused_nothing() -> No
     assert shadow[0].value < 0.5, shadow[0]
 
 
+def test_a_recovery_no_longer_than_the_key_is_stored_as_full_coverage() -> None:
+    """A key holds all of a recovery that says no more than it does."""
+    key = "A card block stops every payment with the card until the bank lifts it."
+    result = build(Recording(recovers=key)).check(
+        candidate(
+            question_text="What is a card block?",
+            target_answer=key,
+            question_type=QuestionType.DEFINITION,
+            facts=group(
+                source(statement="A card block stops payments.", passage_text=key)
+            ),
+        )
+    )
+
+    shadow = [one for one in result.readings if one.gate == "coverage"]
+    assert result.status == QuestionStatus.ACCEPTED, result.rejected_reason
+    assert len(shadow) == 1 and shadow[0].shadow, result.readings
+    assert shadow[0].value == 1.0, shadow[0]
+
+
+def test_the_coverage_reading_moves_no_verdict() -> None:
+    """Stored on a key the round trip refuses too, which it still refuses."""
+    passage = (
+        "A card block stops every payment with the card until the bank lifts "
+        "it. The bank tells the holder by letter within two days."
+    )
+    result = build(
+        Recording(recovers="The bank tells the holder by letter within two days.")
+    ).check(
+        candidate(
+            question_text="What is a card block?",
+            target_answer=(
+                "A card block stops every payment with the card until the bank lifts it."
+            ),
+            question_type=QuestionType.DEFINITION,
+            facts=group(
+                source(statement="A card block stops payments.", passage_text=passage)
+            ),
+        )
+    )
+
+    shadow = [one for one in result.readings if one.gate == "coverage"]
+    assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
+    assert len(shadow) == 1 and shadow[0].shadow, result.readings
+
+
 @pytest.mark.parametrize("form", [AnswerForm.VALUE, AnswerForm.EXPLANATION])
 def test_only_a_list_claims_to_name_a_set(form: str) -> None:
     """A value is short because its answer is one thing."""

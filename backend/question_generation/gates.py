@@ -1668,20 +1668,19 @@ def incomplete(
     """
     if form != AnswerForm.LIST or coverage <= 0:
         return False
-    share = covered(recovered, target, language)
-    return share is not None and share < coverage
+    return covered(recovered, target, language) < coverage
 
 
-def covered(recovered: str, target: str, language: str | None) -> float | None:
+def covered(recovered: str, target: str, language: str | None) -> float:
     """How much of what the verifier found in the passages the key holds.
 
-    The share of the recovery's content lemmas the key carries, or None
-    where the recovery says no more than the key: a key cannot be short of
-    a recovery no longer than itself.
+    The share of the recovery's content lemmas the key carries, and all of
+    it where the recovery says no more than the key: a key cannot be short
+    of a recovery no longer than itself.
     """
     wanted, got = content(target, language), content(recovered, language)
     if not got or len(got) <= len(wanted):
-        return None
+        return 1.0
     return len(wanted & got) / len(got)
 
 
