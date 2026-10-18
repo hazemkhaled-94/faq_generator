@@ -18,7 +18,7 @@ from docling_core.transforms.serializer.markdown import (
     MarkdownPictureSerializer,
     MarkdownTableSerializer,
 )
-from docling_core.types.doc.common.reference import RefItem
+from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.group import ListGroup
 from docling_core.types.doc.items.node import DocItem, NodeItem
@@ -117,17 +117,23 @@ def nested(document: DoclingDocument) -> DoclingDocument:
 
     The converter builds every list flat, and an item printed indented under
     another then reads as a rule of its own. Within one list, an item whose
-    left edge lies more than half a line right of the item before it, on
-    the same page and inside that item's width, nests under it; a later item
-    back at an outer edge returns to that level. A line is the height of the
-    list's shortest item, which is one line in nearly every list: the median
-    is a two-line item's wherever items wrap. A nested list is rendered as
-    indented Markdown, as the converter renders one it built itself.
+    left edge lies more than half a line right of the item before it, in
+    the same column of the same page and inside that item's width, nests
+    under it; a later item back at an outer edge returns to that level.
+    Across a column or a page break no level opens: the item there returns
+    to the open level its indent matches, each indent measured from the
+    left edge of its own column - the leftmost edge of the page's body
+    blocks reaching across the item's - so depth open at a column's foot
+    is not carried into the next, and a page with another margin keeps it.
+    A line is the height of the list's shortest item, which is one line in
+    nearly every list: the median is a two-line item's wherever items wrap.
+    A nested list is rendered as indented Markdown, as the converter renders
+    one it built itself.
 
     Returns:
         `document` itself when no list is indented, otherwise a copy.
     """
-    plans: list[list[tuple[str, str]]] = []
+    lists: list[list[ListItem]] = []
     for group in document.groups:
         if not isinstance(group, ListGroup):
             continue
@@ -136,22 +142,29 @@ def nested(document: DoclingDocument) -> DoclingDocument:
             for child in group.children
             if isinstance(one := child.resolve(document), ListItem) and one.prov
         ]
-        if len(items) < 2:
-            continue
+        if len(items) > 1:
+            lists.append(items)
+    if not lists:
+        return document
+    blocks = _blocks(document)
+    plans: list[list[tuple[str, str]]] = []
+    for items in lists:
         step = min(abs(one.prov[0].bbox.height) for one in items) / 2
-        # The open levels: each one's left edge and the item it nests under.
-        levels: list[tuple[float, str | None]] = [(items[0].prov[0].bbox.l, None)]
+        edge = _column_edge(items[0].prov[0], blocks)
+        # The open levels: each one's indent and the item it nests under.
+        levels: list[tuple[float, str | None]] = [
+            (items[0].prov[0].bbox.l - edge, None)
+        ]
         moves: list[tuple[str, str]] = []
         for before, item in pairwise(items):
             here, there = item.prov[0], before.prov[0]
-            if (
-                here.page_no == there.page_no
-                and there.bbox.l + step < here.bbox.l < there.bbox.r
-            ):
-                levels.append((here.bbox.l, before.self_ref))
-            else:
-                while len(levels) > 1 and here.bbox.l < levels[-1][0] - step:
-                    levels.pop()
+            if here.page_no != there.page_no or here.bbox.l >= there.bbox.r:
+                edge = _column_edge(here, blocks)
+            elif there.bbox.l + step < here.bbox.l:
+                levels.append((here.bbox.l - edge, before.self_ref))
+            indent = here.bbox.l - edge
+            while len(levels) > 1 and indent < levels[-1][0] - step:
+                levels.pop()
             if (parent := levels[-1][1]) is not None:
                 moves.append((item.self_ref, parent))
         if moves:
@@ -172,6 +185,27 @@ def nested(document: DoclingDocument) -> DoclingDocument:
             under[parent].children.append(_ref(reference))
             item.parent = _ref(under[parent].self_ref)
     return tidy
+
+
+def _blocks(document: DoclingDocument) -> dict[int, list[tuple[float, float]]]:
+    """The left and right edges of every body block, by page."""
+    found: dict[int, list[tuple[float, float]]] = {}
+    for item, _ in document.iterate_items():
+        if isinstance(item, DocItem):
+            for prov in item.prov:
+                found.setdefault(prov.page_no, []).append((prov.bbox.l, prov.bbox.r))
+    return found
+
+
+def _column_edge(
+    prov: ProvenanceItem, blocks: dict[int, list[tuple[float, float]]]
+) -> float:
+    """The left edge of the column a block starts in, read off its page."""
+    left = prov.bbox.l
+    return min(
+        (start for start, end in blocks.get(prov.page_no, ()) if start <= left < end),
+        default=left,
+    )
 
 
 def _ref(reference: str) -> RefItem:

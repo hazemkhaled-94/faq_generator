@@ -378,6 +378,106 @@ def test_items_side_by_side_in_two_columns_are_not_nested() -> None:
     assert chunks[0].text.splitlines() == ["- a stoppage in play", "- a goal kick"]
 
 
+def placed(page: int, left: float, top: float, height: float = 10.0) -> ProvenanceItem:
+    """Provenance 200 points wide at a left edge of a page."""
+    return ProvenanceItem(
+        page_no=page,
+        bbox=BoundingBox(
+            l=left,
+            t=top,
+            r=left + 200,
+            b=top + height,
+            coord_origin=CoordOrigin.TOPLEFT,
+        ),
+        charspan=(0, 1),
+    )
+
+
+def listed_at(
+    pages: int, *items: tuple[int, float, float, str], height: float = 10.0
+) -> list[str]:
+    """The lines a list cuts to, each item at (page, left edge, top, text)."""
+    document = DoclingDocument(name="terms")
+    for page in range(1, pages + 1):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    group = document.add_list_group()
+    for page, left, top, text in items:
+        document.add_list_item(
+            text=text, parent=group, prov=placed(page, left, top, height)
+        )
+
+    _, chunks = chunks_of(document, word_chunker(200), "de")
+    return chunks[0].text.splitlines()
+
+
+def test_depth_open_at_a_column_foot_does_not_carry_into_the_next_column() -> None:
+    """A shop's returns list goes on at the top of the next column, outer again."""
+    lines = listed_at(
+        1,
+        (1, 54, 700, "Returns are free within 30 days."),
+        (1, 54, 714, "A refund is paid:"),
+        (1, 72, 728, "to the card the order was paid with"),
+        (1, 72, 742, "within 14 days of the return"),
+        (1, 310, 60, "Sale items cannot be returned."),
+        (1, 310, 74, "Gift cards cannot be returned."),
+    )
+
+    assert lines == [
+        "- Returns are free within 30 days.",
+        "- A refund is paid:",
+        "    - to the card the order was paid with",
+        "    - within 14 days of the return",
+        "- Sale items cannot be returned.",
+        "- Gift cards cannot be returned.",
+    ]
+
+
+def test_depth_survives_a_page_break() -> None:
+    """A bank's sub-items go on on a page whose margin lies further left."""
+    lines = listed_at(
+        2,
+        (1, 70, 700, "Die Bank sperrt die Karte, wenn:"),
+        (1, 88, 714, "der Karteninhaber die Sperre verlangt,"),
+        (2, 72, 60, "der Verdacht einer missbräuchlichen Nutzung besteht."),
+        (2, 54, 74, "Die Sperre wird dem Karteninhaber mitgeteilt."),
+    )
+
+    assert lines == [
+        "- Die Bank sperrt die Karte, wenn:",
+        "    - der Karteninhaber die Sperre verlangt,",
+        "    - der Verdacht einer missbräuchlichen Nutzung besteht.",
+        "- Die Sperre wird dem Karteninhaber mitgeteilt.",
+    ]
+
+
+def test_side_by_side_min_max_columns_are_not_nested() -> None:
+    """Under a paragraph across both, a fee's minimum and maximum stay apart."""
+    document = DoclingDocument(name="fees")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    document.add_text(
+        label=DocItemLabel.TEXT,
+        text="Für Auslandsüberweisungen gilt:",
+        prov=ProvenanceItem(
+            page_no=1,
+            bbox=BoundingBox(l=54, t=80, r=546, b=90, coord_origin=CoordOrigin.TOPLEFT),
+            charspan=(0, 1),
+        ),
+    )
+    group = document.add_list_group()
+    for left, text in (
+        (54, "Mindestentgelt 5,00 EUR"),
+        (310, "Höchstentgelt 25,00 EUR"),
+    ):
+        document.add_list_item(text=text, parent=group, prov=placed(1, left, 100))
+
+    _, chunks = chunks_of(document, word_chunker(200), "de")
+
+    assert chunks[0].text.splitlines()[-2:] == [
+        "- Mindestentgelt 5,00 EUR",
+        "- Höchstentgelt 25,00 EUR",
+    ]
+
+
 #: Words the generated documents are written in.
 VOCABULARY = st.sampled_from(
     ["card", "fee", "bank", "account", "payment", "charge", "merchant", "limit"]
