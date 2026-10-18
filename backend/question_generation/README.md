@@ -171,9 +171,28 @@ asks, which a category written for one ask contradicts; one written single
 for want of a partner is told its categories. A slot told none is sent the
 message prompt version 16 sent, byte for byte. A retry is sent the same block
 as the draft it rewrites. The question records the categories it was told in
-`questions.categories`, as categorization, category and description, so a
-categorization edited later does not rewrite what an earlier question was
-asked to be.
+`questions.categories`, as categorization, category, role and description,
+so a categorization edited later does not rewrite what an earlier question
+was asked to be.
+
+A categorization with `"role": "user"` describes the person asking rather
+than the question, as the paper's Figure 3 does with its novice and expert.
+Its categories go in a block of their own, before the question block, as the
+paper's Figure 4 splits them:
+
+```text
+THE ASKER - write the question as this person would ask it:
+- a regular user with no understanding of specialized terms.
+Use this only to write the question. The answer and the explanation must ignore it: they assume nothing about the asker that the question does not say.
+```
+
+The asker shapes the question only. The verifier and the judges are never
+shown it: the round trip reads the question and its passages alone, so an
+answer that leans on something about the asker the question does not say
+cannot be got back out of them and is refused as not recoverable. A slot
+dealt only user categories gets no question block. Prompt version 18 is the
+first to send the asker block; a slot dealt no user category is sent what
+version 17 sent.
 
 A draft a gate refused for how it was written — two questions welded
 together, its source named, an answer of the wrong shape — is written again
@@ -934,7 +953,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
-| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings at even odds from code, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Concise and verbose, 0.5 each** |
+| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings at even odds from code, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Concise and verbose, 0.5 each** |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |

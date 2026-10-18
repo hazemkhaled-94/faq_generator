@@ -189,10 +189,34 @@ PYTHONPATH=backend poetry run python -m settings.run --service questions \
 
 Not `make settings-set`: it splits `SET` at its spaces, so a JSON value
 reaches the store in pieces. A value that is not JSON, misspells a key,
-names a category twice, puts an `=` or a comma in a name or has probabilities that do
-not sum to 1 is refused, naming the categorization at fault, before
-anything is stored. `make settings-unset SERVICE=questions
-UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default in code.
+names a category twice, puts an `=` or a comma in a name, gives a role other
+than `question` or `user` or has probabilities that do not sum to 1 is
+refused, naming the categorization at fault, before anything is stored.
+`make settings-unset SERVICE=questions UNSET=QUESTIONS_CATEGORIZATIONS` goes
+back to the default in code.
+
+A categorization describes the question unless it says `"role": "user"`,
+which makes it describe the person asking. The writer is told the asker in a
+block of its own and is told the answer must assume nothing about them that
+the question does not say. A bank might ask in the words of two kinds of
+customer, at even odds:
+
+```json
+[
+  {
+    "categorization_name": "Customer",
+    "role": "user",
+    "categories": [
+      {"name": "account-holder", "description": "a customer who has held a current account for years and knows its terms."},
+      {"name": "first-time", "description": "somebody opening their first account, who knows none of the bank's terms."}
+    ]
+  }
+]
+```
+
+A value replaces the default whole, so a value holding only this one writes
+no phrasing category: list the default's categorizations beside it to keep
+both.
 
 A stage's rerun is its `-rerun` target, bar topics, which have none:
 `make topics-discover` fits them again and carries what a person decided
