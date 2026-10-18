@@ -562,6 +562,7 @@ class QuestionQueue(RowQueue):
                                 {
                                     "categorization": one.categorization,
                                     "category": one.name,
+                                    "role": one.role,
                                     "description": one.description,
                                 }
                                 for one in question.categories

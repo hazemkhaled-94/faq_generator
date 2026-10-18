@@ -681,6 +681,7 @@ def test_a_stored_question_keeps_the_categories_its_writer_was_told(
                 {
                     "categorization": "Phrasing",
                     "category": "concise-and-natural",
+                    "role": "question",
                     "description": concise.description,
                 }
             ],
