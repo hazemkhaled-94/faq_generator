@@ -11,7 +11,15 @@ where they differ.
 from __future__ import annotations
 
 import pytest
-from pages import ASSESSMENT, ASSESSMENT_PLAN, Answers, answers, changed, status
+from pages import (
+    ASSESSMENT,
+    ASSESSMENT_PLAN,
+    Answers,
+    AssessmentPage,
+    answers,
+    changed,
+    status,
+)
 
 pytestmark = pytest.mark.frontend
 
@@ -114,6 +122,46 @@ def test_every_metric_is_offered_as_a_filter(page) -> None:
         "conciseness",
         "toxicity",
     ]
+
+
+def on_page_four(open_view) -> tuple[Answers, AssessmentPage]:
+    """The page opened on the fourth of four pages of verdicts."""
+    client = Answers(
+        **answers(
+            assessments=lambda **asked: {"total": 100, "assessments": [ASSESSMENT]}
+        )
+    )
+    opened = open_view("assessment", client)
+    opened.numbers()["Page of 4"].set_value(4)
+    opened = opened.rerun()
+    assert client.calls("assessments")[-1][2]["offset"] == 75
+    return client, opened
+
+
+def test_switching_the_assessment_tab_starts_on_the_first_page(open_view) -> None:
+    """The tab narrows the listing as a search does, and kept the page number.
+
+    It sits outside the search panel, which drops the number for its own
+    controls only, so the first three pages of topics were skipped.
+    """
+    client, opened = on_page_four(open_view)
+
+    opened.app.segmented_control(key="assessment-tab").set_value("Topics")
+    after = opened.rerun()
+
+    assert client.calls("assessments")[-1][2]["offset"] == 0
+    assert after.numbers()["Page of 4"].value == 1
+
+
+def test_showing_only_the_disagreements_starts_on_the_first_page(open_view) -> None:
+    """The same for the other control outside the search panel."""
+    client, opened = on_page_four(open_view)
+
+    opened.app.checkbox(key="assessment-disagreements").check()
+    after = opened.rerun()
+
+    assert client.calls("assessments")[-1][2]["offset"] == 0
+    assert after.numbers()["Page of 4"].value == 1
 
 
 def test_the_disagreements_are_counted_where_a_reader_looks_first(page) -> None:

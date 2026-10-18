@@ -163,10 +163,20 @@ def _tabs() -> None:
         list(_TABS),
         key="assessment-tab",
         default=next(iter(_TABS)),
+        on_change=_first_page,
         label_visibility="collapsed",
         help="Which artefact this page is about. The figures, the analysis, "
         "the search and the table all narrow with it.",
     )
+
+
+def _first_page() -> None:
+    """Starts the listing on its first page, as a new search does.
+
+    For the tab and the disagreements box, which narrow it from outside
+    `catalog.find`, so the page number it drops for a search outlived them.
+    """
+    st.session_state.pop("assessment-page", None)
 
 
 def _looking_at() -> str | None:
@@ -278,6 +288,7 @@ def view() -> None:
             st.checkbox(
                 "Show only the disagreements",
                 key="assessment-disagreements",
+                on_change=_first_page,
                 help="The artefacts the pipeline kept and the judge refused. "
                 "Neither side is right by default.",
             )
