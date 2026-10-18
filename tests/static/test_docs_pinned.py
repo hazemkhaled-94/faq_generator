@@ -631,11 +631,15 @@ def test_nlp_readme_lists_every_word_table() -> None:
 
 def test_topic_count_names_fact_bearing_passages() -> None:
     """The topic count scales over the fact-bearing passages a fit reads."""
+    repository = _read("backend/topic_modelling/repository.py")
     passages = _function("backend/topic_modelling/repository.py", "passages")
     fit = _function("backend/topic_modelling/topics.py", "fit")
     row = _row(_read("backend/topic_modelling/README.md"), "TOPIC_PASSAGES_PER_TOPIC")
 
-    assert "Fact.validated" in passages and "query.where(bearing)" in passages
+    # One clause, `_BEARING`, says what a fact-bearing passage is, for the
+    # corpus a fit reads and the stale check alike.
+    bearing = repository.split("_BEARING = (", 1)[1].split("\n)\n", 1)[0]
+    assert "Fact.validated" in bearing and "query.where(_BEARING)" in passages
     assert "self._count(counted)" in fit
     assert "carry a validated fact" in _help("TOPIC_PASSAGES_PER_TOPIC")
     assert "counting the passages that carry a validated fact" in row
