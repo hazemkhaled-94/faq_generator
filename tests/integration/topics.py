@@ -131,7 +131,9 @@ class TopicStore:
         """Takes the next queued fit."""
         return self.queue.claim()
 
-    def store(self, *fittings: Fitting, fit_id: int | None = None) -> int:
+    def store(
+        self, *fittings: Fitting, fit_id: int | None = None
+    ) -> tuple[int, int] | None:
         """Replaces the fitted languages' topics, claiming first if needed."""
         if fit_id is None:
             fit_id = self.claim() or self.request()

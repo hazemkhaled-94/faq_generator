@@ -7,6 +7,7 @@ figures read back as.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -213,7 +214,7 @@ def test_a_fit_writes_its_topics_and_their_memberships(store) -> None:
 
     written = store.store(fitting("de", weights=weights))
 
-    assert written == 2
+    assert written == (2, 0)
     assert [row["status"] for row in store.stored_topics()] == [Status.MODELLED] * 2
     assert len(store.memberships()) == 2
 
@@ -333,6 +334,33 @@ def test_a_language_with_no_passages_loses_its_topics_on_the_next_fit(store) -> 
     assert {row["language"] for row in store.stored_topics()} == {"de"}
 
 
+def test_a_language_with_no_passages_drops_its_decisions_with_a_warning(
+    store, caplog
+) -> None:
+    """A name a person gave goes with its topics, and is counted lost.
+
+    As one matching no topic of the new fit is: nothing else says it went.
+    """
+    store.given_passages(de=1, en=1)
+    store.store(
+        fitting("de"),
+        fitting(
+            "en",
+            topics=[
+                FittedTopic(0, ["card"], label="Card fees", labelled_by="person"),
+                FittedTopic(1, ["loan"]),
+            ],
+        ),
+    )
+    store.delete_passages("en")
+
+    with caplog.at_level(logging.WARNING):
+        written = store.store(fitting("de"))
+
+    assert written == (0, 1), written
+    assert "Card fees" in caplog.text, caplog.text
+
+
 def test_a_fit_that_produced_no_topic_writes_nothing(store) -> None:
     """An empty result is not a model, and must not empty the table."""
     from dataclasses import replace
@@ -340,7 +368,7 @@ def test_a_fit_that_produced_no_topic_writes_nothing(store) -> None:
     store.given_passages(de=2)
     store.store(fitting("de"))
 
-    assert store.store(replace(fitting("de"), topics=[])) == 0
+    assert store.store(replace(fitting("de"), topics=[])) == (0, 0)
     assert len(store.stored_topics()) == 2, "the empty fit emptied the table"
 
 

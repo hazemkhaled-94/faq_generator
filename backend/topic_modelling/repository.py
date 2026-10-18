@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from typing import Any
@@ -29,6 +30,8 @@ from topic_modelling.models import (
     TopicFit,
     TopicRemoval,
 )
+
+log = logging.getLogger(__name__)
 
 #: A row that is a fit request rather than a topic. `topics` is both the queue
 #: and the result, and this separates the two.
@@ -312,7 +315,7 @@ class TopicQueue(StageQueue):
         with self._session() as session:
             return _dominant(session, language)
 
-    def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
+    def replace(self, fit_id: int, fittings: list[Fitting]) -> tuple[int, int] | None:
         """Replaces the topics and memberships of each language one run fitted.
 
         Every language in one transaction: a corpus holding one language's new
@@ -326,8 +329,9 @@ class TopicQueue(StageQueue):
             fittings: What each language's fit produced.
 
         Returns:
-            How many memberships were written, or None when the request was
-            gone or claimed again and nothing was written.
+            How many memberships were written and how many decisions a person
+            made were lost here, or None when the request was gone or claimed
+            again and nothing was written.
         """
         with self._lock, self._session.begin() as session:
             # The request gone, or claimed again since this fit claimed it,
@@ -355,6 +359,9 @@ class TopicQueue(StageQueue):
             # the fit skipped, or fitted to no topic, keeps its topics, but a
             # language whose last document went is never fitted again.
             fitted = [fitting.language for fitting in fittings if fitting.topics]
+            gone = Topic.language.not_in(
+                select(Passage.language).where(Passage.language.is_not(None))
+            )
             topics = {fitting.language: fitting.topics for fitting in fittings}
             # A decision a person made while this fit ran may postdate the
             # read the service carried decisions from, and would be deleted
@@ -365,7 +372,7 @@ class TopicQueue(StageQueue):
             # quietly.
             session.execute(
                 select(Topic.id)
-                .where(~_OUTSTANDING, Topic.language.in_(fitted))
+                .where(~_OUTSTANDING, Topic.language.in_(fitted) | gone)
                 .with_for_update()
             ).all()
             late = _decisions(
@@ -386,9 +393,23 @@ class TopicQueue(StageQueue):
                             before=_dominant(session, fitting.language),
                             after=dominant(fitting.weights),
                         )
-            gone = Topic.language.not_in(
-                select(Passage.language).where(Passage.language.is_not(None))
-            )
+            # A language no passage carries has no new topic for a decision
+            # to go to, so it is lost as one matching no topic is.
+            dropped = 0
+            for language, decided in _decisions(
+                session, gone, Topic.language.not_in(fitted)
+            ).items():
+                for lost in decided:
+                    log.warning(
+                        "the decision on %s topic %r (in coverage: %s; terms %s) "
+                        "went with its topics: no passage carries %s any more",
+                        language,
+                        lost.label,
+                        lost.include_in_coverage,
+                        ", ".join(lost.top_terms[:5]),
+                        language,
+                    )
+                    dropped += 1
             session.execute(
                 delete(Topic).where(
                     (~_OUTSTANDING & (Topic.language.in_(fitted) | gone))
@@ -420,7 +441,7 @@ class TopicQueue(StageQueue):
                 for topic in topics[fitting.language]
             ]
             if not rows:
-                return 0
+                return 0, dropped
             session.execute(insert(Topic), rows)
 
             # Read back rather than taken from RETURNING, whose row order for
@@ -465,8 +486,8 @@ class TopicQueue(StageQueue):
                                     - joined
                                 )
                             )
-                    return len(memberships) + len(placed)
-        return len(memberships)
+                    return len(memberships) + len(placed), dropped
+        return len(memberships), dropped
 
     def bearing_facts(self, passage_ids: list[int]) -> set[int]:
         """Which of these passages carry a validated fact.

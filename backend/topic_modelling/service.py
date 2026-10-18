@@ -147,6 +147,7 @@ class TopicModellingService(StageService):
             )
 
         fittings: list[Fitting] = []
+        lost = 0
         for language in languages:
             # A span per language, not one for the lot: each is a separate
             # factorisation over its own vocabulary and then one model call
@@ -175,6 +176,7 @@ class TopicModellingService(StageService):
                     "topic.decisions_carried", len(decided) - dropped
                 )
                 fitting_span.set_attribute("topic.decisions_dropped", dropped)
+                lost += dropped
                 fittings.append(
                     replace(
                         fitting,
@@ -190,19 +192,20 @@ class TopicModellingService(StageService):
                 f"filtering, so no model was fitted"
             )
 
-        memberships = self._repository.replace(fit_id, fittings)
-        if memberships is None:
+        stored = self._repository.replace(fit_id, fittings)
+        if stored is None:
             log.warning(
                 "fit %d: the request was withdrawn or claimed again; nothing written",
                 fit_id,
             )
             return
+        memberships, dropped = stored
         # As stored: a passage the fit placed nowhere has since joined the
         # topic whose centroid is nearest, where it has a vector.
         left = self._repository.without_topics()
         self._keep(fittings)
         self._draw(fittings)
-        self._annotate(current, fittings, memberships, left)
+        self._annotate(current, fittings, memberships, left, lost + dropped)
 
         for fitting in fittings:
             log.info(
@@ -374,17 +377,20 @@ class TopicModellingService(StageService):
         fittings: list[Fitting],
         memberships: int,
         left: dict[str, int],
+        dropped: int,
     ) -> None:
         """Records the run's shape on the active span.
 
         `left` is how many of each language's passages are in no topic as
-        the store holds them.
+        the store holds them, and `dropped` how many decisions a person made
+        were lost, in each language's carry and in the store.
         """
         self._done(current)
         current.set_attribute("topic.languages", len(fittings))
         current.set_attribute("topic.topics", sum(len(f.topics) for f in fittings))
         current.set_attribute("topic.passages", sum(f.passages for f in fittings))
         current.set_attribute("topic.memberships", memberships)
+        current.set_attribute("topic.decisions_dropped", dropped)
         current.set_attribute(
             "topic.without_topics",
             sum(left.get(f.language, f.without_topics) for f in fittings),

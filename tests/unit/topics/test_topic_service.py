@@ -51,6 +51,35 @@ def test_each_language_carries_the_span_it_was_fitted_in(
     assert len({one.trace_id for one in flow.stored}) == 1
 
 
+def test_the_fit_counts_every_decision_it_lost(service, passages, monkeypatch) -> None:
+    """Those its carry matched to no topic, and those the store lost.
+
+    The store loses a decision on a language no passage carries any more.
+    """
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    from topic_modelling import service as module
+
+    spans = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(spans))
+    monkeypatch.setattr(module, "span", provider.get_tracer(__name__))
+    flow = service({"de": passages})
+    flow.queue.previous["de"] = [
+        FittedTopic(0, ["lieferung"], label="Versand", labelled_by="person")
+    ]
+    flow.queue.dropped = 2
+
+    flow.request_and_run()
+
+    fit = next(one for one in spans.get_finished_spans() if one.name == "model_topics")
+    assert (fit.attributes or {})["topic.decisions_dropped"] == 3
+
+
 def test_a_fit_reports_what_each_language_was_over(service, passages) -> None:
     """The passage count and the vocabulary size travel with the topics."""
     flow = service({"de": passages})

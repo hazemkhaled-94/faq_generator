@@ -229,6 +229,8 @@ class RecordingQueue:
         #: The passages the store places in their nearest topic, having a
         #: vector, of those a fit placed nowhere.
         self.placed: set[int] = set()
+        #: How many decisions the store loses as it writes the fit.
+        self.dropped = 0
         self._next_id = 1
 
     def request(self, trigger: str | None = None) -> int:
@@ -286,14 +288,14 @@ class RecordingQueue:
             if one.id in asked
         }
 
-    def replace(self, fit_id: int, fittings: list[Fitting]) -> int | None:
+    def replace(self, fit_id: int, fittings: list[Fitting]) -> tuple[int, int] | None:
         """Stores what one fit produced, or nothing for a claim another took."""
         if self.refuses is not None:
             raise self.refuses
         if self.lost:
             return None
         self.stored = list(fittings)
-        return sum(len(one.weights) for one in fittings)
+        return sum(len(one.weights) for one in fittings), self.dropped
 
     def fail(self, key: int, error: str) -> None:
         """Records a fit that did not finish."""
