@@ -259,8 +259,12 @@ of them that fails backs off from five seconds again.
 A `make` target runs one drain on the host, in the foreground, against the
 same database the containers use. It is the same code; there is no second
 path. It refuses while that stage's worker container is running. The
-container workers build the dataset; a host drain is for developing a stage,
-and host parse, chunk and extract runs are kept off the dataset.
+container workers build the dataset; a host drain is for developing a stage.
+Nothing keeps a host run out of the dataset, though: a host parse, chunk or
+extract drain writes the same tables in the same database as the workers,
+nothing but a `RUN_ID`, where one is set, tells its rows apart, and the
+refusal checks only that the stage's worker is stopped. Do not build the
+dataset with one.
 
 ## Recalibrating stored confidences
 

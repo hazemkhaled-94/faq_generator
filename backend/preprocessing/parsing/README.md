@@ -58,7 +58,7 @@ When it runs out, or a page cannot be parsed, Docling returns only the
 finished pages without raising; a conversion that did not end in success is
 failed with Docling's errors rather than stored as the whole document.
 
-### Step 4 — Remove struck-through words, then repair the text
+### Step 4 — Remove struck-through and hidden words, then repair the text
 
 A PDF marks a deletion with nothing but a line drawn through the word: no
 annotation, no font flag, no colour. The converter keeps the word, so
@@ -69,7 +69,10 @@ pymupdf and finds every word a stroke deletes. A stroke qualifies when it:
 - is horizontal — a line of a stroked path made of nothing but level lines
   (each rising or falling less than 0.3 pt), or a filled bar — and longer
   than 2 pt
-- covers at least 60% of the word's width
+- covers at least 60% of the width of a run of letters or digits, or 50% of
+  a punctuation mark: a word is cut into such runs and single marks, and
+  only the struck ones are removed, so a stroke through "six" in
+  "six/eight" or through "not" in "(not" leaves the rest of the word standing
 - sits, its own line width included, between 0.15 and 0.55 × the font size
   above the word's baseline: through the x-height, in any colour
 
@@ -111,13 +114,14 @@ it:
 
 - compose to NFC
 - rejoin words the page broke across two lines — both the soft-hyphen
-  spelling and a real hyphen before a lower-case continuation, unless a word
-  that completes a hanging hyphen follows (`und`, `als`, `bis`, `vs.` and
-  their kin, `JOINING` in [`nlp/text.py`](../../nlp/text.py), every
-  configured language's at once), because `Zoll- und Steuerrecht` is not a
-  broken word; and a compound broken at its own hyphen keeps it where the
-  document prints the word whole elsewhere, so `third- party` is
-  `third-party` and not `thirdparty`
+  spelling and a real hyphen after a letter of A–Z, an umlaut or ß and
+  before a lower-case one of those, unless a word that completes a hanging
+  hyphen follows (`und`, `als`, `bis`, `vs.` and their kin, `JOINING` in
+  [`nlp/text.py`](../../nlp/text.py), every configured language's at once),
+  because `Zoll- und Steuerrecht` is not a broken word; a word broken
+  beside another letter, `cré- dit`, is not rejoined; and a compound broken
+  at its own hyphen keeps it where the document prints the word whole
+  elsewhere, so `third- party` is `third-party` and not `thirdparty`
 - drop control and zero-width characters
 - fold every other kind of space to U+0020
 
@@ -128,8 +132,9 @@ reproduce is one no quote of it can match.
 reading the grid and the case and never a word:
 
 - a table with no header row that comes right after a table of its width, on
-  the same page or the next, with at most a picture between them, is that
-  table's rest: its rows go under the first table's, and it moves to the
+  the same page or the next, with nothing but pictures or items outside the
+  body, such as page headers and footers, between them, is that table's
+  rest: its rows go under the first table's, and it moves to the
   furniture layer, so no reference a passage stores moves
 - a rest whose first row the converter flagged a header is a rest all the
   same when each cell of that row is set in the font most of the first
@@ -173,9 +178,11 @@ conversion with no body text fails as `EmptyDocument`.
 
 ### Step 7 — Two refusals after the fact
 
-A conversion whose **lower-bound** confidence is under
-`PARSING_MIN_CONFIDENCE` fails; the lower bound rather than the mean, because
-it says how bad the worst of the document is.
+A conversion whose **low score** is under `PARSING_MIN_CONFIDENCE` fails.
+The low score is Docling's: each page's 5% quantile of its component scores,
+averaged over the pages, so it reads the weak side of a typical page rather
+than the worst page, and one garbled page among many is averaged away. A
+conversion with no score is not checked.
 
 A document whose `content_sha256` another document already holds fails too.
 Ingestion catches a file uploaded twice by its bytes; the same report
@@ -228,7 +235,7 @@ Read from the environment with no defaults in code, and overridable as
 | Setting | What it does |
 |---|---|
 | `PARSING_OCR_CHAR_THRESHOLD` | Characters per page below which a document is treated as scanned and refused |
-| `PARSING_MIN_CONFIDENCE` | Lowest lower-bound confidence a conversion may carry and be kept, in [0, 1] |
+| `PARSING_MIN_CONFIDENCE` | Lowest low score a conversion may carry and be kept, in [0, 1]: Docling's, averaged over the pages, as Step 7 says |
 | `PARSING_TABLE_MODE` | TableFormer mode: `fast` or `accurate`. Anything else is refused when the pipeline is constructed |
 | `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. Turning it on also turns on `generate_parsed_pages` |
 | `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run |

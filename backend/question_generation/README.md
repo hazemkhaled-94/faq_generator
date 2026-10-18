@@ -44,9 +44,13 @@ and answer bounds the next run will read.
 
 ### Step 2 — Deal the facts
 
-[`selection.py`](selection.py). `QUESTIONS_FACT_SAMPLE` caps how many facts
-are offered, divided between the passages the sample holds. The band decides
-the shape of the sample:
+[`selection.py`](selection.py). `QUESTIONS_FACT_SAMPLE` sets how many facts
+are offered, divided between the passages the sample holds and never fewer
+than one from each. A reading type — an answerable slot whose answer form is
+not a value — also takes the other unspent atomic facts citing the same
+evidence as one it chose, the rest of that fact's list, up to 8 facts in the
+whole sample, so its sample can be larger than `QUESTIONS_FACT_SAMPLE`. The
+band decides the shape of the sample:
 
 | Band | Shape | What the deal offers | Worth |
 |---|---|---|---|
@@ -72,6 +76,9 @@ cited, so a question that narrowed bands as what it is, and stands: nothing
 asks it to widen.
 
 A reading type is offered the condensed facts first; a `value` type is not.
+A passage quoting another with a bracketed ellipsis, such as a change log, is
+dealt only after every other passage, and an answerable `enumeration`,
+`procedure` or `condition` slot prefers the passage stating the text in full.
 An answerable `reason` slot is dealt the next passage holding a fact whose
 evidence states a reason, and offered that fact first — see
 [The thirteen kinds](#the-thirteen-kinds).
@@ -83,16 +90,19 @@ The deal uses a relative floor instead, `QUESTIONS_MEETS_SHARE`: a second
 passage is offered only when its best fact is among that share of the topic's
 closest cross-passage fact pairs. The bar is read off the topic's own vectors,
 so no cosine is tuned to a corpus or a language, and the closest pair always
-clears it. A passage whose fact restates the head's word for word is never
-offered, since it answers nothing the head does not.
+clears it. While `QUESTIONS_MEETS_FLOOR` or `QUESTIONS_MEETS_SHARE` is above
+0, the floor is read over the second passage's facts that do not restate the
+head's first word for word, and a passage holding nothing but such copies is
+not offered, since it answers nothing the head does not.
 
 **The corpus's own furniture is never offered.** A copyright notice, contents
 page or revision table is real text a fact extracts from cleanly and no gate
 downstream refuses. It is read by **repetition, not vocabulary** — a passage
-with a cross-document twin above `QUESTIONS_BOILERPLATE_COSINE` — so nothing
-about a language, a domain or a section name is assumed. Three ways it
-abstains: a corpus of one document has nothing to repeat into, a passage with
-no embedding cannot be compared, and a threshold of `0` turns it off.
+with a twin above `QUESTIONS_BOILERPLATE_COSINE` in another document of its
+own language — so nothing about a language, a domain or a section name is
+assumed. Three ways it abstains: a language held by one document has nothing
+to repeat into, a passage with no embedding cannot be compared, and a
+threshold of `0` turns it off.
 
 Acknowledgements defeat that reading, because every document thanks different
 people. `QUESTIONS_PARTY_DENSITY` reads them instead: the share of a
@@ -486,9 +496,13 @@ a **general rule** that covers its case. Swapping the party or the period is
 the move that most often lands on one of those, so neither the prompt nor the
 retry note after `answerable_after_all` prescribes it.
 
-Attempted, not held: they face three gates of their own, and the two that
-are on bite, which is why the default sits above the share a release should hold. Over-setting is safe — `QUESTIONS_RELEASE_UNANSWERABLE` is a
-ceiling.
+Attempted, not held: they face three gates of their own, and the two that are
+on bite, which is why the default sits above the share a release should hold.
+Over-setting is safe for the release, since `QUESTIONS_RELEASE_UNANSWERABLE`
+is a ceiling, but not for the spend: every attempt
+`QUESTIONS_UNANSWERABLE_SHARE` plans is written and checked, its `settles`
+calls included, whatever the ceiling, so at a ceiling of 0 those calls buy
+nothing the release can take; lower the share to save them.
 
 | | |
 |---|---|
@@ -604,9 +618,10 @@ Passages are counted against those a validated fact rests on, not against
 every passage: a passage no fact rests on cannot be asked about, so counting
 it would report extraction's refusals as this stage's gap.
 
-A sample **burns** `QUESTIONS_FACT_SAMPLE` facts whether or not the question
-cites them, and no fact is offered twice within one topic, so past a point
-`QUESTIONS_PER_TOPIC` is inert. What raises coverage instead is running
+A sample **burns** every fact it offers, `QUESTIONS_FACT_SAMPLE` of them or,
+for a reading type that took a list whole, up to 8, whether or not the
+question cites them, and no fact is offered twice within one topic, so past a
+point `QUESTIONS_PER_TOPIC` is inert. What raises coverage instead is running
 again, lowering `QUESTIONS_FACT_SAMPLE`, and — marginally —
 `QUESTIONS_FOLLOWUP_SHARE`. Figures in
 [measurements](../../docs/measurements.md).
@@ -664,12 +679,19 @@ within `TOLERANCE` of every quota. The command reports what it drew, the yield,
 its spread over every share, the languages included, and any quota the pool
 came up short on.
 
-Nothing is deleted. The draw re-checks first, as `questions-reverify` does,
-so a question that no longer passes the free gates is rejected before it can
-be drawn. Beyond that, a release is a column on rows already there, so
-questions left out stay queryable, and running it again with different
-shares replaces the first. It always draws over every accepted question:
-`--only` is refused, and `make questions-balance` takes no `TOPIC=`.
+Nothing is deleted. The draw re-checks first, as `questions-reverify` does. A
+question is rejected before it can be drawn when a fact it cites no longer
+holds or its passage or document scope moved (`source_changed`), when it fails
+the structural gates other than the document-title check, when it fails its
+type's rules, or when the duplicate probe finds an earlier twin. A question a
+person accepted is checked on its facts alone. The topic, explanation,
+source-naming pattern and thread gates (`off_topic`, `explanation_unusable`,
+the pattern half of `leaks_source`, `asks_nothing_new`, `off_thread`) are not
+run again: they judge a question only when it is written. Beyond that, a
+release is a column on rows already there, so questions left out stay
+queryable, and running it again with different shares replaces the first. It
+always draws over every accepted question: `--only` is refused, and `make
+questions-balance` takes no `TOPIC=`.
 
 `FILTER="--released"` exports the release, `released=true` narrows
 `GET /questions` to it, and **Released** does the same on the Questions page.
@@ -712,7 +734,8 @@ The Citations sheet is the expensive half; `--no-citations` leaves it empty.
 Every question carries `prompt_version`, and three modules declare one:
 `types.PROMPT_VERSION` for the thirteen writers, `phrasing.PROMPT_VERSION`
 for the three wording judgements and `verifier.PROMPT_VERSION` for the round
-trip's four and `settles`. They are bumped separately.
+trip's four, `settles` and `same_answer`, the twin judgement
+`questions-balance` asks for. They are bumped separately.
 
 The stage records what it sends at start-up — [`prompts.py`](prompts.py)
 declares it and `stages.prompts` writes it to the `prompts` table. Three ways
@@ -721,7 +744,7 @@ to read one back:
 | Where | Shows |
 |---|---|
 | The Questions page | "The prompt that wrote this", under a selected question |
-| `GET /prompts?service=questions&version=12&name=factoid` | The same, as JSON |
+| `GET /prompts?service=questions&version=15&name=factoid` | The same, as JSON |
 | Phoenix | The prompt beside the traces, published by the stage that recorded it |
 
 Each records the whole call: the system message, the user message as its
@@ -804,17 +827,17 @@ stored, so changing one needs a restart.
 | --- | --- |
 | `QUESTIONS_PER_TOPIC` | How many to aim for per topic. Not below the number of kinds with a weight |
 | `QUESTIONS_FACT_KINDS` | Which kinds of fact a question may be written from |
-| `QUESTIONS_FACT_SAMPLE` | How many facts are offered per call, divided between the passages |
+| `QUESTIONS_FACT_SAMPLE` | How many facts are offered per call, divided between the passages, at least one from each. A reading type also takes the rest of a chosen fact's list, up to 8 |
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |
-| `QUESTIONS_MEETS_SHARE` | The share of a topic's closest cross-passage fact pairs a second passage must be among before it is offered; a passage restating the head's fact is never offered. `0` sets no relative floor. **0.02** |
+| `QUESTIONS_MEETS_SHARE` | The share of a topic's closest cross-passage fact pairs a second passage must be among before it is offered; while this or `QUESTIONS_MEETS_FLOOR` is above 0, a passage holding nothing but copies of the head's first fact is not offered. `0` sets no relative floor. **0.02** |
 | `QUESTIONS_MEETS_FLOOR` | How much a candidate fact must share with the fact the head of its sample offers first before a second passage is offered. **Off** |
 | `QUESTIONS_EXPLANATION_CHARS` | Shortest and longest `answer_explanation` |
-| `QUESTIONS_BOILERPLATE_COSINE` | How alike a passage must be to one in another document before it is read as furniture. `0` turns it off |
+| `QUESTIONS_BOILERPLATE_COSINE` | How alike a passage must be to one in another document of its own language before it is read as furniture. `0` turns it off |
 | `QUESTIONS_ANSWER_OVERLAP` | How much of a list or explanation has to come back. Numbers are always exact |
 | `QUESTIONS_UNANSWERABLE_SHARE` | What share are attempted with no answer in the corpus |
 | `QUESTIONS_OFF_TOPIC_OVERLAP` | Below this share of shared lemmas, an unanswerable question is off-topic. **Off** |
@@ -855,6 +878,7 @@ poetry run pytest tests/integration/database/test_release.py
 | [`test_selection.py`](../../tests/unit/questions/test_selection.py) | What the deal offers the writer, and how wide it is |
 | [`test_generation.py`](../../tests/unit/questions/test_generation.py) | What the writer asks the model, and what it makes of the answer |
 | [`test_verification.py`](../../tests/unit/questions/test_verification.py) | Every gate, and the order they are applied in |
+| [`test_typing.py`](../../tests/unit/questions/test_typing.py) | What a question is typed as, read off how it opens, and how a count whose answer is no figure is labelled |
 | [`test_competence.py`](../../tests/unit/questions/test_competence.py) | The types whose answers are reasoned to rather than found |
 | [`test_balance.py`](../../tests/unit/questions/test_balance.py) | Choosing a balanced release |
 | [`test_models.py`](../../tests/unit/questions/test_models.py) | Which model writes a question, and which one checks it; what a question's citations make its scopes |
@@ -893,13 +917,10 @@ poetry run pytest tests/integration/database/test_release.py
 - **No rule gate overrules a person.** `questions-reverify` rejects a
   question a person accepted only when a fact it rests on no longer holds,
   which includes a fact a person rejected.
-- **A corpus of one document gets no boilerplate filtering.** There is no
-  second document for a copyright notice to repeat into.
-- **A translation can read as furniture.** The boilerplate filter compares a
-  passage with every other document's, whatever their language, so in a
-  corpus whose documents translate each other a passage close enough to its
-  own translation is never offered. Requiring the same language would turn the
-  filter off for such a corpus, and let its real furniture back in.
+- **A language held by one document gets no boilerplate filtering.** Only
+  another document of the same language counts as a twin, so a corpus
+  holding one document per language, such as one document and its
+  translation, offers its copyright pages and contents tables to the writer.
 - **`planned_difficulty` disagreeing with `difficulty` is not a fault.** The
   writer cited fewer facts than it was offered.
 - **`QUESTIONS_PER_TOPIC` is what a run costs, twice over.** Each candidate

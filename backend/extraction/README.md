@@ -137,9 +137,9 @@ Two more refusals are the service refusing what the checks passed:
 
 - `duplicate` — the corpus already holds the statement.
   `EXTRACTION_DUPLICATE_COSINE` is how alike two may be, and a candidate is
-  probed through the HNSW index against every validated passage fact in the
-  corpus of its own language and kind that carries a vector, bar those
-  citing only the passage being re-read, **and** against the facts of
+  probed through the HNSW index against every validated passage fact already
+  stored in the corpus of its own language and kind that carries a vector,
+  bar those citing only the passage being re-read, **and** against the facts of
   another kind this passage already kept - a summary or an outline
   repeating one of its claims, or of its kind saying it word for word. Two
   atomic facts of one passage are otherwise never twins: two items of a
@@ -161,6 +161,12 @@ Two more refusals are the service refusing what the checks passed:
   taken against today's bar, or none, and takes out the
   citations an earlier version's refusal added to its twin, rebuilding that
   fact's evidence from the citation it keeps. No model is called.
+  The probe sees only facts another passage has already stored, so two
+  passages read at the same time by parallel `extract-worker` containers
+  cannot refuse each other's facts, and `extract-dedup`, which re-decides
+  only stored refusals, does not find the pair: both near-identical facts
+  are kept. A single worker reads one passage at a time and leaves no such
+  pair.
   Nothing ties a stored fact to the passages refused against it, so
   deleting its document leaves each repeat refused against a fact that is
   gone. `make delete` and `make delete-derived` therefore run

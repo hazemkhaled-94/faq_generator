@@ -31,9 +31,11 @@ an item. A one-off `make` drain reads the settings once, when it starts.
 
 Nothing is requeued. If the change means what a stage already produced was
 made under the old value, whichever surface you used **says so and names the
-stage**, and the command that rebuilds it: a cheaper one where the catalogue
-names one, that stage's `-rerun` otherwise. Every fact, topic and question
-records the configuration it was produced under.
+stage**, and how to rebuild it: the cheaper command the catalogue names,
+where every changed setting that stales something has one, and otherwise
+that the stage be rerun — its `-rerun` target, or `make topics-discover` for
+topics, which has none. Every fact, topic and question records the
+configuration it was produced under.
 
 That is what `invalidates` in the catalogue is for. It names the stages whose
 stored output this setting produced — direct staleness only, since naming
@@ -77,11 +79,13 @@ Some settings are marked `fixed`: served read-only as the deployment's, and
 never stored. They are the pool sizes, read before a service could ask a
 database for anything; the addresses and host names (`LLM_BASE_URL`,
 `OLLAMA_BASE_URL`, `SERVICE_URLS`, `API_ALLOWED_HOSTS`); the eight model
-settings, `LLM_MODEL` and the ones a stage or a judgement names, so the host
-and the containers each keep their own; and the three spaCy pipeline
-settings and `WORKER_POLL_SECONDS`, of which nothing reads a stored value. A
-row stored for a fixed or retired setting does not apply and does not count
-toward the version.
+settings, `LLM_MODEL` and the ones a stage or a judgement names, which the
+host and the containers each read from their own environment (compose gives
+the containers their own `LLM_MODEL`, `QUESTIONS_VERIFIER_MODEL` and
+`ASSESSMENT_JUDGE_MODEL`; the other five come from `backend.env` for both);
+and the three spaCy pipeline settings and `WORKER_POLL_SECONDS`, of which
+nothing reads a stored value. A row stored for a fixed or retired setting does
+not apply and does not count toward the version.
 
 ## The three surfaces
 

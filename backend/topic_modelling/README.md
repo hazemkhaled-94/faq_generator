@@ -3,8 +3,10 @@
 Finds what a corpus is about: the groups of words that tend to appear
 together, one model per language, over the corpus's own vocabulary.
 
-Nothing here is pretrained and nothing is embedded, so no word list, ontology
-or domain model has to be supplied.
+Nothing here is pretrained and the fit embeds nothing, so no word list,
+ontology or domain model has to be supplied. A passage the fit places in no
+topic joins its language's nearest topic by the passage vectors stored with
+`EMBEDDING_MODEL`.
 
 Question generation works one topic at a time, so a topic is the unit of
 work, the unit of coverage reporting, and what makes a question's subject
@@ -252,7 +254,7 @@ partial refit.
 
 | Setting | What it does |
 | --- | --- |
-| `TOPIC_PASSAGES_PER_TOPIC` | How many passages one topic is worth. Above 0 this turns `TOPIC_NUM_TOPICS` into a ceiling and fits `passages / this`, floored at 2. `0` turns it off |
+| `TOPIC_PASSAGES_PER_TOPIC` | How many passages one topic is worth. Above 0 this turns `TOPIC_NUM_TOPICS` into a ceiling and fits `passages / this`, floored at 2, counting the passages that carry a validated fact once the language has any. `0` turns it off |
 | `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2 |
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
 | `TOPIC_RANDOM_STATE` | Seed. Fixed, so the same corpus gives the same topics |
@@ -261,7 +263,7 @@ partial refit.
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |
 | `TOPIC_NO_ABOVE` | Drop a term appearing in more than this share. In `(0, 1]` |
 | `TOPIC_LANGUAGE_NAMES` | ISO code to language name, for the naming prompt |
-| `TOPIC_LABEL_MIN_FACT_SHARE` | Below this share of validated facts, a topic is not sent to the model to be named |
+| `TOPIC_LABEL_MIN_FACT_SHARE` | Below this share of its own passages carrying a validated fact, a topic is not sent to the model to be named. `0` names every topic |
 | `TOPIC_MODEL` | The model that names a topic. Read only when `LLM_MODEL` is set |
 | `LLM_MODEL` | What `TOPIC_MODEL` falls back to. Without it, topics are fitted but not named |
 

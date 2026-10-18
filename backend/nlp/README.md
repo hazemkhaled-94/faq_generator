@@ -149,6 +149,10 @@ that gate **silently never fires** for it — no error, no log. The tables
 keyed by language code are held to `NLP_MODELS` by
 [`test_language_tables.py`](../../tests/static/test_language_tables.py), so a
 language added there without its rows fails that test, naming each table.
+The rest — `_DOCUMENTS`, `_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY`,
+`_ANAPHORIC`, `_ASKING`, `_SOURCE` and `_REFUSALS` — hold every language's
+words in one set or pattern, so that test cannot see them: a language
+missing from one fails no test.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
@@ -161,6 +165,7 @@ language added there without its rows fails that test, naming each table.
 | `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
 | `_ASKED_FOR` | same | Question openings by language, and the kinds each asks for, the primary first | `warum`, `why` |
 | `_ASKS_HOW_MANY` | same | How a question asks for a count anywhere in it, by language | `wie vielen`, `how many` |
+| `_ASKING_ADVERBS` | same | Question words the language's tagger reads as something else, by language: a German `wo(r)` and a preposition | `worauf` |
 | `_POLARITY` | same | Words answering a yes-or-no question by their polarity, by language | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why, by language: what a `reason` slot is dealt | `damit`, `so that` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
@@ -169,8 +174,13 @@ language added there without its rows fails that test, naming each table.
 | `CARDINALS` | same | Cardinals from nought to twelve, each as the value it names: the one count table the fact dedup gate and the question gates both read | `zwei`, `one` |
 | `DECIMAL_MARK` | same | The mark the language writes a decimal with: one such mark before three digits is a fraction, not thousands, wherever the question gates read a figure the passages or the verifier's reply state | `,`, `.` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
+| `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds, by language, each as the digits it names | `zweite`, `second` |
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
+| `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
+| `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |
+| `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several, so a singular noun can be what they refer to | `their` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
+| `_DISJUNCTIVE` | same | Coordinators that offer alternatives: a conjunct one joins is no claim of its own | `oder`, `or` |
 | `_FINITE_TAGS` | same | Fine tags of a finite verb: a statement carrying one asserts something, whatever part of speech the tagger gave the word | `VVFIN`, `VBZ` |
 | `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence before a lower-case word or a figure | `ca.`, `approx.` |
 | `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
@@ -184,6 +194,18 @@ by the word as written, `_CONJUNCTIONS` against a whole heading's letters, `_AGE
 `_EXCEPTIVE` and `_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
+
+`_broken_word`, beside `JOINING` in [`text.py`](text.py), rejoins a word
+broken at a line's end only where the letter before the hyphen is one of
+A–Z, the German umlauts or ß and the letter after it is a lower-case one of
+those, so a language writing other letters needs them added there, or its
+words broken at a line's end stay broken: `cré- dit` is not rejoined.
+
+Four sets in [`analysis.py`](analysis.py) name languages by a trait of their
+grammar rather than holding words — `_PLURAL_GENDERLESS`,
+`_SYNCRETIC_FEMININE`, `_NOUN_ANAPHORIC_DEMONSTRATIVES` and
+`_INFINITIVE_IS_PLURAL` — and a language missing from one is read as lacking
+the trait.
 
 `_NAMED` is the one that is not a word list, and a language missing from it
 falls back quietly to its own ISO code, which is still an instruction a model

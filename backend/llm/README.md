@@ -123,11 +123,23 @@ model that is not an `ollama*` one. The judge is set apart:
 `ASSESSMENT_JUDGE_CONTAINER_MODEL` may name a hosted model, which
 `provider.env` authenticates, and unset the worker judges nothing.
 
+A stage's own model has no container counterpart. `EXTRACTION_MODEL`,
+`EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL`, `QUESTIONS_MODEL` and
+`QUESTIONS_PHRASING_MODEL` are read from
+[`configs/env/backend.env`](../../configs/env/backend.env), which the
+containers take unchanged, so a container calls whatever model they name,
+and `make doctor` checks none of them. A line there naming a hosted model
+sends that stage's calls from the containers to it, authenticated only by
+what `provider.env` holds.
+
 The two halves **never drain one stage's queue at once**: a host drain
 refuses while that stage's worker is running. The container workers build
-the dataset; a host drain is for developing a stage, and host parse, chunk
-and extract runs are kept off the dataset. Comparing two models is `RUN_ID`
-over the same rows — see [settings](../settings/README.md).
+the dataset; a host drain is for developing a stage. Nothing keeps a host
+run out of the dataset, though: a host drain writes the same tables in the
+same database as the workers, nothing but a `RUN_ID`, where one is set,
+tells its rows apart, and the refusal checks only that the stage's worker
+is stopped. Do not build the dataset with one. Comparing two models is
+`RUN_ID` over the same rows — see [settings](../settings/README.md).
 
 ### A worker proves the model before it claims anything
 

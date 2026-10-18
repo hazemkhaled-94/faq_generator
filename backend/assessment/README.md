@@ -6,7 +6,7 @@ during it. It records an opinion beside the checker's verdict and **decides
 nothing**.
 
 ```bash
-make assess-enrol            # what it would cost, before paying for it
+make assess-enrol            # write the rows a start would judge, and count them; not a dry run
 make assess-start && make assess
 make assess-status
 ```
@@ -223,8 +223,8 @@ the phase ships off.
 are the deliverable, and they are the artefact whose `qa_correctness`
 judgement has no counterpart anywhere upstream.
 
-This is the only worker that loads **no** encoder — no spaCy pipeline, no
-embedder, no NLI model — so it is also the cheapest stage to scale
+Like `topic-worker`, this worker loads **no** encoder — no spaCy pipeline,
+no embedder, no NLI model — so it is the cheapest stage to scale
 horizontally.
 
 ## Configuration
