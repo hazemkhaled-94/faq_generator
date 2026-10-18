@@ -299,6 +299,19 @@ def test_unplaced_passages_are_warned_about_by_language(
     assert "1 of 5 de passage(s) have no topic" in caplog.text, caplog.text
 
 
+def test_a_passage_the_store_placed_is_not_warned_about(
+    service, passages, caplog
+) -> None:
+    """It joined the topic whose centroid is nearest, so it is in a topic."""
+    flow = service({"de": [*passages, PassageVocabulary(id=97, lemmas=["zzz"])]})
+    flow.queue.placed = {97}
+
+    with caplog.at_level("WARNING"):
+        flow.request_and_run()
+
+    assert "have no topic" not in caplog.text, caplog.text
+
+
 def test_the_figure_is_a_self_contained_page(service) -> None:
     """Nothing is fetched when it is opened."""
     flow = service()

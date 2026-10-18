@@ -226,6 +226,9 @@ class RecordingQueue:
         self.refuses: Exception | None = None
         self.lost = False
         self.bearing: set[int] = set()
+        #: The passages the store places in their nearest topic, having a
+        #: vector, of those a fit placed nowhere.
+        self.placed: set[int] = set()
         self._next_id = 1
 
     def request(self, trigger: str | None = None) -> int:
@@ -261,6 +264,13 @@ class RecordingQueue:
     def dominant_passages(self, language: str) -> dict[int, int]:
         """Each passage's strongest topic in the fit being replaced."""
         return self.dominant.get(language, {})
+
+    def without_topics(self) -> dict[str, int]:
+        """How many of each language's passages the stored fit holds nowhere."""
+        return {
+            one.language: one.without_topics - len(self.placed & set(one.unplaced))
+            for one in self.stored
+        }
 
     def bearing_facts(self, passage_ids: list[int]) -> set[int]:
         """Which of these passages carry a validated fact."""

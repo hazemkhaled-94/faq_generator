@@ -197,9 +197,12 @@ class TopicModellingService(StageService):
                 fit_id,
             )
             return
+        # As stored: a passage the fit placed nowhere has since joined the
+        # topic whose centroid is nearest, where it has a vector.
+        left = self._repository.without_topics()
         self._keep(fittings)
         self._draw(fittings)
-        self._annotate(current, fittings, memberships)
+        self._annotate(current, fittings, memberships, left)
 
         for fitting in fittings:
             log.info(
@@ -211,11 +214,11 @@ class TopicModellingService(StageService):
                 fitting.vocabulary,
                 fitting.labelled,
             )
-            if fitting.without_topics:
+            if unplaced := left.get(fitting.language, fitting.without_topics):
                 log.warning(
                     "%d of %d %s passage(s) have no topic. They and everything "
                     "drawn from them are outside every topic-weighted report.",
-                    fitting.without_topics,
+                    unplaced,
                     fitting.passages,
                     fitting.language,
                 )
@@ -366,14 +369,23 @@ class TopicModellingService(StageService):
         return named
 
     def _annotate(
-        self, current: Span, fittings: list[Fitting], memberships: int
+        self,
+        current: Span,
+        fittings: list[Fitting],
+        memberships: int,
+        left: dict[str, int],
     ) -> None:
-        """Records the run's shape on the active span."""
+        """Records the run's shape on the active span.
+
+        `left` is how many of each language's passages are in no topic as
+        the store holds them.
+        """
         self._done(current)
         current.set_attribute("topic.languages", len(fittings))
         current.set_attribute("topic.topics", sum(len(f.topics) for f in fittings))
         current.set_attribute("topic.passages", sum(f.passages for f in fittings))
         current.set_attribute("topic.memberships", memberships)
         current.set_attribute(
-            "topic.without_topics", sum(f.without_topics for f in fittings)
+            "topic.without_topics",
+            sum(left.get(f.language, f.without_topics) for f in fittings),
         )

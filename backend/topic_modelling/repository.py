@@ -90,7 +90,8 @@ _NEAREST = text(
     "  SELECT min(pt.weight) AS weight FROM passage_topics pt"
     "  JOIN topics t ON t.id = pt.topic_id WHERE t.language = p.language"
     ") floor "
-    "WHERE p.id = ANY(:ids) AND p.embedding IS NOT NULL AND floor.weight IS NOT NULL"
+    "WHERE p.id = ANY(:ids) AND p.embedding IS NOT NULL AND floor.weight IS NOT NULL "
+    "RETURNING passage_id"
 )
 
 
@@ -266,6 +267,21 @@ class TopicQueue(StageQueue):
                 ).all()
             ]
 
+    def without_topics(self) -> dict[str, int]:
+        """How many of each language's fitted passages no topic holds, as stored.
+
+        After the nearest-centroid placement, so a passage it placed is not
+        counted.
+        """
+        with self._session() as session:
+            return dict(
+                session.execute(
+                    select(Topic.language, func.max(Topic.passages_without_topics))
+                    .where(~_OUTSTANDING)
+                    .group_by(Topic.language)
+                ).all()
+            )
+
     def dominant_passages(self, language: str) -> dict[int, int]:
         """Each passage's strongest topic in one language's stored fit, by index.
 
@@ -382,10 +398,24 @@ class TopicQueue(StageQueue):
                 _place(session)
                 unplaced = [one for fitting in fittings for one in fitting.unplaced]
                 if unplaced:
-                    placed = session.execute(_NEAREST, {"ids": unplaced}).rowcount
+                    placed = set(session.scalars(_NEAREST, {"ids": unplaced}).all())
                     # Their topics' centroids move with them.
                     _place(session)
-                    return len(memberships) + placed
+                    # And they are in a topic now, which is what the stored
+                    # count says of the rest.
+                    for fitting in fittings:
+                        if joined := len(placed.intersection(fitting.unplaced)):
+                            session.execute(
+                                update(Topic)
+                                .where(
+                                    ~_OUTSTANDING, Topic.language == fitting.language
+                                )
+                                .values(
+                                    passages_without_topics=Topic.passages_without_topics
+                                    - joined
+                                )
+                            )
+                    return len(memberships) + len(placed)
         return len(memberships)
 
     def bearing_facts(self, passage_ids: list[int]) -> set[int]:

@@ -99,9 +99,10 @@ is an outstanding request, and a row that has one is a topic.
     vocabulary filter dropped its words, or every weight fell below the
     floor — joins its language's topic whose centroid is nearest, held as
     weakly as the fit holds any passage of that language; one with no
-    vector stays out. If the request was withdrawn, or swept and claimed
-    again, after this fit claimed it, the fit writes nothing, keeps no model
-    and draws no figure.
+    vector stays out, and only those are counted as in no topic, in the
+    stored count and the warning alike. If the request was withdrawn, or
+    swept and claimed again, after this fit claimed it, the fit writes
+    nothing, keeps no model and draws no figure.
 11. **Keep the model and draw the figure**, after the topics are written, so
     a failure here is logged and left. Each language's previous model and
     figure go to the `archive` bucket first. `pyLDAvis` is imported inside

@@ -953,6 +953,34 @@ class TestATopicSitsWhereItsPassagesDo:
 
         assert held == [(store.topic_id("de", 1), pytest.approx(0.6))], held
 
+    def test_a_passage_placed_by_the_nearest_centroid_is_not_counted_unplaced(
+        self, store
+    ) -> None:
+        """The stored count is what the status page reports as in no topic."""
+        store.given_passages(de=4)
+        one, two, three, four = store.passages["de"]
+        store.given_passage_vectors(**{str(one): 0, str(two): 7, str(three): 7})
+        store.queue.replace(
+            store.request(),
+            [
+                replace(
+                    fitting(
+                        "de",
+                        passages=4,
+                        without_topics=2,
+                        weights=[
+                            PassageWeight(one, 0, 0.9),
+                            PassageWeight(two, 1, 0.9),
+                        ],
+                    ),
+                    unplaced=(three, four),
+                )
+            ],
+        )
+
+        assert store.queue.without_topics() == {"de": 1}
+        assert store.catalog.fit_state().languages[0].passages_without_topics == 1
+
     def test_a_passage_placed_nowhere_with_no_vector_stays_out(self, store) -> None:
         """Nearest is a distance, and a passage with no vector has none."""
         store.given_passages(de=3)
