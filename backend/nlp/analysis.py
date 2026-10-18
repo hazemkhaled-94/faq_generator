@@ -1310,27 +1310,6 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
     )
 
 
-def nouns(text: str, language: str | None) -> frozenset[str]:
-    """Every form the nouns and names of a text appear in, its figures left out.
-
-    What `vocabulary` reads, of the nouns and proper nouns alone, and not of
-    a number, a figure or the noun a number counts: "1.000 EUR" and "30
-    days" belong to what their own sentence is about.
-    """
-    document = _read(text, language)
-    return frozenset(
-        variant.casefold()
-        for token in document
-        if token.pos_ in _NOMINAL
-        and not token.like_num
-        and not _FIGURE_TOKEN.fullmatch(token.text)
-        and not any(child.like_num for child in token.children)
-        for form in (token.text, token.lemma_)
-        for variant in (form, _bare(form))
-        if variant
-    )
-
-
 def content(text: str, language: str | None) -> frozenset[str]:
     """The content lemmas of a text: what it is about, and nothing else.
 

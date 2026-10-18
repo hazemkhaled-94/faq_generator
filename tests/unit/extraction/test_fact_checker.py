@@ -273,6 +273,36 @@ STILL_REFUSED: tuple[tuple[str, str, str, int, str], ...] = (
         1,
         Rejection.UNSUPPORTED_ADDITION,
     ),
+    (
+        "en",
+        (
+            "The S10 phone costs 500 EUR. The S20 phone costs 800 EUR. The phone has "
+            "a 2-year warranty."
+        ),
+        "The S20 phone has a 2-year warranty.",
+        2,
+        Rejection.UNSUPPORTED_ADDITION,
+    ),
+    (
+        "de",
+        (
+            "Der Tarif M10 kostet 20 EUR im Monat. Der Tarif S5 ist kostenlos. Der "
+            "Tarif enthält 5 GB Datenvolumen."
+        ),
+        "Der Tarif M10 enthält 5 GB Datenvolumen.",
+        2,
+        Rejection.UNSUPPORTED_ADDITION,
+    ),
+    (
+        "en",
+        (
+            "Visa cards cost 30 EUR. Mastercard cards cost 40 EUR. The card includes "
+            "travel insurance."
+        ),
+        "The Mastercard card includes travel insurance.",
+        2,
+        Rejection.UNSUPPORTED_ADDITION,
+    ),
 )
 
 
@@ -925,35 +955,8 @@ def test_a_name_the_document_title_carries_is_no_addition() -> None:
     assert judged.validated, judged.validation_error
 
 
-@pytest.mark.parametrize(
-    ("language", "text", "statement"),
-    [
-        (
-            "en",
-            "Visa Debit cards are issued to students. The card is free of charge.",
-            "The Visa Debit card is free of charge.",
-        ),
-        (
-            "de",
-            (
-                "Die Nordbank führt Girokonten für Studenten. Die Kontoführung ist "
-                "kostenlos."
-            ),
-            "Bei der Nordbank ist die Kontoführung kostenlos.",
-        ),
-    ],
-)
-def test_a_name_the_sentence_before_carries_is_no_addition(
-    language, text, statement
-) -> None:
-    """The sentence before names what the cited one calls "the card"."""
-    judged = Checker(passage(text, language=language)).atomic(statement, 1)
-
-    assert judged.validated, (judged.validation_error, judged.units_added)
-
-
 def test_a_name_from_an_uncited_sentence_is_still_an_addition() -> None:
-    """Named in a sentence after the one cited is not said by it."""
+    """Named elsewhere in the passage is not said by the sentence cited."""
     read = passage(
         "The fee applies to all cards. Mastercard holders receive a monthly statement."
     )

@@ -22,7 +22,7 @@ from extraction.models import (
     PassageToExtract,
     Provenance,
 )
-from nlp.analysis import as_noun, claim, normalised, nouns, numerals, vocabulary
+from nlp.analysis import as_noun, claim, normalised, numerals, vocabulary
 from nlp.models import Claim, Sentence
 from nlp.pipelines import name as pipeline_name
 from nlp.pipelines import version as pipeline_version
@@ -423,15 +423,11 @@ class FactChecker:
 
         What the evidence carries is the cited sentences, the passage's
         section path and its document's title: the heading trail and the title
-        name what a sentence under them leaves as "the card" or "the bank". So
-        do the nouns and names of the sentences before the first cited one,
-        and nothing else of them: a figure there belongs to what that sentence
-        is about, so "a daily limit of 1,000 EUR" before "Debit cards can be
-        blocked" is still added to the debit card. The rest of the passage is
-        not evidence, so a name or a number from a later sentence is still
-        added. A number is read in any spelling ("1st" is "1 st"), a
-        hyphenated unit by its parts, and a name the tagger took for a proper
-        noun by the common noun it is.
+        name what a sentence under them leaves as "the card" or "the bank".
+        The rest of the passage is not evidence, so a name or a number from a
+        sentence the candidate did not cite is still added. A number is read in
+        any spelling ("1st" is "1 st"), a hyphenated unit by its parts, and a
+        name the tagger took for a proper noun by the common noun it is.
         """
         start, end = cited[0].start, cited[-1].end
         evidence = _cited_text(passage, cited)
@@ -446,8 +442,6 @@ class FactChecker:
         if headings:
             known |= vocabulary(headings, language)
             numbers |= numerals(headings, language)
-        if before := passage.text[: cited[0].start]:
-            known |= nouns(before, language)
         known |= numbers
         supported = set()
         for unit in said.units + said.figures:
