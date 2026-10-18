@@ -35,6 +35,7 @@ REFITTED = "f6f7b1880b23"
 OPINED = "f7bba722de8e"
 UNFOLDED = "3c5a9d2e7b14"
 FLOORED = "7d4e1f2a9c63"
+KEPT = "8f759a3a3848"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -52,6 +53,7 @@ LATER = (
     OPINED,
     UNFOLDED,
     FLOORED,
+    KEPT,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.

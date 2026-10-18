@@ -218,9 +218,10 @@ expensive part:
 `questions-reverify` and `questions-rescore` take `TOPIC`.
 
 The alternative is destructive: `extract-rerun` calls the model again over
-the whole corpus, and `chunk-rerun` deletes every passage of a document along
-with the facts drawn from them. Without `SHA`, or `PASSAGE` for extraction,
-both warn and wait 5 seconds first.
+the whole corpus, and `chunk-rerun` deletes every passage of a document the
+new cut changes, along with the facts drawn from them, keeping the passages
+it cuts again unchanged. Without `SHA`, or `PASSAGE` for extraction, both
+warn and wait 5 seconds first.
 
 ## Questions
 

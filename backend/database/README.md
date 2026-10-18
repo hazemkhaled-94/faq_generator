@@ -141,7 +141,7 @@ head these carry ([`revision.py`](qa_generator/revision.py)): until
 `make schema` has applied it, `/status` is not green and a queue claims
 nothing.
 
-The seventeen revisions, oldest first:
+The eighteen revisions, oldest first:
 
 | File | Changes |
 |---|---|
@@ -162,6 +162,7 @@ The seventeen revisions, oldest first:
 | `20261013_2300_settles_opinion_comment.py` | Comment only: `questions.gate_scores` carries `settles` verdicts as opinions |
 | `20261013_1200_a_refusal_cites_nothing.py` | Comment only: `fact_passages.position` says what a later position on a passage fact is |
 | `20261013_1210_a_capped_prompt_names_its_floor.py` | Comments only: `facts.prompt_version` and `prompts.version` name the capped atomic prompt as 10+cap4 |
+| `20261018_1200_passages_comment_says_what_a_rechunk_keeps.py` | Comment only: the `passages` table says a re-chunk keeps every passage it cuts again unchanged |
 
 ## Column comments
 

@@ -80,8 +80,11 @@ class Passage(Base):
             name="passages_extract_status_valid",
         ),
         {
-            "comment": "A document split into retrievable chunks. Immutable: "
-            "re-chunking deletes and re-inserts every passage of a document."
+            "comment": "A document split into retrievable chunks. A re-chunk "
+            "keeps every passage whose text, heading trail, sentences and cells "
+            "come back unchanged, with its id, writing its ordinal, pages and "
+            "other columns in place, and deletes and re-inserts every other "
+            "passage of the document."
         },
     )
 
