@@ -790,6 +790,16 @@ Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits wh
 
 Across both PDFs the release changes 30 passages, 20 German and 10 English, all but one tagged as defective by the review and the last a target of the conjunction fix; the review judged none of them right. They carry 237 facts and 86 questions, which a re-chunk replaces. An independent review then tried every rule on 33 bank fee schedule and shop returns layouts: against v0.3.2 the release reads 11 better, 21 the same and 1 worse, a `re- sign` that becomes `re-sign` where the document prints the compound.
 
+### Fixed in v0.3.7: topics and the scope of a fact
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A topic's name carried onto the wrong topic | a name moved wherever 12 top terms overlapped by 0.4, order ignored, so one topic held penalties under a free-kick name, and carried names skipped the naming rules | a person's decision moves only to the topic holding most of the same passages, both ways and as a majority of what the old topic held; a model's name is never carried; a decision with no match is dropped and counted ([`topics.py`](../backend/topic_modelling/topics.py)) | on 8 refits: 17 carried, 0 wrong, 0 missed (top-term overlap: 22 carried, 10 wrong) |
+| A fit reported itself stale the moment it was made | the stale check counted every passage, the fit only those carrying a fact | one shared rule for both ([`repository.py`](../backend/topic_modelling/repository.py)) | a fresh fit is no longer stale |
+| A name or coverage choice saved while a fit ran was overwritten | the fit wrote back what it read when it started | carried again, under a lock on the rows the fit replaces | an undo during a fit, and a review answer dated before the fit, are still not carried |
+| Smaller topic bookkeeping | the count of passages in no topic ignored the nearest-topic placement; a language with no passages kept its topics; topic naming respelled a correctly printed word (`Masse` to `Maße`) | each fixed, a dropped decision of a vanished language logged and counted | — |
+| Facts dropped the scope a heading or a list's lead-in sets | lead-ins lost 133 times, conditions 117, exceptions 53 in the validated facts | atomic prompt 12 names the heading trail as the situation a rule holds in and keeps a closing lead-in (*the only exceptions are*) as one fact; digest prompt 5 keeps *should* and *may* ([`extractors/llm.py`](../backend/extraction/extractors/llm.py), [`extractors/digest.py`](../backend/extraction/extractors/digest.py)) | a calibration on 40 passages, one judge over all three: facts stated correctly 60.8% to 69.4% in German and 79.0% to 84.0% in English, scope lost per 100 facts 34.5 to 25.2 and 25.0 to 16.0, `not_atomic` refusals unchanged; one new failure, a heading pasted into a fact as a clause |
+
 ### Deferred or low, with the reason
 
 | Defect | Why it stays open |
@@ -812,6 +822,11 @@ Across both PDFs the release changes 30 passages, 20 German and 10 English, all 
 | A wrapped fee-table row with an empty first cell merged into the row above | Requiring every filled cell of the continuation to open in lower case stops the merge, but breaks wraps that open on a bracket (`(inkl. MwSt.)`) or a German noun; no rule that tells the two apart was found |
 | A struck full stop under 2 pt kept | A strike length relative to the type size catches it, but also reads a 1.5-pt mark over a decimal comma in small type as a strike (`0,10 EUR` to `010 EUR`) and slows pages of dot leaders three times |
 | A list nested right at the top of a column stays flat | The guard that keeps depth from jumping across a break cannot open a new level there |
+| Bridge facts that are not bridges | A model judge shown both passages caught a third of the unsound bridges, and refusing even exactly the bridges the review called unsound would remove questions that are 55 to 62% usable, which the rule for tightening a gate forbids. A fix belongs where bridges are written, in the bridge prompt and the pairing of passages, and has to be measured on new extractions |
+| Imprint and contact passages yield questions | A share of contact text was fitted to this corpus, and a count of contact kinds against claims skipped one-line complaint rules and missed national phone numbers on bank and shop text. A general fix needs to read what a passage asks of its reader |
+| Topic membership is loose (a passage sits in three topics on average) | Every floor tried, relative ones included, removed questions that are 46 to 78% usable |
+| Generated German writes *ß* where the corpus writes *ss* | A spelling variant of one corpus. Low |
+| Writer meta-text and gender drift | Needs a rule in the question-writing prompt, which changes only with a calibration. Low |
 | Tooling odds and ends | The CI cache key hashes the whole Makefile; an unused SeaweedFS UI container; `make dev` waits for Postgres without a timeout. Low |
 
 ## Found on the v0.2.2 rebuild of 2026-10-14

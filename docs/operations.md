@@ -200,6 +200,30 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.7
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting.
+
+**Two prompts changed: atomic extraction 12 and the digest 5.** Every stored
+fact is now marked as written by an older prompt, and nothing is re-run on
+its own. The new prompts reach stored facts only through a re-extraction of
+the corpus (`make extract-start` with the stack up), which replaces every
+passage's facts and so the questions resting on them: topics, bridges,
+questions and the release then follow, as in the v0.3.0 rebuild. On a corpus
+the size of the reviewed rulebook that is about 1,640 model calls for the
+extraction alone.
+
+**Topic names.** The next `POST /topics/discover` carries a person's name and
+coverage choice only to the new topic holding most of the same passages. A
+decision with no such topic is dropped and logged, and the run's span counts
+it; check the log after a refit and name those topics again in the topic
+review.
+
 ## Upgrading to v0.3.6
 
 ```bash
