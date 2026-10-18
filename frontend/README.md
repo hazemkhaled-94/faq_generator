@@ -232,6 +232,10 @@ says so; a missing `BACKEND_URL` raises a bare `KeyError`.
 `server.maxUploadSize` in [`.streamlit/config.toml`](.streamlit/config.toml)
 must be kept in step with `MAX_FILE_SIZE_MB`.
 
+`server.allowedHosts` in the same file names the hosts the app's WebSocket
+is accepted from: `localhost` and `127.0.0.1`, which is all the published
+loopback port is reached by. A proxy in front of it needs its own name added.
+
 ## Tests
 
 ```sh

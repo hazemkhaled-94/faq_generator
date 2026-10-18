@@ -74,6 +74,11 @@ headless = true
 runOnSave = true
 maxUploadSize = 100
 enableXsrfProtection = true
+# The names the published loopback port is reached by. Empty is Streamlit's
+# default and accepts any Host, which lets a page that rebinds its own name to
+# 127.0.0.1 open the app's WebSocket from the operator's browser. The
+# healthcheck is plain HTTP and is not checked against it.
+allowedHosts = ["localhost", "127.0.0.1"]
 
 [browser]
 gatherUsageStats = false
