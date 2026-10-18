@@ -2066,34 +2066,52 @@ def test_a_number_the_question_gives_still_has_to_come_back(
     assert not agrees(recovered, key, language, AnswerForm.VALUE, question=question)
 
 
-def test_one_written_out_is_met_by_an_indefinite_article() -> None:
-    """`a free replacement card` says `one free replacement card`.
+@pytest.mark.parametrize(
+    ("question", "key", "recovered"),
+    [
+        (
+            "How long does the shop take to send a replacement card?",
+            "one week",
+            "a replacement is sent within two weeks",
+        ),
+        (
+            "How long does the shop take to send a replacement card?",
+            "one week",
+            "within a few weeks",
+        ),
+        (
+            "How many debit cards does a joint account come with?",
+            "one debit card",
+            "a debit card for each account holder",
+        ),
+        (
+            "How many free cash withdrawals a month does the account include?",
+            "one free withdrawal",
+            "a free withdrawal every week",
+        ),
+        (
+            "How many reminders does the bank send before it terminates the loan?",
+            "one reminder",
+            "a reminder after every missed payment",
+        ),
+        (
+            "How long is the notice period for an employee account?",
+            "1 month",
+            "a month for each year of membership",
+        ),
+    ],
+    ids=["elsewhere", "a few", "each", "every week", "every payment", "each year"],
+)
+def test_an_article_does_not_stand_for_one(
+    question: str, key: str, recovered: str
+) -> None:
+    """`a debit card for each account holder` is not `one debit card`.
 
-    The verifier answers in the passage's words, and those count one thing
-    with an article rather than a numeral.
+    An article counts one per holder, per week or per payment as readily as
+    it counts one, and `a few` is several; a key's `one` has to come back
+    as a figure.
     """
-    assert agrees(
-        "a free replacement card each year",
-        "one free replacement card a year",
-        "en",
-        AnswerForm.VALUE,
-        question="How many free replacement cards does the account include?",
-    )
-
-
-def test_an_article_elsewhere_does_not_stand_for_one() -> None:
-    """`a replacement` sent within two weeks says nothing of one week.
-
-    Only an article on the noun the key's `one` counts stands for it, and
-    only in a recovery stating no figure of its own.
-    """
-    assert not agrees(
-        "a replacement is sent within two weeks",
-        "one week",
-        "en",
-        AnswerForm.VALUE,
-        question="How long does the shop take to send a replacement card?",
-    )
+    assert not agrees(recovered, key, "en", AnswerForm.VALUE, question=question)
 
 
 def test_a_lemma_back_under_another_part_of_speech_counts() -> None:

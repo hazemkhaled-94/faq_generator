@@ -2154,33 +2154,6 @@ def _named(
     )
 
 
-def _one_by_article(recovered: str, target: str, language: str | None) -> bool:
-    """Whether the recovery counts the key's one thing with an indefinite article.
-
-    `a used substitution opportunity` is `one used substitution opportunity`:
-    the verifier answers in the passage's words, and those count one with an
-    article. Only an article on the noun the key's `one` counts, and only in
-    a recovery asserting no value of its own: `a replacement is sent within
-    two weeks` says nothing of `one week`.
-    """
-    if _numbers(recovered, language):
-        return False
-    one = repr(1.0)
-    written = _written(target, language)
-    counted = {
-        token.head.lemma_.casefold()
-        for token in pipeline(language)(target)
-        if (token.like_num or token.pos_ == "NUM")
-        and written.get(token.lower_, _folded(token.text, language)) == one
-    }
-    return any(
-        "Ind" in token.morph.get("Definite", [])
-        and "Art" in token.morph.get("PronType", [])
-        and token.head.lemma_.casefold() in counted
-        for token in pipeline(language)(recovered)
-    )
-
-
 def _back(
     recovered: str,
     target: str,
@@ -2276,8 +2249,7 @@ def agrees(
     written out is its figure, in either direction: `zehn Sekunden` is `10
     Sekunden`, and neither is `11 Sekunden`. What the reader is given is not
     asked back: a name the question or every heading trail in `given`
-    carries, see `_named`, and a `one` the recovery says with an article, see
-    `_one_by_article`.
+    carries, see `_named`.
 
     And what the target is ABOUT has to occur in what came back, compared on
     content lemmas. That half replaced string containment, which was refusing
@@ -2308,16 +2280,12 @@ def agrees(
     # comparison that matters - `4` is still not `48` - and drops the one
     # that never did.
     # Each value as every reading a model's figure may have; one carried
-    # reading is enough, and a name or a `one` excused below is one value.
+    # reading is enough, and a name excused below is one value.
     found = _values(recovered, language)
     missing = [one for one in _number_readings(target, language) if not one & found]
     if missing:
         named = _named(recovered, target, language, question, given)
         missing = [one for one in missing if not one & named]
-    if any(repr(1.0) in one for one in missing) and _one_by_article(
-        recovered, target, language
-    ):
-        missing = [one for one in missing if repr(1.0) not in one]
     if missing:
         return False
 

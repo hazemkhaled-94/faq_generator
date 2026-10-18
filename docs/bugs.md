@@ -526,13 +526,14 @@ figures count a height, not flagposts.
 verifier to give back what only the writer had been shown. A name the
 question carries, or every heading trail of the cited passages, no longer
 has to come back, unless the recovery names another; a lemma only the
-headings carry, every one of them, is not looked for; a `one` is met by an
-indefinite article on the noun it counts; and a lemma comes back under an
-adjective or an adverb, as German predicative adjectives are tagged. Every
-trail, because two passages under two products' headings let a key pin one
-product's figure on the other. On the v0.3.0 rows this passes 8 wrong
-`not_recoverable` refusals and loses no right one; 6 are accepted, all
-usable, and 2 are then refused as near twins of those. Figures stay strict.
+headings carry, every one of them, is not looked for; and a lemma comes
+back under an adjective or an adverb, as German predicative adjectives are
+tagged. Every trail, because two passages under two products' headings let
+a key pin one product's figure on the other. On the v0.3.0 rows this passes
+7 wrong `not_recoverable` refusals and loses no right one; 5 are accepted,
+all usable, and 2 are then refused as near twins of those. Figures stay
+strict, and a key's `one` is never met by an indefinite article, because
+`a debit card for each account holder` is not `one debit card`.
 Still open: `answer_incomplete` on terse keys, and German names
 `de_core_news_md` does not tag as proper nouns, which `Visa` is not, so a
 German key naming the wrong card is still read as naming none.

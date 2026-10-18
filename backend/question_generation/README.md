@@ -363,9 +363,9 @@ lemma only the heading trails carry, every one of them, is not looked for,
 because the verifier is shown the passages without their headings. Every
 trail, because passages under `Konten > Premiumkonto` and `Konten >
 Basiskonto` are about two products and a key may pin one's figure on the
-other. A `one` is met by an
-indefinite article on the noun it counts, in a recovery stating no value of
-its own. And a lemma comes back under an adjective or an adverb as well as
+other. A key's `one` is never met by an indefinite article: `a debit card for
+each account holder` is not `one debit card`, and `a few weeks` is not `one
+week`. And a lemma comes back under an adjective or an adverb as well as
 its own part of speech, never under a verb: `kostenlose Überweisungen` is
 `Überweisungen sind kostenlos`, and `das Verpacken` is not `verpackt`.
 
