@@ -10,6 +10,7 @@ after it, which is what keeps `/questions/status` from being read as
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
@@ -28,6 +29,8 @@ from question_generation.models import (
     StoredQuestion,
 )
 from settings.store import resolved
+
+log = logging.getLogger(__name__)
 
 #: The columns `q` may look in, and the states a question may be filtered to
 #: or moved to. Literals rather than free strings, so the OpenAPI document
@@ -181,8 +184,21 @@ def plan() -> GenerationPlan:
     The mix of types and bands, the shares, and the answer bounds each form
     is held to. Read per request, stored values included: what the next run
     will do rather than what the last one did.
+
+    A stored value that no longer loads, one written before a check that
+    now refuses it, is logged and the files' values are reported instead.
+    The worker still refuses to start on it; the page drawing this plan
+    draws the panel that clears it, and a 500 here drew neither.
     """
-    settings = QuestionSettings.load(resolved())
+    try:
+        settings = QuestionSettings.load(resolved())
+    except ValueError as refused:
+        log.warning(
+            "questions plan: the stored settings do not load, so the plan "
+            "reports the files' values: %s",
+            refused,
+        )
+        settings = QuestionSettings.load()
     return GenerationPlan(
         types=settings.type_mix,
         difficulty=settings.difficulty_mix,

@@ -409,6 +409,7 @@ poetry run pytest tests/unit/api tests/static/test_api_stays_light.py
 | [`tests/unit/api/test_request_guards.py`](../../tests/unit/api/test_request_guards.py) | What is answered before any route reads a request |
 | [`tests/unit/api/test_params.py`](../../tests/unit/api/test_params.py) | Every free-text query parameter, bounded before it reaches the driver |
 | [`tests/unit/api/test_question_filters.py`](../../tests/unit/api/test_question_filters.py) | The `released` filter, as the three question reads parse it |
+| [`tests/unit/api/test_question_plan.py`](../../tests/unit/api/test_question_plan.py) | The plan the questions page draws, from stored settings that no longer load |
 | [`tests/unit/api/test_orchestrator.py`](../../tests/unit/api/test_orchestrator.py) | Dagster as the API calls it, against replies a real webserver gave |
 | [`tests/unit/api/test_services.py`](../../tests/unit/api/test_services.py) | The service catalogue, and what a probe of it reports |
 | [`tests/unit/api/test_settings_reads.py`](../../tests/unit/api/test_settings_reads.py) | What the settings page is handed, read against a store that moves |
