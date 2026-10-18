@@ -200,6 +200,29 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.3
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration, no setting and no prompt change.
+
+**Carrying the fixes into stored facts.** With `extract-worker` stopped, run
+`make extract-revalidate`. It judges every stored fact again with this
+release's checks, without calling a model and without changing a statement,
+and now also puts what it validates through the duplicate gate and the
+per-passage cap. Facts it newly validates are offered to the next question
+generation; no stored question changes.
+
+**What the extract worker now does by itself.** After a run that replaced
+facts - a re-extraction of a document or of the corpus - the worker replays
+the dedup gate over the corpus once its queue is empty, so a fact refused as
+the twin of one that run deleted is given back. Two workers never replay at
+once. A deletion through the API or the UI still needs `make extract-dedup`
+afterwards.
+
 ## Upgrading to v0.3.2
 
 ```bash

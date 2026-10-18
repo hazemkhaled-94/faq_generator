@@ -711,6 +711,20 @@ rebuild.
 
 Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits when `Mon.` is not in the language's abbreviation table; `1.234,567` reads as one integer; a German `8.30 Uhr` and `08:30` do not agree; a key `1000 EUR` does not agree with a German reply `1,000 EUR`.
 
+### Fixed in v0.3.3: the unit of a fact
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| Dedup refused facts against facts about to be deleted | a re-extraction probed new facts against old ones it then replaced; `make extract-revalidate` skipped the dedup gate and the cap | the extract worker replays dedup itself once its queue empties after replacing facts, under a database lock; a revalidation probes what it validates against what is validated, in id order ([`extraction/service.py`](../backend/extraction/service.py)) | on the reviewed refusals 5 given back, 0 twins created |
+| A statement the tagger mis-rooted counted as two claims | a subordinate clause's verb read as a second main verb | the root is read past a subordinator ([`nlp/analysis.py`](../backend/nlp/analysis.py)) | English: 5 wrong `not_atomic` refusals freed, 0 right lost |
+| A verb the tagger gave a finite fine tag but no verb part of speech asserted nothing | `asserts_nothing` on a stated rule | the fine tag is read too | German: 1 freed |
+| A fact copying one sentence was judged on the sentence counts stored at chunking | `copied` refused facts whose sentence had been re-split since | judged on the claims it reads as now | 20 `copied` refusals become `not_atomic`, on the claims they make |
+| A verbatim repeat inside one passage kept twice | the cap and the dedup gate never saw the twin | refused as a duplicate of the passage's own fact | 0 in the stored data |
+| Refusal messages misstated the dedup bar, and over-cap twice | — | worded as set | — |
+| A "the model proposed nothing" warning where no model ran | the warning fired on passages the pre-filter skipped | fires only where a model read the passage | — |
+| A figure table or priced list skipped as an identifier grid | the pre-filter took cells of bare figures for noise | a figure in a cell is read as the value it is | 0 stored passages change |
+| A fact citing no sentence dropped | the model's uncited fact vanished without a refusal | stored as `evidence_absent` | — |
+
 ### Deferred or low, with the reason
 
 | Defect | Why it stays open |
@@ -719,6 +733,10 @@ Still read wrongly, and left as they were before v0.3.2: `Mon. - Fri.` splits wh
 | Explanation-form keys are not held to completeness | The only bar that separated complete from partial keys passed at 7 rows, one more usable row would fail it, and German commas inflate the item count it reads |
 | Section paths are wrong at scale | Docling now offers public heading options, but every setting tried moves 200 or more paths the review judged right while fixing about 160 wrong ones. A general fix needs a re-levelling pass from the PDF's own styles, checked against a judged set |
 | `make doctor` checks only the container's shared model and verifier | Whether containers may call a hosted model is a deployment policy to settle first |
+| Six readings that would have freed most wrong fact refusals | Measured on this rulebook they freed 47 wrong refusals for 0 right ones: a pronoun resolved within its own clause, English `this` read as resolved, an `it`/`es` before an *if* clause read as a placeholder, a subjectless *but* clause read as part of one claim, a German verb-first condition, and a name borrowed from an earlier sentence. An independent review then ran 119 bank and shop sentences a validator must refuse through them: they admitted 46. They read agreement where a reader needs to know which of several nouns is meant, so they fail the rule that a fix must hold for any corpus. A general fix needs coreference that sees competing antecedents |
+| Duplicate refusals compare statements without their headings | Embedding each statement with its heading trail frees 19 to 31 wrong refusals but makes 71 to 121 new twins on the stored facts. It waits for facts that carry their scope (R23) |
+| Two extract workers can both keep one claim | Each probe sees only committed facts; closing it needs a lock across workers or a uniqueness rule on the statement |
+| Glossary definitions get no facts | A verbless passage under a term heading can be read as a definition, but on this corpus it also reads 13 junk passages made of diagram labels, which the parsing release removes first. It moves to that release |
 | Tooling odds and ends | The CI cache key hashes the whole Makefile; an unused SeaweedFS UI container; `make dev` waits for Postgres without a timeout. Low |
 
 ## Found on the v0.2.2 rebuild of 2026-10-14
