@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
 from extraction.extractors.base import ExtractionFailed, Extractor
-from extraction.models import CandidateFact, PassageToExtract, Provenance
+from extraction.models import CandidateFact, CheckedFact, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
 from nlp.models import named
@@ -19,6 +20,12 @@ from nlp.models import named
 #: 12 gives the heading trail as the situation a rule may hold only in, and
 #: keeps a list whose lead-in closes it as one fact.
 PROMPT_VERSION = "12"
+
+#: Recorded on every fact the repair prompt wrote, which is how a later reader
+#: tells a claim split out of a refused statement from one the prompt above
+#: wrote. Its own version, bumped apart: what a fact is and how a refused one
+#: is split are two decisions.
+REPAIR_PROMPT_VERSION = "repair-1"
 
 _SYSTEM = """ROLE
 You are a claims analyst. You read one numbered excerpt of a document and
@@ -188,6 +195,114 @@ MOST IMPORTANT RULE, ABOVE ALL THE OTHERS:
   a name, a limit, a duty or a definition comes first.
 """
 
+#: Sent once for a passage whose statements were refused as `not_atomic`,
+#: with those statements. Without it the rule a joined statement carried was
+#: lost: the counter is right that two finite verbs are two claims, and
+#: nothing asked for the two.
+_REPAIR_SYSTEM = """ROLE
+You are a claims analyst. Statements written from one numbered excerpt of a
+document were refused, because each joins several claims in one sentence.
+You write the claims each of them joined as facts of their own.
+
+ACTION
+Rewrite every refused statement as one fact per claim it makes, each citing
+the numbered sentence it comes from.
+
+STEPS
+1. Read the section context, the excerpt, then each refused statement and
+   the reason it was refused.
+2. Find the claims a refused statement joins. Each action, duty, permission,
+   limit or value it states with a verb of its own is one claim.
+3. Write each claim as one sentence that stands alone. Repeat in it the
+   subject the claims shared, and the condition, the exception or the
+   situation they were stated under: a claim that loses the "if" or the
+   "unless" it was made under says more than the excerpt does.
+4. Split only the claims. A condition, an exception and the set an "only"
+   closes are not claims of their own: each stays whole inside every fact
+   it governs.
+5. Check every number, date, name and amount you wrote against the sentences
+   you cited, and drop whatever they do not carry.
+
+CONTEXT
+You are given the section context the excerpt sits under, the excerpt itself
+with its sentences numbered from zero, and the statements refused for it,
+each with the reason. The context says what the excerpt is about and is NOT
+part of it, so no sentence number belongs to it. You have no knowledge
+beyond what you are shown and may use none.
+
+EXAMPLES
+Excerpt, under the context "Payments > Disputes":
+
+  [0] If a card payment is disputed, the bank freezes the amount and
+      informs the merchant within 3 days.
+
+  Refused: "If a card payment is disputed, the bank freezes the amount and
+            informs the merchant within 3 days."
+  Reason:  the statement carries 2 claims
+
+  WRONG  statement: "The bank informs the merchant within 3 days."
+         (drops the condition the claim was made under)
+  RIGHT  two facts, each repeating the subject and the condition:
+    1. sentences: [0]
+       statement: "If a card payment is disputed, the bank freezes the
+                   amount."
+    2. sentences: [0]
+       statement: "If a card payment is disputed, the bank informs the
+                   merchant within 3 days."
+
+Excerpt, under the context "Delivery > Neighbours":
+
+  [0] A parcel may be left with a neighbour.
+  [1] It must then be signed for and must not be opened unless the
+      customer agrees.
+
+  Refused: "A parcel left with a neighbour must be signed for and must not
+            be opened unless the customer agrees."
+  Reason:  the statement carries 2 claims
+
+  RIGHT  two facts, each keeping the situation, and the second its
+         exception:
+    1. sentences: [0, 1]
+       statement: "A parcel left with a neighbour must be signed for."
+    2. sentences: [0, 1]
+       statement: "A parcel left with a neighbour must not be opened unless
+                   the customer agrees."
+
+FORMAT
+Return `facts`, a list in which every entry has two parts:
+
+- `sentences` is the NUMBER of the sentence the claim comes from, as a list.
+  Copy nothing; just say which numbered sentence you read it in. Add the
+  sentence of a lead-in or a condition the claim restates.
+- `statement` is WRITTEN BY YOU: one sentence carrying ONE claim, which a
+  reader who cannot see the excerpt understands on its own.
+
+Rules, all of them mandatory:
+- ONE CLAIM per statement: one main clause. Two things that are each true
+  on their own, joined by "and", are two facts.
+- NAME THE SUBJECT. Never write "it", "this", "they", "he", "she". Replace
+  every one with what the excerpt means, taking it from the section context
+  when the sentence leaves it out.
+- ADD NOTHING. Every number, date, name and amount in your statement must
+  appear in the sentences you cite. Do not round, convert, infer or complete.
+- KEEP THE STRENGTH. "should" stays "should", "may" stays "may", and a hedge
+  such as "possibly" stays.
+- WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPT. It is the excerpt's own
+  language, and a statement in another is a fact nothing downstream can use.
+- Rewrite only what was refused. A claim no refused statement makes is not
+  asked for here.
+"""
+
+#: The repair's user message: the excerpt as `_USER` shows it, and what was
+#: refused in it.
+_REPAIR_USER = """{{context}}Excerpt:
+{{excerpt}}
+
+Refused statements:
+{{refused}}
+
+Write every statement in {{language}}."""
+
 
 class _Fact(BaseModel):
     """One fact as the model is asked to return it."""
@@ -281,12 +396,50 @@ class LlmExtractor(Extractor):
         Raises:
             ExtractionFailed: If the model could not be reached.
         """
+        return self._ask(
+            composed(passage.room(self._cap)), self._prompt(passage), self._version
+        )
+
+    @property
+    def repair_provenance(self) -> Provenance:
+        """What produced a fact a repair call wrote, recorded on each one."""
+        return Provenance(
+            model=self._client.model,
+            prompt_version=REPAIR_PROMPT_VERSION,
+            temperature=self._client.temperature,
+        )
+
+    def repair(
+        self, passage: PassageToExtract, refused: Sequence[CheckedFact]
+    ) -> list[CandidateFact]:
+        """Asks the model once more for the claims refused statements joined.
+
+        Args:
+            passage: The passage as `extract` was shown it.
+            refused: What the checker refused from it as `not_atomic`.
+
+        Returns:
+            One candidate per claim, each citing the sentences it was drawn
+            from, as `extract` returns them.
+
+        Raises:
+            ExtractionFailed: If the model could not be reached.
+        """
+        listed = "\n".join(
+            f'- Refused: "{fact.statement}"\n  Reason: {fact.validation_error}'
+            for fact in refused
+        )
+        return self._ask(
+            _REPAIR_SYSTEM,
+            self._prompt(passage, _REPAIR_USER, {"{{refused}}": listed}),
+            REPAIR_PROMPT_VERSION,
+        )
+
+    def _ask(self, system: str, user: str, version: str) -> list[CandidateFact]:
+        """Sends one prompt and reads the facts it answers with."""
         try:
             answer = self._client.answer(
-                system=composed(passage.room(self._cap)),
-                user=self._prompt(passage),
-                shape=_Facts,
-                prompt_version=self._version,
+                system=system, user=user, shape=_Facts, prompt_version=version
             )
         except ModelUnavailable as exc:
             raise ExtractionFailed(str(exc)) from exc
@@ -301,11 +454,16 @@ class LlmExtractor(Extractor):
         ]
 
     @staticmethod
-    def _prompt(passage: PassageToExtract) -> str:
+    def _prompt(
+        passage: PassageToExtract,
+        template: str = _USER,
+        more: dict[str, str] | None = None,
+    ) -> str:
         """Builds the user message: the heading trail and numbered sentences.
 
         The heading is fenced off and labelled as context: run together with
         the excerpt, the model cited it as a sentence that does not exist.
+        `more` fills the placeholders a template has beyond those.
         """
         heading = (
             f"Context (not part of the excerpt): {passage.section_path}. It "
@@ -318,10 +476,11 @@ class LlmExtractor(Extractor):
             f"[{sentence.index}] {sentence.text}" for sentence in passage.sentences
         )
         return fill(
-            _USER,
+            template,
             {
                 "{{context}}": heading,
                 "{{excerpt}}": numbered,
                 "{{language}}": named(passage.language),
-            },
+            }
+            | (more or {}),
         )

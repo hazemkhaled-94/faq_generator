@@ -17,7 +17,9 @@ from extraction.extractors import (
     BridgeExtractor,
     DigestExtractor,
     ExtractionFailed,
+    Extractor,
     ExtractorRegistry,
+    LlmExtractor,
 )
 from extraction.models import CheckedFact, PassageToExtract, Refused, Twin
 from extraction.repository import FactCatalog, PassageQueue
@@ -1182,16 +1184,60 @@ class ExtractionService(StageService):
             return []
 
         readers = self._readers(passage, current)
-        facts = [
-            self._checker.check(passage, candidate, reader.method, reader.provenance)
-            for reader, shown in readers
-            for candidate in reader.extract(shown)
-        ]
+        facts: list[CheckedFact] = []
+        for reader, shown in readers:
+            read = [
+                self._checker.check(
+                    passage, candidate, reader.method, reader.provenance
+                )
+                for candidate in reader.extract(shown)
+            ]
+            facts += read + self._repaired(passage, reader, shown, read, current)
         # Only a model can answer empty: a cell reader finding no row to
         # compose is the grid's answer, not a silent model.
         if not facts and any(reader.method == WRITTEN for reader, _ in readers):
             _nothing_found(passage, current)
         return facts + self._digested(passage)
+
+    def _repaired(
+        self,
+        passage: PassageToExtract,
+        reader: Extractor,
+        shown: PassageToExtract,
+        read: list[CheckedFact],
+        current,
+    ) -> list[CheckedFact]:
+        """The claims the model joined into statements refused as `not_atomic`.
+
+        Asked for once, in one more call for the passage, from the model
+        that wrote them and shown what it was shown. What comes back faces
+        the same checks, so a repair still joining two claims is refused
+        again and not sent back a second time. The refusals themselves are
+        stored as they were. A repair call that fails costs the passage
+        nothing it had: the refusals stand, and the reason is logged.
+        """
+        refused = [fact for fact in read if fact.rejection_code == Rejection.NOT_ATOMIC]
+        if not refused or not isinstance(reader, LlmExtractor):
+            return []
+        current.set_attribute("extract.repair", len(refused))
+        try:
+            candidates = reader.repair(shown, refused)
+        except ExtractionFailed as exc:
+            current.set_attribute("extract.repair_failed", str(exc))
+            log.warning(
+                "passage %d: the repair call failed, so %d not_atomic "
+                "refusal(s) stand: %s",
+                passage.id,
+                len(refused),
+                exc,
+            )
+            return []
+        return [
+            self._checker.check(
+                passage, candidate, reader.method, reader.repair_provenance
+            )
+            for candidate in candidates
+        ]
 
     def _capped(
         self, passage: PassageToExtract, facts: list[CheckedFact], current

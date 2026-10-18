@@ -208,3 +208,58 @@ def test_a_model_that_will_not_answer_fails_the_passage() -> None:
 
     with pytest.raises(ExtractionFailed, match="took too long"):
         LlmExtractor(client).extract(passage())
+
+
+def _refused(read, statement: str):
+    """One statement the checker refused as more than one claim."""
+    from extraction.models import WRITTEN, CandidateFact
+    from extraction.validation import FactChecker
+
+    return FactChecker(0.6).check(
+        read, CandidateFact(statement=statement, sentences=(0,)), WRITTEN
+    )
+
+
+def test_a_repair_shows_the_numbered_excerpt_the_refusal_and_why() -> None:
+    """As the atomic call shows the passage, with the statement and its reason."""
+    from extraction.extractors.llm import REPAIR_PROMPT_VERSION
+
+    read = passage(section_path="Devices > Specifications")
+    joined = "The device weighs 4 kg and runs for 12 hours."
+    client = _Client(_Answer(_Fact("The device weighs 4 kg.", [0, 0])))
+
+    facts = LlmExtractor(client, cap=4).repair(read, [_refused(read, joined)])
+
+    sent = client.asked["user"]
+    assert sent.startswith("Context (not part of the excerpt): Devices")
+    assert "[0] The device weighs 4 kg and runs for 12 hours." in sent
+    assert f'"{joined}"' in sent
+    assert "the statement carries 2 claims" in sent
+    assert sent.endswith("Write every statement in English.")
+    assert client.asked["prompt_version"] == REPAIR_PROMPT_VERSION
+    assert "AT MOST" not in client.asked["system"], "the cap is not the repair's"
+    assert [(one.statement, one.sentences) for one in facts] == [
+        ("The device weighs 4 kg.", (0,))
+    ]
+
+
+def test_a_repaired_fact_names_the_repair_prompt() -> None:
+    """So a later reader can tell a repair from what the atomic prompt wrote."""
+    from extraction.extractors.llm import REPAIR_PROMPT_VERSION
+
+    extractor = LlmExtractor(_Client(_Answer()), cap=4)
+
+    assert extractor.repair_provenance.prompt_version == REPAIR_PROMPT_VERSION
+    assert extractor.repair_provenance.model == extractor.provenance.model
+    assert REPAIR_PROMPT_VERSION != extractor.provenance.prompt_version
+
+
+def test_a_repair_the_model_will_not_answer_is_a_failed_extraction() -> None:
+    """The service decides what a failed repair costs; the reader only says so."""
+    read = passage()
+    client = _Client(ModelUnavailable("Timeout: took too long"))
+
+    with pytest.raises(ExtractionFailed, match="took too long"):
+        LlmExtractor(client).repair(
+            read, [_refused(read, "The device weighs 4 kg and runs for 12 hours.")]
+        )

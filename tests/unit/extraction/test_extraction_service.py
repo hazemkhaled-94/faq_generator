@@ -681,3 +681,139 @@ class TestTheReplayWhereTheDrainEnds:
         run.run()
 
         assert catalog.unfolded_locked == []
+
+
+#: One rule joining two actions under one condition, as the model wrote it.
+DISPUTE = (
+    "If a card payment is disputed, the bank freezes the amount and informs the "
+    "merchant within 3 days."
+)
+JOINED = {"facts": [{"sentences": [0], "statement": DISPUTE}]}
+#: The two claims it joined, each repeating the subject and the condition.
+SPLIT = (
+    "If a card payment is disputed, the bank freezes the amount.",
+    "If a card payment is disputed, the bank informs the merchant within 3 days.",
+)
+REPAIRED = {"facts": [{"sentences": [0], "statement": one} for one in SPLIT]}
+
+
+class TestNotAtomicRepair:
+    """A statement refused as not_atomic is sent back once to be split.
+
+    The counter is right that two finite verbs are two claims, so the checker
+    stays as it is. What was lost was the rule: nothing asked for the facts
+    the joined statement should have been.
+    """
+
+    def test_one_repair_call_names_the_refused_statement_and_why(self) -> None:
+        """Shown the sentences as the atomic call shows them, under its own version."""
+        from extraction.extractors import llm
+
+        run = Extraction(passage(DISPUTE), facts=JOINED, repair=REPAIRED)
+        run.next()
+
+        assert run.model.calls == 2
+        asked = run.model.sent
+        assert asked["prompt_version"] == llm.REPAIR_PROMPT_VERSION
+        assert f"[0] {DISPUTE}" in asked["user"]
+        assert f'"{DISPUTE}"' in asked["user"]
+        assert "the statement carries 2 claims" in asked["user"]
+        assert "Write every statement in English." in asked["user"]
+
+    def test_the_repaired_facts_are_checked_and_kept_beside_the_refusal(
+        self,
+    ) -> None:
+        """The refusal is stored as it was; the repair says which prompt wrote it."""
+        from extraction.extractors import llm
+
+        run = Extraction(passage(DISPUTE), facts=JOINED, repair=REPAIRED)
+        run.next()
+
+        refused, *repaired = run.queue.stored[1]
+        assert refused.rejection_code == Rejection.NOT_ATOMIC
+        assert refused.prompt_version == llm.PROMPT_VERSION
+        assert tuple(one.statement for one in repaired) == SPLIT
+        assert all(one.validated for one in repaired)
+        assert {one.prompt_version for one in repaired} == {llm.REPAIR_PROMPT_VERSION}
+        assert {one.extraction_method for one in repaired} == {"llm"}
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            ATOMIC,
+            {"facts": [{"sentences": [0], "statement": "The device weighs 9 kg."}]},
+        ],
+        ids=["validated", "refused for another reason"],
+    )
+    def test_no_not_atomic_refusal_means_no_repair_call(self, answer) -> None:
+        """A passage the model read into single claims costs one call."""
+        run = Extraction(passage(), facts=answer, repair=REPAIRED)
+        run.next()
+
+        assert run.model.calls == 1
+        assert len(run.queue.stored[1]) == 1
+
+    #: A shop's return rule, joined, and joined again in other words.
+    RETURN = (
+        "Wenn der Kunde die Ware zurückschickt, erstattet der Shop den Kaufpreis "
+        "und trägt die Versandkosten."
+    )
+    RETURN_AGAIN = (
+        "Bei einer Rücksendung der Ware erstattet der Shop den Kaufpreis und "
+        "übernimmt die Versandkosten."
+    )
+    DISPUTE_AGAIN = (
+        "When a card payment is disputed, the bank freezes the amount and then "
+        "informs the merchant within 3 days."
+    )
+
+    @pytest.mark.parametrize(
+        ("text", "language", "rejoined"),
+        [(DISPUTE, "en", DISPUTE_AGAIN), (RETURN, "de", RETURN_AGAIN)],
+        ids=["bank, English", "shop, German"],
+    )
+    def test_a_repair_still_two_claims_is_refused_again(
+        self, text: str, language: str, rejoined: str
+    ) -> None:
+        """The checker is unchanged, and a repair is not itself repaired."""
+        from extraction.extractors import llm
+
+        run = Extraction(
+            passage(text, language=language),
+            facts={"facts": [{"sentences": [0], "statement": text}]},
+            repair={"facts": [{"sentences": [0], "statement": rejoined}]},
+        )
+        run.next()
+
+        assert run.model.calls == 2, "one repair call, and none for its refusal"
+        refused, again = run.queue.stored[1]
+        assert refused.rejection_code == Rejection.NOT_ATOMIC
+        assert again.rejection_code == Rejection.NOT_ATOMIC
+        assert again.prompt_version == llm.REPAIR_PROMPT_VERSION
+
+    def test_a_failed_repair_call_leaves_the_passage_as_it_was_read(self) -> None:
+        """The refusal and the rest are stored, and the passage is not failed."""
+        kept = {"sentences": [0], "statement": SPLIT[0]}
+        run = Extraction(
+            passage(DISPUTE),
+            facts={"facts": [kept, *JOINED["facts"]]},
+            repair=ModelUnavailable("Timeout: took too long"),
+        )
+        run.next()
+
+        assert run.model.calls == 2
+        assert run.queue.failed == {}
+        assert [(one.statement, one.rejection_code) for one in run.queue.stored[1]] == [
+            (SPLIT[0], None),
+            (DISPUTE, Rejection.NOT_ATOMIC),
+        ]
+
+    def test_a_repaired_fact_meets_the_cap_as_any_fact(self) -> None:
+        """Joined before the cap, so a one-sentence passage keeps one of the two."""
+        run = Extraction(passage(DISPUTE), facts=JOINED, repair=REPAIRED, atomic_cap=1)
+        run.next()
+
+        codes = [one.rejection_code for one in run.queue.stored[1]]
+        assert codes.count(Rejection.NOT_ATOMIC) == 1
+        assert codes.count(Rejection.OVER_CAP) == 1
+        assert codes.count(None) == 1

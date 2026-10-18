@@ -140,10 +140,11 @@ def test_the_topic_labeller_is_declared() -> None:
 
 
 def test_extraction_declares_each_extractor_at_its_own_version() -> None:
-    """Three extractors, three versions."""
+    """Four prompts, four versions."""
     by_name = {one.name: one for one in extraction.catalogue()}
 
     assert by_name["atomic"].version == llm.PROMPT_VERSION
+    assert by_name["repair"].version == llm.REPAIR_PROMPT_VERSION
     assert by_name["digest"].version == digest.PROMPT_VERSION
     assert by_name["bridge"].version == bridge.PROMPT_VERSION
 
@@ -162,7 +163,10 @@ def test_the_atomic_prompt_is_recorded_as_the_cap_makes_it() -> None:
 
 
 def test_each_extraction_prompt_names_the_model_it_is_sent_to() -> None:
-    """The digest goes to its own model, and to the reader's when none is named."""
+    """The digest goes to its own model, and to the reader's when none is named.
+
+    The repair goes to the reader's, which wrote what it repairs.
+    """
     from dataclasses import replace
 
     from extraction.config import Settings
@@ -174,6 +178,7 @@ def test_each_extraction_prompt_names_the_model_it_is_sent_to() -> None:
 
     assert models(named) == {
         "atomic": "ollama/reader",
+        "repair": "ollama/reader",
         "digest": "ollama/small",
         "bridge": "ollama/reader",
     }

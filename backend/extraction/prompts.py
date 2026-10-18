@@ -1,9 +1,9 @@
 """Every prompt this stage sends, for the record that resolves a version.
 
 `facts.prompt_version` names a version; this is what says what that version
-asked for. Three extractors, three versions, bumped separately: what counts
-as a fact, what a digest condenses, and what a bridge may claim are three
-decisions.
+asked for. Four prompts, four versions, bumped separately: what counts as a
+fact, how a statement refused for joining claims is split, what a digest
+condenses, and what a bridge may claim are four decisions.
 
 Read by `run.py` at start-up and by the api. Nothing here calls a model.
 """
@@ -35,8 +35,9 @@ def catalogue(
     and the paragraph is left off entirely rather than written as a
     limitless one.
 
-    `settings` names the model each is sent to: EXTRACTION_MODEL reads and
-    bridges, and EXTRACTION_DIGEST_MODEL condenses, the reader when absent.
+    `settings` names the model each is sent to: EXTRACTION_MODEL reads,
+    repairs and bridges, and EXTRACTION_DIGEST_MODEL condenses, the reader
+    when absent.
     """
     reads = settings.model if settings else None
     condenses = (settings.digest_model or reads) if settings else None
@@ -46,6 +47,14 @@ def catalogue(
             llm.version(cap),
             llm.composed(cap),
             llm._USER,
+            llm._Facts.model_json_schema(),
+            reads,
+        ),
+        Composed(
+            "repair",
+            llm.REPAIR_PROMPT_VERSION,
+            llm._REPAIR_SYSTEM,
+            llm._REPAIR_USER,
             llm._Facts.model_json_schema(),
             reads,
         ),

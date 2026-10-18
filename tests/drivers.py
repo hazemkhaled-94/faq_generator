@@ -253,14 +253,22 @@ class Model:
     model = "ollama/test-model"
     temperature = 0.0
 
-    def __init__(self, answer: dict | Exception | None = None) -> None:
+    def __init__(
+        self,
+        answer: dict | Exception | None = None,
+        *,
+        under: dict[str, dict | Exception] | None = None,
+    ) -> None:
         """Initialises the model.
 
         Args:
             answer: The keyword arguments to build the answer shape from, or
                 an exception to raise instead. An empty answer when None.
+            under: An answer of its own for a call made under one of these
+                prompt versions, by version. Every other call gets `answer`.
         """
         self._answer = {} if answer is None else answer
+        self._under = under or {}
         self.asked: list[dict] = []
 
     @property
@@ -291,9 +299,10 @@ class Model:
                 "prompt_version": prompt_version,
             }
         )
-        if isinstance(self._answer, Exception):
-            raise self._answer
-        return shape(**self._answer)
+        scripted = self._under.get(prompt_version or "", self._answer)
+        if isinstance(scripted, Exception):
+            raise scripted
+        return shape(**scripted)
 
 
 class Queue:
@@ -639,6 +648,7 @@ class Extraction:
         self,
         *passages: PassageToExtract,
         facts: dict | Exception | None = None,
+        repair: dict | Exception | None = None,
         digest: dict | Exception | None = None,
         kinds: tuple[str, ...] = (),
         duplicate_cosine: float = 0.0,
@@ -651,6 +661,8 @@ class Extraction:
         Args:
             *passages: What the queue holds.
             facts: What the atomic model answers with.
+            repair: What the same model answers a repair call with. No facts
+                when not given.
             digest: What the digest model answers with.
             kinds: Which digest kinds to keep. No digest reader at all when
                 empty.
@@ -669,10 +681,14 @@ class Extraction:
             LlmExtractor,
             TableExtractor,
         )
+        from extraction.extractors.llm import REPAIR_PROMPT_VERSION
         from extraction.service import ExtractionService
 
         self.queue = Queue(*passages)
-        self.model = Model(facts if facts is not None else {"facts": []})
+        self.model = Model(
+            facts if facts is not None else {"facts": []},
+            under={REPAIR_PROMPT_VERSION: {"facts": []} if repair is None else repair},
+        )
         self.digest_model = Model(digest)
         self.vectors = Vectors() if embed or duplicate_cosine > 0 else None
         self.service = ExtractionService(
