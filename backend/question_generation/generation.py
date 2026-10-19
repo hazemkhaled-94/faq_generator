@@ -290,10 +290,13 @@ class QuestionWriter:
             return self._unanswerable(sample, plan, note)
 
         kind = KINDS[plan.kind]
+        spans = plan.spans
+        if plan.kind == QuestionKind.COMPOUND and len(sample.resting) < kind.passages:
+            # Short of the passages it asks about, as any spanning slot is:
+            # it is written as the single-passage question it can only be.
+            kind, spans = KINDS[QuestionKind.SINGLE], False
         written = self._client.answer(
-            system=plan.spec.system(
-                spans=plan.spans, instruction=kind.instruction or None
-            ),
+            system=plan.spec.system(spans=spans, instruction=kind.instruction or None),
             user=self._prompt(sample, note),
             shape=kind.shape,
             prompt_version=PROMPT_VERSION,

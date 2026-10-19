@@ -501,3 +501,18 @@ def test_a_compound_slot_is_told_to_ask_two_things_and_returns_its_halves() -> N
         (11, "What is the limit?", "1,000 euros"),
         (22, "How is an account closed?", "by letter"),
     )
+
+
+def test_a_compound_slot_dealt_one_passage_is_written_as_a_single_question() -> None:
+    """Told to ask two things of two passages with one, it welded or declined."""
+    from question_generation import kinds
+
+    model = StubModel(question="What is the limit?", answer="1,000 euros", facts=[1])
+
+    written = QuestionWriter(model).write(
+        group(source(1)), plan(shape="apart", kind="compound")
+    )
+
+    assert model.system == SPECS["factoid"].system()
+    assert model.shapes[-1] is kinds._Answered
+    assert (written.kind, written.parts) == ("single", ())
