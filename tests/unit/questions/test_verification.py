@@ -1584,6 +1584,47 @@ def test_a_range_still_needs_both_ends_and_its_unit(
     )
 
 
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "en",
+            "What is the maximum length of the pitch?",
+            "110 m",
+            "The pitch is 100–110 m long.",
+        ),
+        ("en", "Which fee does the bank charge?", "8 euros", "The fee is 8–10 euros."),
+        (
+            "de",
+            "Wie lang darf das Feld höchstens sein?",
+            "110 m",
+            "Das Feld ist 100–110 m lang.",
+        ),
+        (
+            "de",
+            "Welche Gebühr erhebt der Shop?",
+            "8 Euro",
+            "Die Gebühr beträgt 8–10 Euro.",
+        ),
+    ],
+)
+def test_one_end_of_a_range_is_not_the_range(
+    language, question, target, recovered
+) -> None:
+    """A key holding one figure is not what a recovery holding a range says.
+
+    The ends of a recovery's range count only against a key that holds a range.
+    """
+    assert not agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        passages=(recovered,),
+    )
+
+
 def test_a_three_decimal_rate_is_not_its_digits() -> None:
     """`0,125 %` is an eighth of a percent, which `125 %` is not."""
     assert not agrees("0,125 %", "125 %", "de")

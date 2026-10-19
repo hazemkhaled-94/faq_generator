@@ -2344,10 +2344,13 @@ def agrees(
     # Each value as every reading a model's figure may have; one carried
     # reading is enough, and a name excused below is one value.
     found = _values(recovered, language)
-    found |= frozenset().union(
-        *_ends(frozenset({frozenset({one}) for one in found}), language)
-    )
     units = _number_readings(target, language)
+    # The ends of a range the recovery states count only against a key that
+    # holds a range: `110 m` is not what `100–110 m` says.
+    if any(_RANGE.fullmatch(unit) for one in units for unit in one):
+        found |= frozenset().union(
+            *_ends(frozenset({frozenset({one}) for one in found}), language)
+        )
     missing = [one for one in _ends(units, language) if not one & found]
     if missing:
         named = _named(recovered, target, language, question, given)
