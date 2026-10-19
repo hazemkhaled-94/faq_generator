@@ -697,11 +697,8 @@ class Deal:
         the span rules spend three paragraphs on.
         """
         each = max(1, self._size // len(passages))
-        offered = {passage[0].passage_id for passage in passages}
         facts: list[SourceFact] = []
         for passage in passages:
-            pid = passage[0].passage_id
-            self._offered[pid] = self._offered.get(pid, 0) + 1
             left = _ordered(self._left(passage), condensed, prefer)
             chosen = closest(facts, left, each)
             if condensed:
@@ -711,9 +708,32 @@ class Deal:
                     chosen, left, max(len(chosen), _GROUP_CEILING - len(facts))
                 )
             facts.extend(chosen)
+        dealt = [passage[0].passage_id for passage in passages]
+        counted = dealt
+        # A bridge is asked about alone, whichever passage it was dealt from:
+        # offered beside a claim, it was joined to it, and its own second
+        # passage was never weighed against that claim. The claims it sets
+        # aside wait for their passage's next round, which it does not spend,
+        # and a bridge the slot does not prefer waits for another slot.
+        if any(fact.spans for fact in facts):
+            alone = next(
+                (
+                    fact
+                    for fact in facts
+                    if fact.spans and (prefer is None or prefer(fact))
+                ),
+                None,
+            )
+            if alone is None:
+                facts = [fact for fact in facts if not fact.spans]
+            else:
+                counted = [] if len(facts) > 1 else [alone.passage_id]
+                facts = [alone]
+        for pid in counted:
+            self._offered[pid] = self._offered.get(pid, 0) + 1
         for fact in facts:
             self._spent.add(fact.id)
             for one in fact.passages:
-                if one.id not in offered:
+                if one.id not in dealt:
                     self._offered[one.id] = self._rounds
         return FactGroup(tuple(facts))

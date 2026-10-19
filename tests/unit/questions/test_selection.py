@@ -452,6 +452,85 @@ def test_a_bridges_second_passage_is_used_up_whole() -> None:
     assert deal.sample() is None
 
 
+def test_a_bridge_beside_a_claim_of_its_own_passage_is_offered_alone() -> None:
+    """The claim ranks first in its passage, so the bridge came second and was offered beside it.
+
+    The writer then joined the two, and the bridge's second passage was never
+    weighed against the claim. The claim is left for the passage's next round.
+    """
+    claim = source(100, document="a", passage_id=1, statement="A transfer costs 2 EUR.")
+    spanning = bridge(resting(2, "b"), fact_id=1, passage_id=1, document="a")
+    deal = Deal([claim, spanning], wanted=10, size=2, rounds=3)
+
+    first = deal.sample()
+    second = deal.sample()
+
+    assert first is not None
+    assert [fact.id for fact in first.facts] == [spanning.id]
+    assert second is not None
+    assert [fact.id for fact in second.facts] == [claim.id]
+
+
+def test_a_bridge_dealt_as_the_partner_is_offered_alone() -> None:
+    """A wide sample whose second passage offers a bridge asks about the bridge, not both."""
+    head = source(
+        100, document="a", passage_id=1, statement="Cards are blocked at once."
+    )
+    spanning = bridge(resting(3, "c"), fact_id=200, passage_id=2, document="b")
+    deal = Deal([head, spanning], wanted=10, size=2, rounds=3)
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert [fact.id for fact in sample.facts] == [spanning.id]
+    assert [fact.id for fact in (deal.sample() or FactGroup(())).facts] == [head.id]
+
+
+def test_a_bridge_the_slot_does_not_prefer_is_left_for_another_slot() -> None:
+    """A reason slot is dealt the fact that states a reason, not a bridge beside it."""
+    reason = source(
+        100, document="a", passage_id=1, statement="Cards are blocked to stop fraud."
+    )
+    spanning = bridge(resting(2, "b"), fact_id=1, passage_id=1, document="a")
+    deal = Deal([reason, spanning], wanted=10, size=2, rounds=3)
+
+    sample = deal.sample(prefer=lambda fact: fact.id == reason.id)
+    later = deal.sample()
+
+    assert sample is not None
+    assert [fact.id for fact in sample.facts] == [reason.id]
+    assert later is not None
+    assert [fact.id for fact in later.facts] == [spanning.id]
+
+
+def test_a_partner_bridge_resting_on_the_first_passage_leaves_it_to_be_dealt() -> None:
+    """The first passage was dealt, not asked about: its claims are offered next."""
+    first = facts_of(1, "a", count=2)
+    spanning = bridge(resting(1, "a"), fact_id=200, passage_id=2, document="b")
+    deal = Deal([*first, spanning], wanted=10, size=2, rounds=3)
+
+    sample = deal.sample(Shape.CROSS)
+    later = deal.sample()
+
+    assert sample is not None
+    assert [fact.id for fact in sample.facts] == [spanning.id]
+    assert later is not None
+    assert {fact.id for fact in later.facts} == {fact.id for fact in first}
+
+
+def test_a_bridge_offered_alone_spends_no_round_of_the_claims_it_displaced() -> None:
+    """With one round a passage, the claim set aside for the bridge is still offered."""
+    claim = source(100, document="a", passage_id=1, statement="A transfer costs 2 EUR.")
+    spanning = bridge(resting(2, "b"), fact_id=1, passage_id=1, document="a")
+    deal = Deal([claim, spanning], wanted=10, size=2, rounds=1)
+
+    first, second = deal.sample(), deal.sample()
+
+    assert first is not None and second is not None
+    assert [fact.id for fact in first.facts] == [spanning.id]
+    assert [fact.id for fact in second.facts] == [claim.id]
+
+
 # ── Which kinds a sample offers ────────────────────────────────────────────
 
 
