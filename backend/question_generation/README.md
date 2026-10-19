@@ -519,9 +519,14 @@ nothing the release can take; lower the share to save them.
 round trip's `read`: whether the passages state the answer, **refute its
 premise** (a closed list or an exception included), or cover its case with a
 **general rule** — `answers`, `refutes`, `rule` — or settle nothing,
-`silent`, which is the only verdict that keeps the question. The verifier
-writes the reply a careful chatbot would give before its verdict, because a
-model asked only to classify leans to `silent`, and its quote has to be
+`silent`, which is the only verdict that keeps the question. The prompt's
+role no longer says the question was written to have no answer, and the
+verifier writes the reply a careful chatbot would give before its verdict,
+because a model asked only to classify, and told which label to expect,
+leans to `silent`. An answer
+given in another form than asked (an event for a period, *any* party for one)
+and a rule with *must*, *never* or *only* ruling out what the question assumes
+both settle it. Its quote has to be
 words the passages it was shown carry: one from memory reads as `silent`.
 A quote stitched from two items of a list, two cells of a row or two
 passages is looked for piece by piece, split at line breaks, ellipses, cell
@@ -529,7 +534,10 @@ bars, list markers and sentence ends. Each piece has to be whole words of
 one passage, list markers and cell bars aside, and a piece shorter than
 three words counts only in a passage the longest piece is in: `Refunds:`
 heading one passage beside `within 14 days` in another settles nothing.
-First over the passages it cites, then over the probe: the
+First over the passages it cites, then over them and the probe together, so
+a case the cited passage sets up and a rule elsewhere decides are read in one
+call; a quote the cited passages hold, found on this second reading, refuses
+the question as `answerable_after_all`. The probe is the
 `QUESTIONS_ELSEWHERE_PASSAGES` passages nearest by vector fused, by
 reciprocal rank, with those sharing most of its content lemmas, and on top
 of them the passages two ordinals either side of each cited one. A corpus

@@ -200,6 +200,20 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.12
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting.
+
+**Verifier prompt 6.** Every verifier prompt is now version 6 and only the
+settles prompt changed. `make questions-rejudge` asks every accepted
+unanswerable question again under it, about two model calls each; some will
+be refused. `QUESTIONS_RELEASE_UNANSWERABLE` stays 0.
+
 ## Upgrading to v0.3.11
 
 ```bash

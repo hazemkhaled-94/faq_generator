@@ -811,6 +811,12 @@ holds the build's figures.
 |---|---|---|---|
 | One seeded topic fit was kept unread | the factorisation's seed decides how alike a topic's members come out, by as much as two rebuilds differed; v0.4.0's draw was the second loosest of nine | the fit draws eight factorisations seeded from `TOPIC_RANDOM_STATE` on and keeps the one whose members are most alike in the tf-idf space it already builds ([`topics.py`](../backend/topic_modelling/topics.py)); the same corpus still keeps the same draw | over the v0.4.0 passages, members came out 1.67 times as alike as the corpus in German instead of 1.46, and 1.55 instead of 1.44 in English; German topics looser than 1.3 times fell from 3 to 1, English stayed at 4 |
 
+### Fixed in v0.3.12: unanswerable questions
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| The settles reading quoted the answering words and still said silent | its prompt named the label it expected, asked for the quote before the verdict, showed no answer given in another form than asked, and the elsewhere call never saw the cited passages that set up the case | verifier prompt 6: a role that no longer says the question was written to have no answer, the best reply a chatbot could give before the verdict, examples of an answer in another form and of a categorical rule ruling out what the question assumes; the elsewhere call reads the cited passages beside the probed ones, a quote they hold being refused as answerable after all ([`verifier.py`](../backend/question_generation/verifier.py), [`checker.py`](../backend/question_generation/checker.py)) | Azure, 179 labelled drafts of the v0.4.0 build, old and new prompt on the same day: answered drafts caught 59% to 70%; the share of kept unanswerables the corpus answers 0.40 to 0.34 (German 0.41 to 0.37, English 0.38 to 0.28); open drafts refused 7.5% to 10%, the accepted ones newly refused at most 28% usable. Still far above the 0.15 a release share needs |
+
 ### Deferred, with the reason
 
 | Defect | Why it stays open |
