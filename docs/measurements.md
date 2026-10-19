@@ -19,12 +19,62 @@ The two repairs:
 - 117 validated facts whose evidence sits verbatim in more than one syllabus
   gained 214 citations, so each now cites every document that holds it.
 
-Everything up to [The v0.3.0 rebuild](#the-v030-rebuild-of-2026-10-16)
-describes that run. The rebuild is a second run, of a second corpus, and its
-figures stand on their own.
+Everything from [The run](#the-run) up to
+[The v0.3.0 rebuild](#the-v030-rebuild-of-2026-10-16) describes that run. The
+rebuilds are later runs, of a second corpus, and their figures stand on
+their own.
 
 This is the only place in the repository that holds run figures. A README
 that needs one links here.
+
+## Every run at a glance
+
+The IFAB *Laws of the Game 2026/27*, German and English, taken through every
+stage by successive versions, each run read in full against the corpus by
+review agents working from one rubric (`azure/gpt-5.4` writing questions,
+`azure/gpt-4.1` for everything else). The v0.4.0 column is the code of
+v0.3.8; it was reviewed and not released. Readers differ by about five
+points, so a move smaller than that between two columns is judged by a blind
+same-reader test, given where one was run. "Usable" is a reviewer verdict of
+good or minor; "settled" means released questions judged unusable were read
+again by a second and, where the two disagreed, a third reader. A dash is a
+figure that run did not measure. The 2026-10-13 and v0.2.2 runs are detailed
+in [bugs.md](bugs.md); the later three each have a section of their own
+below. The first run on this page, of 16 syllabi, used another corpus and is
+not in the table.
+
+| | 2026-10-13 (before v0.2.2) | v0.2.2, 2026-10-14 | v0.3.0, 2026-10-16 | v0.4.0, 2026-10-18 | v0.3.12, 2026-10-19 |
+|---|---|---|---|---|---|
+| **Questions** | | | | | |
+| Written / accepted | 1,476 / 576 | 1,760 / 837 | 1,507 / 871 | 1,550 / 886 | 1,753 / 960 |
+| Accepted usable (German / English) | 50% (51% / 50%) | 57% (54% / 60%) | 69.9% (69.5% / 70.3%) | 75.3% (75.0% / 75.6%) | 76.6% (73.5% / 79.8%) |
+| Released (German / English) | 238 (187 / 51) | 321 (176 / 145) | 343 (182 / 161) | 318 (165 / 153) | 395 (205 / 190) |
+| Released usable, settled | 49% | 52% | 79.0% | 82.7% | 82.3% |
+| Released invalid | 30 | 48 | 10 | 8 | 9 |
+| Release German share (pool) | 79% (48%) | 55% (55%) | 53% (53%) | 51.9% (51.8%) | 51.9% (52.0%) |
+| Answer keys correct / complete | 58% / 45% | 69% / 58% | 80.1% / 72.0% | 87.0% / 73.2% | 87.8% / 74.0% |
+| Two-passage questions welded, accepted (released) | 19% of accepted carry a weld tag | 128/270, 47% (104 released) | 33/183, 18.0% (17/91) | 32/144, 22.2% (19/65) | 40/225, 17.8% (23/95) |
+| Usable by band, accepted answerable: easy / medium / hard | 55% / 43% / 43% | 62% / 44% / 47% | 78% / 70% / 68% | 87% / 64% / 53% | 85% / 70% / 70% |
+| Accepted unanswerables the corpus answers (German / English) | 76/158, 48% | 141/283, 50% | 107/247, 43.3% (41.4% / 45.6%) | 94/247, 38.1% (38.8% / 37.3%) | 82/241, 34.0% (37.2% / 30.4%) |
+| Rejected questions the gate refused wrongly / usable ones lost | 21% / 133 | 21% / 140 | 37.9% / 183 | 33.7% / 168 | 33.4% / 214 |
+| **Facts** | | | | | |
+| Facts validated (written) | about 1,849 | 3,578 | 3,359 (3,968) | 3,290 (3,910) | 3,591 (4,305) |
+| Validated facts stated correctly, read | — | 78.5% (all) | 86.7% (all 3,180) | 81.8% (560, three readers) | 85.3% (600; German 84.0%, English 86.8%) |
+| Validated facts correct, blind same-reader tests against v0.3.0 | — | — | (the reference) | 50/60 vs 50/60; 84/100 vs 92/100 | 81/100 vs 87/100 |
+| Fact refusals judged wrong, all codes | — | 84% (`duplicate` aside) | 57.3% (309/539) | 56.0% (298/532) | 43.9% (285/649) |
+| `not_atomic` refusals judged wrong | — | — | 77% (131/171) | 82% (152/186) | 40% (81/203) |
+| Facts recovered by the repair call | — | — | — | — | 262 validated of 390 written |
+| **Bridges** | | | | | |
+| Bridges validated (written) | none | none | 179 (249) | 140 (228) | 178 (243) |
+| Validated bridges judged correct | — | — | 22% (40/179) | 16% | 19% (34/178) |
+| Blind same-reader test against v0.3.0 | — | — | (the reference) | 8 vs 7 of 40 | 12 vs 9 of 40 |
+| **Topics and passages** | | | | | |
+| Topics (German / English) | — | 20 (one failed) | 17 (9 / 8) | 16 (8 / 8) | 17 (9 / 8) |
+| Topics coherent yes / partly / no | — | — | 1 / 14 / 2 | 0 / 11 / 5 | 0 / 14 / 3 |
+| Topic labels fit yes / partly / no | — | 6 / 11 / 3 | 4 / 12 / 1 | 8 fit | 3 / 11 / 3 |
+| Passages faithful to the PDF: good / minor / major | — | 387 / 381 / 65 | 530 / 225 / 65 | 35 re-chunked: 25 better, 0 worse | unchanged from v0.4.0 |
+| **Cost** | | | | | |
+| Model spend for the run (USD) | — | — | 17.93 | 34.32 (two builds; the clean question pass 14.60) | 21.23 |
 
 ## The run
 
@@ -540,3 +590,60 @@ topic, and the passages whose text changed.
 | Topics (German / English) | 9 / 8 | 8 / 8 |
 | Accepted unanswerables the corpus answers | 43.3% | 38.1% |
 
+## The v0.3.12 rebuild of 2026-10-19
+
+The same two PDFs taken through every stage by the code of v0.3.12 (the
+stack v0.3.9 to v0.3.12), with the same models, from a fresh extraction.
+Every accepted and every rejected question was read against the corpus, as
+were every refused fact, 600 validated facts, every bridge and topic, and
+blind same-reader samples of facts, bridges and two-passage questions beside
+v0.3.0's.
+
+| | v0.3.0 | v0.4.0 | v0.3.12 |
+|---|---|---|---|
+| Questions accepted / written | 871 / 1,507 | 886 / 1,550 | 960 / 1,753 |
+| Released (German / English) | 343 (182 / 161) | 318 (165 / 153) | 395 (205 / 190) |
+| Released usable, settled | 79.0% | 82.7% | 82.3% |
+| Released invalid | 10 | 8 | 9 |
+| Accepted usable | 69.9% | 75.3% | 76.6% |
+| Answer keys correct / complete | 80.1% / 72.0% | 87.0% / 73.2% | 87.8% / 74.0% |
+| Two-passage questions welded, accepted | 33 / 183 (18.0%) | 32 / 144 (22.2%) | 40 / 225 (17.8%) |
+| Two-passage questions welded, released | 17 / 91 (18.7%) | 19 / 65 (29.2%) | 23 / 95 (24.2%) |
+| Rejections wrong | 38% (183 usable lost) | 34% (168 usable lost) | 33% (214 usable lost) |
+| Fact refusals wrong | 57.3% | 56.0% | 43.9% |
+| Validated facts read correct | 86.7% | 81.8% | 85.3% |
+| Validated bridges / of them judged correct | 179 / 22% | 140 / 16% | 178 / 19% |
+| Topics (German / English) | 9 / 8 | 8 / 8 | 9 / 8 |
+| Accepted unanswerables the corpus answers | 43.3% | 38.1% | 34.0% |
+
+What moved, and why:
+
+- **Bridge-plus-fact questions are gone.** v0.3.9 offers a bridge on its own
+  rather than beside an unrelated claim of its anchor passage. Blind, the
+  accepted bridge-plus-fact questions fell from 54 (7 welded) to 7 (none), and
+  a bridge alone welds at 9% in both builds.
+- **The released weld rate rose while the accepted rate fell.** It is the
+  draw. Replayed over 100 hash salts, the release code gives the v0.3.0 and the
+  v0.3.12 pools the same expected released weld rate, 21.8%. v0.3.0's stored
+  release sits at the 2nd percentile of its own distribution, v0.3.12's at the
+  72nd. A blind same-reader test reads 13.2% against 20.0% (z = 1.25).
+- **Wrong `not_atomic` refusals fell from 82% to 40%** (81 of 203). The
+  v0.3.10 repair call wrote 390 pieces, and 262 of them were validated. Read,
+  they are as correct as the other facts (41 of 49, against 471 of 551).
+- **Validated facts read correct 85.3%**, below v0.3.0's 86.7% but within
+  reader spread. Blind same-reader: 81 against 87 of 100, not significant.
+- **Topics, the most cohesive of eight seeded draws**, read coherent 0 / 14 / 3
+  (yes / partly / no), against 0 / 11 / 5 for v0.4.0's single draw.
+- **Verifier prompt 6** lowers the share of kept unanswerables the corpus
+  answers, most in English. Unanswerables are still not released.
+
+Found on this run, not fixed in it:
+
+- The release-size bisection ships fewer than 200 questions for 43 of 100
+  hash salts of this pool, against 6 of v0.3.0's. The stored hash fills to 395,
+  so this release is unaffected. Scanning sizes downwards instead removes all
+  43 at an unchanged weld rate.
+- The per-passage fact cap refused 65 facts as `over_cap`, 59 of them repaired
+  pieces, 78% of them wrongly.
+
+Model spend for the run: USD 21.23.
