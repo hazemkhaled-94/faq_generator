@@ -876,6 +876,181 @@ class TestBridge:
         assert [one.passage_id for one in reversed_order.citations] == [11, 22]
 
 
+def _under(language: str, *rows: tuple[str, str]):
+    """Passages of two documents under the given heading trails."""
+    from dataclasses import replace
+
+    return [
+        replace(
+            passage(text, language=language, section_path=path),
+            id=11 * (at + 1),
+            doc_sha256=f"doc-{at}",
+        )
+        for at, (path, text) in enumerate(rows)
+    ]
+
+
+class TestBridgeReadsItsHeadings:
+    """A bridge is checked against each passage's trail and title as an atomic fact is."""
+
+    @pytest.mark.parametrize(
+        ("language", "rows", "statement", "unit"),
+        [
+            (
+                "en",
+                (
+                    (
+                        "Fees 2026 > Dormant accounts",
+                        "A dormant account is charged 10 EUR a year.",
+                    ),
+                    (
+                        "Accounts > Dormancy",
+                        "An account is dormant when its holder has made no payment for 24 months.",
+                    ),
+                ),
+                "In 2026, an account whose holder has made no payment for 24 months is charged 10 EUR a year.",
+                "2026",
+            ),
+            (
+                "de",
+                (
+                    (
+                        "Gebühren 2026 > Ruhende Konten",
+                        "Für ein ruhendes Konto werden 10 EUR im Jahr berechnet.",
+                    ),
+                    (
+                        "Konten > Ruhende Konten",
+                        "Ein Konto ruht, wenn der Inhaber 24 Monate lang keine Zahlung geleistet hat.",
+                    ),
+                ),
+                "Im Jahr 2026 werden für ein Konto, dessen Inhaber 24 Monate lang keine Zahlung geleistet hat, 10 EUR im Jahr berechnet.",
+                "2026",
+            ),
+            (
+                "en",
+                (
+                    ("Aurora Card > Fees", "The card costs 5 EUR a month."),
+                    ("Cards > Replacement", "A lost card is replaced within 3 days."),
+                ),
+                "A lost Aurora card is replaced within 3 days.",
+                "aurora",
+            ),
+            (
+                "de",
+                (
+                    ("Aurora-Karte > Gebühren", "Die Karte kostet 5 EUR im Monat."),
+                    (
+                        "Karten > Ersatz",
+                        "Eine verlorene Karte wird innerhalb von 3 Tagen ersetzt.",
+                    ),
+                ),
+                "Eine verlorene Aurora-Karte wird innerhalb von 3 Tagen ersetzt.",
+                "aurora",
+            ),
+        ],
+    )
+    def test_a_unit_its_heading_carries_is_not_added(
+        self, checker, language, rows, statement, unit
+    ) -> None:
+        """The trail names what a sentence under it leaves as 'the card'."""
+        bridged = checker.bridge(statement, _under(language, *rows))
+
+        assert bridged.validated, (
+            bridged.rejection_code,
+            bridged.validation_error,
+            bridged.units_added,
+        )
+
+    @pytest.mark.parametrize(
+        ("language", "first", "second", "statement"),
+        [
+            (
+                "de",
+                "Artikel können innerhalb von 30 Tagen zurückgesendet werden.",
+                "Erstattungen erfolgen innerhalb von 14 Tagen.",
+                "Artikel, die innerhalb von dreissig Tagen zurückgesendet werden, werden innerhalb von vierzehn Tagen erstattet.",
+            ),
+        ],
+    )
+    def test_a_number_spelled_otherwise_is_not_added(
+        self, checker, language, first, second, statement
+    ) -> None:
+        """Numbers are read in any spelling, as for an atomic fact."""
+        bridged = checker.bridge(statement, group(first, second, language=language))
+
+        assert not bridged.units_added, bridged.units_added
+
+    @pytest.mark.parametrize(
+        ("language", "path", "text", "statement", "label"),
+        [
+            (
+                "en",
+                "Section 7 > Yearly fees",
+                "A dormant account is charged a yearly fee of 10 EUR.",
+                "Section 7 charges a dormant account a yearly fee of 10 EUR.",
+                "Section 7",
+            ),
+            (
+                "de",
+                "Abschnitt 7 > Jahresgebühren",
+                "Für ein ruhendes Konto wird eine Jahresgebühr von 10 EUR erhoben.",
+                "Abschnitt 7 belastet ein ruhendes Konto mit einer Jahresgebühr von 10 EUR.",
+                "Abschnitt 7",
+            ),
+        ],
+    )
+    def test_a_bridge_naming_its_passages_section_is_refused(
+        self, checker, language, path, text, statement, label
+    ) -> None:
+        """Where the text sits is a claim about the document."""
+        other = (
+            "Accounts > Dormancy",
+            "An account is dormant when its holder has made no payment for 24 months."
+            if language == "en"
+            else "Konten > Ruhe",
+        )
+        if language == "de":
+            other = (
+                "Konten > Ruhe",
+                "Ein Konto ruht, wenn der Inhaber 24 Monate lang keine Zahlung geleistet hat.",
+            )
+        bridged = checker.bridge(statement, _under(language, (path, text), other))
+
+        assert bridged.rejection_code == Rejection.NOT_BRIDGING
+        assert label in (bridged.validation_error or "")
+
+    def test_an_atomic_fact_naming_its_section_is_not_refused(self) -> None:
+        """The label rule is the bridge's only."""
+        read = passage(
+            "A dormant account is charged a yearly fee of 10 EUR.",
+            section_path="Section 7 > Yearly fees",
+        )
+
+        judged = Checker(read).atomic(
+            "Section 7 charges a dormant account a yearly fee of 10 EUR.", 0
+        )
+
+        assert judged.rejection_code != Rejection.NOT_BRIDGING
+
+    def test_a_bridge_naming_another_documents_section_is_not_refused(
+        self, checker
+    ) -> None:
+        """No cited passage sits under 'Section 9'."""
+        rows = (
+            ("Fees > Yearly", "A dormant account is charged a yearly fee of 10 EUR."),
+            (
+                "Accounts > Dormancy",
+                "An account is dormant when its holder has made no payment for 24 months.",
+            ),
+        )
+        bridged = checker.bridge(
+            "Section 9 charges a dormant account a yearly fee of 10 EUR.",
+            _under("en", *rows),
+        )
+
+        assert "names where" not in (bridged.validation_error or "")
+
+
 def test_each_failure_reaches_its_own_code(checker, offered) -> None:
     """Every rejection code the checks can emit, and no bucket shared."""
     codes = {

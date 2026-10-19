@@ -133,6 +133,12 @@ for, first failure winning:
 | shorter than its passage | `not_condensed` | | ● | ● | |
 | rests on two passages | `not_bridging` | | | | ● |
 
+For a bridge, `unsupported_addition` reads each cited passage's heading trail
+and title as it does for an atomic fact (numbers in any spelling, hyphen parts,
+noun forms), and `not_bridging` also refuses a statement naming the numbered
+heading of a passage it cites ("Section 7"): that is a claim about the
+document.
+
 An atomic statement the model wrote and the checks refused as `not_atomic` is sent
 back to the same model once, in one more call for the passage, under a
 prompt of its own. Shown the numbered sentences the first call was shown,

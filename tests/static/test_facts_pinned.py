@@ -45,7 +45,14 @@ CHECKS = {
     "atomic": ("_quoted", "_asserts", "_atomic", "_supported", "_self_contained"),
     "summary": ("_asserts", "_supported", "_condensed"),
     "outline": ("_listed", "_supported", "_condensed"),
-    "bridge": ("_asserts", "_atomic", "_supported", "_self_contained", "_bridging"),
+    "bridge": (
+        "_asserts",
+        "_atomic",
+        "_supported",
+        "_self_contained",
+        "_bridging",
+        "_located",
+    ),
 }
 
 

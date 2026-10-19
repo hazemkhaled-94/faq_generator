@@ -6,6 +6,7 @@ matrix and for what each one is protecting against.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from functools import partial
@@ -53,6 +54,10 @@ def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
     return _JOIN.join(one.text for one in cited)
 
 
+#: One ' > ' segment of a heading trail that is a word and a number
+#: ('Section 7', 'Regel 5.1', '§ 3'): the document's own way to number a part.
+HEADING_LABEL = re.compile(r"^([^\W\d_]+|§)\s?(\d+(?:\.\d+)*)$")
+
 #: A failed check, as its code and the measurement behind it.
 Failure = tuple[str, str]
 Check = Callable[["Judged"], Failure | None]
@@ -74,6 +79,9 @@ class Judged:
             hyphenated unit of words it holds, a name it holds as a noun.
         citations: One entry per passage the candidate rests on, in the order
             the model was shown them.
+        labels: On a bridge, the numbered headings ("Section 7") of the
+            passages it rests on.
+        language: The language the statement is read in.
     """
 
     statement: str
@@ -83,6 +91,8 @@ class Judged:
     evidence_vocabulary: frozenset[str]
     supported: frozenset[str] = frozenset()
     citations: tuple[Citation, ...] = field(default=())
+    labels: tuple[str, ...] = ()
+    language: str | None = None
 
     @property
     def added(self) -> tuple[str, ...]:
@@ -244,6 +254,23 @@ def _bridging(judged: Judged) -> Failure | None:
     )
 
 
+def _located(judged: Judged) -> Failure | None:
+    """Refuses a bridge naming the numbered heading one of its passages sits under."""
+    said = vocabulary(judged.statement, judged.language)
+    for label in judged.labels:
+        match = HEADING_LABEL.match(label.strip())
+        if match and match.group(1).casefold() in said and match.group(2) in said:
+            return (
+                Rejection.NOT_BRIDGING,
+                (
+                    f"the statement names where its passage sits ({label.strip()}), "
+                    "which is a claim about the document and not one either "
+                    "passage makes"
+                ),
+            )
+    return None
+
+
 #: Applied to a statement a deterministic reader composed, whatever its kind.
 #: Nothing else is asked of one: it is neither written nor a sentence.
 _COMPOSED: tuple[Check, ...] = (_copied,)
@@ -281,6 +308,7 @@ class FactChecker:
                 _supported,
                 _self_contained,
                 _bridging,
+                _located,
             ),
         }
 
@@ -360,6 +388,14 @@ class FactChecker:
             )
             for passage, one in rested
         ]
+        known: set[str] = set()
+        numbers: set[str] = set()
+        for (passage, _), text in zip(rested, texts, strict=True):
+            more, figures = _carried(text, passage)
+            known |= more
+            numbers |= figures
+        known |= numbers
+        said = claim(statement, anchor.language)
         judged = Judged(
             statement=statement,
             evidence=_JOIN.join(texts),
@@ -370,14 +406,19 @@ class FactChecker:
                 for passage, one in rested
                 for index in one.sentence_ids or ()
             ),
-            claim=claim(statement, anchor.language),
-            evidence_vocabulary=frozenset().union(
-                *(
-                    vocabulary(text, passage.language)
-                    for (passage, _), text in zip(rested, texts, strict=True)
-                )
+            claim=said,
+            evidence_vocabulary=frozenset(known),
+            supported=_supported_units(
+                said.units + said.figures, known, numbers, anchor.language
             ),
             citations=tuple(one for _, one in rested),
+            labels=tuple(
+                segment
+                for passage, _ in rested
+                for segment in (passage.section_path or "").split(" > ")
+                if HEADING_LABEL.match(segment.strip())
+            ),
+            language=anchor.language,
         )
         return self._verdict(anchor, candidate, judged, WRITTEN, provenance)
 
@@ -432,37 +473,20 @@ class FactChecker:
         start, end = cited[0].start, cited[-1].end
         evidence = _cited_text(passage, cited)
         language = passage.language
-        headings = "\n".join(
-            part for part in (passage.section_path, passage.title) if part
-        )
         statement = candidate.statement.strip()
         said = claim(statement, language)
-        known = vocabulary(evidence, language)
-        numbers = numerals(evidence, language)
-        if headings:
-            known |= vocabulary(headings, language)
-            numbers |= numerals(headings, language)
+        known, numbers = _carried(evidence, passage)
         known |= numbers
-        supported = set()
-        for unit in said.units + said.figures:
-            if unit in known:
-                continue
-            if figures := numerals(unit, language):
-                if figures <= numbers:
-                    supported.add(unit)
-            elif "-" in unit:
-                parts = [part for part in unit.split("-") if part]
-                if all(part in known for part in parts):
-                    supported.add(unit)
-            elif as_noun(unit, language) & known:
-                supported.add(unit)
+        supported = _supported_units(
+            said.units + said.figures, known, numbers, language
+        )
         return Judged(
             statement=statement,
             evidence=evidence,
             evidence_predicates=sum(sentence.predicates for sentence in cited),
             claim=said,
-            evidence_vocabulary=known,
-            supported=frozenset(supported),
+            evidence_vocabulary=frozenset(known),
+            supported=supported,
             citations=(
                 Citation(
                     passage_id=passage.id,
@@ -472,6 +496,49 @@ class FactChecker:
                 ),
             ),
         )
+
+
+def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[str]]:
+    """Reads what a passage's cited text, heading trail and title carry.
+
+    The trail and the title name what a sentence under them leaves as "the
+    card" or "the bank", so they are evidence of a name or a number.
+
+    Returns:
+        Every form a word appears in, and the numerals, of all three.
+    """
+    language = passage.language
+    known = set(vocabulary(evidence, language))
+    numbers = set(numerals(evidence, language))
+    headings = "\n".join(part for part in (passage.section_path, passage.title) if part)
+    if headings:
+        known |= vocabulary(headings, language)
+        numbers |= numerals(headings, language)
+    return known, numbers
+
+
+def _supported_units(
+    units: Sequence[str], known: set[str], numbers: set[str], language: str | None
+) -> frozenset[str]:
+    """Picks the units read as present though no form of them is.
+
+    A number spelled another way ("1st" is "1 st"), a hyphenated unit of
+    words it holds, a name it holds as a noun.
+    """
+    supported = set()
+    for unit in units:
+        if unit in known:
+            continue
+        if figures := numerals(unit, language):
+            if figures <= numbers:
+                supported.add(unit)
+        elif "-" in unit:
+            parts = [part for part in unit.split("-") if part]
+            if all(part in known for part in parts):
+                supported.add(unit)
+        elif as_noun(unit, language) & known:
+            supported.add(unit)
+    return frozenset(supported)
 
 
 def _resolve(
