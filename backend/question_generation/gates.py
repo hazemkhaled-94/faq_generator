@@ -1472,6 +1472,10 @@ _CONJUNCTS = frozenset({"conj", "cj"})
 #: The parts of speech that say something of a thing rather than name one.
 _PREDICATES = frozenset({"VERB", "AUX"})
 
+#: How a verb's direct object hangs off it, by the labels of the English and
+#: German pipelines (OntoNotes `dobj`, UD `obj`, TIGER `oa`).
+_OBJECTS = frozenset({"dobj", "obj", "oa"})
+
 
 def enumerates(answer: str, language: str | None) -> bool:
     """Whether an `enumeration` answer holds a set rather than one thing.
@@ -1758,15 +1762,43 @@ def unnamed(
         )
 
     items: dict[int, Token] = {}
+    phrases: list[Token] = []
     for token in pipeline(language)(recovered):
         if _coordinated_item(token):
             first = token.head.head if token.head.dep_ == "cd" else token.head
             items[first.i] = first
             items[token.i] = token
+        elif token.dep_ in _CONJUNCTS and token.pos_ in _PREDICATES:
+            phrases.append(token)
     found = [
         item.text
         for item in items.values()
         if any(new(word, item) for word in _own(item))
+    ]
+    # A verb phrase joined to the first is one more thing the answer says when
+    # the thing it acts on is one the key and question lack. Only its direct
+    # object is read: a trailing modifier of the last phrase (`, backdated to
+    # the first month`) belongs to the whole sentence.
+    found += [
+        phrase.text
+        for phrase in phrases
+        if any(
+            child.dep_ in _OBJECTS and new(child, child) for child in phrase.children
+        )
+    ]
+    # A figure the recovery states that the key and question do not: `30 days,
+    # 14 days and 7 days` against `30 days and 14 days`, whose unit is known.
+    # Only a value written in digits: an ordinal word (`the first month`) is
+    # not one more item.
+    stated = {
+        reading
+        for one in _number_readings(target + " " + question, language)
+        for reading in one
+    }
+    found += [
+        min(one)
+        for one in _number_readings(recovered, language)
+        if not one & stated and any(char.isdigit() for char in "".join(one))
     ]
     found += [
         part.strip() for part in _segments(recovered) if content(part, language) - known

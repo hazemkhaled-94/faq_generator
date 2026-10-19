@@ -3941,6 +3941,42 @@ def test_a_key_naming_one_of_many_is_still_incomplete_with_its_question(
     assert incomplete(recovered, target, language, AnswerForm.LIST, question=question)
 
 
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "en",
+            "What are the notice periods?",
+            "30 days and 14 days",
+            "The notice periods are 30 days, 14 days and 7 days.",
+        ),
+        (
+            "de",
+            "Welche Fristen gelten für Rücksendungen im Onlineshop?",
+            "30 Tage und 14 Tage",
+            "Für Rücksendungen im Onlineshop gelten Fristen von 30 Tagen, 14 Tagen und 7 Tagen.",
+        ),
+        (
+            "en",
+            "Which two conditions must a customer meet to return goods?",
+            "a receipt",
+            "The customer must present a receipt and return the original packaging.",
+        ),
+        (
+            "de",
+            "Welche zwei Bedingungen muss ein Kunde erfüllen?",
+            "einen Beleg",
+            "Der Kunde muss einen Beleg vorlegen und die Originalverpackung zurückgeben.",
+        ),
+    ],
+)
+def test_a_figure_or_a_verb_phrase_the_key_lacks_is_still_an_item_it_lacks(
+    language, question, target, recovered
+) -> None:
+    """The extra item is a figure, or a coordinated verb phrase with nouns of its own."""
+    assert incomplete(recovered, target, language, AnswerForm.LIST, question=question)
+
+
 #: Everything the passage says blocks a card, as a verifier reading it
 #: writes it back.
 _BLOCKED = (
