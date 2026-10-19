@@ -1156,7 +1156,7 @@ def test_an_elided_passage_is_dealt_after_the_passages_it_quotes() -> None:
 
 
 def test_a_compound_slot_is_dealt_an_unrelated_partner() -> None:
-    """The passage of another topic sharing least with the head, not the likeliest."""
+    """The passage of the topic sharing least with the head, not the likeliest."""
     head = facts_of(1, "a", count=1, topic_id=1, lemmas=("account", "limit", "card"))
     related = facts_of(2, "b", count=1, topic_id=2, lemmas=("account", "limit"))
     unrelated = facts_of(3, "c", count=1, topic_id=3, lemmas=("parcel", "courier"))
@@ -1174,3 +1174,29 @@ def test_a_compound_slot_with_no_other_passage_is_dealt_the_head_alone() -> None
 
     assert sample is not None
     assert {fact.passage_id for fact in sample.facts} == {1}
+
+
+def test_a_compound_partner_is_kept_under_the_shipped_meets_share() -> None:
+    """Unrelated on purpose: the floor that asks a partner to meet the head is not applied."""
+    head = facts_of(1, "a", count=1, axis=0, passage_axis=0, lemmas=("x", "y"))
+    close = facts_of(2, "b", count=1, axis=0, passage_axis=0, lemmas=("x", "y"))
+    far = facts_of(3, "c", count=1, axis=1, passage_axis=1, lemmas=("z",))
+    deal = Deal(head + close + far, wanted=3, size=4, share=0.02)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, 3}
+
+
+def test_a_passage_with_no_lemmas_is_not_a_compound_partner() -> None:
+    """It would score an overlap of 0 with everything and always win."""
+    head = facts_of(1, "a", count=1, lemmas=("account", "limit"))
+    bare = facts_of(2, "b", count=1)
+    some = facts_of(3, "c", count=1, lemmas=("account", "card"))
+    deal = Deal(head + bare + some, wanted=3, size=4)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, 3}

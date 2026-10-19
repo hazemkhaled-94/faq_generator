@@ -54,7 +54,8 @@ class Shape(StrEnum):
     CROSS = "cross"
     BRIDGE = "bridge"
     #: For a compound slot: unrelated on purpose, so the partner is the passage
-    #: of another topic the head shares least with, 2 points like `cross`.
+    #: of the topic and its bridges the head shares least with, 2 points like
+    #: `cross`.
     APART = "apart"
 
 
@@ -470,7 +471,11 @@ class Deal:
             partner = self._apart(head)
         else:
             partner = self._cross(head)
-        if partner and not self._clears(head, partner, condensed, prefer):
+        if (
+            partner
+            and shape != Shape.APART
+            and not self._clears(head, partner, condensed, prefer)
+        ):
             # Nothing in the second passage meets the first well enough to
             # be worth offering. The span rules already tell the writer to
             # narrow in this case; this narrows for it, and the question
@@ -619,14 +624,20 @@ class Deal:
         )
 
     def _apart(self, head: list[SourceFact]) -> list[SourceFact] | None:
-        """The passage sharing least with the head, preferably of another topic.
+        """The passage sharing least with the head.
 
-        What a compound question wants: two things nobody relates. Among the
-        passages this topic still has and the bridging ones of other topics,
-        the one with the lowest `overlap`; ties go to the lower passage id.
-        None where there is no other passage.
+        What a compound question wants: two things nobody relates, so the
+        floor that asks a partner to meet the head is not applied to it. Among
+        the passages this topic still has and the passages of its bridges, the
+        one with the lowest `overlap`; ties go to the lower passage id. A
+        passage with no lemmas is not eligible: it would score 0 against
+        everything and always win. None where there is no such passage.
         """
-        candidates = [*self._free(head), *self._free(head, bridging=True)]
+        candidates = [
+            one
+            for one in (*self._free(head), *self._free(head, bridging=True))
+            if one[0].lemmas
+        ]
         if not candidates:
             return None
         return min(candidates, key=lambda one: (overlap(head, one), one[0].passage_id))
