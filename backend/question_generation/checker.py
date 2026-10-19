@@ -66,6 +66,7 @@ from question_generation.gates import (
     COVERAGE,
     ENTAILMENT_OVERLAP,
     EXPLANATION_CHARS,
+    MARKER,
     NAMES_SOMETHING,
     OFF_TOPIC_OVERLAP,
     OVERLAP,
@@ -167,10 +168,6 @@ def quoted(quote: str, text: str) -> bool:
     return all(piece in held for piece in pieces if piece)
 
 
-#: A list item's marker at the start of a line: a dash or a bullet, or a
-#: number or a letter closed by a full stop or a bracket.
-_MARKER = re.compile(r"^\s*(?:[-–—•*·▪●◦]|\(?\d{1,3}[.)]|\(?[a-zA-Z][.)])\s+")
-
 #: Where a quote stitched from lines, cells, sentences or passages joins two
 #: runs: a line break, an ellipsis, a cell bar, the [n] a passage was shown
 #: under, a bullet inside a line, and a sentence's or a clause's end.
@@ -187,13 +184,13 @@ _ALONE = 3
 
 def _pieces(quote: str) -> list[str]:
     """A quote's runs, each as `_plain` reads it, without its list marker."""
-    runs = (_MARKER.sub("", run) for run in _JOINS.split(quote.replace("...", "…")))
+    runs = (MARKER.sub("", run) for run in _JOINS.split(quote.replace("...", "…")))
     return [piece for run in runs if (piece := _plain(run).strip(_EDGES))]
 
 
 def _readings(passage: str) -> tuple[str, str]:
     """A passage as it reads, and with its list markers and cell bars folded out."""
-    folded = " ".join(_MARKER.sub("", line) for line in passage.split("\n"))
+    folded = " ".join(MARKER.sub("", line) for line in passage.split("\n"))
     return _plain(passage), _plain(folded.replace("|", " "))
 
 
@@ -947,6 +944,7 @@ class QuestionChecker:
                 candidate.group.language,
                 form,
                 self._coverage,
+                candidate.question_text,
             ):
                 return (
                     QuestionRejection.ANSWER_INCOMPLETE,

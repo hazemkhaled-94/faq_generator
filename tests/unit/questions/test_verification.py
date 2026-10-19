@@ -3841,6 +3841,106 @@ def test_a_key_naming_most_of_what_came_back_is_complete() -> None:
     )
 
 
+_TERSE = [
+    (
+        "de",
+        "Wann erstattet die Bank die Kontoführungsgebühr für das Girokonto?",
+        "bei Kündigung in der Probezeit und bei Umzug ins Ausland",
+        "Die Bank erstattet die monatliche Kontoführungsgebühr für das Girokonto, wenn der Kunde das Girokonto in der Probezeit kündigt oder ins Ausland umzieht, und zwar rückwirkend ab dem ersten Monat.",
+    ),
+    (
+        "en",
+        "When does the bank refund the monthly account fee on a current account?",
+        "on closure during the trial period, and on a move abroad",
+        "The bank refunds the monthly account fee on a current account if the customer closes the current account during the trial period or moves abroad, backdated to the first month of the contract.",
+    ),
+    (
+        "de",
+        "Wann darf ein Kunde die Ware im Onlineshop zurückgeben?",
+        "innerhalb von 30 Tagen und in der Originalverpackung",
+        "Ein Kunde darf die Ware im Onlineshop zurückgeben, wenn er sie innerhalb von 30 Tagen nach der Lieferung in der unbeschädigten Originalverpackung an das zentrale Lager des Onlineshops schickt.",
+    ),
+    (
+        "en",
+        "When may a customer return goods bought in the online shop?",
+        "within 30 days, and in the original packaging",
+        "A customer may return goods bought in the online shop if they send them within 30 days of delivery in the undamaged original packaging to the central warehouse of the online shop.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("language", "question", "target", "recovered"), _TERSE)
+def test_a_terse_key_naming_every_item_is_not_incomplete(
+    language, question, target, recovered
+) -> None:
+    """A full-sentence recovery restates the question, which is not more items.
+
+    The share alone read it as a fraction of the answer: 39 of the 43 usable
+    keys the gate refused on a rebuild were complete. It now also needs an
+    item the recovery names that neither the key nor the question carries.
+    """
+    assert not incomplete(
+        recovered, target, language, AnswerForm.LIST, question=question
+    )
+
+
+def test_a_terse_complete_key_is_accepted_through_the_checker() -> None:
+    """The checker hands the gate the question, which the unit rows above need."""
+    _, question, target, recovered = _TERSE[3]
+    result = build(Recording(recovers=recovered)).check(
+        candidate(
+            question_text=question,
+            target_answer=target,
+            question_type=QuestionType.CONDITION,
+        )
+    )
+
+    assert result.answer_form == AnswerForm.LIST
+    assert result.rejected_reason is None
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "de",
+            "Mit wem arbeitet die Kundenberaterin der Bank zusammen?",
+            "mit der Kreditabteilung",
+            "Die Kundenberaterin arbeitet mit der Kreditabteilung, der Rechtsabteilung, dem Wertpapierhandel, der Filialleitung und dem Kundenservice zusammen.",
+        ),
+        (
+            "en",
+            "Who does the bank's customer adviser work with?",
+            "with the credit department",
+            "The customer adviser works with the credit department, the legal department, securities trading, branch management and customer service.",
+        ),
+        (
+            "de",
+            "Welche Zahlungsarten akzeptiert der Onlineshop?",
+            "Kreditkarte",
+            "Der Onlineshop akzeptiert Kreditkarte, Lastschrift, PayPal, Überweisung, Gutscheine und Rechnung.",
+        ),
+        (
+            "en",
+            "Which payment methods does the shop accept?",
+            "credit card",
+            "The shop accepts credit card, debit card, PayPal, bank transfer, gift vouchers and invoice payment.",
+        ),
+        (
+            "de",
+            "Welche Karten bietet die Bank an?",
+            "die goldene Kreditkarte",
+            "Die Bank bietet die goldene Kreditkarte, die silberne Kreditkarte und die schwarze Kreditkarte für Privatkunden und Geschäftskunden an.",
+        ),
+    ],
+)
+def test_a_key_naming_one_of_many_is_still_incomplete_with_its_question(
+    language, question, target, recovered
+) -> None:
+    """An item the key and the question lack is what the gate was written to catch."""
+    assert incomplete(recovered, target, language, AnswerForm.LIST, question=question)
+
+
 #: Everything the passage says blocks a card, as a verifier reading it
 #: writes it back.
 _BLOCKED = (

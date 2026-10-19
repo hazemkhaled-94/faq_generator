@@ -1662,6 +1662,7 @@ def incomplete(
     language: str | None,
     form: str = AnswerForm.VALUE,
     coverage: float = COVERAGE,
+    question: str = "",
 ) -> bool:
     """Whether the key names much less than the verifier found in the passages.
 
@@ -1691,7 +1692,9 @@ def incomplete(
     """
     if form != AnswerForm.LIST or coverage <= 0:
         return False
-    return covered(recovered, target, language) < coverage
+    return covered(recovered, target, language) < coverage and bool(
+        unnamed(recovered, target, language, question)
+    )
 
 
 def covered(recovered: str, target: str, language: str | None) -> float:
@@ -1705,6 +1708,70 @@ def covered(recovered: str, target: str, language: str | None) -> float:
     if not got or len(got) <= len(wanted):
         return 1.0
     return len(wanted & got) / len(got)
+
+
+#: A list item's marker at the start of a line: a dash or a bullet, or a
+#: number or a letter closed by a full stop or a bracket.
+MARKER = re.compile(r"^\s*(?:[-–—•*·▪●◦]|\(?\d{1,3}[.)]|\(?[a-zA-Z][.)])\s+")
+
+#: How a conjunction or a comma hangs off the conjunct it joins, in Universal
+#: Dependencies and in TIGER.
+_JOINERS = frozenset({"cc", "cd", "punct"})
+
+#: The parts of speech `content` reads as naming something.
+_NAMING = frozenset({"NOUN", "PROPN", "ADJ"})
+
+
+def _segments(text: str) -> list[str]:
+    """The items a text sets apart by layout: its marked lines, else its `;` parts.
+
+    Empty where it sets fewer than two apart: one sentence is no list.
+    """
+    marked = [MARKER.sub("", line) for line in text.splitlines() if MARKER.match(line)]
+    if len(marked) >= 2:
+        return marked
+    parts = [part for part in text.split(";") if part.strip()]
+    return parts if len(parts) >= 2 else []
+
+
+def _own(item: Token) -> list[Token]:
+    """A conjunct's own words: it and its dependents, not the conjuncts it joins."""
+    words, stack = [], [item]
+    while stack:
+        word = stack.pop()
+        words.append(word)
+        stack.extend(
+            child for child in word.children if child.dep_ not in _CONJUNCTS | _JOINERS
+        )
+    return words
+
+
+def unnamed(
+    recovered: str, target: str, language: str | None, question: str = ""
+) -> tuple[str, ...]:
+    """The items the recovery names that neither the key nor the question carries."""
+    known = vocabulary(target, language) | vocabulary(question, language)
+
+    def new(word: Token, item: Token) -> bool:
+        return (word is item or word.pos_ in _NAMING) and not (
+            {word.lemma_.casefold(), word.text.casefold()} & known
+        )
+
+    items: dict[int, Token] = {}
+    for token in pipeline(language)(recovered):
+        if _coordinated_item(token):
+            first = token.head.head if token.head.dep_ == "cd" else token.head
+            items[first.i] = first
+            items[token.i] = token
+    found = [
+        item.text
+        for item in items.values()
+        if any(new(word, item) for word in _own(item))
+    ]
+    found += [
+        part.strip() for part in _segments(recovered) if content(part, language) - known
+    ]
+    return tuple(found)
 
 
 #: The kinds whose explanation-form key can name part of what the passages
