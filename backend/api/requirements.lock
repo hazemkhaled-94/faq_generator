@@ -32,7 +32,7 @@ Pygments==2.21.0
 SQLAlchemy==2.0.54
 accelerate==1.15.0
 aiohappyeyeballs==2.7.1
-aiohttp==3.14.3
+aiohttp==3.14.4
 aiosignal==1.4.0
 alembic==1.20.0
 annotated-doc==0.0.5
