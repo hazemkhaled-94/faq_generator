@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from database.qa_generator import Difficulty
+from database.qa_generator import Difficulty, QuestionType
 from question_generation.selection import Shape, spread
 from question_generation.types import SPECS, TypeSpec
 
@@ -32,6 +32,16 @@ SHAPES: dict[str, str] = {
     Difficulty.MEDIUM: Shape.CROSS,
     Difficulty.HARD: Shape.BRIDGE,
 }
+
+#: The kinds an unanswerable slot may be written as: those asking for one
+#: detail (a value, a party, a reason) that the material can leave out while
+#: saying everything around it. A set, a condition, a definition, a procedure
+#: or a consequence is what a closed list, a categorical rule or a definition
+#: settles, and drafts of those kinds were answered about two times in three
+#: against under one in two for these.
+PERTURBABLE: frozenset[str] = frozenset(
+    {QuestionType.FACTOID, QuestionType.ENTITY, QuestionType.REASON}
+)
 
 
 @dataclass(frozen=True)
@@ -102,26 +112,33 @@ def plans(
     has nothing to do, and a chatbot declining it is not made cleverer by the
     question having spanned two documents.
 
-    And its TYPE is swapped for one that does not span, because the writer is
-    handed one fact to perturb: an unanswerable `comparison` has one side and
-    an unanswerable `aggregation` has one number, and neither is the kind of
-    question it was planned to be. The non-spanning types are cycled in mix
-    order, so the swap is spread over them rather than landing on one.
+    And its TYPE is swapped for a kind of the mix that asks for one detail
+    (PERTURBABLE: factoid, entity, reason, those weighted above 0), because
+    the writer is handed one fact to perturb: an unanswerable `comparison`
+    has one side and an unanswerable `aggregation` has one number, and
+    neither is the kind of question it was planned to be. The kinds are
+    cycled in mix order, so the swap is spread over them rather than landing
+    on one. A mix with none of them writes the slot answerable, in the kind
+    it was allocated: writing nothing loses the slot, and writing a set or a
+    condition unanswerable mostly writes a question the material settles.
     """
     typed = allocate(types, wanted)
     banded = allocate(bands, wanted)
     if not typed or not banded:
         return []
 
-    alone = _alone(types)
+    detail = _perturbable(types)
     planned = []
     perturbed = 0
     for index, name in enumerate(typed):
         answerable = not spread(index, unanswerable_share)
         band = banded[index % len(banded)]
-        if not answerable and alone:
-            name = alone[perturbed % len(alone)]
-            perturbed += 1
+        if not answerable:
+            if detail:
+                name = detail[perturbed % len(detail)]
+                perturbed += 1
+            else:
+                answerable = True
         planned.append(_slot(name, band, answerable))
     return planned
 
@@ -150,6 +167,11 @@ def _alone(types: Mapping[str, int]) -> list[str]:
     return [
         name for name, weight in types.items() if weight > 0 and not SPECS[name].spans
     ]
+
+
+def _perturbable(types: Mapping[str, int]) -> list[str]:
+    """The kinds of the mix an unanswerable slot may be written as."""
+    return [name for name in _alone(types) if name in PERTURBABLE]
 
 
 def _slot(name: str, band: str, answerable: bool) -> Plan:

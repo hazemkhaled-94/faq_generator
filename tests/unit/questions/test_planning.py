@@ -11,7 +11,7 @@ from collections import Counter
 
 from database.qa_generator import Difficulty, QuestionType
 from question_generation.planning import allocate, plans
-from question_generation.selection import Shape
+from question_generation.selection import Shape, spread
 from question_generation.types import SPECS
 
 MIX = {
@@ -272,16 +272,94 @@ def test_the_swap_is_spread_over_the_types_that_do_not_span() -> None:
     assert swapped == {QuestionType.FACTOID, QuestionType.ENTITY}
 
 
-def test_a_mix_of_only_spanning_types_keeps_the_type_it_was_given() -> None:
-    """There is nothing to swap to, and writing nothing is the worse answer."""
+TODAYS_MIX = {
+    QuestionType.FACTOID: 1,
+    QuestionType.DEFINITION: 1,
+    QuestionType.ENTITY: 0,
+    QuestionType.ENUMERATION: 1,
+    QuestionType.CONDITION: 1,
+    QuestionType.REASON: 1,
+    QuestionType.PROCEDURE: 1,
+    QuestionType.CONSEQUENCE: 1,
+    QuestionType.COMPARISON: 1,
+    QuestionType.AGGREGATION: 1,
+    QuestionType.TEMPORAL: 0,
+    QuestionType.IMPLICATION: 1,
+    QuestionType.APPLICATION: 1,
+}
+TODAYS_BANDS = {Difficulty.EASY: 2, Difficulty.MEDIUM: 3, Difficulty.HARD: 3}
+
+
+def test_an_unanswerable_slot_takes_only_a_kind_that_asks_for_one_detail() -> None:
+    """A set, a condition or a definition is what the material settles."""
     planned = plans(
+        wanted=60,
+        types={kind: 1 for kind in QuestionType},
+        bands={Difficulty.EASY: 1, Difficulty.MEDIUM: 1, Difficulty.HARD: 1},
+        unanswerable_share=0.3,
+    )
+
+    kinds = {one.spec.name for one in planned if not one.answerable}
+
+    assert kinds == {
+        QuestionType.FACTOID,
+        QuestionType.ENTITY,
+        QuestionType.REASON,
+    }
+
+
+def test_the_unanswerable_slots_alternate_over_the_detail_kinds_of_the_mix() -> None:
+    """Entity has weight 0 in this mix, so it never appears."""
+    planned = plans(
+        wanted=120,
+        types=TODAYS_MIX,
+        bands=TODAYS_BANDS,
+        unanswerable_share=0.30,
+    )
+
+    names = [one.spec.name for one in planned if not one.answerable]
+
+    assert Counter(names) == {QuestionType.FACTOID: 18, QuestionType.REASON: 18}
+    assert names[:4] == [
+        QuestionType.FACTOID,
+        QuestionType.REASON,
+        QuestionType.FACTOID,
+        QuestionType.REASON,
+    ]
+
+
+def test_the_answerable_slots_do_not_move() -> None:
+    """Narrowing the unanswerable kinds frees no answerable slot."""
+    planned = plans(
+        wanted=120,
+        types=TODAYS_MIX,
+        bands=TODAYS_BANDS,
+        unanswerable_share=0.30,
+    )
+
+    answerable = [one.spec.name for one in planned if one.answerable]
+
+    assert answerable == [
+        name
+        for index, name in enumerate(allocate(TODAYS_MIX, 120))
+        if not spread(index, 0.30)
+    ]
+
+
+def test_a_mix_with_no_detail_kind_writes_every_slot_answerable() -> None:
+    """Writing nothing loses the slot; a set or a condition mostly gets settled."""
+    spanning = plans(
         wanted=8,
         types={QuestionType.COMPARISON: 1},
         bands={Difficulty.MEDIUM: 1},
         unanswerable_share=0.25,
     )
+    sets = plans(
+        wanted=8,
+        types={QuestionType.DEFINITION: 1, QuestionType.ENUMERATION: 1},
+        bands={Difficulty.EASY: 1},
+        unanswerable_share=0.25,
+    )
 
-    unanswerable = [one for one in planned if not one.answerable]
-
-    assert unanswerable
-    assert all(one.spec.name == QuestionType.COMPARISON for one in unanswerable)
+    assert all(one.answerable for one in spanning + sets)
+    assert {one.spec.name for one in spanning} == {QuestionType.COMPARISON}

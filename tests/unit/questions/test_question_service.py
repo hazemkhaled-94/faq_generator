@@ -305,6 +305,55 @@ def test_the_unanswerable_share_reaches_the_writer() -> None:
     assert roots[-1].target_answer is None
 
 
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "The transfer fee is EUR 2 per transfer."),
+        ("de", "Die Überweisungsgebühr beträgt 2 EUR pro Überweisung."),
+        ("en", "Returns are accepted within 14 days of delivery."),
+        ("de", "Rücksendungen sind innerhalb von 14 Tagen nach Lieferung möglich."),
+    ],
+)
+def test_an_unanswerable_slot_reaches_the_writer_as_a_detail_kind(
+    language: str, statement: str
+) -> None:
+    """A condition or a definition is what a rule in the material settles."""
+    settings = replace(
+        SETTINGS,
+        type_mix={
+            QuestionType.DEFINITION: 1,
+            QuestionType.CONDITION: 1,
+            QuestionType.FACTOID: 1,
+            QuestionType.REASON: 1,
+        },
+        unanswerable_share=0.5,
+        per_topic=4,
+    )
+    facts = [
+        source(
+            n,
+            document="ab"[n % 2],
+            passage_id=n,
+            statement=statement,
+            language=language,
+        )
+        for n in range(8)
+    ]
+    writer = StubWriter()
+    service, _ = build(
+        topic(language=language), facts, writer=writer, settings=settings
+    )
+
+    service.process_next()
+
+    unanswerable = [one for one in writer.plans if not one.answerable]
+    assert unanswerable
+    assert {one.spec.name for one in unanswerable} <= {
+        QuestionType.FACTOID,
+        QuestionType.REASON,
+    }
+
+
 def test_a_model_that_will_not_answer_fails_the_topic(caplog) -> None:
     """Recorded against the row with a reason, so retry can move it."""
     writer = StubWriter(raises=ModelUnavailable("Timeout: the model did not answer"))
@@ -1254,7 +1303,7 @@ def test_an_unanswerable_slot_is_dealt_an_atomic_fact() -> None:
         SETTINGS,
         per_topic=1,
         sample_size=1,
-        type_mix={QuestionType.CONDITION: 1},
+        type_mix={QuestionType.REASON: 1},
         unanswerable_share=1.0,
     )
     service, _ = build(topic(), facts, writer=writer, settings=settings)

@@ -38,7 +38,8 @@ unanswerable share and the follow-up share are both taken by position.
 A kind with a weight of `0`, or left out, is never planned; a follow-up takes
 its kind from `QUESTIONS_FOLLOWUP_TYPES` instead. A band can be moved off its
 weight: an `easy` slot is raised to its kind's floor, and an unanswerable one
-is planned `easy`. A kind that declares a floor of its own while needing one
+is planned `easy` and written as one of the mix's `factoid`, `entity` or `reason`
+kinds (a mix with none of them writes the slot answerable). A kind that declares a floor of its own while needing one
 passage is dealt one passage whatever its band, so it is never told to span. `GET /questions/plan` reports the configured mixes, shares
 and answer bounds the next run will read.
 
@@ -184,8 +185,7 @@ a passage holding a fact whose **evidence** carries a purpose marker —
 offered first; the rest of the sample is filled as any slot's is, so it may
 carry unmarked facts beside them, and which ones the question cites is still
 the writer's answer. Where no passage left holds one, the slot is written as
-another kind of the mix that does not span, cycled as the unanswerable swap
-is, and skipped with a warning if the mix has none. A thread whose material
+another kind of the mix that does not span, cycled in mix order, and skipped with a warning if the mix has none. A thread whose material
 states no reason drops `reason` from its `QUESTIONS_FOLLOWUP_TYPES` cycle,
 and is not followed, with a warning, if no other kind is left. It is a
 preference over what is dealt, not a gate, and a language with no markers is
@@ -484,7 +484,10 @@ a passage. `QUESTIONS_PHRASING_MODEL` is the dial; unset it falls back to
 Some questions are written to have no answer, by perturbing a verified fact
 just out of reach. `QUESTIONS_UNANSWERABLE_SHARE` sets how many are
 **attempted**, spread by position rather than at random. One is always
-planned `easy` and from one passage, and dealt an **atomic** fact first: a
+planned `easy` and from one passage, written only as a kind that asks for one
+detail - `factoid`, `entity` and `reason`, those the mix weights above 0, in
+mix order: a set, a condition or a definition is what a closed list or a rule
+in the material settles - and dealt an **atomic** fact first: a
 summary perturbed moves a whole passage's claims at once, and the move lands
 on one of them.
 
