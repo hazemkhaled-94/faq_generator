@@ -805,6 +805,12 @@ holds the build's figures.
 | A rule written as one statement joining two actions was lost | 152 of the 186 `not_atomic` refusals were judged wrong; the counter is right that two finite verbs are two claims, but nothing asked for the split facts | the statements the model wrote and the checker refused as `not_atomic` go back to the same model once per passage, under a repair prompt of their own (`repair-1`), and what it writes faces every check, the dedup gate and the cap; the refusal is stored as it was ([`extractors/llm.py`](../backend/extraction/extractors/llm.py), [`service.py`](../backend/extraction/service.py)) | Azure, 60 passages holding 78 refusals: 166 facts written, 143 validated, 120 of those correct (84%; German 76%, English 90%), and the refused claims recovered in full or mostly in 48 of 60 passages |
 | A condition the parser hung as a conjunct counted as a second claim | "but only if it has not been executed" and the members of "es sei denn, A und B" were counted as claims of their own | a conjunct opened by its own subordinator, and a clause joined to the case an exception or an alternative leaves out, restrict the rule ([`nlp/analysis.py`](../backend/nlp/analysis.py)) | 8 refusals of the v0.4.0 build and 9 of v0.3.0 freed, every one judged a wrong refusal; no right refusal lost |
 
+### Fixed in v0.3.11: topics
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| One seeded topic fit was kept unread | the factorisation's seed decides how alike a topic's members come out, by as much as two rebuilds differed; v0.4.0's draw was the second loosest of nine | the fit draws eight factorisations seeded from `TOPIC_RANDOM_STATE` on and keeps the one whose members are most alike in the tf-idf space it already builds ([`topics.py`](../backend/topic_modelling/topics.py)); the same corpus still keeps the same draw | over the v0.4.0 passages, members came out 1.67 times as alike as the corpus in German instead of 1.46, and 1.55 instead of 1.44 in English; German topics looser than 1.3 times fell from 3 to 1, English stayed at 4 |
+
 ### Deferred, with the reason
 
 | Defect | Why it stays open |

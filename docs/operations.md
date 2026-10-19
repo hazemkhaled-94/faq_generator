@@ -200,6 +200,21 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.11
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting.
+
+**The topic fit.** A fit now makes eight seeded draws and keeps the most
+cohesive, so it takes about eight times as long, a few seconds per language
+on a corpus of a few hundred passages. Stored topics stay until the next
+`make topics-discover`, which names the new topics and carries a person's
+decisions as v0.3.7 does; bridges and questions follow the topics.
+
 ## Upgrading to v0.3.10
 
 ```bash

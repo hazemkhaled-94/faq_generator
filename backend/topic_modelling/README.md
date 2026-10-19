@@ -58,15 +58,19 @@ is an outstanding request, and a row that has one is a topic.
 3. **Build the vocabulary** from `passages.lemmas`, streamed by id in batches
    of 500. The lemmas are read, not computed. What the fitter takes is a
    callable returning a fresh walk, because a fit reads the corpus once to
-   build the vocabulary, once per pass to fit, and once more to score.
+   build the vocabulary, once to read each passage's tf-idf vector (which it
+   holds), and for each of its eight draws once per pass to fit and once more
+   to score.
 4. **Filter it.** `filter_extremes` drops terms below `TOPIC_NO_BELOW`
    passages and above `TOPIC_NO_ABOVE` of them. Two failures are raised
    rather than fitted through: an empty vocabulary, and a vocabulary whose
    every surviving term has an idf of zero, which would make every topic
    `NaN`.
 5. **Fit.** `Nmf` over as many components as `TOPIC_NUM_TOPICS` and
-   `TOPIC_PASSAGES_PER_TOPIC` allow and `TOPIC_PASSES` passes, seeded with
-   `TOPIC_RANDOM_STATE`.
+   `TOPIC_PASSAGES_PER_TOPIC` allow and `TOPIC_PASSES` passes, eight times,
+   seeded from `TOPIC_RANDOM_STATE` on. The draw kept is the one whose topics'
+   members are most alike, as the mean cosine of their tf-idf vectors: seeds
+   over one corpus differ in that by as much as two rebuilds did.
 6. **Read the topics out.** `TOPIC_TOP_TERMS` highest-weighted terms each.
 7. **Score every passage.** One walk produces the memberships (every weight
    above `TOPIC_MIN_WEIGHT`, clamped to 1.0), the passages placed in no
@@ -257,7 +261,7 @@ partial refit.
 | `TOPIC_PASSAGES_PER_TOPIC` | How many passages one topic is worth. Above 0 this turns `TOPIC_NUM_TOPICS` into a ceiling and fits `passages / this`, floored at 2, counting the passages that carry a validated fact once the language has any. `0` turns it off |
 | `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2 |
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
-| `TOPIC_RANDOM_STATE` | Seed. Fixed, so the same corpus gives the same topics |
+| `TOPIC_RANDOM_STATE` | Seed of the first of the fit's eight draws. Fixed, so the same corpus gives the same topics |
 | `TOPIC_TOP_TERMS` | Terms stored as a topic's signature |
 | `TOPIC_MIN_WEIGHT` | Smallest membership weight stored, exclusive. In `(0, 1)` |
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |

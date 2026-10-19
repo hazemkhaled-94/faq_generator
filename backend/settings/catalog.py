@@ -333,7 +333,7 @@ SETTINGS: tuple[Setting, ...] = (
         low=0,
         high=2**32 - 1,
         invalidates=("topics",),
-        help="Seed, so one corpus fits the same topics twice.",
+        help="Seed of the first of the fit's eight draws, so one corpus fits the same topics twice.",
     ),
     Setting(
         name="TOPIC_TOP_TERMS",
