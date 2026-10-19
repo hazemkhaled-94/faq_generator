@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.19
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. The `answer_incomplete` gate refuses fewer list keys, so a build refuses fewer questions and keeps more. The rule frees questions only in a fresh question generation: `make questions-reverify` never gives back a rejected question.
+
 ## Upgrading to v0.3.18
 
 ```bash
