@@ -1496,6 +1496,94 @@ def test_a_number_is_the_same_number_in_either_locale(recovered, target) -> None
     assert agrees(recovered, target, "de")
 
 
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "de",
+            "Wie lange dauert die Bearbeitung eines Kreditantrags?",
+            "8–10 Werktage",
+            "Die Bearbeitung eines Kreditantrags dauert mindestens 8 und höchstens 10 Werktage.",
+        ),
+        (
+            "en",
+            "How long does the bank take to process a loan application?",
+            "8–10 business days",
+            "Processing a loan application takes between 8 and 10 business days.",
+        ),
+        (
+            "de",
+            "Wie breit ist der Versandkarton des Shops?",
+            "30–50 cm",
+            "Der Versandkarton ist zwischen 30 cm und 50 cm breit.",
+        ),
+        (
+            "en",
+            "How wide is the shop's shipping box?",
+            "30–50 cm",
+            "The shipping box is between 30 cm and 50 cm wide.",
+        ),
+    ],
+)
+def test_a_range_comes_back_end_by_end(language, question, target, recovered) -> None:
+    """`100–110` is one figure token, so a reply `100 m ... 110 m` never held it.
+
+    A range a dash joins asserts both ends; the round trip finds it back when
+    the recovery gives each end, however it writes them.
+    """
+    assert agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        passages=(recovered,),
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "en",
+            "How long does the bank take to process a loan application?",
+            "8–10 business days",
+            "Processing a loan application takes between 8 and 12 business days.",
+        ),
+        (
+            "de",
+            "Wie lange dauert die Bearbeitung eines Kreditantrags?",
+            "8–10 Werktage",
+            "Die Bearbeitung dauert mindestens 8 Werktage.",
+        ),
+        (
+            "de",
+            "Wie schwer darf ein Paket des Shops sein?",
+            "30–50 cm",
+            "Ein Paket darf zwischen 30 und 50 kg wiegen.",
+        ),
+        (
+            "en",
+            "How heavy may a parcel be?",
+            "30–50 cm",
+            "A parcel may weigh between 30 kg and 50 kg.",
+        ),
+    ],
+)
+def test_a_range_still_needs_both_ends_and_its_unit(
+    language, question, target, recovered
+) -> None:
+    """Reading a range as two ends must not let one end, or another unit, through."""
+    assert not agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        passages=(recovered,),
+    )
+
+
 def test_a_three_decimal_rate_is_not_its_digits() -> None:
     """`0,125 %` is an eighth of a percent, which `125 %` is not."""
     assert not agrees("0,125 %", "125 %", "de")

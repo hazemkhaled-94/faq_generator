@@ -123,6 +123,26 @@ def _folded(token: str, language: str | None) -> str:
 _EITHER = re.compile(r"(\d{1,3})[.,](\d{3})")
 
 
+#: Two figures a dash joins, a range: `100–110`, `2-3`. It asserts both ends,
+#: and a reply writes them apart as often as together: `mindestens 100 m,
+#: höchstens 110 m`, `between 68 cm and 70 cm`.
+_RANGE = re.compile(r"(\d[\d.,]*)[–-](\d[\d.,]*)")
+
+
+def _ends(
+    units: frozenset[frozenset[str]], language: str | None
+) -> frozenset[frozenset[str]]:
+    """Each value of `units`, a range as its two ends, each read as `_readings` reads one."""
+    read: set[frozenset[str]] = set()
+    for one in units:
+        ranges = [found.groups() for unit in one if (found := _RANGE.fullmatch(unit))]
+        if ranges:
+            read.update(_readings(end, language) for end in ranges[0])
+        else:
+            read.add(one)
+    return frozenset(read)
+
+
 def _readings(unit: str, language: str | None) -> frozenset[str]:
     """Every value a figure a model wrote may be, as `_folded` gives one.
 
@@ -2324,7 +2344,11 @@ def agrees(
     # Each value as every reading a model's figure may have; one carried
     # reading is enough, and a name excused below is one value.
     found = _values(recovered, language)
-    missing = [one for one in _number_readings(target, language) if not one & found]
+    found |= frozenset().union(
+        *_ends(frozenset({frozenset({one}) for one in found}), language)
+    )
+    units = _number_readings(target, language)
+    missing = [one for one in _ends(units, language) if not one & found]
     if missing:
         named = _named(recovered, target, language, question, given)
         missing = [one for one in missing if not one & named]
@@ -2351,6 +2375,21 @@ def agrees(
         share = recalled(recovered, target, language, form, question, given, passages)
         return share is not None and share >= overlap
 
+    # A range and its unit, `68–70 cm`: the ends came back above, and every
+    # word it carries besides them has to come back too. Containment would
+    # want the dash back as well.
+    if any(_RANGE.fullmatch(unit) for one in units for unit in one):
+        said = vocabulary(recovered, language)
+        return all(
+            {token.lower_, token.lemma_.casefold()} & said
+            for token in pipeline(language)(target)
+            if not (
+                token.is_punct
+                or token.like_num
+                or _FIGURE.fullmatch(token.text)
+                or _RANGE.fullmatch(token.text)
+            )
+        )
     left, right = normalised(recovered), normalised(target)
     return bool(left) and right in left
 
