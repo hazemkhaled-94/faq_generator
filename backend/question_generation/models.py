@@ -436,6 +436,10 @@ class Candidate:
     #: What the slot was dealt to be, looked up in `kinds.KINDS`. The writer
     #: reads its instruction and shape off it and the checker its checks.
     kind: str = QuestionKind.SINGLE
+    #: A compound question's two halves: the passage each rests on, the half
+    #: asked alone, and its answer from that passage only. Empty on any
+    #: other kind.
+    parts: tuple[tuple[int, str, str], ...] = ()
 
     @property
     def follows(self) -> bool:

@@ -160,8 +160,15 @@ def _kinded(planned: list[Plan], kinds: Mapping[str, int]) -> list[Plan]:
         kind = QuestionKind.SINGLE
         if one.spans:
             kind = QuestionKind.NEEDS_BOTH if one.spec.spans else next(dealt)
-        kinded.append(replace(one, kind=kind))
+        kinded.append(_dealt(one, kind))
     return kinded
+
+
+def _dealt(plan: Plan, kind: str) -> Plan:
+    """The slot as the kind it is dealt: a compound one is shaped apart."""
+    if kind == QuestionKind.COMPOUND:
+        return replace(plan, kind=kind, shape=Shape.APART)
+    return replace(plan, kind=kind)
 
 
 def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
@@ -181,7 +188,7 @@ def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
     if not others:
         return None
     other = _slot(others[turn % len(others)], plan.band, plan.answerable)
-    return replace(other, kind=plan.kind if other.spans else QuestionKind.SINGLE)
+    return _dealt(other, plan.kind if other.spans else QuestionKind.SINGLE)
 
 
 def _alone(types: Mapping[str, int]) -> list[str]:

@@ -4889,3 +4889,202 @@ def test_the_verdict_bands_a_question_by_the_kind_it_is_stored_as(monkeypatch) -
 
     assert checked.kind == "needs_both"
     assert checked.criteria.difficulty == Difficulty.HARD
+
+
+# ── A compound question: one half from each passage ───────────────────────
+
+_BANK = {
+    "en": (
+        "The daily cash limit at a cash machine is 1,000 euros.",
+        "An account is closed by a signed letter to the branch.",
+        "What is the daily cash limit at a cash machine, and how is an account closed?",
+        (
+            (1, "What is the daily cash limit at a cash machine?", "1,000 euros"),
+            (2, "How is an account closed?", "by a signed letter to the branch"),
+        ),
+    ),
+    "de": (
+        "Das tägliche Bargeldlimit am Automaten beträgt 1.000 Euro.",
+        "Ein Konto wird durch einen unterschriebenen Brief an die Filiale geschlossen.",
+        (
+            "Wie hoch ist das tägliche Bargeldlimit am Automaten, und wie wird ein "
+            "Konto geschlossen?"
+        ),
+        (
+            (1, "Wie hoch ist das tägliche Bargeldlimit am Automaten?", "1.000 Euro"),
+            (
+                2,
+                "Wie wird ein Konto geschlossen?",
+                "durch einen unterschriebenen Brief an die Filiale",
+            ),
+        ),
+    ),
+}
+
+
+class PerHalf(Recording):
+    """A verifier answering each half asked alone from the passage it is shown."""
+
+    def __init__(self, answers: dict[str, str | None]) -> None:
+        """Initialises with what each half's question is answered with."""
+        super().__init__()
+        self.answers = answers
+        self.asked: list[tuple[str, tuple[str, ...]]] = []
+
+    def read(self, question: str, passages, thread=()) -> Reading:
+        """Answers by the question and records what it was shown."""
+        self.asked.append((question, tuple(passages)))
+        return Reading(recovered=self.answers.get(question))
+
+
+def _compound(language: str, question: str | None = None, **kwargs):
+    one, two, asked, parts = _BANK[language]
+    return candidate(
+        question_text=question or asked,
+        target_answer=kwargs.pop("target_answer", "; ".join(p[2] for p in parts)),
+        facts=group(
+            source(1, document="a", passage_id=1, statement=one, language=language),
+            source(2, document="b", passage_id=2, statement=two, language=language),
+        ),
+        kind="compound",
+        parts=kwargs.pop("parts", parts),
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_question_one_half_per_passage_is_accepted(language: str) -> None:
+    """Each half is recovered from its own passage, and the merged question is not."""
+    one, two, _, parts = _BANK[language]
+    recording = PerHalf({part[1]: part[2] for part in parts})
+
+    result = build(recording).check(_compound(language))
+
+    assert result.rejected_reason is None
+    assert result.kind == "compound"
+    assert result.fact_ids == (1, 2)
+    assert [(q, len(p)) for q, p in recording.asked] == [
+        (parts[0][1], 1),
+        (parts[1][1], 1),
+    ]
+    assert recording.asked[0][1][0].startswith(one)
+    assert recording.asked[1][1][0].startswith(two)
+    assert "round_trip" not in result.gates_ran
+
+
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [
+        ("en", "How do the voucher expiry and the exchange period differ?"),
+        (
+            "de",
+            (
+                "Wie unterscheiden sich die Gültigkeit eines Gutscheins und die "
+                "Umtauschfrist?"
+            ),
+        ),
+    ],
+)
+def test_a_compound_question_claiming_a_relation_is_refused(
+    language: str, question: str
+) -> None:
+    """Shop: the halves are unrelated on purpose, and one that says otherwise is another kind."""
+    recording = PerHalf({})
+
+    result = build(recording).check(_compound(language, question))
+
+    assert result.rejected_reason == QuestionRejection.WRONG_TYPE
+    assert recording.asked == []
+
+
+def test_a_compound_key_is_its_halves_answers_whatever_their_closing_marks() -> None:
+    """A half's answer may end in the full stop of its sentence and the key not.
+
+    Written as a sentence copied from the passage, the first half's answer
+    ends in `.`; joined, the key reads `...; ...`, which is the same key.
+    """
+    _, _, _, parts = _BANK["en"]
+    stopped = (
+        (parts[0][0], parts[0][1], parts[0][2] + "."),
+        (parts[1][0], parts[1][1], parts[1][2] + "."),
+    )
+    recording = PerHalf({part[1]: part[2] for part in parts})
+
+    result = build(recording).check(_compound("en", parts=stopped))
+
+    assert result.rejected_reason is None
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_half_its_passage_does_not_answer_is_refused(language: str) -> None:
+    """NOT IN PASSAGE for half two, and the reason names the half."""
+    _, _, _, parts = _BANK[language]
+    recording = PerHalf({parts[0][1]: parts[0][2], parts[1][1]: None})
+
+    checker = build(recording)
+
+    result = checker.check(_compound(language))
+    refused = checker._parts(_compound(language), AnswerForm.VALUE, [])
+
+    assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
+    assert code(refused) == QuestionRejection.NOT_RECOVERABLE
+    assert "half 2" in refused[1]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"target_answer": "1,000 euros by letter"},
+        {"parts": ((1, "What is the daily cash limit?", "1,000 euros"),)},
+        {
+            "parts": (
+                (1, "What is the daily cash limit at a cash machine?", "1,000 euros"),
+                (1, "How is an account closed?", "by a signed letter to the branch"),
+            )
+        },
+    ],
+)
+def test_a_compound_key_not_in_its_halves_is_refused(fields: dict) -> None:
+    """No split into the halves' answers, one half, or two halves on one passage."""
+    recording = PerHalf({})
+
+    result = build(recording).check(_compound("en", **fields))
+
+    assert result.rejected_reason == QuestionRejection.MALFORMED
+    assert recording.asked == []
+
+
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [
+        ("en", "Who approves the request and how long may it take?"),
+        ("de", "Wer genehmigt den Antrag und wie lange darf es dauern?"),
+    ],
+)
+def test_an_ordinary_two_question_word_draft_is_still_refused_as_compound(
+    language: str, question: str
+) -> None:
+    """Guard of today's gate: only the compound kind is let through it."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer="the board; two days",
+        answerable=True,
+        language=language,
+        bounds=BOUNDS,
+        forms=(AnswerForm.VALUE,),
+    )
+
+    assert code(failed) == QuestionRejection.COMPOUND
+
+
+def test_the_relation_table_names_a_lemma_per_language_and_none_for_a_gap() -> None:
+    """Keyed by ISO 639-1; a language with no row refuses nothing."""
+    from question_generation.gates import relates
+
+    assert relates("How do the fees differ?", "en") == "differ"
+    assert relates("Worin unterscheiden sich die Gebühren?", "de") == "unterscheiden"
+    assert relates("What is the limit, and how is an account closed?", "en") is None
+    assert (
+        relates("Was ist das Limit, und wie wird ein Konto geschlossen?", "de") is None
+    )
+    assert relates("Quel est le plafond, et ... both ... ?", "fr") is None

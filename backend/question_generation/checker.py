@@ -88,6 +88,7 @@ from question_generation.gates import (
     on_topic,
     recalled,
     relabelled,
+    relates,
     restates,
     retyped,
     rivals,
@@ -476,6 +477,7 @@ class QuestionChecker:
             forms=candidate.spec.forms,
             bounds=self._bounds,
             titles=candidate.group.titles,
+            kind=candidate.kind,
         )
 
         def done(
@@ -599,6 +601,86 @@ class QuestionChecker:
             else:
                 candidate = outcome
         return done(failed, embedding)
+
+    def _parted(
+        self, candidate: Candidate, readings: list[Measurement]
+    ) -> Candidate | tuple[str, str]:
+        """Whether a compound draft is two halves on two passages, unrelated.
+
+        Free. The key must be the halves' answers in order, joined by `; `,
+        and the question must claim no relation between them: one that does
+        is another kind of question, thrown away as the wrong type.
+        """
+        resting = {passage.id for passage in candidate.group.resting}
+        parts = candidate.parts
+        if (
+            len(parts) != 2
+            or parts[0][0] == parts[1][0]
+            or not {one[0] for one in parts} <= resting
+        ):
+            return (
+                QuestionRejection.MALFORMED,
+                (
+                    "a compound question needs exactly two parts, one for each "
+                    "of two different cited passages"
+                ),
+            )
+        # A half's answer copied as a sentence may close with a stop the joined
+        # key does not carry, so the closing marks are not compared.
+        joined = "; ".join(one[2].strip().rstrip(".;:").strip() for one in parts)
+        if (candidate.target_answer or "").strip().rstrip(
+            ".;:"
+        ).strip().casefold() != joined.casefold():
+            return (
+                QuestionRejection.MALFORMED,
+                f"the key is not its halves' answers joined by '; ', {joined!r}",
+            )
+        word = relates(candidate.question_text, candidate.group.language)
+        if word is not None:
+            return (
+                QuestionRejection.WRONG_TYPE,
+                (
+                    f"a compound question claims no relation between its "
+                    f"halves; it says {word!r}"
+                ),
+            )
+        return candidate
+
+    def _parts(
+        self,
+        candidate: Candidate,
+        form: str,
+        readings: list[Measurement],
+        embedding: list[float] | None = None,
+    ) -> Candidate | tuple[str, str]:
+        """Whether each half is answered by its own passage read alone.
+
+        The verifier is shown one half and one passage at a time, so a half
+        that needed the other passage, or that the passage does not hold, is
+        refused; the merged question is never read as one.
+        """
+        by_id = {passage.id: passage for passage in candidate.group.resting}
+        for number, (passage_id, question, answer) in enumerate(candidate.parts, 1):
+            passage = by_id[passage_id]
+            got = self._verifier.read(question, (passage.text,)).recovered
+            if got is None or not agrees(
+                got,
+                answer,
+                candidate.group.language,
+                form,
+                self._overlap,
+                question,
+                passage.section_path or "",
+                (passage.text,),
+            ):
+                return (
+                    QuestionRejection.NOT_RECOVERABLE,
+                    (
+                        f"half {number} ({question!r}) is not answered by its "
+                        f"passage alone"
+                    ),
+                )
+        return candidate
 
     def _kind(self, candidate: Candidate) -> tuple[str, str] | None:
         """What a rule can settle about the kind and the long answer.

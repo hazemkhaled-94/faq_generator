@@ -45,8 +45,10 @@ def _weights(
 
 
 #: QUESTIONS_KIND_MIX when it is not set: every spanning slot needs both
-#: passages, as before kinds existed. A kind written later adds its weight
-#: here only once its gate has passed.
+#: passages. `compound` is written and checked but holds no weight here: its
+#: calibration (v0.3.12 pairs, 13 of 24 accepted, 4 of 12 in English) missed
+#: the bar of 14 and 6 per language. `needs_both:5,compound:1` deals one slot
+#: in six; a kind written later adds its weight only once its gate has passed.
 _KIND_MIX: dict[str, int] = {QuestionKind.NEEDS_BOTH: 1}
 
 #: A language as every `language` column holds one: an ISO 639-1 code.
@@ -329,7 +331,7 @@ class Settings:
                 if optional("QUESTIONS_MEETS_SHARE", source)
                 else MEETS_SHARE
             ),
-            # Absent deals every spanning slot needs_both, as before.
+            # Absent deals the code default mix.
             kind_mix=(
                 _weights(
                     "QUESTIONS_KIND_MIX",

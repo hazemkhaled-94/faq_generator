@@ -166,6 +166,7 @@ missing from one fails no test.
 | `_ASKED_FOR` | same | Question openings by language, and the kinds each asks for, the primary first | `warum`, `why` |
 | `_ASKS_HOW_MANY` | same | How a question asks for a count anywhere in it, by language | `wie vielen`, `how many` |
 | `_ASKING_ADVERBS` | same | Question words the language's tagger reads as something else, by language: a German `wo(r)` and a preposition | `worauf` |
+| `_RELATES` | same | Lemmas by which a question claims a relation between what it asks about, by language: a comparison, a total, a cause. A compound question that says one is refused | `unterscheiden`, `differ` |
 | `_POLARITY` | same | Words answering a yes-or-no question by their polarity, by language | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why, by language: what a `reason` slot is dealt | `damit`, `so that` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |

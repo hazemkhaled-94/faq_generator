@@ -482,3 +482,59 @@ def test_the_kind_mix_refuses_single_and_unknown_names() -> None:
     for bad in ("single:1", "other:1"):
         with pytest.raises(ValueError, match="QUESTIONS_KIND_MIX names"):
             _loaded(bad)
+
+
+def test_a_compound_slot_is_dealt_the_apart_shape() -> None:
+    """A passage sharing least with the head, whatever band the slot came up."""
+    built = plans(
+        wanted=12,
+        types={QuestionType.FACTOID: 1},
+        bands={Difficulty.MEDIUM: 1, Difficulty.HARD: 1},
+        unanswerable_share=0.0,
+        kinds={QuestionKind.NEEDS_BOTH: 1, QuestionKind.COMPOUND: 1},
+    )
+
+    compound = [one for one in built if one.kind == "compound"]
+    assert compound
+    assert {one.shape for one in compound} == {Shape.APART}
+    assert Shape.APART not in {one.shape for one in built if one.kind == "needs_both"}
+    assert all(one.spans for one in compound)
+
+
+def test_a_compound_slot_swapped_for_another_type_stays_apart() -> None:
+    """`instead` keeps the kind, and the shape the kind is dealt."""
+    compound = next(
+        one
+        for one in plans(
+            wanted=12,
+            types={QuestionType.REASON: 1, QuestionType.FACTOID: 1},
+            bands={Difficulty.MEDIUM: 1},
+            unanswerable_share=0.0,
+            kinds={QuestionKind.COMPOUND: 1},
+        )
+        if one.spec.name == QuestionType.REASON
+    )
+
+    other = instead(compound, {QuestionType.FACTOID: 1}, 0)
+
+    assert other is not None
+    assert (other.kind, other.shape) == ("compound", Shape.APART)
+
+
+def test_the_kind_mix_default_deals_no_compound_slot_until_its_gate_passes() -> None:
+    """Code default: needs_both alone, and `needs_both:5,compound:1` is one in six."""
+    from question_generation.config import Settings
+
+    mix = Settings.__dataclass_fields__["kind_mix"].default_factory()
+    types = {QuestionType.FACTOID: 1, QuestionType.CONDITION: 1}
+    deal = {
+        "wanted": 36,
+        "types": types,
+        "bands": {Difficulty.MEDIUM: 1},
+        "unanswerable_share": 0.0,
+    }
+
+    assert mix == {"needs_both": 1}
+    assert "compound" not in {one.kind for one in plans(kinds=mix, **deal)}
+    six = plans(kinds={"needs_both": 5, "compound": 1}, **deal)
+    assert [one.kind for one in six].count("compound") == 6

@@ -1150,3 +1150,27 @@ def test_an_elided_passage_is_dealt_after_the_passages_it_quotes() -> None:
     dealt = [deal.sample(Shape.SINGLE).resting[0].id for _ in range(3)]
 
     assert dealt[-1] == 1, dealt
+
+
+# ── A compound slot's partner ─────────────────────────────────────────────
+
+
+def test_a_compound_slot_is_dealt_an_unrelated_partner() -> None:
+    """The passage of another topic sharing least with the head, not the likeliest."""
+    head = facts_of(1, "a", count=1, topic_id=1, lemmas=("account", "limit", "card"))
+    related = facts_of(2, "b", count=1, topic_id=2, lemmas=("account", "limit"))
+    unrelated = facts_of(3, "c", count=1, topic_id=3, lemmas=("parcel", "courier"))
+    deal = Deal(head + related + unrelated, wanted=3, size=4)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, 3}
+
+
+def test_a_compound_slot_with_no_other_passage_is_dealt_the_head_alone() -> None:
+    """As any shape the topic cannot supply."""
+    sample = Deal(facts_of(1, "a", count=1), wanted=1, size=4).sample(Shape.APART)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1}

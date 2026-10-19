@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 from database.qa_generator import (
     AnswerForm,
     FactKind,
+    QuestionKind,
     QuestionRejection,
     QuestionType,
 )
@@ -399,6 +400,61 @@ _ASKING_ADVERBS: dict[str, frozenset[str]] = {
 }
 
 
+#: Words by which a question claims a relation between what it asks about, by
+#: ISO 639-1 code, as lemmas: a comparison, a total, a cause. A compound
+#: question asks two things nobody relates, so one of these in it makes it a
+#: question of another kind. A language with no row refuses nothing.
+_RELATES: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "unterscheiden",
+            "unterschied",
+            "beide",
+            "zusammen",
+            "insgesamt",
+            "gleich",
+            "vergleichen",
+            "vergleich",
+            "weil",
+            "deshalb",
+            "daher",
+            "sowohl",
+        }
+    ),
+    "en": frozenset(
+        {
+            "differ",
+            "difference",
+            "both",
+            "together",
+            "total",
+            "same",
+            "compare",
+            "comparison",
+            "because",
+            "therefore",
+        }
+    ),
+}
+
+
+def relates(question: str, language: str | None) -> str | None:
+    """The word by which a question claims a relation between its halves.
+
+    The first token of the question whose lemma, or whose own form, is in the
+    language's row of `_RELATES`; None where none is, and for a language with
+    no row.
+    """
+    row = _RELATES.get((language or "").strip().lower())
+    if not row:
+        return None
+    for token in pipeline(language)(question):
+        for word in (token.lemma_.casefold(), token.lower_):
+            if word in row:
+                return word
+    return None
+
+
 def _asks(question: str, language: str | None) -> tuple[str, ...]:
     """The question words that each open a question of their own.
 
@@ -445,6 +501,7 @@ def structural(
     forms: Sequence[str] = (AnswerForm.VALUE,),
     bounds: Mapping[str, tuple[int, int]] | None = None,
     titles: Sequence[str] = (),
+    kind: str = QuestionKind.SINGLE,
 ) -> tuple[tuple[str, str] | None, str]:
     """The gates that need neither a model nor an index, and the form it took.
 
@@ -461,6 +518,9 @@ def structural(
     one it asked for first. The form reported back is the one the answer
     actually fits, and it is what the later gates and the stored row read:
     a factoid answered with a list is compared as a list.
+
+    `kind` is what the slot was dealt to be. A compound question asks two
+    things on purpose, so for it the two-question-word refusal is skipped.
     """
     asked = question_text.strip()
     form = forms[0] if forms else AnswerForm.VALUE
@@ -513,7 +573,7 @@ def structural(
     # types it. This is what a writer told to use both passages of a wide
     # sample does when the two have no single question between them.
     asked_about = _asks(asked, language)
-    if len(asked_about) > 1:
+    if len(asked_about) > 1 and kind != QuestionKind.COMPOUND:
         return (
             QuestionRejection.COMPOUND,
             (

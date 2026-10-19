@@ -307,6 +307,17 @@ class QuestionWriter:
             explanation=written.explanation,
             group=self._used(sample, written.facts),
             kind=plan.kind,
+            parts=tuple(
+                (
+                    sample.resting[one.passage - 1].id,
+                    one.question.strip(),
+                    one.answer.strip(),
+                )
+                for one in getattr(written, "parts", [])
+                if 1 <= one.passage <= len(sample.resting)
+                and one.question.strip()
+                and one.answer.strip()
+            ),
         )
 
     def follow_up(
@@ -391,6 +402,7 @@ class QuestionWriter:
         thread: tuple[tuple[str, str | None], ...] = (),
         root_facts: tuple[int, ...] = (),
         parent_passages: tuple[int, ...] = (),
+        parts: tuple[tuple[int, str, str], ...] = (),
     ) -> Candidate:
         """Assembles one written question, whatever kind it was."""
         return Candidate(
@@ -405,6 +417,7 @@ class QuestionWriter:
             spec=plan.spec,
             planned_difficulty=plan.band,
             kind=stored(kind, len(group.resting)),
+            parts=parts,
         )
 
     @staticmethod

@@ -148,6 +148,7 @@ def candidate(
     root_facts: tuple[int, ...] = (),
     parent_passages: tuple[int, ...] = (),
     kind: str = QuestionKind.SINGLE,
+    parts: tuple[tuple[int, str, str], ...] = (),
 ) -> Candidate:
     """A question as the model wrote it, before any gate has read it.
 
@@ -176,6 +177,7 @@ def candidate(
         root_facts=root_facts,
         parent_passages=parent_passages,
         kind=kind,
+        parts=parts,
     )
 
 

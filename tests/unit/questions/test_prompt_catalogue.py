@@ -201,3 +201,18 @@ def test_the_phrasing_judgements_fall_back_to_the_verifiers_model() -> None:
         if one.name.startswith("phrasing: ")
     }
     assert phrasing_models == {"ollama/verifier"}
+
+
+def test_a_compound_variant_is_its_own_prompt_for_each_type_that_does_not_span(
+    catalogue,
+) -> None:
+    """A compound slot is sent the kind's instruction and answers with its halves."""
+    for name, spec in SPECS.items():
+        if spec.spans:
+            assert f"{name} (compound)" not in catalogue, name
+            continue
+        one = catalogue[f"{name} (compound)"]
+        assert "THIS CALL ASKS FOR A COMPOUND QUESTION" in one.text, name
+        assert "MORE THAN ONE PASSAGE" not in one.text, name
+        assert one.version == PROMPT_VERSION
+        assert next(iter(one.response_schema["properties"])) == "parts", name

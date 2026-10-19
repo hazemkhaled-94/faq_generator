@@ -467,3 +467,37 @@ def test_the_candidate_carries_the_kind_of_the_passages_it_cites() -> None:
     alone = QuestionWriter(model).write(pair, plan(shape="cross", kind="needs_both"))
 
     assert (both.kind, alone.kind) == ("needs_both", "single")
+
+
+def test_a_compound_slot_is_told_to_ask_two_things_and_returns_its_halves() -> None:
+    """The kind's instruction in place of the span clause, its parts read in."""
+    from question_generation import kinds
+
+    model = StubModel(
+        question="What is the limit, and how is an account closed?",
+        answer="1,000 euros; by letter",
+        facts=[1, 2],
+        parts=[
+            kinds._Part(passage=1, question="What is the limit?", answer="1,000 euros"),
+            kinds._Part(
+                passage=2, question="How is an account closed?", answer="by letter"
+            ),
+            kinds._Part(passage=3, question="Out of range?", answer="ignored"),
+            kinds._Part(passage=2, question="  ", answer="empty"),
+        ],
+    )
+    pair = group(
+        source(1, document="a", passage_id=11), source(2, document="b", passage_id=22)
+    )
+
+    written = QuestionWriter(model).write(pair, plan(shape="apart", kind="compound"))
+
+    assert model.system == SPECS["factoid"].system(
+        spans=True, instruction=kinds.COMPOUND
+    )
+    assert model.shapes[-1] is kinds._Compound
+    assert written.kind == "compound"
+    assert written.parts == (
+        (11, "What is the limit?", "1,000 euros"),
+        (22, "How is an account closed?", "by letter"),
+    )

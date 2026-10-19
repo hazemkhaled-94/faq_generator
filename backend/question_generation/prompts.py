@@ -30,6 +30,7 @@ from question_generation.generation import (
     _Answered,
     _Unanswered,
 )
+from question_generation.kinds import COMPOUND, _Compound
 from question_generation.types import PROMPT_VERSION, SPECS
 from stages.prompts import Composed
 
@@ -43,6 +44,7 @@ SERVICE = "questions"
 #: answers to come back in.
 _ANSWERED = _Answered.model_json_schema()
 _UNANSWERED = _Unanswered.model_json_schema()
+_COMPOUND = _Compound.model_json_schema()
 
 
 def catalogue(settings: Settings | None = None) -> list[Composed]:
@@ -68,6 +70,10 @@ def _writer(settings: Settings | None) -> Iterator[Composed]:
     spanning prompt when its sample happens to cross passages - so the two
     are different prompts and a row for only one of them would be a record
     of half of what was sent.
+
+    And each type that does not span by itself once more for a compound slot,
+    which is told to ask two unrelated things instead, and answers with its
+    halves first.
     """
     writes = settings.model if settings else None
     for name, spec in sorted(SPECS.items()):
@@ -76,6 +82,14 @@ def _writer(settings: Settings | None) -> Iterator[Composed]:
         if spanning != spec.system():
             yield Composed(
                 f"{name} (spans)", PROMPT_VERSION, spanning, _USER, _ANSWERED, writes
+            )
+            yield Composed(
+                f"{name} (compound)",
+                PROMPT_VERSION,
+                spec.system(spans=True, instruction=COMPOUND),
+                _USER,
+                _COMPOUND,
+                writes,
             )
     yield Composed(
         "perturb", PROMPT_VERSION, _PERTURB, _USER_PERTURB, _UNANSWERED, writes

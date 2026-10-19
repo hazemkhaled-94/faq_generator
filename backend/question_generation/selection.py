@@ -41,6 +41,7 @@ class Shape(StrEnum):
       single  one passage                                       0 points
       cross   a passage in another document                     2 points
       bridge  one in another document AND another subject       3 points
+      apart   the passage sharing least with the head            2 points
 
     `cross` is two points and not one because a cross-document question is a
     multi-passage question by construction. A topic that cannot supply a
@@ -52,6 +53,9 @@ class Shape(StrEnum):
     SINGLE = "single"
     CROSS = "cross"
     BRIDGE = "bridge"
+    #: For a compound slot: unrelated on purpose, so the partner is the passage
+    #: of another topic the head shares least with, 2 points like `cross`.
+    APART = "apart"
 
 
 def spread(index: int, share: float) -> bool:
@@ -460,7 +464,12 @@ class Deal:
             # what the question is about impossible to read off.
             return self._group([head], condensed=condensed, prefer=prefer)
 
-        partner = self._bridge(head) if shape == Shape.BRIDGE else self._cross(head)
+        if shape == Shape.BRIDGE:
+            partner = self._bridge(head)
+        elif shape == Shape.APART:
+            partner = self._apart(head)
+        else:
+            partner = self._cross(head)
         if partner and not self._clears(head, partner, condensed, prefer):
             # Nothing in the second passage meets the first well enough to
             # be worth offering. The span rules already tell the writer to
@@ -608,6 +617,19 @@ class Deal:
             or self._best(head, self._free(head, bridging=True))
             or self._cross(head)
         )
+
+    def _apart(self, head: list[SourceFact]) -> list[SourceFact] | None:
+        """The passage sharing least with the head, preferably of another topic.
+
+        What a compound question wants: two things nobody relates. Among the
+        passages this topic still has and the bridging ones of other topics,
+        the one with the lowest `overlap`; ties go to the lower passage id.
+        None where there is no other passage.
+        """
+        candidates = [*self._free(head), *self._free(head, bridging=True)]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda one: (overlap(head, one), one[0].passage_id))
 
     def _free(
         self,
