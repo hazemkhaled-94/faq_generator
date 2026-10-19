@@ -610,8 +610,6 @@ class JudgedQuestion:
     topics: int
     follows_id: int | None
     question_type: str | None = None
-    #: The kind it was stored as; the band follows it where the kind fixes one.
-    kind: str = QuestionKind.SINGLE
     answer_form: str | None = None
     reviewed_verdict: str | None = None
     #: What it was written to be. `kinds.stored` of this and `passages` is

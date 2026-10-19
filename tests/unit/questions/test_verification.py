@@ -4869,3 +4869,23 @@ def test_a_kind_check_that_returns_a_candidate_replaces_the_draft(monkeypatch) -
     )
 
     assert result.target_answer == "4 kg"
+
+
+def test_the_verdict_bands_a_question_by_the_kind_it_is_stored_as(monkeypatch) -> None:
+    """The kind reaches `criteria_of`: a kind fixing a band decides the question's."""
+    from database.qa_generator import Difficulty
+    from question_generation import kinds
+
+    monkeypatch.setitem(
+        kinds.KINDS,
+        "needs_both",
+        replace(kinds.KINDS["needs_both"], band=Difficulty.HARD),
+    )
+    pair = group(source(1, passage_id=1), source(2, passage_id=2))
+
+    checked = QuestionChecker._verdict(
+        candidate(facts=pair, kind="needs_both"), None, None
+    )
+
+    assert checked.kind == "needs_both"
+    assert checked.criteria.difficulty == Difficulty.HARD
