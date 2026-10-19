@@ -123,10 +123,12 @@ def _folded(token: str, language: str | None) -> str:
 _EITHER = re.compile(r"(\d{1,3})[.,](\d{3})")
 
 
-#: Two figures a dash joins, a range: `100–110`, `2-3`. It asserts both ends,
+#: Two figures an en dash joins, a range: `100–110`. The tokenizer already splits
+#: the ASCII hyphen, `2-3`, into two figures, so that form needs no pattern. It
+#: asserts both ends,
 #: and a reply writes them apart as often as together: `mindestens 100 m,
 #: höchstens 110 m`, `between 68 cm and 70 cm`.
-_RANGE = re.compile(r"(\d[\d.,]*)[–-](\d[\d.,]*)")
+_RANGE = re.compile(r"(\d[\d.,]*)–(\d[\d.,]*)")
 
 
 def _ends(

@@ -1625,6 +1625,27 @@ def test_one_end_of_a_range_is_not_the_range(
     )
 
 
+def test_a_hyphen_range_with_its_unit_comes_back_end_by_end() -> None:
+    """The tokenizer splits `5-9` into two figures, so the en dash is the only range form."""
+    recovered = "Between 5 and 9 days."
+    assert agrees(
+        recovered,
+        "5-9 days",
+        "en",
+        AnswerForm.VALUE,
+        question="How long?",
+        passages=(recovered,),
+    )
+    assert not agrees(
+        recovered,
+        "5-12 days",
+        "en",
+        AnswerForm.VALUE,
+        question="How long?",
+        passages=(recovered,),
+    )
+
+
 def test_a_three_decimal_rate_is_not_its_digits() -> None:
     """`0,125 %` is an eighth of a percent, which `125 %` is not."""
     assert not agrees("0,125 %", "125 %", "de")
