@@ -530,6 +530,21 @@ class TestReplacingCitedBridges:
         assert store.count() == 1
         assert store.count("questions") == 1
 
+    def test_a_bridge_counts_only_the_topic_of_its_first_passage_as_bridged(
+        self, store, corpus
+    ) -> None:
+        """Its partner may sit in any topic, and that topic is not read for it."""
+        first, partner = corpus["a"][0], corpus["b"][0]
+        home = store.topic("Support", first)
+        store.topic("Billing", partner)
+        store.bridges(
+            checked(
+                first, "A bridge.", kind=FactKind.BRIDGE, passage_ids=[first, partner]
+            )
+        )
+
+        assert store.catalog.bridged_topics() == frozenset({home})
+
 
 class TestGroups:
     """Which passages the bridge pass is offered."""

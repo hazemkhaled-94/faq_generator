@@ -1149,7 +1149,10 @@ class FactCatalog(Repository):
             ).rowcount
 
     def bridged_topics(self, within=None) -> frozenset[int]:
-        """The topics a bridge already rests in, by the passages it rests on.
+        """The topics a bridge already rests in, by the passage it opens with.
+
+        Only its first passage counts: the others are partners, which may sit
+        in a topic whose own heads the bridge says nothing about.
 
         Args:
             within: A condition on Passage narrowing which topics are read,
@@ -1159,7 +1162,7 @@ class FactCatalog(Repository):
             select(DOMINANT.c.topic_id)
             .join(FactPassage, FactPassage.passage_id == DOMINANT.c.passage_id)
             .join(Fact, Fact.id == FactPassage.fact_id)
-            .where(Fact.kind == FactKind.BRIDGE)
+            .where(Fact.kind == FactKind.BRIDGE, FactPassage.position == 0)
             .distinct()
         )
         if within is not None:
