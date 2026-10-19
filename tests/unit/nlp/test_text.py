@@ -56,3 +56,24 @@ def test_mending_twice_is_mending_once(text: str, seen: str) -> None:
     once = rejoined(text, whole)
 
     assert rejoined(once, whole) == once
+
+
+def test_held_and_holders_read_a_quote_per_passage() -> None:
+    """A quote is held by the passages that carry every piece of it unbroken."""
+    from nlp.text import held, holders
+
+    bank = [
+        "A dormant account is charged a yearly fee of 10 EUR.",
+        "An account is dormant when its holder has made no payment for 24 months.",
+    ]
+    assert held("charged a yearly fee of 10 EUR", bank)
+    assert holders("charged a yearly fee of 10 EUR", bank) == {0}
+    stitched = "a yearly fee of 10 EUR … no payment for 24 months"
+    assert held(stitched, bank)
+    assert holders(stitched, bank) == frozenset()
+    german = [
+        "Für ein ruhendes Konto wird eine Jahresgebühr von 10 EUR erhoben.",
+        "Ein Konto ruht, wenn der Inhaber 24 Monate lang keine Zahlung geleistet hat.",
+    ]
+    assert holders("eine Jahresgebühr von 10 EUR", german) == {0}
+    assert holders("24 Monate lang keine Zahlung", german) == {1}

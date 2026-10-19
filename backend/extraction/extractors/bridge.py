@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from textwrap import wrap
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -13,6 +14,7 @@ from extraction.links import Link
 from extraction.models import CandidateFact, Cited, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
+from llm.spans import RELATIONS
 from nlp.models import named as in_language
 
 #: Recorded on every bridge drawn with the prompt below. Bumped whenever that
@@ -34,15 +36,7 @@ STEPS
    how the documents link them.
 2. Look for a relation between ONE fact of the first excerpt and ONE fact of
    the second:
-   - defines: one excerpt defines a term the other's rule uses.
-   - limits: one sets an exception or a condition to the other's rule.
-   - consequence: one states what follows when the other's rule is met or
-     broken.
-   - applies: one states a general rule, the other a case it covers.
-   - parallel: the same rule for two subjects, each excerpt naming one, and
-     only when a question about the two needs both excerpts.
-   - contrast: two subjects differ in one stated respect, each excerpt giving
-     one side.
+{{relations}}
 3. If no relation holds, or one excerpt alone answers every question the
    other would raise, answer `none`.
 4. Otherwise name the relation, pick the two facts by their numbers, and
@@ -123,7 +117,19 @@ Rules, all of them mandatory:
 - NAME THE SUBJECT. Never write "it", "this", "they", "he", "she".
 - WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPTS. It is their own language.
 - When in doubt, answer `none`.
-"""
+""".replace(
+    "{{relations}}",
+    "\n".join(
+        line
+        for one in RELATIONS.values()
+        for line in wrap(
+            f"- {one.name}: {one.meaning}",
+            width=79,
+            initial_indent="   ",
+            subsequent_indent="     ",
+        )
+    ),
+)
 
 #: The user message, as the catalogue records it and `_prompt` renders it.
 _USER = """Excerpts:

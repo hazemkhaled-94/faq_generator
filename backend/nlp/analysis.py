@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from functools import lru_cache
 from itertools import pairwise, takewhile
 
@@ -1347,6 +1347,32 @@ def content(text: str, language: str | None) -> frozenset[str]:
     asking whether they are spelled the same.
     """
     return frozenset(_lemmas(_read(text, language)))
+
+
+def owned(
+    text: str, passages: Sequence[str], language: str | None
+) -> tuple[frozenset[str], ...]:
+    """What only each passage gives a text: its words and figures no other passage carries.
+
+    A word or figure of the text, whether lemma, surface form or number, that
+    one passage has and every other lacks is that passage's; one two passages
+    share is nobody's. Passages are given as their text, so a heading word
+    belongs to none.
+    """
+    mine = content(text, language) | numerals(text, language)
+    carried = [
+        mine & (vocabulary(one, language) | numerals(one, language)) for one in passages
+    ]
+    return tuple(
+        frozenset(
+            token
+            for token in here
+            if not any(
+                token in there for other, there in enumerate(carried) if other != at
+            )
+        )
+        for at, here in enumerate(carried)
+    )
 
 
 #: Languages whose third person plural is spelled as the infinitive, and

@@ -46,7 +46,6 @@ and a resolved pronoun all survive it where a threshold would not.
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 
@@ -60,13 +59,14 @@ from database.qa_generator import (
 )
 from nlp.analysis import content, interrogatives, pointing
 from nlp.embedding import Embedder, cosine
+from nlp.text import _plain
+from nlp.text import held as _held
 from question_generation.gates import (
     BOUNDS,
     COMPOSITE,
     COVERAGE,
     ENTAILMENT_OVERLAP,
     EXPLANATION_CHARS,
-    MARKER,
     NAMES_SOMETHING,
     OFF_TOPIC_OVERLAP,
     OVERLAP,
@@ -153,81 +153,11 @@ def heard(
     return settled
 
 
-#: Marks two readers print differently, folded before a quote is looked for.
-_FOLDED = str.maketrans(
-    {"‘": "'", "’": "'", "‚": "'", "“": '"', "”": '"', "„": '"', "–": "-", "—": "-"}
-)
-
-
-def _plain(text: str) -> str:
-    """Text as a quote is compared: folded marks, single spaces, no case."""
-    return " ".join(text.translate(_FOLDED).casefold().split())
-
-
 def quoted(quote: str, text: str) -> bool:
     """Whether a text holds a quote, read piece by piece across an ellipsis."""
     held = _plain(text)
     pieces = [_plain(one) for one in quote.replace("...", "…").split("…")]
     return all(piece in held for piece in pieces if piece)
-
-
-#: Where a quote stitched from lines, cells, sentences or passages joins two
-#: runs: a line break, an ellipsis, a cell bar, the [n] a passage was shown
-#: under, a bullet inside a line, and a sentence's or a clause's end.
-_JOINS = re.compile(r"\n+|…|\||\[\d{1,3}\]|\s[•▪●◦·]\s|(?<=[.!?;:])\s+")
-
-#: What a piece is trimmed of at either end, once its marks are folded.
-_EDGES = " -,;:.!?\"'()"
-
-#: Words a piece needs to be evidence wherever it sits. A shorter one, a
-#: heading's `Refunds:` or a cell's `Impact`, is in any number of passages,
-#: so it counts only in a passage the longest piece is in.
-_ALONE = 3
-
-
-def _pieces(quote: str) -> list[str]:
-    """A quote's runs, each as `_plain` reads it, without its list marker."""
-    runs = (MARKER.sub("", run) for run in _JOINS.split(quote.replace("...", "…")))
-    return [piece for run in runs if (piece := _plain(run).strip(_EDGES))]
-
-
-def _readings(passage: str) -> tuple[str, str]:
-    """A passage as it reads, and with its list markers and cell bars folded out."""
-    folded = " ".join(MARKER.sub("", line) for line in passage.split("\n"))
-    return _plain(passage), _plain(folded.replace("|", " "))
-
-
-def _within(piece: str, text: str) -> bool:
-    """Whether a text holds a piece as whole words, never inside a longer one."""
-    start = r"(?<!\w)" if re.match(r"\w", piece) else ""
-    end = r"(?!\w)" if re.match(r"\w", piece[-1]) else ""
-    return re.search(start + re.escape(piece) + end, text) is not None
-
-
-def _held(quote: str, passages: Sequence[str]) -> bool:
-    """Whether every piece of a quote is one unbroken run of one passage.
-
-    A reply quoting two items of a list, two cells of a row or two passages
-    stitches runs no passage carries unbroken, and the answer it settles a
-    question with is still in what was shown.
-    """
-    pieces = _pieces(quote)
-    readings = [_readings(passage) for passage in passages]
-    where = [
-        {
-            n
-            for n, both in enumerate(readings)
-            if any(_within(piece, one) for one in both)
-        }
-        for piece in pieces
-    ]
-    if not pieces or not all(where):
-        return False
-    longest = where[max(range(len(pieces)), key=lambda n: len(pieces[n]))]
-    return all(
-        len(piece.split()) >= _ALONE or found & longest
-        for piece, found in zip(pieces, where, strict=True)
-    )
 
 
 def shown(
