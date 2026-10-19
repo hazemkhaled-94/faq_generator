@@ -176,6 +176,133 @@ def test_a_clause_with_its_own_subject_is_still_a_second_claim(
 
 
 @pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        ("en", "A transfer can be cancelled, but only if it has not been executed."),
+        (
+            "de",
+            (
+                "Eine Überweisung kann storniert werden, aber nur wenn sie noch nicht "
+                "ausgeführt wurde."
+            ),
+        ),
+        ("en", "Goods can be returned, but only if they are unused."),
+        ("de", "Waren können zurückgegeben werden, aber nur wenn sie unbenutzt sind."),
+    ],
+)
+def test_a_coordinated_condition_is_one_claim_with_its_rule(
+    language: str, sentence: str
+) -> None:
+    """`but only if` opens a condition the parser hangs as a conjunct; it restricts the rule."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found == 1, f"{found} claim(s) read in {sentence!r}; expected 1"
+
+
+@pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        (
+            "de",
+            (
+                "Die Karte wird gesperrt, es sei denn, der Kunde ruft an und bestätigt "
+                "die Zahlung."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Das Paket wird zurückgeschickt, es sei denn, der Kunde holt es ab und "
+                "zahlt die Gebühr."
+            ),
+        ),
+        (
+            "en",
+            "The card is blocked unless the customer calls and confirms the payment.",
+        ),
+    ],
+)
+def test_every_member_of_the_case_left_out_restricts_the_rule(
+    language: str, sentence: str
+) -> None:
+    """`es sei denn, A und B` leaves out one case; B is part of it, not a second rule."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found == 1, f"{found} claim(s) read in {sentence!r}; expected 1"
+
+
+@pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        (
+            "en",
+            (
+                "Unless otherwise agreed, the bank charges a fee of 5 EUR, debits "
+                "the account and informs the customer."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Außer in Notfällen sperrt die Bank die Karte, informiert den Kunden "
+                "und erstattet die Gebühr."
+            ),
+        ),
+    ],
+)
+def test_rules_after_an_opening_exception_still_count(
+    language: str, sentence: str
+) -> None:
+    """An exception opening the sentence restricts the rules after it, which are still several."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found >= 2, f"{found} claim(s) read in {sentence!r}; expected at least 2"
+
+
+@pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        (
+            "en",
+            (
+                "The fee is charged on every transfer, but the bank refunds it if the "
+                "transfer fails."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Die Gebühr wird bei jeder Überweisung berechnet, aber die Bank erstattet "
+                "sie, wenn die Überweisung scheitert."
+            ),
+        ),
+        (
+            "en",
+            "The card is blocked and the account is closed unless the customer calls.",
+        ),
+        (
+            "de",
+            (
+                "Die Karte wird gesperrt und das Konto wird geschlossen, es sei denn, der "
+                "Kunde ruft an."
+            ),
+        ),
+    ],
+)
+def test_a_second_rule_with_a_condition_of_its_own_is_still_a_claim(
+    language: str, sentence: str
+) -> None:
+    """The condition belongs to the second rule, which is still said beside the first."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found == 2, f"{found} claim(s) read in {sentence!r}; expected 2"
+
+
+@pytest.mark.parametrize(
     "sentence",
     [
         (

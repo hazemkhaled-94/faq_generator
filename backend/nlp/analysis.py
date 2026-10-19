@@ -236,17 +236,35 @@ def _predicates(span: Doc | Span) -> int:
     doc = span.doc
     inside, after = _exceptive_tokens(doc)
     disjunctive = _DISJUNCTIVE.get(doc.lang_, frozenset())
-    claims = 0
+    # The clauses that restrict or offer an alternative to another, which
+    # carry their coordinated members with them: in "es sei denn, der Kunde
+    # ruft an und bestätigt", bestätigt is part of the case left out.
+    excluded: set[int] = set()
+    counted = []
     for token in finite:
-        if not _coordinated_to_root(token) or token.i in inside:
+        if not _coordinated_to_root(token):
             continue
         verb = _clause_verb(token)
         start = min(one.i for one in verb.subtree)
-        if start in inside or start in after:
+        if (
+            token.i in inside
+            or start in inside
+            or start in after
+            or (verb.dep_ in _COORDINATION and _coordinator_words(token) & disjunctive)
+            # A conjunct its own subordinator opens is a condition however the
+            # parser hangs it: "but only if it has not been executed".
+            or (
+                verb.dep_ in _COORDINATION
+                and any(child.dep_ in _SUBORDINATOR for child in verb.children)
+            )
+        ):
+            # Only a conjunct carries its members with it: a main clause
+            # opening on "Unless" is not counted, but what is joined to it is.
+            if verb.dep_ in _COORDINATION:
+                excluded.add(verb.i)
             continue
-        if verb.dep_ in _COORDINATION and _coordinator_words(token) & disjunctive:
-            continue
-        claims += 1
+        counted.append(verb)
+    claims = sum(not _joined_to(verb, excluded) for verb in counted)
     if claims > 1 and any(
         child.dep_ in _SUBORDINATOR
         for root in {_root(token) for token in finite}
@@ -254,6 +272,15 @@ def _predicates(span: Doc | Span) -> int:
     ):
         return 1
     return claims or 1
+
+
+def _joined_to(verb, excluded: set[int]) -> bool:
+    """Whether a clause reaches one of these through coordination alone."""
+    while verb.dep_ in _COORDINATION and verb.head.i != verb.i:
+        verb = verb.head
+        if verb.i in excluded:
+            return True
+    return False
 
 
 def _verbs(span: Doc | Span) -> int:
