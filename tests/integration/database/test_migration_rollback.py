@@ -36,6 +36,7 @@ OPINED = "f7bba722de8e"
 UNFOLDED = "3c5a9d2e7b14"
 FLOORED = "7d4e1f2a9c63"
 KEPT = "8f759a3a3848"
+KINDED = "a41c9e3d7b52"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -54,6 +55,7 @@ LATER = (
     UNFOLDED,
     FLOORED,
     KEPT,
+    KINDED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
@@ -474,9 +476,10 @@ def test_the_later_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> 
     before = held()
     command.upgrade(config, "head")
     at_head = held()
-    # The three model columns, NULL on every question already there.
+    # The three model columns, NULL on every question already there, and the
+    # kind, single on each of these: none of them has a passage scope.
     assert at_head["questions"] == [
-        (*row, None, None, None) for row in before["questions"]
+        (*row, None, None, None, "single") for row in before["questions"]
     ]
 
     for _ in LATER:
@@ -487,3 +490,51 @@ def test_the_later_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> 
     command.upgrade(config, "head")
     assert version(spare) == LATER[-1]
     assert held() == at_head
+
+
+def test_a_question_kind_is_backfilled_from_its_passage_scope(spare: str) -> None:
+    """needs_both where it cited several passages, single otherwise, and checked."""
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+
+    config = alembic(spare)
+    command.upgrade(config, KEPT)
+    sql(
+        spare,
+        "INSERT INTO questions (id, question_text, answerable, language, status, "
+        "passage_scope) VALUES "
+        "(1, 'One?', true, 'en', 'accepted', 'multi_passage'), "
+        "(2, 'Two?', true, 'en', 'accepted', 'single_passage'), "
+        "(3, 'Three?', true, 'en', 'accepted', NULL)",
+    )
+
+    command.upgrade(config, KINDED)
+    assert sql(spare, "SELECT id, kind FROM questions ORDER BY id") == [
+        (1, "needs_both"),
+        (2, "single"),
+        (3, "single"),
+    ]
+    with pytest.raises(IntegrityError, match="questions_kind_valid"):
+        sql(spare, "UPDATE questions SET kind = 'other' WHERE id = 1")
+    sql(
+        spare,
+        "INSERT INTO questions (id, question_text, answerable, language, status) "
+        "VALUES (4, 'Four?', true, 'en', 'draft')",
+    )
+    assert sql(spare, "SELECT kind FROM questions WHERE id = 4") == [("single",)]
+
+    command.downgrade(config, KEPT)
+    assert "kind" not in {
+        row[0]
+        for row in sql(
+            spare,
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'questions'",
+        )
+    }
+    command.upgrade(config, KINDED)
+    assert sql(spare, "SELECT id, kind FROM questions WHERE id < 4 ORDER BY id") == [
+        (1, "needs_both"),
+        (2, "single"),
+        (3, "single"),
+    ]

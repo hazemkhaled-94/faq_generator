@@ -35,8 +35,10 @@ from database.qa_generator import (
     FactKind,
     FactPassage,
     Passage,
+    PassageScope,
     Question,
     QuestionFact,
+    QuestionKind,
     QuestionStatus,
     ReviewVerdict,
     Status,
@@ -261,6 +263,7 @@ def _listing() -> Select:
                 Question.answer_explanation,
                 Question.answerable,
                 Question.difficulty,
+                Question.kind,
                 Question.passage_scope,
                 Question.document_scope,
                 Question.topic_scope,
@@ -893,6 +896,7 @@ class QuestionCatalog(Repository):
                     Question.target_answer,
                     Question.answerable,
                     Question.difficulty,
+                    Question.kind,
                     Question.passage_scope,
                     Question.document_scope,
                     Question.topic_scope,
@@ -1062,7 +1066,9 @@ class QuestionCatalog(Repository):
         """Writes the scopes and the band a rescore read, one row per question.
 
         Nothing else on the row moves: not its status, its answer length or
-        the band its plan asked for.
+        the band its plan asked for. Bar its kind, which follows the citations
+        down: a question that now rests on one passage is `single`, and one
+        still resting on two keeps the kind it was written as.
         """
         if not rows:
             return 0
@@ -1081,6 +1087,17 @@ class QuestionCatalog(Repository):
                     for question_id, now in rows
                 ],
             )
+            narrowed = [
+                question_id
+                for question_id, now in rows
+                if now.passage_scope == PassageScope.SINGLE
+            ]
+            if narrowed:
+                session.execute(
+                    update(Question)
+                    .where(Question.id.in_(narrowed))
+                    .values(kind=QuestionKind.SINGLE)
+                )
         return len(rows)
 
     def reject(self, verdicts: list[tuple[int, str]]) -> int:

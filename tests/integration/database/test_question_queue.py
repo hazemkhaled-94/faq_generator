@@ -2487,3 +2487,65 @@ def test_the_twins_are_found_behind_more_rejected_questions_than_one_scan_holds(
     assert [(one.question_text, two.question_text) for one, two in found] == [
         ("One?", "Two?")
     ]
+
+
+def _stored_kind(corpus, engine, kind: str, passages: int) -> int:
+    """Stores one accepted question dealt `kind`, and returns its id."""
+    from question_generation.models import CheckedQuestion, criteria_of
+
+    written = corpus(topics=1, facts_per_topic=2)
+    topic_id = written["topics"][0]
+    QuestionQueue().store(
+        topic_id,
+        [
+            [
+                CheckedQuestion(
+                    question_text="What does the device weigh?",
+                    target_answer="4 kg",
+                    answerable=True,
+                    criteria=criteria_of(
+                        passages=passages, documents=1, topics=1, answer_chars=4
+                    ),
+                    language="en",
+                    status="accepted",
+                    rejected_reason=None,
+                    fact_ids=tuple(written["facts"][topic_id]),
+                    kind=kind,
+                )
+            ]
+        ],
+    )
+    with engine.connect() as connection:
+        return connection.execute(text("SELECT id FROM questions")).scalar_one()
+
+
+def _kind(engine, question_id: int) -> str:
+    with engine.connect() as connection:
+        return connection.execute(
+            text("SELECT kind FROM questions WHERE id = :id"), {"id": question_id}
+        ).scalar_one()
+
+
+def test_a_stored_question_keeps_the_kind_it_was_written_as(corpus, engine) -> None:
+    """Written to need both passages, it is stored needs_both."""
+    question_id = _stored_kind(corpus, engine, "needs_both", passages=2)
+
+    assert _kind(engine, question_id) == "needs_both"
+
+
+def test_rescore_moves_the_kind_with_the_citations(corpus, engine) -> None:
+    """A needs_both question that lost a passage is single, and keeps it if not."""
+    from question_generation.models import criteria_of
+
+    question_id = _stored_kind(corpus, engine, "needs_both", passages=2)
+    catalog = QuestionCatalog()
+
+    catalog.rescore(
+        [(question_id, criteria_of(passages=2, documents=1, topics=1, answer_chars=4))]
+    )
+    assert _kind(engine, question_id) == "needs_both"
+
+    catalog.rescore(
+        [(question_id, criteria_of(passages=1, documents=1, topics=1, answer_chars=4))]
+    )
+    assert _kind(engine, question_id) == "single"

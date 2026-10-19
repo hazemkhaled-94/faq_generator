@@ -495,6 +495,7 @@ def view() -> None:
                     "Answer shape": row["answer_form"] or "—",
                     "Answerable": "yes" if row["answerable"] else "no",
                     "Difficulty": row["difficulty"] or "—",
+                    "Written as": row["kind"],
                     "Passages": _scope(row["passage_scope"], "single_passage"),
                     "Documents": _scope(row["document_scope"], "single_document"),
                     "Turn": row["thread_position"],
@@ -521,6 +522,10 @@ def view() -> None:
                     help="How far the answer is spread, not how clever it is. "
                     "Five things each count one point: the three scopes, a "
                     "long answer, and following another question."
+                ),
+                "Written as": st.column_config.TextColumn(
+                    help="What the question was written to be. single rests on "
+                    "one passage; needs_both takes something from each of two."
                 ),
                 "Passages": st.column_config.TextColumn(
                     help="How many passages the answer needs. 2+ is a question "
@@ -746,6 +751,7 @@ def _detail(client, question: dict) -> None:
                 "Answerable": question["answerable"],
                 "Difficulty": question["difficulty"],
                 "Planned difficulty": question["planned_difficulty"],
+                "Written as": question["kind"],
                 "Passages": question["passage_scope"],
                 "Documents": question["document_scope"],
                 "Subjects": question["topic_scope"],

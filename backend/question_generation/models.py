@@ -601,6 +601,9 @@ class JudgedQuestion:
     question_type: str | None = None
     answer_form: str | None = None
     reviewed_verdict: str | None = None
+    #: What it was written to be. `kinds.stored` of this and `passages` is
+    #: what a rescore leaves it as.
+    kind: str = QuestionKind.SINGLE
     #: The facts it cites, and the passages they rest on, which the
     #: nearness probe compares.
     fact_ids: tuple[int, ...] = ()
@@ -656,6 +659,9 @@ class StoredQuestion:
     question_type: str | None = None
     answer_form: str | None = None
     planned_difficulty: str | None = None
+    #: What it was written to be: single, needs_both, compound or
+    #: false_premise. Follows its citations, as `passage_scope` does.
+    kind: str = QuestionKind.SINGLE
     #: What its type asks of whoever answers it. A different axis from
     #: `difficulty`, which says how far the answer is spread.
     cognitive_level: str | None = None

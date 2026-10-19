@@ -526,6 +526,7 @@ class QuestionQueue(RowQueue):
                             question_type=question.question_type,
                             cognitive_level=question.cognitive_level,
                             answer_form=question.answer_form,
+                            kind=question.kind,
                             passage_scope=question.criteria.passage_scope,
                             document_scope=question.criteria.document_scope,
                             topic_scope=question.criteria.topic_scope,

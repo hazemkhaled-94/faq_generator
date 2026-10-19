@@ -32,6 +32,7 @@ from database.qa_generator.outcomes import (
     Difficulty,
     DocumentScope,
     PassageScope,
+    QuestionKind,
     QuestionRejection,
     QuestionStatus,
     QuestionType,
@@ -138,6 +139,7 @@ class Question(Base):
                 ("topic_scope", TopicScope),
             )
         ),
+        CheckConstraint(one_of("kind", QuestionKind), name="questions_kind_valid"),
         # A thread runs 1, 2, 3: the root is 1 and a follow-up is one past
         # whatever it follows. The two halves cannot disagree.
         CheckConstraint(
@@ -243,6 +245,16 @@ class Question(Base):
         Text,
         comment="single_passage | multi_passage, enforced by a CHECK constraint. "
         "How many distinct passages the facts this question cites come from.",
+    )
+    kind: Mapped[str] = mapped_column(
+        Text,
+        server_default=QuestionKind.SINGLE,
+        comment="single | needs_both | compound | false_premise, enforced by a "
+        "CHECK constraint. What the question was written to be, which decides "
+        "the instruction its writer got and the checks it passed. It follows "
+        "the citations: a question dealt as needs_both that rests on one "
+        "passage is stored single. Rows from before this column read "
+        "needs_both where passage_scope is multi_passage and single otherwise.",
     )
     document_scope: Mapped[str | None] = mapped_column(
         Text,

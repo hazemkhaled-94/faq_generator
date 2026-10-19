@@ -158,6 +158,7 @@ QUESTION = {
     ),
     "answerable": True,
     "difficulty": "easy",
+    "kind": "single",
     "passage_scope": "single_passage",
     "document_scope": "single_document",
     "topic_scope": "single_topic",
