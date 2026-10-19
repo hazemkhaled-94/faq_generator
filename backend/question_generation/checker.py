@@ -82,6 +82,7 @@ from question_generation.gates import (
     covered,
     deciding,
     explains,
+    fitting,
     incomplete,
     moves_on,
     near_verdict,
@@ -635,6 +636,15 @@ class QuestionChecker:
                 QuestionRejection.MALFORMED,
                 f"the key is not its halves' answers joined by '; ', {joined!r}",
             )
+        for _, _, answer in parts:
+            _, failed = fitting(
+                answer.strip(),
+                candidate.spec.forms,
+                self._bounds,
+                candidate.group.language,
+            )
+            if failed:
+                return failed
         word = relates(
             candidate.question_text,
             candidate.group.language,
@@ -667,11 +677,14 @@ class QuestionChecker:
         for number, (passage_id, question, answer) in enumerate(candidate.parts, 1):
             passage = by_id[passage_id]
             got = self._verifier.read(question, (passage.text,)).recovered
+            half, _ = fitting(
+                answer, candidate.spec.forms, self._bounds, candidate.group.language
+            )
             if got is None or not agrees(
                 got,
                 answer,
                 candidate.group.language,
-                form,
+                half,
                 self._overlap,
                 question,
                 passage.section_path or "",

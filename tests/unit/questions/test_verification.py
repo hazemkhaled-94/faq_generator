@@ -5119,3 +5119,34 @@ def test_a_language_with_no_relation_row_is_logged_once(caplog) -> None:
     assert [r.getMessage() for r in caplog.records].count(
         "no relation words for language 'fr': a compound question is not checked for a claimed relation"
     ) == 1
+
+
+def test_a_compound_key_is_held_to_its_form_part_by_part() -> None:
+    """Two answers each inside the value bound are not one answer outside it."""
+    first = "the form BR-12 at the branch counter desk"
+    second = "the card hotline number 0800 123 456 line"
+    parts = (
+        (1, "What form closes an account?", first),
+        (2, "What number blocks a card?", second),
+    )
+    bounds = {"value": (1, 60), "list": (3, 10), "explanation": (20, 600)}
+    recording = PerHalf({one[1]: one[2] for one in parts})
+    checker = QuestionChecker(
+        embedder=recording,
+        verifier=recording,
+        nearest=lambda embedding, **_: None,
+        threshold=0.93,
+        phrasing=recording,
+        bounds=bounds,
+    )
+
+    result = checker.check(
+        _compound(
+            "en",
+            "What form closes an account, and what number blocks a card?",
+            parts=parts,
+            target_answer=f"{first}; {second}",
+        )
+    )
+
+    assert result.rejected_reason is None

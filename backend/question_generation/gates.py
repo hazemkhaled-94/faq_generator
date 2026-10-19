@@ -649,8 +649,11 @@ def structural(
     # so an answer is never scored against something too thin to be worth
     # scoring - `7`, `8%`, `Nein` - nor against an essay where a value was
     # asked for.
+    #
+    # A compound key is two answers, each held to the form on its own by the
+    # kind's check; joined, they fit no bound of either.
     answer = (target_answer or "").strip()
-    if answer:
+    if answer and kind != QuestionKind.COMPOUND:
         form, failed = fitting(answer, forms, bounds or BOUNDS, language)
         if failed:
             return failed, form
