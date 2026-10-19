@@ -11,6 +11,7 @@ from database.qa_generator import (
     DocumentScope,
     FactKind,
     PassageScope,
+    QuestionKind,
     TopicScope,
 )
 from question_generation.types import TypeSpec, spec
@@ -421,6 +422,9 @@ class Candidate:
     #: The band the plan aimed for, stored beside the one the question turned
     #: out to be.
     planned_difficulty: str = Difficulty.EASY
+    #: What the slot was dealt to be, looked up in `kinds.KINDS`. The writer
+    #: reads its instruction and shape off it and the checker its checks.
+    kind: str = QuestionKind.SINGLE
 
     @property
     def follows(self) -> bool:
@@ -499,6 +503,9 @@ class CheckedQuestion:
     #: where nothing was recording.
     trace_id: str = ""
     span_id: str = ""
+    #: What the question is, `kinds.stored` of the kind it was dealt and the
+    #: passages it ended up citing.
+    kind: str = QuestionKind.SINGLE
 
     @property
     def accepted(self) -> bool:

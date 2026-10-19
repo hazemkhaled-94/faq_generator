@@ -8,6 +8,7 @@ malformed question reach the verifier is a test of a bill.
 from __future__ import annotations
 
 import inspect
+from dataclasses import replace
 
 import pytest
 from factories import candidate, group, source
@@ -4758,3 +4759,113 @@ def test_the_values_a_text_asserts_are_one_reading_each() -> None:
 
     assert _numbers("Das Limit beträgt 1.000 EUR.", "de") == frozenset({"1000.0"})
     assert _numbers("The limit is 1,000 EUR.", "en") == frozenset({"1000.0"})
+
+
+# ── The checks a kind gets ─────────────────────────────────────────────────
+
+
+def _pair():
+    return group(
+        source(1, document="a", passage_id=1, statement="The device weighs 4 kg."),
+        source(2, document="b", passage_id=2, statement="The device ships in March."),
+    )
+
+
+def test_a_question_citing_two_passages_is_stored_with_the_kind_it_was_dealt() -> None:
+    """And one narrowed to a single passage is stored single."""
+    both = build(Recording()).check(candidate(facts=_pair(), kind="needs_both"))
+    alone = build(Recording()).check(
+        candidate(facts=group(source(1, passage_id=1)), kind="needs_both")
+    )
+
+    assert (both.kind, alone.kind) == ("needs_both", "single")
+
+
+class _Kinded(QuestionChecker):
+    """A checker with the two named checks a kind may run, recording each."""
+
+    def __init__(self, *args, refuse=None, **kwargs):
+        """Initialises with which check, if any, refuses."""
+        super().__init__(*args, **kwargs)
+        self.refuse = refuse
+        self.ran: list[str] = []
+
+    def _first(self, candidate, readings):
+        self.ran.append("first")
+        if self.refuse == "first":
+            return ("first_code", "refused before")
+        return replace(candidate, target_answer="4 kg")
+
+    def _second(self, candidate, form, readings):
+        self.ran.append("second")
+        if self.refuse == "second":
+            return ("second_code", "refused after")
+        return candidate
+
+
+def _kind_checker(monkeypatch, recording, **spec):
+    from question_generation import kinds
+
+    monkeypatch.setitem(
+        kinds.KINDS,
+        "compound",
+        kinds.KindSpec("compound", 2, "", kinds._Answered, **spec),
+    )
+    return _Kinded(
+        embedder=recording,
+        verifier=recording,
+        nearest=lambda embedding, **_: None,
+        threshold=0.93,
+        phrasing=recording,
+    )
+
+
+def test_a_kind_check_before_the_gates_can_refuse_the_draft(monkeypatch) -> None:
+    """The refusal is the verdict and nothing after it is paid for."""
+    recording = Recording()
+    checker = _kind_checker(monkeypatch, recording, before="_first", after="_second")
+    checker.refuse = "first"
+
+    result = checker.check(candidate(facts=_pair(), kind="compound"))
+
+    assert result.rejected_reason == "first_code"
+    assert checker.ran == ["first"]
+    assert recording.embedded == 0
+
+
+def test_a_kind_check_after_the_round_trip_can_refuse_it(monkeypatch) -> None:
+    """Run once everything else passed."""
+    recording = Recording()
+    checker = _kind_checker(monkeypatch, recording, before="_first", after="_second")
+    checker.refuse = "second"
+
+    result = checker.check(candidate(facts=_pair(), kind="compound"))
+
+    assert result.rejected_reason == "second_code"
+    assert checker.ran == ["first", "second"]
+    assert recording.verified == 1
+
+
+def test_a_kind_that_recovers_for_itself_skips_the_round_trip(monkeypatch) -> None:
+    """Its own check reads the passages, so the shared one does not."""
+    recording = Recording()
+    checker = _kind_checker(monkeypatch, recording, after="_second", round_trip=False)
+
+    result = checker.check(candidate(facts=_pair(), kind="compound"))
+
+    assert result.rejected_reason is None
+    assert recording.verified == 0
+    assert "round_trip" not in result.gates_ran
+    assert result.kind == "compound"
+
+
+def test_a_kind_check_that_returns_a_candidate_replaces_the_draft(monkeypatch) -> None:
+    """What follows reads the replacement."""
+    recording = Recording(recovers="4 kg")
+    checker = _kind_checker(monkeypatch, recording, before="_first")
+
+    result = checker.check(
+        candidate(facts=_pair(), kind="compound", target_answer="4 kilograms")
+    )
+
+    assert result.target_answer == "4 kg"

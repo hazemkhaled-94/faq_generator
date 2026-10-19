@@ -383,7 +383,7 @@ class TypeSpec:
         """What this type's answer has to look like, for a prompt."""
         return _FORMS[self.form]
 
-    def system(self, *, spans: bool = False) -> str:
+    def system(self, *, spans: bool = False, instruction: str | None = None) -> str:
         """The whole system prompt for writing a question of this type.
 
         Assembled as RASCEF: the role, the action and the steps shared by
@@ -393,12 +393,16 @@ class TypeSpec:
         `spans` adds the instruction to use facts from more than one passage.
         Set by the plan from the shape of the sample, not by the type: a
         factoid drawn from two documents is a cross-document factoid.
+
+        `instruction` is what the plan's kind says in place of the span
+        clause; None keeps the span clause.
         """
+        span = _SPAN if instruction is None else instruction
         return (
             f"{_ROLE}\n{_STEPS}\n{_CONTEXT}\n"
             f"WHAT TO ASK: {self.asks}\n"
             f"{self.guidance}"
-            f"{_SPAN if spans or self.spans else ''}\n"
+            f"{span if spans or self.spans else ''}\n"
             f"EXAMPLES\n{self.example}\n"
             f"FORMAT\n"
             f"THE ANSWER IS {_FORMS[self.form]}\n\n"

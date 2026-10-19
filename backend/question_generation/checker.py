@@ -97,6 +97,7 @@ from question_generation.gates import (
     subject,
     typed,
 )
+from question_generation.kinds import KINDS, stored
 from question_generation.models import (
     LONG_ANSWER_CHARS,
     Candidate,
@@ -496,6 +497,16 @@ class QuestionChecker:
         if failed:
             return done(failed)
 
+        # What the kind checks of a draft, named in `kinds.KINDS`: a free
+        # check right after the structural rules, and one after the round
+        # trip. A tuple is a refusal; a candidate replaces the one read.
+        dealt = KINDS[candidate.kind]
+        if dealt.before is not None:
+            outcome = getattr(self, dealt.before)(candidate, readings)
+            if isinstance(outcome, tuple):
+                return done(outcome)
+            candidate = outcome
+
         # Free, and only an unanswerable question can fail it: an answerable
         # one is about its material by construction, because the answer came
         # out of it.
@@ -577,10 +588,17 @@ class QuestionChecker:
         if failed:
             return done(failed, embedding)
 
-        ran.append("round_trip")
-        return done(
-            self._round_trip(candidate, form, embedding, readings, settled), embedding
-        )
+        failed = None
+        if dealt.round_trip:
+            ran.append("round_trip")
+            failed = self._round_trip(candidate, form, embedding, readings, settled)
+        if failed is None and dealt.after is not None:
+            outcome = getattr(self, dealt.after)(candidate, form, readings)
+            if isinstance(outcome, tuple):
+                failed = outcome
+            else:
+                candidate = outcome
+        return done(failed, embedding)
 
     def _kind(self, candidate: Candidate) -> tuple[str, str] | None:
         """What a rule can settle about the kind and the long answer.
@@ -1271,4 +1289,5 @@ class QuestionChecker:
             gates_abstained=tuple(abstained),
             settled_as=settled.verdict if settled else None,
             settled_by=settled.quote if settled else None,
+            kind=stored(candidate.kind, len(candidate.group.resting)),
         )

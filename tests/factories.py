@@ -8,7 +8,7 @@ from typing import Any
 from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 
-from database.qa_generator import Difficulty, FactKind, QuestionType
+from database.qa_generator import Difficulty, FactKind, QuestionKind, QuestionType
 from extraction.models import PassageToExtract
 from preprocessing.chunking.models import Chunking
 from preprocessing.chunking.passages import _Markdown, chunking_of
@@ -147,6 +147,7 @@ def candidate(
     answer_explanation: str | None = None,
     root_facts: tuple[int, ...] = (),
     parent_passages: tuple[int, ...] = (),
+    kind: str = QuestionKind.SINGLE,
 ) -> Candidate:
     """A question as the model wrote it, before any gate has read it.
 
@@ -174,6 +175,7 @@ def candidate(
         answer_explanation=answer_explanation,
         root_facts=root_facts,
         parent_passages=parent_passages,
+        kind=kind,
     )
 
 
@@ -182,10 +184,15 @@ def plan(
     band: str = Difficulty.EASY,
     shape: str = Shape.SINGLE,
     answerable: bool = True,
+    kind: str = QuestionKind.SINGLE,
 ) -> Plan:
     """One slot of a topic's plan, as the writer is handed it."""
     return Plan(
-        spec=SPECS[question_type], band=band, shape=shape, answerable=answerable
+        spec=SPECS[question_type],
+        band=band,
+        shape=shape,
+        answerable=answerable,
+        kind=kind,
     )
 
 

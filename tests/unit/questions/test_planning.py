@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from collections import Counter
 
-from database.qa_generator import Difficulty, QuestionType
-from question_generation.planning import allocate, plans
+from database.qa_generator import Difficulty, QuestionKind, QuestionType
+from question_generation.planning import allocate, instead, plans
 from question_generation.selection import Shape, spread
 from question_generation.types import SPECS
 
@@ -363,3 +363,97 @@ def test_a_mix_with_no_detail_kind_writes_every_slot_answerable() -> None:
 
     assert all(one.answerable for one in spanning + sets)
     assert {one.spec.name for one in spanning} == {QuestionType.COMPARISON}
+
+
+# -- Kinds: every slot is dealt one ----------------------------------------
+
+#: The default mix over 24 slots, as main planned it before slots had a kind.
+MAIN_PLAN = [
+    ("factoid", "medium", "cross", True),
+    ("definition", "hard", "bridge", True),
+    ("enumeration", "easy", "single", True),
+    ("condition", "medium", "cross", True),
+    ("reason", "hard", "bridge", True),
+    ("procedure", "easy", "single", True),
+    ("consequence", "medium", "cross", True),
+    ("comparison", "hard", "bridge", True),
+    ("aggregation", "medium", "cross", True),
+    ("factoid", "easy", "single", False),
+    ("application", "medium", "single", True),
+    ("factoid", "medium", "cross", True),
+    ("definition", "hard", "bridge", True),
+    ("enumeration", "easy", "single", True),
+    ("condition", "medium", "cross", True),
+    ("reason", "hard", "bridge", True),
+    ("procedure", "medium", "cross", True),
+    ("consequence", "hard", "bridge", True),
+    ("comparison", "medium", "cross", True),
+    ("definition", "easy", "single", False),
+    ("implication", "hard", "bridge", True),
+    ("application", "medium", "single", True),
+    ("factoid", "medium", "cross", True),
+    ("definition", "hard", "bridge", True),
+]
+
+
+def _default_plan(**kwargs):
+    types = {name: 1 for name in SPECS}
+    types |= {QuestionType.ENTITY: 0, QuestionType.TEMPORAL: 0}
+    return plans(
+        wanted=24,
+        types=types,
+        bands={Difficulty.EASY: 2, Difficulty.MEDIUM: 3, Difficulty.HARD: 3},
+        unanswerable_share=0.1,
+        **kwargs,
+    )
+
+
+def test_every_slot_carries_a_kind() -> None:
+    """A one-passage slot is single, a spanning one needs both, the plan as before."""
+    built = _default_plan(kinds={QuestionKind.NEEDS_BOTH: 1})
+
+    assert [(p.spec.name, p.band, p.shape, p.answerable) for p in built] == MAIN_PLAN
+    for one in built:
+        assert one.kind == (
+            QuestionKind.SINGLE if one.shape == Shape.SINGLE else "needs_both"
+        )
+
+
+def test_no_mix_given_deals_every_spanning_slot_needs_both() -> None:
+    """The default is today's plan."""
+    assert _default_plan() == _default_plan(kinds={QuestionKind.NEEDS_BOTH: 1})
+
+
+def test_a_kind_mix_spreads_over_the_spanning_slots() -> None:
+    """Half and half, interleaved; a type that spans is needs_both whatever the mix."""
+    built = plans(
+        wanted=16,
+        types={QuestionType.FACTOID: 1, QuestionType.COMPARISON: 1},
+        bands={Difficulty.MEDIUM: 1},
+        unanswerable_share=0.0,
+        kinds={QuestionKind.NEEDS_BOTH: 1, QuestionKind.COMPOUND: 1},
+    )
+
+    factoids = [one.kind for one in built if one.spec.name == QuestionType.FACTOID]
+    assert factoids == ["needs_both", "compound"] * 4
+    assert {one.kind for one in built if one.spec.spans} == {"needs_both"}
+
+
+def test_a_slot_swapped_for_another_type_keeps_its_kind() -> None:
+    """Writing a reason slot as another type of question does not change the kind."""
+    reason = next(
+        one
+        for one in plans(
+            wanted=12,
+            types={QuestionType.REASON: 1, QuestionType.FACTOID: 1},
+            bands={Difficulty.MEDIUM: 1},
+            unanswerable_share=0.0,
+            kinds={QuestionKind.COMPOUND: 1},
+        )
+        if one.spec.name == QuestionType.REASON
+    )
+
+    other = instead(reason, {QuestionType.FACTOID: 1}, 0)
+
+    assert other is not None
+    assert (other.spec.name, other.kind) == (QuestionType.FACTOID, "compound")

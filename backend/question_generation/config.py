@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from database.qa_generator import AnswerForm, Difficulty
+from database.qa_generator import AnswerForm, Difficulty, QuestionKind
+from question_generation.kinds import KINDS
 from question_generation.queue import ASKABLE
 from question_generation.types import SPECS
 from settings import Source, csv, decimal, integer, mapping, optional, required
@@ -42,6 +43,11 @@ def _weights(
         raise ValueError(f"{name} gives every entry a weight of 0, so nothing is asked")
     return read
 
+
+#: QUESTIONS_KIND_MIX when it is not set: every spanning slot needs both
+#: passages, as before kinds existed. A kind written later adds its weight
+#: here only once its gate has passed.
+_KIND_MIX: dict[str, int] = {QuestionKind.NEEDS_BOTH: 1}
 
 #: A language as every `language` column holds one: an ISO 639-1 code.
 _LANGUAGE = re.compile(r"[a-z]{2}")
@@ -265,6 +271,8 @@ class Settings:
     #: passage must be among before it is offered. Read off the topic's own
     #: vectors, so no cosine is tuned to a corpus. 0 sets no relative floor.
     meets_share: float = 0.0
+    #: Which kind each spanning slot is dealt, in what proportion.
+    kind_mix: dict[str, int] = field(default_factory=lambda: dict(_KIND_MIX))
 
     @classmethod
     def load(cls, source: Source = None) -> Settings:
@@ -320,6 +328,12 @@ class Settings:
                 decimal("QUESTIONS_MEETS_SHARE", source)
                 if optional("QUESTIONS_MEETS_SHARE", source)
                 else MEETS_SHARE
+            ),
+            # Absent deals every spanning slot needs_both, as before.
+            kind_mix=(
+                _weights("QUESTIONS_KIND_MIX", KINDS, source)
+                if optional("QUESTIONS_KIND_MIX", source)
+                else dict(_KIND_MIX)
             ),
             off_topic_overlap=decimal("QUESTIONS_OFF_TOPIC_OVERLAP", source),
             elsewhere_passages=integer("QUESTIONS_ELSEWHERE_PASSAGES", source),

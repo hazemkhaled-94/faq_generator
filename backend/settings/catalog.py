@@ -634,6 +634,15 @@ SETTINGS: tuple[Setting, ...] = (
         "absent reads the shipped 0.02.",
     ),
     Setting(
+        name="QUESTIONS_KIND_MIX",
+        service="questions",
+        kind="mapping",
+        optional=True,
+        help="Which kind each question that spans passages is dealt, as "
+        "`kind:weight`. A weight of 0, or a name left out, is never dealt; "
+        "absent deals every one needs_both.",
+    ),
+    Setting(
         name="QUESTIONS_BOILERPLATE_COSINE",
         service="questions",
         kind="decimal",

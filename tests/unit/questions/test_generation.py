@@ -12,6 +12,8 @@ import re
 from factories import group, plan, source
 
 from question_generation.generation import QuestionWriter
+from question_generation.kinds import _Answered
+from question_generation.types import SPECS
 
 
 class StubModel:
@@ -24,10 +26,12 @@ class StubModel:
         """Initialises the model with the fields it answers with."""
         self._fields = fields
         self.asked: list[tuple[str, str]] = []
+        self.shapes: list[type] = []
 
     def answer(self, *, system: str, user: str, shape, prompt_version=None):
         """Records the call and answers in the shape asked for."""
         self.asked.append((system, user))
+        self.shapes.append(shape)
         return shape(
             **{k: v for k, v in self._fields.items() if k in shape.model_fields}
         )
@@ -435,3 +439,31 @@ def test_a_retry_note_is_framed_as_feedback_on_the_previous_draft() -> None:
     assert "FEEDBACK ON THE PREVIOUS DRAFT" in rendered
     assert "THROWN OUT" not in rendered
     assert "a reviewer found the answer too short." in rendered
+
+
+def test_the_writer_takes_its_instruction_and_shape_from_the_kind() -> None:
+    """A needs_both slot is told what main told it; a single slot is told none."""
+    model = StubModel(question="Q?", answer="A")
+    writer = QuestionWriter(model)
+    factoid = SPECS["factoid"]
+
+    writer.write(group(), plan(shape="cross", kind="needs_both"))
+    assert model.system == factoid.system(spans=True)
+    assert model.shapes[-1] is _Answered
+    writer.write(group(), plan())
+    assert model.system == factoid.system()
+    assert model.shapes[-1] is _Answered
+
+
+def test_the_candidate_carries_the_kind_of_the_passages_it_cites() -> None:
+    """Dealt needs_both, a question citing one passage is single."""
+    model = StubModel(question="Q?", answer="A", facts=[1, 2])
+    pair = group(
+        source(1, document="a", passage_id=1), source(2, document="b", passage_id=2)
+    )
+
+    both = QuestionWriter(model).write(pair, plan(shape="cross", kind="needs_both"))
+    model = StubModel(question="Q?", answer="A", facts=[1])
+    alone = QuestionWriter(model).write(pair, plan(shape="cross", kind="needs_both"))
+
+    assert (both.kind, alone.kind) == ("needs_both", "single")

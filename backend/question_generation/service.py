@@ -939,6 +939,7 @@ class QuestionGenerationService(StageService):
             types=self._settings.type_mix,
             bands=self._settings.difficulty_mix,
             unanswerable_share=self._settings.unanswerable_share,
+            kinds=self._settings.kind_mix,
         )
 
         threads: list[list[CheckedQuestion]] = []

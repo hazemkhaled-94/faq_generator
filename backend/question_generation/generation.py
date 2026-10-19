@@ -20,9 +20,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from database.qa_generator import QuestionKind
 from llm.client import Client
 from llm.prompt import fill
 from nlp.models import named
+from question_generation.kinds import KINDS, _Answered, stored
 from question_generation.models import Candidate, FactGroup
 from question_generation.planning import Plan
 from question_generation.types import PROMPT_VERSION, READS, TypeSpec
@@ -241,31 +243,6 @@ class Declined(Exception):
     """The writer said these facts cannot answer a question of the kind asked."""
 
 
-class _Answered(BaseModel):
-    """A question the facts answer, as the model is asked to return it."""
-
-    question: str = Field(
-        description="ONE question, ending in a question mark, naming what it "
-        "asks about the way a searcher would have to."
-    )
-    answer: str = Field(description="The answer, in the form the instructions ask for.")
-    explanation: str = Field(
-        default="",
-        description="The same answer said at length, three to six sentences, "
-        "for a reader who has not seen the material. Says why and not only "
-        "what, and asserts no number or name the material does not.",
-    )
-    facts: list[int] = Field(
-        default_factory=list,
-        description="The NUMBERS of the facts this question needs.",
-    )
-    declined: bool = Field(
-        default=False,
-        description="True when these facts cannot answer a question of this "
-        "kind honestly; the question and the answer are then left empty.",
-    )
-
-
 class _Unanswered(BaseModel):
     """A question the material does not answer."""
 
@@ -312,10 +289,13 @@ class QuestionWriter:
         if not plan.answerable:
             return self._unanswerable(sample, plan, note)
 
+        kind = KINDS[plan.kind]
         written = self._client.answer(
-            system=plan.spec.system(spans=plan.spans),
+            system=plan.spec.system(
+                spans=plan.spans, instruction=kind.instruction or None
+            ),
             user=self._prompt(sample, note),
-            shape=_Answered,
+            shape=kind.shape,
             prompt_version=PROMPT_VERSION,
         )
         if written.declined:
@@ -326,6 +306,7 @@ class QuestionWriter:
             answer=written.answer,
             explanation=written.explanation,
             group=self._used(sample, written.facts),
+            kind=plan.kind,
         )
 
     def follow_up(
@@ -370,6 +351,7 @@ class QuestionWriter:
             thread=thread,
             root_facts=root_facts,
             parent_passages=parent_passages,
+            kind=QuestionKind.NEEDS_BOTH,
         )
 
     def _unanswerable(self, sample: FactGroup, plan: Plan, note: str = "") -> Candidate:
@@ -404,6 +386,7 @@ class QuestionWriter:
         question: str,
         answer: str,
         group: FactGroup,
+        kind: str,
         explanation: str = "",
         thread: tuple[tuple[str, str | None], ...] = (),
         root_facts: tuple[int, ...] = (),
@@ -421,6 +404,7 @@ class QuestionWriter:
             parent_passages=parent_passages,
             spec=plan.spec,
             planned_difficulty=plan.band,
+            kind=stored(kind, len(group.resting)),
         )
 
     @staticmethod

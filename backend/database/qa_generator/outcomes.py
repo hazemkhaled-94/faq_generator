@@ -33,6 +33,21 @@ class PassageScope(StrEnum):
     MULTI = "multi_passage"
 
 
+class QuestionKind(StrEnum):
+    """What a question was written to be, which decides how it is judged.
+
+    `single` rests on one passage. `needs_both` takes one element from each
+    of two. `compound` asks two separate things, one answered by each
+    passage. `false_premise` takes a link for granted that neither passage
+    makes.
+    """
+
+    SINGLE = "single"
+    NEEDS_BOTH = "needs_both"
+    COMPOUND = "compound"
+    FALSE_PREMISE = "false_premise"
+
+
 class DocumentScope(StrEnum):
     """Whether the answer sits in one document or spans two.
 

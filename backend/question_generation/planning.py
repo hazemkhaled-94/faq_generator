@@ -17,9 +17,9 @@ and the two disagreeing is a measurement of how often the plan was met.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from database.qa_generator import Difficulty, QuestionType
+from database.qa_generator import Difficulty, QuestionKind, QuestionType
 from question_generation.selection import Shape, spread
 from question_generation.types import SPECS, TypeSpec
 
@@ -52,6 +52,9 @@ class Plan:
     band: str
     shape: str
     answerable: bool
+    #: What the slot is dealt to be: `single` for a one-passage slot, and
+    #: for a spanning one the kind the mix chose. Looked up in `KINDS`.
+    kind: str = QuestionKind.SINGLE
 
     @property
     def spans(self) -> bool:
@@ -93,6 +96,7 @@ def plans(
     types: Mapping[str, int],
     bands: Mapping[str, int],
     unanswerable_share: float,
+    kinds: Mapping[str, int] | None = None,
 ) -> list[Plan]:
     """The questions one topic is to be asked, in the order they are written.
 
@@ -121,6 +125,10 @@ def plans(
     on one. A mix with none of them writes the slot answerable, in the kind
     it was allocated: writing nothing loses the slot, and writing a set or a
     condition unanswerable mostly writes a question the material settles.
+
+    Every slot carries a kind. A one-passage slot is `single`; a slot whose
+    type spans is `needs_both` by construction; the other spanning slots
+    share out `kinds` in order, which holds `needs_both` alone when not given.
     """
     typed = allocate(types, wanted)
     banded = allocate(bands, wanted)
@@ -140,7 +148,20 @@ def plans(
             else:
                 answerable = True
         planned.append(_slot(name, band, answerable))
-    return planned
+    return _kinded(planned, kinds or {QuestionKind.NEEDS_BOTH: 1})
+
+
+def _kinded(planned: list[Plan], kinds: Mapping[str, int]) -> list[Plan]:
+    """The plan with each spanning slot given its kind, in slot order."""
+    shared = [one for one in planned if one.spans and not one.spec.spans]
+    dealt = iter(allocate(kinds, len(shared)))
+    kinded = []
+    for one in planned:
+        kind = QuestionKind.SINGLE
+        if one.spans:
+            kind = QuestionKind.NEEDS_BOTH if one.spec.spans else next(dealt)
+        kinded.append(replace(one, kind=kind))
+    return kinded
 
 
 def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
@@ -159,7 +180,8 @@ def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
     others = [name for name in _alone(types) if name != plan.spec.name]
     if not others:
         return None
-    return _slot(others[turn % len(others)], plan.band, plan.answerable)
+    other = _slot(others[turn % len(others)], plan.band, plan.answerable)
+    return replace(other, kind=plan.kind if other.spans else QuestionKind.SINGLE)
 
 
 def _alone(types: Mapping[str, int]) -> list[str]:
