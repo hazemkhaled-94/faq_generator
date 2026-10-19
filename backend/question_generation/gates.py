@@ -24,6 +24,7 @@ does.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from itertools import combinations, pairwise
@@ -438,19 +439,44 @@ _RELATES: dict[str, frozenset[str]] = {
 }
 
 
-def relates(question: str, language: str | None) -> str | None:
+log = logging.getLogger(__name__)
+
+#: Languages already reported as having no row in `_RELATES`.
+_UNREAD: set[str] = set()
+
+
+def relates(
+    question: str, language: str | None, halves: Sequence[str] = ()
+) -> str | None:
     """The word by which a question claims a relation between its halves.
 
     The first token of the question whose lemma, or whose own form, is in the
-    language's row of `_RELATES`; None where none is, and for a language with
-    no row.
+    language's row of `_RELATES`, among the words that join the halves: a
+    word one of the `halves` asked alone says is that half's own (`total`,
+    `same-day`) and claims nothing between them. None where none is. A
+    language with no row refuses nothing, and is logged once.
     """
-    row = _RELATES.get((language or "").strip().lower())
+    code = (language or "").strip().lower()
+    row = _RELATES.get(code)
     if not row:
+        if code not in _UNREAD:
+            _UNREAD.add(code)
+            log.warning(
+                "no relation words for language %r: a compound question is not "
+                "checked for a claimed relation",
+                code,
+            )
         return None
-    for token in pipeline(language)(question):
+    read = pipeline(language)
+    own = {
+        word
+        for half in halves
+        for token in read(half)
+        for word in (token.lemma_.casefold(), token.lower_)
+    }
+    for token in read(question):
         for word in (token.lemma_.casefold(), token.lower_):
-            if word in row:
+            if word in row and word not in own:
                 return word
     return None
 

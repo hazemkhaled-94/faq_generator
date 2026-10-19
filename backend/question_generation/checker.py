@@ -635,7 +635,11 @@ class QuestionChecker:
                 QuestionRejection.MALFORMED,
                 f"the key is not its halves' answers joined by '; ', {joined!r}",
             )
-        word = relates(candidate.question_text, candidate.group.language)
+        word = relates(
+            candidate.question_text,
+            candidate.group.language,
+            [one[1] for one in parts],
+        )
         if word is not None:
             return (
                 QuestionRejection.WRONG_TYPE,

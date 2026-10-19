@@ -5088,3 +5088,34 @@ def test_the_relation_table_names_a_lemma_per_language_and_none_for_a_gap() -> N
         relates("Was ist das Limit, und wie wird ein Konto geschlossen?", "de") is None
     )
     assert relates("Quel est le plafond, et ... both ... ?", "fr") is None
+
+
+def test_a_relation_word_a_half_itself_asks_with_is_not_a_claim_of_relation() -> None:
+    """`total` and `same-day` in a half are the half's; the joining span is what is read."""
+    from question_generation.gates import relates
+
+    question = "What is the total fee, and how long is same-day delivery?"
+    halves = ("What is the total fee?", "How long is same-day delivery?")
+
+    assert relates(question, "en", halves) is None
+    assert relates("How do the fees and the delivery differ?", "en", halves) == "differ"
+    assert (
+        relates("Wie hoch sind beide Gebühren?", "de", ("Wie hoch ist die Gebühr?",))
+        == "beide"
+    )
+
+
+def test_a_language_with_no_relation_row_is_logged_once(caplog) -> None:
+    """A gate that silently never fires is the failure the language tables guard."""
+    import logging
+
+    from question_generation import gates
+
+    gates._UNREAD.clear()
+    with caplog.at_level(logging.WARNING, logger="question_generation.gates"):
+        gates.relates("Quel est le plafond ?", "fr")
+        gates.relates("Quel est le tarif ?", "fr")
+
+    assert [r.getMessage() for r in caplog.records].count(
+        "no relation words for language 'fr': a compound question is not checked for a claimed relation"
+    ) == 1
