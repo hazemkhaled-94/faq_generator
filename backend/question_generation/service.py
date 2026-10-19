@@ -44,6 +44,7 @@ from question_generation.gates import (
     typed,
 )
 from question_generation.generation import Declined, QuestionWriter
+from question_generation.kinds import stored
 from question_generation.models import (
     Candidate,
     CheckedQuestion,
@@ -274,6 +275,7 @@ def _cited(question: JudgedQuestion, settings: Settings) -> Criteria:
         answer_chars=len(question.target_answer or "") or None,
         follows=question.follows_id is not None,
         long_answer=settings.long_answer_chars,
+        kind=stored(question.kind, question.passages),
     )
 
 

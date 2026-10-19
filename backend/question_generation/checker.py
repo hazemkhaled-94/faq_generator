@@ -1259,6 +1259,7 @@ class QuestionChecker:
             candidate.target_answer,
             candidate.group.language,
         )
+        stored_kind = stored(candidate.kind, len(candidate.group.resting))
         return CheckedQuestion(
             question_text=candidate.question_text,
             target_answer=candidate.target_answer,
@@ -1267,6 +1268,7 @@ class QuestionChecker:
                 len(candidate.target_answer) if candidate.target_answer else None,
                 follows=candidate.follows,
                 long_answer=long_answer,
+                kind=stored_kind,
             ),
             language=candidate.group.language,
             status=QuestionStatus.REJECTED if code else QuestionStatus.ACCEPTED,
@@ -1289,5 +1291,5 @@ class QuestionChecker:
             gates_abstained=tuple(abstained),
             settled_as=settled.verdict if settled else None,
             settled_by=settled.quote if settled else None,
-            kind=stored(candidate.kind, len(candidate.group.resting)),
+            kind=stored_kind,
         )

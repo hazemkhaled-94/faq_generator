@@ -117,3 +117,43 @@ def test_a_second_passage_counts_through_a_real_citation() -> None:
         DocumentScope.CROSS,
         TopicScope.MULTI,
     )
+
+
+def _read(kind: str = "single", **scopes):
+    from question_generation.models import criteria_of
+
+    return criteria_of(
+        **{"passages": 1, "documents": 1, "topics": 1, "answer_chars": 20} | scopes,
+        kind=kind,
+    )
+
+
+def test_a_needs_both_question_is_banded_by_points_as_before() -> None:
+    """Its need for both passages is not verified, so the spread bands it."""
+    assert _read("needs_both", passages=2).difficulty == "easy"
+    assert _read("needs_both", passages=2, topics=2).difficulty == "medium"
+
+
+def test_a_kind_that_fixes_a_band_decides_the_band(monkeypatch) -> None:
+    """Compound and false-premise kinds fix medium: their entry says so."""
+    from dataclasses import replace
+
+    from question_generation import kinds
+
+    monkeypatch.setitem(
+        kinds.KINDS,
+        "compound",
+        replace(kinds.KINDS["needs_both"], name="compound", band="medium"),
+    )
+
+    read = _read("compound", passages=2, documents=2, topics=2)
+
+    assert read.difficulty == "medium"
+
+
+def test_a_single_question_is_banded_by_points_as_before() -> None:
+    """The default kind leaves the points rule alone, in every band."""
+    assert _read(passages=1).difficulty == "easy"
+    assert _read(passages=2).difficulty == "easy"
+    assert _read(passages=2, topics=2).difficulty == "medium"
+    assert _read(passages=2, documents=2, topics=2).difficulty == "hard"

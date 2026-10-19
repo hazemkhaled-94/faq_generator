@@ -14,6 +14,7 @@ from database.qa_generator import (
     QuestionKind,
     TopicScope,
 )
+from question_generation.kinds import KINDS
 from question_generation.types import TypeSpec, spec
 
 #: A long answer, in characters. Above it a question counts as harder: a
@@ -85,6 +86,7 @@ def criteria_of(
     answer_chars: int | None,
     follows: bool = False,
     long_answer: int = LONG_ANSWER_CHARS,
+    kind: str = QuestionKind.SINGLE,
 ) -> Criteria:
     """Reads the three scopes and the difficulty band off one question.
 
@@ -106,6 +108,12 @@ def criteria_of(
     hardest thing a retriever faces, a question spanning two documents and
     two subjects, only medium. Hard has to be reachable by evidence spread
     alone rather than only by a long answer or a follow-up.
+
+    `kind` is the stored kind of the question. Where a kind's entry in
+    `kinds.KINDS` fixes a band (a compound question asks two lookups: medium)
+    it is that band whatever the spread of the passages; every other kind,
+    needs-both and single-passage included, is banded by the points above. The scopes and
+    `score` are still read off the evidence.
     """
     passage_scope = PassageScope.MULTI if passages > 1 else PassageScope.SINGLE
     document_scope = DocumentScope.CROSS if documents > 1 else DocumentScope.SINGLE
@@ -120,7 +128,8 @@ def criteria_of(
         follows=follows,
         long_answer=long_answer,
     )
-    return replace(read, difficulty=band(read.score))
+    fixed = KINDS[kind].band if kind in KINDS else None
+    return replace(read, difficulty=fixed or band(read.score))
 
 
 @dataclass(frozen=True)
@@ -271,6 +280,7 @@ class FactGroup:
         *,
         follows: bool = False,
         long_answer: int = LONG_ANSWER_CHARS,
+        kind: str = QuestionKind.SINGLE,
     ) -> Criteria:
         """What kind of question this group's facts make."""
         resting = self.resting
@@ -281,6 +291,7 @@ class FactGroup:
             answer_chars=answer_chars,
             follows=follows,
             long_answer=long_answer,
+            kind=kind,
         )
 
     @property
@@ -599,6 +610,8 @@ class JudgedQuestion:
     topics: int
     follows_id: int | None
     question_type: str | None = None
+    #: The kind it was stored as; the band follows it where the kind fixes one.
+    kind: str = QuestionKind.SINGLE
     answer_form: str | None = None
     reviewed_verdict: str | None = None
     #: What it was written to be. `kinds.stored` of this and `passages` is

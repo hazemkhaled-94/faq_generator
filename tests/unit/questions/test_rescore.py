@@ -126,3 +126,25 @@ def test_a_question_on_a_fact_left_only_its_fold_is_not_rescored() -> None:
     assert catalog.written == []
     failed = _recheck(None, Settings.load(), stranded)  # type: ignore[arg-type]
     assert failed is not None and failed[0] == QuestionRejection.SOURCE_CHANGED
+
+
+def test_rescore_reads_the_stored_kind(monkeypatch) -> None:
+    """A row whose kind fixes a band keeps it; one that cites one passage is single."""
+    from dataclasses import replace as swap
+
+    from question_generation import kinds
+
+    monkeypatch.setitem(
+        kinds.KINDS,
+        "compound",
+        swap(kinds.KINDS["needs_both"], name="compound", band="medium"),
+    )
+    two = _stored(kind="compound", passages=2, documents=2, topics=2)
+    one = _stored(id=3, kind="compound", passages=1, topics=1)
+    catalog = _Catalog(two, one)
+
+    rescore(catalog, Settings.load())  # type: ignore[arg-type]
+
+    now = dict(catalog.written)
+    assert now[2].difficulty == Difficulty.MEDIUM
+    assert now[3].difficulty == Difficulty.EASY
