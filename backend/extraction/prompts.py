@@ -71,7 +71,7 @@ def catalogue(
             bridge.PROMPT_VERSION,
             bridge._SYSTEM,
             bridge._USER,
-            bridge._Bridges.model_json_schema(),
+            bridge._Answer.model_json_schema(),
             reads,
         ),
     ]

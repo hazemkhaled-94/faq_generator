@@ -269,14 +269,20 @@ the passages that head them, strided over the topic's heads in reading
 order. The partner may sit in any topic of its language. The pass logs how
 many links of each kind it offered.
 
-The model is shown the group as `[P0]`, `[P1]`, … with sentences numbered
-inside each, and answers with a claim plus, per passage, the numbers of the
-sentences it read it in. It is told not to compute: a total nobody wrote down
-would be refused as `unsupported_addition`. A bridge is a claim in which one
-excerpt changes what the other says: it defines the other's term, limits or
-excepts its rule, or states what follows from it. Two facts set side by side
-("both A and B", "stated separately") are the prompt's wrong example since
-prompt version 5; they were its right one before.
+The model is shown the pair as `[P0]`, `[P1]` with sentences numbered inside
+each, under each the validated atomic facts of that passage as `[F0]`, `[F1]`,
+and one line naming the link. It answers with ONE bridge or `none` (the usual
+answer): a relation from a closed set (defines, limits, consequence, applies,
+parallel, contrast), one fact picked from each excerpt by number, the claim
+relating them, and the question only both excerpts answer with its short
+answer. The bridge cites the picked facts' own sentences, so it rests on what
+was already checked. It is told not to compute: a total nobody wrote down
+would be refused as `unsupported_addition`. A pair with a passage holding no
+validated fact is not read; the per-language log line counts them. Two facts
+set side by side ("both A and B", "stated separately") are not a bridge unless
+a question about the two needs both. The question is not stored; it is what
+the bridge is later tested with. Prompt version 6 replaces the list-of-claims
+prompt 5.
 
 A trigger deletes a bridge once any passage it rests on is gone. Re-running
 the pass replaces what the previous one wrote.

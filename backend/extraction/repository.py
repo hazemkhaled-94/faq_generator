@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections import defaultdict
+from collections.abc import Callable, Collection, Iterator
 from contextlib import contextmanager
 from itertools import groupby
 from typing import ClassVar, cast
@@ -1089,6 +1090,47 @@ class FactCatalog(Repository):
                 update(table).where(table.c.id == bindparam("row")),
                 [{"row": row, "embedding": one} for row, one in vectors],
             ).rowcount
+
+    def atomic_of(
+        self, passage_ids: Collection[int]
+    ) -> dict[int, list[tuple[int, str, tuple[int, ...]]]]:
+        """Reads the validated atomic facts of some passages.
+
+        What a bridge is composed from: each is a claim already checked
+        against its own sentences.
+
+        Args:
+            passage_ids: The passages to read.
+
+        Returns:
+            Per passage, its facts as (fact id, statement, the sentence
+            numbers it cites), in fact order. A passage with none is absent.
+        """
+        query = (
+            select(
+                FactPassage.passage_id,
+                Fact.id,
+                Fact.statement,
+                FactPassage.sentence_ids,
+            )
+            .join(Fact, Fact.id == FactPassage.fact_id)
+            .where(
+                FactPassage.passage_id
+                == any_(bindparam("ids", type_=ARRAY(BigInteger))),
+                FactPassage.position == 0,
+                FactPassage.sentence_ids.is_not(None),
+                Fact.kind == FactKind.ATOMIC,
+                Fact.validated.is_(True),
+            )
+            .order_by(Fact.id)
+        )
+        found: dict[int, list[tuple[int, str, tuple[int, ...]]]] = defaultdict(list)
+        with self._session() as session:
+            for passage, fact, statement, sentences in session.execute(
+                query, {"ids": list(passage_ids)}
+            ):
+                found[passage].append((fact, statement, tuple(sentences)))
+        return dict(found)
 
     def clear_bridges(self, within=None) -> int:
         """Deletes the bridge facts a fresh pass is about to replace.

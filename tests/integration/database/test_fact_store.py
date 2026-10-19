@@ -429,6 +429,32 @@ class TestBridges:
 
         assert store.catalog.clear_bridges(Passage.doc_sha256 == digest("a")) == 1
 
+    def test_the_validated_atomic_facts_of_a_passage_are_read_with_their_sentences(
+        self, store, corpus
+    ) -> None:
+        """What a bridge is composed from: checked claims and where they cite."""
+        first, second = corpus["a"]
+        store.store(
+            first,
+            checked(
+                first, "Requests are answered in 48 hours.", evidence_sentence_ids=[0]
+            ),
+            checked(
+                first, "Refused.", validated=False, rejection_code=Rejection.NOT_ATOMIC
+            ),
+        )
+        store.bridges(
+            checked(
+                first, "A bridge.", kind=FactKind.BRIDGE, passage_ids=[first, second]
+            )
+        )
+
+        found = store.catalog.atomic_of({first, second})
+
+        assert list(found) == [first], "a passage with none is absent"
+        ((_, statement, sentences),) = found[first]
+        assert (statement, sentences) == ("Requests are answered in 48 hours.", (0,))
+
     def test_writing_nothing_writes_nothing(self, store) -> None:
         """A topic that bridges nothing costs no statement."""
         assert store.bridges() == 0

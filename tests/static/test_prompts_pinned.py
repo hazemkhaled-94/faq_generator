@@ -69,7 +69,7 @@ RECORDED = {
     ("extraction", "atomic"): ("12+cap4", "e2d56e73653bbf58"),
     ("extraction", "repair"): ("repair-1", "38641498eb9852d0"),
     ("extraction", "digest"): ("5", "d5d5657642500b66"),
-    ("extraction", "bridge"): ("5", "ff95a77ceef2445e"),
+    ("extraction", "bridge"): ("6", "1759d28349a16528"),
     ("topics", "label"): ("2", "7f8b54ef860bde4b"),
     ("assessment", "fact: hallucination"): ("2", "ab72d40652bc51c4"),
     ("assessment", "fact: relevance"): ("2", "3a8b74aeaeb83dc5"),

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from database.qa_generator import FactKind
 from extraction.extractors.base import ExtractionFailed
+from extraction.links import Link
 from extraction.models import CandidateFact, Cited, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
@@ -16,35 +18,44 @@ from nlp.models import named as in_language
 #: Recorded on every bridge drawn with the prompt below. Bumped whenever that
 #: prompt changes what counts as a bridge or how one is cited: two prompts are
 #: two datasets.
-PROMPT_VERSION = "5"
+PROMPT_VERSION = "6"
 
 _SYSTEM = """ROLE
-You are a claims analyst working across documents. You read several excerpts
-the corpus itself says are about the same subject, and write only the claims
-that need MORE THAN ONE of them.
+You are a claims analyst working across documents. You read two excerpts the
+documents link and decide whether ONE claim needs both of them.
 
 ACTION
-Write the bridges. A bridge is a claim a reader gets only by holding two
-excerpts together, because one of them changes what the other says: one
-defines a term the other's rule uses, one sets an exception or a limit to the
-other's rule, one says what follows when the other's rule is met or broken.
+Write at most one bridge: a claim a reader gets only by holding both excerpts
+together, joining ONE validated fact of each excerpt by a named relation. When
+no question needs both excerpts, answer `none`. `none` is the usual answer.
 
 STEPS
-1. Read all the excerpts and note what each is about.
-2. Look for pairs that MEET - one defining what another names, one limiting
-   or excepting what another states, one stating the consequence of another.
-3. Discard pairs that merely sit near each other, and pairs that only state
-   two things side by side. They bridge nothing.
-4. For each pair that does meet, write the one claim that needs both.
-5. Cite it: for each excerpt the claim needs, its number and the numbers of
-   ITS OWN sentences you read the claim in.
-6. Check every number, date, name and amount you wrote against the sentences
-   you cited. Compute nothing.
+1. Read both excerpts, the facts listed under each, and the line that says
+   how the documents link them.
+2. Look for a relation between ONE fact of the first excerpt and ONE fact of
+   the second:
+   - defines: one excerpt defines a term the other's rule uses.
+   - limits: one sets an exception or a condition to the other's rule.
+   - consequence: one states what follows when the other's rule is met or
+     broken.
+   - applies: one states a general rule, the other a case it covers.
+   - parallel: the same rule for two subjects, each excerpt naming one, and
+     only when a question about the two needs both excerpts.
+   - contrast: two subjects differ in one stated respect, each excerpt giving
+     one side.
+3. If no relation holds, or one excerpt alone answers every question the
+   other would raise, answer `none`.
+4. Otherwise name the relation, pick the two facts by their numbers, and
+   write the statement that relates them.
+5. Write the question only both excerpts answer, and its short answer in the
+   excerpts' own words.
+6. Check every number, date, name and amount you wrote against the two facts
+   you picked. Compute nothing.
 
 CONTEXT
-Each excerpt is numbered [P0], [P1], and inside each one its sentences are
-numbered [0], [1], from zero. SENTENCE NUMBERS START AGAIN AT 0 IN EVERY
-EXCERPT. You have no knowledge beyond the excerpts and may use none.
+Each excerpt is numbered [P0], [P1]; under it come its sentences, then its
+validated facts as [F0], [F1], from zero in every excerpt. You have no
+knowledge beyond the excerpts and may use none.
 
 EXAMPLES
 Two excerpts:
@@ -52,75 +63,66 @@ Two excerpts:
   [P0] Accounts > Terms
     [0] An account is dormant when its holder has made no payment for 24 months.
     [1] Interest is paid on dormant accounts as on any other.
+    facts:
+    [F0] An account is dormant when its holder has made no payment for 24 months.
   [P1] Fees > Yearly fees
     [0] A dormant account is charged a yearly fee of 10 EUR.
     [1] The fee is shown on the yearly statement.
+    facts:
+    [F0] A dormant account is charged a yearly fee of 10 EUR.
 
-  RIGHT  passages: [{passage: 0, sentences: [0]},
-                    {passage: 1, sentences: [0]}]
+  RIGHT  relation: defines   facts: [{excerpt: 0, fact: 0}, {excerpt: 1, fact: 0}]
          statement: "An account whose holder has made no payment for 24
                      months is charged a yearly fee of 10 EUR."
+         question: "What yearly fee is charged on an account whose holder has
+                    made no payment for 24 months?"   answer: "10 EUR"
          (P1 sets the fee and P0 says which accounts it reaches: neither
-          excerpt alone gives the claim)
+          excerpt alone answers the question)
 
-  WRONG  passages: [{passage: 0, sentences: [0]}]
-         statement: "An account is dormant when its holder has made no
-                     payment for 24 months."
-         (one excerpt: an ordinary fact, not a bridge)
+  RIGHT  relation: contrast
+         [P0] Requests > Standard: Standard requests are answered within 48
+         hours. [P1] Requests > Urgent: Urgent requests are answered within 4
+         hours.
+         statement: "Urgent requests are answered sooner than standard ones,
+                     within 4 hours against 48 hours."
+         question: "Which is answered sooner, a standard or an urgent
+                    request?"   answer: "an urgent request"
+         (each excerpt gives one side and the question needs both)
 
-  WRONG  passages: [{passage: 0, sentences: [0, 1]},
-                    {passage: 1, sentences: [0, 1]}]
-         statement: "An account whose holder has made no payment for 24
-                     months is charged a yearly fee of 10 EUR."
-         (sentence 1 of each excerpt says nothing about the claim: cite what
-          you used, not the whole excerpt)
+  WRONG -> none
+         [P0] "Interest is paid on dormant accounts as on any other."
+         [P1] "The fee is shown on the yearly statement."
+         (no question needs both)
 
-  WRONG  passages: [{passage: 0, sentences: [1]},
-                    {passage: 1, sentences: [1]}]
-         statement: "Both interest and the yearly fee apply to dormant
-                     accounts."
-         (two facts side by side: neither changes or explains the other, so
-          no question needs both; "both A and B", "A and B are stated
-          separately" and "X applies to A and to B" bridge nothing)
+  WRONG  statement: "The yearly fee is stated in both Section 7 and the price
+                     list."
+         (about the documents, not about the subject)
 
-  WRONG  passages: [{passage: 0, sentences: [0]},
-                    {passage: 1, sentences: [0]}]
-         statement: "An account becomes dormant after 24 months without a
-                     payment and is then charged 10 EUR a year."
-         (two claims in one sentence: write the one above)
-
-  WRONG  passages: [{passage: 0, sentences: [0]},
-                    {passage: 1, sentences: [0]}]
-         statement: "A dormant account pays 20 EUR in fees over two years."
-         (20 appears in neither excerpt: that is a calculation, not a claim)
+  WRONG  statement: "A dormant account pays 20 EUR in fees over two years."
+         (20 appears in neither fact: that is a calculation, not a claim)
 
 FORMAT
-Return `facts`, a list in which every entry has two parts:
+Return ONE object:
 
-- `passages` says where the claim rests, as one entry per excerpt it needs:
-  the excerpt's number and the numbers of ITS OWN sentences you read it in.
-  It must name at least TWO excerpts. Copy nothing; just say which sentence
-  of which excerpt.
-- `statement` is WRITTEN BY YOU: one short sentence carrying ONE claim, which
-  a reader who cannot see the excerpts understands on its own.
+- `relation`: one of none, defines, limits, consequence, applies, parallel,
+  contrast. With `none`, leave the rest empty.
+- `facts`: exactly two entries, one per excerpt: the excerpt's number
+  (`excerpt`) and the number of the fact you picked (`fact`).
+- `statement`: ONE claim relating the two facts, written by you, naming its
+  subject. It keeps each fact's condition or exception (a subordinate clause
+  is allowed), adds nothing, computes nothing, and says nothing about where
+  the text is ("is stated in both", "section 7 says").
+- `question`: a question a reader answers only by holding both excerpts.
+- `answer`: its short answer, in the excerpts' words.
 
 Rules, all of them mandatory:
-- AT LEAST TWO EXCERPTS per fact. This is the whole point.
-- CITE THE SENTENCES YOU USED, in each excerpt, and no others.
-- ONE CLAIM per statement. Exactly one finite verb.
+- BOTH EXCERPTS are needed. This is the whole point.
 - ADD NOTHING. Every number, date, name and amount in your statement must
-  appear in one of the sentences you cite. Do NOT add up, average, subtract,
-  convert or otherwise compute a value: a total nobody wrote down is not in
-  the material. Relate what is written; do not calculate it.
+  appear in one of the two facts. Do NOT add up, average, subtract, convert or
+  otherwise compute a value.
 - NAME THE SUBJECT. Never write "it", "this", "they", "he", "she".
-- WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPTS. It is their own
-  language. It is named there rather than left to you because a model reading
-  a corpus that is mostly one language writes that language for all of it.
-- ONE EXCERPT MUST CHANGE WHAT THE OTHER SAYS: define its term, limit or
-  except its rule, or state what follows from it. Two facts that only sit
-  side by side, joined by "both", "and" or "separately", bridge nothing.
-- Excerpts that merely sit near each other bridge nothing. An empty list is a
-  correct answer and is better than a forced one.
+- WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPTS. It is their own language.
+- When in doubt, answer `none`.
 """
 
 #: The user message, as the catalogue records it and `_prompt` renders it.
@@ -128,42 +130,40 @@ _USER = """Excerpts:
 
 {{excerpts}}
 
-Write every statement in {{language}}."""
+{{link}}Write every statement in {{language}}."""
 
 
-class _Cited(BaseModel):
-    """One excerpt a bridge rests on, as the model is asked to name it."""
+class _Chosen(BaseModel):
+    """One validated fact the model joins, as it is asked to name it."""
 
-    passage: int = Field(
+    excerpt: int = Field(
         description="The number of the excerpt, as [P0] and [P1] give it."
     )
-    sentences: list[int] = Field(
-        description="The number(s) of THAT excerpt's own sentences the claim "
-        "rests on. Numbering starts at 0 in every excerpt."
+    fact: int = Field(
+        description="The number of the fact under that excerpt, as [F0] gives it."
     )
 
 
-class _Bridge(BaseModel):
-    """One bridge as the model is asked to return it."""
+class _Answer(BaseModel):
+    """The model's answer for one pair of passages: one bridge, or none."""
 
-    passages: list[_Cited] = Field(
-        description="Where the claim rests: one entry per excerpt it needs, "
-        "each naming that excerpt and the sentences of it you read. At least "
-        "two excerpts."
+    relation: Literal[
+        "none", "defines", "limits", "consequence", "applies", "parallel", "contrast"
+    ] = Field(description="How the two facts relate; none when no question needs both.")
+    facts: list[_Chosen] = Field(
+        default_factory=list,
+        description="One fact of each excerpt: its excerpt number and fact number.",
     )
     statement: str = Field(
-        description="ONE claim, written by you in one short sentence with "
-        "exactly one finite verb, naming its subject and understandable "
-        "without the excerpts."
+        default="",
+        description="ONE claim relating the two facts, naming its subject, "
+        "adding nothing and computing nothing.",
     )
-
-
-class _Bridges(BaseModel):
-    """The model's answer for one group of passages."""
-
-    facts: list[_Bridge] = Field(
-        default_factory=list,
-        description="Every claim needing more than one excerpt; may be empty.",
+    question: str = Field(
+        default="", description="A question only both excerpts answer."
+    )
+    answer: str = Field(
+        default="", description="Its short answer, in the excerpts' words."
     )
 
 
@@ -188,51 +188,75 @@ class BridgeExtractor:
             temperature=self._client.temperature,
         )
 
-    def extract(self, offered: Sequence[PassageToExtract]) -> list[CandidateFact]:
-        """Asks the model for the claims a group of passages shares.
+    def extract(
+        self,
+        offered: Sequence[PassageToExtract],
+        link: Link | None = None,
+        facts: Mapping[int, Sequence[tuple[int, str, tuple[int, ...]]]] | None = None,
+    ) -> list[CandidateFact]:
+        """Asks the model for the one claim a pair of passages shares, or none.
 
         Args:
             offered: The passages to show, in the order a candidate names
                 them by position.
+            link: How the documents link them, named in the message.
+            facts: Each passage's validated atomic facts by passage id, as
+                (fact id, statement, sentence numbers): what the claim is
+                composed from, and where it cites.
 
         Returns:
-            One candidate per claim, each naming the passages it rests on and
-            the sentences of each, or none where the model named none. Empty
-            when fewer than two passages were offered.
+            At most one candidate, citing the sentences of the facts the
+            model chose, with the question only both passages answer. Empty
+            when fewer than two passages were offered or the model said none.
 
         Raises:
             ExtractionFailed: If the model could not be reached.
         """
         if len(offered) < 2:
             return []
+        facts = facts or {}
         try:
             answer = self._client.answer(
                 system=_SYSTEM,
-                user=self._prompt(offered),
-                shape=_Bridges,
+                user=self._prompt(offered, link, facts),
+                shape=_Answer,
                 prompt_version=PROMPT_VERSION,
             )
         except ModelUnavailable as exc:
             raise ExtractionFailed(str(exc)) from exc
+        if answer.relation == "none" or not answer.statement.strip():
+            return []
         # One citing nothing is still a candidate: the checker stores it
         # refused as evidence_absent, which is the rate the README reports.
+        chosen = []
+        for one in answer.facts:
+            held = (
+                facts.get(offered[one.excerpt].id, ())
+                if 0 <= one.excerpt < len(offered)
+                else ()
+            )
+            if 0 <= one.fact < len(held):
+                chosen.append((one.excerpt, held[one.fact][2]))
         return [
             CandidateFact(
-                statement=fact.statement,
+                statement=answer.statement,
                 sentences=(),
                 kind=FactKind.BRIDGE,
-                passages=_cited(fact.passages),
+                passages=_cited(chosen),
+                probe=(answer.question.strip(), answer.answer.strip()),
             )
-            for fact in answer.facts
-            if fact.statement.strip()
         ]
 
     @staticmethod
-    def _prompt(offered: Sequence[PassageToExtract]) -> str:
-        """Builds the user message: one numbered block per passage.
+    def _prompt(
+        offered: Sequence[PassageToExtract],
+        link: Link | None,
+        facts: Mapping[int, Sequence[tuple[int, str, tuple[int, ...]]]],
+    ) -> str:
+        """Builds the user message: one numbered block per passage, then the link.
 
         The sentences are numbered within each block, as the atomic prompt
-        numbers them, because that is what a citation names.
+        numbers them, and the validated facts follow them.
         """
         blocks = []
         for position, passage in enumerate(offered):
@@ -241,34 +265,51 @@ class BridgeExtractor:
                 f"  [{sentence.index}] {sentence.text}"
                 for sentence in passage.sentences
             )
-            blocks.append(f"[P{position}]{heading}\n{numbered}")
-        # Every passage of a group is of one topic, and a topic is fitted
-        # over one language's vocabulary, so the first is as good as a vote.
+            held = facts.get(passage.id, ())
+            listed = "".join(
+                f"\n  [F{at}] {statement}" for at, (_, statement, _) in enumerate(held)
+            )
+            blocks.append(
+                f"[P{position}]{heading}\n{numbered}"
+                + (f"\n  facts:{listed}" if held else "")
+            )
         return fill(
             _USER,
             {
                 "{{excerpts}}": "\n\n".join(blocks),
+                "{{link}}": _linked(link),
                 "{{language}}": in_language(offered[0].language),
             },
         )
 
 
-def _cited(named: list[_Cited]) -> tuple[Cited, ...]:
-    """Reads the model's citations, one entry per passage it named once.
+def _linked(link: Link | None) -> str:
+    """The line that says how the documents link the first two passages."""
+    if link is None:
+        return ""
+    if link.kind == "reference":
+        return f'[P0] names the heading "{link.named}" of [P1].\n\n'
+    if link.kind == "sibling":
+        return f'[P0] and [P1] are sections under the same heading "{link.named}".\n\n'
+    return f'[P0] and [P1] are among the few excerpts using "{link.named}".\n\n'
+
+
+def _cited(named: list[tuple[int, Sequence[int]]]) -> tuple[Cited, ...]:
+    """Reads the facts the model chose, one entry per passage named once.
 
     A passage named twice is folded into one entry carrying both readings, so
     a repeated number cannot make a one-passage claim look like a bridge.
 
     Args:
-        named: What the model returned.
+        named: Each chosen fact's excerpt position and the sentences it cites.
 
     Returns:
         One entry per distinct passage that carries at least one sentence.
     """
     sentences: dict[int, list[int]] = {}
-    for one in named:
-        kept = sentences.setdefault(one.passage, [])
-        kept.extend(index for index in one.sentences if index not in kept)
+    for position, cited in named:
+        kept = sentences.setdefault(position, [])
+        kept.extend(index for index in cited if index not in kept)
     return tuple(
         Cited(position=position, sentences=tuple(found))
         for position, found in sentences.items()

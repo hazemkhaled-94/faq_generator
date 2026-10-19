@@ -167,12 +167,16 @@ class CandidateFact:
         kind: Which checks it is held to.
         passages: What a bridge rests on, one entry per passage it cites.
             Empty on every other kind.
+        probe: On a bridge, the question only both passages answer and its
+            short answer. Read at extraction to test that each is needed;
+            not stored.
     """
 
     statement: str
     sentences: tuple[int, ...]
     kind: str = FactKind.ATOMIC
     passages: tuple[Cited, ...] = ()
+    probe: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True)

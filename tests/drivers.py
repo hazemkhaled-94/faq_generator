@@ -413,6 +413,8 @@ class Catalogue:
         self._topics = list(topics.values())
         self.written: list[CheckedFact] = []
         self.cleared = 0
+        #: The passage ids of every `atomic_of` read.
+        self.read_facts: list[set[int]] = []
         self.narrowed: list[Any] = []
         self.stored: list[tuple[int, list[PassageToExtract], CandidateFact, str]] = []
         self.rejudged: list[list[tuple[int, CheckedFact]]] = []
@@ -580,6 +582,22 @@ class Catalogue:
         """Streams each topic's passages."""
         self.narrowed.append(within)
         yield from enumerate(self._topics, start=1)
+
+    def stating(self) -> Catalogue:
+        """Gives every passage one validated fact: its own text, citing sentence 0."""
+        self.atomic = {
+            one.id: [(900 + one.id, one.text, (0,))]
+            for passages in self._topics
+            for one in passages
+        }
+        return self
+
+    def atomic_of(self, passage_ids) -> dict:
+        """The validated facts a test has set per passage id, or none."""
+        self.read_facts.append(set(passage_ids))
+        return {
+            i: f for i, f in getattr(self, "atomic", {}).items() if i in passage_ids
+        }
 
     def accepted_on_bridges(self, within=None) -> int:
         """No question cites a bridge here."""

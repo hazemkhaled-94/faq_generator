@@ -495,6 +495,7 @@ def bridge(
     # `by_topic` asks only that a passage was segmented.
     heads = [one for _, ones in scoped for one in ones if skipped(one) is None]
     partners = [one for _, ones in whole for one in ones if skipped(one) is None]
+    facts = catalog.atomic_of({one.id for one in partners})
     for language in sorted({one.language or "" for one in partners}):
         links = linked(
             [one for one in heads if (one.language or "") == language],
@@ -505,18 +506,25 @@ def bridge(
             done,
         )
         kinds = Counter(link.kind for link in links)
+        # A passage with no validated fact has nothing to compose from.
+        offered_links = len(links)
+        links = [
+            link for link in links if all(one.id in facts for one in link.passages)
+        ]
         log.info(
-            "offered %d link(s) in %r (%d reference, %d sibling, %d term)",
-            len(links),
+            "offered %d link(s) in %r (%d reference, %d sibling, %d term; %d "
+            "skipped for a passage with no validated fact)",
+            offered_links,
             language,
             kinds["reference"],
             kinds["sibling"],
             kinds["term"],
+            offered_links - len(links),
         )
         for link in links:
             offered = list(link.passages)
             try:
-                proposed = extractor.extract(offered)
+                proposed = extractor.extract(offered, link, facts)
             except ExtractionFailed as exc:
                 log.warning(
                     "link %s: a group failed: %s", [one.id for one in offered], exc

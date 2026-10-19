@@ -9,23 +9,27 @@ from __future__ import annotations
 import pytest
 from drivers import Model, group
 
-from database.qa_generator import FactKind
+from database.qa_generator import FactKind, Rejection
 from extraction.extractors.base import ExtractionFailed
 from extraction.extractors.bridge import PROMPT_VERSION, BridgeExtractor
+from extraction.links import Link
+from extraction.models import Cited
+from extraction.validation import FactChecker
 from llm.client import ModelUnavailable
 
 pytestmark = pytest.mark.nlp
 
 ANSWER = {
-    "facts": [
-        {
-            "passages": [
-                {"passage": 0, "sentences": [0]},
-                {"passage": 1, "sentences": [0]},
-            ],
-            "statement": "Two response times are stated.",
-        },
-    ]
+    "relation": "contrast",
+    "facts": [{"excerpt": 0, "fact": 0}, {"excerpt": 1, "fact": 0}],
+    "statement": "Urgent requests are answered sooner than standard ones.",
+    "question": "Which is answered sooner, a standard or an urgent request?",
+    "answer": "an urgent request",
+}
+
+FACTS = {
+    11: [(901, "Standard requests are answered within 48 hours.", (0,))],
+    22: [(902, "Urgent requests are answered within 4 hours.", (0,))],
 }
 
 
@@ -80,8 +84,8 @@ def test_a_heading_is_carried_beside_its_passage(offered) -> None:
 
 
 def test_a_returned_claim_becomes_a_bridge_candidate(offered) -> None:
-    """The statement, the positions it rests on, and nothing else."""
-    facts = BridgeExtractor(Model(ANSWER)).extract(offered)
+    """The statement, the sentences of the facts chosen, and the probe."""
+    facts = BridgeExtractor(Model(ANSWER)).extract(offered, None, FACTS)
 
     assert len(facts) == 1
     assert facts[0].kind == FactKind.BRIDGE
@@ -90,67 +94,198 @@ def test_a_returned_claim_becomes_a_bridge_candidate(offered) -> None:
         (1, (0,)),
     ]
     assert facts[0].sentences == (), "a bridge cites each passage separately"
+    assert facts[0].probe == (ANSWER["question"], ANSWER["answer"])
 
 
-def test_a_repeated_position_is_kept_once_and_in_order(offered) -> None:
-    """The same passage named twice is one passage carrying both readings."""
-    answer = {
-        "facts": [
-            {
-                "passages": [
-                    {"passage": 1, "sentences": [0]},
-                    {"passage": 0, "sentences": [0]},
-                    {"passage": 1, "sentences": [1]},
-                ],
-                "statement": "Both are stated.",
-            }
-        ]
-    }
-    facts = BridgeExtractor(Model(answer)).extract(offered)
-
-    assert [(one.position, one.sentences) for one in facts[0].passages] == [
-        (1, (0, 1)),
-        (0, (0,)),
-    ]
+def test_none_is_no_candidate(offered) -> None:
+    """The first relation, and the usual answer."""
+    assert (
+        BridgeExtractor(Model({"relation": "none"})).extract(offered, None, FACTS) == []
+    )
 
 
-@pytest.mark.parametrize(
-    "returned",
-    [
-        {"passages": [{"passage": 0, "sentences": [0]}], "statement": ""},
-        {"passages": [{"passage": 0, "sentences": [0]}], "statement": "   "},
-    ],
-)
-def test_a_claim_with_no_statement_is_dropped(offered, returned) -> None:
+def test_a_blank_statement_is_no_candidate(offered) -> None:
     """Nothing was said, so there is nothing to check."""
-    assert BridgeExtractor(Model({"facts": [returned]})).extract(offered) == []
+    answer = {**ANSWER, "statement": "   "}
+
+    assert BridgeExtractor(Model(answer)).extract(offered, None, FACTS) == []
+
+
+LINKS = [
+    ("en", "reference", "Section 7", '[P0] names the heading "Section 7" of [P1].'),
+    ("de", "reference", "Abschnitt 7", '[P0] names the heading "Abschnitt 7" of [P1].'),
+    (
+        "en",
+        "sibling",
+        "Fees",
+        '[P0] and [P1] are sections under the same heading "Fees".',
+    ),
+    (
+        "en",
+        "term",
+        "express",
+        '[P0] and [P1] are among the few excerpts using "express".',
+    ),
+]
+
+
+@pytest.mark.parametrize(("language", "kind", "named", "line"), LINKS)
+def test_the_link_is_named_in_the_message(language, kind, named, line) -> None:
+    """The model is told why the documents put the two together."""
+    first, second = group("A costs 1 EUR.", "B costs 2 EUR.", language=language)
+    model = Model(ANSWER)
+
+    BridgeExtractor(model).extract([first, second], Link((first, second), kind, named))
+
+    assert line in model.sent["user"]
+
+
+@pytest.mark.parametrize(
+    ("language", "first", "second"),
+    [
+        (
+            "en",
+            "An account is dormant when its holder has made no payment for 24 months.",
+            "A dormant account is charged a yearly fee of 10 EUR.",
+        ),
+        (
+            "de",
+            "Ein Konto ruht, wenn der Inhaber 24 Monate lang keine Zahlung geleistet hat.",
+            "Für ein ruhendes Konto wird eine Jahresgebühr von 10 EUR erhoben.",
+        ),
+    ],
+)
+def test_each_excerpt_lists_its_validated_facts(language, first, second) -> None:
+    """The halves of the claim are the facts already checked."""
+    one, two = group(first, second, language=language)
+    model = Model(ANSWER)
+
+    BridgeExtractor(model).extract(
+        [one, two], None, {one.id: [(901, first, (0,))], two.id: [(902, second, (0,))]}
+    )
+
+    sent = model.sent["user"]
+    assert f"  [F0] {first}" in sent and f"  [F0] {second}" in sent
+    assert sent.index("[P0]") < sent.index(f"  [F0] {first}") < sent.index("[P1]")
+
+
+@pytest.mark.parametrize(
+    ("language", "first", "second", "statement", "question", "answer"),
+    [
+        (
+            "en",
+            "An account is dormant when its holder has made no payment for 24 months.",
+            "A dormant account is charged a yearly fee of 10 EUR.",
+            "An account whose holder has made no payment for 24 months is charged a yearly fee of 10 EUR.",
+            "What yearly fee is charged on an account whose holder has made no payment for 24 months?",
+            "10 EUR",
+        ),
+        (
+            "de",
+            "Ein Konto ruht, wenn der Inhaber 24 Monate lang keine Zahlung geleistet hat.",
+            "Für ein ruhendes Konto wird eine Jahresgebühr von 10 EUR erhoben.",
+            "Für ein Konto, dessen Inhaber 24 Monate lang keine Zahlung geleistet hat, wird eine Jahresgebühr von 10 EUR erhoben.",
+            "Welche Jahresgebühr wird für ein Konto erhoben, dessen Inhaber 24 Monate lang keine Zahlung geleistet hat?",
+            "10 EUR",
+        ),
+    ],
+)
+def test_a_bridge_cites_the_sentences_of_the_facts_it_chose(
+    language, first, second, statement, question, answer
+) -> None:
+    """Facts are chosen by number; the citation is theirs."""
+    one, two = group(first, second, language=language)
+    model = Model(
+        {
+            "relation": "defines",
+            "facts": [{"excerpt": 0, "fact": 0}, {"excerpt": 1, "fact": 0}],
+            "statement": statement,
+            "question": question,
+            "answer": answer,
+        }
+    )
+
+    (candidate,) = BridgeExtractor(model).extract(
+        [one, two], None, {one.id: [(901, first, (0,))], two.id: [(902, second, (0,))]}
+    )
+
+    assert candidate.passages == (Cited(0, (0,)), Cited(1, (0,)))
+    assert candidate.probe == (question, answer)
+    assert candidate.statement == statement
+
+
+def test_a_fact_number_the_excerpt_does_not_have_is_dropped(offered) -> None:
+    """The citation falls away, and the checker refuses it as one passage."""
+    answer = {**ANSWER, "facts": [{"excerpt": 0, "fact": 0}, {"excerpt": 1, "fact": 5}]}
+
+    (candidate,) = BridgeExtractor(Model(answer)).extract(offered, None, FACTS)
+
+    assert [one.position for one in candidate.passages] == [0]
+    checked = FactChecker(0.6).check_bridge(offered, candidate)
+    assert checked.rejection_code == Rejection.NOT_BRIDGING
+
+
+@pytest.mark.parametrize(
+    ("language", "first", "second", "statement", "question", "answer"),
+    [
+        (
+            "en",
+            "Standard requests are answered within 48 hours.",
+            "Urgent requests are answered within 4 hours.",
+            "Urgent requests are answered sooner than standard requests.",
+            "Which is answered sooner, a standard or an urgent request?",
+            "an urgent request",
+        ),
+        (
+            "de",
+            "Standardanfragen werden innerhalb von 48 Stunden beantwortet.",
+            "Dringende Anfragen werden innerhalb von 4 Stunden beantwortet.",
+            "Dringende Anfragen werden schneller beantwortet als Standardanfragen.",
+            "Was wird schneller beantwortet, eine Standardanfrage oder eine dringende Anfrage?",
+            "eine dringende Anfrage",
+        ),
+    ],
+)
+def test_a_contrast_is_a_bridge(
+    language, first, second, statement, question, answer
+) -> None:
+    """Two subjects, each excerpt one side, are a bridge the checker keeps."""
+    one, two = group(first, second, language=language)
+    model = Model(
+        {
+            "relation": "contrast",
+            "facts": [{"excerpt": 0, "fact": 0}, {"excerpt": 1, "fact": 0}],
+            "statement": statement,
+            "question": question,
+            "answer": answer,
+        }
+    )
+
+    (candidate,) = BridgeExtractor(model).extract(
+        [one, two], None, {one.id: [(901, first, (0,))], two.id: [(902, second, (0,))]}
+    )
+
+    assert candidate.probe == (question, answer)
+    assert FactChecker(0.6).check_bridge([one, two], candidate).validated
 
 
 @pytest.mark.parametrize(
     "returned",
-    [
-        {"passages": [], "statement": "A claim resting on nothing."},
-        {
-            "passages": [{"passage": 0, "sentences": []}],
-            "statement": "A claim citing no sentence.",
-        },
-    ],
+    [{"facts": []}, {"facts": [{"excerpt": 0, "fact": 0}]}],
 )
-def test_a_claim_citing_nothing_reaches_the_checker(offered, returned) -> None:
-    """It is stored refused as evidence_absent, so the refusal rate counts it."""
-    from database.qa_generator import Rejection
-    from extraction.validation import FactChecker
+def test_a_claim_citing_too_little_reaches_the_checker(offered, returned) -> None:
+    """It is stored refused, so the refusal rate counts it."""
+    (candidate,) = BridgeExtractor(Model({**ANSWER, **returned})).extract(
+        offered, None, FACTS
+    )
 
-    (candidate,) = BridgeExtractor(Model({"facts": [returned]})).extract(offered)
-
-    assert candidate.passages == ()
     checked = FactChecker(0.6).check_bridge(offered, candidate)
-    assert checked.rejection_code == Rejection.EVIDENCE_ABSENT
+    assert checked.rejection_code in (Rejection.EVIDENCE_ABSENT, Rejection.NOT_BRIDGING)
 
 
 def test_an_empty_answer_is_a_correct_answer(offered) -> None:
     """Passages that merely share a topic need bridge nothing."""
-    assert BridgeExtractor(Model({"facts": []})).extract(offered) == []
+    assert BridgeExtractor(Model({"relation": "none"})).extract(offered) == []
 
 
 def test_a_model_that_will_not_answer_fails_the_group(offered) -> None:

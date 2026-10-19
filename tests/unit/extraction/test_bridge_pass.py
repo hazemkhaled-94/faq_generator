@@ -21,16 +21,11 @@ from llm.client import ModelUnavailable
 pytestmark = pytest.mark.nlp
 
 ANSWER = {
-    "facts": [
-        {
-            "passages": [
-                {"passage": 0, "sentences": [0]},
-                {"passage": 1, "sentences": [0]},
-            ],
-            "statement": "Support response times are stated separately for "
-            "standard and urgent requests.",
-        }
-    ]
+    "relation": "contrast",
+    "facts": [{"excerpt": 0, "fact": 0}, {"excerpt": 1, "fact": 0}],
+    "statement": "Urgent requests are answered sooner than standard requests.",
+    "question": "Which is answered sooner, a standard or an urgent request?",
+    "answer": "an urgent request",
 }
 
 
@@ -66,6 +61,8 @@ def pair(at: int = 0, parent: str = "Support", texts: tuple[str, str] | None = N
 
 def run(catalog: Catalogue, model: Model, wanted: int = 5, size: int = 2) -> int:
     """Runs the bridge pass over a catalogue with one scripted model."""
+    if not hasattr(catalog, "atomic"):
+        catalog.stating()
     return bridge(
         catalog,  # type: ignore[arg-type]
         BridgeExtractor(model),  # type: ignore[arg-type]
@@ -157,14 +154,7 @@ def test_a_group_the_model_will_not_read_does_not_stop_the_rest() -> None:
 
 def test_a_refused_bridge_is_stored_with_its_reason() -> None:
     """The share that failed is how the pass is judged, as everywhere else."""
-    alone = {
-        "facts": [
-            {
-                "passages": [{"passage": 0, "sentences": [0]}],
-                "statement": "Standard requests are answered within 48 hours.",
-            }
-        ]
-    }
+    alone = {**ANSWER, "facts": [{"excerpt": 0, "fact": 0}]}
     catalog = Catalogue(support=pair())
 
     assert run(catalog, Model(alone)) == 1
@@ -176,7 +166,7 @@ def test_a_topic_that_bridges_nothing_writes_nothing() -> None:
     """Returning no facts is a correct answer."""
     catalog = Catalogue(support=pair())
 
-    assert run(catalog, Model({"facts": []})) == 0
+    assert run(catalog, Model({"relation": "none"})) == 0
     assert catalog.written == []
 
 
@@ -219,7 +209,7 @@ class TestThePassageGate:
 
 def test_the_narrowing_reaches_both_the_clear_and_the_read() -> None:
     """`--only` selects the same passages for each half of the pass."""
-    catalog = Catalogue(support=pair())
+    catalog = Catalogue(support=pair()).stating()
     bridge(
         catalog,  # type: ignore[arg-type]
         BridgeExtractor(Model(ANSWER)),  # type: ignore[arg-type]
@@ -236,9 +226,11 @@ def test_the_narrowing_reaches_both_the_clear_and_the_read() -> None:
 
 def test_a_pass_for_the_missing_reads_only_the_topics_holding_no_bridge() -> None:
     """What a whole-corpus run asks for: nothing replaced, nothing a question cites lost."""
-    catalog = Catalogue(
-        support=pair(), billing=pair(100, "Billing", OTHER)
-    ).holding_bridges(1)
+    catalog = (
+        Catalogue(support=pair(), billing=pair(100, "Billing", OTHER))
+        .holding_bridges(1)
+        .stating()
+    )
     model = Model(ANSWER)
 
     written = bridge(
@@ -253,3 +245,23 @@ def test_a_pass_for_the_missing_reads_only_the_topics_holding_no_bridge() -> Non
     assert written == 1
     assert model.calls == 1, "a bridged topic was read again"
     assert catalog.cleared == 0, "a pass for the missing deleted bridges"
+
+
+def test_the_pass_reads_each_passages_validated_facts_once() -> None:
+    """One query for the corpus, and the facts reach the extractor."""
+    catalog, model = Catalogue(support=pair()), Model(ANSWER)
+
+    assert run(catalog, model) == 1
+    assert catalog.read_facts == [{11, 22}]
+    assert "[F0] Standard requests are answered within 48 hours." in model.sent["user"]
+
+
+def test_a_link_with_a_passage_that_states_nothing_is_not_read() -> None:
+    """There is nothing to compose from, so the call is not made."""
+    catalog, model = Catalogue(support=pair()), Model(ANSWER)
+    catalog.atomic = {
+        11: [(911, "Standard requests are answered within 48 hours.", (0,))]
+    }
+
+    assert run(catalog, model) == 0
+    assert model.calls == 0
