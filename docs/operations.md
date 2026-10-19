@@ -200,6 +200,23 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.10
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting.
+
+**A repair prompt (`repair-1`).** A passage whose model-written statements are
+refused as `not_atomic` costs one more model call, which writes the split
+facts. It runs only when a passage is extracted, so stored facts gain nothing
+until the corpus is extracted again.
+
+**The claim counter.** `make extract-revalidate` judges stored facts again
+without a model call; on the reviewed build it validates 8 refused facts.
+
 ## Upgrading to v0.3.9
 
 ```bash

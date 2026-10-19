@@ -798,6 +798,13 @@ holds the build's figures.
 | A bridge fact was offered beside an unrelated claim | the deal tested only the first fact of a passage for spanning two passages, and the first is a single claim wherever the passage holds one; such questions welded 28 of 98 times against 4 of 56 for a bridge offered alone | a bridge is offered alone, whichever passage it was dealt from ([`selection.py`](../backend/question_generation/selection.py)) | on the stored rows, the 98 questions of this kind are the cell it removes |
 | The bridge prompt taught side-by-side claims | its right example was "response times are stated separately for standard and urgent requests" | the right example is a claim one excerpt changes by defining what the other's rule applies to; side by side is now a wrong example (bridge prompt 5, [`bridge.py`](../backend/extraction/extractors/bridge.py)) | the same 48 passage groups, both prompts, read blind by one reader: correct bridges 2 of 29 (7%) became 5 of 41 (12%), not bridging 62% became 56% |
 
+### Fixed in v0.3.10: facts
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A rule written as one statement joining two actions was lost | 152 of the 186 `not_atomic` refusals were judged wrong; the counter is right that two finite verbs are two claims, but nothing asked for the split facts | the statements the model wrote and the checker refused as `not_atomic` go back to the same model once per passage, under a repair prompt of their own (`repair-1`), and what it writes faces every check, the dedup gate and the cap; the refusal is stored as it was ([`extractors/llm.py`](../backend/extraction/extractors/llm.py), [`service.py`](../backend/extraction/service.py)) | Azure, 60 passages holding 78 refusals: 166 facts written, 143 validated, 120 of those correct (84%; German 76%, English 90%), and the refused claims recovered in full or mostly in 48 of 60 passages |
+| A condition the parser hung as a conjunct counted as a second claim | "but only if it has not been executed" and the members of "es sei denn, A und B" were counted as claims of their own | a conjunct opened by its own subordinator, and a clause joined to the case an exception or an alternative leaves out, restrict the rule ([`nlp/analysis.py`](../backend/nlp/analysis.py)) | 8 refusals of the v0.4.0 build and 9 of v0.3.0 freed, every one judged a wrong refusal; no right refusal lost |
+
 ### Deferred, with the reason
 
 | Defect | Why it stays open |
@@ -810,6 +817,7 @@ holds the build's figures.
 | The elsewhere probe cuts each ranking before fusing them | No measured miss at the depth it reads |
 | The unanswerable writer returns no evidence of why its question is open | The writer fails on about 61% of its drafts; a change to its prompt can be measured only by writing questions, which needs a calibration of its own. Unanswerable questions are not released |
 | Topics listed by every membership over the floor | Listing a topic by the passages it dominates changes the catalogue, the Topics page, the exports and the review's own measure, for no failure measured on questions |
+| Validated facts read a few points less correct than v0.3.0's in blind tests | Over all validated facts the estimate is 85.6% against 86.7%, within reader and sampling noise: most of the blind tests' gap fell on statements byte-identical in both builds. One small cause is real: atomic prompt 12 names the heading trail as a fact's situation, so a passage under a wrong heading now writes that heading into its facts (about 0.2 points). Low |
 | A duplicate refusal can name a twin since deleted | 35 of 180; the replay keeps the refusal against a current twin but leaves the old id in its reason. Low |
 
 ## Found on the v0.3.0 rebuild of 2026-10-16
