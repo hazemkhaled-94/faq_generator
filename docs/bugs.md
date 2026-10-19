@@ -794,6 +794,12 @@ review. The releases from v0.3.13 on fix what it found, one fix to a release.
 |---|---|---|---|
 | A fact the repair call split out of a statement competed for its passage's cap | the per-passage atomic cap refused 65 facts as `over_cap` on the v0.3.12 rebuild, 59 of them pieces the repair call wrote for a statement refused as `not_atomic` and 6 model statements the pieces' numbers or names ranked out; the passage's room counted the refused statement's sentence once, but each of its 2.4 pieces on average competed for a place alone and lost by position; readers judged 51 of the 65 sound | a fact the repair call wrote no longer competes for the cap, in flight and in `make extract-recap`, which also gives back the repair pieces an earlier cap refused; the model's own facts stay capped beside them ([`service.py`](../backend/extraction/service.py), [`repository.py`](../backend/extraction/repository.py)) | replay on the stored facts of the v0.3.12 build: `over_cap` 65 to 0, all 65 freed (German 20, English 45), none newly refused; readers' labels on the 65: 51 sound, 10 rightly refused, 4 partly, so 51 wrong refusals freed for 10 right ones lost (5.1 to 1, the partly ones neutral) and 78.5% of what is admitted sound |
 
+### Fixed in v0.3.15: bridge checks
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A bridge was checked against its excerpts' text only, and one naming its own heading was let through | `check_bridge` refused as `unsupported_addition` any unit only a heading trail or the title carried, and let through a bridge naming its own passage's numbered heading ("in Regel 5"), a claim about the document | the heading trail and title are read as an atomic fact's are (one shared reading of carried units), and a bridge whose statement writes a cited passage's numbered heading whole, the label word directly followed by its number, is refused as `not_bridging` ([`validation.py`](../backend/extraction/validation.py)) | replay over the 243 bridges of the v0.3.12 build: validated 178 to 184, those a reader judged correct 34 to 37, five label refusals, no validated bridge newly refused |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was

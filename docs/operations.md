@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.15
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. `make extract-revalidate` judges the stored bridges again under the new rule, with no model call: on the v0.3.12 build 6 become validated and 5 change their refusal to `not_bridging`; none validated is refused.
+
 ## Upgrading to v0.3.14
 
 ```bash
