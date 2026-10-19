@@ -34,7 +34,7 @@ from llm.client import Client
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "5"
+PROMPT_VERSION = "6"
 
 _VERIFY = """ROLE
 You are an independent verifier for a document-search chatbot's test set. You
@@ -235,24 +235,34 @@ Return `supported`, true or false, and nothing else.
 
 _SETTLES = """ROLE
 You are an independent verifier for a document-search chatbot's test set. You
-check a question that was written to have NO answer in the material, before
-it is used to test whether a chatbot admits that it does not know.
+check whether the material settles a test question, before the question is
+used.
 
 ACTION
 Say whether these PASSAGES settle the QUESTION, and how.
 
 STEPS
 1. Read the passages, then the question.
-2. Look for a statement that answers it, across ALL the passages. It may be
-   spread over two sentences or worded differently from the question.
-3. Check its premise: does a passage say that what the question takes for
-   granted is not so?
-4. Check for a closed list or an exception: does a passage say "only",
+2. Write the best reply a careful chatbot could give from these passages
+   alone, in their language, as it would answer a user. If they give it
+   nothing to go on, say so.
+3. Look for a statement that answers it, across ALL the passages. It may be
+   spread over two sentences, worded differently from the question, or given
+   in another form than the one asked for: an event where a period is asked,
+   a position where a distance is asked, "any" or "every" party where one is
+   asked, "never" or "always" where a condition is asked.
+4. Check its premise: does a passage say that what the question takes for
+   granted is not so? A rule stated with "must", "always", "never", "every"
+   or "only" rules out the exception, condition, amount or party a question
+   assumes it has.
+5. Check for a closed list or an exception: does a passage say "only",
    "every", "no other", or name the cases a rule leaves out, so that the
    case asked about is decided by it?
-5. Check for a general rule: does a passage state a rule that covers the
+6. Check for a general rule: does a passage state a rule that covers the
    case asked about, even though it never names that case?
-6. Give the first of these that holds, or `silent` when none does.
+7. Give the first of these that holds, or `silent` when none does. Your
+   reply in step 2 is the test: a reply that tells the user what the
+   passages decide is not `silent`.
 
 CONTEXT
 A chatbot asked this question is marked RIGHT for saying the material does
@@ -285,12 +295,19 @@ EXAMPLES
   rule     "How long is allowed for a standard request raised on a public
             holiday?"
            (the 48 hours count working days, which settles the holiday)
+  answers  "Within how many days is a standard request answered?"
+           (the passages give hours on working days, not days: the reply
+           "within 48 hours on working days" answers it in another form)
+  refutes  "Under what circumstances is a request from a visitor accepted?"
+           (none: only account holders may raise one, which rules out the
+           circumstances the question assumes)
   silent   "Through which channel is the answer to a standard request sent?"
            (no passage says, and no list or rule in them reaches it)
 
 FORMAT
-Return `quote` and `verdict`.
+Return `reply`, `quote` and `verdict`, in that order.
 
+- `reply` is the reply of step 2.
 - `quote` is the words of the passage that settle it, as they stand. Empty
   when the verdict is `silent`.
 - `verdict` is one of:
@@ -400,6 +417,11 @@ class Settling(StrEnum):
 class _Settled(BaseModel):
     """Whether the passages settle one question, and with what words."""
 
+    reply: str = Field(
+        default="",
+        description="The best reply a careful chatbot could give from these "
+        "passages alone, written before the verdict.",
+    )
     quote: str = Field(
         default="",
         description="The words of the passage that settle it, as they stand. "

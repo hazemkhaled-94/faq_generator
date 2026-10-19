@@ -520,3 +520,99 @@ def test_a_question_written_to_have_no_answer_is_put_with_none() -> None:
     Verifier(client).same_answer(("Q one?", None), ("Q two?", None))
 
     assert "not in the material" in client.asked[-1][1]
+
+
+class _Chain:
+    """A verifier that settles a question only when it reads the case and the rule together."""
+
+    def __init__(self, case: str, rule: str) -> None:
+        """Initialises with the cited case and the rule elsewhere that decides it."""
+        self.case, self.rule = case, rule
+
+    def settles(self, question: str, passages):
+        """Settles by the rule, quoting it, only when both texts were shown."""
+        from question_generation.verifier import Settled
+
+        if any(self.case in one for one in passages) and any(
+            self.rule in one for one in passages
+        ):
+            return Settled(verdict=Settling.RULE, quote=self.rule)
+        return Settled(verdict=Settling.SILENT, quote=None)
+
+
+@pytest.mark.parametrize(
+    ("language", "case", "rule", "question"),
+    [
+        (
+            "en",
+            "A parcel returned after 30 days is refused at the depot.",
+            "Every refused parcel is sent back to the customer at the customer's cost.",
+            "Who pays for sending back a parcel returned after 30 days?",
+        ),
+        (
+            "de",
+            "Eine nach 30 Tagen zurückgeschickte Sendung wird im Lager abgewiesen.",
+            "Jede abgewiesene Sendung geht auf Kosten des Kunden an ihn zurück.",
+            (
+                "Wer trägt die Kosten, wenn eine nach 30 Tagen zurückgeschickte Sendung "
+                "zurückgeht?"
+            ),
+        ),
+    ],
+)
+def test_the_elsewhere_reading_holds_the_cited_case_beside_the_rule(
+    language: str, case: str, rule: str, question: str
+) -> None:
+    """The cited passage sets up the case; a rule elsewhere decides it only read beside it."""
+    from database.qa_generator import QuestionRejection
+    from question_generation.checker import settle
+
+    failed, opinions = settle(
+        _Chain(case, rule), question, language, [case], lambda: [rule]
+    )
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_ELSEWHERE
+    assert [one.gate for one in opinions] == ["settles", "settles_elsewhere"]
+
+
+def test_the_settles_reading_writes_its_reply_before_its_verdict() -> None:
+    """Asked for the label first, it named one; asked to answer first, it reads what it wrote."""
+    from question_generation.verifier import _Settled
+
+    assert list(_Settled.model_fields)[:3] == ["reply", "quote", "verdict"]
+
+
+class _SecondLook:
+    """A verifier that settles by the cited passage only when shown more than it."""
+
+    def __init__(self, quote: str) -> None:
+        """Initialises with the cited words it settles by."""
+        self.quote = quote
+
+    def settles(self, question: str, passages):
+        """Silent on one passage; settles by the cited words beside others."""
+        from question_generation.verifier import Settled
+
+        if len(passages) > 1:
+            return Settled(verdict=Settling.REFUTES, quote=self.quote)
+        return Settled(verdict=Settling.SILENT, quote=None)
+
+
+def test_a_quote_the_cited_passages_hold_is_after_all_not_elsewhere() -> None:
+    """Read beside the probe, the cited passage settled it: the corpus beyond was not needed."""
+    from database.qa_generator import QuestionRejection
+    from question_generation.checker import settle
+
+    failed, opinions = settle(
+        _SecondLook(CITED),
+        "How are visitors refunded?",
+        "en",
+        [CITED],
+        lambda: [UNCITED],
+    )
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
+    assert "cited passages settle it" in failed[1]
+    assert [one.gate for one in opinions] == ["settles", "settles_elsewhere"]

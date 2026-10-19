@@ -299,9 +299,12 @@ def settle(
         return None, opinions
     # Not filtered by the extractive reader first: it finds where an answer
     # is stated, and a refuted premise or a general rule that settles the
-    # question is not a span it could find.
+    # question is not a span it could find. The cited passages come first:
+    # they set up the case, and a rule elsewhere settles it only read beside
+    # them.
+    shown_both = [*passages, *probed]
     settled = heard(
-        shown(verifier.settles(question, probed), probed, question_id),
+        shown(verifier.settles(question, shown_both), shown_both, question_id),
         question,
         language,
         question_id,
@@ -311,6 +314,16 @@ def settle(
         return None, opinions
     if found is not None:
         found.append(settled)
+    # Read beside the probe, the cited passages can settle it after all: a
+    # quote they hold is theirs, and the corpus beyond them was not needed.
+    if settled.quote is not None and _held(settled.quote, passages):
+        return (
+            QuestionRejection.ANSWERABLE_AFTER_ALL,
+            (
+                f"the cited passages settle it after all ({settled.verdict}), "
+                f"with {settled.quote!r}"
+            ),
+        ), opinions
     return (
         QuestionRejection.ANSWERABLE_ELSEWHERE,
         (
