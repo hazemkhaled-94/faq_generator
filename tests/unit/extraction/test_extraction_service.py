@@ -808,12 +808,72 @@ class TestNotAtomicRepair:
             (DISPUTE, Rejection.NOT_ATOMIC),
         ]
 
-    def test_a_repaired_fact_meets_the_cap_as_any_fact(self) -> None:
-        """Joined before the cap, so a one-sentence passage keeps one of the two."""
-        run = Extraction(passage(DISPUTE), facts=JOINED, repair=REPAIRED, atomic_cap=1)
+    @pytest.mark.parametrize(
+        ("joined", "language", "split"),
+        [
+            pytest.param(DISPUTE, "en", SPLIT, id="bank, English"),
+            pytest.param(
+                "Wenn eine Kartenzahlung angefochten wird, sperrt die Bank den "
+                "Betrag und informiert den H\u00e4ndler innerhalb von 3 Tagen.",
+                "de",
+                (
+                    (
+                        "Wenn eine Kartenzahlung angefochten wird, sperrt die Bank den "
+                        "Betrag."
+                    ),
+                    (
+                        "Wenn eine Kartenzahlung angefochten wird, informiert die Bank "
+                        "den H\u00e4ndler innerhalb von 3 Tagen."
+                    ),
+                ),
+                id="bank, German",
+            ),
+            pytest.param(
+                "When a customer returns the goods, the shop refunds the price "
+                "and pays the shipping costs.",
+                "en",
+                (
+                    "When a customer returns the goods, the shop refunds the price.",
+                    (
+                        "When a customer returns the goods, the shop pays the shipping "
+                        "costs."
+                    ),
+                ),
+                id="shop, English",
+            ),
+            pytest.param(
+                "Wenn der Kunde die Ware zur\u00fcckschickt, erstattet der Shop "
+                "den Kaufpreis und tr\u00e4gt die Versandkosten.",
+                "de",
+                (
+                    (
+                        "Wenn der Kunde die Ware zur\u00fcckschickt, erstattet der Shop "
+                        "den Kaufpreis."
+                    ),
+                    (
+                        "Wenn der Kunde die Ware zur\u00fcckschickt, tr\u00e4gt der Shop "
+                        "die Versandkosten."
+                    ),
+                ),
+                id="shop, German",
+            ),
+        ],
+    )
+    def test_a_split_claim_keeps_every_piece_under_the_cap_its_statement_fitted(
+        self, joined: str, language: str, split: tuple[str, ...]
+    ) -> None:
+        """The room counted the sentence once; its pieces stand in for it."""
+        run = Extraction(
+            passage(joined, language=language),
+            facts={"facts": [{"sentences": [0], "statement": joined}]},
+            repair={"facts": [{"sentences": [0], "statement": one} for one in split]},
+            atomic_cap=1,
+        )
         run.next()
 
-        codes = [one.rejection_code for one in run.queue.stored[1]]
-        assert codes.count(Rejection.NOT_ATOMIC) == 1
-        assert codes.count(Rejection.OVER_CAP) == 1
-        assert codes.count(None) == 1
+        refused, *pieces = run.queue.stored[1]
+        assert refused.rejection_code == Rejection.NOT_ATOMIC
+        assert tuple(one.statement for one in pieces) == split
+        assert all(one.validated for one in pieces), [
+            (one.statement, one.rejection_code) for one in pieces
+        ]

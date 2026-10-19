@@ -43,6 +43,7 @@ from database.qa_generator import (
 from database.qa_generator.passage_topics import DOMINANT
 from database.qa_generator.repository import Repository, matching
 from extraction.models import (
+    REPAIRED,
     WRITTEN,
     CandidateFact,
     CheckedFact,
@@ -677,7 +678,9 @@ class FactCatalog(Repository):
         Ranked exactly as `over_cap` ranks a passage in flight - the facts
         a model wrote, asserting a number, a date or a name first, ties by
         id - and against the room each passage has, as in flight, so a
-        passage re-extracted later keeps the same facts this leaves.
+        passage re-extracted later keeps the same facts this leaves. A fact
+        the repair call wrote never competes, and one an earlier recap or
+        extraction refused is given back.
 
         Args:
             cap: The most validated atomic facts one passage may keep. A
@@ -715,19 +718,38 @@ class FactCatalog(Repository):
                 # from a grid does not compete. The cap exists to leave room
                 # for the digests, and a table yields none.
                 Fact.extraction_method == WRITTEN,
+                # As `over_cap` ranks one in flight: a fact the repair call
+                # wrote does not compete.
+                ~func.coalesce(Fact.prompt_version, "").startswith(REPAIRED),
             )
         )
         if within is not None:
             ranked = ranked.where(_resting(within))
         over = ranked.subquery()
         chosen = select(over.c.id)
+        pieces = select(Fact.id).where(
+            Fact.rejection_code == Rejection.OVER_CAP,
+            func.coalesce(Fact.prompt_version, "").startswith(REPAIRED),
+        )
+        if within is not None:
+            pieces = pieces.where(_resting(within))
         with self._session.begin() as session:
+            freed = session.execute(
+                update(Fact)
+                .where(Fact.id.in_(pieces))
+                .values(
+                    validated=True,
+                    rejection_code=None,
+                    validation_error=None,
+                    settings_version=self._version,
+                )
+            ).rowcount
             if cap is None:
                 inside = true()
             else:
                 room = _room(session, cap, select(over.c.passage_id))
                 if room is None:
-                    return 0
+                    return freed
                 chosen = chosen.join(room, room.c.passage_id == over.c.passage_id)
                 inside = over.c.rank <= room.c.room
             refused = session.execute(
@@ -756,7 +778,7 @@ class FactCatalog(Repository):
                     settings_version=self._version,
                 )
             ).rowcount
-        return refused + returned
+        return refused + returned + freed
 
     def nearest_fact(
         self,

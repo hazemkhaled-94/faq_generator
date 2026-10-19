@@ -1084,6 +1084,44 @@ def test_a_recap_keeps_the_fact_asserting_a_value_and_leaves_a_grid_alone(
     ]
 
 
+def test_a_recap_never_counts_a_repaired_fact_against_the_cap(store, corpus) -> None:
+    """The repair call's pieces stand in for a refused statement."""
+    first = corpus["a"][0]
+    store.store(
+        first,
+        checked(first, "One claim."),
+        checked(first, "Piece one.", prompt_version="repair-1"),
+        checked(first, "Piece two.", prompt_version="repair-1"),
+    )
+
+    assert store.catalog.recap(1, "over the cap") == 0
+    assert [row[0] for row in store.rows("validated")] == [True, True, True]
+
+
+def test_a_recap_gives_back_a_repaired_fact_an_earlier_cap_refused(
+    store, corpus
+) -> None:
+    """Moved to a bigger room, a piece is no longer left refused."""
+    first = corpus["a"][0]
+    store.store(
+        first,
+        checked(first, "One claim."),
+        checked(
+            first,
+            "Piece one.",
+            validated=False,
+            rejection_code=Rejection.OVER_CAP,
+            prompt_version="repair-1",
+        ),
+    )
+
+    assert store.catalog.recap(1, "over the cap") == 1
+    assert store.rows("statement", "validated") == [
+        ("One claim.", True),
+        ("Piece one.", True),
+    ]
+
+
 def test_a_recap_never_caps_a_passage_below_its_claims_and_items(store) -> None:
     """A list of three under a cap of one keeps all three."""
     (listed,) = store.corpus(

@@ -139,7 +139,8 @@ prompt of its own. Shown the numbered sentences the first call was shown,
 the refused statements and the reason each was refused, it writes each
 claim as a fact of its own, repeating the subject and the condition or
 exception the claims shared. What comes back faces the same checks, then
-the `duplicate` gate and the cap beside the passage's other facts; one still
+the `duplicate` gate beside the passage's other facts, but not the cap: the
+passage's room counted the refused statement once. A piece still
 joining two claims is refused again and not sent back. The refusals are
 stored as they were, and a repaired fact carries the repair prompt's version
 as its prompt version. A passage with no `not_atomic` refusal costs no extra
@@ -203,7 +204,7 @@ Two more refusals are the service refusing what the checks passed:
   never cuts a list short: the splitter reads a list as one sentence, and a
   few of its items read as the whole rule. The facts asserting a number, date or name
   are kept first, and the ones the deterministic reader composed do not
-  compete. `make extract-recap` re-applies it with no model call.
+  compete, nor the ones the repair call wrote. `make extract-recap` re-applies it with no model call.
 
 The gaps are the design: a `summary` and an `outline` carry several claims by
 definition, an `outline` is a fragment the parser cannot read as a sentence,

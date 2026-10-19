@@ -11,7 +11,8 @@ import pytest
 
 from database.qa_generator import FactKind, Rejection
 from extraction.config import atomic_cap
-from extraction.models import CheckedFact, PassageToExtract
+from extraction.extractors.llm import PROMPT_VERSION, REPAIR_PROMPT_VERSION
+from extraction.models import CheckedFact, PassageToExtract, from_repair
 from extraction.service import over_cap
 from nlp.models import Sentence
 
@@ -23,6 +24,7 @@ def fact(
     units: tuple[str, ...] = (),
     validated: bool = True,
     method: str = "llm",
+    prompt_version: str | None = None,
 ) -> CheckedFact:
     """One checked fact, as the cap reads it."""
     return CheckedFact(
@@ -34,7 +36,55 @@ def fact(
         validation_error=None if validated else "nothing",
         kind=kind,
         units_statement=list(units),
+        prompt_version=prompt_version,
     )
+
+
+# ── What the repair call wrote ─────────────────────────────────────────────
+
+
+def test_a_repaired_piece_does_not_compete_for_the_budget() -> None:
+    """The statement it stands in for was counted once in the room."""
+    facts = [
+        fact("One."),
+        fact("Two."),
+        fact("Piece one.", prompt_version=REPAIR_PROMPT_VERSION),
+        fact("Piece two.", prompt_version=REPAIR_PROMPT_VERSION),
+    ]
+
+    assert over_cap(facts, 2) == set()
+
+
+def test_a_repaired_piece_asserting_a_value_does_not_push_out_the_model_s_own() -> None:
+    """Ranking a piece by its number would refuse a statement the model wrote."""
+    facts = [
+        fact("Boilerplate one."),
+        fact("Boilerplate two."),
+        fact("The fee is 5 EUR.", units=("5",), prompt_version=REPAIR_PROMPT_VERSION),
+    ]
+
+    assert over_cap(facts, 2) == set()
+
+
+def test_the_model_s_own_facts_are_still_capped_beside_repaired_pieces() -> None:
+    """The budget still holds for what the model wrote itself."""
+    facts = [
+        fact("One."),
+        fact("Two."),
+        fact("Three."),
+        fact("Piece.", prompt_version=REPAIR_PROMPT_VERSION),
+    ]
+
+    assert over_cap(facts, 2) == {2}
+
+
+def test_every_repair_version_is_told_apart() -> None:
+    """A new repair prompt keeps the prefix, or this fails."""
+    assert from_repair(REPAIR_PROMPT_VERSION)
+    assert from_repair("repair-2")
+    assert not from_repair(PROMPT_VERSION)
+    assert not from_repair("12+cap4")
+    assert not from_repair(None)
 
 
 # ── What the floor works out to ────────────────────────────────────────────

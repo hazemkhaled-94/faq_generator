@@ -21,7 +21,13 @@ from extraction.extractors import (
     ExtractorRegistry,
     LlmExtractor,
 )
-from extraction.models import CheckedFact, PassageToExtract, Refused, Twin
+from extraction.models import (
+    CheckedFact,
+    PassageToExtract,
+    Refused,
+    Twin,
+    from_repair,
+)
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
 from nlp.analysis import claim, normalised, numbers
@@ -844,6 +850,12 @@ def over_cap(facts: Sequence[CheckedFact], cap: int | None) -> set[int]:
     other kind for the share to be. Applying the cap there is arithmetic
     about a quantity that is zero, and it threw away table facts - the
     cheapest and most checkable facts in the corpus - by grid position.
+
+    A fact the repair call wrote does not compete either. The passage's room
+    counted the refused statement's sentence once, the checker found it
+    states several claims, and its pieces stand in for it; counted one each
+    they overflow the one slot the refusal freed and are refused by
+    position, not by quality.
     """
     if cap is None:
         return set()
@@ -853,6 +865,7 @@ def over_cap(facts: Sequence[CheckedFact], cap: int | None) -> set[int]:
         if fact.kind == FactKind.ATOMIC
         and fact.validated
         and fact.extraction_method == WRITTEN
+        and not from_repair(fact.prompt_version)
     ]
     if len(competing) <= cap:
         return set()

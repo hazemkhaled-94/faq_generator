@@ -210,7 +210,7 @@ SETTINGS: tuple[Setting, ...] = (
         help="Smallest share of a passage's facts that may be something "
         "other than atomic, which caps how many of a model's atomic facts one "
         "passage keeps - never below the passage's own sentences and list "
-        "items. Table facts are never capped. 0 or 1 turns the cap off, and so "
+        "items. Table facts, and the facts a repair call splits out of a refused statement, are never capped. 0 or 1 turns the cap off, and so "
         "does naming no digest kind in EXTRACTION_KINDS. `make extract-recap` "
         "applies a new value to stored facts without calling the model.",
     ),

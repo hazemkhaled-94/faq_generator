@@ -17,6 +17,17 @@ from nlp.models import Sentence
 #: not import the module that loads a pipeline.
 WRITTEN = "llm"
 
+#: What every repair prompt's version opens with, so a fact the repair call
+#: split out of a refused statement is told apart under any repair version.
+#: Here beside WRITTEN because the repository asks the same question in SQL.
+REPAIRED = "repair-"
+
+
+def from_repair(prompt_version: str | None) -> bool:
+    """Whether a fact was written by the repair call, by its prompt version."""
+    return (prompt_version or "").startswith(REPAIRED)
+
+
 #: What each line of a stored outline opens with.
 BULLET = "- "
 
