@@ -1019,6 +1019,63 @@ class TestBridgeReadsItsHeadings:
         assert bridged.rejection_code == Rejection.NOT_BRIDGING
         assert label in (bridged.validation_error or "")
 
+    @pytest.mark.parametrize(
+        ("language", "rows", "statement"),
+        [
+            (
+                "en",
+                (
+                    (
+                        "Section 7 > Yearly fees",
+                        "A dormant account is charged a yearly fee of 10 EUR.",
+                    ),
+                    (
+                        "Accounts > Dormancy",
+                        "An account is dormant when its holder has made no payment for 24 months.",
+                    ),
+                ),
+                "A dormant account whose holder has made no payment for 24 months is charged 10 EUR within 7 days under the fees section.",
+            ),
+            (
+                "en",
+                (
+                    (
+                        "Fees 2026 > Dormant accounts",
+                        "A dormant account is charged 10 EUR a year.",
+                    ),
+                    (
+                        "Accounts > Dormancy",
+                        "An account is dormant when its holder has made no payment for 24 months.",
+                    ),
+                ),
+                "An account whose holder has made no payment for 24 months is charged fees of 10 EUR a year.",
+            ),
+            (
+                "de",
+                (
+                    (
+                        "Abschnitt 7 > Jahresgebühren",
+                        "Für ein ruhendes Konto wird eine Jahresgebühr von 10 EUR erhoben.",
+                    ),
+                    (
+                        "Konten > Ruhe",
+                        "Ein Konto ruht, wenn der Inhaber 24 Monate lang keine Zahlung geleistet hat.",
+                    ),
+                ),
+                "Für ein Konto, dessen Inhaber 24 Monate lang keine Zahlung geleistet hat, wird innerhalb von 7 Tagen im Abschnitt über Gebühren eine Jahresgebühr von 10 EUR erhoben.",
+            ),
+        ],
+    )
+    def test_a_label_word_and_number_apart_are_no_claim_about_the_document(
+        self, checker, language, rows, statement
+    ) -> None:
+        """Only the word followed by the number names the heading."""
+        bridged = checker.bridge(statement, _under(language, *rows))
+
+        assert "names where" not in (bridged.validation_error or ""), (
+            bridged.validation_error
+        )
+
     def test_an_atomic_fact_naming_its_section_is_not_refused(self) -> None:
         """The label rule is the bridge's only."""
         read = passage(

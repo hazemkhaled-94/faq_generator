@@ -26,6 +26,7 @@ from extraction.models import (
 from nlp.analysis import as_noun, claim, normalised, numerals, vocabulary
 from nlp.models import Claim, Sentence
 from nlp.pipelines import name as pipeline_name
+from nlp.pipelines import pipeline
 from nlp.pipelines import version as pipeline_version
 from settings import decimal
 
@@ -254,12 +255,31 @@ def _bridging(judged: Judged) -> Failure | None:
     )
 
 
+def _names(tokens: Sequence, word: str, number: str) -> bool:
+    """Reports whether the label word is directly followed by its number.
+
+    The word by form or lemma ("Sections 7"), the number with a closing full
+    stop dropped, or both glued in one token ("§7").
+    """
+    for at, token in enumerate(tokens):
+        forms = {token.text.casefold(), token.lemma_.casefold()}
+        if word + number in forms:
+            return True
+        if (
+            word in forms
+            and at + 1 < len(tokens)
+            and tokens[at + 1].text.rstrip(".") == number
+        ):
+            return True
+    return False
+
+
 def _located(judged: Judged) -> Failure | None:
     """Refuses a bridge naming the numbered heading one of its passages sits under."""
-    said = vocabulary(judged.statement, judged.language)
+    tokens = list(pipeline(judged.language)(judged.statement))
     for label in judged.labels:
         match = HEADING_LABEL.match(label.strip())
-        if match and match.group(1).casefold() in said and match.group(2) in said:
+        if match and _names(tokens, match.group(1).casefold(), match.group(2)):
             return (
                 Rejection.NOT_BRIDGING,
                 (
