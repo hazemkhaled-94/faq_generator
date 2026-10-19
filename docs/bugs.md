@@ -800,6 +800,13 @@ review. The releases from v0.3.13 on fix what it found, one fix to a release.
 |---|---|---|---|
 | A bridge was checked against its excerpts' text only, and one naming its own heading was let through | `check_bridge` refused as `unsupported_addition` any unit only a heading trail or the title carried, and let through a bridge naming its own passage's numbered heading ("in Regel 5"), a claim about the document | the heading trail and title are read as an atomic fact's are (one shared reading of carried units), and a bridge whose statement writes a cited passage's numbered heading whole, the label word directly followed by its number, is refused as `not_bridging` ([`validation.py`](../backend/extraction/validation.py)) | replay over the 243 bridges of the v0.3.12 build: validated 178 to 184, those a reader judged correct 34 to 37, five label refusals, no validated bridge newly refused |
 
+### Fixed in v0.3.16: bridge pairing and prompt
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| Bridge pairs were each passage's nearest unused neighbour inside its own topic | the pairs offered restatements (10 of 121 explicit references offered, 56 blocked by the one-topic gate) and left 19% of validated bridges correct | `links.py` pairs passages by the documents' own links: a numbered or quoted heading named, sibling sections under one parent heading, a term only two passages share; per language and across topics ([`links.py`](../backend/extraction/links.py), [`service.py`](../backend/extraction/service.py)) | offline replay over the v0.3.12 passages: 204 pairs, 47% across topics, none of the 4 pairs behind invalid questions offered; of the labelled pairs 29% (17 of 58) were correct against 18% for today's, wrong and unsupported 8.6% against 23% |
+| The bridge prompt invented a link on every pair it was shown | on linked pairs with prompt 5, 37% of bridges read wrong or unsupported against 15% for the old pairs | bridge prompt 6 names the link the pairing found, shows each excerpt's validated facts, and asks for one bridge or none from a closed set of relations with a probe question; the bridge cites the chosen facts' sentences ([`bridge.py`](../backend/extraction/extractors/bridge.py)); the pairing and the prompt ship together, since the pairs alone were harmful | Azure, linked pairs, prompt 6 with v0.3.15's checks, read blind (31 bridges): 42% correct against 12% for today's pairs and prompt, wrong and unsupported 13% against 15%, 3 of 31 claims about the document |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was

@@ -200,6 +200,17 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.16
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting.
+
+**Bridges.** `make extract-bridge` writes the bridges again from the new pairs under bridge prompt 6, which records `prompt_version` 6 (`FORCE=1` while an accepted question cites a bridge). A pass narrowed with `--only` deletes the bridges of its topics, including the cross-topic ones, and rewrites only the links whose head it reads. The pass now parses every readable passage once, about 20 seconds per 700 passages, and a pair whose passage holds no validated atomic fact is not read. It costs about USD 0.25 more a build in input tokens. A heading numbered before its word ("1.2 Returns") gives no reference link, only sibling and term links.
+
 ## Upgrading to v0.3.15
 
 ```bash
