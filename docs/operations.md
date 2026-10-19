@@ -200,6 +200,27 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.14
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting.
+
+**The cap and the repair pieces.** A fact the repair call wrote for a
+statement refused as `not_atomic` no longer competes for its passage's atomic
+cap. `make extract-recap` gives back the repair pieces an earlier cap refused,
+with no model call; on the v0.3.12 build it frees all 65 `over_cap` refusals
+(none newly refused). Run `make extract-dedup` after it, which re-decides the
+cross-passage repeats the freed facts may leave. Facts, bridges, topics and
+questions already built on the stored facts stay as they are until the stages
+that read them are run again. A full re-extraction gives the same result for
+new rows, because the cap is applied in flight, but it asks the model again
+for every passage, which `make extract-recap` does not, so recap is the way
+to carry the change into a stored build.
+
 ## Upgrading to v0.3.13
 
 ```bash
@@ -568,7 +589,7 @@ commands that call no model come first:
 |---|---|---|
 | `make extract-dedup` | no | Duplicate refusals the new rule would not make are given back, with their passages re-judged and re-capped, and fold citations come off the facts they were written onto |
 | `make extract-revalidate` | no | Facts refused for a pronoun their own statement resolves are validated |
-| `make extract-recap` | no | The atomic cap, now never below a passage's sentences plus list items |
+| `make extract-recap` | no | The atomic cap, now never below a passage's sentences plus list items, and the repair pieces an earlier cap refused given back |
 | `make questions-rescore` | no | Each question's scope and difficulty, from the facts it cites now. Run it after `extract-dedup` and before re-verify, and not after any other re-run: there it would hide a question that lost a fact |
 | `make questions-reverify` | no | The new gates, on every accepted question. It only rejects |
 | `make questions-rejudge` | yes, the verifier | The `settles` judgement, on every accepted unanswerable question |

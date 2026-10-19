@@ -788,6 +788,12 @@ review. The releases from v0.3.13 on fix what it found, one fix to a release.
 |---|---|---|---|
 | The API image's lock pinned an aiohttp with three published advisories | CVE-2026-111063, CVE-2026-111064 and GHSA-2g87-pp6c-29x5 were published against aiohttp 3.14.3 during the review, so `make audit` failed on every branch | the one pin is edited to 3.14.4, the release that fixes them; `make lock` would have moved every pin ([`requirements.lock`](../backend/api/requirements.lock)) | `make audit` reads no known vulnerability in either lock; aiohttp 3.14.4 needs yarl 1.25.1 or later, which the lock pins. The host environment's `poetry.lock` still holds 3.14.3, and the audit reads only the two image locks |
 
+### Fixed in v0.3.14: facts
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A fact the repair call split out of a statement competed for its passage's cap | the per-passage atomic cap refused 65 facts as `over_cap` on the v0.3.12 rebuild, 59 of them pieces the repair call wrote for a statement refused as `not_atomic` and 6 model statements the pieces' numbers or names ranked out; the passage's room counted the refused statement's sentence once, but each of its 2.4 pieces on average competed for a place alone and lost by position; readers judged 51 of the 65 sound | a fact the repair call wrote no longer competes for the cap, in flight and in `make extract-recap`, which also gives back the repair pieces an earlier cap refused; the model's own facts stay capped beside them ([`service.py`](../backend/extraction/service.py), [`repository.py`](../backend/extraction/repository.py)) | replay on the stored facts of the v0.3.12 build: `over_cap` 65 to 0, all 65 freed (German 20, English 45), none newly refused; readers' labels on the 65: 51 sound, 10 rightly refused, 4 partly, so 51 wrong refusals freed for 10 right ones lost (5.1 to 1, the partly ones neutral) and 78.5% of what is admitted sound |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was
