@@ -315,12 +315,16 @@ def largest(
     languages: Mapping[str, int] | None = None,
     twins: Mapping[int, set[int]] | None = None,
 ) -> Release:
-    """The biggest release this pool fills, near enough, found by bisection.
+    """The biggest release this pool fills, near enough, found by scanning down.
 
     The size a balanced set can reach is set by whichever bucket is furthest
     from being able to supply its share. Rather than working that bound out
-    for four interacting marginals, the choosing itself is the test, and
-    the largest size it fills to within `tolerance` is bisected for.
+    for four interacting marginals, the choosing itself is the test: sizes
+    are tried from the largest the pool's supply allows downwards, and the
+    first that fills to within `tolerance` is drawn. Not bisected for,
+    because whether a size fills does not fall steadily with the size: the
+    draw's endgame lands differently at each, so a size failing between two
+    that fill sent a bisection down for good, at times to a few rows.
 
     What the release actually came out as is reported rather than assumed -
     `composition` reads it off the rows - so the few places a bucket ends
@@ -332,23 +336,55 @@ def largest(
     nothing for that reason tells a reader less than returning the best set
     available beside a note of what is missing from it.
     """
-    low, high = 1, len(pool)
-    empty = Release(
+    most = Release(
         ids=[], quota=quota_of(0, bands, types, unanswerable, languages), short={}
     )
-    best, most = empty, empty
-    while low <= high:
-        size = (low + high) // 2
+    for size in range(
+        _fillable(pool, bands, types, unanswerable, languages, tolerance), 0, -1
+    ):
         release = choose(
             pool, quota_of(size, bands, types, unanswerable, languages), twins
         )
+        if close_enough(release, tolerance):
+            return release
         if release.size > most.size:
             most = release
-        if close_enough(release, tolerance):
-            best, low = release, size + 1
-        else:
-            high = size - 1
-    return best if best.ids else most
+    return most
+
+
+def _fillable(
+    pool: Sequence[Row],
+    bands: Mapping[str, int],
+    types: Mapping[str, int],
+    unanswerable: float,
+    languages: Mapping[str, int] | None,
+    tolerance: float,
+) -> int:
+    """The largest size whose every quota the pool holds rows enough for, within its slack.
+
+    No draw above it can fill, whatever it picks, so the scan starts here
+    rather than at the size of the pool.
+    """
+    held = Counter(
+        name
+        for row in pool
+        for name in (row.difficulty, row.question_type, row.language)
+    )
+    unanswered = sum(not row.answerable for row in pool)
+    for size in range(len(pool), 0, -1):
+        quota = quota_of(size, bands, types, unanswerable, languages)
+        wanted = {**quota.difficulty, **quota.types, **quota.languages}
+        answerable = size - quota.unanswerable
+        missing = {name: count - held[name] for name, count in wanted.items()}
+        missing["answerable"] = (
+            size - min(quota.unanswerable, unanswered) - (len(pool) - unanswered)
+        )
+        wanted["answerable"] = answerable
+        if all(
+            short <= max(1, tolerance * wanted[name]) for name, short in missing.items()
+        ):
+            return size
+    return 0
 
 
 def composition(pool: Sequence[Row], ids: Sequence[int]) -> dict[str, dict[str, int]]:

@@ -232,6 +232,32 @@ def test_the_scarcest_band_is_what_caps_the_size() -> None:
     assert 9 <= release.size <= 13
 
 
+def test_no_larger_release_fills_than_the_one_drawn() -> None:
+    """Whether a size fills does not fall steadily with the size, so a bisection stopped early.
+
+    Here it settled on 29 while 41 fills: a size failing between them sent
+    it down and it never looked above again.
+    """
+    counted = {
+        (Difficulty.EASY, QuestionType.FACTOID, True): 8,
+        (Difficulty.EASY, QuestionType.REASON, True): 5,
+        (Difficulty.MEDIUM, QuestionType.FACTOID, True): 10,
+        (Difficulty.MEDIUM, QuestionType.REASON, True): 3,
+        (Difficulty.HARD, QuestionType.FACTOID, True): 9,
+        (Difficulty.HARD, QuestionType.REASON, True): 12,
+    }
+    held = pool(counted)
+
+    release = largest(held, BANDS, TYPES, 0.0)
+
+    assert close_enough(release)
+    assert not any(
+        close_enough(choose(held, quota_of(size, BANDS, TYPES, 0.0)))
+        for size in range(release.quota.size + 1, len(held) + 1)
+    )
+    assert release.quota.size == 41
+
+
 def test_a_kind_the_pool_has_none_of_is_dropped_from_the_quota() -> None:
     """One empty bucket would otherwise refuse every size of release."""
     supplied = _supplied([row(1)], TYPES, "kind", "question_type")
@@ -436,6 +462,37 @@ def test_a_third_language_is_held_to_its_share_too() -> None:
     got = composition(held, release.ids)
 
     assert all(abs(got["language"][one] - 20) <= 1 for one in languages), got
+
+
+def test_a_bilingual_pool_releases_the_largest_size_that_fills() -> None:
+    """With a language quota too, no size above the one drawn would have filled.
+
+    The same uneven pool in German and English, one language written after
+    the other, as a bank's or a shop's two editions are.
+    """
+    counted = {
+        (Difficulty.EASY, QuestionType.FACTOID, True): 8,
+        (Difficulty.EASY, QuestionType.REASON, True): 5,
+        (Difficulty.MEDIUM, QuestionType.FACTOID, True): 10,
+        (Difficulty.MEDIUM, QuestionType.REASON, True): 3,
+        (Difficulty.HARD, QuestionType.FACTOID, True): 9,
+        (Difficulty.HARD, QuestionType.REASON, True): 12,
+    }
+    held: list[Row] = []
+    for language in LANGUAGES:
+        for (band, kind, answerable), count in counted.items():
+            for _ in range(count):
+                held.append(
+                    spoken(len(held) + 1, language, answerable, band=band, kind=kind)
+                )
+
+    release = largest(held, BANDS, TYPES, 0.0, languages=LANGUAGES)
+
+    assert close_enough(release)
+    assert not any(
+        close_enough(choose(held, quota_of(size, BANDS, TYPES, 0.0, LANGUAGES)))
+        for size in range(release.quota.size + 1, len(held) + 1)
+    )
 
 
 def test_the_composition_reports_the_language() -> None:
