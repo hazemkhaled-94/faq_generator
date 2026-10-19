@@ -12,8 +12,8 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from database.qa_generator import FactKind, Rejection
+from extraction.links import linked
 from extraction.models import BULLET, MIN_POINTS, CandidateFact, Cited, Twin
-from extraction.service import grouped
 from extraction.validation import FactChecker
 
 #: Passages of one topic, as (document, passage id).
@@ -31,8 +31,23 @@ def _passages(rows):
 
     template = passage()
     return [
-        replace(template, id=passage_id, doc_sha256=document)
+        replace(
+            template,
+            id=passage_id,
+            doc_sha256=document,
+            section_path=f"Fees > Part {passage_id}",
+        )
         for document, passage_id in rows
+    ]
+
+
+def grouped(passages, wanted, size):
+    """The passages of each link one topic offers."""
+    return [
+        link.passages
+        for link in linked(
+            passages, passages, {one.id: 1 for one in passages}, wanted, size
+        )
     ]
 
 

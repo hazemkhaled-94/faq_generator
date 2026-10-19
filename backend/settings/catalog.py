@@ -259,7 +259,9 @@ SETTINGS: tuple[Setting, ...] = (
         kind="integer",
         low=0,
         invalidates=("extraction",),
-        help="How many bridge calls one topic is worth. `make extract-rerun` "
+        help="How many bridge calls one topic is worth, counted on the passage "
+        "that heads each pair; its partner may sit in any topic of the same "
+        "language. `make extract-rerun` "
         "leaves bridges as they are; `make extract-bridge` replaces them, and "
         "asks for FORCE=1 while an accepted question cites one.",
     ),

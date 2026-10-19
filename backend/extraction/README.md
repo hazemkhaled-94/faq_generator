@@ -24,9 +24,10 @@ a reader by its block type, read for its claims and then for its digest.
 Everything both readers propose is checked, and the lot is written in one
 transaction that also marks the passage done.
 
-The **bridge pass** is not a queue: its unit of work is a group of passages
-the topic model put together. `make extract-bridge` walks every topic, forms
-groups, and writes what they yield. Topics must be fitted first. A second
+The **bridge pass** is not a queue: its unit of work is a pair of passages
+the documents link. `make extract-bridge` finds the links, caps them per topic
+of the passage that heads each, and writes what they yield. Topics must be
+fitted first. A second
 pass replaces the bridges in scope, so it refuses, deleting nothing, while an
 accepted question cites one of them; `FORCE=1` replaces them anyway, and
 those questions are rejected or deleted with them. `MISSING=1` deletes
@@ -257,10 +258,16 @@ the only route from a fact to a passage, and so to a document and a topic.
 
 ### Step 7 — The bridge pass
 
-Passages are grouped by the topic they carry most strongly, then paired on
-their vectors — each head takes whichever unused passage it most nearly
-meets. Within a topic the documents are taken in turn, and the groups are
-strided over the whole topic.
+Passages are paired by the documents' own links (`extraction/links.py`), per
+language and across topics: a passage that names another section's numbered
+or quoted heading ("Section 7", "Returns"), two sections under one parent
+heading, or a term almost no other passage uses. A reference outranks a
+sibling, and a sibling a term; inside a kind the vectors rank the partners
+and a tie goes to the lower id. Each passage heads at most one pair, a pair
+is offered once, and a topic is worth `EXTRACTION_BRIDGES_PER_TOPIC` pairs on
+the passages that head them, strided over the topic's heads in reading
+order. The partner may sit in any topic of its language. The pass logs how
+many links of each kind it offered.
 
 The model is shown the group as `[P0]`, `[P1]`, … with sentences numbered
 inside each, and answers with a claim plus, per passage, the numbers of the

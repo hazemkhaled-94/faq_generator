@@ -34,12 +34,34 @@ ANSWER = {
 }
 
 
-def pair():
-    """Two passages of two documents, as one topic offers them."""
-    return group(
-        "Standard requests are answered within 48 hours.",
-        "Urgent requests are answered within 4 hours.",
+OTHER = (
+    "Parcels leave the warehouse within 2 days.",
+    "Pallets leave the depot within 9 days.",
+)
+
+
+def pair(at: int = 0, parent: str = "Support", texts: tuple[str, str] | None = None):
+    """Two sections under one heading, as one topic offers them.
+
+    Args:
+        at: Added to both passage ids, so two pairs in one corpus differ.
+        parent: The heading both sections sit under.
+        texts: What the two say, where another pair in the corpus must share
+            no term with them.
+    """
+    first, second = group(
+        *(
+            texts
+            or (
+                "Standard requests are answered within 48 hours.",
+                "Urgent requests are answered within 4 hours.",
+            )
+        )
     )
+    return [
+        replace(first, id=first.id + at, section_path=f"{parent} > Standard"),
+        replace(second, id=second.id + at, section_path=f"{parent} > Urgent"),
+    ]
 
 
 def run(catalog: Catalogue, model: Model, wanted: int = 5, size: int = 2) -> int:
@@ -73,10 +95,38 @@ def test_the_previous_pass_is_replaced_rather_than_added_to() -> None:
 
 def test_every_topic_is_read() -> None:
     """A run covers the corpus, not one subject of it."""
-    catalog, model = Catalogue(support=pair(), delivery=pair()), Model(ANSWER)
+    catalog, model = (
+        Catalogue(support=pair(), delivery=pair(100, "Delivery", OTHER)),
+        Model(ANSWER),
+    )
 
     assert run(catalog, model) == 2
     assert model.calls == 2
+
+
+def test_a_bridge_may_join_two_topics() -> None:
+    """The documents' link decides, not the topic model."""
+    first = replace(
+        passage(
+            "An account is dormant when its holder has made no payment for 24 "
+            "months. Fees for dormant accounts are set out in Section 7.",
+            section_path="Accounts > Dormant accounts",
+            id=1,
+        ),
+        doc_sha256="doc-0",
+    )
+    second = replace(
+        passage(
+            "A dormant account is charged a yearly fee of 10 EUR.",
+            section_path="Section 7 > Yearly fees",
+            id=2,
+        ),
+        doc_sha256="doc-1",
+    )
+    catalog, model = Catalogue(accounts=[first], fees=[second]), Model(ANSWER)
+
+    assert run(catalog, model) == 1
+    assert model.calls == 1
 
 
 def test_a_topic_too_small_to_group_is_skipped() -> None:
@@ -100,7 +150,7 @@ def test_a_group_the_model_will_not_read_does_not_stop_the_rest() -> None:
                 raise ModelUnavailable("Timeout: took too long")
             return super().answer(**kwargs)
 
-    catalog = Catalogue(support=pair(), delivery=pair())
+    catalog = Catalogue(support=pair(), delivery=pair(100, "Delivery", OTHER))
 
     assert run(catalog, Flaky(ANSWER)) == 1, "the second group still wrote"
 
@@ -179,12 +229,16 @@ def test_the_narrowing_reaches_both_the_clear_and_the_read() -> None:
         "a-condition",
     )
 
-    assert catalog.narrowed == ["a-condition"]
+    assert catalog.narrowed == ["a-condition", None], (
+        "the heads are read narrowed, their partners whole"
+    )
 
 
 def test_a_pass_for_the_missing_reads_only_the_topics_holding_no_bridge() -> None:
     """What a whole-corpus run asks for: nothing replaced, nothing a question cites lost."""
-    catalog = Catalogue(support=pair(), billing=pair()).holding_bridges(1)
+    catalog = Catalogue(
+        support=pair(), billing=pair(100, "Billing", OTHER)
+    ).holding_bridges(1)
     model = Model(ANSWER)
 
     written = bridge(

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import replace
-from itertools import zip_longest
 from typing import ClassVar
 
 from sqlalchemy import ARRAY, BigInteger, any_, bindparam
@@ -21,6 +21,7 @@ from extraction.extractors import (
     ExtractorRegistry,
     LlmExtractor,
 )
+from extraction.links import linked
 from extraction.models import (
     CheckedFact,
     PassageToExtract,
@@ -423,110 +424,6 @@ def _rejudge(
     return replace(checked, evidence_text=evidence)
 
 
-def _partner(
-    head: PassageToExtract, offered: Sequence[PassageToExtract]
-) -> PassageToExtract | None:
-    """Whichever unused passage the head most nearly meets, or None.
-
-    Cosine over `passages.embedding`, and the one preferring another
-    document loses nothing: the interleave has already put the documents in
-    turn, so a head's neighbours are mostly from elsewhere anyway.
-
-    Falls back to the first offered where nothing carries a vector, which is
-    the adjacency this replaced and is what a corpus extracted before the
-    column existed still gets.
-    """
-    if not offered:
-        return None
-    if head.embedding is None:
-        return offered[0]
-    scored = [
-        (cosine(list(head.embedding), list(one.embedding)), -one.id, one)
-        for one in offered
-        if one.embedding is not None
-    ]
-    if not scored:
-        return offered[0]
-    return max(scored)[2]
-
-
-def _paired(
-    interleaved: list[PassageToExtract], size: int
-) -> list[list[PassageToExtract]]:
-    """Groups each passage with the ones it most nearly meets.
-
-    What a bridge is asked for is a claim no single passage states, and two
-    passages with nothing between them have no such claim: the prompt says
-    returning none is correct, and a group of strangers is a call spent
-    being told so. Sharing a topic is the corpus's own statement that two
-    passages are related, and it is a weak one - a subject is narrower than
-    a topic.
-
-    So the topic narrows and the vectors pair, which is the same two-stage
-    shape question generation uses to pair passages for a wide sample.
-
-    Deterministic: the head order is the interleave's, and a tie between two
-    equally near passages goes to the lower id.
-    """
-    # ponytail: an O(n²) Python scan per topic, with pop(0) and remove on a
-    # list. Upgrade: one numpy cosine matrix per topic, or a pgvector KNN.
-    remaining = list(interleaved)
-    groups: list[list[PassageToExtract]] = []
-    while len(remaining) >= size:
-        group = [remaining.pop(0)]
-        while len(group) < size:
-            found = _partner(group[-1], remaining)
-            if found is None:
-                break
-            remaining.remove(found)
-            group.append(found)
-        if len(group) == size:
-            groups.append(group)
-    return groups
-
-
-def grouped(
-    passages: list[PassageToExtract], wanted: int, size: int
-) -> list[list[PassageToExtract]]:
-    """Splits one topic's passages into the groups a bridge is read from.
-
-    Documents are taken in turn, each passage is paired with the one it most
-    nearly meets, and the groups are strided over the whole topic rather
-    than taken from its start.
-
-    Args:
-        passages: The topic's passages, in document and reading order.
-        wanted: The most groups to return.
-        size: How many passages one group holds.
-
-    Returns:
-        Up to `wanted` groups of exactly `size` passages. Empty when the
-        topic holds fewer than `size`.
-    """
-    if size < 2 or wanted < 1 or len(passages) < size:
-        return []
-
-    by_document: dict[str | None, list[PassageToExtract]] = {}
-    for passage in passages:
-        by_document.setdefault(passage.doc_sha256, []).append(passage)
-
-    interleaved = [
-        passage
-        for taken in zip_longest(*by_document.values())
-        for passage in taken
-        if passage is not None
-    ]
-    whole = _paired(interleaved, size)
-    # Evenly spaced from the first group to the last, rather than a stride.
-    # A stride of len(whole) // wanted floors to 1 for any topic holding
-    # fewer than twice as many groups as were asked for - it then takes the
-    # first `wanted` and the rest of the topic is never read. Ceiling
-    # instead returns fewer groups than were wanted.
-    chosen = min(wanted, len(whole))
-    step = (len(whole) - 1) / (chosen - 1) if chosen > 1 else 0
-    return [whole[round(at * step)] for at in range(chosen)]
-
-
 class CitedBridges(Exception):
     """Accepted questions cite a bridge the pass would delete."""
 
@@ -590,18 +487,40 @@ def bridge(
     # same ExtractionFailed fails a PASSAGE outright, and the difference
     # between the two was invisible.
     dropped = 0
-    for topic_id, passages in catalog.by_topic(within):
-        if topic_id in done:
-            continue
-        # The same gate the per-passage stage applies, so the two cannot
-        # drift. Without it a group is spent on a table of contents or a
-        # heading: `by_topic` asks only that a passage was segmented.
-        readable = [one for one in passages if skipped(one) is None]
-        for offered in grouped(readable, groups_per_topic, size):
+    scoped = list(catalog.by_topic(within))
+    whole = scoped if within is None else list(catalog.by_topic(None))
+    topic_of = {one.id: topic for topic, ones in whole for one in ones}
+    # The same gate the per-passage stage applies, so the two cannot drift.
+    # Without it a link is spent on a table of contents or a heading:
+    # `by_topic` asks only that a passage was segmented.
+    heads = [one for _, ones in scoped for one in ones if skipped(one) is None]
+    partners = [one for _, ones in whole for one in ones if skipped(one) is None]
+    for language in sorted({one.language or "" for one in partners}):
+        links = linked(
+            [one for one in heads if (one.language or "") == language],
+            [one for one in partners if (one.language or "") == language],
+            topic_of,
+            groups_per_topic,
+            size,
+            done,
+        )
+        kinds = Counter(link.kind for link in links)
+        log.info(
+            "offered %d link(s) in %r (%d reference, %d sibling, %d term)",
+            len(links),
+            language,
+            kinds["reference"],
+            kinds["sibling"],
+            kinds["term"],
+        )
+        for link in links:
+            offered = list(link.passages)
             try:
                 proposed = extractor.extract(offered)
             except ExtractionFailed as exc:
-                log.warning("topic %d: a group failed: %s", topic_id, exc)
+                log.warning(
+                    "link %s: a group failed: %s", [one.id for one in offered], exc
+                )
                 dropped += 1
                 continue
             written += catalog.add_bridges(
