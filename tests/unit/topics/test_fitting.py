@@ -328,3 +328,10 @@ def test_members_alike_are_more_cohesive_than_members_apart() -> None:
 
     assert _cohesion(alike, vectors) == 1.0
     assert _cohesion(apart, vectors) == 0.0
+
+
+def test_a_seed_at_the_top_of_its_range_still_fits(settings, passages) -> None:
+    """TOPIC_RANDOM_STATE may be 2**32 - 1, and the draws after it wrap round."""
+    fitting = FitterDriver(settings | {"random_state": 2**32 - 1}, passages).fit("de")
+
+    assert fitting.fitting.weights

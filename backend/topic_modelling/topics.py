@@ -221,7 +221,8 @@ class TopicFitter:
                 id2word=dictionary,
                 num_topics=wanted,
                 passes=self._passes,
-                random_state=self._random_state + draw,
+                # Wrapped, so a seed at the top of its range still draws.
+                random_state=(self._random_state + draw) % 2**32,
             )
             scored = self._score(model, corpus, dictionary, weighting)
             held = _cohesion(scored[0], vectors)
@@ -232,7 +233,7 @@ class TopicFitter:
         log.info(
             "%s: kept the draw seeded %d of %d, its members %.3f alike",
             language,
-            self._random_state + draw,
+            (self._random_state + draw) % 2**32,
             _DRAWS,
             held,
         )
