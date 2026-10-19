@@ -813,6 +813,12 @@ review. The releases from v0.3.13 on fix what it found, one fix to a release.
 |---|---|---|---|
 | An unanswerable question was written in any of eight kinds | the plan cycled an unanswerable slot over every kind of the mix that does not span passages, so a set, a condition, a definition, a procedure or a consequence was written unanswerable and the passages often settled it: the writer failed 0.67 of the time on those kinds against 0.45 for factoid and reason questions, over three builds | an unanswerable slot is written only as a factoid, entity or reason question, those of them the mix weights above 0, in mix order; a mix with none of them writes the slot answerable, in the kind it was allocated ([`planning.py`](../backend/question_generation/planning.py)) | on the labelled drafts of the v0.3.12 build the other kinds were answered two times in three against under one in two; the plan replays to a kept-answered share of 0.253 from 0.342 (interval 0.158 to 0.356); a topic of 120 slots at today's mix plans 18 factoid and 18 reason unanswerables where it planned 4 or 5 of each of eight kinds. Answerable slots are unchanged. Not re-measurable offline beyond that replay: it is read on the next build |
 
+### Fixed in v0.3.18: dash ranges
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A range written with a dash was refused when the recovery gave its two ends apart | a key holding "100–110 m" or "8–10 Werktage" was refused `not_recoverable` when the verifier's recovery wrote "mindestens 100 m, höchstens 110 m": the dash range was one figure token, so the key asserted a value no recovery could hold, and a key with no content word fell to raw containment, which wanted the dash back | `agrees()` reads a dash range (the en dash; the tokenizer already splits an ASCII-hyphen range into its two figures) as its two ends and checks the words around it by lemma; the ends the recovery states count only against a key that holds a range, so a key naming one figure, "110 m", does not agree with "100–110 m"; a range still needs both ends and its unit ([`gates.py`](../backend/question_generation/gates.py)) | over 919 stored recoveries of the v0.3.12 and v0.4.0 builds two verdicts move (8106 and 7735), both wrong refusals; no right refusal lost; none of the v0.3.0 rows moves |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was

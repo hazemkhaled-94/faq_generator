@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.18
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. A key holding a range written with a dash is no longer refused as `not_recoverable` when the recovery gives each end in its own words. The rule frees questions only in a fresh question generation: `make questions-reverify` never gives back a rejected question.
+
 ## Upgrading to v0.3.17
 
 ```bash
