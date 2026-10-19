@@ -200,6 +200,17 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.13
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. The rebuild installs aiohttp 3.14.4 in the API
+image and the workers, which fixes three advisories published against 3.14.3.
+Nothing else changes and no stored data moves.
+
 ## Upgrading to v0.3.12
 
 ```bash

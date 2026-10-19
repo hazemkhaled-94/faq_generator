@@ -776,6 +776,18 @@ only after five refusals in a row. The retry notes now read as a reviewer's
 feedback on the quoted draft, and no longer tell the writer what it is
 supposed to produce.
 
+## Found on the v0.3.12 rebuild of 2026-10-19
+
+The code of v0.3.12 rebuilt the same two PDFs and every row of the build was
+read again under a rubric, which also checked the analysis of the earlier
+review. The releases from v0.3.13 on fix what it found, one fix to a release.
+
+### Fixed in v0.3.13: dependencies
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| The API image's lock pinned an aiohttp with three published advisories | CVE-2026-111063, CVE-2026-111064 and GHSA-2g87-pp6c-29x5 were published against aiohttp 3.14.3 during the review, so `make audit` failed on every branch | the one pin is edited to 3.14.4, the release that fixes them; `make lock` would have moved every pin ([`requirements.lock`](../backend/api/requirements.lock)) | `make audit` reads no known vulnerability in either lock; aiohttp 3.14.4 needs yarl 1.25.1 or later, which the lock pins. The host environment's `poetry.lock` still holds 3.14.3, and the audit reads only the two image locks |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was
