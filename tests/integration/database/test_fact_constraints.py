@@ -170,3 +170,33 @@ def test_losing_any_passage_a_fact_rests_on_takes_the_fact(session, passages) ->
 
     assert session.execute(text("SELECT count(*) FROM facts")).scalar() == 1
     assert session.execute(text("SELECT kind FROM facts")).scalar() == FactKind.ATOMIC
+
+
+READING = {"relation": "defines", "question": "q", "answer": "a"}
+
+
+@pytest.mark.parametrize(
+    ("kind", "bridge"),
+    [
+        (FactKind.ATOMIC, READING),
+        (FactKind.BRIDGE, READING | {"relation": "causes"}),
+        (FactKind.BRIDGE, {"relation": "defines", "question": "q"}),
+        (FactKind.BRIDGE, {"relation": "defines", "question": "q", "answer": 1}),
+    ],
+)
+def test_only_a_bridge_carries_a_reading(session, passages, kind, bridge) -> None:
+    """Another kind, an unknown relation or a reading with no answer is refused."""
+    refuses(
+        session,
+        fact(passages[0], passages[1], kind=kind, bridge=bridge),
+        "facts_bridge_reading_valid",
+    )
+
+
+@pytest.mark.parametrize("bridge", [READING, None])
+def test_a_bridge_is_stored_with_a_reading_or_without(
+    session, passages, bridge
+) -> None:
+    """Bridges older than prompt 6 have none."""
+    session.add(fact(passages[0], passages[1], kind=FactKind.BRIDGE, bridge=bridge))
+    session.flush()

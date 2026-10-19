@@ -120,6 +120,15 @@ class Fact(Base):
             f"reviewed_verdict IS NULL OR {one_of('reviewed_verdict', ReviewVerdict)}",
             name="facts_reviewed_verdict_valid",
         ),
+        # coalesce: a reading missing a key is NULL, which a CHECK passes.
+        CheckConstraint(
+            "bridge IS NULL OR coalesce(kind = 'bridge' AND "
+            "bridge->>'relation' IN ('defines', 'limits', 'consequence', "
+            "'applies', 'parallel', 'contrast') AND "
+            "jsonb_typeof(bridge->'question') = 'string' AND "
+            "jsonb_typeof(bridge->'answer') = 'string', false)",
+            name="facts_bridge_reading_valid",
+        ),
         # One fact about a row, so half of it written is a write that failed.
         CheckConstraint(
             "(reviewed_verdict IS NULL) = (reviewed_at IS NULL)",
@@ -261,6 +270,12 @@ class Fact(Base):
         "between them. A check that is structural rather than a measurement "
         "records nothing here - a citation resolves or it does not. NULL for a "
         "fact written before this column.",
+    )
+    bridge: Mapped[dict | None] = mapped_column(
+        JSONB(none_as_null=True),
+        comment="A bridge's own reading: the relation the model named and the "
+        "question and short answer it was tested with. NULL on every other "
+        "fact and on bridges older than prompt 6.",
     )
     confidence: Mapped[float | None] = mapped_column(
         Float,

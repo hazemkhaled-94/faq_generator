@@ -250,6 +250,7 @@ class BridgeExtractor:
                 kind=FactKind.BRIDGE,
                 passages=_cited(chosen),
                 probe=(answer.question.strip(), answer.answer.strip()),
+                relation=answer.relation,
             )
         ]
 

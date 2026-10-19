@@ -7,7 +7,7 @@ count when they are filtered the same way.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from facts import FactStore, checked
@@ -1851,3 +1851,63 @@ class TestTheReplayWhereTheDrainEnds:
         _reading(store, {"facts": []}).drain()
 
         assert store.rows("rejection_code") == [(Rejection.DUPLICATE,)]
+
+
+class TestBridgeReading:
+    """A bridge keeps the relation it was written with and the question it was tested with."""
+
+    READING: ClassVar = {
+        "relation": "defines",
+        "question": "What fee?",
+        "answer": "10 EUR",
+    }
+
+    def test_a_bridge_keeps_its_reading(self, store, corpus) -> None:
+        """Written with the fact, read back into the candidate a re-judgement checks."""
+        anchor, other = corpus["a"][0], corpus["b"][0]
+        store.bridges(
+            checked(
+                anchor,
+                "A bridge.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[anchor, other],
+                bridge=self.READING,
+            )
+        )
+
+        assert store.rows("bridge") == [(self.READING,)]
+        ((_, _, candidate, _),) = store.catalog.judged()
+        assert candidate.relation == "defines"
+        assert candidate.probe == ("What fee?", "10 EUR")
+
+    def test_a_re_judgement_leaves_the_reading_alone(self, store, corpus) -> None:
+        """The verdict is rewritten; what the model wrote and was asked is not."""
+        anchor, other = corpus["a"][0], corpus["b"][0]
+        store.bridges(
+            checked(
+                anchor,
+                "A bridge.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[anchor, other],
+                bridge=self.READING,
+            )
+        )
+        ((fact_id, _, _, _),) = store.catalog.judged()
+
+        store.catalog.rejudge(
+            [
+                (
+                    fact_id,
+                    checked(
+                        anchor,
+                        "A bridge.",
+                        kind=FactKind.BRIDGE,
+                        validated=False,
+                        rejection_code=Rejection.NOT_BRIDGING,
+                        passage_ids=[anchor, other],
+                    ),
+                )
+            ]
+        )
+
+        assert store.rows("bridge") == [(self.READING,)]

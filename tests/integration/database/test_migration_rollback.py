@@ -37,6 +37,7 @@ UNFOLDED = "3c5a9d2e7b14"
 FLOORED = "7d4e1f2a9c63"
 KEPT = "8f759a3a3848"
 KINDED = "a41c9e3d7b52"
+BRIDGED = "c3a9e1470b5d"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -56,6 +57,7 @@ LATER = (
     FLOORED,
     KEPT,
     KINDED,
+    BRIDGED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
@@ -581,3 +583,31 @@ def test_a_question_archived_before_the_kind_column_restores_with_a_kind(
     assert sql(spare, "SELECT count(*) FROM archived_rows WHERE payload ? 'kind'") == [
         (0,)
     ]
+
+
+def test_a_bridge_reading_is_added_empty_and_taken_back_out(spare: str) -> None:
+    """NULL on every fact already there, constrained to a bridge, and the facts intact without it."""
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+
+    config = alembic(spare)
+    command.upgrade(config, KEPT)
+    for statement in CORPUS[:3]:
+        sql(spare, statement)
+    held = sql(spare, "SELECT * FROM facts ORDER BY id")
+
+    command.upgrade(config, "head")
+    assert sql(spare, "SELECT bridge FROM facts") == [(None,)] * 9
+    sql(
+        spare,
+        "UPDATE facts SET kind = 'bridge', bridge = "
+        '\'{"relation": "defines", "question": "q", "answer": "a"}\' WHERE id = 1',
+    )
+    with pytest.raises(IntegrityError):
+        sql(spare, 'UPDATE facts SET bridge = \'{"relation": "defines"}\' WHERE id = 2')
+
+    command.downgrade(config, KEPT)
+    assert sql(spare, "SELECT * FROM facts ORDER BY id")[1:] == held[1:]
+
+    command.upgrade(config, "head")
+    assert sql(spare, "SELECT bridge FROM facts") == [(None,)] * 9

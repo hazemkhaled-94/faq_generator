@@ -1267,3 +1267,98 @@ def test_a_number_written_another_way_is_no_addition(excerpt, statement) -> None
     judged = Checker(passage(excerpt)).atomic(statement, 0)
 
     assert judged.validated, judged.validation_error
+
+
+class TestBridgeKeepsItsReading:
+    """A bridge records the relation it was written with and the question it was tested with."""
+
+    @pytest.mark.parametrize(
+        ("language", "texts", "statement", "probe"),
+        [
+            (
+                "en",
+                (
+                    "A dormant account is charged a yearly fee of 10 EUR.",
+                    "An account is dormant when its holder has made no payment for 24 months.",
+                ),
+                (
+                    "An account whose holder has made no payment for 24 months is "
+                    "charged a yearly fee of 10 EUR."
+                ),
+                (
+                    (
+                        "What yearly fee is charged on an account whose holder has "
+                        "made no payment for 24 months?"
+                    ),
+                    "10 EUR",
+                ),
+            ),
+            (
+                "de",
+                (
+                    "Für ein ruhendes Konto wird eine Jahresgebühr von 10 EUR erhoben.",
+                    "Ein Konto ruht, wenn der Inhaber 24 Monate lang keine Zahlung geleistet hat.",
+                ),
+                (
+                    "Für ein Konto, dessen Inhaber 24 Monate lang keine Zahlung "
+                    "geleistet hat, wird eine Jahresgebühr von 10 EUR erhoben."
+                ),
+                (
+                    (
+                        "Welche Jahresgebühr wird für ein Konto erhoben, dessen "
+                        "Inhaber 24 Monate lang keine Zahlung geleistet hat?"
+                    ),
+                    "10 EUR",
+                ),
+            ),
+        ],
+    )
+    def test_check_bridge_carries_the_reading(
+        self, checker, language, texts, statement, probe
+    ) -> None:
+        """Validated or not, the fact carries {relation, question, answer}."""
+        offered = group(*texts, language=language)
+
+        bridged = checker.bridge(statement, offered, relation="defines", probe=probe)
+
+        assert bridged.bridge == {
+            "relation": "defines",
+            "question": probe[0],
+            "answer": probe[1],
+        }
+
+    def test_a_refused_bridge_keeps_its_reading_too(self, checker, offered) -> None:
+        """One citing a single passage is refused as not bridging and still keeps it."""
+        probe = ("Which is answered sooner?", "an urgent request")
+
+        refused = checker.bridge(
+            "Urgent requests are answered within 4 hours.",
+            offered,
+            rests_on=(1,),
+            relation="contrast",
+            probe=probe,
+        )
+
+        assert not refused.validated
+        assert refused.bridge == {
+            "relation": "contrast",
+            "question": probe[0],
+            "answer": probe[1],
+        }
+
+    def test_an_absent_citation_keeps_its_reading(self, checker, offered) -> None:
+        """The refusal that names no sentence still records what was asked."""
+        absent = checker.bridge(
+            "Anything.",
+            offered,
+            cites={0: (9,), 1: (9,)},
+            relation="limits",
+            probe=("q?", "a"),
+        )
+
+        assert absent.rejection_code == Rejection.EVIDENCE_ABSENT
+        assert absent.bridge == {"relation": "limits", "question": "q?", "answer": "a"}
+
+    def test_a_candidate_with_no_reading_carries_none(self, checker, offered) -> None:
+        """A bridge from a prompt before 6 has neither relation nor probe."""
+        assert checker.bridge("Two kinds are named.", offered).bridge is None

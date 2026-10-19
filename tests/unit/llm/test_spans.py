@@ -26,3 +26,20 @@ def test_the_relations_are_prompt_six_s_in_its_order() -> None:
     flat = " ".join(bridge._SYSTEM.split())
     for relation in RELATIONS.values():
         assert " ".join(relation.meaning.split()) in flat
+
+
+def test_the_check_constraint_names_exactly_the_relations() -> None:
+    """The migration's tuple is the table's names, so a new relation cannot drift from the column."""
+    import importlib.util
+    from pathlib import Path
+
+    from llm.spans import RELATIONS
+
+    root = Path(__file__).parents[3] / "backend/database/migrations/versions"
+    (path,) = root.glob("*_a_bridge_keeps_its_reading.py")
+    spec = importlib.util.spec_from_file_location("bridge_reading", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.RELATIONS_CHECKED == tuple(RELATIONS)

@@ -598,6 +598,7 @@ def _row(fact: CheckedFact, version: str | None = None) -> dict:
         "embedding": fact.embedding,
         "gate_scores": fact.gate_scores or None,
         "confidence": fact.confidence,
+        "bridge": fact.bridge,
     }
 
 
@@ -1225,6 +1226,7 @@ class FactCatalog(Repository):
                 Fact.kind,
                 Fact.statement,
                 Fact.extraction_method,
+                Fact.bridge,
                 FactPassage.sentence_ids,
                 *_PASSAGE_COLUMNS,
                 Document.language.label("document_language"),
@@ -1260,6 +1262,7 @@ class FactCatalog(Repository):
                 session.execute(query), key=lambda row: row.fact_id
             ):
                 rows = list(found)
+                reading = rows[0].bridge
                 yield (
                     fact_id,
                     [
@@ -1277,6 +1280,10 @@ class FactCatalog(Repository):
                             )
                             for position, row in enumerate(rows)
                         ),
+                        probe=(reading["question"], reading["answer"])
+                        if reading
+                        else None,
+                        relation=reading["relation"] if reading else None,
                     ),
                     rows[0].extraction_method,
                 )

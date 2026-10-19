@@ -294,3 +294,27 @@ def test_a_model_that_will_not_answer_fails_the_group(offered) -> None:
 
     with pytest.raises(ExtractionFailed, match="took too long"):
         BridgeExtractor(model).extract(offered)
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        (
+            "Standard requests are answered within 48 hours.",
+            "Urgent requests are answered within 4 hours.",
+        ),
+        (
+            "Standardanfragen werden innerhalb von 48 Stunden beantwortet.",
+            "Dringende Anfragen werden innerhalb von 4 Stunden beantwortet.",
+        ),
+    ],
+)
+def test_the_relation_named_is_carried(first, second) -> None:
+    """The candidate keeps the relation the model named; none is no candidate."""
+    offered = group(first, second)
+
+    (fact,) = BridgeExtractor(Model(ANSWER)).extract(offered, None, FACTS)
+    assert fact.relation == "contrast"
+    assert fact.probe == (ANSWER["question"], ANSWER["answer"])
+
+    assert BridgeExtractor(Model({**ANSWER, "relation": "none"})).extract(offered) == []

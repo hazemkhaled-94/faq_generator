@@ -193,6 +193,8 @@ class Checker:
         offered: list[PassageToExtract],
         rests_on: tuple[int, ...] = (0, 1),
         cites: dict[int, tuple[int, ...]] | None = None,
+        relation: str | None = None,
+        probe: tuple[str, str] | None = None,
     ) -> CheckedFact:
         """Checks a claim drawn from a group of passages.
 
@@ -202,6 +204,8 @@ class Checker:
             rests_on: Which of them it named, by position.
             cites: Which sentences of each named position, when a test cares.
                 Every position cites its sentence 0 otherwise.
+            relation: The relation the model named, when a test cares.
+            probe: The question and short answer it was tested with.
 
         Returns:
             The checked fact.
@@ -217,6 +221,8 @@ class Checker:
                     Cited(position=position, sentences=named.get(position, (0,)))
                     for position in rests_on
                 ),
+                probe=probe,
+                relation=relation,
             ),
         )
 

@@ -168,8 +168,9 @@ class CandidateFact:
         passages: What a bridge rests on, one entry per passage it cites.
             Empty on every other kind.
         probe: On a bridge, the question only both passages answer and its
-            short answer. Read at extraction to test that each is needed;
-            not stored.
+            short answer. Read at extraction to test that each is needed.
+        relation: On a bridge, the relation the model named, one of
+            `llm.spans.RELATIONS`; None on every other kind.
     """
 
     statement: str
@@ -177,6 +178,7 @@ class CandidateFact:
     kind: str = FactKind.ATOMIC
     passages: tuple[Cited, ...] = ()
     probe: tuple[str, str] | None = None
+    relation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -240,6 +242,10 @@ class CheckedFact:
     #: state another rule, and a citation added there would count this
     #: passage towards every question asked of it.
     twin_id: int | None = None
+    #: A bridge's own reading: {relation, question, answer}, the relation the
+    #: model named and what it was tested with. None on every other fact and
+    #: on a bridge written without a probe.
+    bridge: dict | None = None
 
 
 @dataclass(frozen=True)

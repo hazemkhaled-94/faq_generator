@@ -590,6 +590,18 @@ def _resolve(
     )
 
 
+def _reading(candidate: CandidateFact) -> dict | None:
+    """What a bridge was written with and tested with, or None when it has neither."""
+    if (
+        candidate.kind != FactKind.BRIDGE
+        or not candidate.relation
+        or not candidate.probe
+    ):
+        return None
+    question, answer = candidate.probe
+    return {"relation": candidate.relation, "question": question, "answer": answer}
+
+
 def _fact(
     passage: PassageToExtract,
     judged: Judged,
@@ -619,6 +631,7 @@ def _fact(
         extraction_temperature=provenance.temperature if provenance else None,
         spacy_model=pipeline_name(passage.language),
         spacy_version=pipeline_version(passage.language),
+        bridge=_reading(candidate),
     )
 
 
@@ -657,4 +670,5 @@ def _absent(
         extraction_temperature=provenance.temperature if provenance else None,
         spacy_model=pipeline_name(read[0].language if read else None),
         spacy_version=pipeline_version(read[0].language if read else None),
+        bridge=_reading(candidate),
     )
