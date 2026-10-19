@@ -367,7 +367,7 @@ def test_a_mix_with_no_detail_kind_writes_every_slot_answerable() -> None:
 
 # -- Kinds: every slot is dealt one ----------------------------------------
 
-#: The default mix over 24 slots, as main planned it before slots had a kind.
+#: The default mix over 24 slots, as v0.3.19 planned it before slots had a kind.
 MAIN_PLAN = [
     ("factoid", "medium", "cross", True),
     ("definition", "hard", "bridge", True),
@@ -388,7 +388,7 @@ MAIN_PLAN = [
     ("procedure", "medium", "cross", True),
     ("consequence", "hard", "bridge", True),
     ("comparison", "medium", "cross", True),
-    ("definition", "easy", "single", False),
+    ("reason", "easy", "single", False),
     ("implication", "hard", "bridge", True),
     ("application", "medium", "single", True),
     ("factoid", "medium", "cross", True),
@@ -457,3 +457,28 @@ def test_a_slot_swapped_for_another_type_keeps_its_kind() -> None:
 
     assert other is not None
     assert (other.spec.name, other.kind) == (QuestionType.FACTOID, "compound")
+
+
+# -- The kind mix names only kinds that span ---------------------------------
+
+
+def _loaded(mix: str):
+    import os
+
+    from question_generation.config import Settings
+
+    return Settings.load({**os.environ, "QUESTIONS_KIND_MIX": mix})
+
+
+def test_the_kind_mix_takes_a_kind_that_spans() -> None:
+    """needs_both is dealt to a spanning slot."""
+    assert _loaded("needs_both:1").kind_mix == {"needs_both": 1}
+
+
+def test_the_kind_mix_refuses_single_and_unknown_names() -> None:
+    """A single slot gets one passage, so the mix cannot deal one to a spanning slot."""
+    import pytest
+
+    for bad in ("single:1", "other:1"):
+        with pytest.raises(ValueError, match="QUESTIONS_KIND_MIX names"):
+            _loaded(bad)

@@ -331,7 +331,11 @@ class Settings:
             ),
             # Absent deals every spanning slot needs_both, as before.
             kind_mix=(
-                _weights("QUESTIONS_KIND_MIX", KINDS, source)
+                _weights(
+                    "QUESTIONS_KIND_MIX",
+                    {name: one for name, one in KINDS.items() if one.passages > 1},
+                    source,
+                )
                 if optional("QUESTIONS_KIND_MIX", source)
                 else dict(_KIND_MIX)
             ),
