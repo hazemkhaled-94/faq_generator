@@ -70,6 +70,11 @@ best. Cosine where the corpus is embedded, shared lemmas where it is not —
 vectors are preferred because a lemma overlap cannot see a synonym. A fact is
 weighed against the **nearest** of the facts already offered, not their mean.
 
+A bridge fact is offered alone, whichever passage it was dealt from: it
+already spans the passages a wide question needs, and offered beside a claim
+of its own passage it was joined to that claim, whose second passage nothing
+had weighed against it. The claim waits for its passage's next round.
+
 Where nothing in the second passage meets the first, the sample is still
 offered and the writer is told to narrow. `difficulty` is read off what it
 cited, so a question that narrowed bands as what it is, and stands: nothing

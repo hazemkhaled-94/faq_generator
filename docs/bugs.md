@@ -64,6 +64,7 @@ and [v0.3.0](operations.md#upgrading-to-v030).
 | [A refused model call fails its whole topic](#a-refused-model-call-fails-its-whole-topic) | 1 topic | [`service.py`](../backend/question_generation/service.py), [`llm/client.py`](../backend/llm/client.py) | v0.3.0 |
 | [Found on the v0.2.2 rebuild of 2026-10-14](#found-on-the-v022-rebuild-of-2026-10-14) | 321 | every stage | v0.3.0 on, in part |
 | [Found on the v0.3.0 rebuild of 2026-10-16](#found-on-the-v030-rebuild-of-2026-10-16) | 343 | every stage | v0.3.1 on, in part |
+| [Found on the v0.4.0 rebuild of 2026-10-18](#found-on-the-v040-rebuild-of-2026-10-18) | 318 | every stage | v0.3.9 on, in part |
 
 On the earlier corpus, 15 of the 1,015 release rows — **1.5%** — carried at
 least one of the first two defects. On the 2026-10-13 run, 49% of the
@@ -774,6 +775,42 @@ is sent once, not retried, and costs its one slot or thread; the topic fails
 only after five refusals in a row. The retry notes now read as a reviewer's
 feedback on the quoted draft, and no longer tell the writer what it is
 supposed to produce.
+
+## Found on the v0.4.0 rebuild of 2026-10-18
+
+The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was
+reviewed in full and not released: 886 accepted questions, 318 released.
+Its released questions were more usable than v0.3.0's (82.7% against 79.0%)
+and its keys more often correct (87.0% against 80.1%), but more of its English
+two-passage questions welded two unrelated rules (26.6% against 17.3%), its
+release was smaller (318 against 343), and its topics were looser. A second
+review read what the first had left: all 664 rejected questions (a gate was
+wrong on 33.7%, against 37.9% in v0.3.0) and all 532 refused facts. Each
+worse figure was traced to its cause; the fixes below were measured on the
+labelled rows of both builds and, where a model reading changed, calibrated on
+Azure before they went in. [measurements.md](measurements.md#the-v040-rebuild-of-2026-10-18)
+holds the build's figures.
+
+### Fixed in v0.3.9: two-passage questions
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A bridge fact was offered beside an unrelated claim | the deal tested only the first fact of a passage for spanning two passages, and the first is a single claim wherever the passage holds one; such questions welded 28 of 98 times against 4 of 56 for a bridge offered alone | a bridge is offered alone, whichever passage it was dealt from ([`selection.py`](../backend/question_generation/selection.py)) | on the stored rows, the 98 questions of this kind are the cell it removes |
+| The bridge prompt taught side-by-side claims | its right example was "response times are stated separately for standard and urgent requests" | the right example is a claim one excerpt changes by defining what the other's rule applies to; side by side is now a wrong example (bridge prompt 5, [`bridge.py`](../backend/extraction/extractors/bridge.py)) | the same 48 passage groups, both prompts, read blind by one reader: correct bridges 2 of 29 (7%) became 5 of 41 (12%), not bridging 62% became 56% |
+
+### Deferred, with the reason
+
+| Defect | Why it stays open |
+|---|---|
+| Two-passage questions that weld two rules sharing only a word or a party | A verifier judge asked whether a question is about one situation was calibrated on Azure over all 268 labelled two-passage questions of both builds: precision 0.84, half of the welds both readers saw caught, 6 of 179 sound rows refused. It misses the bar in German (recall 0.43) and on the rows left once a bridge is offered alone, where what it refuses is 36% usable, above the 35% a tightening may remove. A per-passage round trip would catch at most a fifth of the welds |
+| The release is sized by its scarcest type | A type whose pool is exhausted can cap itself and hand its places on, within the tolerance. Over 100 paired draws on the v0.4.0 pool that grows the release from 316 to 357 rows on average and lowers the weld rate by 1.8 points, but adds 1.1 invalid rows (up to 12 in a draw) and raises the weld rate's upper bound on the v0.3.0 pool. Scanning for the size instead of halving stops releases of a few rows (6 of 100 draws on the v0.3.0 pool) but raises the weld rate by 0.4 points on the v0.4.0 pool. Both wait for a non-inferiority reading of the weld floor |
+| A count of the items in one passage's list is asked as an aggregation | Refusing such counts would remove rows 50% usable across both builds (6 of 12), above the 35% a tightening may remove; relabelling one as an enumeration does not change what it asks |
+| Comparisons refused as `wrong_type` | Freeing them needs the content check the weld judge above would be |
+| `heard()` silences an answer on any question with a question word | It fired 4 times, 3 of them wrongly; reading it for reasons only would also undo a right silencing a test pins, for at most 2 questions |
+| The elsewhere probe cuts each ranking before fusing them | No measured miss at the depth it reads |
+| The unanswerable writer returns no evidence of why its question is open | The writer fails on about 61% of its drafts; a change to its prompt can be measured only by writing questions, which needs a calibration of its own. Unanswerable questions are not released |
+| Topics listed by every membership over the floor | Listing a topic by the passages it dominates changes the catalogue, the Topics page, the exports and the review's own measure, for no failure measured on questions |
+| A duplicate refusal can name a twin since deleted | 35 of 180; the replay keeps the refusal against a current twin but leaves the old id in its reason. Low |
 
 ## Found on the v0.3.0 rebuild of 2026-10-16
 

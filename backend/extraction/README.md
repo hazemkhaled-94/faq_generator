@@ -245,7 +245,11 @@ strided over the whole topic.
 The model is shown the group as `[P0]`, `[P1]`, … with sentences numbered
 inside each, and answers with a claim plus, per passage, the numbers of the
 sentences it read it in. It is told not to compute: a total nobody wrote down
-would be refused as `unsupported_addition`.
+would be refused as `unsupported_addition`. A bridge is a claim in which one
+excerpt changes what the other says: it defines the other's term, limits or
+excepts its rule, or states what follows from it. Two facts set side by side
+("both A and B", "stated separately") are the prompt's wrong example since
+prompt version 5; they were its right one before.
 
 A trigger deletes a bridge once any passage it rests on is gone. Re-running
 the pass replaces what the previous one wrote.

@@ -200,6 +200,24 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.9
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting.
+
+**Bridge prompt 5.** Stored bridges stay as they are and are marked as written
+by an older prompt. `make extract-bridge FORCE=1` writes them again, replacing
+the ones accepted questions cite, which rejects those questions; questions and
+the release then follow.
+
+**The deal.** A bridge is offered to the writer alone, so the next questions
+pass writes one question per bridge where it wrote a bridge beside a claim.
+Questions already stored are untouched.
+
 ## Upgrading to v0.3.8
 
 Check that `.env` sets every secret compose now requires, then rebuild:

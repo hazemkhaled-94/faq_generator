@@ -515,3 +515,28 @@ v0.3.0 weighs it 1, as it weighs `comparison`.
 The counts are queries over the run's own tables. Wall clock, calls and
 spend come from each stage's `make` output, which logs every model call with
 its cost.
+
+## The v0.4.0 rebuild of 2026-10-18
+
+The same two PDFs taken through every stage by the code of v0.3.8, with the
+same models, and every stored question deleted before a single questions
+pass. Not released. Every accepted question and every rejected one was read
+against the corpus, every refused fact, 720 validated facts, every bridge and
+topic, and the passages whose text changed.
+
+| | v0.3.0 | v0.4.0 |
+|---|---|---|
+| Questions accepted / written | 871 / 1,507 | 886 / 1,550 |
+| Released (German / English) | 343 (182 / 161) | 318 (165 / 153) |
+| Released usable, settled | 79.0% | 82.7% |
+| Released invalid | 10 | 8 |
+| Accepted usable | 69.9% | 75.3% |
+| Answer keys correct / complete | 80.1% / 72.0% | 87.0% / 73.2% |
+| Two-passage questions welded, accepted | 33 / 183 (18.0%) | 32 / 144 (22.2%) |
+| Rejections wrong | 38% (183 usable lost) | 34% (168 usable lost) |
+| Fact refusals wrong | 57.3% | 56.0% |
+| Validated facts correct, blind same-reader tests (160 each) | 88.8% | 83.8% |
+| Validated bridges / of them judged correct | 179 / 22% | 140 / 16% |
+| Topics (German / English) | 9 / 8 | 8 / 8 |
+| Accepted unanswerables the corpus answers | 43.3% | 38.1% |
+
