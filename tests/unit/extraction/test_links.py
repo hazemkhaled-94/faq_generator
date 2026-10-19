@@ -379,3 +379,17 @@ def test_without_vectors_the_first_in_reading_order_is_taken() -> None:
     second = one("C costs 3 EUR.", "Fees > C", 3)
 
     assert pairs(run([head, first, second], heads=[head])) == [(1, 2)]
+
+
+def test_sibling_pairs_are_not_all_stored() -> None:
+    """A parent heading over N sections would hold N^2/2 of them."""
+    from extraction.links import _Edges, _siblings
+
+    passages = [
+        one(f"Item {i} costs {i} EUR.", f"Fees > Part {i}", i + 1) for i in range(50)
+    ]
+    edges = _Edges()
+
+    _siblings(edges, passages)
+
+    assert not edges.found

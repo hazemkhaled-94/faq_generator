@@ -110,6 +110,12 @@ class _Edges:
     def __init__(self) -> None:
         self.found: dict[frozenset[int], tuple[int, Link]] = {}
         self.of: dict[int, list[frozenset[int]]] = defaultdict(list)
+        #: Sections by parent heading, and each passage's place in reading
+        #: order. Sibling pairs are not stored: a parent heading over N
+        #: sections would hold N^2/2 of them, so a head reads its own.
+        self.family: dict[str, list[PassageToExtract]] = defaultdict(list)
+        self.parent: dict[int, str] = {}
+        self.position: dict[int, int] = {}
 
     def add(
         self, first: PassageToExtract, second: PassageToExtract, kind: str, named: str
@@ -201,17 +207,13 @@ def _references(
 
 
 def _siblings(edges: _Edges, partners: Sequence[PassageToExtract]) -> None:
-    """Adds the links of sections under one parent heading."""
-    family: dict[str, list[PassageToExtract]] = defaultdict(list)
-    for p in partners:
+    """Groups the sections under one parent heading; `_best` reads the pairs."""
+    for at, p in enumerate(partners):
+        edges.position[p.id] = at
         trail = _segments(p)
         if len(trail) >= 2:
-            family[" > ".join(trail[:-1])].append(p)
-    for members in family.values():
-        for at, first in enumerate(members):
-            for second in members[at + 1 :]:
-                if _segments(first)[-1] != _segments(second)[-1]:
-                    edges.add(first, second, "sibling", _segments(first)[-2])
+            edges.parent[p.id] = " > ".join(trail[:-1])
+            edges.family[edges.parent[p.id]].append(p)
 
 
 def _terms(
@@ -235,13 +237,41 @@ def _best(
     edges: _Edges, partner: PassageToExtract, taken: frozenset[int] | set[int]
 ) -> list[tuple[tuple[int, float, int], Link]]:
     """A passage's links, strongest kind first, then nearest, then lowest id."""
-    ranked = []
+    found: dict[int, tuple[int, Link]] = {}
     for key in edges.of[partner.id]:
         tier, link = edges.found[key]
         other = next(p for p in link.passages if p.id != partner.id)
-        if other.id in taken:
+        if other.id not in taken:
+            found[other.id] = (tier, link)
+    # shortcut: `_near` is a pure-Python dot product per candidate, so a head
+    # under one flat parent of N sections costs N of them and the language
+    # N^2; on a corpus with vectors a flat parent of a few thousand sections
+    # is minutes. Upgrade: one numpy matrix product per family.
+    parent = edges.parent.get(partner.id)
+    for other in edges.family.get(parent, ()) if parent else ():
+        if (
+            other.id == partner.id
+            or other.id in taken
+            or _segments(other)[-1] == _segments(partner)[-1]
+            or found.get(other.id, (_TIER["sibling"] + 1, None))[0] <= _TIER["sibling"]
+        ):
             continue
-        ranked.append(((tier, -_near(partner, other), other.id), link))
+        pair = sorted((partner, other), key=lambda one: edges.position[one.id])
+        found[other.id] = (
+            _TIER["sibling"],
+            Link((pair[0], pair[1]), "sibling", _segments(pair[0])[-2]),
+        )
+    ranked = [
+        (
+            (
+                tier,
+                -_near(partner, next(p for p in link.passages if p.id != partner.id)),
+                other,
+            ),
+            link,
+        )
+        for other, (tier, link) in found.items()
+    ]
     return sorted(ranked, key=lambda r: r[0])
 
 
