@@ -1811,6 +1811,41 @@ def covered(recovered: str, target: str, language: str | None) -> float:
 #: number or a letter closed by a full stop or a bracket.
 MARKER = re.compile(r"^\s*(?:[-–—•*·▪●◦]|\(?\d{1,3}[.)]|\(?[a-zA-Z][.)])\s+")
 
+#: The word a language numbers the steps of a procedure with, by ISO 639-1
+#: code: `Step 1:`, `Schritt 1:`. A language with no row writes its steps by
+#: number alone, as the markers above read them.
+_STEP_LABEL: dict[str, str] = {"en": "step", "de": "schritt"}
+
+#: A number that numbers an item inline, not a figure: `(1)`, or `1.` and `2)`
+#: opening a line or following the `;` or `:` that ends the item before.
+_INLINE_ITEM = re.compile(r"\(\d{1,3}\)")
+_ITEM_NUMBER = re.compile(r"(?:(?<=[;:]\s)|^[ \t]*)(\d{1,3})[.)](?=\s)", re.MULTILINE)
+
+
+def _unnumbered(text: str, language: str | None) -> str:
+    """A recovery without the numbers that count its items.
+
+    A bullet or a `1.` opening a line, a label and its number (`Step 1:`),
+    and a number closing an item inline (`(1) ... (2) ...`, `1. A; 2. B`):
+    none of them is a figure the recovery states, and none is a word the
+    tagger should read. A `15.` after a colon is one, though, unless the
+    text numbers two or more items in order: `1. A; 2. B`.
+    """
+    label = _STEP_LABEL.get((language or "").lower())
+    if label:
+        text = re.sub(
+            rf"^\s*{label}\s+\d{{1,3}}\s*[:.)]\s*",
+            "",
+            text,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+    numbered = {int(one[1]) for one in _ITEM_NUMBER.finditer(text)}
+    if any(number + 1 in numbered for number in numbered):
+        text = _ITEM_NUMBER.sub("", text)
+    text = "\n".join(MARKER.sub("", line) for line in text.splitlines())
+    return _INLINE_ITEM.sub("", text)
+
+
 #: How a conjunction or a comma hangs off the conjunct it joins, in Universal
 #: Dependencies and in TIGER.
 _JOINERS = frozenset({"cc", "cd", "punct"})
@@ -1848,9 +1883,7 @@ def unnamed(
 ) -> tuple[str, ...]:
     """The items the recovery names that neither the key nor the question carries."""
     known = vocabulary(target, language) | vocabulary(question, language)
-    # The numbers that mark the items of a list (`1.`, `2)`) are not figures,
-    # and not words the tagger should read.
-    unmarked = "\n".join(MARKER.sub("", line) for line in recovered.splitlines())
+    unmarked = _unnumbered(recovered, language)
 
     def new(word: Token, item: Token) -> bool:
         return (word is item or word.pos_ in _NAMING) and not (
