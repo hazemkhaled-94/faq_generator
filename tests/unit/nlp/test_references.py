@@ -224,3 +224,48 @@ def test_a_lower_case_german_sie_is_the_third_person_whatever_follows_it() -> No
     assert claim(
         "Wenn sie ihre Karte verlieren, sperrt die Bank sie.", "de"
     ).references == ("sie",)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("de", "Ein Artikel kann zurückgegeben werden, es sei denn, er wurde benutzt."),
+        (
+            "de",
+            "Eine Überweisung wird am selben Tag ausgeführt, es sei denn, sie wird nach 16 Uhr eingereicht.",
+        ),
+        ("de", "Das Konto bleibt kostenlos, es sei denn, es wird überzogen."),
+        ("de", "Die Karte wird gesperrt, außer sie wurde bereits ersetzt."),
+        ("en", "The card is blocked, except when it has already been replaced."),
+        ("en", "An item can be returned, provided it is unused."),
+        ("en", "The account is free, except where it is overdrawn."),
+    ],
+)
+def test_a_pronoun_after_an_exception_points_back_at_the_subject_of_its_own_sentence(
+    language: str, statement: str
+) -> None:
+    """The exception's clause is the rule's own subject's, whatever the parser hangs it on."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references == ()
+    assert _validated(language, statement).validated
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("de", "Es sei denn, sie wird eingereicht."),
+        ("en", "Unless it is unused, nothing is refunded."),
+        ("en", "Except where it is overdrawn, nothing is charged."),
+    ],
+)
+def test_a_pronoun_after_an_exception_with_no_noun_before_it_is_still_a_reference(
+    language: str, statement: str
+) -> None:
+    """The singular she, with a verb to say so, is someone the passage named."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references != ()
+    assert not _validated(language, statement).validated

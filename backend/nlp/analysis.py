@@ -733,6 +733,28 @@ def _finite(verb) -> bool:
     )
 
 
+def _exception_verbs(doc: Doc) -> frozenset[int]:
+    """Indices of the verbs heading the clause an exceptive run opens.
+
+    The parsers hang that clause as a coordinated conjunct of the root, or as
+    the complement of the run's own word, so it carries no subordinator;
+    `_exceptive_tokens` knows where it starts. Kept on the document, because
+    `_clause` asks for every token.
+    """
+    if "exception_verbs" not in doc.user_data:
+        heads = set()
+        for start in _exceptive_tokens(doc)[1]:
+            if start >= len(doc):
+                continue
+            at = doc[start]
+            while at.pos_ not in {"VERB", "AUX"} and at.head.i != at.i:
+                at = at.head
+            if at.pos_ in {"VERB", "AUX"} and at.head.i != at.i:
+                heads.add(at.i)
+        doc.user_data["exception_verbs"] = frozenset(heads)
+    return doc.user_data["exception_verbs"]
+
+
 def _clause(token) -> int:
     """Where the clause a token sits in is headed, as a token index.
 
@@ -746,7 +768,8 @@ def _clause(token) -> int:
     it" sits in the customer's clause, and is not resolved by the customer.
     A relative clause needs no finite verb: the German tagger reads the verb
     of "Filialen, die ihre Kunden bedienen" as an infinitive, the third person
-    plural being spelled like one.
+    plural being spelled like one. The clause an exceptive run opens, "es sei
+    denn, er wurde benutzt", is a clause of its own as well.
     """
     at = token.head
     while True:
@@ -754,6 +777,7 @@ def _clause(token) -> int:
             at.dep_ in _RELATIVE
             or (at.dep_ in _EMBEDDED and _finite(at))
             or any(child.dep_ in _SUBORDINATOR for child in at.children)
+            or at.i in _exception_verbs(at.doc)
         ):
             return at.i
         if at.head.i == at.i:
