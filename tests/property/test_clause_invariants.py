@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
 from nlp import analysis
@@ -41,7 +41,6 @@ def _doc(language: str, words: list[str]) -> _Doc:
     return _Doc(language, words)
 
 
-@settings(max_examples=300, deadline=None)
 @given(
     before=st.lists(_WORDS, max_size=4),
     form=st.sampled_from(_FORMS),
@@ -57,7 +56,6 @@ def test_a_form_inside_a_statement_is_polite_whatever_follows(
     assert analysis._polite(doc[len(before) + 1])
 
 
-@settings(max_examples=300, deadline=None)
 @given(words=st.lists(_WORDS, max_size=8))
 def test_an_opening_sie_is_polite_only_with_a_polite_form_after_it(words) -> None:
     """Otherwise it stays a reference: `Sie werden geliefert` is the third person."""
@@ -67,7 +65,6 @@ def test_an_opening_sie_is_polite_only_with_a_polite_form_after_it(words) -> Non
     assert analysis._polite(doc[0]) is bool(later)
 
 
-@settings(max_examples=200, deadline=None)
 @given(
     words=st.lists(_WORDS, min_size=1, max_size=8),
     language=st.sampled_from(["en", "fr", "it", ""]),
@@ -79,7 +76,6 @@ def test_no_other_language_has_a_polite_form(words, language) -> None:
     assert not any(analysis._polite(token) for token in doc.tokens)
 
 
-@settings(max_examples=200, deadline=None)
 @given(words=st.lists(_WORDS, min_size=1, max_size=8))
 def test_a_word_outside_the_table_is_never_polite(words) -> None:
     """Lower case and every other word are the third person or no pronoun at all."""

@@ -12,7 +12,7 @@ from itertools import combinations
 
 import pytest
 from drivers import passage
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
 from extraction.links import linked
@@ -52,7 +52,6 @@ def _keys(links):
     return [frozenset(p.id for p in link.passages[:2]) for link in links]
 
 
-@settings(max_examples=120, deadline=None)
 @given(
     world=worlds(),
     wanted=st.integers(1, 4),
@@ -72,7 +71,6 @@ def test_linked_never_offers_a_held_pair_and_never_offers_a_pair_twice(
     assert len(set(keys)) == len(keys)
 
 
-@settings(max_examples=80, deadline=None)
 @given(world=worlds(), wanted=st.integers(1, 4))
 def test_holding_a_pair_the_pass_would_not_offer_changes_nothing(world, wanted) -> None:
     """A hold costs only the pairs it names."""

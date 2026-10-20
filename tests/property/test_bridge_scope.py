@@ -17,7 +17,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 from sqlalchemy import (
     BigInteger,
@@ -256,7 +256,6 @@ def _within(chosen):
     return Passage.doc_sha256.in_(sorted(chosen))
 
 
-@settings(max_examples=150, deadline=None)
 @given(corpus=corpora(), chosen=st.sets(st.sampled_from(DOCS), min_size=1))
 def test_a_scoped_clear_never_takes_a_bridge_opening_outside_the_topics_it_reads(
     corpus, chosen
@@ -271,7 +270,6 @@ def test_a_scoped_clear_never_takes_a_bridge_opening_outside_the_topics_it_reads
     assert got == expected
 
 
-@settings(max_examples=150, deadline=None)
 @given(corpus=corpora(), chosen=st.sets(st.sampled_from(DOCS), min_size=1))
 def test_a_scoped_clear_deletes_what_it_selects_and_nothing_else(
     corpus, chosen
@@ -288,7 +286,6 @@ def test_a_scoped_clear_deletes_what_it_selects_and_nothing_else(
     assert all(facts[i][0] == BRIDGE for i in going)
 
 
-@settings(max_examples=100, deadline=None)
 @given(corpus=corpora(), chosen=st.sets(st.sampled_from(DOCS), min_size=1))
 def test_widening_a_scope_never_spares_a_bridge_the_narrower_one_took(
     corpus, chosen
@@ -305,7 +302,6 @@ def test_widening_a_scope_never_spares_a_bridge_the_narrower_one_took(
     assert wide == unscoped
 
 
-@settings(max_examples=100, deadline=None)
 @given(corpus=corpora())
 def test_bridged_pairs_are_exactly_the_leading_pairs_of_the_bridges(corpus) -> None:
     """Whichever order the pair was offered in, and never a plain fact's."""

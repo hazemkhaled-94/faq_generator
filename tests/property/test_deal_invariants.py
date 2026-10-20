@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 from factories import bridge, resting, source
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
 from question_generation.selection import Deal, Shape
@@ -72,7 +72,6 @@ def _drain(deal, shape, prefer=None):
     raise AssertionError("the deal never ran out")
 
 
-@settings(max_examples=150, deadline=None)
 @given(topic=topics(), size=st.integers(1, 4), rounds=st.integers(1, 3))
 def test_a_compound_sample_never_holds_a_fact_resting_on_two_passages(
     topic, size, rounds
@@ -87,7 +86,6 @@ def test_a_compound_sample_never_holds_a_fact_resting_on_two_passages(
         ]
 
 
-@settings(max_examples=150, deadline=None)
 @given(
     topic=topics(),
     shape=st.sampled_from([Shape.SINGLE, Shape.CROSS, Shape.BRIDGE, Shape.APART]),
@@ -107,7 +105,6 @@ def test_a_slot_that_prefers_one_passage_facts_is_dealt_no_bridge_in_any_shape(
         )
 
 
-@settings(max_examples=150, deadline=None)
 @given(topic=topics(), size=st.integers(1, 4))
 def test_a_compound_slot_is_exhausted_exactly_when_no_plain_claim_is_left(
     topic, size
@@ -123,7 +120,6 @@ def test_a_compound_slot_is_exhausted_exactly_when_no_plain_claim_is_left(
     assert deal.holds(lambda fact: not _spans(fact)) is False
 
 
-@settings(max_examples=100, deadline=None)
 @given(topic=topics(), size=st.integers(1, 4))
 def test_holds_agrees_with_what_sample_would_deal_first(topic, size) -> None:
     """Asking whether a preferred fact is left spends nothing and never contradicts the deal."""
