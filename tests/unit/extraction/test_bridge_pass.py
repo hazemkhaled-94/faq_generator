@@ -14,6 +14,7 @@ from drivers import DIGEST_SHARE, Catalogue, Model, group, passage
 
 from database.qa_generator import FactKind
 from extraction.extractors.bridge import BridgeExtractor
+from extraction.links import linked
 from extraction.service import bridge
 from extraction.validation import FactChecker
 from llm.client import ModelUnavailable
@@ -265,3 +266,36 @@ def test_a_link_with_a_passage_that_states_nothing_is_not_read() -> None:
 
     assert run(catalog, model) == 0
     assert model.calls == 0
+
+
+@pytest.mark.parametrize(
+    ("language", "template"),
+    [
+        ("en", "Item {i} costs {n} EUR per month."),
+        ("de", "Der Posten {i} kostet {n} EUR pro Monat."),
+        ("en", "Shipping of parcel {i} costs {n} EUR."),
+        ("de", "Die Bestellung {i} wird innerhalb von {n} Tagen versandt."),
+    ],
+)
+def test_a_partner_without_a_validated_fact_costs_no_head_its_link(
+    language, template
+) -> None:
+    """The links are dealt among the passages that can be read, not cut afterwards."""
+    ps = [
+        replace(
+            passage(template.format(i=i, n=i + 3), language=language, id=i + 1),
+            section_path=f"Fees > S{i}",
+        )
+        for i in range(4)
+    ]
+    first = linked(ps, ps, {p.id: 1 for p in ps}, 12, 2)
+    unreadable = {first[0].passages[1].id}  # the partner the first head chose
+    catalog, model = Catalogue(support=ps), Model(ANSWER)
+    catalog.stating()
+    catalog.atomic = {k: v for k, v in catalog.atomic.items() if k not in unreadable}
+    readable = [p for p in ps if p.id not in unreadable]
+
+    expected = linked(readable, readable, {p.id: 1 for p in ps}, 12, 2)
+    run(catalog, model)
+
+    assert model.calls == len(expected) > 0

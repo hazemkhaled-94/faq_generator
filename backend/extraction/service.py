@@ -493,9 +493,18 @@ def bridge(
     # The same gate the per-passage stage applies, so the two cannot drift.
     # Without it a link is spent on a table of contents or a heading:
     # `by_topic` asks only that a passage was segmented.
-    heads = [one for _, ones in scoped for one in ones if skipped(one) is None]
-    partners = [one for _, ones in whole for one in ones if skipped(one) is None]
-    facts = catalog.atomic_of({one.id for one in partners})
+    readable = [one for _, ones in whole for one in ones if skipped(one) is None]
+    # A passage with no validated fact has nothing to compose from, so it is
+    # taken out before the links are dealt: dropped afterwards, its head
+    # would lose its link and its topic's slot would stay empty.
+    facts = catalog.atomic_of({one.id for one in readable})
+    partners = [one for one in readable if one.id in facts]
+    heads = [
+        one
+        for _, ones in scoped
+        for one in ones
+        if skipped(one) is None and one.id in facts
+    ]
     # Read after the clear: what is left is what this pass must not repeat,
     # whichever side of a cross-topic pair heads it.
     held = catalog.bridged_pairs()
@@ -510,20 +519,13 @@ def bridge(
             held,
         )
         kinds = Counter(link.kind for link in links)
-        # A passage with no validated fact has nothing to compose from.
-        offered_links = len(links)
-        links = [
-            link for link in links if all(one.id in facts for one in link.passages)
-        ]
         log.info(
-            "offered %d link(s) in %r (%d reference, %d sibling, %d term; %d "
-            "skipped for a passage with no validated fact)",
-            offered_links,
+            "offered %d link(s) in %r (%d reference, %d sibling, %d term)",
+            len(links),
             language,
             kinds["reference"],
             kinds["sibling"],
             kinds["term"],
-            offered_links - len(links),
         )
         for link in links:
             offered = list(link.passages)
