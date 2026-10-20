@@ -328,6 +328,25 @@ def test_the_unanswerable_slots_alternate_over_the_detail_kinds_of_the_mix() -> 
     ]
 
 
+def test_three_detail_kinds_take_the_unanswerable_slots_in_turn() -> None:
+    """A turn counter that ran backwards would still alternate over two kinds."""
+    planned = plans(
+        wanted=60,
+        types={kind: 1 for kind in QuestionType},
+        bands={Difficulty.EASY: 1, Difficulty.MEDIUM: 1, Difficulty.HARD: 1},
+        unanswerable_share=0.3,
+    )
+
+    names = [one.spec.name for one in planned if not one.answerable]
+
+    in_mix_order = [
+        kind
+        for kind in QuestionType
+        if kind in {QuestionType.FACTOID, QuestionType.ENTITY, QuestionType.REASON}
+    ]
+    assert names[:6] == in_mix_order * 2
+
+
 def test_the_answerable_slots_do_not_move() -> None:
     """Narrowing the unanswerable kinds frees no answerable slot."""
     planned = plans(
