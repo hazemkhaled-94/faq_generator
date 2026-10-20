@@ -1185,14 +1185,12 @@ class QuestionCatalog(Repository):
         a window the size of it: those are two statements, and a question
         written between them is one the window no longer has room for.
         """
-        listing = _filtered(
-            _listing(), document, topic, search, status, answerable, field, **scopes
-        )
-        counting = select(func.count()).select_from(
-            _ids(
-                document, topic, search, status, answerable, field, **scopes
-            ).subquery()
-        )
+        chosen = _ids(document, topic, search, status, answerable, field, **scopes)
+        # By id, so a filter narrows which questions are listed and never
+        # what each one cites: a WHERE on the joined rows would count only
+        # the facts of the chosen document. Uncorrelated, as `_narrowed` is.
+        listing = _listing().where(Question.id.in_(chosen.correlate(None)))
+        counting = select(func.count()).select_from(chosen.subquery())
         with self._session() as session:
             total = session.scalar(counting) or 0
             rows = session.execute(listing.limit(limit).offset(offset)).all()

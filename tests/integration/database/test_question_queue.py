@@ -1738,11 +1738,9 @@ def test_a_bridge_backed_question_is_found_by_either_of_its_documents(
     catalog = QuestionCatalog()
     assert catalog.page(document=digest("a"))[0] == 1
     assert catalog.page(document=digest("b"))[0] == 1, "its other half"
-    # Unfiltered, so the aggregate sees every passage: a document filter
-    # narrows the joined rows and so narrows this list too, which is how the
-    # listing has always read.
-    _, listed = catalog.page()
-    assert sorted(listed[0].documents) == sorted([digest("a"), digest("b")])
+    # A document filter chooses the question and never trims what it cites.
+    for listed in (catalog.page()[1], catalog.page(document=digest("a"))[1]):
+        assert sorted(listed[0].documents) == sorted([digest("a"), digest("b")])
 
 
 # ── The corpus-wide probe ─────────────────────────────────────────────────
