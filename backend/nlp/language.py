@@ -18,6 +18,12 @@ from nlp.pipelines import languages
 #: the wrong pipeline.
 _MIN_CHARS = 40
 
+#: The confidence a language needs, of lingua's values that sum to one, to be
+#: taken as the text's where a wrong call splits something: with two languages
+#: configured the detector always picks one, and a line of loanwords or of
+#: another language's names is a coin toss at lower confidence.
+_SURE = 0.9
+
 #: A web address. Markdown renders a link as [text](url), and a site writes
 #: its path segments in its own language whatever the page they lead to says.
 URL = re.compile(r"https?://\S+|www\.\S+")
@@ -59,3 +65,23 @@ def detect(text: str) -> str | None:
         return None
     found = _detector().detect_language_of(prose)
     return found.iso_code_639_1.name.lower() if found else None
+
+
+def detect_surely(text: str) -> str | None:
+    """Names the language of a text, or None unless the detector is sure of it.
+
+    Read as `detect` reads it, but a language must also hold at least `_SURE`
+    of the detector's confidence, so a line that merely tips towards one of
+    two languages is no evidence of a change of language.
+    """
+    prose = URL.sub(" ", text).strip()
+    if len(prose) < _MIN_CHARS:
+        return None
+    best = max(
+        _detector().compute_language_confidence_values(prose),
+        key=lambda one: one.value,
+        default=None,
+    )
+    if best is None or best.value < _SURE:
+        return None
+    return best.language.iso_code_639_1.name.lower()

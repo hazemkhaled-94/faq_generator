@@ -32,7 +32,7 @@ from docling_core.types.doc.items.text import ListItem, TextItem
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import read
-from nlp.language import detect
+from nlp.language import detect, detect_surely
 from nlp.models import Sentence
 from nlp.windows import reserved
 from preprocessing.chunking.furniture import furniture_of, headed, tidied
@@ -159,7 +159,7 @@ def chunks_of(
     the converter left in the body comes out, and each chapter they name
     starts with an empty heading trail and leads every trail in it. A list
     the converter flattened is nested again by its indents. Then every list
-    is kept beside its lead-in.
+    is kept beside its lead-in. A chunk ends where its prose changes language.
 
     Args:
         document: The converted document, which is not modified.
@@ -176,7 +176,8 @@ def chunks_of(
     chunks = headed(
         cast(list[DocChunk], list(chunker.chunk(tidy))), furniture, titles, language
     )
-    return tidy, _indented(lead_ins_kept(chunks, chunker, tidy), chunker, tidy)
+    chunks = lead_ins_kept(_one_language(chunks, tidy), chunker, tidy)
+    return tidy, _indented(chunks, chunker, tidy)
 
 
 def nested(document: DoclingDocument) -> DoclingDocument:
@@ -443,6 +444,83 @@ def lead_ins_kept(
     return kept
 
 
+def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[DocChunk]:
+    """Ends a chunk where its prose changes language.
+
+    Merging undersized peers joins neighbours without regard to language, and
+    a passage is read as one language, so a bilingual page printing each
+    paragraph beside its translation would lose one language's vocabulary. A
+    paragraph too short to detect or not surely one language, and any other
+    item, stays with the run it follows.
+
+    Args:
+        chunks: What the chunker returned, in order.
+        document: The converted document, which holds each item's text.
+
+    Returns:
+        The chunks, each holding one language; a chunk of one language is
+        returned as it was.
+    """
+    split: list[DocChunk] = []
+    for chunk in chunks:
+        items = chunk.meta.doc_items
+        spoken = [
+            detect_surely(text) if (text := _prose_text(item, document)) else None
+            for item in items
+        ]
+        first = next((code for code in spoken if code), None)
+        starts, current = [], first
+        for index, code in enumerate(spoken):
+            if code and code != current:
+                starts.append(index)
+                current = code
+        if not starts:
+            split.append(chunk)
+            continue
+        # Each run's text opens where its first item's text is found.
+        cursor, offsets = 0, []
+        for index, item in enumerate(items):
+            text = _prose_text(item, document)
+            found = chunk.text.find(text, cursor) if text is not None else -1
+            if text is not None and found >= 0:
+                cursor = found + len(text)
+                if index in starts:
+                    offsets.append(found)
+        if len(offsets) != len(starts):
+            split.append(chunk)
+            continue
+        bounds = [0, *starts, len(items)]
+        cuts = [0, *offsets, len(chunk.text)]
+        for part in range(len(bounds) - 1):
+            text = chunk.text[cuts[part] : cuts[part + 1]].strip()
+            if text:
+                split.append(
+                    chunk.model_copy(
+                        update={
+                            "text": text,
+                            "meta": chunk.meta.model_copy(
+                                update={
+                                    "doc_items": items[bounds[part] : bounds[part + 1]]
+                                }
+                            ),
+                        }
+                    )
+                )
+    return split
+
+
+def _prose_text(item: DocItem, document: DoclingDocument) -> str | None:
+    """The text of a prose item, or None for any other item.
+
+    The chunker hands its items over as bare copies, so the text is read
+    off the document the reference names.
+    """
+    if item.label not in _PROSE:
+        return None
+    found = RefItem.model_validate({"$ref": item.self_ref}).resolve(document)
+    return found.text.strip() if isinstance(found, TextItem) else None
+
+
 def _below(trail: list[str] | None, above: list[str] | None) -> bool:
     """Whether a heading trail lies under another: it extends it."""
     trail, above = trail or [], above or []
@@ -461,16 +539,9 @@ def _headed(chunk: DocChunk, text: str) -> DocChunk:
 
 
 def _lead_text(item: DocItem, document: DoclingDocument) -> str | None:
-    """The text of a paragraph ending in ":", or None for any other item.
-
-    The chunker hands its items over as bare copies, so the text is read
-    off the document the reference names.
-    """
-    if item.label not in _PROSE:
-        return None
-    found = RefItem.model_validate({"$ref": item.self_ref}).resolve(document)
-    text = found.text.strip() if isinstance(found, TextItem) else ""
-    return text if text.endswith(_LEAD_IN) else None
+    """The text of a paragraph ending in ":", or None for any other item."""
+    text = _prose_text(item, document)
+    return text if text and text.endswith(_LEAD_IN) else None
 
 
 def _lead_in(chunk: DocChunk, document: DoclingDocument) -> tuple[DocItem, str] | None:
