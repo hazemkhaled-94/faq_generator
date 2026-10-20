@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.35
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. A new `make questions` run makes one more verifier call per accepted answerable needs_both question citing two passages (about USD 0.45 to 0.5 per build), under the new pinned prompt `verifier: stated` 1; stored questions are not rejudged.
+
 ## Upgrading to v0.3.34
 
 ```bash

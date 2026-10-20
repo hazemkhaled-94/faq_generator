@@ -854,6 +854,23 @@ Deferred (llm-nlp-12): a German spelled count read as a unit would also refuse f
 | A follow-up reached Argilla without the turns it follows | reviewers rejected context-dependent follow-ups that read fine in their thread | the record has an optional `thread` field (the earlier turns, oldest first, walked up `follows_id` with a loop guard) and `turn` metadata, and the guideline says a follow-up is judged after those turns ([`records.py`](../review/records.py), [`datasets.py`](../review/datasets.py)) | unit tests, with a loop-guard test whose mutant hangs and is killed |
 | The Questions page named a compound question's prompt wrongly and called two things Kind | `_sent_as` ignored `kind=compound` and showed the spans prompt, and the column `Kind` held `question_type` while the stored kind was `Written as` | a compound question's prompt is named `type (compound)`; `question_type` is `Type` in the table, the detail, the filter and the analysis rows, and the stored kind is `Kind`, with a help line for each kind ([`questions.py`](../frontend/views/questions.py)) | page tests; a slot of the compound kind that fell short of passages and was written plain still shows `(spans)`, since the prompt name is not stored |
 
+### Fixed in v0.3.35: a needs_both question needs both
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A needs_both question kept both passages when each held only half of what it asked, or the same half | the round trip's recall check passed on half an answer, so a question that one passage states whole, cited with a second passage that adds nothing, kept both citations and was counted as spanning two | a new verifier call lists the parts of the answer and quotes each cited passage that states them, and the code finds the quotes; the question stays two-passage only when each cited passage holds a part no other holds, where every passage states every part and the question joins cases with a coordinating conjunction both are kept, and a reading that cannot be had (model unavailable or refused) keeps the question as cited with a warning ([`checker.py`](../backend/question_generation/checker.py), verifier prompt `stated` 1) | calibrated on 12 fixtures and the labelled rows: see the figures below |
+
+Figures and limits of the parts reading (verifier prompt `stated` 1, new and pinned). Calibration rows are session C1's labelled rows; "by reading" counts what the call decides, "by citation" counts what is stored afterwards.
+
+| Build | Honest needs_both kept | Padded ones relabelled single | Gold compounds relabelled |
+|---|---|---|---|
+| v0.3.12, C1 rows | 30/31 | 33/45 | 0/8 |
+| v0.3.12, all gold rows | 29/36 | 76/107 by reading, 36/107 (0.34) by citation | 0/18 |
+| v0.3.0, C1 rows | 23/23 | 25/30 | 0/7 |
+| v0.3.0, all gold rows | 20/20 | 68/97 by reading, 60/97 (0.62) by citation | 1/30 (row 4392) |
+
+A blind read of 20 rows agreed on 20. Limits: a padded question that cites a bridge fact keeps both passages, because the bridge itself rests on two, which is why the counts by citation are lower (0.34 on v0.3.12, 0.62 on v0.3.0); one gold compound of v0.3.0 (row 4392) is relabelled single, so the calibration bar of none was missed on that build; a tie where every cited passage states every part keeps both only if the question joins cases with a coordinating conjunction. The check adds one verifier call per accepted two-passage needs_both question, about USD 0.45 to 0.5 per build, and does not rejudge stored questions. It supersedes session A's `fix/two-passage-v2` and `fix/needs-both`, which stay unmerged.
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was

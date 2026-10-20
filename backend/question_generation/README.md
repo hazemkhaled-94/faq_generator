@@ -215,6 +215,8 @@ narrows it the same way. A kind's entry may fix a band; none does yet except
 `kind:weight`) shares the kinds out over the slots that span passages; it
 names only kinds that span, and absent it deals every such slot `needs_both`.
 
+An accepted `needs_both` question citing two passages is read once more by the verifier (prompt `verifier: stated`), which lists the parts of the answer and quotes each cited passage that states one; it stays two-passage only when each cited passage holds a part no other cited passage holds. Where every cited passage states every part and the question joins cases with a coordinating conjunction, both citations are kept. A reading that cannot be had keeps the question as cited, with a warning. A padded question that cites a bridge fact keeps both passages, because the bridge itself rests on two.
+
 A `compound` question asks two separate things joined by "and", each answered
 by one of two passages that share least. The writer returns the two halves,
 each half is recovered from its own passage alone (two verifier reads, and no
