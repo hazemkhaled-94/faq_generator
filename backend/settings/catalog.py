@@ -640,7 +640,8 @@ SETTINGS: tuple[Setting, ...] = (
         optional=True,
         help="Which kind each question that spans passages is dealt, as "
         "`kind:weight`. A weight of 0, or a name left out, is never dealt; "
-        "absent deals every one needs_both.",
+        "absent deals needs_both:5,compound:1, one in six a compound question; "
+        "needs_both:1 turns compound off.",
     ),
     Setting(
         name="QUESTIONS_BOILERPLATE_COSINE",

@@ -521,20 +521,18 @@ def test_a_compound_slot_swapped_for_another_type_stays_apart() -> None:
     assert (other.kind, other.shape) == ("compound", Shape.APART)
 
 
-def test_the_kind_mix_default_deals_no_compound_slot_until_its_gate_passes() -> None:
-    """Code default: needs_both alone, and `needs_both:5,compound:1` is one in six."""
+def test_the_kind_mix_default_deals_one_compound_slot_in_six_spanning_slots() -> None:
+    """Code default: needs_both 5 to compound 1, so backend.env needs no line."""
     from question_generation.config import Settings
 
     mix = Settings.__dataclass_fields__["kind_mix"].default_factory()
-    types = {QuestionType.FACTOID: 1, QuestionType.CONDITION: 1}
-    deal = {
-        "wanted": 36,
-        "types": types,
-        "bands": {Difficulty.MEDIUM: 1},
-        "unanswerable_share": 0.0,
-    }
+    built = plans(
+        wanted=36,
+        types={QuestionType.FACTOID: 1, QuestionType.CONDITION: 1},
+        bands={Difficulty.MEDIUM: 1},
+        unanswerable_share=0.0,
+        kinds=mix,
+    )
 
-    assert mix == {"needs_both": 1}
-    assert "compound" not in {one.kind for one in plans(kinds=mix, **deal)}
-    six = plans(kinds={"needs_both": 5, "compound": 1}, **deal)
-    assert [one.kind for one in six].count("compound") == 6
+    assert mix == {"needs_both": 5, "compound": 1}
+    assert [one.kind for one in built].count("compound") == 6

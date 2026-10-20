@@ -44,12 +44,10 @@ def _weights(
     return read
 
 
-#: QUESTIONS_KIND_MIX when it is not set: every spanning slot needs both
-#: passages. `compound` is written and checked but holds no weight here: its
-#: calibration (v0.3.12 pairs, 13 of 24 accepted, 4 of 12 in English) missed
-#: the bar of 14 and 6 per language. `needs_both:5,compound:1` deals one slot
-#: in six; a kind written later adds its weight only once its gate has passed.
-_KIND_MIX: dict[str, int] = {QuestionKind.NEEDS_BOTH: 1}
+#: QUESTIONS_KIND_MIX when it is not set: five spanning slots in six need both
+#: passages and one in six is a compound question, two unrelated asks joined by
+#: "and". `needs_both:1` turns compound off.
+_KIND_MIX: dict[str, int] = {QuestionKind.NEEDS_BOTH: 5, QuestionKind.COMPOUND: 1}
 
 #: A language as every `language` column holds one: an ISO 639-1 code.
 _LANGUAGE = re.compile(r"[a-z]{2}")
