@@ -20,7 +20,6 @@ from sqlalchemy import (
     delete,
     func,
     insert,
-    or_,
     select,
     text,
     true,
@@ -203,17 +202,21 @@ def _resting(condition) -> ColumnElement[bool]:
 def _bridges(within) -> Select:
     """The bridge facts a pass narrowed by `within` replaces.
 
-    Every bridge of a topic holding a selected passage, as `by_topic` reads
-    those whole; every bridge when `within` is None.
+    Every bridge when `within` is None. Otherwise the bridges opening on a
+    passage of a topic holding a selected passage: those are the heads a
+    narrowed pass reads again, so those are the ones it can write back. A
+    bridge opening elsewhere stays, however its partner is placed, because
+    the pass would not offer it again; one gone stale is removed with the
+    passage whose text changed, not by this.
     """
     chosen = select(Fact.id).where(Fact.kind == FactKind.BRIDGE)
     if within is None:
         return chosen
     return chosen.where(
-        _resting(
-            or_(
-                within,
-                Passage.id.in_(
+        Fact.id.in_(
+            select(FactPassage.fact_id).where(
+                FactPassage.position == 0,
+                FactPassage.passage_id.in_(
                     select(DOMINANT.c.passage_id).where(
                         DOMINANT.c.topic_id.in_(_topics(within))
                     )
@@ -1138,8 +1141,9 @@ class FactCatalog(Repository):
 
         Args:
             within: A condition on Passage narrowing which bridges go, or
-                None for every one of them. Every bridge of a topic holding
-                a selected passage goes, as `by_topic` reads those whole.
+                None for every one of them. Every bridge opening on a passage
+                of a topic holding a selected passage goes, as `by_topic`
+                reads those whole.
 
         Returns:
             How many were deleted.

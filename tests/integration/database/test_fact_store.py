@@ -387,13 +387,18 @@ class TestBridges:
             "the bridge's links went with it, and the atomic fact kept its own"
         )
 
-    def test_clearing_narrows_to_the_passages_a_scope_names(
-        self, store, corpus
-    ) -> None:
-        """`--only document=…` replaces that document's bridges and no others."""
+    def test_clearing_narrows_to_the_bridges_a_scope_opens(self, store, corpus) -> None:
+        """`--only document=…` replaces the bridges opening in that document.
+
+        A bridge opening elsewhere stays even where it rests on a passage of
+        the scope: the narrowed pass reads only the heads of the scope, so
+        it could not write that bridge again.
+        """
         from seed import digest
 
         a_anchor, b_anchor = corpus["a"][0], corpus["b"][0]
+        store.topic("Support", a_anchor)
+        store.topic("Access", b_anchor)
         store.bridges(
             checked(
                 a_anchor,
@@ -409,11 +414,9 @@ class TestBridges:
             ),
         )
 
-        # Both rest on a passage of a, so both go: a scope names the
-        # passages a bridge rests on and not the one it opens with.
         removed = store.catalog.clear_bridges(Passage.doc_sha256 == digest("a"))
-        assert removed == 2
-        assert store.rows("statement") == []
+        assert removed == 1
+        assert [row[0] for row in store.rows("statement")] == ["From b."]
 
     def test_a_narrowed_pass_clears_every_bridge_of_the_topics_it_reads(
         self, store, corpus
@@ -605,8 +608,8 @@ class TestGroups:
     ) -> None:
         """Both sides of a cross-document bridge, or it cannot be rewritten.
 
-        `clear_bridges` deletes any bridge resting on a passage of the named
-        document, and a bridge rests on two. Reading back only that
+        `clear_bridges` deletes any bridge opening on a passage of the topics
+        of the named document, and a bridge rests on two. Reading back only that
         document's passages would leave one side of each in hand, so a
         narrowed run would delete the cross-document bridges and be unable
         to write them again - and those are the ones worth having.
