@@ -5601,6 +5601,115 @@ def test_a_quote_both_passages_hold_counts_for_both() -> None:
     assert result.passage_ids == (1,)
 
 
+_TIE = {
+    "en": (
+        "If a standing order fails, the bank tries again the next working day.",
+        "If a direct debit fails, the bank tries again the next working day.",
+        "What happens when a standing order or a direct debit fails?",
+        "the bank tries again the next working day",
+    ),
+    "de": (
+        "Schlägt ein Dauerauftrag fehl, versucht die Bank es am nächsten Werktag erneut.",
+        "Schlägt eine Lastschrift fehl, versucht die Bank es am nächsten Werktag erneut.",
+        "Was passiert, wenn ein Dauerauftrag oder eine Lastschrift fehlschlägt?",
+        "die Bank versucht es am nächsten Werktag erneut",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_tie_on_a_question_joining_two_cases_stays_two_passage(
+    language: str,
+) -> None:
+    """Each passage may give the same rule for its own case."""
+    first, second, question, key = _TIE[language]
+    parts = (Part("the retry", (first, second)),)
+
+    _, result = _ask(parts, first, second, question, key, language)
+
+    assert result.passage_ids == (1, 2)
+    assert result.kind == "needs_both"
+    assert _needs_both(result) == [(1.0, True)]
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_coordinates_reads_a_conjunction(language: str) -> None:
+    """Universal POS, so no word list per language."""
+    from question_generation.gates import coordinates
+
+    no = {
+        "en": "Within how many days can a purchase be returned?",
+        "de": "Ab welchem Bestellwert ist der Versand kostenlos?",
+    }[language]
+
+    assert coordinates(_TIE[language][2], language)
+    assert not coordinates(no, language)
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_tie_with_no_conjunction_is_still_cited_from_the_first(
+    language: str,
+) -> None:
+    """Both passages state the one thing asked: a duplicate, not two cases."""
+    first, second, question, key, again = _STATED_ONE[language]
+
+    _, result = _ask(
+        (Part("the return period", (first, again)),),
+        first,
+        second,
+        question,
+        key,
+        language,
+    )
+
+    assert result.passage_ids == (1,)
+
+
+_ITEMS = {
+    "en": (
+        "For orders over 50 EUR, shipping and returns are free.",
+        "Gift cards cannot be exchanged for cash.",
+        "What do shipping and returns cost for orders over 50 EUR?",
+        "nothing",
+    ),
+    "de": (
+        "Bei Bestellungen über 50 EUR sind Versand und Rücksendung kostenlos.",
+        "Geschenkkarten können nicht in Bargeld umgetauscht werden.",
+        "Was kosten Versand und Rücksendung bei Bestellungen über 50 EUR?",
+        "nichts",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_subset_on_a_question_joining_two_items_is_still_narrowed(
+    language: str,
+) -> None:
+    """Only a tie keeps both: here one passage holds every part."""
+    first, second, question, key = _ITEMS[language]
+    parts = (Part("shipping", (first,)), Part("returns", (first,)))
+
+    _, result = _ask(parts, first, second, question, key, language)
+
+    assert result.passage_ids == (1,)
+
+
+def test_a_tie_on_two_items_both_passages_repeat_keeps_both() -> None:
+    """Pins the shortcut: a conjunction keeps both even for a plain duplicate."""
+    first = "Members pay nothing for shipping and returns."
+    second = "Shipping and returns are free for members."
+
+    _, result = _ask(
+        (Part("the cost", (first, second)),),
+        first,
+        second,
+        "What do members pay for shipping and returns?",
+        "nothing",
+    )
+
+    assert result.passage_ids == (1, 2)
+
+
 def test_no_part_quoted_from_any_passage_keeps_both_and_reads_nothing() -> None:
     """Nothing located is nothing decided."""
     first, second, question, key, _ = _SHIPPING["en"]

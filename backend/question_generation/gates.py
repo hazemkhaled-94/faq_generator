@@ -1608,6 +1608,16 @@ def enumerates(answer: str, language: str | None) -> bool:
     return 1 + sum(map(_coordinated_item, read)) >= _ENUMERATED
 
 
+def coordinates(question: str, language: str | None) -> bool:
+    """Whether a question joins things with a coordinating conjunction.
+
+    Universal POS, so no word list per language. A question joining cases,
+    parties or items asks the same thing of each, and a passage may give the
+    same answer for its own case.
+    """
+    return any(token.pos_ == "CCONJ" for token in pipeline(language)(question))
+
+
 def _coordinated_item(token: Token) -> bool:
     """Whether a token is a conjunct naming one more item, not saying one more thing."""
     if token.dep_ not in _CONJUNCTS or token.pos_ == "NUM":

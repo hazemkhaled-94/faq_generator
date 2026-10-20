@@ -85,6 +85,7 @@ from question_generation.gates import (
     anchored,
     asserted,
     cites_source,
+    coordinates,
     counts_something_else,
     covered,
     deciding,
@@ -210,6 +211,22 @@ def _narrowed(group: FactGroup, passage_id: int) -> FactGroup:
     )
 
 
+def _holds(parts: Sequence[Part], texts: Sequence[str]) -> list[set[int]]:
+    """For each passage, the numbers of the parts it holds a quote of."""
+    holds: list[set[int]] = [set() for _ in texts]
+    for number, part in enumerate(parts):
+        for quote in part.quotes:
+            for at in holders(quote, texts):
+                holds[at].add(number)
+    return holds
+
+
+def tied(parts: Sequence[Part], texts: Sequence[str]) -> bool:
+    """Whether some quote is held and every passage holds the same parts."""
+    holds = _holds(parts, texts)
+    return any(holds) and all(one == holds[0] for one in holds)
+
+
 def needed(parts: Sequence[Part], texts: Sequence[str]) -> tuple[int, ...] | None:
     """The positions of the passages a question needs, read off the quotes.
 
@@ -218,11 +235,7 @@ def needed(parts: Sequence[Part], texts: Sequence[str]) -> tuple[int, ...] | Non
     holding a part no other passage holds; when none does, the one holding
     the most parts, the first on a tie. None where no quote is held anywhere.
     """
-    holds: list[set[int]] = [set() for _ in texts]
-    for number, part in enumerate(parts):
-        for quote in part.quotes:
-            for at in holders(quote, texts):
-                holds[at].add(number)
+    holds = _holds(parts, texts)
     if not any(holds):
         return None
     own = tuple(
@@ -699,7 +712,9 @@ class QuestionChecker:
         follow-up whose narrowed citation would ask nothing its root did not
         (`_thread` is read again on the narrowed group), keeps both passages,
         with the reading on the row. Where no quote is found in any passage
-        nothing is decided and nothing is recorded.
+        nothing is decided and nothing is recorded. Where every passage states
+        every part and the question joins cases with a conjunction, each may
+        give the same answer for its own case, so both are kept.
         """
         resting = candidate.group.resting
         if not candidate.answerable or candidate.spec.derived or len(resting) < 2:
@@ -718,17 +733,33 @@ class QuestionChecker:
                 candidate.question_text,
             )
             return candidate
+        # shortcut: a tie on a question with a conjunction keeps both even when
+        # the passages repeat each other (5 of 45 padded v0.3.12 rows); upgrade
+        # when the reading lists the cases as parts.
+        joined = (
+            len(keep) == 1
+            and tied(parts, texts)
+            and coordinates(candidate.question_text, candidate.group.language)
+        )
+        if joined:
+            log.info(
+                "%r: every cited passage states every part and the question "
+                "joins cases: kept two-passage",
+                candidate.question_text,
+            )
+        both = len(keep) != 1 or joined
         readings.append(
             Measurement(
                 "needs_both",
-                0.0 if len(keep) == 1 else 1.0,
+                1.0 if both else 0.0,
                 0.5,
                 opinion=True,
                 version=STATED_VERSION,
             )
         )
-        if len(keep) != 1:
+        if both:
             return candidate
+        assert len(keep) == 1
         keep_id = resting[keep[0]].id
         narrowed = _narrowed(candidate.group, keep_id)
         if not narrowed.facts:
