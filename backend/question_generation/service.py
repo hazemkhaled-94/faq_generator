@@ -156,6 +156,11 @@ _READS_KEY = frozenset(
 )
 
 
+def _one_passage(fact: SourceFact) -> bool:
+    """Whether a fact rests on one passage and not on several."""
+    return not fact.spans
+
+
 def _words(text: str | None) -> tuple[str, ...]:
     """A text's words, case-folded, without the spacing and punctuation."""
     return tuple(re.findall(r"\w+", (text or "").casefold()))
@@ -1002,6 +1007,18 @@ class QuestionGenerationService(StageService):
             # unanswerable one is moved out of reach of one claim: a summary
             # perturbed is a whole passage moved at once, and the move lands
             # on one of the claims it holds.
+            if not plan.answerable:
+                # One claim of one passage is moved out of reach, so a bridge,
+                # which rests on two, is left for a slot that may rest on it.
+                if not deal.holds(_one_passage):
+                    log.info(
+                        "topic %d: an unanswerable slot was not written: "
+                        "nothing left in the topic rests on one passage",
+                        topic.id,
+                        extra={"topic.id": topic.id},
+                    )
+                    continue
+                prefer = _one_passage
             sample = deal.sample(
                 plan.shape,
                 condensed=plan.answerable and plan.spec.form != AnswerForm.VALUE,

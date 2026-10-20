@@ -2298,3 +2298,77 @@ def test_a_named_run_s_question_span_carries_the_run_that_queued_the_topic(
 
     (checked,) = exported.get_finished_spans()
     assert checked.attributes["run.id"] == "dagster-D"
+
+
+@pytest.mark.parametrize(
+    "language,plain,spanning_text",
+    [
+        (
+            "en",
+            "Standard delivery takes 3 to 5 working days.",
+            "The return period starts on the day the delivery arrives.",
+        ),
+        (
+            "de",
+            "Die Standardlieferung dauert 3 bis 5 Werktage.",
+            "Die Rückgabefrist beginnt am Tag der Lieferung.",
+        ),
+        (
+            "en",
+            "A current account costs 5 euros a month.",
+            "The fee is charged on the day the card is activated.",
+        ),
+        (
+            "de",
+            "Ein Girokonto kostet 5 Euro im Monat.",
+            "Die Gebühr wird am Tag der Kartenaktivierung erhoben.",
+        ),
+    ],
+)
+def test_an_unanswerable_slot_is_never_dealt_a_bridge(
+    language, plain, spanning_text
+) -> None:
+    """A bridge rests on two passages, and an unanswerable question rests on one."""
+    from factories import bridge, resting
+
+    facts = [
+        bridge(
+            resting(2, document="doc-b", language=language),
+            fact_id=1,
+            passage_id=1,
+            statement=spanning_text,
+            language=language,
+        ),
+        source(2, passage_id=1, statement=plain, language=language),
+    ]
+    writer = Handed()
+    settings = replace(
+        SETTINGS, per_topic=1, sample_size=2, unanswerable_share=1.0, followup_share=0.0
+    )
+    service, _ = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    ((dealt, slot),) = writer.handed
+    assert not slot.answerable
+    assert [one.id for one in dealt.facts] == [2]
+    assert len(dealt.resting) == 1
+
+
+def test_an_unanswerable_slot_with_only_bridges_is_skipped_and_the_topic_goes_on() -> (
+    None
+):
+    """Nothing in reach that rests on one passage: the slot is not written, the topic is."""
+    from factories import bridge, resting
+
+    facts = [bridge(resting(2, document="doc-b"), fact_id=1, passage_id=1)]
+    writer = Handed()
+    settings = replace(
+        SETTINGS, per_topic=1, sample_size=1, unanswerable_share=1.0, followup_share=0.0
+    )
+    service, queue = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    assert writer.handed == []
+    assert queue.finished
