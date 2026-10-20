@@ -228,3 +228,83 @@ def test_a_figure_that_is_no_item_number_is_still_named(
         if n.replace(".", "", 1).isdigit()
     ]
     assert [n.split(".")[0] for n in stated] == [figure], stated
+
+
+@pytest.mark.parametrize(
+    ("language", "recovery", "key", "question", "item"),
+    [
+        (
+            "en",
+            "also commissions, fees and taxes.",
+            "fees and taxes",
+            "What does the customer pay?",
+            "commissions",
+        ),
+        (
+            "en",
+            "in addition commissions, fees and taxes.",
+            "fees and taxes",
+            "What does the customer pay?",
+            "commissions",
+        ),
+        (
+            "en",
+            "as well as commissions, fees and taxes.",
+            "fees and taxes",
+            "What does the customer pay?",
+            "commissions",
+        ),
+        (
+            "en",
+            "also returns, parcels and vouchers.",
+            "parcels and vouchers",
+            "What does the shop accept?",
+            "returns",
+        ),
+        (
+            "de",
+            "auch Provisionen, Gebühren und Steuern.",
+            "Gebühren und Steuern",
+            "Was zahlt der Kunde?",
+            "Provisionen",
+        ),
+        (
+            "de",
+            "zudem Provisionen, Gebühren und Steuern.",
+            "Gebühren und Steuern",
+            "Was zahlt der Kunde?",
+            "Provisionen",
+        ),
+        (
+            "de",
+            "zudem Retouren, Pakete und Gutscheine.",
+            "Pakete und Gutscheine",
+            "Was nimmt der Laden an?",
+            "Retouren",
+        ),
+    ],
+)
+def test_a_new_item_after_a_linking_adverb_is_named(
+    language, recovery, key, question, item
+):
+    """An adverb opening a list does not make its first item a predicate."""
+    assert item in unnamed(recovery, key, language, question)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovery", "key", "question"),
+    [
+        ("en", "also fees and taxes.", "fees and taxes", "What does the customer pay?"),
+        (
+            "de",
+            "zudem Gebühren und Steuern.",
+            "Gebühren und Steuern",
+            "Was zahlt der Kunde?",
+        ),
+    ],
+)
+def test_a_repeated_list_after_a_linking_adverb_names_nothing(
+    language, recovery, key, question
+):
+    """The key's own items, behind the same adverb, are named by nobody."""
+    assert not unnamed(recovery, key, language, question)

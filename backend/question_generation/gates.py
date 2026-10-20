@@ -1613,7 +1613,27 @@ def _coordinated_item(token: Token) -> bool:
     if token.dep_ not in _CONJUNCTS or token.pos_ == "NUM":
         return False
     joined = token.head.head if token.head.dep_ == "cd" else token.head
-    return token.pos_ not in _PREDICATES and joined.pos_ not in _PREDICATES
+    return token.pos_ not in _PREDICATES and not _says_something(joined)
+
+
+#: What may hang off a word and still leave it only the head of a list: an
+#: adverb, punctuation, and the items and conjunctions joined to it.
+_LIST_ONLY = frozenset({"advmod", "punct", "cc", "cd", "conj", "cj", "mo", "pm"})
+
+
+def _says_something(token: Token) -> bool:
+    """Whether a token is a verb that says something, not a list's first item.
+
+    A tagger reads `also commissions, fees and taxes` with `commissions` a
+    verb, since an adverb opens it. Such a verb has no subject, object or
+    auxiliary, only the adverb before it and the list hanging off it; `signed
+    and complete` has no adverb and stays two predicates.
+    """
+    if token.pos_ not in _PREDICATES:
+        return False
+    return any(child.dep_ not in _LIST_ONLY for child in token.children) or not any(
+        child.dep_ == "advmod" and child.i < token.i for child in token.children
+    )
 
 
 #: The least share of an answer's content lemmas the question did not carry.
