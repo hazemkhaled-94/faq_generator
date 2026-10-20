@@ -12,7 +12,7 @@ import pytest
 from topic_drivers import LabellerDriver
 
 from llm.client import ModelUnavailable
-from topic_modelling.labels import _EXCERPT_CHARS
+from topic_modelling.labels import _EXCERPT_CHARS, _unshared
 from topic_modelling.models import FittedTopic, PassageWeight
 from topic_modelling.topics import carry_labels, dominant
 
@@ -229,6 +229,132 @@ def test_words_only_half_the_names_end_on_stay() -> None:
     )
 
     assert named[0] == "Card fees in branches"
+
+
+# Names and each topic's top terms; the word that is the subject must survive.
+SUBJECTS = {
+    "bank-en": (
+        [
+            "Credit card payment",
+            "Debit card payment",
+            "Prepaid card payment",
+            "Account statements",
+        ],
+        [
+            ["credit", "card", "payment"],
+            ["debit", "card", "payment"],
+            ["prepaid", "card", "payment"],
+            ["account", "statement"],
+        ],
+        "card",
+    ),
+    "shop-en": (
+        [
+            "Gift voucher redemption",
+            "Store voucher redemption",
+            "Birthday voucher redemption",
+            "Returns",
+        ],
+        [
+            ["gift", "voucher", "redempt"],
+            ["store", "voucher", "redempt"],
+            ["birthday", "voucher", "redempt"],
+            ["return"],
+        ],
+        "voucher",
+    ),
+    "bank-de": (
+        [
+            "Kreditkarte Zahlung Ausland",
+            "Debitkarte Zahlung Ausland",
+            "Prepaidkarte Zahlung Ausland",
+            "Kontoauszüge",
+        ],
+        [
+            ["kreditkarte", "zahlung", "ausland"],
+            ["debitkarte", "zahlung", "ausland"],
+            ["prepaidkarte", "zahlung", "ausland"],
+            ["kontoauszug"],
+        ],
+        "Zahlung",
+    ),
+    "shop-de": (
+        [
+            "Online Bestellung Rückgabe",
+            "Laden Bestellung Rückgabe",
+            "Telefon Bestellung Rückgabe",
+            "Gutscheine",
+        ],
+        [
+            ["online", "bestellung", "rückgabe"],
+            ["laden", "bestellung", "rückgabe"],
+            ["telefon", "bestellung", "rückgabe"],
+            ["gutschein"],
+        ],
+        "Rückgabe",
+    ),
+}
+
+
+@pytest.mark.parametrize("key", SUBJECTS)
+def test_a_shared_ending_that_is_the_subject_is_kept(key) -> None:
+    """`Credit card payment` was stored as `Credit`.
+
+    The strip read any ending most names share as the corpus's domain. A
+    sub-subject several topics share is a top term of theirs; the domain is
+    in too many passages to be one.
+    """
+    names, terms, subject = SUBJECTS[key]
+
+    out = _unshared(dict(enumerate(names)), dict(enumerate(terms)))
+
+    for index in (0, 1, 2):
+        assert subject.casefold() in out[index].casefold(), out
+
+
+def test_one_topic_carrying_the_domain_as_a_term_does_not_keep_it_for_all() -> None:
+    """The domain is a term of at most a few topics; the rest still lose it."""
+    names = {
+        0: "Transfers in banking",
+        1: "Cards in banking",
+        2: "Loans in banking",
+        3: "Savings in banking",
+    }
+    terms = {0: ["transfer", "banking"], 1: ["card"], 2: ["loan"], 3: ["saving"]}
+
+    assert _unshared(names, terms) == {
+        0: "Transfers",
+        1: "Cards",
+        2: "Loans",
+        3: "Savings",
+    }
+
+
+@pytest.mark.parametrize(
+    ("ending", "term"), [("in coffee shop", "fee"), ("im Handel", "and")]
+)
+def test_a_term_inside_a_word_is_not_the_word(ending, term) -> None:
+    """Three letters inside `coffee` or `Handel` are not the subject."""
+    names = {i: f"{head} {ending}" for i, head in enumerate(["Beans", "Tea", "Milk"])}
+    terms = {i: [term] for i in names}
+
+    assert _unshared(names, terms) == {0: "Beans", 1: "Tea", 2: "Milk"}
+
+
+def test_a_domain_ending_no_term_carries_is_still_taken_off() -> None:
+    """The domain tells no topic apart and is no term, so it goes."""
+    names = {
+        0: "Anträge für Kreditkarten im Bankwesen",
+        1: "Gebühren im Bankwesen",
+        2: "Konten im Bankwesen",
+    }
+    terms = {0: ["antrag", "kreditkarte"], 1: ["gebühr"], 2: ["konto"]}
+
+    assert _unshared(names, terms) == {
+        0: "Anträge für Kreditkarten",
+        1: "Gebühren",
+        2: "Konten",
+    }
 
 
 # ── Carrying a decision across a refit ────────────────────────────────────

@@ -127,6 +127,8 @@ _WORD = re.compile(r"\w+")
 
 #: The longest run of trailing words read as an affix the names share.
 _AFFIX_WORDS = 3
+#: Letters a term needs to stand for a stem or compound part of a word.
+_TERM_MATCH = 4
 
 
 class TopicLabeller:
@@ -212,7 +214,10 @@ class TopicLabeller:
             ):
                 said[one.topic] = name
         shown = "\n".join(text for _, excerpts in topics for text in excerpts)
-        said = _unshared({index: _spelled(name, shown) for index, name in said.items()})
+        terms = {topic.topic_index: topic.top_terms for topic, _ in topics}
+        said = _unshared(
+            {index: _spelled(name, shown) for index, name in said.items()}, terms
+        )
         # Asked for in the prompt and enforced here: an unnamed topic reads as
         # unnamed, where two topics under one name read as one topic.
         seen = {one.casefold() for one in taken}
@@ -300,14 +305,16 @@ def _spelled(name: str, excerpts: str) -> str:
     )
 
 
-def _unshared(names: dict[int, str]) -> dict[int, str]:
+def _unshared(names: dict[int, str], terms: dict[int, list[str]]) -> dict[int, str]:
     """The names with the trailing words more than half of them share taken off.
 
     `... im Fussball` on nine names of ten is the domain the corpus shares,
     and it tells no topic apart. Two words or more, so a head noun two
     names share - `Debit cards`, `Credit cards` - stays; three names or
     more, so a pair is not read as the whole set; and a name the affix is
-    all of keeps it.
+    all of keeps it. An ending a topic's own top terms carry is that
+    topic's subject, not the domain - the domain is in too many passages to
+    be a term at all - so `Credit card payment` is not cut to `Credit`.
     """
     if len(names) < 3:
         return names
@@ -322,11 +329,39 @@ def _unshared(names: dict[int, str]) -> dict[int, str]:
             continue
         affix, held = ends.most_common(1)[0]
         if held * 2 > len(names):
-            return {
-                index: " ".join(words[:-size])
+            carrying = [
+                index
+                for index, words in split.items()
                 if len(words) > size
                 and tuple(word.casefold() for word in words[-size:]) == affix
-                else names[index]
+            ]
+            # The subject of most of the topics carrying it, not of one.
+            subject = sum(
+                any(_is_term(word, terms.get(i, ())) for word in affix)
+                for i in carrying
+            )
+            if subject * 2 > len(carrying):
+                continue
+            return {
+                index: " ".join(words[:-size]) if index in carrying else names[index]
                 for index, words in split.items()
             }
     return names
+
+
+def _is_term(word: str, terms: Sequence[str]) -> bool:
+    """Whether a name's word is one of a topic's top terms.
+
+    The term is the word, or a stem or a compound part at its edge, four
+    letters at least: `redempt` starts `redemption`, `karte` ends
+    `kreditkarte`. Three letters inside a word - `fee` in `coffee` - are not
+    the word.
+    """
+    return any(
+        term.casefold() == word
+        or (
+            len(term) >= _TERM_MATCH
+            and (word.startswith(term.casefold()) or word.endswith(term.casefold()))
+        )
+        for term in terms
+    )
