@@ -421,6 +421,13 @@ def balance(
         if not pool:
             log.warning("no accepted question carries both a difficulty and a type")
             return 0
+        # What a draw can take: unanswerable rows only past a ceiling above 0.
+        # A bucket only they hold is as absent as one nobody holds.
+        drawable = (
+            pool
+            if settings.release_unanswerable > 0
+            else [row for row in pool if row.answerable]
+        )
 
         # Unset follows the bands the answerable pool holds, as the languages
         # follow theirs: equal thirds drew every hard row the pool had, and a
@@ -428,21 +435,24 @@ def balance(
         # Answerable rows only, because an unanswerable one is always easy and
         # would weigh the easy band by how many the writer left unanswered.
         bands = _supplied(
-            pool,
+            drawable,
             settings.release_difficulty
             or dict(Counter(row.difficulty for row in pool if row.answerable)),
             "band",
             "difficulty",
         )
         types = _supplied(
-            pool, settings.release_types or settings.type_mix, "kind", "question_type"
+            drawable,
+            settings.release_types or settings.type_mix,
+            "kind",
+            "question_type",
         )
         # Unset follows the pool's own language split, so a corpus mostly in one
         # language releases in proportion rather than at a multiple of its
         # smallest, and a third language is held to its share without anybody
         # naming it.
         languages = _supplied(
-            pool,
+            drawable,
             settings.release_languages or dict(Counter(row.language for row in pool)),
             "language",
             "language",
@@ -450,7 +460,7 @@ def balance(
         # The other way round from `_supplied`'s warning: a language the pool
         # holds and the setting gives no weight is left out whole, which is
         # what the setting asks for and worth saying all the same.
-        unweighted = sorted({row.language for row in pool} - set(languages))
+        unweighted = sorted({row.language for row in drawable} - set(languages))
         if settings.release_languages and unweighted:
             log.warning(
                 "the pool holds questions in %s, which QUESTIONS_RELEASE_LANGUAGES "
