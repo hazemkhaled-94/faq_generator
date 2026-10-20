@@ -200,6 +200,16 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.20
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+make schema
+```
+
+`make schema` applies one migration: `questions.kind`, `NOT NULL` and one of `single`, `needs_both`, `compound`, `false_premise`, backfilled `needs_both` where the passage scope is `multi_passage` and `single` otherwise (176 `needs_both` on the accepted answerable rows of the v0.3.12 build). Nothing else changes: no prompt version moves, no stored verdict moves, and `QUESTIONS_KIND_MIX` is optional and defaults to `needs_both:1`, which is today's plan. The questions page shows the kind.
+
 ## Upgrading to v0.3.19
 
 ```bash
