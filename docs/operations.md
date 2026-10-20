@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.31
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. `make parse-rerun` then `make chunk-rerun` brings a stored corpus up to date: a PDF whose font maps its hyphen to U+00AD (pymupdf and MuPDF Arial subsets) gets its hyphens back, and a document with group-row or wrapped-label fee tables reads them as rows. On the 30 football PDFs 1 element per language changes.
+
 ## Upgrading to v0.3.30
 
 ```bash

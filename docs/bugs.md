@@ -816,6 +816,14 @@ Together on the scoreboard: German `unresolved_reference` refusals 59 to 56, val
 
 On the scoreboard no value moves (it replays stored data). The slots of single and needs_both questions after the first unanswerable slot of a topic shift, because that slot no longer spends a bridge.
 
+### Fixed in v0.3.31: table rows and soft hyphens
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A soft hyphen in a PDF text layer deleted every drawn hyphen | a PDF whose font maps its drawn hyphen to U+00AD lost every such hyphen in the mend: `3-5 Werktage` became `35 Werktage` and `Kredit- oder` became `Kreditoder`, because the cleanup deleted each U+00AD | one directly before a lower-case letter is dropped (a soft hyphen inside a word) and any other is spelled `-`; a word broken at a line end is still joined by the rejoin ([`parsing`](../backend/preprocessing/parsing)) | red tests with bank and shop sentences in German and English; 0 elements change on the 30 Laws PDFs, which hold no U+00AD |
+| A group row of a table was glued to its first item | in a fee table a label alone over a lower-case label was read as a wrapped label, so `Cards` over `debit card` and `credit card` became `Cards debit card` | a label alone on a row joins the row below only when exactly one lower-case-labelled row with data follows ([`parsing`](../backend/preprocessing/parsing)) | red tests, bank and shop tables in German and English; on the 30 Laws PDFs 1 element per language changes (one table row of uefa-equipment-regulations.pdf, `b) c) d) e)`, now two rows), the scoreboard moves no value |
+| The tail of a wrapped table label was glued to the next row's label | in a top-aligned table whose label wraps while the other cells stay on the first line, the tail (`only)`) became the head of the next label (`only) next day`) or a priceless row | a label-only row opening in lower case or closing a bracket the label above left open joins the label above it ([`parsing`](../backend/preprocessing/parsing)) | red tests; the same 1 element per language on the Laws PDFs. Known gap: a three-line wrapped label joins only its first tail |
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was
