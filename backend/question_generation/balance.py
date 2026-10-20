@@ -363,11 +363,19 @@ def _fillable(
     """The largest size whose every quota the pool holds rows enough for, within its slack.
 
     No draw above it can fill, whatever it picks, so the scan starts here
-    rather than at the size of the pool.
+    rather than at the size of the pool. Unanswerable rows count per bucket
+    only up to the ceiling, the most a draw takes from any one.
     """
     held = Counter(
         name
         for row in pool
+        if row.answerable
+        for name in (row.difficulty, row.question_type, row.language)
+    )
+    spare = Counter(
+        name
+        for row in pool
+        if not row.answerable
         for name in (row.difficulty, row.question_type, row.language)
     )
     unanswered = sum(not row.answerable for row in pool)
@@ -375,7 +383,10 @@ def _fillable(
         quota = quota_of(size, bands, types, unanswerable, languages)
         wanted = {**quota.difficulty, **quota.types, **quota.languages}
         answerable = size - quota.unanswerable
-        missing = {name: count - held[name] for name, count in wanted.items()}
+        missing = {
+            name: count - held[name] - min(spare[name], quota.unanswerable)
+            for name, count in wanted.items()
+        }
         missing["answerable"] = (
             size - min(quota.unanswerable, unanswered) - (len(pool) - unanswered)
         )
