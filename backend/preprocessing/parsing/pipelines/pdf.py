@@ -205,6 +205,7 @@ class PdfPipeline(Pipeline):
             ),
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
+            unread_pages=image_only_pages(source.data),
         )
 
     def fetch_weights(self) -> None:
@@ -266,6 +267,57 @@ def _softened(text: str) -> str:
         return "-" if drawn and before != "-" else ""
 
     return _SOFT_HYPHEN.sub(spelled, text)
+
+
+#: The share of a page a picture must cover for the page to count as a scan.
+_SCAN_COVER = 0.5
+
+
+def _union_area(rects: list[pymupdf.Rect]) -> float:
+    """Returns the area covered by rectangles, overlaps counted once."""
+    rects = [rect for rect in rects if not rect.is_empty]
+    xs = sorted({x for rect in rects for x in (rect.x0, rect.x1)})
+    total = 0.0
+    for left, right in pairwise(xs):
+        spans = sorted(
+            (rect.y0, rect.y1) for rect in rects if rect.x0 <= left and rect.x1 >= right
+        )
+        top = float("-inf")
+        for start, end in spans:
+            total += (right - left) * max(0.0, end - max(start, top))
+            top = max(top, end)
+    return total
+
+
+def image_only_pages(data: bytes) -> tuple[int, ...]:
+    """Names the pages that are a picture and carry no text layer.
+
+    A document's mean characters per page hides one scanned page among
+    digital ones, and OCR is not enabled, so such a page converts to nothing.
+
+    Args:
+        data: The raw PDF bytes.
+
+    Returns:
+        The 1-based numbers of the pages with no text and pictures covering
+        most of the page.
+    """
+    pages: list[int] = []
+    with pymupdf.open(stream=data, filetype="pdf") as document:
+        for number in range(1, document.page_count + 1):
+            page = document[number - 1]
+            if str(page.get_text()).strip():
+                continue
+            area = abs(page.rect)
+            covered = _union_area(
+                [
+                    pymupdf.Rect(info["bbox"]) & page.rect
+                    for info in page.get_image_info()
+                ]
+            )
+            if area and covered / area >= _SCAN_COVER:
+                pages.append(number)
+    return tuple(pages)
 
 
 def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:

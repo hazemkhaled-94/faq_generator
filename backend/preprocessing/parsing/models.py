@@ -51,11 +51,14 @@ class Conversion:
         document: The converted document.
         confidence: Mean confidence the converter reported, or None.
         confidence_low: Confidence of its worst page, or None.
+        unread_pages: 1-based pages that are a picture and carry no text
+            layer, which the conversion could not read.
     """
 
     document: DoclingDocument
     confidence: float | None
     confidence_low: float | None
+    unread_pages: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

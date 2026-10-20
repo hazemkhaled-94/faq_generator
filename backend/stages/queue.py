@@ -269,15 +269,25 @@ class StageQueue(Repository):
                 raise Lost(f"{key} was claimed by another worker since this one")
             self._held = None
 
-    def _finish(self, key: Any, *, session: Any = None, **values: Any) -> None:
+    def _finish(
+        self,
+        key: Any,
+        *,
+        session: Any = None,
+        note: str | None = None,
+        **values: Any,
+    ) -> None:
         """Marks a row done for this stage, releasing the claim.
+
+        `note` is kept in the error column: what a finished row lacks, where
+        a failure's reason would be.
 
         Raises:
             Lost: If another worker has claimed the row since this one did.
         """
         self._release(
             key,
-            {self.columns.status: self.done, self.columns.error: None, **values},
+            {self.columns.status: self.done, self.columns.error: note, **values},
             session,
         )
 

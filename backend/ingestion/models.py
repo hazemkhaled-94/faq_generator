@@ -87,7 +87,7 @@ class StoredDocument:
         title: Title, written by parsing.
         language: ISO 639-1 code, written by parsing.
         parse_status: Where parsing has got to.
-        parse_error: Why parsing failed.
+        parse_error: Why parsing failed, or what a parsed document lacks.
         chunk_status: Where chunking has got to.
         chunk_error: Why chunking failed.
         extracted_passages: Passages extraction has read.

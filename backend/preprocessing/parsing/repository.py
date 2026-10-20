@@ -81,7 +81,9 @@ class ParseQueue(RowQueue):
                 )
             )
 
-    def complete(self, sha256: str, parsed: ParsedDocument) -> None:
+    def complete(
+        self, sha256: str, parsed: ParsedDocument, note: str | None = None
+    ) -> None:
         """Records a successful parse, releasing the claim.
 
         Writes the title, language, content digest and both confidences.
@@ -92,10 +94,13 @@ class ParseQueue(RowQueue):
         Args:
             sha256: The document's digest.
             parsed: What the analyser read.
+            note: What the parse could not read, shown where a failure's reason
+                would be, or None.
         """
         trace_id, span_id = current_ids()
         self._finish(
             sha256,
+            note=note,
             title=parsed.title,
             language=parsed.language,
             content_sha256=parsed.content_sha256,

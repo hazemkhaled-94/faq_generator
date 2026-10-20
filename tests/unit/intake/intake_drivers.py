@@ -590,6 +590,7 @@ class ScriptedPipeline(Pipeline):
         confidence: float | None = 0.9,
         confidence_low: float | None = 0.9,
         raises: Exception | None = None,
+        unread_pages: tuple[int, ...] = (),
     ) -> None:
         """Takes the answer every conversion gets.
 
@@ -598,7 +599,9 @@ class ScriptedPipeline(Pipeline):
             confidence: The mean confidence to report.
             confidence_low: The lower-bound confidence to report.
             raises: What to raise instead of answering.
+            unread_pages: The image-only pages to report.
         """
+        self.unread_pages = unread_pages
         self.document = document or docling_document(
             title="The Device", paragraphs=("The device weighs 4 kg.",)
         )
@@ -621,6 +624,7 @@ class ScriptedPipeline(Pipeline):
             document=self.document,
             confidence=self.confidence,
             confidence_low=self.confidence_low,
+            unread_pages=self.unread_pages,
         )
 
 
@@ -648,6 +652,7 @@ class ParseRows:
         self.claims: list[str] = []
         self.completed: dict[str, Any] = {}
         self.failures: dict[str, str] = {}
+        self.notes: dict[str, str | None] = {}
 
     def claim(self) -> ParseClaim | None:
         """Takes the next pending document."""
@@ -662,13 +667,14 @@ class ParseRows:
         held = self.holders.get(content_sha256)
         return None if held is None or held == besides else held
 
-    def complete(self, sha256: str, parsed) -> None:
+    def complete(self, sha256: str, parsed, note: str | None = None) -> None:
         """Records a successful parse.
 
         The content digest becomes this document's, which is what the real
         repository writes here and what `holder_of` reads back.
         """
         self.completed[sha256] = parsed
+        self.notes[sha256] = note
         self.holders.setdefault(parsed.content_sha256, sha256)
 
     def fail(self, key: str, error: str) -> None:
@@ -740,6 +746,11 @@ class ParseDriver:
     def completed(self) -> dict[str, Any]:
         """What each finished document was recorded as."""
         return self.rows.completed
+
+    @property
+    def notes(self) -> dict[str, str | None]:
+        """What each finished document was recorded with beside its row."""
+        return self.rows.notes
 
     @property
     def failure(self) -> str | None:

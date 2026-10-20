@@ -181,6 +181,16 @@ class ParsingService(StageService):
             SourceDocument(sha256=document.sha256, data=data, scanned=scanned)
         )
 
+        note = None
+        if converted.unread_pages:
+            pages = ", ".join(map(str, converted.unread_pages))
+            note = (
+                f"no text layer on page(s) {pages}, which hold only a picture "
+                "and are not read without OCR, so their text is missing"
+            )
+            current.set_attribute("parse.image_only_pages", pages)
+            log.warning("parsed %s: %s", document.sha256, note)
+
         key = self._parsed.key_for(document.sha256)
         store = partial(
             self._parsed.put,
@@ -189,7 +199,15 @@ class ParsingService(StageService):
                 converted.document.export_to_dict(), ensure_ascii=False
             ).encode(),
             content_type="application/json",
-            metadata={"sha256": document.sha256, "docling-version": _DOCLING},
+            metadata={
+                "sha256": document.sha256,
+                "docling-version": _DOCLING,
+                **(
+                    {"image-only-pages": ",".join(map(str, converted.unread_pages))}
+                    if converted.unread_pages
+                    else {}
+                ),
+            },
         )
         # ponytail: downloads the earlier object only to learn it exists; a
         # head request on the bucket is the upgrade.
@@ -202,7 +220,7 @@ class ParsingService(StageService):
         self._unheld(document.sha256, parsed)
         if earlier:
             store()
-        self._repository.complete(document.sha256, parsed)
+        self._repository.complete(document.sha256, parsed, note)
 
         self._done(current)
         current.set_attribute("parse.pages", parsed.page_count)

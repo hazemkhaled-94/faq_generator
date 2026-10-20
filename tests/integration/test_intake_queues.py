@@ -117,6 +117,18 @@ def test_a_claim_on_a_document_with_no_counts_carries_none(engine, database) -> 
     assert (claimed.page_count, claimed.char_count) == (None, None)
 
 
+def test_a_parse_note_is_recorded_beside_the_row(parsable, engine) -> None:
+    """What a parsed document lacks shows where its failures show."""
+    queue = ParseQueue()
+    queue.claim()
+
+    queue.complete(A, PARSED, note="no text layer on page(s) 2")
+
+    assert one(
+        engine, "SELECT parse_status, parse_error FROM documents"
+    ).parse_error == ("no text layer on page(s) 2")
+
+
 def test_completing_a_parse_writes_the_content_columns(parsable, engine) -> None:
     """Title, language, content digest and both confidences."""
     queue = ParseQueue()
