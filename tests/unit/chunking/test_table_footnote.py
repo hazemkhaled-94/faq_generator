@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from docling_core.types.doc.document import (
+    ContentLayer,
     DoclingDocument,
     TableCell,
     TableData,
@@ -79,3 +80,33 @@ def test_a_footnote_attached_to_a_table_is_passage_text(
     _, chunks = chunks_of(document, word_chunker(200), None)
 
     assert any(needle in chunk.text for chunk in chunks), [c.text for c in chunks]
+
+
+def test_a_footnote_outside_the_body_layer_is_not_written() -> None:
+    """A note the converter filed as furniture is not the table's."""
+    document = footnoted(
+        "Delivery",
+        (("Method", "Price"), ("Standard", "4.95 EUR*")),
+        "Page 3 of 9 - Terms of sale",
+    )
+    document.texts[-1].content_layer = ContentLayer.FURNITURE
+
+    _, chunks = chunks_of(document, word_chunker(200), None)
+
+    assert not any("Terms of sale" in chunk.text for chunk in chunks)
+
+
+def test_a_caption_is_written_once() -> None:
+    """A caption the table also lists as a footnote is not doubled."""
+    document = DoclingDocument(name="t")
+    document.add_heading(text="Kontoführung", level=1)
+    table = document.add_table(data=grid(("Modell", "Preis"), ("Basis", "4,90 EUR")))
+    caption = document.add_text(
+        label=DocItemLabel.CAPTION, text="Tabelle 1: Entgelte", parent=table
+    )
+    table.captions.append(caption.get_ref())
+    table.footnotes.append(caption.get_ref())
+
+    _, chunks = chunks_of(document, word_chunker(200), None)
+
+    assert " ".join(c.text for c in chunks).count("Tabelle 1: Entgelte") == 1

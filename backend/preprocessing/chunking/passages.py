@@ -18,7 +18,7 @@ from docling_core.transforms.serializer.base import (
     BaseDocSerializer,
     SerializationResult,
 )
-from docling_core.transforms.serializer.common import create_ser_result
+from docling_core.transforms.serializer.common import DocSerializer, create_ser_result
 from docling_core.transforms.serializer.markdown import (
     MarkdownPictureSerializer,
     MarkdownTableSerializer,
@@ -43,25 +43,31 @@ class NoPassages(Exception):
     """Raised when a document yielded no passages to store."""
 
 
-def _with_attached(
+def _footnoted(
     result: SerializationResult,
-    refs: Iterable[RefItem],
+    table: TableItem,
     document: DoclingDocument,
-    excluded: set[str],
+    serializer: BaseDocSerializer,
+    **kwargs: Any,
 ) -> SerializationResult:
-    """A block's rendering followed by the text items the converter attached.
+    """A table's rendering followed by the footnotes the converter attached.
 
-    The Markdown serializers write a block's captions and nothing else the
-    converter hung on it: a table's footnotes and the text printed inside a
-    picture are children no serializer renders, and the chunker does not
-    walk into them either.
+    The Markdown table serializer writes captions and no footnotes, and the
+    chunker does not walk into them. A note outside the layers the document
+    serializer writes (furniture, invisible text), one it excludes, and one
+    the table also lists as a caption, which the rendering already holds,
+    stay out.
     """
+    excluded = serializer.get_excluded_refs(**kwargs)
+    layers = serializer.params.layers if isinstance(serializer, DocSerializer) else None
+    captions = {ref.cref for ref in table.captions}
     texts = [
         found
-        for ref in refs
+        for ref in table.footnotes
         if isinstance(found := ref.resolve(document), TextItem)
         and found.text.strip()
-        and found.self_ref not in excluded
+        and found.self_ref not in excluded | captions
+        and (layers is None or found.content_layer in layers)
     ]
     if not texts:
         return result
@@ -87,13 +93,14 @@ class _Table(MarkdownTableSerializer):
         **kwargs: Any,
     ) -> SerializationResult:
         """Serializes the table, then its footnotes."""
-        return _with_attached(
+        return _footnoted(
             super().serialize(
                 item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
             ),
-            item.footnotes,
+            item,
             doc,
-            doc_serializer.get_excluded_refs(**kwargs),
+            doc_serializer,
+            **kwargs,
         )
 
 
