@@ -362,6 +362,7 @@ a caller branches on the code rather than on English:
 | `no_visualisation` | 404 | No fit or render has drawn that language's figure |
 | `cross_site_write` | 403 | A request other than GET, HEAD or OPTIONS carries `Sec-Fetch-Site: cross-site` or `same-site`, or an `Origin` that is not the API's own |
 | `already_running` | 409 | `POST /pipeline/run` while a run is going |
+| `assessment_cannot_run` | 409 | `POST /assessment/rerun` (or the kind-narrowed one) while `ASSESSMENT_ENABLED` is off or `ASSESSMENT_JUDGE_MODEL` names no model; no verdict is cleared |
 | `version_moved` | 409 | A settings change was sent against a version that is no longer current |
 | `length_required` | 411 | An upload declares no `Content-Length` |
 | `too_large` | 413 | An upload is over the size limit |
@@ -440,6 +441,9 @@ updating it fails the contract test.
   segment.** An unknown one is FastAPI's own 422, not an `ApiError`.
 - **`rerun` skips what a worker holds right now.** It is not a way to
   interrupt a running conversion.
+- **`rerun` on `/assessment` is refused 409 `assessment_cannot_run` while the
+  phase is off or no judge is named.** It clears every stored verdict, and no
+  worker would judge the rows again; the same check `make assess-rerun` makes.
 - **`GET /topics/visualisation/{language}` 404s for a language no fit or
   render has drawn.** A fit draws the figure, and `make topics-render`
   redraws it from the stored model; the route itself never draws.

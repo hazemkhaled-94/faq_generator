@@ -17,8 +17,8 @@ import time
 
 import telemetry
 from assessment import prompts
-from assessment.config import Settings, judged_kinds
-from assessment.factory import UNNAMED, build_service, judge_model
+from assessment.config import OFF, UNNAMED, Settings, judged_kinds
+from assessment.factory import build_service, judge_model
 from assessment.repository import AssessmentQueue
 from llm.check import before_work
 from llm.config import Settings as ModelSettings
@@ -28,16 +28,6 @@ from stages.cli import queue_main
 from stages.prompts import record
 
 log = logging.getLogger(__name__)
-
-#: What is printed when the phase is switched off. A message rather than an
-#: empty queue: a deployment that has not turned this on and cannot tell
-#: the difference between "off" and "nothing to judge" will read the second
-#: as a bug in the first.
-OFF = (
-    "ASSESSMENT_ENABLED is off, so nothing is judged. The pipeline is "
-    "unaffected - this phase only ever records an opinion beside the "
-    "checker's. Set ASSESSMENT_ENABLED=true in .env to run it."
-)
 
 
 def main(argv: list[str] | None = None) -> int:

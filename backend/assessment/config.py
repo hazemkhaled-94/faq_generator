@@ -15,6 +15,24 @@ from dataclasses import dataclass
 
 from settings import Source, boolean, csv, integer, optional
 
+#: What is said when the phase is switched off. A message rather than an
+#: empty queue: a deployment that has not turned this on and cannot tell
+#: the difference between "off" and "nothing to judge" will read the second
+#: as a bug in the first.
+OFF = (
+    "ASSESSMENT_ENABLED is off, so nothing is judged. The pipeline is "
+    "unaffected - this phase only ever records an opinion beside the "
+    "checker's. Set ASSESSMENT_ENABLED=true in .env to run it."
+)
+
+#: What is said when ASSESSMENT_JUDGE_MODEL names no model.
+UNNAMED = (
+    "ASSESSMENT_JUDGE_MODEL names no model, so nothing is judged, and "
+    "LLM_MODEL is not asked in its place. Set ASSESSMENT_JUDGE_MODEL, or "
+    "ASSESSMENT_JUDGE_CONTAINER_MODEL for the containers, to a model that is "
+    "not LLM_MODEL."
+)
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -48,6 +66,20 @@ class Settings:
             sample=integer("ASSESSMENT_SAMPLE", source),
             stratify=boolean("ASSESSMENT_STRATIFY", source),
         )
+
+
+def cannot_run(settings: Settings) -> str | None:
+    """Why no worker would judge anything now, or None where one would.
+
+    The one check the command line and the API share before a verb that
+    clears stored verdicts: a rerun that blanks them for a worker that will
+    claim nothing loses them for good.
+    """
+    if not settings.enabled:
+        return OFF
+    if not settings.judge_model:
+        return UNNAMED
+    return None
 
 
 def judge_of(settings: Settings, source: Source = None) -> tuple[str | None, bool]:

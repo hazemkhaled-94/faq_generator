@@ -19,10 +19,11 @@ from typing import Literal
 from fastapi import APIRouter
 
 from api.dependencies import assessment_catalog, assessment_queue
+from api.errors import ApiError
 from api.params import Limit, Offset, SearchText
 from api.routes.stage import StageAction, answered, stage_router
 from assessment.config import Settings as AssessmentSettings
-from assessment.config import judge_of
+from assessment.config import cannot_run, judge_of
 from assessment.models import AssessmentQuality, StoredAssessment
 from assessment.templates import PROMPT_VERSION, TEMPLATES, metrics_of
 from settings.store import resolved
@@ -71,7 +72,23 @@ def enrol() -> StageAction:
     return answered("assessment", "enrol", assessment_queue.enrol())
 
 
-router = stage_router(name="assessment", repository=assessment_queue)
+def _runnable() -> None:
+    """Refuses a rerun that no worker could judge again.
+
+    Redo blanks every stored verdict; with the phase off or no judge named
+    nothing claims the rows afterwards, and the verdicts are gone.
+
+    Raises:
+        ApiError: 409 `assessment_cannot_run`, before any row is touched.
+    """
+    why = cannot_run(AssessmentSettings.load(resolved()))
+    if why:
+        raise ApiError(409, "assessment_cannot_run", why)
+
+
+router = stage_router(
+    name="assessment", repository=assessment_queue, before_rerun=_runnable
+)
 
 
 @dataclass(frozen=True)

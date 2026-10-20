@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from assessment.config import Settings, judged_kinds
+from assessment.config import UNNAMED, Settings, judged_kinds
 from assessment.judge import Judge
 from assessment.repository import AssessmentQueue
 from assessment.service import AssessmentService
@@ -12,14 +12,6 @@ from llm.client import Client
 from llm.config import Settings as ModelSettings
 
 log = logging.getLogger(__name__)
-
-#: What is said when ASSESSMENT_JUDGE_MODEL names no model.
-UNNAMED = (
-    "ASSESSMENT_JUDGE_MODEL names no model, so nothing is judged, and "
-    "LLM_MODEL is not asked in its place. Set ASSESSMENT_JUDGE_MODEL, or "
-    "ASSESSMENT_JUDGE_CONTAINER_MODEL for the containers, to a model that is "
-    "not LLM_MODEL."
-)
 
 
 def judge_model(settings: Settings, shared: ModelSettings) -> ModelSettings:

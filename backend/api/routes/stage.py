@@ -17,6 +17,7 @@ one does not.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Literal, Protocol
 from uuid import uuid4
@@ -295,11 +296,22 @@ def acted(
     return answered(name, action, rows, scope=scope, value=value, run=trigger)
 
 
-def stage_router(*, name: str, repository: StageRepository) -> APIRouter:
-    """Builds the five corpus-wide routes and their narrowed pair."""
+def stage_router(
+    *,
+    name: str,
+    repository: StageRepository,
+    before_rerun: Callable[[], None] | None = None,
+) -> APIRouter:
+    """Builds the five corpus-wide routes and their narrowed pair.
+
+    `before_rerun` is a stage's check that a rerun can be worked off, called
+    before any row is touched because the verb clears what is stored. It
+    raises the refusal itself.
+    """
     router = APIRouter(prefix=f"/{name}", tags=[name])
     refusals: dict[int | str, dict[str, Any]] = {
-        code: {"model": ErrorBody} for code in (400, 404)
+        code: {"model": ErrorBody}
+        for code in (400, 404, *((409,) if before_rerun else ()))
     }
 
     @router.get("/status")
@@ -340,6 +352,8 @@ def stage_router(*, name: str, repository: StageRepository) -> APIRouter:
                 "that is still on it. Narrow it to one item, or pass "
                 "?confirm=true once the stage is stopped.",
             )
+        if action == "rerun" and before_rerun:
+            before_rerun()
         return acted(name, repository, action, run=run)
 
     @router.get("/{scope}/{value}/status", responses=refusals)
@@ -363,6 +377,8 @@ def stage_router(*, name: str, repository: StageRepository) -> APIRouter:
         Raises:
             ApiError: 404 `unknown_scope`, 400 `invalid_value`.
         """
+        if action == "rerun" and before_rerun:
+            before_rerun()
         return acted(
             name,
             repository,
