@@ -38,6 +38,7 @@ FLOORED = "7d4e1f2a9c63"
 KEPT = "8f759a3a3848"
 KINDED = "a41c9e3d7b52"
 BRIDGED = "c3a9e1470b5d"
+THREADED = "d5b2f8a60c14"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -58,6 +59,7 @@ LATER = (
     KEPT,
     KINDED,
     BRIDGED,
+    THREADED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
@@ -611,3 +613,38 @@ def test_a_bridge_reading_is_added_empty_and_taken_back_out(spare: str) -> None:
 
     command.upgrade(config, "head")
     assert sql(spare, "SELECT bridge FROM facts") == [(None,)] * 9
+
+
+def test_a_thread_already_split_is_whole_after_the_revision(spare: str) -> None:
+    """Released follow-ups under a rejected or draft root lose their release.
+
+    A bank thread in German and a shop thread in English, written before the
+    trigger existed; a third thread whose root is accepted stays released.
+    """
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, BRIDGED)
+    sql(
+        spare,
+        "INSERT INTO questions (id, question_text, answerable, language, status, "
+        "release_id, follows_id, thread_position) VALUES "
+        "(11, 'Was kostet die Karte?', true, 'de', 'rejected', NULL, NULL, 1), "
+        "(12, 'Und wann wird sie abgebucht?', true, 'de', 'accepted', "
+        "'00000000-0000-0000-0000-000000000001', 11, 2), "
+        "(13, 'Can goods be returned?', true, 'en', 'draft', NULL, NULL, 1), "
+        "(14, 'And how long do refunds take?', true, 'en', 'accepted', "
+        "'00000000-0000-0000-0000-000000000001', 13, 2), "
+        "(15, 'And where does the money go?', true, 'en', 'accepted', "
+        "'00000000-0000-0000-0000-000000000001', 14, 3), "
+        "(16, 'Is delivery free?', true, 'en', 'accepted', "
+        "'00000000-0000-0000-0000-000000000001', NULL, 1), "
+        "(17, 'And for returns?', true, 'en', 'accepted', "
+        "'00000000-0000-0000-0000-000000000001', 16, 2)",
+    )
+    released = "SELECT id FROM questions WHERE release_id IS NOT NULL ORDER BY id"
+    assert sql(spare, released) == [(12,), (14,), (15,), (16,), (17,)]
+
+    command.upgrade(config, THREADED)
+
+    assert sql(spare, released) == [(16,), (17,)]
