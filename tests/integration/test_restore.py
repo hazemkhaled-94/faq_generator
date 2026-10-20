@@ -6,6 +6,8 @@ the removal paths fill the archive and nothing here writes to it directly.
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from seed import (
     digest,
@@ -296,3 +298,140 @@ def test_a_question_resting_on_two_documents_comes_back_accepted(
             text("SELECT status::text FROM questions WHERE id = :id"), {"id": asked_id}
         ).scalar_one()
     assert status == "accepted"
+
+
+@pytest.mark.parametrize(
+    ("language", "first", "second"),
+    [
+        ("de", "Die Kontoführung kostet 5 EUR im Monat.", "Pro Tag sind 1000 EUR abhebbar."),
+        ("en", "Goods may be returned within 30 days.", "Delivery takes 3 working days."),
+    ],
+)
+def test_a_restored_question_does_not_rejoin_a_superseded_release(
+    engine, database, buckets, monkeypatch, language, first, second
+) -> None:
+    """A draw made after the deletion keeps the only release there is."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+    from question_generation.catalog import QuestionCatalog
+
+    one, other = digest(f"one-{language}"), digest(f"other-{language}")
+    old = uuid.uuid4()
+    with Session(engine) as session:
+        session.add_all([document(one), document(other)])
+        session.flush()
+        cut_one = passage(one, language=language)
+        cut_other = passage(other, language=language)
+        session.add_all([cut_one, cut_other])
+        session.flush()
+        fact_one = fact(cut_one.id, statement=first)
+        fact_other = fact(cut_other.id, statement=second)
+        session.add_all([fact_one, fact_other])
+        session.flush()
+        gone = question(status="accepted", release_id=old, language=language)
+        kept = question(status="accepted", release_id=old, language=language)
+        session.add_all([gone, kept])
+        session.flush()
+        session.add_all([link(gone.id, fact_one.id), link(kept.id, fact_other.id)])
+        session.commit()
+        gone_id, kept_id = gone.id, kept.id
+    since = now(engine)
+
+    DocumentRepository().delete(one)
+    QuestionCatalog().release([kept_id])
+    monkeypatch.setenv("SINCE", since)
+    restore.main()  # 1: the seeded document has no upload in the bucket
+
+    with engine.connect() as connection:
+        live = {
+            row.id: row.release_id
+            for row in connection.execute(text("SELECT id, release_id FROM questions"))
+        }
+    assert set(live) == {gone_id, kept_id}
+    assert live[gone_id] is None
+    assert live[kept_id] is not None
+
+
+@pytest.mark.parametrize(
+    ("language", "text_one", "text_other", "drawn_after", "expected"),
+    [
+        (
+            "de",
+            "Die Kontoführung kostet 5 EUR im Monat.",
+            "Pro Tag sind 1000 EUR abhebbar.",
+            False,
+            False,
+        ),
+        (
+            "en",
+            "Goods may be returned within 30 days.",
+            "Delivery takes 3 working days.",
+            False,
+            False,
+        ),
+        (
+            "de",
+            "Die Kontoführung kostet 5 EUR im Monat.",
+            "Pro Tag sind 1000 EUR abhebbar.",
+            True,
+            True,
+        ),
+        (
+            "en",
+            "Goods may be returned within 30 days.",
+            "Delivery takes 3 working days.",
+            True,
+            True,
+        ),
+    ],
+)
+def test_a_restored_question_keeps_its_release_only_where_a_live_one_holds_it(
+    engine,
+    database,
+    buckets,
+    monkeypatch,
+    language,
+    text_one,
+    text_other,
+    drawn_after,
+    expected,
+) -> None:
+    """With no live question in its release, the release was cleared on purpose."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+
+    one, other = digest(f"one-{language}"), digest(f"other-{language}")
+    old = uuid.uuid4()
+    with Session(engine) as session:
+        session.add_all([document(one), document(other)])
+        session.flush()
+        cut_one = passage(one, language=language)
+        cut_other = passage(other, language=language)
+        session.add_all([cut_one, cut_other])
+        session.flush()
+        fact_one = fact(cut_one.id, statement=text_one)
+        fact_other = fact(cut_other.id, statement=text_other)
+        session.add_all([fact_one, fact_other])
+        session.flush()
+        gone = question(status="accepted", release_id=old, language=language)
+        kept = question(
+            status="accepted",
+            release_id=old if drawn_after else None,
+            language=language,
+        )
+        session.add_all([gone, kept])
+        session.flush()
+        session.add_all([link(gone.id, fact_one.id), link(kept.id, fact_other.id)])
+        session.commit()
+        gone_id = gone.id
+    since = now(engine)
+
+    DocumentRepository().delete(one)
+    monkeypatch.setenv("SINCE", since)
+    restore.main()  # 1: the seeded document has no upload in the bucket
+
+    with engine.connect() as connection:
+        release = connection.execute(
+            text("SELECT release_id FROM questions WHERE id = :id"), {"id": gone_id}
+        ).scalar_one()
+    assert (release == old) is expected

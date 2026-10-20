@@ -51,6 +51,29 @@ ORDER BY a.archived_at DESC, a.id DESC
 ON CONFLICT DO NOTHING
 """
 
+#: A restored question's release_id belonged to the draw of its day. It stays
+#: only where a question that was live all along still holds that release;
+#: otherwise a later draw superseded it or the release was cleared, and the
+#: question comes back accepted but undrawn.
+_RESTORED = """
+SELECT (a.payload->>'id')::bigint FROM archived_rows a
+WHERE a.table_name = 'questions' AND a.archived_at >= :since
+"""
+_SUPERSEDED = (
+    """
+UPDATE questions q SET release_id = NULL
+WHERE q.release_id IS NOT NULL
+  AND q.id IN ("""
+    + _RESTORED
+    + """)
+  AND NOT EXISTS (
+    SELECT 1 FROM questions o
+    WHERE o.release_id = q.release_id AND o.id NOT IN ("""
+    + _RESTORED
+    + """))
+"""
+)
+
 
 def _deletions(connection: Connection) -> None:
     """Lists the archived rows by the minute they were deleted, newest first."""
@@ -138,6 +161,8 @@ def main() -> int:
                     {"table": table, "since": since},
                 ).rowcount
                 print(f"  {table:<20} {restored:>8} of {held[table]} row(s)")
+                if table == "questions":
+                    connection.execute(text(_SUPERSEDED), {"since": since})
         except IntegrityError as exc:
             connection.rollback()
             print(f"\nNothing restored: {exc.orig}")
