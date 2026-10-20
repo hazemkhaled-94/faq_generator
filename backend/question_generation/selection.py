@@ -454,11 +454,20 @@ class Deal:
 
         `prefer` deals the next passage still holding a fact it accepts, and
         offers those facts first. `holds` is what asks whether one is left.
+
+        A compound (`Shape.APART`) sample is never a bridge: where the topic
+        holds nothing else it is exhausted, as a spent topic is.
         """
+        if shape == Shape.APART:
+            # Two passages nobody relates: a bridge relates its own two by
+            # construction, so a compound sample is dealt the passages' own
+            # claims and a bridge waits for a slot that may rest on it.
+            asked = prefer
+            prefer = lambda fact: not fact.spans and (asked is None or asked(fact))
         head = self._next(prefer)
         if head is None:
             return None
-        if shape == Shape.SINGLE or head[0].spans:
+        if shape == Shape.SINGLE or (head[0].spans and shape != Shape.APART):
             # A fact that already rests on several passages is asked about
             # alone: it satisfies a wide shape by itself, and pairing it with
             # a second passage would put the sample over the budget and make

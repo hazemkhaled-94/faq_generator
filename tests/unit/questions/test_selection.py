@@ -1200,3 +1200,99 @@ def test_a_passage_with_no_lemmas_is_not_a_compound_partner() -> None:
 
     assert sample is not None
     assert {fact.passage_id for fact in sample.facts} == {1, 3}
+
+
+# ── A compound sample is never a bridge ───────────────────────────────────
+
+_PLAIN = [
+    (
+        "en",
+        "Standard delivery takes 3 to 5 working days.",
+        "Goods may be returned within 30 days.",
+        "The return period starts on the day the delivery arrives.",
+    ),
+    (
+        "de",
+        "Die Standardlieferung dauert 3 bis 5 Werktage.",
+        "Waren können innerhalb von 30 Tagen zurückgegeben werden.",
+        "Die Rückgabefrist beginnt am Tag der Lieferung.",
+    ),
+    (
+        "en",
+        "A current account costs 5 euros a month.",
+        "Cards are replaced free of charge.",
+        "The fee is charged on the day the card is activated.",
+    ),
+    (
+        "de",
+        "Ein Girokonto kostet 5 Euro im Monat.",
+        "Karten werden kostenlos ersetzt.",
+        "Die Gebühr wird am Tag der Kartenaktivierung erhoben.",
+    ),
+]
+
+
+@pytest.mark.parametrize("language,head_text,partner_text,bridge_text", _PLAIN)
+def test_a_compound_sample_never_rests_on_a_bridge_alone(
+    language, head_text, partner_text, bridge_text
+) -> None:
+    """A compound pair is two unrelated passages, and a bridge relates its own two."""
+    kw = {"language": language}
+    spanning = bridge(
+        resting(3, document="doc-c", language=language),
+        fact_id=2,
+        passage_id=2,
+        document="doc-a",
+        statement=bridge_text,
+        lemmas=("other",),
+        **kw,
+    )
+    head = source(
+        1, document="doc-a", passage_id=1, statement=head_text, lemmas=("one",), **kw
+    )
+    deal = Deal([head, spanning], wanted=10, size=2, rounds=3)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert [fact.id for fact in sample.facts] == [1]
+
+
+@pytest.mark.parametrize("language,head_text,partner_text,bridge_text", _PLAIN)
+def test_a_compound_head_holding_a_bridge_first_is_dealt_its_own_claims(
+    language, head_text, partner_text, bridge_text
+) -> None:
+    """The head passage's bridge ranks first, and is left for a slot that may rest on it."""
+    kw = {"language": language}
+    spanning = bridge(
+        resting(3, document="doc-c", language=language),
+        fact_id=1,
+        passage_id=1,
+        document="doc-a",
+        statement=bridge_text,
+        **kw,
+    )
+    own = source(
+        2, document="doc-a", passage_id=1, statement=head_text, lemmas=("one",), **kw
+    )
+    other = source(
+        3, document="doc-a", passage_id=2, statement=partner_text, lemmas=("two",), **kw
+    )
+    deal = Deal([spanning, own, other], wanted=10, size=2, rounds=3)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert not any(fact.spans for fact in sample.facts)
+    assert len(sample.resting) == 2
+
+
+def test_a_compound_slot_with_only_bridges_left_is_exhausted() -> None:
+    """Nothing but a bridge in the topic: the deal reports none left, as it does when spent."""
+    spanning = bridge(resting(2), fact_id=1, passage_id=1, document="doc-a")
+    deal = Deal([spanning], wanted=4, size=2)
+
+    assert deal.sample(Shape.APART) is None
+    assert deal.sample(Shape.SINGLE) is not None, (
+        "the bridge is left for a slot that may rest on it"
+    )
