@@ -165,6 +165,15 @@ http://host.docker.internal:11434 did not answer: ... model not found
 Nothing in it names a provider: whatever authenticates a stage authenticates
 the check.
 
+### What a span of passages needs
+
+`spans.py` holds the relations a bridge may name (defines, limits,
+consequence, applies, parallel, contrast), each with the meaning the bridge
+prompt gives it and where its answer comes from. The bridge pass and the
+question checker read the one table, and the quote check that decides what a
+passage holds lives in `nlp/text.py` for the same reason: extraction and
+question generation may not import each other.
+
 ## Cost and latency
 
 Every call is logged with its duration, its token counts and, where

@@ -200,6 +200,16 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.23
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+make schema
+```
+
+`make schema` applies one migration: it adds `facts.bridge`, empty on every row, with no backfill, and constrains it to a bridge. Bridges written before it stay empty until `make extract-bridge FORCE=1` rewrites them. Nothing else changes: no prompt version moves and no stored verdict moves.
+
 ## Upgrading to v0.3.22
 
 ```bash

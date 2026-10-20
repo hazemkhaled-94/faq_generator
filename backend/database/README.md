@@ -132,10 +132,12 @@ nothing downstream reports the difference.
 
 Every revision is reversible, and
 `tests/integration/database/test_migration_rollback.py` applies and takes
-back out every one of them on a real PostgreSQL. One loses information:
+back out every one of them on a real PostgreSQL. Two lose information:
 `20261019_2300_question_kind.py` backfills `questions.kind` from
 `passage_scope`, so taking it out and putting it back turns every compound
-question into `needs_both`.
+question into `needs_both`, and `20261020_0100_a_bridge_keeps_its_reading.py`
+holds the relation and probe question of each bridge, which taking it out
+drops.
 
 A revision's docstring says **why**; the diff says what.
 
@@ -144,7 +146,7 @@ head these carry ([`revision.py`](qa_generator/revision.py)): until
 `make schema` has applied it, `/status` is not green and a queue claims
 nothing.
 
-The nineteen revisions, oldest first:
+The twenty revisions, oldest first:
 
 | File | Changes |
 |---|---|
@@ -167,6 +169,7 @@ The nineteen revisions, oldest first:
 | `20261013_1210_a_capped_prompt_names_its_floor.py` | Comments only: `facts.prompt_version` and `prompts.version` name the capped atomic prompt as 10+cap4 |
 | `20261018_1200_passages_comment_says_what_a_rechunk_keeps.py` | Comment only: the `passages` table says a re-chunk keeps every passage it cuts again unchanged |
 | `20261019_2300_question_kind.py` | Adds `questions.kind` (single, needs_both, compound, false_premise), NOT NULL with a CHECK, backfilled from `passage_scope` in the table and in archived question payloads |
+| `20261020_0100_a_bridge_keeps_its_reading.py` | Adds `facts.bridge`, a nullable JSONB column holding a bridge's `{relation, question, answer}`, NULL on every other fact and on every bridge already stored, with a CHECK that only a bridge carries it |
 
 ## Column comments
 

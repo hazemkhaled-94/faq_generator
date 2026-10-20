@@ -283,8 +283,11 @@ was already checked. It is told not to compute: a total nobody wrote down
 would be refused as `unsupported_addition`. A pair with a passage holding no
 validated fact is not read; the per-language log line counts them. Two facts
 set side by side ("both A and B", "stated separately") are not a bridge unless
-a question about the two needs both. The question is not stored; it is what
-the bridge is later tested with. Prompt version 6 replaces the list-of-claims
+a question about the two needs both. A bridge's fact row also stores its
+reading in `facts.bridge`, the relation the model named and the question and
+short answer the bridge is tested with, refused bridges included, so a
+re-judgement tests the same thing; it is empty on every other fact and on a
+bridge written before prompt 6. Prompt version 6 replaces the list-of-claims
 prompt 5.
 
 A trigger deletes a bridge once any passage it rests on is gone. Re-running
