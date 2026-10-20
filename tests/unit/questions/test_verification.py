@@ -45,6 +45,7 @@ from question_generation.gates import (
     restates,
     same_material,
     structural,
+    unnamed,
 )
 from question_generation.models import Neighbour
 from question_generation.verifier import Reading, Settled, Settling, Verifier
@@ -3976,6 +3977,73 @@ def test_a_figure_or_a_verb_phrase_the_key_lacks_is_still_an_item_it_lacks(
 ) -> None:
     """The extra item is a figure, or a coordinated verb phrase with nouns of its own."""
     assert incomplete(recovered, target, language, AnswerForm.LIST, question=question)
+
+
+@pytest.mark.parametrize("marker", ["1.", "1)", "a)", "-", "•"])
+@pytest.mark.parametrize(
+    ("language", "first", "second", "target", "question"),
+    [
+        (
+            "en",
+            "card fraud",
+            "unpaid fees",
+            "card fraud and unpaid fees",
+            "When is a card blocked?",
+        ),
+        (
+            "de",
+            "Kartenbetrug",
+            "offene Gebühren",
+            "Kartenbetrug und offene Gebühren",
+            "Wann wird eine Karte gesperrt?",
+        ),
+        (
+            "en",
+            "a receipt",
+            "the original packaging",
+            "a receipt and the original packaging",
+            "What must a customer return goods with?",
+        ),
+        (
+            "de",
+            "ein Beleg",
+            "die Originalverpackung",
+            "ein Beleg und die Originalverpackung",
+            "Was muss ein Kunde bei der Rückgabe vorlegen?",
+        ),
+    ],
+)
+def test_a_list_marker_is_not_a_figure_the_key_lacks(
+    language, first, second, target, question, marker
+) -> None:
+    """`1.` and `2)` number the items of a recovery; they are not figures it states."""
+    second_marker = {"1.": "2.", "1)": "2)", "a)": "b)"}.get(marker, marker)
+    recovered = f"{marker} {first}\n{second_marker} {second}"
+    assert unnamed(recovered, target, language, question) == ()
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target", "question"),
+    [
+        (
+            "en",
+            "1. Withdrawals\n2. Withdrawals over 500 EUR",
+            "Withdrawals",
+            "Which payments need approval?",
+        ),
+        (
+            "de",
+            "1) Abhebungen\n2) Abhebungen über 500 EUR",
+            "Abhebungen",
+            "Welche Zahlungen brauchen eine Freigabe?",
+        ),
+    ],
+)
+def test_a_figure_inside_a_list_item_still_counts(
+    language, recovered, target, question
+) -> None:
+    """Only the marker is dropped; the 500 inside the item is a figure the key lacks."""
+    assert "500.0" in unnamed(recovered, target, language, question)
 
 
 #: Everything the passage says blocks a card, as a verifier reading it

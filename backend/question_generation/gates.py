@@ -1844,6 +1844,9 @@ def unnamed(
 ) -> tuple[str, ...]:
     """The items the recovery names that neither the key nor the question carries."""
     known = vocabulary(target, language) | vocabulary(question, language)
+    # The numbers that mark the items of a list (`1.`, `2)`) are not figures,
+    # and not words the tagger should read.
+    unmarked = "\n".join(MARKER.sub("", line) for line in recovered.splitlines())
 
     def new(word: Token, item: Token) -> bool:
         return (word is item or word.pos_ in _NAMING) and not (
@@ -1852,7 +1855,7 @@ def unnamed(
 
     items: dict[int, Token] = {}
     phrases: list[Token] = []
-    for token in pipeline(language)(recovered):
+    for token in pipeline(language)(unmarked):
         if _coordinated_item(token):
             first = token.head.head if token.head.dep_ == "cd" else token.head
             items[first.i] = first
@@ -1886,7 +1889,7 @@ def unnamed(
     }
     found += [
         min(one)
-        for one in _number_readings(recovered, language)
+        for one in _number_readings(unmarked, language)
         if not one & stated and any(char.isdigit() for char in "".join(one))
     ]
     found += [
