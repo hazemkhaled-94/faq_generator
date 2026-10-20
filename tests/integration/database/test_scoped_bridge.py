@@ -113,3 +113,69 @@ def _pairs(store) -> list[tuple[int, ...]]:
     for fact, passage in rows:
         by.setdefault(fact, []).append(passage)
     return [tuple(sorted(v)) for v in by.values()]
+
+
+PAIRS = {
+    ("bank", "en"): (
+        [
+            "A dormant account is charged a yearly fee of 10 EUR.",
+            "A replacement card costs 5 EUR.",
+        ],
+        ["Fees > Yearly fees", "Fees > Card fees"],
+    ),
+    ("bank", "de"): (
+        [
+            "Für ein ruhendes Konto wird eine Jahresgebühr von 10 EUR erhoben.",
+            "Eine Ersatzkarte kostet 5 EUR.",
+        ],
+        ["Gebühren > Jahresgebühren", "Gebühren > Kartengebühren"],
+    ),
+    ("shop", "en"): (
+        [
+            "Standard delivery costs 4 EUR within the country.",
+            "Express delivery costs 9 EUR.",
+        ],
+        ["Delivery > Standard", "Delivery > Express"],
+    ),
+    ("shop", "de"): (
+        [
+            "Der Standardversand kostet 4 EUR im Inland.",
+            "Der Expressversand kostet 9 EUR.",
+        ],
+        ["Versand > Standard", "Versand > Express"],
+    ),
+}
+
+
+@pytest.fixture(params=list(PAIRS))
+def two(request, engine, database):
+    """Two sibling passages in two topics, and the full pass already run."""
+    domain, language = request.param
+    texts, paths = PAIRS[request.param]
+    store = FactStore(engine, language=language)
+    first, second = store.corpus((domain, texts))[domain]
+    for pid, path, text in zip((first, second), paths, texts, strict=True):
+        store._execute(
+            "UPDATE passages SET section_path = :p WHERE id = :i", p=path, i=pid
+        )
+        store.store(pid, checked(pid, text))
+        store.topic(f"t{pid}", pid)
+    bridge(store.catalog, Extractor(), Checker(), 12, 2)
+    assert _pairs(store) == [(first, second)]
+    return store, first, second
+
+
+@pytest.mark.parametrize("scope", ["first", "second"])
+def test_a_scoped_pass_does_not_offer_a_pair_that_holds_a_bridge(two, scope) -> None:
+    """A sibling bridge opens on the earlier passage, whichever heads it."""
+    store, first, second = two
+    kept = first if scope == "first" else second
+    bridge(store.catalog, Extractor(), Checker(), 12, 2, Passage.id == kept)
+    assert len(_pairs(store)) == 1
+
+
+def test_a_second_missing_pass_does_not_bridge_a_pair_again(two) -> None:
+    """`make corpus` twice: the second head of a bridged pair offers it again."""
+    store, _, _ = two
+    bridge(store.catalog, Extractor(), Checker(), 12, 2, missing=True)
+    assert len(_pairs(store)) == 1

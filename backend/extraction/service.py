@@ -496,6 +496,9 @@ def bridge(
     heads = [one for _, ones in scoped for one in ones if skipped(one) is None]
     partners = [one for _, ones in whole for one in ones if skipped(one) is None]
     facts = catalog.atomic_of({one.id for one in partners})
+    # Read after the clear: what is left is what this pass must not repeat,
+    # whichever side of a cross-topic pair heads it.
+    held = catalog.bridged_pairs()
     for language in sorted({one.language or "" for one in partners}):
         links = linked(
             [one for one in heads if (one.language or "") == language],
@@ -504,6 +507,7 @@ def bridge(
             groups_per_topic,
             size,
             done,
+            held,
         )
         kinds = Counter(link.kind for link in links)
         # A passage with no validated fact has nothing to compose from.

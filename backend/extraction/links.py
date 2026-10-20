@@ -282,6 +282,7 @@ def linked(
     wanted: int,
     size: int,
     done: frozenset[int] = frozenset(),
+    held: frozenset[frozenset[int]] = frozenset(),
 ) -> list[Link]:
     """Pairs each head with the passage the documents link it to.
 
@@ -301,6 +302,8 @@ def linked(
         size: How many passages one link holds; beyond two, the last
             member's own best link adds the next.
         done: Topics whose heads are skipped.
+        held: Pairs of passage ids a stored bridge already rests on; a head
+            never offers one of them, and takes its next link instead.
 
     Returns:
         The links, per language and topic in reading order.
@@ -314,7 +317,7 @@ def linked(
         _references(edges, mine, language or None)
         _siblings(edges, mine)
         _terms(edges, mine, language or None)
-        seen: set[frozenset[int]] = set()
+        seen: set[frozenset[int]] = set(held)
         by_topic: dict[int, list[Link]] = defaultdict(list)
         for head in (h for h in heads if (h.language or "") == language):
             topic = topic_of.get(head.id)

@@ -1175,6 +1175,23 @@ class FactCatalog(Repository):
         with self._session() as session:
             return frozenset(session.scalars(query))
 
+    def bridged_pairs(self) -> frozenset[frozenset[int]]:
+        """The passage pairs a stored bridge opens on, as unordered sets.
+
+        The first two passages of each bridge: the pair a link was offered
+        as, whichever of the two headed it. What a pass must not offer again.
+        """
+        query = (
+            select(FactPassage.fact_id, FactPassage.passage_id)
+            .join(Fact, Fact.id == FactPassage.fact_id)
+            .where(Fact.kind == FactKind.BRIDGE, FactPassage.position < 2)
+        )
+        pairs: dict[int, set[int]] = defaultdict(set)
+        with self._session() as session:
+            for fact, passage in session.execute(query):
+                pairs[fact].add(passage)
+        return frozenset(frozenset(ids) for ids in pairs.values())
+
     def accepted_on_bridges(self, within=None) -> int:
         """Counts the accepted questions citing a bridge `clear_bridges` deletes.
 
