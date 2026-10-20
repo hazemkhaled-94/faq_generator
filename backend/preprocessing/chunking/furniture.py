@@ -484,14 +484,16 @@ def _restated(
     follows - or None where it repeats that heading itself and so heads
     nothing new. A paragraph `junk` flags is none, and neither is one that
     repeats a name it flags: a lone `oder` between two alternatives is text
-    wherever else the layout took one for a heading.
+    wherever else the layout took one for a heading. A name and a paragraph
+    both hold a letter: a page number is no name, and a price whose digits
+    equal one, `5 €`, is no repeat of it.
     """
     names = {
         _plain(name)
         for item in document.texts
         if item.label in _RUNNING
         for name in (item.text, *fields(item.text))
-        if not junk(name)
+        if _lettered(name) and not junk(name)
     } | {
         _plain(item.text)
         for item in document.texts
@@ -510,6 +512,7 @@ def _restated(
             and item.label in _PROSE
             and item.content_layer == ContentLayer.BODY
             and item.self_ref not in skipped
+            and _lettered(item.text)
             and not junk(item.text)
             and (plain := _plain(item.text)) in names
         ):
