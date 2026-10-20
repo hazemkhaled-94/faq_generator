@@ -132,19 +132,45 @@ def table(
     rows: list[dict],
     key: str,
     column_config: dict | None = None,
+    ids: list | None = None,
 ) -> int | None:
     """Draws the page's table and returns which row was picked, if any.
 
     Nothing below the table is drawn until a row is chosen, so this returns
     None on arrival and a position into `rows` afterwards.
 
-    A position rather than an id: the selection Streamlit hands back is
-    positional, and the caller already holds the rows it passed in. So
-    after `acted` the pick is cleared rather than left on whichever row now
-    holds that position.
+    Streamlit hands the selection back as a position and keeps it under the
+    table's key whatever rows the next run draws. So the pick is also
+    remembered by the id of the row (`ids`, one per row; the position when
+    not given): a page, filter or search change that no longer shows that row
+    drops the pick, and a row that moved under it takes the pick along.
+    After `acted` the pick is cleared as well.
     """
+    ids = list(range(len(rows))) if ids is None else ids
+    remembered = f"{key}-picked"
     if st.session_state.pop(_ACTED, False):
         st.session_state[key] = {"selection": {"rows": []}}
+    chosen = (st.session_state.get(key) or {}).get("selection", {}).get("rows", [])
+    held = st.session_state.get(remembered)
+    if not chosen:
+        st.session_state.pop(remembered, None)
+    else:
+        position = chosen[0]
+        if held is not None and held[0] == position:
+            # The same pick as the last run: follow its row, if it is still here.
+            position = ids.index(held[1]) if held[1] in ids else None
+            if position is None:
+                st.caption("That row changed meanwhile.")
+        elif position >= len(rows):
+            position = None
+        if position is None:
+            st.session_state.pop(remembered, None)
+        else:
+            st.session_state[remembered] = (position, ids[position])
+        if position != chosen[0]:
+            st.session_state[key] = {
+                "selection": {"rows": [] if position is None else [position]}
+            }
     picked = st.dataframe(
         rows,
         width="stretch",
@@ -155,11 +181,7 @@ def table(
         key=key,
     )
     chosen = picked["selection"]["rows"]
-    # Guarded, not trusted: a selection outlives the rows it was made on, so
-    # a filter that shortens the page leaves an index past the end of it.
-    if not chosen or chosen[0] >= len(rows):
-        return None
-    return chosen[0]
+    return chosen[0] if chosen and chosen[0] < len(rows) else None
 
 
 def queue_rows(

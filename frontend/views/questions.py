@@ -512,6 +512,7 @@ def view() -> None:
                 for row in rows
             ],
             key="questions-table",
+            ids=[row["id"] for row in rows],
             column_config={
                 "State": st.column_config.TextColumn(
                     help="accepted cleared every gate, or a person said so. "

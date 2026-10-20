@@ -189,6 +189,7 @@ def view() -> None:
                     for topic in rows
                 ],
                 key="topics-table",
+                ids=[(topic["language"], topic["topic_index"]) for topic in rows],
                 column_config={"Top terms": st.column_config.TextColumn(width="large")},
             )
             if picked is not None:

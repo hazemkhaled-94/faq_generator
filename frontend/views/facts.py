@@ -298,6 +298,7 @@ def view() -> None:
                 for row in rows
             ],
             key="facts-table",
+            ids=[row["id"] for row in rows],
             column_config={
                 # Widths of "deterministic" and "Within the passage's share".
                 "Method": st.column_config.TextColumn(width=110),

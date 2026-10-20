@@ -175,6 +175,7 @@ def view() -> None:
                 for row in rows
             ],
             key="passages-table",
+            ids=[row["id"] for row in rows],
             column_config={"Text": st.column_config.TextColumn(width="large")},
         )
 

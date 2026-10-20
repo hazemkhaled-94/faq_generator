@@ -374,6 +374,7 @@ def view() -> None:
                 for row in rows
             ],
             key="assessment-table",
+            ids=[row["id"] for row in rows],
             column_config={
                 "What it is": st.column_config.TextColumn(width="large"),
             },

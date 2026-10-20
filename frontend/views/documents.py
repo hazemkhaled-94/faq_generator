@@ -226,6 +226,7 @@ def view() -> None:
                 for document in rows
             ],
             key="documents-table",
+            ids=[row["sha256"] for row in rows],
         )
 
     if picked is not None:
