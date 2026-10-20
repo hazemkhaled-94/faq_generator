@@ -43,8 +43,10 @@ from preprocessing.parsing.pipelines.base import ConversionFailed, Pipeline
 log = logging.getLogger(__name__)
 
 #: A discretionary hyphen, spelled either as U+00AD or as the U+0002 some
-#: fonts map it to, with whatever space follows it.
-_SOFT_HYPHEN = re.compile(r"[\x02\u00ad]\s*")
+#: fonts map it to. A soft hyphen is invisible unless its line breaks there,
+#: so it is dropped unless a space, a digit or a capital follows it, where it is
+#: the hyphen a font drew with that code.
+_SOFT_HYPHEN = re.compile(r"[\x02\u00ad]")
 
 #: Control characters other than newline and tab.
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
@@ -248,6 +250,24 @@ class PdfPipeline(Pipeline):
         return self._built
 
 
+def _softened(text: str) -> str:
+    """Spells a soft hyphen "-" before a space, a digit or a capital, else drops it.
+
+    Inside a word, between letters of a script without case, or after a
+    hyphen, it is invisible. What follows a spelled hyphen, a space at a line
+    break, is left for `rejoined`, which joins the broken word and keeps
+    "Kredit- oder".
+    """
+
+    def spelled(found: re.Match[str]) -> str:
+        after = found.string[found.end() : found.end() + 1]
+        before = found.string[max(found.start() - 1, 0) : found.start()]
+        drawn = after != "" and (after.isspace() or after.isdigit() or after.isupper())
+        return "-" if drawn and before != "-" else ""
+
+    return _SOFT_HYPHEN.sub(spelled, text)
+
+
 def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """Rejoins a line-broken word and spells the rest so it can be copied.
 
@@ -264,7 +284,7 @@ def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """
     composed = unicodedata.normalize("NFC", text)
     cleaned = _SPACES.sub(
-        " ", _INVISIBLE.sub("", _CONTROL.sub("", _SOFT_HYPHEN.sub("", composed)))
+        " ", _INVISIBLE.sub("", _CONTROL.sub("", _softened(composed)))
     )
     # After the space normalisation, so the broken-word rule sees one kind of
     # space.
