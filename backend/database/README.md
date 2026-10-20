@@ -132,7 +132,10 @@ nothing downstream reports the difference.
 
 Every revision is reversible, and
 `tests/integration/database/test_migration_rollback.py` applies and takes
-back out every one of them on a real PostgreSQL.
+back out every one of them on a real PostgreSQL. One loses information:
+`20261019_2300_question_kind.py` backfills `questions.kind` from
+`passage_scope`, so taking it out and putting it back turns every compound
+question into `needs_both`.
 
 A revision's docstring says **why**; the diff says what.
 
@@ -141,7 +144,7 @@ head these carry ([`revision.py`](qa_generator/revision.py)): until
 `make schema` has applied it, `/status` is not green and a queue claims
 nothing.
 
-The eighteen revisions, oldest first:
+The nineteen revisions, oldest first:
 
 | File | Changes |
 |---|---|
@@ -163,6 +166,7 @@ The eighteen revisions, oldest first:
 | `20261013_1200_a_refusal_cites_nothing.py` | Comment only: `fact_passages.position` says what a later position on a passage fact is |
 | `20261013_1210_a_capped_prompt_names_its_floor.py` | Comments only: `facts.prompt_version` and `prompts.version` name the capped atomic prompt as 10+cap4 |
 | `20261018_1200_passages_comment_says_what_a_rechunk_keeps.py` | Comment only: the `passages` table says a re-chunk keeps every passage it cuts again unchanged |
+| `20261019_2300_question_kind.py` | Adds `questions.kind` (single, needs_both, compound, false_premise), NOT NULL with a CHECK, backfilled from `passage_scope` in the table and in archived question payloads |
 
 ## Column comments
 

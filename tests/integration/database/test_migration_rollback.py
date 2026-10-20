@@ -538,3 +538,46 @@ def test_a_question_kind_is_backfilled_from_its_passage_scope(spare: str) -> Non
         (2, "single"),
         (3, "single"),
     ]
+
+
+def test_a_question_archived_before_the_kind_column_restores_with_a_kind(
+    spare: str,
+) -> None:
+    """The archive is backfilled by the same rule, and the key goes on downgrade."""
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, KEPT)
+    sql(
+        spare,
+        "INSERT INTO archived_rows (table_name, payload) VALUES "
+        '(\'questions\', \'{"id": 7, "passage_scope": "multi_passage"}\'), '
+        '(\'questions\', \'{"id": 8, "passage_scope": "single_passage"}\'), '
+        "('questions', '{\"id\": 9, \"passage_scope\": null}'), "
+        "('facts', '{\"id\": 1}')",
+    )
+
+    command.upgrade(config, KINDED)
+    held = "SELECT table_name, payload->>'id', payload->>'kind' FROM archived_rows"
+    assert sorted(sql(spare, held + " ORDER BY 1, 2")) == [
+        ("facts", "1", None),
+        ("questions", "7", "needs_both"),
+        ("questions", "8", "single"),
+        ("questions", "9", "single"),
+    ]
+    # What a restore does: the payload populates a row, and the column is NOT NULL.
+    sql(
+        spare,
+        "INSERT INTO questions SELECT * FROM jsonb_populate_record(NULL::questions, "
+        '(SELECT payload || \'{"question_text": "Q?", "answerable": true, '
+        '"language": "en", "status": "draft", "thread_position": 1, '
+        '"attempt": 1, "created_at": "2026-01-01T00:00:00Z", '
+        '"status_changed_at": "2026-01-01T00:00:00Z"}\'::jsonb FROM archived_rows '
+        "WHERE payload->>'id' = '7'))",
+    )
+    assert sql(spare, "SELECT kind FROM questions WHERE id = 7") == [("needs_both",)]
+
+    command.downgrade(config, KEPT)
+    assert sql(spare, "SELECT count(*) FROM archived_rows WHERE payload ? 'kind'") == [
+        (0,)
+    ]
