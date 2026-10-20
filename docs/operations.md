@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.21
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. No kind fixes a band yet, so no stored band moves and `make questions-rescore` is not needed; it is needed after a kind that fixes one ships.
+
 ## Upgrading to v0.3.20
 
 ```bash

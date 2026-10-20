@@ -831,6 +831,12 @@ review. The releases from v0.3.13 on fix what it found, one fix to a release.
 |---|---|---|---|
 | A question's kind was implied by its number of cited passages | the plan, the writer and the checker told a question that spans two passages from one that does not by counting citations, so a new kind of question (a compound one, a false-premise one) had no place to be named | every slot the plan deals carries a kind, `single` or `needs_both` today, held in `kinds.py`; the kind chooses the writer's instruction and response shape and the checks a draft gets, and is stored in a new `questions.kind` column, backfilled from the passage scope and narrowed to `single` by `make questions-rescore` when the citations come to rest on one passage; `QUESTIONS_KIND_MIX` (optional) shares the kinds out over the slots that span, and refuses a kind that deals one passage ([`kinds.py`](../backend/question_generation/kinds.py), [`planning.py`](../backend/question_generation/planning.py)) | no behaviour change: every plan, prompt and verdict is byte-identical to v0.3.19's over 3,120 plans and every writer prompt, and the scoreboard moves no value |
 
+### Fixed in v0.3.21: a band follows its kind
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A question's band followed the spread of its passages whatever its kind | the band was read from the points of the cited facts alone, so a kind that fixes its own difficulty (a compound question asks two lookups) could not say so | `criteria_of` takes the stored kind; where a kind's entry in `KINDS` sets a band that band holds, and every other kind keeps the points rule; a rescore and the checker's verdict both pass the stored kind ([`models.py`](../backend/question_generation/models.py), [`kinds.py`](../backend/question_generation/kinds.py)) | no kind sets a band yet, so no stored band moves: replayed over all 1,753 questions of the v0.3.12 build, single and needs_both questions band exactly as before |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was
