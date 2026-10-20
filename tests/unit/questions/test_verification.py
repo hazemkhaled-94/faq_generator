@@ -4219,6 +4219,393 @@ def test_only_a_list_claims_to_name_a_set(form: str) -> None:
     )
 
 
+_QUESTION_NAMES_THEM = [
+    (
+        "en",
+        "Which of PayPal, debit card and invoice does the online shop accept for orders over 100 euros?",
+        "invoice",
+        "The online shop accepts PayPal, debit card and invoice for orders over 100 euros.",
+    ),
+    (
+        "de",
+        "Welche der Zahlungsarten Lastschrift, PayPal und Rechnung akzeptiert der Onlineshop bei Bestellungen über 100 Euro?",
+        "Rechnung",
+        "Der Onlineshop akzeptiert bei Bestellungen über 100 Euro Lastschrift, PayPal und Rechnung.",
+    ),
+    (
+        "en",
+        "Which accounts does the bank's customer adviser open: current accounts, savings accounts or loan accounts?",
+        "savings accounts",
+        "The bank's customer adviser opens current accounts, savings accounts and loan accounts.",
+    ),
+    (
+        "de",
+        "Welche Konten eröffnet die Kundenberaterin der Bank: Girokonten, Sparkonten oder Kreditkonten?",
+        "Sparkonten",
+        "Die Kundenberaterin der Bank eröffnet Girokonten, Sparkonten und Kreditkonten.",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"), _QUESTION_NAMES_THEM
+)
+def test_items_the_question_names_are_not_items_the_key_lacks(
+    language, question, target, recovered
+) -> None:
+    """A recovery listing what the question listed adds nothing the key missed."""
+    assert unnamed(recovered, target, language, question) == ()
+    assert unnamed(recovered, target, language)
+    assert not incomplete(
+        recovered, target, language, AnswerForm.LIST, question=question
+    )
+    assert incomplete(recovered, target, language, AnswerForm.LIST)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target", "coverage", "expected"),
+    [
+        (
+            "en",
+            "The bank offers credit cards and gift vouchers.",
+            "credit cards",
+            0.4,
+            False,
+        ),
+        (
+            "en",
+            "The bank offers current accounts and savings accounts.",
+            "current accounts",
+            0.5,
+            False,
+        ),
+        (
+            "en",
+            "The bank offers current accounts and savings accounts.",
+            "current accounts",
+            0.6,
+            True,
+        ),
+        ("de", "Girokonten, Sparkonten", "Girokonten", 0.5, False),
+        ("de", "Girokonten, Sparkonten", "Girokonten", 0.6, True),
+    ],
+)
+def test_a_key_holding_exactly_the_share_asked_is_not_incomplete(
+    language, recovered, target, coverage, expected
+) -> None:
+    """The share is a floor: a key at it passes, one below it with a missing item fails."""
+    assert (
+        incomplete(recovered, target, language, AnswerForm.LIST, coverage=coverage)
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target", "question", "expected"),
+    [
+        (
+            "en",
+            "- card fraud\n- unpaid fees\n- a court order",
+            "card fraud",
+            "When is a card blocked?",
+            ("unpaid fees", "a court order"),
+        ),
+        (
+            "en",
+            "card fraud; unpaid fees",
+            "card fraud",
+            "When is a card blocked?",
+            ("unpaid fees",),
+        ),
+        (
+            "de",
+            "- Kartenbetrug\n- offene Gebühren\n- ein Gerichtsbeschluss",
+            "Kartenbetrug",
+            "Wann wird eine Karte gesperrt?",
+            ("offene Gebühren", "ein Gerichtsbeschluss"),
+        ),
+        (
+            "de",
+            "Kartenbetrug; offene Gebühren",
+            "Kartenbetrug",
+            "Wann wird eine Karte gesperrt?",
+            ("offene Gebühren",),
+        ),
+        (
+            "en",
+            "a) card fraud\nb) unpaid fees",
+            "card fraud",
+            "When is a card blocked?",
+            ("unpaid fees",),
+        ),
+        ("en", "card fraud; ", "card fraud", "When is a card blocked?", ()),
+        ("en", "- unpaid fees", "card fraud", "When is a card blocked?", ()),
+        (
+            "de",
+            "- offene Gebühren",
+            "Kartenbetrug",
+            "Wann wird eine Karte gesperrt?",
+            (),
+        ),
+    ],
+)
+def test_the_items_a_layout_sets_apart_are_each_read_against_the_key(
+    language, recovered, target, question, expected
+) -> None:
+    """Marked lines, else `;` parts; two make a list, and one thing is not one."""
+    assert unnamed(recovered, target, language, question) == expected
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target", "question", "expected"),
+    [
+        (
+            "de",
+            "Der Shop verkauft Kaffee und Tee.",
+            "Kaffee",
+            "Was verkauft der Shop?",
+            ("Tee",),
+        ),
+        (
+            "de",
+            "Der Shop akzeptiert Kreditkarte und Gutschein.",
+            "Kreditkarte",
+            "Welche Zahlung akzeptiert der Shop?",
+            ("Gutschein",),
+        ),
+        (
+            "en",
+            "The shop sells coffee and tea.",
+            "coffee",
+            "What is on offer at the shop?",
+            ("tea",),
+        ),
+        (
+            "en",
+            "The shop sells the coffee and the tea.",
+            "coffee",
+            "What can customers buy?",
+            ("tea",),
+        ),
+        (
+            "de",
+            "Der Shop verkauft den Kaffee und den Tee.",
+            "Kaffee",
+            "Was kann man kaufen?",
+            ("Tee",),
+        ),
+        (
+            "en",
+            "The shop delivers quickly and reliably.",
+            "quickly",
+            "How does the shop deliver?",
+            ("reliably",),
+        ),
+        (
+            "de",
+            "Der Shop liefert schnell und zuverlässig.",
+            "schnell",
+            "Wie liefert der Shop?",
+            ("zuverlässig",),
+        ),
+    ],
+)
+def test_a_known_item_is_not_named_again_for_the_item_joined_to_it(
+    language, recovered, target, question, expected
+) -> None:
+    """Only the conjunct the key lacks is named, not the one it already holds."""
+    assert unnamed(recovered, target, language, question) == expected
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target", "question"),
+    [
+        (
+            "en",
+            "The customer must present a receipt and return the goods promptly to the online shop.",
+            "present a receipt",
+            "What must a customer do to return goods to the online shop?",
+        ),
+        (
+            "de",
+            "Der Kunde muss einen Beleg vorlegen und die Ware umgehend an den Onlineshop zurückschicken.",
+            "einen Beleg vorlegen",
+            "Was muss ein Kunde tun, um Ware an den Onlineshop zurückzusenden?",
+        ),
+    ],
+)
+def test_a_joined_verb_phrase_is_judged_by_its_object_not_by_its_modifiers(
+    language, recovered, target, question
+) -> None:
+    """The goods are the question's; `promptly` is a modifier of the sentence."""
+    assert unnamed(recovered, target, language, question) == ()
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target", "question", "expected"),
+    [
+        (
+            "de",
+            "Die Bank bietet Karte und Konto an.",
+            "Karten und Konten",
+            "Welche Produkte bietet die Bank an?",
+            (),
+        ),
+        (
+            "de",
+            "Die Bank bietet Karte und Konto an.",
+            "Karten",
+            "Welche Karten und Konten bietet die Bank an?",
+            (),
+        ),
+        (
+            "de",
+            "- Karten\n- Konten",
+            "Karte und Konto",
+            "Welche Produkte bietet die Bank an?",
+            (),
+        ),
+    ],
+)
+def test_an_item_is_known_by_its_lemma_in_the_language_of_the_text(
+    language, recovered, target, question, expected
+) -> None:
+    """`Karte` is `Karten`: the German lemma, which an English reading would not give."""
+    assert unnamed(recovered, target, language, question) == expected
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target", "question", "expected"),
+    [
+        (
+            "de",
+            "innerhalb von 7 Tagen und von 14 Tagen",
+            "innerhalb von sieben Tagen und von 14 Tagen",
+            "Welche Fristen gelten?",
+            (),
+        ),
+        (
+            "en",
+            "within 7 days and within 14 days",
+            "within seven days and within 14 days",
+            "Which periods apply?",
+            (),
+        ),
+        (
+            "de",
+            "30 Tage, 14 Tage und sieben Tage",
+            "30 Tage und 14 Tage",
+            "Welche Fristen gelten?",
+            ("7.0",),
+        ),
+        (
+            "en",
+            "30 days, 14 days and seven days",
+            "30 days and 14 days",
+            "Which periods apply?",
+            ("7.0",),
+        ),
+    ],
+)
+def test_a_count_written_out_is_the_figure_it_is_on_either_side(
+    language, recovered, target, question, expected
+) -> None:
+    """`sieben` in the key is the 7 the recovery writes, and in the recovery is a 7 the key lacks."""
+    assert unnamed(recovered, target, language, question) == expected
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "de",
+            "Wie lange dauert die Bearbeitung eines Kreditantrags?",
+            "8–10 Werktage",
+            "Die Bearbeitung eines Kreditantrags dauert 8–10 Werktage.",
+        ),
+        (
+            "en",
+            "How long does the bank take to process a loan application?",
+            "8–10 business days",
+            "Processing a loan application takes 8–10 business days.",
+        ),
+        (
+            "de",
+            "Wie lange dauert die Bearbeitung eines Kreditantrags?",
+            "8–10 Werktage",
+            "Die Bearbeitung eines Kreditantrags dauert mindestens 8 und höchstens 10 Werktagen.",
+        ),
+        (
+            "de",
+            "Wie lange dauert die Bearbeitung eines Kreditantrags?",
+            "8–10 Werktage, je nach Konto",
+            "Je nach Konto dauert die Bearbeitung eines Kreditantrags zwischen 8 und 10 Werktage.",
+        ),
+        (
+            "de",
+            "Wie hoch ist der Zinssatz des Girokontos?",
+            "2,5–3,5 %",
+            "Der Zinssatz des Girokontos liegt zwischen 2,5 und 3,5 Prozent.",
+        ),
+        (
+            "en",
+            "How high is the discount in the online shop?",
+            "8–10 %",
+            "The discount in the online shop is between 8 and 10 percent.",
+        ),
+        (
+            "en",
+            "How long does the bank take to process a loan application?",
+            "8–10 business days, depending on the account",
+            "Depending on the account, processing a loan application takes between 8 and 10 business days.",
+        ),
+    ],
+)
+def test_a_range_comes_back_as_the_same_range_or_in_another_form_of_its_words(
+    language, question, target, recovered
+) -> None:
+    """A range for a range, its unit in any inflection, and its punctuation not asked back."""
+    assert agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        passages=(recovered,),
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "de",
+            "Wie lange dauert die Bearbeitung eines Kreditantrags?",
+            "8–10 Werktage",
+            "Die Bearbeitung eines Kreditantrags dauert 8–12 Werktage.",
+        ),
+        (
+            "en",
+            "How long does the bank take to process a loan application?",
+            "8–10 business days",
+            "Processing a loan application takes 8–12 business days.",
+        ),
+    ],
+)
+def test_a_range_the_recovery_writes_is_held_to_both_of_the_keys_ends(
+    language, question, target, recovered
+) -> None:
+    """The ends of the recovery's own range count, so `8–12` is not `8–10`."""
+    assert not agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        passages=(recovered,),
+    )
+
+
 # ── Two more types a rule can settle ───────────────────────────────────────
 
 
