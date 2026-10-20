@@ -640,12 +640,13 @@ class Deal:
         the passages this topic still has and the passages of its bridges, the
         one with the lowest `overlap`; ties go to the lower passage id. A
         passage with no lemmas is not eligible: it would score 0 against
-        everything and always win. None where there is no such passage.
+        everything and always win, and neither is one holding only bridges,
+        which a compound sample drops. None where there is no such passage.
         """
         candidates = [
             one
             for one in (*self._free(head), *self._free(head, bridging=True))
-            if one[0].lemmas
+            if one[0].lemmas and any(not fact.spans for fact in self._left(one))
         ]
         if not candidates:
             return None

@@ -1296,3 +1296,57 @@ def test_a_compound_slot_with_only_bridges_left_is_exhausted() -> None:
     assert deal.sample(Shape.SINGLE) is not None, (
         "the bridge is left for a slot that may rest on it"
     )
+
+
+@pytest.mark.parametrize(
+    "language,head_text,partner_text,bridge_text",
+    [
+        (
+            "en",
+            "Standard delivery takes 3 to 5 working days.",
+            "Gift wrapping costs 3 euros.",
+            "The return period starts on the day the delivery arrives.",
+        ),
+        (
+            "de",
+            "Die Standardlieferung dauert 3 bis 5 Werktage.",
+            "Die Geschenkverpackung kostet 3 Euro.",
+            "Die Rückgabefrist beginnt am Tag der Lieferung.",
+        ),
+        (
+            "en",
+            "A current account costs 5 euros a month.",
+            "Cash withdrawals abroad are capped at 500 euros.",
+            "The fee is charged on the day the card is activated.",
+        ),
+        (
+            "de",
+            "Ein Girokonto kostet 5 Euro im Monat.",
+            "Abhebungen im Ausland sind auf 500 Euro begrenzt.",
+            "Die Gebühr wird am Tag der Kartenaktivierung erhoben.",
+        ),
+    ],
+)
+def test_a_compound_partner_is_never_a_passage_holding_only_bridges(
+    language, head_text, partner_text, bridge_text
+) -> None:
+    """A bridge-only passage would be dropped from the sample, leaving the head alone."""
+    kw = {"language": language, "document": "doc-a"}
+    head = source(1, passage_id=1, statement=head_text, lemmas=("one", "shared"), **kw)
+    partner = source(
+        3, passage_id=4, statement=partner_text, lemmas=("two", "shared"), **kw
+    )
+    spanning = bridge(
+        resting(3, document="doc-a", language=language),
+        fact_id=2,
+        passage_id=2,
+        statement=bridge_text,
+        lemmas=("other",),
+        **kw,
+    )
+    deal = Deal([head, partner], [spanning], wanted=10, size=2, rounds=3)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert sorted(one.id for one in sample.resting) == [1, 4]
