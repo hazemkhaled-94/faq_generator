@@ -8,12 +8,14 @@ uses turns up in both. Pairing by these is `links.linked`.
 
 from __future__ import annotations
 
+import math
+import random
 from dataclasses import replace
 
 import pytest
 from drivers import passage
 
-from extraction.links import Link, linked
+from extraction.links import Link, _near, linked
 
 pytestmark = pytest.mark.nlp
 
@@ -393,3 +395,72 @@ def test_sibling_pairs_are_not_all_stored() -> None:
     _siblings(edges, passages)
 
     assert not edges.found
+
+
+def _flat(count: int, vectors: str, width: int = 1024) -> list:
+    """One flat parent of `count` sections; vectors 'none', 'random', 'ties' or 'partial'."""
+    rng = random.Random(count)
+    pool = []
+    for _ in range(5):
+        raw = [rng.gauss(0, 1) for _ in range(width)]
+        norm = math.sqrt(sum(x * x for x in raw))
+        pool.append(tuple(x / norm for x in raw))
+    made = []
+    for i in range(count):
+        if vectors == "none" or (vectors == "partial" and i % 3 == 0):
+            vector = None
+        elif vectors == "ties":
+            vector = pool[i % 5]
+        else:
+            raw = [rng.gauss(0, 1) for _ in range(width)]
+            norm = math.sqrt(sum(x * x for x in raw))
+            vector = tuple(x / norm for x in raw)
+        made.append(
+            one(f"Item {i} costs {i} EUR.", f"Fees > Part {i}", i + 1, embedding=vector)
+        )
+    return made
+
+
+def _dealt_by_hand(passages: list) -> list[tuple[int, ...]]:
+    """What the heads offer when each takes its nearest sibling, lowest id on a tie."""
+    seen: set[frozenset[int]] = set()
+    out = []
+    for head in passages:
+        for other in sorted(
+            (p for p in passages if p.id != head.id),
+            key=lambda p: (-_near(head, p), p.id),
+        ):
+            key = frozenset((head.id, other.id))
+            if key not in seen:
+                seen.add(key)
+                out.append(tuple(sorted((head.id, other.id))))
+                break
+    return out
+
+
+@pytest.mark.parametrize("vectors", ["none", "random", "ties", "partial"])
+def test_a_flat_parent_is_dealt_as_each_head_nearest_sibling(vectors) -> None:
+    """The vectors are read in one product per head, and the order stays the same."""
+    passages = _flat(60, vectors, width=32)
+
+    got = pairs(run(passages, wanted=1000))
+
+    assert got == _dealt_by_hand(passages)
+
+
+@pytest.mark.parametrize("count", [40, 160])
+def test_a_flat_family_is_scored_in_one_product_not_one_dot_product_per_pair(
+    count, monkeypatch
+) -> None:
+    """A head must not read its whole family in pure Python, at any size."""
+    from extraction import links
+
+    scored = []
+    monkeypatch.setattr(
+        links, "_near", lambda left, right: scored.append(1) or _near(left, right)
+    )
+    passages = _flat(count, "random", width=16)
+
+    run(passages, wanted=1000)
+
+    assert scored == []  # base: count * (count - 1) calls

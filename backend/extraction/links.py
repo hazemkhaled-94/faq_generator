@@ -19,6 +19,8 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+import numpy as np
+
 from extraction.models import PassageToExtract
 from extraction.validation import HEADING_LABEL, NUMBER, label_word
 from nlp.analysis import content, normalised
@@ -121,6 +123,11 @@ class _Edges:
         self.family: dict[str, list[PassageToExtract]] = defaultdict(list)
         self.parent: dict[int, str] = {}
         self.position: dict[int, int] = {}
+        #: Each passage's own heading, and per family one matrix of its
+        #: vectors (a zero row where a passage has none), so a head scores
+        #: its whole family in one product.
+        self.last: dict[int, str] = {}
+        self.matrix: dict[str, np.ndarray] = {}
 
     def add(
         self, first: PassageToExtract, second: PassageToExtract, kind: str, named: str
@@ -226,6 +233,14 @@ def _siblings(edges: _Edges, partners: Sequence[PassageToExtract]) -> None:
         if len(trail) >= 2:
             edges.parent[p.id] = " > ".join(trail[:-1])
             edges.family[edges.parent[p.id]].append(p)
+        if trail:
+            edges.last[p.id] = trail[-1]
+    for parent, family in edges.family.items():
+        width = next((len(p.embedding) for p in family if p.embedding), 0)
+        if width:
+            edges.matrix[parent] = np.array(
+                [p.embedding or (0.0,) * width for p in family], dtype=np.float64
+            )
 
 
 def _terms(
@@ -255,16 +270,21 @@ def _best(
         other = next(p for p in link.passages if p.id != partner.id)
         if other.id not in taken:
             found[other.id] = (tier, link)
-    # shortcut: `_near` is a pure-Python dot product per candidate, so a head
-    # under one flat parent of N sections costs N of them and the language
-    # N^2; on a corpus with vectors a flat parent of a few thousand sections
-    # is minutes. Upgrade: one numpy matrix product per family.
     parent = edges.parent.get(partner.id)
-    for other in edges.family.get(parent, ()) if parent else ():
+    family = edges.family.get(parent, ()) if parent else ()
+    near: dict[int, float] = {}
+    if partner.embedding and parent in edges.matrix:
+        scores = edges.matrix[parent] @ np.asarray(partner.embedding, np.float64)
+        near = {
+            p.id: float(score) if p.embedding else 0.0
+            for p, score in zip(family, scores, strict=True)
+        }
+    mine = edges.last.get(partner.id)
+    for other in family:
         if (
             other.id == partner.id
             or other.id in taken
-            or _segments(other)[-1] == _segments(partner)[-1]
+            or edges.last.get(other.id) == mine
             or found.get(other.id, (_TIER["sibling"] + 1, None))[0] <= _TIER["sibling"]
         ):
             continue
@@ -277,7 +297,13 @@ def _best(
         (
             (
                 tier,
-                -_near(partner, next(p for p in link.passages if p.id != partner.id)),
+                -(
+                    near[other]
+                    if tier == _TIER["sibling"] and other in near
+                    else _near(
+                        partner, next(p for p in link.passages if p.id != partner.id)
+                    )
+                ),
                 other,
             ),
             link,
