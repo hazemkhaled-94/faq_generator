@@ -48,7 +48,14 @@ from question_generation.gates import (
     unnamed,
 )
 from question_generation.models import Neighbour
-from question_generation.verifier import Reading, Settled, Settling, Verifier
+from question_generation.verifier import (
+    STATED_VERSION,
+    Part,
+    Reading,
+    Settled,
+    Settling,
+    Verifier,
+)
 
 pytestmark = pytest.mark.nlp
 
@@ -515,6 +522,7 @@ class Recording:
         self.embedded = 0
         self.verified = 0
         self.supported = 0
+        self.stated_asked = 0
 
     def embed(self, text: str) -> list[float]:
         """Answers with the one vector, and counts the ask."""
@@ -558,6 +566,11 @@ class Recording:
         """Answers the derived-answer pass, and counts the ask."""
         self.supported += 1
         return self.backs
+
+    def stated(self, question: str, key: str, passages, thread=()) -> tuple[Part, ...]:
+        """Quotes no part, and counts the ask."""
+        self.stated_asked += 1
+        return ()
 
 
 def build(recording: Recording, near: Neighbour | None = None) -> QuestionChecker:
@@ -5368,6 +5381,458 @@ def test_the_verdict_bands_a_question_by_the_kind_it_is_stored_as(monkeypatch) -
 
     assert checked.kind == "needs_both"
     assert checked.criteria.difficulty == Difficulty.HARD
+
+
+# ── A needs_both question one passage states whole is cited from it ───────
+
+
+class ByParts(Recording):
+    """A verifier that lists the parts of a key as scripted, and what it was shown."""
+
+    def __init__(self, parts: tuple[Part, ...], **kwargs) -> None:
+        """Initialises with the parts it lists."""
+        super().__init__(**kwargs)
+        self.parts = parts
+        self.shown: list[str] = []
+
+    def stated(self, question: str, key: str, passages, thread=()) -> tuple[Part, ...]:
+        """Lists the scripted parts, and records the passages it was shown."""
+        self.stated_asked += 1
+        self.shown = list(passages)
+        return self.parts
+
+
+def _two(first: str, second: str, language: str = "en"):
+    """Two facts on two passages of two topics, as a question cites them."""
+    return group(
+        source(1, statement=first, passage_id=1, topic_id=1, language=language),
+        source(2, statement=second, passage_id=2, topic_id=2, language=language),
+    )
+
+
+def _needs_both(result) -> list[tuple[float, bool]]:
+    return [
+        (one.value, one.opinion) for one in result.readings if one.gate == "needs_both"
+    ]
+
+
+def _ask(parts, first, second, question, key, language="en", **kwargs):
+    """Checks a needs_both question over two passages, the verifier listing `parts`."""
+    recording = ByParts(parts, recovers=key)
+    result = build(recording).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            facts=_two(first, second, language),
+            kind="needs_both",
+            **kwargs,
+        )
+    )
+    return recording, result
+
+
+#: (first passage, second passage, question, key, the second's wording of the part)
+_STATED_ONE = {
+    "en": (
+        "Returns are accepted within 30 days of delivery.",
+        "A return is accepted within 30 days of delivery and refunded to the card used.",
+        "Within how many days can a purchase be returned?",
+        "within 30 days of delivery",
+        "A return is accepted within 30 days of delivery",
+    ),
+    "de": (
+        "Rücksendungen werden innerhalb von 30 Tagen nach Lieferung angenommen.",
+        "Eine Rücksendung wird innerhalb von 30 Tagen nach Lieferung angenommen und auf die verwendete Karte erstattet.",
+        "Innerhalb wie vieler Tage kann ein Kauf zurückgegeben werden?",
+        "innerhalb von 30 Tagen nach Lieferung",
+        "Eine Rücksendung wird innerhalb von 30 Tagen nach Lieferung angenommen",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_needs_both_question_one_passage_states_whole_is_cited_from_it(
+    language: str,
+) -> None:
+    """Both passages state the one part asked: the first is the only citation."""
+    first, second, question, key, again = _STATED_ONE[language]
+    parts = (Part("the return period", (first, again)),)
+
+    recording, result = _ask(parts, first, second, question, key, language)
+
+    assert result.accepted
+    assert result.fact_ids == (1,)
+    assert result.passage_ids == (1,)
+    assert result.criteria.passage_scope == "single_passage"
+    assert result.kind == "single"
+    assert _needs_both(result) == [(0.0, True)]
+    assert [one.version for one in result.readings if one.gate == "needs_both"] == [
+        STATED_VERSION
+    ]
+    assert recording.stated_asked == 1
+
+
+_SHIPPING = {
+    "en": (
+        "Orders over 50 EUR are shipped free of charge.",
+        "Gift cards cannot be exchanged for cash.",
+        "From what order value is shipping free?",
+        "over 50 EUR",
+        0,
+    ),
+    "de": (
+        "Geschenkkarten können nicht in Bargeld umgetauscht werden.",
+        "Bestellungen über 50 EUR werden versandkostenfrei geliefert.",
+        "Ab welchem Bestellwert ist der Versand kostenlos?",
+        "über 50 EUR",
+        1,
+    ),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_second_passage_holding_no_part_is_dropped(language: str) -> None:
+    """The passage that holds the part is the citation, whichever is first."""
+    first, second, question, key, at = _SHIPPING[language]
+    texts = (first, second)
+
+    _, result = _ask(
+        (Part("the order value", (texts[at],)),),
+        first,
+        second,
+        question,
+        key,
+        language,
+    )
+
+    assert result.passage_ids == (at + 1,)
+    assert result.fact_ids == (at + 1,)
+
+
+_DORMANT = {
+    "en": (
+        "An account with no payment for 24 months is dormant.",
+        "A dormant account is charged 30 EUR a year.",
+        "What does an account cost a year after 24 months without a payment?",
+        "30 EUR a year",
+    ),
+    "de": (
+        "Ein Konto ohne Zahlung während 24 Monaten gilt als ruhend.",
+        "Für ein ruhendes Konto werden 30 EUR im Jahr berechnet.",
+        "Was kostet ein Konto im Jahr nach 24 Monaten ohne Zahlung?",
+        "30 EUR im Jahr",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_needs_both_question_each_passage_states_a_part_of_stays_two_passage(
+    language: str,
+) -> None:
+    """One passage ties the situation to the rule, the other gives the figure."""
+    first, second, question, key = _DORMANT[language]
+    parts = (
+        Part("the account counts as dormant", (first,)),
+        Part("the charge", (second,)),
+    )
+
+    _, result = _ask(parts, first, second, question, key, language)
+
+    assert result.passage_ids == (1, 2)
+    assert result.kind == "needs_both"
+    assert _needs_both(result) == [(1.0, True)]
+
+
+_CASES = {
+    "en": (
+        "A standing order can be changed in online banking until the day before it is executed.",
+        "A direct debit can be stopped in online banking until the day before it is debited.",
+        "Until when can a standing order be changed and a direct debit be stopped?",
+        "until the day before",
+    ),
+    "de": (
+        "Ein Dauerauftrag kann im Online-Banking bis zum Vortag der Ausführung geändert werden.",
+        "Eine Lastschrift kann im Online-Banking bis zum Vortag der Belastung gestoppt werden.",
+        "Bis wann kann ein Dauerauftrag geändert und eine Lastschrift gestoppt werden?",
+        "bis zum Vortag",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_two_cases_sharing_one_answer_stay_two_passage(language: str) -> None:
+    """Each case the question names is a part of its own."""
+    first, second, question, key = _CASES[language]
+    parts = (Part("the standing order", (first,)), Part("the direct debit", (second,)))
+
+    _, result = _ask(parts, first, second, question, key, language)
+
+    assert result.passage_ids == (1, 2)
+    assert _needs_both(result) == [(1.0, True)]
+
+
+def test_a_quote_no_cited_passage_holds_counts_for_none() -> None:
+    """The invented part holds nowhere, so the first passage carries what is held."""
+    first, second, question, key = _DORMANT["en"]
+    parts = (
+        Part("dormant", (first,)),
+        Part("closing", ("Dormant accounts are closed after five years.",)),
+    )
+
+    _, result = _ask(parts, first, second, question, key)
+
+    assert result.passage_ids == (1,)
+    assert _needs_both(result) == [(0.0, True)]
+
+
+def test_a_quote_both_passages_hold_counts_for_both() -> None:
+    """Whichever passage the model meant, a shared clause needs neither more."""
+    first = "Returns are accepted within 30 days of delivery."
+    second = "Returns are accepted within 30 days of delivery. Refunds take 5 days."
+
+    _, result = _ask(
+        (Part("the return period", (first,)),),
+        first,
+        second,
+        "Within how many days can a purchase be returned?",
+        "within 30 days of delivery",
+    )
+
+    assert result.passage_ids == (1,)
+
+
+def test_no_part_quoted_from_any_passage_keeps_both_and_reads_nothing() -> None:
+    """Nothing located is nothing decided."""
+    first, second, question, key, _ = _SHIPPING["en"]
+    parts = (Part("free shipping", ("Shipping is free above 50 EUR.",)), Part("x", ()))
+
+    _, result = _ask(parts, first, second, question, key)
+
+    assert result.passage_ids == (1, 2)
+    assert _needs_both(result) == []
+
+
+def test_a_bridge_one_passage_states_whole_keeps_both_with_the_reading() -> None:
+    """A bridge cited alone has no fact resting on one passage to cite."""
+    from factories import bridge, resting
+
+    one = "Gift cards bought in a store can be redeemed in the online shop."
+    two = "In the online shop a gift card cannot be combined with a discount code."
+    fact = bridge(
+        resting(2, text=two, topic_id=2),
+        statement=(
+            "A gift card bought in a store can be redeemed in the online shop, "
+            "where it cannot be combined with a discount code."
+        ),
+        passage_text=one,
+        topic_id=1,
+        fact_id=7,
+    )
+    recording = ByParts((Part("where", (one,)),), recovers="in the online shop")
+
+    result = build(recording).check(
+        candidate(
+            question_text="Where can a gift card bought in a store be redeemed besides the store?",
+            target_answer="in the online shop",
+            facts=group(fact),
+            kind="needs_both",
+        )
+    )
+
+    assert result.accepted
+    assert result.passage_ids == (1, 2)
+    assert _needs_both(result) == [(0.0, True)]
+
+
+def test_a_follow_up_whose_narrowed_citation_asks_nothing_new_keeps_both() -> None:
+    """Narrowed to the root's fact, the turn would ask one fact twice."""
+    first = "Eine Auslandsüberweisung kostet pauschal 5 Euro."
+    second = "Auslandsüberweisungen über 10.000 Euro werden zusätzlich manuell geprüft."
+    _, result = _ask(
+        (Part("der Preis", (first,)),),
+        first,
+        second,
+        "Gilt der Preis auch über 10.000 Euro?",
+        "ja, pauschal 5 Euro",
+        "de",
+        thread=(("Was kostet eine Auslandsüberweisung?", "5 Euro"),),
+        root_facts=(1,),
+        parent_passages=(1,),
+    )
+
+    assert result.accepted
+    assert result.fact_ids == (1, 2)
+    assert _needs_both(result) == [(0.0, True)]
+
+
+def test_a_compound_question_is_never_read_for_its_parts() -> None:
+    """Its own check reads each half."""
+    recording = ByParts(())
+
+    build(recording).check(
+        candidate(
+            facts=_pair(),
+            kind="compound",
+            target_answer="4 kilograms",
+        )
+    )
+
+    assert recording.stated_asked == 0
+
+
+def test_a_derived_type_or_a_one_passage_question_is_never_read_for_its_parts() -> None:
+    """No call for what has no two passages to tell apart."""
+    from database.qa_generator import QuestionType
+
+    facts = _two("Standard delivery costs 5 euros.", "Express delivery costs 9 euros.")
+    derived = ByParts(())
+    build(derived).check(
+        candidate(
+            question_text="What do one standard and one express delivery cost together?",
+            target_answer="14 euros",
+            facts=facts,
+            question_type=QuestionType.AGGREGATION,
+            kind="needs_both",
+        )
+    )
+    one = ByParts(())
+    build(one).check(candidate(facts=group(source(1, passage_id=1)), kind="needs_both"))
+
+    assert (derived.stated_asked, one.stated_asked) == (0, 0)
+
+
+def _holding(parts, texts):
+    from question_generation.checker import needed
+
+    return needed(
+        tuple(Part(f"part {at}", tuple(one)) for at, one in enumerate(parts)), texts
+    )
+
+
+_NEEDED = [
+    (
+        "returns en",
+        _STATED_ONE["en"][:2],
+        [[_STATED_ONE["en"][0], _STATED_ONE["en"][4]]],
+        (0,),
+    ),
+    (
+        "returns de",
+        _STATED_ONE["de"][:2],
+        [[_STATED_ONE["de"][0], _STATED_ONE["de"][4]]],
+        (0,),
+    ),
+    ("shipping en", _SHIPPING["en"][:2], [[_SHIPPING["en"][0]]], (0,)),
+    ("shipping de", _SHIPPING["de"][:2], [[_SHIPPING["de"][1]]], (1,)),
+    (
+        "dormant en",
+        _DORMANT["en"][:2],
+        [[_DORMANT["en"][0]], [_DORMANT["en"][1]]],
+        (0, 1),
+    ),
+    (
+        "dormant de",
+        _DORMANT["de"][:2],
+        [[_DORMANT["de"][0]], [_DORMANT["de"][1]]],
+        (0, 1),
+    ),
+    ("cases en", _CASES["en"][:2], [[_CASES["en"][0]], [_CASES["en"][1]]], (0, 1)),
+    ("cases de", _CASES["de"][:2], [[_CASES["de"][0]], [_CASES["de"][1]]], (0, 1)),
+    (
+        "unheld quote",
+        _DORMANT["en"][:2],
+        [[_DORMANT["en"][0]], ["Dormant accounts are closed after five years."]],
+        (0,),
+    ),
+    (
+        "shared verbatim",
+        (
+            "Returns are accepted within 30 days of delivery.",
+            "Returns are accepted within 30 days of delivery. Refunds take 5 days.",
+        ),
+        [["Returns are accepted within 30 days of delivery."]],
+        (0,),
+    ),
+    (
+        "nothing held",
+        _SHIPPING["en"][:2],
+        [["Shipping is free above 50 EUR."], []],
+        None,
+    ),
+    (
+        "three passages, two hold a part",
+        (
+            _DORMANT["en"][1],
+            _DORMANT["en"][0],
+            "Gift cards cannot be exchanged for cash.",
+        ),
+        [[_DORMANT["en"][1]], [_DORMANT["en"][0]]],
+        (0, 1),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("texts", "parts", "want"),
+    [one[1:] for one in _NEEDED],
+    ids=[one[0] for one in _NEEDED],
+)
+def test_needed_reads_the_passages_holding_a_part_of_their_own(
+    texts, parts, want
+) -> None:
+    """A part counts for a passage only through a quote the passage holds."""
+    assert _holding(parts, list(texts)) == want
+
+
+class StatedClient:
+    """A served model answering the parts reading, recording the ask."""
+
+    model = "fake/verifier"
+
+    def __init__(self, parts) -> None:
+        """Initialises with the parts it lists."""
+        self.parts = parts
+        self.asked: list[tuple[str, str, str | None]] = []
+
+    def answer(self, *, system: str, user: str, shape, prompt_version=None):
+        """Records the call and answers in the shape asked for."""
+        self.asked.append((system, user, prompt_version))
+        return shape(parts=self.parts)
+
+
+def test_the_verifier_lists_parts_over_numbered_passages() -> None:
+    """One call: the passages numbered, the conversation, the question and the key."""
+    from question_generation import verifier as module
+
+    client = StatedClient(
+        [
+            module._Quoted(
+                part=" the return period ",
+                quotes=[" Returns are accepted within 30 days. ", "  "],
+            )
+        ]
+    )
+
+    got = Verifier(client).stated(
+        "Within how many days?",
+        "within 30 days",
+        ["Returns are accepted within 30 days.", "Gift cards cannot be exchanged."],
+        thread=(("Can I return a purchase?", "yes"),),
+    )
+
+    assert got == (
+        Part("the return period", ("Returns are accepted within 30 days.",)),
+    )
+    system, user, version = client.asked[0]
+    assert system == module._STATED
+    assert version == STATED_VERSION
+    for text in (
+        "[1] Returns are accepted within 30 days.",
+        "[2] Gift cards cannot be exchanged.",
+        "Q: Can I return a purchase?\nA: yes",
+        "Key: within 30 days",
+    ):
+        assert text in user
 
 
 # ── A compound question: one half from each passage ───────────────────────

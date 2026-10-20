@@ -173,6 +173,12 @@ def _judges(settings: Settings | None) -> Iterator[Composed]:
             verifier._Settled,
         ),
         (
+            "verifier: stated",
+            verifier._STATED,
+            verifier._USER_STATED,
+            verifier._Stated,
+        ),
+        (
             "verifier: same answer",
             verifier._SAME,
             verifier._USER_SAME,
@@ -181,7 +187,11 @@ def _judges(settings: Settings | None) -> Iterator[Composed]:
     ):
         yield Composed(
             name,
-            verifier.PROMPT_VERSION,
+            (
+                verifier.STATED_VERSION
+                if name == "verifier: stated"
+                else verifier.PROMPT_VERSION
+            ),
             text,
             user,
             shape.model_json_schema(),

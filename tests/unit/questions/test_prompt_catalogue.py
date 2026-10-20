@@ -59,6 +59,7 @@ def test_the_judges_are_declared_at_their_own_versions(catalogue) -> None:
     assert catalogue["factoid"].version == PROMPT_VERSION
     assert catalogue["phrasing: source"].version == phrasing.PROMPT_VERSION
     assert catalogue["verifier: recover"].version == verifier.PROMPT_VERSION
+    assert catalogue["verifier: stated"].version == verifier.STATED_VERSION
 
 
 def test_every_prompt_a_module_holds_is_declared() -> None:

@@ -130,11 +130,13 @@ class KindSpec:
     band: str | None = None
 
 
-#: Every kind written. `needs_both` has no `after` here until the check that
-#: narrows a question one passage answers exists to name.
+#: Every kind written. `needs_both` is read by `_needed` once accepted: a
+#: question one cited passage states whole is cited from that passage alone.
 KINDS: dict[str, KindSpec] = {
     QuestionKind.SINGLE: KindSpec(QuestionKind.SINGLE, 1, "", _Answered),
-    QuestionKind.NEEDS_BOTH: KindSpec(QuestionKind.NEEDS_BOTH, 2, _SPAN, _Answered),
+    QuestionKind.NEEDS_BOTH: KindSpec(
+        QuestionKind.NEEDS_BOTH, 2, _SPAN, _Answered, after="_needed"
+    ),
     QuestionKind.COMPOUND: KindSpec(
         QuestionKind.COMPOUND,
         2,

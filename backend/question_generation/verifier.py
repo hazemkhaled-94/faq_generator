@@ -36,6 +36,10 @@ from llm.client import Client
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
 PROMPT_VERSION = "6"
 
+#: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
+#: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
+STATED_VERSION = "1"
+
 _VERIFY = """ROLE
 You are an independent verifier for a document-search chatbot's test set. You
 answer a test question from the material it was drawn from, without having
@@ -319,10 +323,100 @@ Return `reply`, `quote` and `verdict`, in that order.
   - `silent` - none of these.
 """
 
+_STATED = """ROLE
+You are an independent verifier for a document-search chatbot's test set. You
+check which of the passages a test question cites state each part of its
+answer.
+
+ACTION
+List the parts a complete answer to the QUESTION gives, and quote, for each
+part, the words of every PASSAGE that states it.
+
+STEPS
+1. Read the question, the conversation before it when there is one, and the
+   KEY: the answer a chatbot's reply is marked against.
+2. List the parts, reading them off the key and the question:
+   - each value, item, condition, limit or exception the key gives in answer
+     to what is asked;
+   - each case, party or item the question names, as a part of its own, even
+     when the key gives one answer for all of them;
+   - each condition the question sets that the answer holds only under, when
+     a passage is needed to tie the question's situation to the answer's rule.
+3. Leave out what the key adds that the question does not ask for, a part
+   that only says again in other words what another part says, and a title,
+   section or document the question names only to say what it is about.
+4. For each part, look in EVERY passage and quote each passage that states
+   it: the sentence or clause as it stands, with the case it applies to, not
+   a bare value or name. When two passages state the same part, quote both.
+   A part stated in other words, in another sentence, in a list item or in a
+   table row is still stated.
+5. A part no passage states gets no quote. Quote only words a passage holds:
+   never the key, the question or your own words.
+
+CONTEXT
+A question citing two passages is stored as one that needs both. When one
+passage states every part, the other is not needed and the question is a
+one-passage question; when each passage states a part the other does not, it
+needs both. Your quotes decide which: each one is looked up in the passages,
+so a quote no passage holds counts for none, and a quote two passages hold
+counts for both. Missing a part a passage does state is as wrong as quoting
+one it does not.
+
+The passages and the question may be in any language; quote in the language
+of the passages. The examples are in English only because these
+instructions are.
+
+EXAMPLES
+  [1] "An account with no payment for 24 months is dormant."
+  [2] "A dormant account is charged 30 EUR a year."
+  question "What does an account cost a year after 24 months without a
+            payment?"
+  key      "30 EUR a year"
+  -> "the account counts as dormant": ["An account with no payment for 24
+     months is dormant."]
+     "the yearly charge": ["A dormant account is charged 30 EUR a year."]
+
+  [1] "A standing order can be changed in online banking until the day
+       before it is executed."
+  [2] "A direct debit can be stopped in online banking until the day before
+       it is debited."
+  question "Until when can a standing order be changed and a direct debit be
+            stopped?"
+  key      "until the day before"
+  -> "changing a standing order": ["A standing order can be changed in
+     online banking until the day before it is executed."]
+     "stopping a direct debit": ["A direct debit can be stopped in online
+     banking until the day before it is debited."]
+
+  [1] "Returns are accepted within 30 days of delivery."
+  [2] "A return is accepted within 30 days of delivery and refunded to the
+       card used."
+  question "Within how many days can a purchase be returned?"
+  key      "within 30 days of delivery, refunded to the card used"
+  -> "the return period": ["Returns are accepted within 30 days of
+     delivery.", "A return is accepted within 30 days of delivery"]
+     (the refund is not asked, so it is not a part)
+
+  [1] "Orders over 50 EUR are shipped free of charge."
+  [2] "Gift cards cannot be exchanged for cash."
+  question "From what order value is shipping free?"
+  key      "over 50 EUR"
+  -> "the order value": ["Orders over 50 EUR are shipped free of charge."]
+
+FORMAT
+Return `parts`, one entry per part, in the order the key gives them.
+- `part` names the part in a few words.
+- `quotes` holds the words of each passage that states the part, as they
+  stand, one entry per passage; empty when no passage states it.
+"""
+
 #: The user messages, as the catalogue records them and the two calls below
 #: render them.
 _USER_JUDGE = "Passages:\n{{passages}}\n\n{{conversation}}Question: {{question}}\nAnswer: {{answer}}"
 _USER_VERIFY = "Passages:\n{{passages}}\n\n{{question}}"
+_USER_STATED = (
+    "Passages:\n{{passages}}\n\n{{conversation}}Question: {{question}}\nKey: {{key}}"
+)
 
 
 _SAME = """ROLE
@@ -405,6 +499,27 @@ class _Recovered(BaseModel):
     )
 
 
+class _Quoted(BaseModel):
+    """One part of an answer, and the passages' words that state it."""
+
+    part: str = Field(description="The part, in a few words.")
+    quotes: list[str] = Field(
+        default_factory=list,
+        description="The words of each passage that states this part, as they "
+        "stand, one entry per passage. Empty when no passage states it.",
+    )
+
+
+class _Stated(BaseModel):
+    """The parts a complete answer gives, with the passages stating each."""
+
+    parts: list[_Quoted] = Field(
+        default_factory=list,
+        description="One entry per part a complete answer to the question "
+        "gives, in the order the key gives them.",
+    )
+
+
 class Settling(StrEnum):
     """How the passages settle a question written to have no answer."""
 
@@ -470,6 +585,14 @@ class Reading:
     """
 
     recovered: str | None
+
+
+@dataclass(frozen=True)
+class Part:
+    """One part of an answer, and the words of the passages that state it."""
+
+    name: str
+    quotes: tuple[str, ...]
 
 
 class Verifier:
@@ -675,4 +798,45 @@ class Verifier:
             recovered=(
                 got.answer.strip() if got.in_passage and got.answer.strip() else None
             )
+        )
+
+    def stated(
+        self,
+        question: str,
+        key: str,
+        passages: Sequence[str],
+        thread: Sequence[tuple[str, str | None]] = (),
+    ) -> tuple[Part, ...]:
+        """The parts a complete answer gives, each with the quotes stating it.
+
+        Raises:
+            ModelUnavailable: If the model could not be reached or would not
+                answer in the shape.
+        """
+        numbered = "\n\n".join(
+            f"[{position}] {passage}" for position, passage in enumerate(passages, 1)
+        )
+        conversation = (
+            "\n".join(f"Q: {q}\nA: {a or 'not in the material'}" for q, a in thread)
+            + "\n"
+            if thread
+            else ""
+        )
+        got = self._client.answer(
+            system=_STATED,
+            user=(
+                _USER_STATED.replace("{{passages}}", numbered)
+                .replace("{{conversation}}", conversation)
+                .replace("{{question}}", question)
+                .replace("{{key}}", key)
+            ),
+            shape=_Stated,
+            prompt_version=STATED_VERSION,
+        )
+        return tuple(
+            Part(
+                one.part.strip(),
+                tuple(quote.strip() for quote in one.quotes if quote.strip()),
+            )
+            for one in got.parts
         )

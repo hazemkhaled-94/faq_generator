@@ -225,6 +225,13 @@ _READINGS = {
         "a passage it does not cite settles it",
         "1 when they settle nothing, 0 when they do",
     ),
+    "needs_both": explain.Reading(
+        "Whether each cited passage states a part of the answer no other "
+        "cited passage states, as the verifier quoted them. An opinion, with "
+        "no margin.",
+        "one cited passage states every part the others do",
+        "1 when every cited passage is needed, 0 when one alone states every part",
+    ),
 }
 
 #: The order this service works in, and what runs each step.

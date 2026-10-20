@@ -35,6 +35,13 @@ it:
                   the unanswerable share only: a passage it does not cite
                   settles it. Cosine over passages.embedding where the corpus
                   has been embedded, shared lemmas where it has not
+  needs_both      never refuses: an accepted answerable question citing two
+                  or more passages is read once for the parts of its answer
+                  and the passages that state each, and one cited passage
+                  that states every part the others state is cited alone and
+                  stored single-passage; a bridge cited alone, or a follow-up
+                  its thread would break, keeps both, with the reading on the
+                  row
 
 The free ones are in `gates`, which imports no client; the calls are the
 `verifier`'s and `phrasing`'s. Recoverability is the one no similarity
@@ -59,7 +66,7 @@ from database.qa_generator import (
 )
 from nlp.analysis import content, interrogatives, pointing
 from nlp.embedding import Embedder, cosine
-from nlp.text import _plain
+from nlp.text import _plain, holders
 from nlp.text import held as _held
 from question_generation.gates import (
     BOUNDS,
@@ -104,10 +111,18 @@ from question_generation.models import (
     LONG_ANSWER_CHARS,
     Candidate,
     CheckedQuestion,
+    FactGroup,
     Neighbour,
 )
 from question_generation.types import GATES, PASSED, REFUSED, annotation, spec
-from question_generation.verifier import Reading, Settled, Settling, Verifier
+from question_generation.verifier import (
+    STATED_VERSION,
+    Part,
+    Reading,
+    Settled,
+    Settling,
+    Verifier,
+)
 
 log = logging.getLogger(__name__)
 
@@ -182,6 +197,42 @@ def shown(
         settled.quote,
     )
     return Settled(verdict=Settling.SILENT, quote=None)
+
+
+def _narrowed(group: FactGroup, passage_id: int) -> FactGroup:
+    """The facts resting on that passage alone: none, for a bridge cited alone."""
+    return FactGroup(
+        tuple(
+            fact
+            for fact in group.facts
+            if all(one.id == passage_id for one in fact.passages)
+        )
+    )
+
+
+def needed(parts: Sequence[Part], texts: Sequence[str]) -> tuple[int, ...] | None:
+    """The positions of the passages a question needs, read off the quotes.
+
+    A passage holds a part when it holds one of the part's quotes whole, so a
+    quote two passages hold counts for both. The passages needed are those
+    holding a part no other passage holds; when none does, the one holding
+    the most parts, the first on a tie. None where no quote is held anywhere.
+    """
+    holds: list[set[int]] = [set() for _ in texts]
+    for number, part in enumerate(parts):
+        for quote in part.quotes:
+            for at in holders(quote, texts):
+                holds[at].add(number)
+    if not any(holds):
+        return None
+    own = tuple(
+        at
+        for at, mine in enumerate(holds)
+        if mine - set().union(*(one for i, one in enumerate(holds) if i != at))
+    )
+    # With three or more passages a subset of two or more needed keeps every
+    # citation, until a three-passage kind narrows to subsets.
+    return own or (max(range(len(texts)), key=lambda at: (len(holds[at]), -at)),)
 
 
 def settle(
@@ -628,6 +679,78 @@ class QuestionChecker:
                     ),
                 )
         return candidate
+
+    def _needed(
+        self, candidate: Candidate, form: str, readings: list[Measurement]
+    ) -> Candidate:
+        """Cites a question from the passages that hold a part of its answer.
+
+        Citing two passages is the writer's report of what it used, and a
+        second one that states nothing the first does not makes a question
+        two-passage and harder than it is. So the question is read once for
+        the parts of its answer and the words of every cited passage that
+        state each, and code finds those words in the passages: one passage
+        stating every part the others state is the only citation, the scope
+        and the band following from it.
+
+        Last, and only for a question about to be accepted, so a refused one
+        never pays for the call. It never refuses: a question one passage
+        answers is relabelled, not refused. A bridge cited alone, or a
+        follow-up whose narrowed citation would ask nothing its root did not
+        (`_thread` is read again on the narrowed group), keeps both passages,
+        with the reading on the row. Where no quote is found in any passage
+        nothing is decided and nothing is recorded.
+        """
+        resting = candidate.group.resting
+        if not candidate.answerable or candidate.spec.derived or len(resting) < 2:
+            return candidate
+        texts = [passage.text for passage in resting]
+        parts = self._verifier.stated(
+            candidate.question_text,
+            candidate.target_answer or "",
+            texts,
+            candidate.thread,
+        )
+        keep = needed(parts, texts)
+        if keep is None:
+            log.info(
+                "%r: no passage holds a quoted part, kept as cited",
+                candidate.question_text,
+            )
+            return candidate
+        readings.append(
+            Measurement(
+                "needs_both",
+                0.0 if len(keep) == 1 else 1.0,
+                0.5,
+                opinion=True,
+                version=STATED_VERSION,
+            )
+        )
+        if len(keep) != 1:
+            return candidate
+        keep_id = resting[keep[0]].id
+        narrowed = _narrowed(candidate.group, keep_id)
+        if not narrowed.facts:
+            log.info(
+                "%r is stated by one passage but cites a bridge: kept two-passage",
+                candidate.question_text,
+            )
+            return candidate
+        alone = replace(candidate, group=narrowed)
+        if self._thread(alone) is not None:
+            log.info(
+                "%r is stated by one passage but its thread needs both: kept "
+                "two-passage",
+                candidate.question_text,
+            )
+            return candidate
+        log.info(
+            "%r is cited from passage %s alone",
+            candidate.question_text,
+            keep_id,
+        )
+        return alone
 
     def _kind(self, candidate: Candidate) -> tuple[str, str] | None:
         """What a rule can settle about the kind and the long answer.
