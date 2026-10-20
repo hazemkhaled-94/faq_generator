@@ -177,3 +177,59 @@ def test_an_answered_twin_rejects_an_unanswerable_question_whichever_came_first(
     failed = _recheck(_Stored(answered), Settings.load(), asked)  # type: ignore[arg-type]
 
     assert failed is not None and failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
+
+
+#: A compound row per language and domain: two unrelated asks joined by "and".
+COMPOUND = (
+    (
+        "en",
+        "What is the daily cash limit at a cash machine, and how is an account closed?",
+        "1,000 euros; by a signed letter",
+    ),
+    (
+        "de",
+        "Wie hoch ist das tägliche Bargeldlimit am Automaten, und wie wird ein Konto geschlossen?",
+        "1.000 Euro; durch einen Brief",
+    ),
+    (
+        "en",
+        "How long does standard delivery take, and within what period may goods be returned?",
+        "3 to 5 days; 30 days",
+    ),
+    (
+        "de",
+        "Wie lange dauert die Standardlieferung, und bis wann können Waren zurückgegeben werden?",
+        "3 bis 5 Tage; 30 Tage",
+    ),
+)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(("language", "question", "key"), COMPOUND)
+def test_a_stored_compound_question_is_kept_by_a_re_check(
+    language: str, question: str, key: str
+) -> None:
+    """Its two question words are what it is: the stored kind reaches the gate."""
+    stored = _stored(
+        question_text=question,
+        target_answer=key,
+        language=language,
+        kind="compound",
+        passages=2,
+        documents=2,
+    )
+
+    assert _recheck(None, Settings.load(), stored) is None  # type: ignore[arg-type]
+
+
+@pytest.mark.nlp
+def test_a_single_passage_row_with_two_questions_is_still_refused() -> None:
+    """Only the compound kind is let through the two-question-word gate."""
+    stored = _stored(
+        question_text="What is the daily cash limit at a cash machine, and how is an account closed?",
+        target_answer="1,000 euros; by a signed letter",
+    )
+
+    failed = _recheck(None, Settings.load(), stored)  # type: ignore[arg-type]
+
+    assert failed is not None and failed[0] == QuestionRejection.COMPOUND

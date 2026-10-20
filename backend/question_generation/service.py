@@ -336,6 +336,9 @@ def _recheck(
         # is measuring the settings rather than the row.
         forms=(question.answer_form or spec(question.question_type).form,),
         bounds=settings.answer_chars,
+        # What the row was written to be: a compound question asks two things
+        # on purpose, and re-read as single it would be refused for it.
+        kind=question.kind,
     )
     if failed:
         return failed
