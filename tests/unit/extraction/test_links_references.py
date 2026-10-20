@@ -120,6 +120,43 @@ def test_a_numbered_reference_is_dropped_when_the_heads_document_lacks_it(
     assert references(language, rows) == []
 
 
+@pytest.mark.parametrize(
+    "language,text,path,target",
+    [
+        (
+            "en",
+            "Refunds for faulty goods follow “Customers’ rights”.",
+            "Returns > Customers’ rights",
+            "A faulty item is refunded in full.",
+        ),
+        (
+            "en",
+            "A minor's account is opened as set out in “Children’s accounts”.",
+            "Accounts > Children’s accounts",
+            "A parent signs for a child under 16.",
+        ),
+        (
+            "de",
+            "Erstattungen bei Mängeln regelt „Rechte des Kunden’s Wahl“.",
+            "Rückgabe > Rechte des Kunden’s Wahl",
+            "Ein defekter Artikel wird voll erstattet.",
+        ),
+        (
+            "fr",
+            "Voir «Conditions d’accès» pour les cartes.",
+            "Cartes > Conditions d’accès",
+            "Une carte est délivrée à 18 ans.",
+        ),
+    ],
+)
+def test_a_quoted_heading_with_a_typographic_apostrophe_is_linked(
+    language, text, path, target
+):
+    """A ’ followed by a letter or inside a double-quoted span does not end it."""
+    rows = [(text, "Orders > Refunds", "d"), (target, path, "d")]
+    assert references(language, rows) == [(1, 2)]
+
+
 def titled(text, path, ident, doc, language, title):
     """One passage of a document with a title."""
     return replace(one(text, path, ident, doc, language), title=title)

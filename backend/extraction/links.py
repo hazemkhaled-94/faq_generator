@@ -27,12 +27,19 @@ from nlp.pipelines import pipeline
 
 _NUMBER = re.compile(r"\d+(?:\.\d+)*")
 
-#: A quoted span: opening and closing marks of the common scripts, and an
-#: ASCII apostrophe only at a word's edge.
-_QUOTED = re.compile(
-    r"(?:[\"„‚“‘«‹›»”’]|(?<!\w)')"
-    r"(?P<inner>[^\"„‚“”‘’«»‹›\n]+?)"
-    r"(?:[\"“”‘’«»‹›]|'(?!\w))"
+#: A quoted span, as two patterns by what opens it. A double mark closes at a
+#: double mark and may hold apostrophes ("Customers’ rights"); a single mark
+#: or an ASCII apostrophe opens at a word's edge and closes only where no
+#: letter follows, so an apostrophe inside the span does not end it.
+_QUOTED = (
+    re.compile(
+        r"[\"„“«‹›»”](?P<inner>[^\"„“”«»‹›\n]+?)[\"“”«»‹›]",
+    ),
+    re.compile(
+        r"(?:‚|(?<!\w)[‘’'])"
+        r"(?P<inner>(?:[^'\"„‚“”‘’«»‹›\n]|['’‘](?=\w))+?)"
+        r"[‘’'](?!\w)"
+    ),
 )
 
 #: The share of a language's passages a term may be in and still be rare.
@@ -202,7 +209,10 @@ def _references(
         mine = {_plain(s) for s in _segments(head)}
         quoted = [
             key
-            for m in _QUOTED.finditer(head.text)
+            for m in sorted(
+                (m for rx in _QUOTED for m in rx.finditer(head.text)),
+                key=lambda m: m.start(),
+            )
             if (key := _plain(m.group("inner"))) in headings
             and key not in mine
             and content(m.group("inner"), language)
