@@ -36,7 +36,7 @@ from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.table.table_data import TableCell
 from docling_core.types.doc.labels import DocItemLabel
 
-from nlp.text import printed, rejoined
+from nlp.text import printed, rejoined, unfinished
 from preprocessing.parsing.models import Conversion, SourceDocument
 from preprocessing.parsing.pipelines.base import ConversionFailed, Pipeline
 
@@ -574,14 +574,17 @@ def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
             held.update(range(cell.start_row_offset_idx, cell.end_row_offset_idx))
     order = sorted(set(rows) - held)
     gone: set[int] = set()
-    for row, below in pairwise(order):
+    for place, (row, below) in enumerate(pairwise(order)):
         cells, first = rows[row], rows[below].get(0)
         if (
             below == row + 1
             and table.data.num_cols > 1
-            and {col for col, cell in cells.items() if cell.text.strip()} == {0}
+            and _label_only(cells)
             and first is not None
             and first.text.strip()[:1].islower()
+            and (
+                unfinished(cells[0].text) or not _lower_items(rows, order[place + 2 :])
+            )
         ):
             first.text = rejoined(
                 f"{cells[0].text.strip()} {first.text.strip()}", whole
@@ -619,6 +622,27 @@ def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
         cell.end_row_offset_idx -= shift
     table.data.table_cells = kept
     table.data.num_rows -= len(gone)
+
+
+def _label_only(cells: dict[int, TableCell]) -> bool:
+    """Whether a row holds a label and nothing in its other cells."""
+    return {col for col, cell in cells.items() if cell.text.strip()} == {0}
+
+
+def _lower_items(rows: dict[int, dict[int, TableCell]], order: list[int]) -> bool:
+    """Whether the next row down opens its label in lower case and has data.
+
+    A label alone over one such row is a wrapped label; over several it is a
+    group row heading them, and a wrapped label continues exactly one row.
+    """
+    if not order:
+        return False
+    label = rows[order[0]].get(0)
+    return (
+        label is not None
+        and label.text.strip()[:1].islower()
+        and not _label_only(rows[order[0]])
+    )
 
 
 def _kept(row: int, gone: set[int]) -> int:

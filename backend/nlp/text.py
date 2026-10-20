@@ -37,6 +37,22 @@ JOINING: dict[str, tuple[str, ...]] = {
     "en": ("and", "or", "nor", "to", "vs", "versus"),
 }
 
+#: The words that cannot end a label, by ISO 639-1 code: articles,
+#: prepositions and conjunctions. A label ending on one goes on in the line
+#: below it ("cash withdrawal at" / "foreign ATM").
+UNFINISHED: dict[str, tuple[str, ...]] = {
+    "de": (
+        "am", "an", "auf", "aus", "bei", "bis", "das", "dem", "den", "der",
+        "des", "die", "ein", "eine", "einem", "einen", "einer", "eines", "für",
+        "im", "in", "mit", "nach", "oder", "um", "und", "unter", "von", "vom",
+        "vor", "zu", "zum", "zur", "über",
+    ),
+    "en": (
+        "a", "an", "and", "at", "by", "for", "from", "in", "into", "of", "on",
+        "or", "the", "to", "via", "with",
+    ),
+}  # fmt: skip
+
 #: A hyphen a word is printed with, between the letters either side of it:
 #: "third-party", and each of "state-of-the-art".
 _COMPOUND = re.compile(r"([^\W\d_]+)-(?=([^\W\d_]+))")
@@ -64,6 +80,14 @@ def _broken_word() -> re.Pattern[str]:
     return re.compile(
         rf"(?<=[A-Za-zÄÖÜäöüß])-\s+{joined}"
         r"(?=[a-zäöüß])"
+    )
+
+
+def unfinished(label: str) -> bool:
+    """Whether a label ends on a word that cannot end one, in any language."""
+    words = label.split()
+    return bool(words) and any(
+        words[-1].casefold() in UNFINISHED.get(code, ()) for code in languages()
     )
 
 

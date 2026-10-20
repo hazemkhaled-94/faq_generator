@@ -186,6 +186,7 @@ missing from one fails no test.
 | `_FINITE_TAGS` | same | Fine tags of a finite verb: a statement carrying one asserts something, whatever part of speech the tagger gave the word | `VVFIN`, `VBZ` |
 | `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence before a lower-case word or a figure | `ca.`, `approx.` |
 | `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
+| `UNFINISHED` | [`text.py`](text.py) | Articles, prepositions and conjunctions that cannot end a table label: a label alone on a row that ends on one goes on in the row below, whatever follows | `und`, `at` |
 | `_CONJUNCTIONS` | [`preprocessing/chunking/furniture.py`](../preprocessing/chunking/furniture.py) | Conjunctions joining two alternatives or items: one printed alone is no heading, in the trail or as a heading the layout made of it | `oder`, `or` |
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
