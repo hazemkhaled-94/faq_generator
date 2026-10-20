@@ -64,6 +64,7 @@ from database.qa_generator import (
     QuestionStatus,
     QuestionType,
 )
+from llm.client import ModelUnavailable
 from nlp.analysis import content, interrogatives, pointing
 from nlp.embedding import Embedder, cosine
 from nlp.text import _plain, holders
@@ -720,12 +721,18 @@ class QuestionChecker:
         if not candidate.answerable or candidate.spec.derived or len(resting) < 2:
             return candidate
         texts = [passage.text for passage in resting]
-        parts = self._verifier.stated(
-            candidate.question_text,
-            candidate.target_answer or "",
-            texts,
-            candidate.thread,
-        )
+        try:
+            parts = self._verifier.stated(
+                candidate.question_text,
+                candidate.target_answer or "",
+                texts,
+                candidate.thread,
+            )
+        except ModelUnavailable as exc:
+            # ModelRefused is one too. An opinion about the citation: losing
+            # it must not lose a question the passages support.
+            log.warning("no parts reading for %r: %s", candidate.question_text, exc)
+            return candidate
         keep = needed(parts, texts)
         if keep is None:
             log.info(

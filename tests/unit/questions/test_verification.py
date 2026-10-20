@@ -20,6 +20,7 @@ from database.qa_generator import (
     QuestionStatus,
     QuestionType,
 )
+from llm.client import ModelRefused, ModelUnavailable
 from question_generation.checker import QuestionChecker
 from question_generation.config import Settings
 from question_generation.gates import (
@@ -5708,6 +5709,44 @@ def test_a_tie_on_two_items_both_passages_repeat_keeps_both() -> None:
     )
 
     assert result.passage_ids == (1, 2)
+
+
+class _Down(ByParts):
+    """A verifier whose parts reading cannot be had."""
+
+    def __init__(self, error: Exception, **kwargs) -> None:
+        """Initialises with what the reading raises."""
+        super().__init__((), **kwargs)
+        self.error = error
+
+    def stated(self, question: str, key: str, passages, thread=()):
+        """Raises, as an outage or a provider's refusal does."""
+        raise self.error
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+@pytest.mark.parametrize("error", [ModelUnavailable, ModelRefused])
+@pytest.mark.parametrize("pair", [_DORMANT, _STATED_ONE], ids=["bank", "shop"])
+def test_a_parts_reading_that_cannot_be_had_keeps_both_and_loses_nothing(
+    language: str, error, pair
+) -> None:
+    """The check is an opinion about the citation: the accepted question stays."""
+    first, second, question, key = pair[language][:4]
+    recording = _Down(error("down"), recovers=key)
+
+    result = build(recording).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            facts=_two(first, second, language),
+            kind="needs_both",
+        )
+    )
+
+    assert result.accepted
+    assert result.passage_ids == (1, 2)
+    assert result.kind == "needs_both"
+    assert _needs_both(result) == []
 
 
 def test_no_part_quoted_from_any_passage_keeps_both_and_reads_nothing() -> None:
