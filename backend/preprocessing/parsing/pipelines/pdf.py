@@ -558,6 +558,11 @@ def _append(table: TableItem, rest: TableItem) -> None:
 def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
     """Joins each row that is the wrapped rest of the row above it into it.
 
+    A label alone on a row that opens in lower case, or closes a bracket the
+    label above it opened, is the last line of that label (a top-aligned
+    table whose other cells stay on the first line, each of them filled). One that opens in upper
+    case heads the row below, as a wrapped label's first line does.
+
     A row a spanning cell or a header covers is left as it is, on either
     side of a join: the cell holds more than one row, and a header names the
     columns rather than continuing a cell. A word the wrap broke is mended,
@@ -574,10 +579,28 @@ def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
             held.update(range(cell.start_row_offset_idx, cell.end_row_offset_idx))
     order = sorted(set(rows) - held)
     gone: set[int] = set()
+    for above, row in pairwise(order):
+        label = rows[row].get(0)
+        top = rows[above].get(0)
+        if (
+            row == above + 1
+            and table.data.num_cols > 1
+            and label is not None
+            and top is not None
+            and _label_only(rows[row])
+            and all(
+                above_cell is not None and above_cell.text.strip()
+                for above_cell in map(rows[above].get, range(1, table.data.num_cols))
+            )
+            and _tail(top.text, label.text)
+        ):
+            top.text = rejoined(f"{top.text.rstrip()} {label.text.strip()}", whole)
+            gone.add(row)
     for place, (row, below) in enumerate(pairwise(order)):
         cells, first = rows[row], rows[below].get(0)
         if (
-            below == row + 1
+            row not in gone
+            and below == row + 1
             and table.data.num_cols > 1
             and _label_only(cells)
             and first is not None
@@ -622,6 +645,18 @@ def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
         cell.end_row_offset_idx -= shift
     table.data.table_cells = kept
     table.data.num_rows -= len(gone)
+
+
+def _tail(label: str, rest: str) -> bool:
+    """Whether `rest` is the last line of the label above it.
+
+    It opens in lower case, or closes the bracket the label left open and
+    opens none of its own.
+    """
+    closing, bracket, _ = rest.partition(")")
+    return rest.strip()[:1].islower() or (
+        bool(bracket) and "(" not in closing and label.count("(") > label.count(")")
+    )
 
 
 def _label_only(cells: dict[int, TableCell]) -> bool:
