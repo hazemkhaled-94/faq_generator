@@ -70,6 +70,7 @@ _COLUMNS = (
     ("answer_explanation", "Answer in full"),
     ("answerable", "Answerable"),
     ("question_type", "Type"),
+    ("kind", "Kind"),
     ("answer_form", "Answer form"),
     ("cognitive_level", "Cognitive level"),
     ("difficulty", "Difficulty"),
