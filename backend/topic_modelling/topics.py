@@ -162,16 +162,23 @@ class TopicFitter:
             )
 
         before = len(dictionary)
+        # A count against a share is unsatisfiable on a small corpus: no term
+        # is in at least 3 and at most half of 5 passages. So the count is held
+        # to what the share allows, and the share to what the count needs; from
+        # 6 passages up both are as set.
+        no_below = min(self._no_below, max(1, int(self._no_above * counted)))
+        no_above = min(1.0, max(self._no_above, (no_below + 0.5) / counted))
         dictionary.filter_extremes(
-            no_below=self._no_below,
-            no_above=self._no_above,
+            no_below=no_below,
+            no_above=no_above,
             keep_n=None,  # pyright: ignore[reportArgumentType]
         )
         if not dictionary:
             raise NoVocabulary(
                 f"the frequency filter left no terms: {before} were found across "
                 f"{counted} passage(s), and none appears in at least "
-                f"{self._no_below} of them and at most {self._no_above:.0%}"
+                f"{no_below} of them and at most {no_above:.0%} (TOPIC_NO_BELOW is "
+                f"{self._no_below}, TOPIC_NO_ABOVE {self._no_above:.0%})"
             )
 
         bows = _BagsOfWords(corpus, dictionary)

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import case, delete, func, insert, select, text, update
+from sqlalchemy import case, delete, false, func, insert, select, text, update
 
 from database.qa_generator import (
     Fact,
@@ -318,7 +318,9 @@ class TopicQueue(StageQueue):
         with self._session() as session:
             return _dominant(session, language)
 
-    def replace(self, fit_id: int, fittings: list[Fitting]) -> tuple[int, int] | None:
+    def replace(
+        self, fit_id: int, fittings: list[Fitting], *, keep_request: bool = False
+    ) -> tuple[int, int] | None:
         """Replaces the topics and memberships of each language one run fitted.
 
         Every language in one transaction: a corpus holding one language's new
@@ -330,6 +332,8 @@ class TopicQueue(StageQueue):
         Args:
             fit_id: The request row this run claimed.
             fittings: What each language's fit produced.
+            keep_request: Leave the claimed request row, for the caller to fail
+                with the languages that had no model.
 
         Returns:
             How many memberships were written and how many decisions a person
@@ -423,7 +427,7 @@ class TopicQueue(StageQueue):
             session.execute(
                 delete(Topic).where(
                     (~_OUTSTANDING & (Topic.language.in_(fitted) | gone))
-                    | (Topic.id == fit_id)
+                    | (false() if keep_request else Topic.id == fit_id)
                 )
             )
 

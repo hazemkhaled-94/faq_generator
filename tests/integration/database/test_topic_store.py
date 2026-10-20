@@ -219,6 +219,24 @@ def test_a_fit_writes_its_topics_and_their_memberships(store) -> None:
     assert len(store.memberships()) == 2
 
 
+def test_a_fit_that_skipped_a_language_keeps_its_request_to_fail(store) -> None:
+    """The request row outlives the write, so the skipped language can be said."""
+    store.given_passages(de=2)
+    fit_id = store.claim() or store.request()
+
+    store.queue.replace(
+        fit_id,
+        [fitting("de", weights=store.weights_for("de", (0, 0, 0.9)))],
+        keep_request=True,
+    )
+    store.queue.fail(fit_id, "no en model: the frequency filter left no terms")
+
+    assert [row["error"] for row in store.requests()] == [
+        "no en model: the frequency filter left no terms"
+    ]
+    assert len(store.stored_topics()) == 2
+
+
 def test_a_membership_points_at_the_row_its_topic_became(store) -> None:
     """A topic index is not a primary key, and the two used to be confused."""
     store.given_passages(de=2)

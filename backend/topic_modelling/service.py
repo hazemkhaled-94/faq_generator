@@ -133,11 +133,13 @@ class TopicModellingService(StageService):
     def _fit(self, fit_id: int, current: Span) -> None:
         """Fits every language the corpus holds and stores what they produced.
 
-        A language the fitter refuses is logged and left out.
+        A language the fitter refuses is left out and fails the request once
+        the others are stored, so it shows on the stage and the API.
 
         Raises:
-            NoVocabulary: If no passage carries a language, or if no language
-                produced a model.
+            NoVocabulary: If no passage carries a language, if no language
+                produced a model, or, after the rest are stored, if a language
+                did not.
         """
         languages = self._repository.languages()
         if not languages:
@@ -148,6 +150,7 @@ class TopicModellingService(StageService):
 
         fittings: list[Fitting] = []
         lost = 0
+        skipped: list[str] = []
         for language in languages:
             # A span per language, not one for the lot: each is a separate
             # factorisation over its own vocabulary and then one model call
@@ -164,6 +167,7 @@ class TopicModellingService(StageService):
                     )
                 except NoVocabulary as exc:
                     log.warning("no %s model: %s", language, exc)
+                    skipped.append(f"no {language} model: {exc}")
                     continue
                 decided = self._repository.labelled_topics(language)
                 carried, dropped = carry_labels(
@@ -190,10 +194,10 @@ class TopicModellingService(StageService):
         if not fittings:
             raise NoVocabulary(
                 f"none of {', '.join(languages)} had a vocabulary left after "
-                f"filtering, so no model was fitted"
+                f"filtering, so no model was fitted ({'; '.join(skipped)})"
             )
 
-        stored = self._repository.replace(fit_id, fittings)
+        stored = self._repository.replace(fit_id, fittings, keep_request=bool(skipped))
         if stored is None:
             log.warning(
                 "fit %d: the request was withdrawn or claimed again; nothing written",
@@ -226,6 +230,10 @@ class TopicModellingService(StageService):
                     fitting.passages,
                     fitting.language,
                 )
+        if skipped:
+            # The topics above are stored; the request stays, failed, so the
+            # language that has none is on the stage and in `GET /topics/fit`.
+            raise NoVocabulary("; ".join(skipped))
 
     def _keep(self, fittings: list[Fitting]) -> None:
         """Stores each language's factorisation.

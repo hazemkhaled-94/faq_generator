@@ -219,6 +219,8 @@ class RecordingQueue:
         #: Each passage's dominant topic index in the fit being replaced.
         self.dominant: dict[str, dict[int, int]] = {}
         self.stored: list[Fitting] = []
+        #: The requests a fit stored under and left on the queue to fail.
+        self.kept: list[int] = []
         self.failures: dict[int, str] = {}
         self.pending: list[int] = []
         self.claims: list[int] = []
@@ -288,13 +290,17 @@ class RecordingQueue:
             if one.id in asked
         }
 
-    def replace(self, fit_id: int, fittings: list[Fitting]) -> tuple[int, int] | None:
+    def replace(
+        self, fit_id: int, fittings: list[Fitting], *, keep_request: bool = False
+    ) -> tuple[int, int] | None:
         """Stores what one fit produced, or nothing for a claim another took."""
         if self.refuses is not None:
             raise self.refuses
         if self.lost:
             return None
         self.stored = list(fittings)
+        if keep_request:
+            self.kept.append(fit_id)
         return sum(len(one.weights) for one in fittings), self.dropped
 
     def fail(self, key: int, error: str) -> None:

@@ -114,25 +114,31 @@ def test_a_corpus_with_no_language_fails_the_run_and_says_what_to_do(service) ->
     assert flow.stored == []
 
 
-def test_a_language_the_filter_empties_is_left_out_not_fatal(
+def test_a_language_the_filter_empties_is_left_out_and_fails_the_request(
     service, passages, english
 ) -> None:
-    """One language failing must not take the others with it."""
+    """One language failing must not take the others with it, nor go unsaid."""
     flow = service({"de": passages, "en": corpus("solitary", first_id=900)})
 
     flow.request_and_run()
 
     assert flow.languages_stored == ["de"], flow.languages_stored
-    assert flow.failure is None, flow.failure
+    assert flow.failure is not None
+    assert "no en model" in flow.failure, flow.failure
 
 
 def test_a_run_where_no_language_survives_the_filter_fails(service) -> None:
-    """An empty result is a failure, not an empty model."""
-    flow = service({"de": corpus("solitary", "unrelated")}, no_below=99)
+    """An empty result is a failure, not an empty model.
+
+    Three passages sharing no term: even held to what three passages allow,
+    no term is in the two the filter asks for.
+    """
+    flow = service({"de": corpus("alpha", "beta", "gamma")})
 
     flow.request_and_run()
 
     assert flow.failure is not None
+    assert "frequency filter" in flow.failure, flow.failure
     assert "de" in flow.failure, flow.failure
 
 
