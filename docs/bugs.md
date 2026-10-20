@@ -862,6 +862,12 @@ review. The releases from v0.3.13 on fix what it found, one fix to a release.
 |---|---|---|---|
 | A stored compound question was refused when reverified | the re-check passed no kind to the structural checks, so a stored compound question was read as a single-passage one and refused for its two question words (`make questions-reverify`); the checker had always passed the kind | the re-check holds a stored question to the kind it was written as, so a compound question is no longer refused for its two question words while a single-passage row with two questions still is ([`service.py`](../backend/question_generation/service.py)); found before compound is dealt by default | red tests on bank and shop rows in German and English, green after. Known gap: a re-check cannot re-run the compound checks of the halves, because the halves are not stored; it only skips the two-question-word refusal |
 
+### Fixed in v0.3.26: compound questions dealt by default
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| Compound questions were built but never dealt | the compound kind of v0.3.22 had no weight in the kind mix, so no build wrote one | the kind mix defaults to `needs_both:5,compound:1`, one spanning slot in six dealt as compound; `QUESTIONS_KIND_MIX=needs_both:1` turns it off ([`config.py`](../backend/question_generation/config.py)) | measured on pairs built by the calibration script, not through the deal: 28 of 48 accepted and, read blind, 28 of 28 compound, none a false join, 75% usable (the bar was 80%) and keys right 68% (the bar was 75%). The real path through the deal is not calibrated yet; the corpus rebuild on this release measures it |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was

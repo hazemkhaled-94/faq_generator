@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.26
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. **Compound questions are now dealt**, in about one of every six spanning slots (the kind mix defaults to `needs_both:5,compound:1`); `QUESTIONS_KIND_MIX=needs_both:1` turns them off. Measured on pairs built by the calibration script, not through the deal: 28 of 48 accepted and, read blind, 28 of 28 compound, 0 false joins, 75% usable and keys right 68%, under the 80% and 75% the calibration asked. The real path through the deal is not calibrated yet; the corpus rebuild on this release measures it. A compound question costs two verifier reads and no round trip, and the weld rate counts only the `needs_both` kind. Stored questions stay as they are.
+
 ## Upgrading to v0.3.25
 
 ```bash

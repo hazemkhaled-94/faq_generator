@@ -224,10 +224,11 @@ its halves (a word such as "differ", "both" or "together", by the per-language
 `wrong_type`. The key is held to its answer form one half at a time. The
 partner is the passage of the slot's topic and its bridges that shares least
 with the head; a slot that is dealt one passage is written as `single`.
-Compound is off by default: it is dealt only with
-`QUESTIONS_KIND_MIX=needs_both:5,compound:1`. It was calibrated on pairs built
-by its calibration script, not through the deal, so the real path is not yet
-calibrated; the quality bars were not met (see the bugs page).
+Compound is dealt by default, in about one of every six spanning slots
+(`QUESTIONS_KIND_MIX=needs_both:5,compound:1`); `QUESTIONS_KIND_MIX=needs_both:1`
+turns it off. It was calibrated on pairs built by its calibration script, not
+through the deal, so the real path is not yet calibrated and the quality bars
+were not met (see the bugs page); a corpus rebuild measures it.
 
 ### The answer form
 
