@@ -363,7 +363,7 @@ def tidied(
     put before it, a level below the heading it follows, so it heads what
     comes next, and it moves to the furniture layer; where it repeats the
     heading right before it, it only moves. Before the first block of each
-    chapter goes a title naming it, which empties the heading trail the
+    chapter, or before its own heading where its page holds one, goes a title naming it, which empties the heading trail the
     chunker would otherwise carry over from the chapter before.
 
     Args:
@@ -631,23 +631,51 @@ def _repeats(text: str, running: frozenset[tuple[str, ...]]) -> bool:
 def _chapter_starts(
     document: DoclingDocument, furniture: Furniture, skipped: set[str]
 ) -> list[tuple[str, tuple[str, ...]]]:
-    """The top-level block each chapter opens on, with the chapter's label."""
+    """The top-level block each chapter opens on, with the chapter's label.
+
+    A chapter opens on the first block of the page whose running head names
+    it, unless that page holds the chapter's own heading, a heading whose
+    text is one of the label's fields: a head that names the chapter opening
+    on its page, as a first-on-page mark does, is wrong above that heading,
+    and what precedes it stays in the chapter before.
+    """
     if not furniture.labels:
         return []
-    found = []
-    current: tuple[str, ...] = ()
+    blocks = []
     for child in document.body.children:
         node = child.resolve(document)
         if node.content_layer != ContentLayer.BODY or node.self_ref in skipped:
             continue
         page = _first_page(node, document)
-        if page is None:
-            continue
+        if page is not None:
+            blocks.append((node, page))
+    found = []
+    current: tuple[str, ...] = ()
+    for index, (node, page) in enumerate(blocks):
         label = furniture.chapter(page)
         if label and label != current:
-            found.append((node.self_ref, label))
+            named = {_key(one) for one in label}
+            opening = next(
+                (
+                    later
+                    for later, there in blocks[index:]
+                    if there == page and _heads(later, named, document)
+                ),
+                node,
+            )
+            found.append((opening.self_ref, label))
         current = label
     return found
+
+
+def _heads(node: NodeItem, named: set[str], document: DoclingDocument) -> bool:
+    """Whether a block holds a heading whose text is one of the given keys."""
+    return any(
+        isinstance(item, TextItem)
+        and item.label in _HEADINGS
+        and _key(item.text) in named
+        for item, _ in document.iterate_items(root=node)
+    )
 
 
 def _first_page(node: NodeItem, document: DoclingDocument) -> int | None:
@@ -667,7 +695,8 @@ def headed(
     """Writes each chunk's heading trail as its passage will carry it.
 
     The chapter label of the chunk's first page leads, as its fields, unless
-    the trail already starts with them; the title `tidied` put in is
+    the trail already starts with them, or the chunk sits above the opening of
+    that chapter on its page and keeps the chapter before; the title `tidied` put in is
     replaced by it. A segment that is
     a lone conjunction or holds no word at all is dropped.
 
@@ -693,6 +722,10 @@ def headed(
         # chapter's place, and a page in no chapter keeps the trail it had.
         page = _page_of(chunk)
         label = furniture.chapter(page) if page is not None else marked or ()
+        # Above the opening of the chapter its page names, the title carried
+        # in is the chapter before's: that chapter still holds the chunk.
+        if marked is not None and label and marked != label:
+            label = marked
         if label:
             named = {_key(one) for one in label}
             while trail and _key(trail[0]) in named:
