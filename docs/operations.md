@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.30
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. Stored questions stay as they are. A new `make questions` run deals compound samples from a passage's own claims and unanswerable slots from facts resting on one passage; a topic that held only bridges for such a slot writes fewer questions of it, and the log names each slot skipped.
+
 ## Upgrading to v0.3.29
 
 ```bash

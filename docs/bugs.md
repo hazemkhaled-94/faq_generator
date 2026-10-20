@@ -806,6 +806,16 @@ ship here as tests only.
 
 Together on the scoreboard: German `unresolved_reference` refusals 59 to 56, validated facts 1697 to 1700, all three newly admitted facts stated correctly, no right refusal lost.
 
+### Fixed in v0.3.30: bridges in samples
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A compound question could rest on a bridge's own related pair | the sample returned the head alone when the head spans and kept a bridge alone, so 5 of 68 compound slots of the v0.3.12 pool rested on the two passages a bridge relates, not on two unrelated ones | a compound sample prefers a passage's own claims, never keeps a bridge, and a topic holding only bridges is exhausted for a compound slot ([`selection.py`](../backend/question_generation/selection.py)) | replay on the stored build: compound slots resting on a bridge 5 to 0, the 68 compound slots still dealt |
+| An unanswerable slot was dealt a bridge and perturbed it | the perturbation of a fact resting on two passages was stored `hard` against the planned `easy`: 67 of 364 unanswerable slots of the v0.3.12 pool were dealt a bridge | an unanswerable slot is dealt only facts resting on one passage, and a slot with only bridges left is skipped and logged while the topic goes on ([`service.py`](../backend/question_generation/service.py)) | replay: unanswerable slots dealt a bridge 67 to 0 (364 dealt before, 358 after, 6 skipped); the unanswerable share of written slots 0.295 to 0.293 |
+| A compound slot's second passage could hold only bridges | the sample dropped that passage's facts and left the head alone, after the slot had spent a round on it | the partner is chosen among passages with an unspent non-bridge fact ([`selection.py`](../backend/question_generation/selection.py)) | red tests on bank and shop rows in German and English (4 red, green after); the replay is identical to the previous commit |
+
+On the scoreboard no value moves (it replays stored data). The slots of single and needs_both questions after the first unanswerable slot of a topic shift, because that slot no longer spends a bridge.
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was
