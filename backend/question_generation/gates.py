@@ -2552,6 +2552,20 @@ def agrees(
         return False
 
     wanted = content(target, language)
+    # The unit a range carries, `cm` in `1–3 cm`, is a number to the tagger in
+    # one sentence and a noun in the other, so its lemma cannot be compared
+    # like a content word's: it has to come back by surface form or lemma, and
+    # is left out of what the lemmas are asked to match.
+    read = list(pipeline(language)(target))
+    units_of = [
+        after
+        for token, after in pairwise(read)
+        if _RANGE.fullmatch(token.text) and after.is_alpha
+    ]
+    for unit in units_of:
+        if not {unit.lower_, unit.lemma_.casefold()} & vocabulary(recovered, language):
+            return False
+        wanted = wanted - {unit.lemma_.casefold()}
     if wanted:
         got = content(recovered, language)
         if form == AnswerForm.VALUE:

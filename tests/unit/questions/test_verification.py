@@ -1627,6 +1627,30 @@ def test_one_end_of_a_range_is_not_the_range(
     )
 
 
+@pytest.mark.parametrize(
+    ("language", "target", "recovered"),
+    [
+        ("en", "1–3 cm", "between 1 and 3 cm"),
+        ("en", "8–13 kg", "A parcel weighs between 8 and 13 kg."),
+        ("en", "8–13 hours", "Processing takes between 8 and 13 hours."),
+        ("en", "3–63 days", "3 to 63 days"),
+        ("en", "29–30 cm", "from 29 cm to 30 cm"),
+        ("de", "1–3 cm", "zwischen 1 und 3 cm"),
+        ("de", "8–13 kg", "Ein Paket wiegt 8 bis 13 kg."),
+        ("de", "8–13 Stunden", "Die Bearbeitung dauert zwischen 8 und 13 Stunden."),
+    ],
+)
+def test_a_range_unit_comes_back_whatever_the_tagger_calls_it(
+    language, target, recovered
+) -> None:
+    """`cm` is a number to the tagger in one sentence and a noun in the other.
+
+    The unit of a range is compared by its surface form and lemma, not by the
+    part of speech either side gave it.
+    """
+    assert agrees(recovered, target, language)
+
+
 def test_a_hyphen_range_with_its_unit_comes_back_end_by_end() -> None:
     """The tokenizer splits `5-9` into two figures, so the en dash is the only range form."""
     recovered = "Between 5 and 9 days."
