@@ -158,7 +158,7 @@ def _references(
             if (m := HEADING_LABEL.match(s))
         }
         tokens = list(nlp(head.text))
-        named: set[tuple[str, str]] = set()
+        named: dict[tuple[str, str], set[str]] = defaultdict(set)
         for at, token in enumerate(tokens[:-1]):
             word = next(
                 (
@@ -172,7 +172,7 @@ def _references(
                 continue
             nxt = at + 1
             while nxt < len(tokens) and _NUMBER.fullmatch(tokens[nxt].text.rstrip(".")):
-                named.add((word, tokens[nxt].text.rstrip(".")))
+                named[(word, tokens[nxt].text.rstrip("."))].add(tokens[at].sent.text)
                 if (
                     nxt + 2 < len(tokens)
                     and tokens[nxt + 1].pos_ in ("CCONJ", "PUNCT")
@@ -181,8 +181,19 @@ def _references(
                     nxt += 2
                 else:
                     break
-        for key in sorted(named - own):
-            held = labels.get(key, [])
+        for key in sorted(k for k in named if k not in own):
+            # A numbered reference names a section of its own document, or of
+            # another whose title the sentence names.
+            held = [
+                h for h in labels.get(key, []) if h[2].doc_sha256 == head.doc_sha256
+            ]
+            if not held:
+                said = content(" ".join(named[key]), language)
+                held = [
+                    h
+                    for h in labels.get(key, [])
+                    if (title := content(h[2].title or "", language)) and title <= said
+                ]
             shallow = min((d for d, _, _ in held), default=0)
             reached = _nearest(head, [p for d, _, p in held if d == shallow])
             if reached is not None:
