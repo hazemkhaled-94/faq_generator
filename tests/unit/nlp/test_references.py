@@ -269,3 +269,47 @@ def test_a_pronoun_after_an_exception_with_no_noun_before_it_is_still_a_referenc
 
     assert claim(statement, language).references != ()
     assert not _validated(language, statement).validated
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Wenn die Karte gesperrt ist, gilt dies als Kündigung.",
+        "Wenn ein Kunde seine Karte verliert, muss er dies sofort melden.",
+        "Wenn die Ware beschädigt ankommt, gilt dies als Reklamationsgrund.",
+        "Wenn das Konto überzogen wird, teilt die Bank dies dem Kunden mit.",
+    ],
+)
+def test_a_german_dies_standing_for_the_clause_before_it_in_its_sentence_resolves(
+    statement: str,
+) -> None:
+    """The singular she, with a verb to say so, is someone the passage named."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ()
+    assert _validated("de", statement).validated
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("passage_text", "statement"),
+    [
+        ("Die Karte ist gesperrt.", "Dies gilt als Kündigung."),
+        (
+            "Die Karte ist gesperrt. Dies gilt als Kündigung.",
+            "Dies gilt als Kündigung.",
+        ),
+        ("Die Ware ist beschädigt.", "Dies ist ein Reklamationsgrund."),
+    ],
+)
+def test_a_german_dies_with_no_clause_before_it_is_still_a_reference(
+    passage_text: str, statement: str
+) -> None:
+    """Only the capital makes it polite."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ("dies",)
+    result = _validated("de", passage_text, statement)
+    assert not result.validated
+    assert result.rejection_code == "unresolved_reference"

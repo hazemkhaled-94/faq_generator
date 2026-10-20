@@ -773,12 +773,7 @@ def _clause(token) -> int:
     """
     at = token.head
     while True:
-        if (
-            at.dep_ in _RELATIVE
-            or (at.dep_ in _EMBEDDED and _finite(at))
-            or any(child.dep_ in _SUBORDINATOR for child in at.children)
-            or at.i in _exception_verbs(at.doc)
-        ):
+        if _heads_clause(at):
             return at.i
         if at.head.i == at.i:
             return at.i
@@ -867,6 +862,20 @@ _IDENTITY: dict[str, frozenset[str]] = {
 }
 
 
+def _heads_clause(verb) -> bool:
+    """Whether a verb heads a clause of its own beneath another, as `_clause` reads one.
+
+    `_clause` starts at a token's head, so the verb of a `wenn` clause, which
+    carries the subordinator, is seen from inside as sitting in the main clause.
+    """
+    return (
+        verb.dep_ in _RELATIVE
+        or (verb.dep_ in _EMBEDDED and _finite(verb))
+        or any(child.dep_ in _SUBORDINATOR for child in verb.children)
+        or verb.i in _exception_verbs(verb.doc)
+    )
+
+
 def _propositional(token) -> bool:
     """Whether a neuter demonstrative stands for an earlier clause of the statement.
 
@@ -884,7 +893,9 @@ def _propositional(token) -> bool:
         return False
     own = _clause(token)
     return any(
-        "Fin" in one.morph.get("VerbForm", []) and _clause(one) != own and one.i != own
+        "Fin" in one.morph.get("VerbForm", [])
+        and one.i != own
+        and (_clause(one) != own or _heads_clause(one))
         for one in token.doc[: token.i]
     )
 
