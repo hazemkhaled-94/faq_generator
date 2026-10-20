@@ -739,4 +739,4 @@ The bridge relation and probe question are stored in `facts.bridge` from v0.3.23
 | Per-passage atomic cap | v0.3.14: 65 `over_cap` refusals to 0 on the v0.3.12 build; readers called 51 sound, 10 rightly refused, 4 partly right | v0.3.14 |
 | Dash ranges and answer completeness | over 919 stored recoveries two verdicts move, both wrong refusals (v0.3.18, v0.3.24); `answer_incomplete` frees 31 of 75 refusals on the v0.3.12 build (27 wrong, 3 partly right, 1 right; 80.6% usable) and 23 of 67 on the v0.4.0 build (19, 4, 0; 73.9% usable) (v0.3.19) | v0.3.18, v0.3.19, v0.3.24 |
 
-Model spend of the cycle's calibrations: USD 1.37 of the USD 10 cap (the needs_both check 0.79, bridge prompt 8 0.43, settles prompt 7 0.12 at the last count, 1.34 in all). The rebuild of the corpus that was planned for this cycle was dropped, so no build cost was spent.
+Model spend of the cycle's calibrations: USD 1.60 of the USD 10 cap (the needs_both check 0.79, bridge prompt 8 0.43, the false-premise redesign 0.26, settles prompt 7 0.12). The rebuild of the corpus that was planned for this cycle was dropped, so no build cost was spent.
