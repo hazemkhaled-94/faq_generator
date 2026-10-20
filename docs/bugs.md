@@ -824,6 +824,15 @@ On the scoreboard no value moves (it replays stored data). The slots of single a
 | A group row of a table was glued to its first item | in a fee table a label alone over a lower-case label was read as a wrapped label, so `Cards` over `debit card` and `credit card` became `Cards debit card` | a label alone on a row joins the row below only when exactly one lower-case-labelled row with data follows ([`parsing`](../backend/preprocessing/parsing)) | red tests, bank and shop tables in German and English; on the 30 Laws PDFs 1 element per language changes (one table row of uefa-equipment-regulations.pdf, `b) c) d) e)`, now two rows), the scoreboard moves no value |
 | The tail of a wrapped table label was glued to the next row's label | in a top-aligned table whose label wraps while the other cells stay on the first line, the tail (`only)`) became the head of the next label (`only) next day`) or a priceless row | a label-only row opening in lower case or closing a bracket the label above left open joins the label above it ([`parsing`](../backend/preprocessing/parsing)) | red tests; the same 1 element per language on the Laws PDFs. Known gap: a three-line wrapped label joins only its first tail |
 
+### Fixed in v0.3.32: table footnotes and lead-ins
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A footnote the converter attached to a table was in no passage | a table footnote (`TableItem.footnotes`) was in no passage, because the table serializer writes captions only | the footnote is written beneath the table in its passage, unless it sits outside the serializer's body layer or is also listed as a caption, so it is written once ([`chunking`](../backend/preprocessing/chunking)) | red tests with bank and shop tables in German and English; on the 30 Laws PDFs 0 passages change (no table footnote in the corpus) |
+| A lead-in scoping a long table reached only its first piece | a lead-in ending in a colon was kept with the pieces of a list but not of a table longer than one passage, so every piece after the first lost what scopes it | a table is read as a list is when a lead-in is carried to the pieces ([`chunking`](../backend/preprocessing/chunking)) | red tests with bank and shop tables in German and English; 0 passages change on the 30 Laws PDFs |
+
+Deferred: the text a converter nests in a picture is not written into passages (the README now says so). Most of it is page numbers, running heads and diagram labels (259 new lines in the German Laws, 382 in the English), so keeping it needs a filter first; no fix is made here.
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was

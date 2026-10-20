@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.32
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. Run `make chunk-rerun` to bring a stored corpus up to date; a document with table footnotes or tables longer than one passage under a lead-in changes its passages. On the 30 football PDFs 0 passages change. The parse, its content hash and language are untouched.
+
 ## Upgrading to v0.3.31
 
 ```bash
