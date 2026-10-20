@@ -318,3 +318,101 @@ def test_the_relation_named_is_carried(first, second) -> None:
     assert fact.probe == (ANSWER["question"], ANSWER["answer"])
 
     assert BridgeExtractor(Model({**ANSWER, "relation": "none"})).extract(offered) == []
+
+
+def test_the_call_carries_the_system_prompt_and_the_prompt_version(offered) -> None:
+    """The version is what the span and the log line say the call was made under."""
+    from extraction.extractors.bridge import _SYSTEM
+
+    model = Model(ANSWER)
+    BridgeExtractor(model).extract(offered)
+
+    assert model.sent["system"] == _SYSTEM
+    assert model.sent["prompt_version"] == PROMPT_VERSION
+
+
+def test_a_passage_without_a_heading_is_numbered_alone(offered) -> None:
+    """No empty brackets where a trail would be."""
+    model = Model(ANSWER)
+    BridgeExtractor(model).extract(offered)
+
+    sent = model.sent["user"]
+    assert "[P0]\n  [0] Standard requests" in sent
+    assert "()" not in sent
+
+
+def test_the_blocks_are_set_apart_and_each_sentence_has_its_line() -> None:
+    """A blank line between passages, one numbered line per sentence."""
+    model = Model(ANSWER)
+    two_sentences = group(
+        "A card is blocked after fraud. The holder is told by letter.",
+        "A shop order is refunded within 14 days.",
+    )
+
+    BridgeExtractor(model).extract(two_sentences)
+
+    sent = model.sent["user"]
+    assert (
+        "[P0]\n  [0] A card is blocked after fraud.\n  [1] The holder is told by letter."
+        "\n\n[P1]\n  [0] A shop order is refunded within 14 days."
+    ) in sent
+
+
+def test_the_validated_facts_follow_the_passage_that_holds_them(offered) -> None:
+    """Only a passage with facts gets a `facts:` list, each fact numbered."""
+    model = Model(ANSWER)
+    BridgeExtractor(model).extract(offered, None, {11: FACTS[11]})
+
+    sent = model.sent["user"]
+    assert sent.count("facts:") == 1
+    assert (
+        "[P0]\n  [0] Standard requests are answered within 48 hours."
+        "\n  facts:\n  [F0] Standard requests are answered within 48 hours."
+        "\n\n[P1]"
+    ) in sent
+
+
+@pytest.mark.parametrize(
+    ("language", "named"),
+    [("en", "English"), ("de", "German")],
+)
+def test_the_statement_is_asked_for_in_the_language_of_the_first_passage(
+    language, named
+) -> None:
+    """The first passage's language, whatever the second one is."""
+    from dataclasses import replace
+
+    first, second = group(
+        "Die Bank erstattet die Gebühr innerhalb von 14 Tagen.",
+        "The shop refunds the fee within 14 days.",
+        language=language,
+    )
+    other = "en" if language == "de" else "de"
+    model = Model(ANSWER)
+
+    BridgeExtractor(model).extract([first, replace(second, language=other)])
+
+    assert f"Write every statement in {named}" in model.sent["user"]
+
+
+def test_none_ends_the_answer_even_when_a_statement_came_with_it(offered) -> None:
+    """The relation decides, not whether the model wrote something anyway."""
+    answer = {**ANSWER, "relation": "none"}
+
+    assert BridgeExtractor(Model(answer)).extract(offered, None, FACTS) == []
+
+
+def test_a_chosen_fact_of_an_excerpt_that_was_not_offered_is_ignored(offered) -> None:
+    """Position 2 of two is past the end, as is 7; neither is an error."""
+    answer = {
+        **ANSWER,
+        "facts": [
+            {"excerpt": 0, "fact": 0},
+            {"excerpt": 2, "fact": 0},
+            {"excerpt": 7, "fact": 0},
+        ],
+    }
+
+    facts = BridgeExtractor(Model(answer)).extract(offered, None, FACTS)
+
+    assert [one.position for one in facts[0].passages] == [0]
