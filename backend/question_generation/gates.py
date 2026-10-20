@@ -2607,10 +2607,12 @@ def agrees(
 #: A figure as either convention writes one: 1.234,56 and 1,234.56 are the
 #: same value, and 65 is itself. The second alternative stops at a separator
 #: that carries a digit, so 1200 in `1200.` is a figure and the 1 of `1.234`
-#: is not.
+#: is not. The third alternative is a long figure with a fraction and no
+#: thousands mark: `1299,99`, `2500.00`.
 _FIGURE = re.compile(
     r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
+    r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
 )
 
 #: A time or a score as one token: groups of digits a colon joins.
@@ -2658,8 +2660,11 @@ def figures(text: str, language: str | None = None) -> list[float]:
             and raw.count(separator) == 1
             and not (set(".,") - {separator}) & set(head)
         )
+        plain = len(head) > 3 and head.isdigit()
         try:
-            if not head or (len(tail) == 3 and whole.strip("0") and not decimal):
+            if not head or (
+                len(tail) == 3 and whole.strip("0") and not decimal and not plain
+            ):
                 found.append(float(raw.replace(".", "").replace(",", "")))
             else:
                 found.append(float(f"{whole}.{tail}"))
