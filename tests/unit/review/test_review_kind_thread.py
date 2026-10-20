@@ -118,3 +118,57 @@ def test_a_thread_that_closes_into_a_loop_lists_each_earlier_turn_once() -> None
     assert ReviewRepository._before(session, rows[1]) == [
         "And how long does that take?"
     ]
+
+
+@pytest.mark.parametrize("language,text,_f", CASES)
+@pytest.mark.parametrize("kind", ["single", "needs_both", "compound"])
+def test_the_record_carries_the_kind_under_its_own_metadata_name(
+    language, text, _f, kind
+) -> None:
+    """The reviewer filters on `kind`, so the name and the value are what the row says."""
+    rec = datasets.question_record(
+        ReviewRepository._question(stored(language, text, kind))
+    )
+
+    assert rec.metadata["kind"] == kind
+
+
+@pytest.mark.parametrize("language,text,_f", CASES)
+def test_a_question_with_no_stored_kind_is_filed_as_single(language, text, _f) -> None:
+    """Rows written before the column was filled are single-passage questions."""
+    rec = datasets.question_record(
+        ReviewRepository._question(stored(language, text, None))
+    )
+
+    assert rec.metadata["kind"] == "single"
+
+
+class _Recorder:
+    """Stands in for the Argilla module: every constructor returns what it was given."""
+
+    def __getattr__(self, name):
+        return lambda *args, **kwargs: {"type": name, **kwargs}
+
+
+def test_the_question_settings_offer_kind_as_a_filter_and_judge_compounds_by_halves(
+    monkeypatch,
+) -> None:
+    """Built for real the settings need a live client; what they are given does not."""
+    monkeypatch.setattr(datasets, "rg", _Recorder())
+
+    settings = datasets.question_settings()
+
+    names = [one["name"] for one in settings["metadata"]]
+    assert "kind" in names
+    assert names.index("kind") == names.index("question_type") + 1
+    assert settings["metadata"][names.index("kind")]["title"] == "Kind"
+    guideline = settings["guidelines"]
+    exception = (
+        "The exception is `kind` compound: a compound question asks two "
+        "separate things on purpose, each answered by its own passage. "
+        "Judge it one half at a time, and reject it if either half fails.\n\n"
+    )
+    assert exception in guideline
+    assert guideline.index("asks two things at once") < guideline.index(exception), (
+        "the rule the compound exception is an exception to comes first"
+    )
