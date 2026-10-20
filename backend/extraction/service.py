@@ -10,6 +10,7 @@ from dataclasses import replace
 from typing import ClassVar
 
 from sqlalchemy import ARRAY, BigInteger, any_, bindparam
+from sqlalchemy.exc import IntegrityError
 
 from confidence import Measurement, confidence, scored
 from database.qa_generator import FactKind, Passage, Rejection
@@ -537,16 +538,26 @@ def bridge(
                 )
                 dropped += 1
                 continue
-            written += catalog.add_bridges(
-                [
-                    checker.check_bridge(offered, candidate, extractor.provenance)
-                    for candidate in proposed
-                ]
-            )
+            try:
+                written += catalog.add_bridges(
+                    [
+                        checker.check_bridge(offered, candidate, extractor.provenance)
+                        for candidate in proposed
+                    ]
+                )
+            except IntegrityError as exc:
+                # A passage of the link was deleted since the links were read
+                # (a document removed, a re-chunk): its write rolled back.
+                log.warning(
+                    "link %s: dropped, a passage is gone: %s",
+                    [one.id for one in offered],
+                    str(exc.orig).splitlines()[0],
+                )
+                dropped += 1
     if dropped:
         log.warning(
-            "wrote %d bridge fact(s), and %d group(s) were never read because the "
-            "model would not answer. This pass is short by whatever they held; "
+            "wrote %d bridge fact(s), and %d group(s) were dropped because the "
+            "model would not answer or a passage was deleted. This pass is short by whatever they held; "
             "`make extract-bridge` again is what asks for them.",
             written,
             dropped,

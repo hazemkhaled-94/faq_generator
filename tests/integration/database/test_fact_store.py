@@ -1914,3 +1914,65 @@ class TestBridgeReading:
         )
 
         assert store.rows("bridge") == [(self.READING,)]
+
+
+@pytest.mark.parametrize(
+    "language,first,second",
+    [
+        ("en", "Orders ship within 2 days.", "Returns are free within 30 days."),
+        (
+            "de",
+            "Bestellungen werden in 2 Tagen versandt.",
+            "Rückgaben sind 30 Tage kostenlos.",
+        ),
+    ],
+)
+def test_a_passage_deleted_during_the_bridge_pass_drops_only_its_link(
+    engine, database, monkeypatch, language, first, second
+) -> None:
+    """database-10: a link's passage gone before its write is dropped, the pass goes on."""
+    from sqlalchemy import text
+
+    from extraction import service
+    from extraction.links import Link
+
+    store = FactStore(engine, language=language)
+    ids = store.corpus(("a", [first, first + " Ja."]), ("b", [second, second + " Ja."]))
+    both = [ids["a"][0], ids["a"][1], ids["b"][0], ids["b"][1]]
+    for one, said in zip(both, (first, first, second, second), strict=True):
+        store.store(one, checked(one, said))
+    store.topic("t", *both)
+    seen = {p.id: p for _, held in store.catalog.by_topic(None) for p in held}
+    links = [
+        Link((seen[both[0]], seen[both[2]]), "sibling", "x"),
+        Link((seen[both[1]], seen[both[3]]), "sibling", "y"),
+    ]
+    monkeypatch.setattr(service, "linked", lambda *a, **k: links)
+
+    class Reader:
+        provenance = None
+        calls = 0
+
+        def extract(self, offered, link, facts):
+            Reader.calls += 1
+            if (
+                Reader.calls == 1
+            ):  # the second link's passage goes while the first is read
+                with engine.begin() as c:
+                    c.execute(
+                        text("DELETE FROM passages WHERE id = :i"), {"i": both[3]}
+                    )
+            return [offered]
+
+    class Judge:
+        def check_bridge(self, offered, candidate, provenance):
+            return checked(
+                offered[0].id,
+                f"Both say {offered[0].id}.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[one.id for one in offered],
+            )
+
+    written = service.bridge(store.catalog, Reader(), Judge(), 1, 2, force=True)
+
+    assert written == 1

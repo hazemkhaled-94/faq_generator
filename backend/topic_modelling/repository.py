@@ -478,6 +478,21 @@ class TopicQueue(StageQueue):
                 for fitting in fittings
                 for weight in fitting.weights
             ]
+            # The fit read its passages before minutes of fitting: one deleted
+            # since (a document removed, a re-chunk) would fail the foreign
+            # key and lose the whole fit, so only those still there are kept.
+            if memberships:
+                alive = set(
+                    session.scalars(
+                        select(Passage.id)
+                        .where(
+                            Passage.id.in_({one["passage_id"] for one in memberships})
+                        )
+                        .order_by(Passage.id)
+                        .with_for_update(read=True)
+                    )
+                )
+                memberships = [one for one in memberships if one["passage_id"] in alive]
             if memberships:
                 session.execute(insert(PassageTopic), memberships)
                 _place(session)

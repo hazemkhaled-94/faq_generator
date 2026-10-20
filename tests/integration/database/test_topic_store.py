@@ -1182,3 +1182,25 @@ class TestATopicSitsWhereItsPassagesDo:
         )
 
         assert store.topic_vectors() == {0: None, 1: None}
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_passage_deleted_while_the_fit_ran_costs_only_its_own_membership(
+    store, locking, language
+) -> None:
+    """database-7: the fit read the passages minutes ago; one is gone by the write."""
+    from sqlalchemy import text
+
+    store.given_passages(**{language: 3})
+    weights = store.weights_for(language, (0, 0, 0.9), (1, 1, 0.8), (2, 0, 0.7))
+    with store.engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM passages WHERE id = :id"),
+            {"id": store.passages[language][1]},
+        )
+
+    written, _ = store.store(fitting(language, passages=3, weights=weights))
+
+    assert written == 2
+    assert len(store.stored_topics()) == 2
+    assert locking and all("ORDER BY" in one for one in locking), locking
