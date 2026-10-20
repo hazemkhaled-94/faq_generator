@@ -93,6 +93,8 @@ class QuestionRow:
     #: reviewer sorts by: the questions that survived a gate by nothing are
     #: the ones worth an opinion first. None where nothing measured it.
     confidence: float | None = None
+    #: single, needs_both or compound: what the question was written to be.
+    kind: str | None = None
 
 
 def _even(total: int, groups: int) -> int:
@@ -224,6 +226,7 @@ class ReviewRepository(Repository):
             evidence=[link.fact.evidence_text for link in one.fact_links],
             answer_explanation=one.answer_explanation,
             confidence=one.confidence,
+            kind=one.kind,
         )
 
     def held(self, name: str, ids: Sequence[int]) -> dict[int, Held]:

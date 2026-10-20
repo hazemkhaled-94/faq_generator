@@ -220,6 +220,9 @@ def question_settings() -> rg.Settings:
             "question does not say where its own answer is. Reject a question "
             "that names its source, that asks two things at once, or whose "
             "answer is not recoverable from the facts shown.\n\n"
+            "The exception is `kind` compound: a compound question asks two "
+            "separate things on purpose, each answered by its own passage. "
+            "Judge it one half at a time, and reject it if either half fails.\n\n"
             "An unanswerable question is not automatically wrong: some are "
             "written deliberately, to check that a chatbot says it does not "
             "know. `answerable` says which kind this is.\n\n"
@@ -250,6 +253,7 @@ def question_settings() -> rg.Settings:
         metadata=[
             rg.TermsMetadataProperty(name="difficulty", title="Difficulty band"),
             rg.TermsMetadataProperty(name="question_type", title="Type"),
+            rg.TermsMetadataProperty(name="kind", title="Kind"),
             rg.TermsMetadataProperty(name="language", title="Language"),
             rg.TermsMetadataProperty(name="answerable", title="Answerable"),
             rg.TermsMetadataProperty(name="gate", title="What the gates said"),
@@ -330,6 +334,7 @@ def question_record(row: QuestionRow, judge: Opinion = UNJUDGED) -> rg.Record:
         metadata={
             "difficulty": row.difficulty or "unbanded",
             "question_type": row.question_type or "untyped",
+            "kind": row.kind or "single",
             "language": row.language,
             "answerable": str(row.answerable).lower(),
             "gate": row.rejected_reason or row.status,
