@@ -69,7 +69,9 @@ def spread(index: int, share: float) -> bool:
     return int((index + 1) * share) > int(index * share)
 
 
-def overlap(left: Sequence[SourceFact], right: Sequence[SourceFact]) -> float:
+def overlap(
+    left: Sequence[SourceFact], right: Sequence[SourceFact], vectors: bool = True
+) -> float:
     """How alike two passages are, in [0, 1].
 
     Cosine over `passages.embedding` where both carry one, and Jaccard over
@@ -87,14 +89,33 @@ def overlap(left: Sequence[SourceFact], right: Sequence[SourceFact]) -> float:
     The fallback is not a transition: a corpus extracted before the column
     existed has no vectors at all, and `make extract-embed` is what gives it
     some.
+
+    `vectors` False reads the lemmas even where both carry a vector. A caller
+    ranking one set of candidates passes whether every one of them has a
+    vector (`_carry`), because a cosine of about 0.8 and a Jaccard of about
+    0.06 are not comparable: a candidate without a vector would always be the
+    least alike and never the most.
     """
-    near = _cosine(left[0].anchor.embedding, right[0].anchor.embedding)
-    if near is not None:
-        return near
+    if vectors:
+        near = _cosine(left[0].anchor.embedding, right[0].anchor.embedding)
+        if near is not None:
+            return near
     first, second = set(left[0].lemmas), set(right[0].lemmas)
     if not first or not second:
         return 0.0
     return len(first & second) / len(first | second)
+
+
+def _carry(*vectors: tuple[float, ...] | None) -> bool:
+    """Whether every one of these carries a vector, so cosine may rank them."""
+    return all(vectors)
+
+
+def _alike(
+    head: Sequence[SourceFact], candidates: Sequence[Sequence[SourceFact]]
+) -> bool:
+    """Whether the head and every candidate passage carry a vector."""
+    return _carry(*(one[0].anchor.embedding for one in (head, *candidates)))
 
 
 def _cosine(
@@ -144,13 +165,14 @@ def _relative_floor(facts: Sequence[SourceFact], share: float) -> float:
     "close" sits in this topic's own vectors, so no cosine has to be tuned to
     a corpus or a language: a dense topic and a sparse one each set their own
     bar. The closest pair always clears it, so even a small topic keeps a
-    pair. 0.0 where `share` is not positive or the topic holds no pair of
-    embedded facts from different passages.
+    pair. 0.0 where `share` is not positive, the topic holds no pair of
+    embedded facts from different passages, or some of its facts carry no
+    vector: `meets` then reads words, a scale cosines do not belong to.
     """
     if share <= 0:
         return 0.0
     embedded = [fact for fact in facts if fact.embedding]
-    if len(embedded) < 2:
+    if len(embedded) < 2 or len(embedded) < len(facts):
         return 0.0
     vectors = np.array([fact.embedding for fact in embedded], dtype=float)
     ids = np.array([fact.passage_id for fact in embedded])
@@ -161,7 +183,9 @@ def _relative_floor(facts: Sequence[SourceFact], share: float) -> float:
     return float(np.quantile(cosines, 1 - share))
 
 
-def meets(chosen: Sequence[SourceFact], candidate: SourceFact) -> float:
+def meets(
+    chosen: Sequence[SourceFact], candidate: SourceFact, vectors: bool = True
+) -> float:
     """How much one fact has in common with the facts already offered, in [0, 1].
 
     The same measure `overlap` pairs passages with, one level down: cosine
@@ -177,11 +201,15 @@ def meets(chosen: Sequence[SourceFact], candidate: SourceFact) -> float:
     several vectors points somewhere none of them is, so a third fact is
     weighed against a subject the offer does not hold; what the writer needs
     is a fact that meets ONE of the others, which is what a question spans.
+
+    `vectors` False reads words even where vectors exist, for a caller whose
+    other candidates have none: see `overlap`.
     """
     near = max(
         (
             found
             for one in chosen
+            if vectors
             if (found := _cosine(one.embedding, candidate.embedding)) is not None
         ),
         default=None,
@@ -259,7 +287,10 @@ def closest(
     """
     if not chosen or not candidates:
         return list(candidates[:wanted])
-    return sorted(candidates, key=lambda one: (-meets(chosen, one), one.id))[:wanted]
+    vectors = _carry(*(one.embedding for one in (*chosen, *candidates)))
+    return sorted(candidates, key=lambda one: (-meets(chosen, one, vectors), one.id))[
+        :wanted
+    ]
 
 
 #: The order the kinds are interleaved in. Atomic first because it is the
@@ -431,6 +462,8 @@ class Deal:
         self._offered: dict[int, int] = {}
         self._spent: set[int] = set()
         self._floor = max(floor, _relative_floor([*facts, *bridges], share))
+        #: Whether the floor reads cosines: only where every fact has a vector.
+        self._vectors = _carry(*(one.embedding for one in (*facts, *bridges)))
         #: Whether a floor is in force, which is when copies are refused too.
         self._ceiling = floor > 0 or share > 0
 
@@ -537,7 +570,9 @@ class Deal:
                 return False
         if self._floor <= 0:
             return True
-        return max(meets(offered, one) for one in candidates) >= self._floor
+        return (
+            max(meets(offered, one, self._vectors) for one in candidates) >= self._floor
+        )
 
     def widen(self, group: FactGroup, more: int = 1) -> FactGroup:
         """The same sample with unspent facts of the same passages added.
@@ -650,7 +685,11 @@ class Deal:
         ]
         if not candidates:
             return None
-        return min(candidates, key=lambda one: (overlap(head, one), one[0].passage_id))
+        vectors = _alike(head, candidates)
+        return min(
+            candidates,
+            key=lambda one: (overlap(head, one, vectors), one[0].passage_id),
+        )
 
     def _free(
         self,
@@ -683,7 +722,11 @@ class Deal:
         """
         if not candidates:
             return None
-        return min(candidates, key=lambda one: (-overlap(head, one), one[0].passage_id))
+        vectors = _alike(head, candidates)
+        return min(
+            candidates,
+            key=lambda one: (-overlap(head, one, vectors), one[0].passage_id),
+        )
 
     def _neighbour(self, head: list[SourceFact]) -> list[SourceFact] | None:
         """The unused passage of the same document most like the head.
@@ -701,10 +744,11 @@ class Deal:
         ]
         if not candidates:
             return None
+        vectors = _alike(head, candidates)
         return min(
             candidates,
             key=lambda one: (
-                -overlap(head, one),
+                -overlap(head, one, vectors),
                 abs(one[0].ordinal - head[0].ordinal),
                 one[0].passage_id,
             ),
