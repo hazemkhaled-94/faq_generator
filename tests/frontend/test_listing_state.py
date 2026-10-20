@@ -87,3 +87,27 @@ def test_a_filter_change_does_not_open_another_rows_panel(open_view) -> None:
     state["rows"] = _rows([7, 8, 9])
     after = opened._rerun()
     assert not any(p.startswith("Question ") and p[9:].isdigit() for p in after.panels())
+
+
+def test_a_verdict_press_survives_a_row_leaving_above(open_view) -> None:
+    """Reject pressed for 8036 while 8035 leaves: 8036 is rejected, not 8037."""
+    gone = {"yes": False}
+    decided: list[tuple] = []
+
+    def questions(**_):
+        ids = [8034, 8036, 8037] if gone["yes"] else [8034, 8035, 8036, 8037]
+        return {"total": len(ids), "questions": _rows(ids)}
+
+    client = Answers(
+        **answers(
+            questions=questions,
+            question=lambda i: _detail(changed(QUESTION, id=i, status="draft")),
+            decide_question=lambda *a: decided.append(a) or QUESTION,
+        )
+    )
+    opened = open_view("questions", client).select(2)
+    assert "Question 8036" in opened.panels()
+    gone["yes"] = True
+    opened.press("Reject")
+
+    assert decided == [(8036, "rejected")]
