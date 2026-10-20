@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.29
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. Rerun `make extract-revalidate` to read stored facts with the new reference reading; on the Laws of the Game three German facts are admitted and no other verdict moves.
+
 ## Upgrading to v0.3.28
 
 ```bash

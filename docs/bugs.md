@@ -796,6 +796,16 @@ Session A's QA test commits (mutation tests of the unanswerable
 turn, the answer-incomplete reading, the bridge prompt and the link helpers)
 ship here as tests only.
 
+### Fixed in v0.3.29: references
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A German polite Sie addressing the reader was read as a dangling third person plural | a fact that is the passage's own sentence addressing the reader (`Sie können Ihre Karte sperren`) was refused `unresolved_reference`, because the German tagger gives the polite form Person=3 with no polite feature | a language-keyed table `_POLITE` (German: Sie, Ihnen, Ihr, Ihre and their cases; English none) is read by the capitalised surface form: a capital form inside a statement is polite, one opening a statement only where another capitalised polite form follows it, so `Sie werden geliefert`, `Sie wurde gesperrt` and a lower-case `sie` stay refused ([`analysis.py`](../backend/nlp/analysis.py)) | red tests on bank and shop sentences in German and English, green after; the Laws of the Game never address their reader, so the scoreboard moves no value |
+| A pronoun after an exceptive clause that points back at its sentence's subject was refused | the parsers hang the clause an exceptive run opens (`es sei denn`, `außer`, `except where`, `provided`, `unless`) as a conjunct of the root or the complement of the run word, so the pronoun and its antecedent counted as one clause | the verb heading the exceptive clause is marked and `_clause` treats it as heading a clause of its own, as it does for a subordinator; a pronoun with no noun before it stays refused ([`analysis.py`](../backend/nlp/analysis.py)) | scoreboard facts: 2 German facts newly admitted (11566, 12590), both stated correctly |
+| A German `dies` standing for an earlier clause of its own sentence was refused | `Wenn die Karte gesperrt ist, gilt dies als Kündigung`: the check placed the `wenn` clause's verb in the main clause | the earlier finite verb is asked the same "heads a clause of its own" test the clause walk applies; a `dies` with no clause before it stays refused ([`analysis.py`](../backend/nlp/analysis.py)) | scoreboard facts: 1 more German fact admitted (12469), stated correctly |
+
+Together on the scoreboard: German `unresolved_reference` refusals 59 to 56, validated facts 1697 to 1700, all three newly admitted facts stated correctly, no right refusal lost.
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was
