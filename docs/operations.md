@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.27
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. Rerun `make questions-balance` to redraw the release; no extraction or question stage needs rerunning. A pool whose stored hash already filled (v0.3.12's did, at 395 rows) is released the same. The draw takes longer on a large pool, seconds at one or two thousand rows.
+
 ## Upgrading to v0.3.26
 
 ```bash
