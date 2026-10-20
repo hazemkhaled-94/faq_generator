@@ -2372,3 +2372,75 @@ def test_an_unanswerable_slot_with_only_bridges_is_skipped_and_the_topic_goes_on
 
     assert writer.handed == []
     assert queue.finished
+
+
+@pytest.mark.parametrize(
+    "language,plain,spanning_text",
+    [
+        (
+            "en",
+            "Standard delivery takes 3 to 5 working days.",
+            "The return period starts on the day the delivery arrives.",
+        ),
+        (
+            "de",
+            "Die Standardlieferung dauert 3 bis 5 Werktage.",
+            "Die Rückgabefrist beginnt am Tag der Lieferung.",
+        ),
+        (
+            "en",
+            "A current account costs 5 euros a month.",
+            "The fee is charged on the day the card is activated.",
+        ),
+        (
+            "de",
+            "Ein Girokonto kostet 5 Euro im Monat.",
+            "Die Gebühr wird am Tag der Kartenaktivierung erhoben.",
+        ),
+    ],
+)
+def test_a_skipped_unanswerable_slot_leaves_the_bridge_to_the_next_slot(
+    language, plain, spanning_text, caplog
+) -> None:
+    """The slot is passed over, not the topic: the bridge goes to a slot that may rest on it."""
+    from factories import bridge, resting
+
+    facts = [
+        source(2, passage_id=1, statement=plain, language=language),
+        bridge(
+            resting(3, document="doc-b", language=language),
+            fact_id=1,
+            passage_id=2,
+            document="doc-a",
+            statement=spanning_text,
+            language=language,
+        ),
+    ]
+    writer = Handed()
+    # Three slots, the second of them unanswerable: the claim goes to the
+    # first, so only the bridge is left when the second comes up.
+    settings = replace(
+        SETTINGS, per_topic=3, sample_size=2, unanswerable_share=0.5, followup_share=0.0
+    )
+    service, _ = build(topic(), facts, writer=writer, settings=settings)
+
+    with caplog.at_level("INFO"):
+        service.process_next()
+
+    assert [
+        (slot.answerable, [one.id for one in dealt.facts])
+        for dealt, slot in writer.handed
+    ] == [
+        (True, [2]),
+        (True, [1]),
+    ]
+    skipped = [
+        record.getMessage()
+        for record in caplog.records
+        if "unanswerable slot" in record.getMessage()
+    ]
+    expected = (
+        f"topic {topic().id}: an unanswerable slot was not written: "
+        "nothing left in the topic rests on one passage"
+    )
+    assert skipped == [expected]
