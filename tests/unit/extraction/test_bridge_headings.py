@@ -95,7 +95,7 @@ def test_a_passage_carries_its_text_its_trail_and_its_title() -> None:
     known, numbers = _carried(read.text, read)
 
     assert {"konto", "karte", "gebühr"} <= known
-    assert {"1.000", "2026"} <= numbers
+    assert {"1000", "2026"} <= numbers  # numbers are read as values
 
 
 def test_an_english_passage_carries_the_same_three() -> None:
@@ -125,7 +125,7 @@ def test_an_english_passage_carries_the_same_three() -> None:
         ),
         (["fee-based"], {"fee"}, set(), "en", set()),
         (["gebührenfrei", "1."], {"gebührenfrei"}, set(), "de", set()),
-        (["1.000"], {"konto"}, {"1.000"}, "de", {"1.000"}),
+        (["1.000"], {"konto"}, {"1000"}, "de", {"1.000"}),
         (["accounts"], {"account"}, set(), "de", set()),
         (["accounts"], {"account"}, set(), "en", {"accounts"}),
     ],

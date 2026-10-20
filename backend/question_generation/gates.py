@@ -39,9 +39,10 @@ from database.qa_generator import (
 )
 from nlp.analysis import (
     CARDINALS,
-    DECIMAL_MARK,
+    FIGURE,
     claim,
     content,
+    figures,
     interrogatives,
     normalised,
     phrases,
@@ -114,7 +115,7 @@ def _folded(token: str, language: str | None) -> str:
         while len(groups) > 1 and not groups[-1]:
             groups.pop()
         return ":".join(map(repr, groups))
-    if _FIGURE.fullmatch(token) is None:
+    if FIGURE.fullmatch(token) is None:
         return token
     found = figures(token, language)
     return repr(found[0]) if len(found) == 1 else token
@@ -2596,24 +2597,13 @@ def agrees(
             if not (
                 token.is_punct
                 or token.like_num
-                or _FIGURE.fullmatch(token.text)
+                or FIGURE.fullmatch(token.text)
                 or _RANGE.fullmatch(token.text)
             )
         )
     left, right = normalised(recovered), normalised(target)
     return bool(left) and right in left
 
-
-#: A figure as either convention writes one: 1.234,56 and 1,234.56 are the
-#: same value, and 65 is itself. The second alternative stops at a separator
-#: that carries a digit, so 1200 in `1200.` is a figure and the 1 of `1.234`
-#: is not. The third alternative is a long figure with a fraction and no
-#: thousands mark: `1299,99`, `2500.00`.
-_FIGURE = re.compile(
-    r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
-    r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
-    r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
-)
 
 #: A time or a score as one token: groups of digits a colon joins.
 _CLOCK = re.compile(r"\d+(?::\d+)+")
@@ -2633,44 +2623,6 @@ _TERM_CAP = 4
 #: summed is the arithmetic that produced the answer 4034, which is exactly
 #: right and measures nothing.
 _YEAR = range(1900, 2101)
-
-
-def figures(text: str, language: str | None = None) -> list[float]:
-    """Every number in a text, as a value.
-
-    Anything after the last separator but a group of exactly three digits is
-    a fraction, so 12,5 and 12.5 are 12.5. A group of three is a thousands
-    group, so 1.234.567 and 1,234.5 hold one, except after a head of zeros -
-    0,125 is an eighth, never 125 - and after a lone separator that is the
-    language's `DECIMAL_MARK`: a German 1,234 is 1.234 and 1.234 is 1234,
-    and English the reverse. A language with no row there, or none given,
-    reads either lone mark as thousands. A number that resolves to neither
-    is left out rather than guessed at.
-    """
-    mark = DECIMAL_MARK.get((language or "").strip().lower())
-    found: list[float] = []
-    for match in _FIGURE.finditer(text):
-        raw = match.group()
-        head, separator, tail = (
-            raw.rpartition(",") if "," in raw[-4:] else raw.rpartition(".")
-        )
-        whole = head.replace(".", "").replace(",", "")
-        decimal = (
-            separator == mark
-            and raw.count(separator) == 1
-            and not (set(".,") - {separator}) & set(head)
-        )
-        plain = len(head) > 3 and head.isdigit()
-        try:
-            if not head or (
-                len(tail) == 3 and whole.strip("0") and not decimal and not plain
-            ):
-                found.append(float(raw.replace(".", "").replace(",", "")))
-            else:
-                found.append(float(f"{whole}.{tail}"))
-        except ValueError:
-            continue
-    return found
 
 
 def adds_up(
@@ -2738,7 +2690,7 @@ def counts_something_else(
         return False
     heads = []
     for text in passages:
-        starts = {figure.start() for figure in _FIGURE.finditer(text)}
+        starts = {figure.start() for figure in FIGURE.finditer(text)}
         heads.extend(
             token.head for token in pipeline(language)(text) if token.idx in starts
         )

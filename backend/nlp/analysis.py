@@ -425,6 +425,56 @@ CARDINALS: dict[str, dict[str, int]] = {
 #: A language missing here reads three digits after either mark as thousands.
 DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 
+#: A figure as either convention writes one: 1.234,56 and 1,234.56 are the
+#: same value, and 65 is itself. The second alternative stops at a separator
+#: that carries a digit, so 1200 in `1200.` is a figure and the 1 of `1.234`
+#: is not. The third alternative is a long figure with a fraction and no
+#: thousands mark: `1299,99`, `2500.00`.
+FIGURE = re.compile(
+    r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
+    r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
+    r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
+)
+
+
+def figures(text: str, language: str | None = None) -> list[float]:
+    """Every number in a text, as a value.
+
+    Anything after the last separator but a group of exactly three digits is
+    a fraction, so 12,5 and 12.5 are 12.5. A group of three is a thousands
+    group, so 1.234.567 and 1,234.5 hold one, except after a head of zeros -
+    0,125 is an eighth, never 125 - and after a lone separator that is the
+    language's `DECIMAL_MARK`: a German 1,234 is 1.234 and 1.234 is 1234,
+    and English the reverse. A language with no row there, or none given,
+    reads either lone mark as thousands. A number that resolves to neither
+    is left out rather than guessed at.
+    """
+    mark = DECIMAL_MARK.get((language or "").strip().lower())
+    found: list[float] = []
+    for match in FIGURE.finditer(text):
+        raw = match.group()
+        head, separator, tail = (
+            raw.rpartition(",") if "," in raw[-4:] else raw.rpartition(".")
+        )
+        whole = head.replace(".", "").replace(",", "")
+        decimal = (
+            separator == mark
+            and raw.count(separator) == 1
+            and not (set(".,") - {separator}) & set(head)
+        )
+        plain = len(head) > 3 and head.isdigit()
+        try:
+            if not head or (
+                len(tail) == 3 and whole.strip("0") and not decimal and not plain
+            ):
+                found.append(float(raw.replace(".", "").replace(",", "")))
+            else:
+                found.append(float(f"{whole}.{tail}"))
+        except ValueError:
+            continue
+    return found
+
+
 #: Ordinals by ISO 639-1 code, as the digits a written one carries: `2nd`,
 #: and German `2.` once `_bare` has dropped its full stop. German ordinals
 #: are listed in every ending they take.
@@ -466,6 +516,21 @@ _PADDING = re.compile(r"^0+(?=\d)")
 _NUMERAL = frozenset({"NUM", "ADJ"})
 
 
+def _value(run: str, language: str | None) -> str:
+    """A run of digits as the value it writes, in the language's convention.
+
+    `1,000` and `1000`, `5.00` and `5`, a German `4,90` and `4,9` are one
+    value each, so they are one string. A run that is no single figure - a
+    version, a clock's group - stays as written.
+    """
+    found = (
+        figures(run, language) if FIGURE.fullmatch(run) and not run.isdigit() else []
+    )
+    if len(found) != 1:
+        return run
+    return str(int(found[0])) if found[0] == int(found[0]) else repr(found[0])
+
+
 def numbers(text: str, language: str | None) -> tuple[str, ...]:
     """The numbers a text states, each as often as it states it, sorted.
 
@@ -474,9 +539,9 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     their words are - a 4 kg and a 7 kg device, a 5,5 % rate and a 16,5 % one.
 
     A multiset rather than a set, so "2 EUR and 2 EUR" is not "2 EUR". A digit
-    keeps its surface form, as `_units` reads one, so `12,5` and `12.5` stay
-    two values; a number word reads as the digits it names where the
-    language has a row in `_NUMBER_WORDS` for it, and as written where it
+    is read as the value it writes in the language's convention, so `1,000`
+    and `1000` are one value and `1,500` is another; a number word reads as
+    the digits it names where the language has a row in `_NUMBER_WORDS` for it, and as written where it
     does not, and only where it is tagged as a numeral. The language is the
     parse's, as every other table here reads it: a text of no language is
     read by the default pipeline and in that pipeline's number words.
@@ -487,7 +552,7 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     for token in document:
         written = token.text.casefold()
         if digits := _DIGITS.findall(token.text):
-            found += digits
+            found += [_value(one, document.lang_) for one in digits]
         elif token.pos_ not in _NUMERAL:
             continue
         elif written in spelled:
@@ -510,7 +575,9 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
     found: set[str] = set()
     for token in document:
         if digits := _DIGITS.findall(token.text):
-            found.update(_PADDING.sub("", one) for one in digits)
+            found.update(
+                _PADDING.sub("", _value(one, document.lang_)) for one in digits
+            )
         elif token.pos_ in _NUMERAL and token.text.casefold() in spelled:
             found.add(spelled[token.text.casefold()])
     return frozenset(found)
