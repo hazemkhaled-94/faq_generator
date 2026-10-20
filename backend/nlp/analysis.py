@@ -9,7 +9,7 @@ from functools import lru_cache
 from itertools import pairwise, takewhile
 
 from spacy.pipeline import Lemmatizer
-from spacy.tokens import Doc, Span
+from spacy.tokens import Doc, Span, Token
 
 from nlp.language import URL
 from nlp.models import Claim, Sentence
@@ -331,6 +331,23 @@ def interrogatives(text: str, language: str | None) -> tuple[str, ...]:
     )
 
 
+def is_number(token: Token) -> bool:
+    """Whether a token `like_num` marks states a number, as against being spelled like one.
+
+    `like_num` is a spelling test, so it holds for the pronoun in "No one may
+    pass" and in "the one you bought". Such a word counts when it holds a
+    digit or the tagger reads it as a numeral, `NUM`, or as an ordinal, an
+    adjective in the language's `_ORDINALS`. "One card per account" is tagged
+    `NUM` and stays a 1.
+    """
+    if not token.like_num:
+        return False
+    if any(char.isdigit() for char in token.text):
+        return True
+    ordinal = token.lower_ in _ORDINALS.get(token.doc.lang_, {})
+    return token.pos_ == "NUM" or (token.pos_ == "ADJ" and ordinal)
+
+
 def _units(span: Doc | Span) -> tuple[str, ...]:
     """Collects the values a statement may not introduce on its own.
 
@@ -357,7 +374,7 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
     found = set()
     capitalising = span.doc.lang_ in _capitalises_nouns()
     for token in span:
-        if token.like_num:
+        if is_number(token):
             found.add(_bare(token.text).casefold())
         elif token.pos_ == "PROPN":
             if (

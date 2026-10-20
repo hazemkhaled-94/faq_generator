@@ -45,6 +45,7 @@ from nlp.analysis import (
     content,
     figures,
     interrogatives,
+    is_number,
     normalised,
     phrases,
     vocabulary,
@@ -1732,7 +1733,7 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     said = _says(read)
     if not said:
         return False
-    if any(token.pos_ == "NUM" or token.like_num for token in read):
+    if any(token.pos_ == "NUM" or is_number(token) for token in read):
         return False
     asked = pipeline(language)(question)
     added = _polarity(read, language) - _polarity(asked, language)

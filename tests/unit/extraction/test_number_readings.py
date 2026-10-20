@@ -155,3 +155,43 @@ def test_the_dedup_reads_a_count_in_words_as_its_digits():
     assert numbers("twenty thousand euros", "en") == numbers("20000 euros", "en")
     assert numbers("zweitausend Euro", "de") == numbers("2000 Euro", "de")
     assert numbers("das Jahrhundert", "de") == ()
+
+
+PRONOUN = [
+    (
+        "Customers may withdraw at most 500 EUR per day.",
+        "No one may withdraw more than 500 EUR per day.",
+    ),
+    (
+        "The shop refunds the purchase price within 30 days.",
+        "The one you bought can be returned within 30 days.",
+    ),
+    (
+        "Customers may open a savings account for 12 months.",
+        "No one may close a savings account within 12 months.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("text", "fact"), PRONOUN)
+def test_one_as_a_pronoun_is_no_number(text, fact):
+    """`one` of "no one" or "the one you bought" asserts no count."""
+    _, code, err = ok("en", text, fact)
+    assert "asserts one" not in str(err), f"{code}: {err}"
+
+
+@pytest.mark.parametrize(
+    ("text", "fact"),
+    [
+        ("Each account comes with 2 cards.", "Each account comes with one card."),
+        ("Each account may hold 3 cards.", "Only one card per account is allowed."),
+    ],
+)
+def test_one_as_a_number_is_still_checked(text, fact):
+    """A numeral `one` is a count and a wrong one is refused."""
+    must_refuse("en", text, fact)
+
+
+def test_one_card_per_account_is_still_read_as_one():
+    """The numeral reading of `one` survives."""
+    must_validate("en", "Each account holds 1 card.", "Each account holds one card.")

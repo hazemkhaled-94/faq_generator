@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from question_generation.gates import adds_up, agrees, figures
+from question_generation.gates import adds_up, agrees, figures, restates
 
 
 @pytest.mark.parametrize(
@@ -51,3 +51,22 @@ def test_a_wrong_shop_total_is_refused_without_a_thousands_mark():
     passages = ["The laptop costs 1299.99 EUR.", "The bag costs 49.99 EUR."]
     assert adds_up("1349.98 EUR", passages, "en") is True
     assert adds_up("1360.00 EUR", passages, "en") is False
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "echo", "number"),
+    [
+        (
+            "en",
+            "Which account is free for students?",
+            "The one for students is free.",
+            "Each account for students costs 2 EUR.",
+        ),
+    ],
+)
+def test_one_as_a_pronoun_does_not_exempt_an_echo_answer(
+    language, question, echo, number
+):
+    """An answer whose only number-like word is a pronoun is still an echo."""
+    assert restates(question, echo, language) is True
+    assert restates(question, number, language) is False
