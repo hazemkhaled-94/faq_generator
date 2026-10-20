@@ -450,10 +450,12 @@ def balance(
         # Unset follows the pool's own language split, so a corpus mostly in one
         # language releases in proportion rather than at a multiple of its
         # smallest, and a third language is held to its share without anybody
-        # naming it.
+        # naming it. Drawable rows only, as the bands: a language whose rows
+        # are mostly unanswerable would be asked for more than it can supply.
         languages = _supplied(
             drawable,
-            settings.release_languages or dict(Counter(row.language for row in pool)),
+            settings.release_languages
+            or dict(Counter(row.language for row in drawable)),
             "language",
             "language",
         )

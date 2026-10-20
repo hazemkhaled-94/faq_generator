@@ -71,3 +71,23 @@ def test_a_kind_held_only_by_unanswerable_rows_is_dropped_like_an_absent_one(lan
         release_types={QuestionType.FACTOID: 1, QuestionType.REASON: 1},
     )
     assert len(drawn) >= 150, f"release shrank to {len(drawn)} of 200 answerable rows"
+
+
+@pytest.mark.parametrize("first, second", [("en", "de"), ("de", "en")])
+def test_a_language_mostly_unanswerable_is_weighed_by_its_drawable_rows(first, second):
+    """qg-check-2: the default language weights follow answerable rows, as bands do."""
+    pool = _rows(
+        [
+            (100, True, QuestionType.FACTOID, first),
+            (100, True, QuestionType.FACTOID, second),
+            (5, True, QuestionType.FACTOID, "fr"),
+            (25, False, QuestionType.FACTOID, "fr"),
+        ]
+    )
+    drawn = _drawn(
+        pool,
+        release_difficulty={Difficulty.EASY: 1},
+        release_types={QuestionType.FACTOID: 1},
+        release_languages={},
+    )
+    assert len(drawn) >= 150, f"release shrank to {len(drawn)} of 205 answerable rows"
