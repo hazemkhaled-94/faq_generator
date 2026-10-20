@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.22
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. Writer prompt 16 (it was 15): the prompt text of each type gains a compound variant, and no stored question moves. **Compound questions are off by default**; `QUESTIONS_KIND_MIX=needs_both:5,compound:1` deals one spanning slot in six as compound. They were calibrated on pairs built by the calibration script, not through the deal, so the real path is not calibrated, and the blind read missed its quality bars (75% usable, keys right 68%): turn it on to measure it, not for a release. A compound question costs two verifier reads and no round trip. The weld rate counts only the `needs_both` kind; a compound question is never a weld.
+
 ## Upgrading to v0.3.21
 
 ```bash

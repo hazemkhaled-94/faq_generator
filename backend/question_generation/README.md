@@ -200,6 +200,35 @@ that too; a declined retry ends the retries, and a declined follow-up ends
 its thread. The writer is also told to write about the subject and never
 about the facts or the task: "the material says", "both statements".
 
+### Question kinds
+
+The thirteen types say what a question asks; a question's *kind* says how it
+rests on the passages. Every slot the plan deals carries one, held in
+`question_generation/kinds.py`: `single` (one passage), `needs_both` (takes
+something from each of two passages) and `compound` (below); `false_premise`
+is named for later. The kind, not the count of cited passages, chooses the
+writer's instruction and response shape and the extra checks a draft gets; the
+stored kind (`questions.kind`) follows the citations, so a `needs_both` draft
+that ends up citing one passage is stored `single`, and `make questions-rescore`
+narrows it the same way. A kind's entry may fix a band; none does yet except
+`compound`, which is banded medium. `QUESTIONS_KIND_MIX` (optional,
+`kind:weight`) shares the kinds out over the slots that span passages; it
+names only kinds that span, and absent it deals every such slot `needs_both`.
+
+A `compound` question asks two separate things joined by "and", each answered
+by one of two passages that share least. The writer returns the two halves,
+each half is recovered from its own passage alone (two verifier reads, and no
+round trip on the merged question), and a question claiming a relation between
+its halves (a word such as "differ", "both" or "together", by the per-language
+`_RELATES` table, read only in the words that join the halves) is refused as
+`wrong_type`. The key is held to its answer form one half at a time. The
+partner is the passage of the slot's topic and its bridges that shares least
+with the head; a slot that is dealt one passage is written as `single`.
+Compound is off by default: it is dealt only with
+`QUESTIONS_KIND_MIX=needs_both:5,compound:1`. It was calibrated on pairs built
+by its calibration script, not through the deal, so the real path is not yet
+calibrated; the quality bars were not met (see the bugs page).
+
 ### The answer form
 
 `answer_form` is `value`, `list` or `explanation`. The kind declares the form

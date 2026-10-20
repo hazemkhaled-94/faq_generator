@@ -837,6 +837,12 @@ review. The releases from v0.3.13 on fix what it found, one fix to a release.
 |---|---|---|---|
 | A question's band followed the spread of its passages whatever its kind | the band was read from the points of the cited facts alone, so a kind that fixes its own difficulty (a compound question asks two lookups) could not say so | `criteria_of` takes the stored kind; where a kind's entry in `KINDS` sets a band that band holds, and every other kind keeps the points rule; a rescore and the checker's verdict both pass the stored kind ([`models.py`](../backend/question_generation/models.py), [`kinds.py`](../backend/question_generation/kinds.py)) | no kind sets a band yet, so no stored band moves: replayed over all 1,753 questions of the v0.3.12 build, single and needs_both questions band exactly as before |
 
+### Fixed in v0.3.22: compound questions (off by default)
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| No question asked two separate things, one from each of two passages | a chatbot is also asked questions that join two unrelated lookups, and the pipeline had no kind for them: such a draft was refused as `compound` for its two question words | a `compound` kind, off by default: the slot is dealt the passage of its topic and its bridges that shares least with its head and asks two separate things joined by "and"; the writer returns the two halves, each is recovered from its own passage alone, a question claiming a relation between its halves is refused as `wrong_type`, the key is held to its form one half at a time, and a slot dealt one passage is written as `single`; the stored kind is `compound`, banded medium (writer prompt 16; [`kinds.py`](../backend/question_generation/kinds.py), [`selection.py`](../backend/question_generation/selection.py), [`checker.py`](../backend/question_generation/checker.py)) | on pairs built by its calibration script, not through the deal: 8 of 8 fixtures written as two halves, and 28 of 48 pairs of the v0.3.12 build accepted (German 14 of 24, English 14 of 24); read blind, the 28 were all compound, none a false join, 21 usable (75%, against the 80% bar; English 64% against 70%) and 19 with a right key (68%, against 75%), so the quality bars are not met. The real path through the deal, and the review's fixes since the calibration, are not measured, and compound stays off until they are |
+
 ## Found on the v0.4.0 rebuild of 2026-10-18
 
 The code of v0.3.8 rebuilt the same two PDFs as v0.4.0, a build that was
