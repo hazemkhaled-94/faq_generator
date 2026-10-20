@@ -1,4 +1,4 @@
-"""Writes decided on a reading taken earlier."""
+"""Writes decided on a reading taken earlier (qg-check-7, -8)."""
 
 from __future__ import annotations
 
@@ -131,3 +131,28 @@ def test_a_follow_up_whose_root_was_rejected_since_the_draw_is_not_released(
     assert written == 1
     assert row(engine, first).release_id is not None
     assert row(engine, third).release_id is None
+
+
+def test_a_stale_recheck_does_not_overrule_a_person_who_accepted(accepted, engine):
+    """qg-check-8: reject() writes a gate verdict over reviewed_verdict=accepted."""
+    catalog = QuestionCatalog()
+    catalog.decide(accepted, "accepted")
+    assert row(engine, accepted).reviewed_verdict == "accepted"
+
+    changed = catalog.reject(
+        [(accepted, "duplicate")]
+    )  # the reading predates the person's decision
+
+    assert changed == 0
+    assert row(engine, accepted).status == "accepted"
+
+
+def test_a_stale_recheck_still_rejects_a_source_that_changed_under_a_person(
+    accepted, engine
+):
+    """source_changed may overrule a person: the fact the answer rests on is gone."""
+    catalog = QuestionCatalog()
+    catalog.decide(accepted, "accepted")
+
+    assert catalog.reject([(accepted, "source_changed")]) == 1
+    assert row(engine, accepted).status == "rejected"

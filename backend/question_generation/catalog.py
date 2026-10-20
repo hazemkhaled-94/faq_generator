@@ -39,6 +39,7 @@ from database.qa_generator import (
     Question,
     QuestionFact,
     QuestionKind,
+    QuestionRejection,
     QuestionStatus,
     ReviewVerdict,
     Status,
@@ -1132,19 +1133,32 @@ class QuestionCatalog(Repository):
     def reject(self, verdicts: list[tuple[int, str]]) -> int:
         """Records what a re-check found, one gate code per question.
 
+        The verdicts were decided on a reading taken before this call, so
+        a row is rejected only if it is still accepted and no person has
+        accepted it since. `source_changed` is the one code that may
+        overrule a person: the fact the answer rests on is gone.
+
+        Returns:
+            How many rows were rejected.
+
         ponytail: one UPDATE per question. Upgrade: one executemany with
         bindparam.
         """
+        changed = 0
         if not verdicts:
-            return 0
+            return changed
         with self._session.begin() as session:
             for question_id, code in verdicts:
-                session.execute(
-                    update(Question)
-                    .where(Question.id == question_id)
-                    .values(**_rejecting(code))
-                )
-        return len(verdicts)
+                where = [Question.id == question_id]
+                if code != QuestionRejection.SOURCE_CHANGED:
+                    where += [
+                        Question.status == QuestionStatus.ACCEPTED,
+                        Question.reviewed_verdict.is_distinct_from(ReviewVerdict.ACCEPTED),
+                    ]
+                changed += session.execute(
+                    update(Question).where(*where).values(**_rejecting(code))
+                ).rowcount
+        return changed
 
     def decide(self, question_id: int, status: str) -> StoredQuestion | None:
         """Records what a person decided about one question.
