@@ -871,6 +871,12 @@ Figures and limits of the parts reading (verifier prompt `stated` 1, new and pin
 
 A blind read of 20 rows agreed on 20. Limits: a padded question that cites a bridge fact keeps both passages, because the bridge itself rests on two, which is why the counts by citation are lower (0.34 on v0.3.12, 0.62 on v0.3.0); one gold compound of v0.3.0 (row 4392) is relabelled single, so the calibration bar of none was missed on that build; a tie where every cited passage states every part keeps both only if the question joins cases with a coordinating conjunction. The check adds one verifier call per accepted two-passage needs_both question, about USD 0.45 to 0.5 per build, and does not rejudge stored questions. It supersedes session A's `fix/two-passage-v2` and `fix/needs-both`, which stay unmerged.
 
+### Fixed in v0.3.36: a thread leaves the release whole
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A released thread lost its root but kept its follow-ups released | threads are drawn and released whole, but rejecting or reverting a released root (a person, a re-check, or the trigger that rejects a question losing a fact) cleared `release_id` on that row only, so its follow-ups stayed released without it | a trigger `questions_release_thread_whole` (revision `d5b2f8a60c14`) clears `release_id` on every follow-up below a question that leaves `accepted`, in the same statement, and exits at once for a question with no follow-up; the upgrade also clears the release of follow-ups already left under a root that is not accepted ([`database`](../backend/database)) | red integration tests on a German bank thread and an English shop thread (trigger, decide, reject, back to draft, a three-turn thread already split; 8 red before, green after); 1,500 rejects of questions with no follow-up take 0.022 s with the trigger against 0.023 s without |
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was

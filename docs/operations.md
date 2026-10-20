@@ -200,6 +200,16 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.36
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+make schema
+```
+
+`make schema` is needed: revision `d5b2f8a60c14` (on `c3a9e1470b5d`) adds a trigger and its function, and runs a one-time repair that clears `release_id` on released follow-ups whose root is not accepted; a downgrade cannot undo the repair. To see how many follow-ups the repair touches on a stored corpus first: `SELECT count(*) FROM questions q WHERE q.release_id IS NOT NULL AND q.follows_id IS NOT NULL AND EXISTS (SELECT 1 FROM questions r WHERE r.id = q.follows_id AND r.status <> 'accepted');` (it counts direct follow-ups; deeper turns of the same threads are cleared too). Rerun `make questions-balance` afterwards to redraw the release.
+
 ## Upgrading to v0.3.35
 
 ```bash
