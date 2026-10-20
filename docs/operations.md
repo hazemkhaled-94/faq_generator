@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.25
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. `make questions-reverify` now holds a stored question to its stored kind, so a compound question is no longer rejected for its two question words. It cannot re-check a compound question's two halves, which are not stored; only the two-question-word refusal is skipped for it.
+
 ## Upgrading to v0.3.24
 
 ```bash
