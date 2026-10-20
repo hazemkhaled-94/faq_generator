@@ -510,3 +510,79 @@ def test_a_pair_that_cannot_grow_gives_its_slot_to_one_that_can(
     got = run([a, b, c, d, e], wanted=1, size=3)
 
     assert pairs(got) == [(3, 4, 5)]
+
+
+# ── Pairs a stored bridge already rests on ────────────────────────────────
+
+_SIBLINGS = {
+    "en": (
+        ("Fees > Yearly fees", "A dormant account is charged a yearly fee of 10 EUR."),
+        ("Fees > Card fees", "A replacement card costs 5 EUR."),
+        ("Fees > Cash fees", "Cash withdrawals abroad cost 3 EUR."),
+    ),
+    "de": (
+        (
+            "Versand > Standardversand",
+            "Der Standardversand kostet 4 EUR und dauert 3 Tage.",
+        ),
+        ("Versand > Expressversand", "Der Expressversand kostet 9 EUR."),
+        ("Versand > Abholung", "Die Abholung im Markt ist kostenlos."),
+    ),
+}
+
+
+def _three(language: str):
+    return [
+        one(text, path, ident, language)
+        for ident, (path, text) in enumerate(_SIBLINGS[language], start=1)
+    ]
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_head_never_offers_a_pair_a_stored_bridge_rests_on(language) -> None:
+    """It takes its next link instead, whichever of the two ordered the pair."""
+    a, b, c = _three(language)
+    topics = {1: 1, 2: 1, 3: 1}
+    (first,) = linked([a], [a, b, c], topics, 5, 2)
+    taken = frozenset(p.id for p in first.passages)
+
+    (again,) = linked([a], [a, b, c], topics, 5, 2, held=frozenset({taken}))
+
+    assert frozenset(p.id for p in again.passages) != taken
+    assert a in again.passages, "the head still offers a link, of its own next best"
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_head_with_nothing_but_held_pairs_offers_nothing(language) -> None:
+    """Every partner of the head is a pair already written."""
+    a, b, c = _three(language)
+    held = frozenset({frozenset({1, 2}), frozenset({1, 3})})
+
+    assert linked([a], [a, b, c], {1: 1, 2: 1, 3: 1}, 5, 2, held=held) == []
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_held_pair_is_held_against_the_other_side_heading_it(language) -> None:
+    """A cross-topic pair stored from one side is not offered from the other."""
+    a, b, _ = _three(language)
+    held = frozenset({frozenset({1, 2})})
+
+    assert linked([b], [a, b], {1: 1, 2: 2}, 5, 2, held=held) == []
+    offered = linked([b], [a, b], {1: 1, 2: 2}, 5, 2)
+    assert [frozenset(p.id for p in link.passages) for link in offered] == [
+        frozenset({1, 2})
+    ], "without the hold the head offers it"
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_held_pair_leaves_the_other_pairs_alone(language) -> None:
+    """Holding one pair costs only that pair."""
+    a, b, c = _three(language)
+    topics = {1: 1, 2: 1, 3: 1}
+    free = linked([a, b, c], [a, b, c], topics, 5, 2)
+    held = frozenset({frozenset(p.id for p in free[0].passages)})
+
+    left = linked([a, b, c], [a, b, c], topics, 5, 2, held=held)
+
+    assert all(frozenset(p.id for p in link.passages) not in held for link in left)
+    assert left, "the other heads still offer theirs"
