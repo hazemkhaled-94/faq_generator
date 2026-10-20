@@ -647,3 +647,96 @@ Found on this run, not fixed in it:
   pieces, 78% of them wrongly.
 
 Model spend for the run: USD 21.23.
+
+## The v0.3.13 to v0.4.0 cycle: replays and calibrations
+
+**No rebuild of the Laws of the Game corpus was made on the code of v0.3.13 or later.** The last build on this page is the v0.3.12 rebuild of 2026-10-19, and every figure below is an offline replay of stored data or a calibration of one model reading on labelled rows; none is a fresh run of the whole pipeline. A replay moves only what a code change decides without a model, so a change that rests on a model reading (the needs_both check, the bridge prompts, the unanswerable reading) is shown through its own calibration, with the rows and the bar it was held to. The first full build of this code is still to be made; until then the figures that matter for a release (usable share, weld rate, release size) are the v0.3.12 rebuild's.
+
+### The offline scoreboard, v0.3.12 against v0.4.0
+
+The scoreboard replays the stored rows of the v0.3.0 rebuild (its questions, facts and release) under the checkout's code and compares the result with what v0.3.0 stored. It reads stored model verdicts and calls no model, so it shows exactly what changes in the code's own decisions. The same two rows fail from v0.3.19 on; the v0.3.12 pool, not these rows, decided that they were an acceptable move (see the notes below the table).
+
+| Row | v0.3.0 as stored | v0.3.12 code | v0.3.27 code | v0.3.34 code | v0.4.0 code |
+|---|---|---|---|---|---|
+| Released invalid (draw replay at stored size) | 10 (11 replayed) | 8 | 9 | 9 | 9 |
+| Released welded of two-passage (draw replay) | 17/91 (19/96 replayed) | 19/91 | 21/91 (fails) | 21/91 | 21/91 |
+| Release German share (pool) | 0.531 (0.532) | 0.531 (0.531) | 0.523 (0.528) | 0.523 (0.528) | 0.523 (0.528) |
+| Release bands, easy / hard (pool) | 0.659 / 0.067 (0.662 / 0.064) | 0.659 / 0.067 (0.662 / 0.065) | 0.651 / 0.064 (0.657 / 0.064) | 0.651 / 0.064 (0.657 / 0.064) | 0.651 / 0.064 (0.657 / 0.064) |
+| Weld rate, accepted two-passage | 33/183 (0.180) | 32/181 (0.177) | 34/184 (0.185, fails) | 34/184 | 34/184 |
+| Answerable keys correct / complete | 0.801 / 0.720 | 0.8111 / 0.7264 | 0.8111 / 0.7264 | 0.8111 / 0.7264 | 0.8111 / 0.7264 |
+| Validated facts stated correctly | 2,758/3,180 (0.8673) | 2,772/3,195 (0.8676) | 2,772/3,195 (0.8676) | 2,776/3,199 (0.8678) | 2,776/3,199 (0.8678) |
+| Accepted pool replayed (usable share) | 871 | 859 (0.7113) | 879 (0.7088) | 879 (0.7088) | 879 (0.7088) |
+| `answer_incomplete` refusals, German / English | n/a | 26 / 34 | 18 / 22 | 18 / 22 | 18 / 22 |
+| German `unresolved_reference` refusals | n/a | 59 | 59 | 56 | 56 |
+| English `unsupported_addition` refusals | n/a | 32 | 32 | 31 | 31 |
+| Unanswerables: recall German / English | n/a | 0.518 / 0.610 | 0.518 / 0.610 | 0.518 / 0.610 | 0.518 / 0.610 |
+
+What moved, and why:
+
+- **The pool grew by 20 questions and the weld rate crossed its floor** because the `answer_incomplete` gate now refuses a list key only when the recovery names an item the key and question lack (v0.3.19), together with two reading fixes (v0.3.18, v0.3.24). Of the 20 `answer_incomplete` refusals it removed on these rows (German 8, English 12), the stored labels call 15 wrong, 2 partly right and 3 right. The weld rows fail by half a point on these rows (0.185 against 0.180) and by two released rows (21 against 19). The shipped answer to them is the needs_both check of v0.3.35, which the scoreboard cannot replay because it calls the model; the calibration below is what stands for it.
+- **Three German facts** were admitted by the reference fixes of v0.3.29 (facts 11566, 12590 and 12469, all stated correctly) and **one English fact** by the number readings of v0.3.33 (fact 13216, a throw-in countdown, correct); no right refusal was lost in either.
+- **Nothing else moved** across v0.3.28 to v0.4.0 in questions, release, unanswerables or passages: each release was replayed against the one before, and v0.4.0 against the v0.3.27 code.
+
+### The needs_both check (v0.3.35): calibration on labelled rows
+
+Verifier prompt `stated` 1 lists the parts of a needs_both question's answer and quotes every cited passage that states each; code finds the quotes, and the question stays two-passage only when each cited passage holds a part no other holds (with a tie kept two-passage when the question joins cases with a coordinating conjunction). It was calibrated through the pipeline's own function on rows read by people, with the bar fixed before any call. "Honest" means a needs_both question the readers judged to need both passages; "padded" one that one passage answers whole; "compound" a gold compound question, which the check must not relabel.
+
+| Step | Rows | Honest kept | Padded relabelled | Gold compounds relabelled | Result | Cost |
+|---|---|---|---|---|---|---|
+| 0, fixtures (bank and shop, German and English) | 12 | 10/12 decided as labelled; both two-cases-one-answer fixtures stay two-passage | | | passes | USD 0.02 |
+| 1, first iteration, v0.3.12 | 76 | 26/31 (0.84) | 38/45 (0.84) | 4/8 (bar at most 2) | fails on the compounds; stopped | USD 0.19 |
+| 1, second iteration, replayed from stored replies, v0.3.12 | 76 | 30/31 (de 17/18, en 13/13) | 33/45 (de 16/21, en 17/24) | 0/8 | passes (no call) | USD 0 |
+| 2, v0.3.0 holdout | 53 | 23/23 (de 12/12, en 11/11) | 25/30 (de 12/15, en 13/15) | 0/7 | passes | USD 0.14 |
+| 3, blind same-reader read | 31 | 10 kept controls: yes 0/10 (all "partly", so keeping them two-passage was right) | 20 padded relabelled: yes 20/20 | 0 relabelled | passes (bar: at least 14 yes, at most 2 no) | USD 0 |
+| Gold rest, v0.3.12 (176 gold rows in all) | 208 for both builds (171 calls) | 29/36 (0.81; de 18/23, en 11/13) | 76/107 (0.71; de 39/55, en 37/52); by citation 36/107 (0.34) | 0/18 | passes the lenient bar (0.68 / 0.64) | USD 0.44 for both builds |
+| Gold rest, v0.3.0 (161 gold rows in all) | (counted above) | 20/20 | 68/97 (0.70; de 36/52, en 32/45); by citation 60/97 (0.62; en 0.58) | 1/30 (row 4392, English) | fails "no compound relabelled" by one row | included above |
+
+The second iteration changed code only: a tie where every passage states every part now keeps both passages when the question has a coordinating conjunction (the universal tag CCONJ). It was fitted on step 1's rows, so the v0.3.0 holdout of step 2 decided it. On the hand-made gold labels, read by the same function on 129 of the 337 gold rows, the check kept 21/23 needs_both questions of v0.3.12 (0.91; de 0.87, en 1.00) and relabelled 32/44 padded ones (0.73; de 0.75, en 0.71) and 0/8 compounds; on v0.3.0 it kept 13/13 and relabelled 25/30 (0.83) and 0/8. Total spend on the calibration: USD 0.79 for about 300 calls.
+
+The counts "by citation" are what is stored afterwards: a padded question that cites a bridge fact keeps both passages, because the bridge itself rests on two. That is why the share narrowed in the store is lower than the share the reading decides, and why bridge-cited padded questions remain the largest open item. The check adds one verifier call per accepted answerable needs_both question citing two passages, about USD 0.45 to 0.5 per build the size of the Laws of the Game. A design that asked the writer for the key as parts tagged by passage was analysed offline against this check and rejected: a yes/no judge on the same rows dropped 4 to 6 honest questions and relabelled 1 to 2 compounds, and the design would cost about USD 0.9 to 1.0 a build.
+
+### Bridges: pairing and prompts
+
+| Change | Figure | Release |
+|---|---|---|
+| Bridge checks read the heading trail and title as an atomic fact's are; a bridge writing a cited passage's numbered heading whole is refused as `not_bridging` | over the 243 bridges of the v0.3.12 build, validated 178 to 184, those judged correct 34 to 37, five label refusals, no validated bridge newly refused | v0.3.15 |
+| Pairs follow the documents' own links across topics (numbered or quoted heading named, sibling sections under one parent, a term only two passages share) | offline over the v0.3.12 passages: 204 pairs, 47% across topics; labelled pairs 29% correct against 18% for nearest-neighbour pairs | v0.3.16 |
+| Bridge prompt 6 (link named, one bridge or none, closed relation set), with the pairs above | read blind: 42% correct against 12%; wrong and unsupported 13% against 15%. The new pairs with the old prompt 5 had raised wrong and unsupported from 15% to 37%, which is why they shipped together. About USD 0.25 more a build in input tokens | v0.3.16 |
+| Bridge prompt 7, one form per relation (not shipped) | 80 calls: 36 bridges validated, 15 correct (41.7% against 42% asked; German 29% against 30%), wrong or unsupported 13.9% against 13% allowed | session A, set aside |
+| Bridge prompt 8 against prompt 6 (not shipped) | 80 fresh pairs, 80 calls (USD 0.43 with the prompt-6 comparison): correct per 100 calls 16.2 to 17.5, correct 13/26 to 14/26 (50% to 54%; German 45% to 50%), wrong or unsupported 3/26 (11.5%); but 2 of 9 correct parallel or contrast bridges refused as spread (22%, bar at most 15%) and 12/16 drift controls repeated (bar at least 13). On the same pairs prompt 6 gave 10 of 19 correct (53%) against prompt 8's 7 of 14 (50%) | this cycle, deferred |
+| A bridge test at extraction (every bridge refused unless it needs both passages; not built) | session A's version refused 5 of 16 correct bridges (bar at most 15%, about 2) and kept 11.5 correct bridges per 100 calls; the plan predicted about 6 of 16 refused, so it was not built | this cycle, deferred |
+
+The bridge relation and probe question are stored in `facts.bridge` from v0.3.23 on; every prompt digest and output was unchanged by that release.
+
+### The release draw
+
+| Check | Figure | Release |
+|---|---|---|
+| Sizes scanned down instead of bisected, over 100 paired hash salts of the v0.3.12 pool | draws under 200 rows: 43 before, none after; 139 rows more on average (126 over 200 salts); weld rate +0.5 points (interval -0.6 to +1.5; over 200 salts +0.1, -0.5 to +0.8); invalid rows per 100 -0.002; German share unchanged; worst band deviation 0.62 to 0.27 points; the stored salt-0 releases unchanged. On the older v0.4.0 pool the weld rate rises 0.30 points (0.08 to 0.52) | v0.3.27 |
+| A kind, band or language held only by unanswerable rows is dropped as an absent one | released ids identical on 100 of 100 salts | v0.4.0 |
+| Default language weights count drawable rows | 100 paired salts: mean release size 399.1 to 399.2, mean id overlap 0.937, release German share 0.520 to 0.514 (answerable pool 0.515); weld count +0.03 (-0.39 to +0.45), weld per 100 released +0.006 (-0.100 to +0.112), released invalid +0.01 (-0.18 to +0.20, mean 8.82); intervals also include 0 on the v0.3.0 and v0.4.0 pools | v0.4.0 |
+| The scan's upper bound counts unanswerable rows only up to the ceiling | 4,578-row pool with one kind left only as unanswerable rows: 1,653 draws and 59.7 s before, 1 draw and 0.1 s after, same ids; no gain on the v0.3.12 pool (17.1 draws either way); 2,000 to 10,000 rows of typical shape take 0.1 to 37 s | v0.4.0 |
+
+### Links
+
+| Check | Figure | Release |
+|---|---|---|
+| Sibling linking scores a family with one matrix product | flat parent with 1,024-dimension vectors: 1,000 sections 37.5 s to 5.7 s, 2,000 sections 132 s to 16 s, 4,000 sections about 8 minutes to 59 s; the pairs offered are identical to the old ones on the v0.3.12 passages and on synthetic flat parents of 300 and 2,000 (no, random, tied and partial vectors). Still quadratic in building the links, about eight times flatter | v0.4.0 |
+| Links are dealt among passages that hold a validated fact | v0.3.12 corpus, two passages per bridge: 158 links to 164; three passages: 148 to 162 | v0.4.0 |
+| A numbered reference resolves in its own document | links over the v0.3.12 passages 166 to 166 (German unchanged; English 7 removed, 7 added, all 7 added right) | v0.4.0 |
+
+### Replays of the other fixes
+
+| Change | Figure | Release |
+|---|---|---|
+| Compound and unanswerable samples never rest on a bridge | v0.3.12 pool, 17 topics: compound slots resting on a bridge 5 to 0 (68 still dealt); unanswerable slots dealt a bridge 67 to 0 (364 dealt, 358 after, 6 skipped); unanswerable share of written slots 0.295 to 0.293 | v0.3.30 |
+| Re-parse of the 30 football PDFs (15 German, 15 English) | one table row per language changes (`b) c) d) e)` in uefa-equipment-regulations.pdf, now two rows) | v0.3.31 |
+| Re-chunk of the 30 football PDFs | table footnotes and lead-ins: 0 passages change (German 1,000, English 966); chunk structure: German 1,000 to 1,003 (a footer and a running header split off), English unchanged | v0.3.32, v0.4.0 |
+| Image-only pages in the 30 football PDFs | 5 name one page each, all real picture pages (back covers, a photo cover) | v0.4.0 |
+| Topic labels and small languages | Laws fit identical (German 9, English 8 topics, 0 memberships changed, 17 labels unchanged) | v0.4.0 |
+| Compound questions, calibrated on pairs built outside the deal | 28 of 48 pairs accepted (German 14 of 24, English 14 of 24); read blind, all 28 compound, none a false join; 21 usable (75% against the 80% asked) and 19 keys right (68% against 75%). The real path through the deal was not calibrated | v0.3.22, v0.3.26 |
+| Unanswerable questions | v0.3.17: kept-answered share on the labelled drafts 0.342 to 0.253 on replay. The reading of settles prompt 7 flagged 4 of 20 drafts the passages answer (not shipped) | v0.3.17, deferred |
+| Per-passage atomic cap | v0.3.14: 65 `over_cap` refusals to 0 on the v0.3.12 build; readers called 51 sound, 10 rightly refused, 4 partly right | v0.3.14 |
+| Dash ranges and answer completeness | over 919 stored recoveries two verdicts move, both wrong refusals (v0.3.18, v0.3.24); `answer_incomplete` frees 31 of 75 refusals on the v0.3.12 build (27 wrong, 3 partly right, 1 right; 80.6% usable) and 23 of 67 on the v0.4.0 build (19, 4, 0; 73.9% usable) (v0.3.19) | v0.3.18, v0.3.19, v0.3.24 |
+
+Model spend of the cycle's calibrations: USD 1.37 of the USD 10 cap (the needs_both check 0.79, bridge prompt 8 0.43, settles prompt 7 0.12 at the last count, 1.34 in all). The rebuild of the corpus that was planned for this cycle was dropped, so no build cost was spent.

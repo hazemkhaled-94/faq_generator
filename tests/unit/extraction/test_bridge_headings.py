@@ -50,7 +50,7 @@ def test_a_label_word_is_named_by_the_number_that_follows_it(
     language, statement, word, number, expected
 ) -> None:
     """Glued, spaced, closed by a full stop, at the end of the statement, or inflected."""
-    assert _names(_read(language, statement), word, number) is expected
+    assert _names(_read(language, statement), word, number, language) is expected
 
 
 @pytest.mark.parametrize(

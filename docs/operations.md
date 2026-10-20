@@ -200,6 +200,73 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.4.0
+
+This section is for a stack that runs v0.3.12 and moves straight to v0.4.0. It replaces the sections for v0.3.13 to v0.3.36: follow it once, in the order given, and skip those. Each step says which release needs it, so a stack that already holds some of them can leave those out. Back up PostgreSQL and the `documents` bucket first (the wiki's Operations page describes the backups); the migrations below cannot all be undone.
+
+### 1. Code, images and the host environment
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+On a host checkout also run `poetry install` (it also picks up certifi 2026.10.19, past GHSA-6q48-6c7w-9gw2; the images' locks pin it too). The host `poetry.lock` now pins aiohttp 3.14.5 and yarl 1.25.1 (v0.3.28), which closes three advisories (CVE-2026-111063, CVE-2026-111064 and GHSA-2g87-pp6c-29x5); the images' own locks were fixed in v0.3.13. Nothing else in the lock was meant to move.
+
+### 2. Three migrations: `make schema`
+
+`make schema` applies three revisions, one after the other, on top of v0.3.12's head (`8f759a3a3848`). Check what it will do first with `make schema-status`.
+
+| Revision | From | What it does |
+|---|---|---|
+| `a41c9e3d7b52` | v0.3.20 | Adds `questions.kind` (`single`, `needs_both`, `compound` or `false_premise`), `NOT NULL`. Existing rows are backfilled from the passage scope: `needs_both` where it is `multi_passage`, `single` otherwise (176 `needs_both` on the accepted answerable rows of the v0.3.12 build). The same rule backfills the question payloads held in wipe archives made before the column existed, so restoring an older archive no longer fails on an empty kind. Downgrading takes the key out of the payloads again |
+| `c3a9e1470b5d` | v0.3.23 | Adds `facts.bridge`, a nullable JSON object `{relation, question, answer}` that only a bridge may carry. No backfill: it stays empty on every stored bridge until `make extract-bridge FORCE=1` rewrites that bridge |
+| `d5b2f8a60c14` | v0.3.36 | Adds a trigger and its function, so that a question leaving `accepted` (by a person, by a re-check, or by the trigger that rejects a question that lost a fact) takes every follow-up below it out of the release in the same statement. It also repairs, once, the threads already split: it clears `release_id` on follow-ups that stay released under a root that is not accepted. That repair cannot be undone by a downgrade. To see how many rows it will touch on a stored corpus, run `SELECT count(*) FROM questions q WHERE q.release_id IS NOT NULL AND q.follows_id IS NOT NULL AND EXISTS (SELECT 1 FROM questions r WHERE r.id = q.follows_id AND r.status <> 'accepted');` beforehand (it counts direct follow-ups; deeper turns of the same threads are cleared too) |
+
+No other release between v0.3.12 and v0.4.0 adds a migration.
+
+### 3. Settings
+
+No setting was removed and none is required. One default is new and changes what a build writes:
+
+- **`QUESTIONS_KIND_MIX` defaults to `needs_both:5,compound:1`** (the setting arrived in v0.3.20 with `needs_both:1`, which is v0.3.12's plan; v0.3.26 changed the default). About one of every six slots that span passages is now dealt as a compound question, which asks two separate things, one answered by each of two passages, and costs two verifier reads. `QUESTIONS_KIND_MIX=needs_both:1` turns compound questions off.
+
+Two existing settings read differently, with no change to their values:
+
+- With `QUESTIONS_RELEASE_LANGUAGES` unset, a release weighs each language by the accepted questions a draw can take from it (answerable ones; unanswerable ones too only when `QUESTIONS_RELEASE_UNANSWERABLE` is above 0), not by all of them (v0.4.0). The ids of an existing release can move slightly when you rerun `make questions-balance`.
+- `EXTRACTION_BRIDGES_PER_TOPIC` counts a pair on the passage that heads it, whichever topic its partner sits in; `EXTRACTION_MIN_OTHER_SHARE` no longer caps the facts a repair call splits out of a refused statement.
+
+`TOPIC_NO_BELOW` and `TOPIC_NO_ABOVE` now scale with a language's passage count below six passages, so a small language keeps terms instead of failing silently (v0.4.0); values are unchanged.
+
+### 4. A new model call
+
+From v0.3.35 every accepted answerable `needs_both` question that cites two passages gets one more verifier call, under the new pinned prompt `verifier: stated` 1: it lists the parts of the answer and quotes every passage that states each part, the code finds the quotes, and the question stays two-passage only when each cited passage holds a part no other holds. This costs about USD 0.45 to 0.5 for a build the size of the Laws of the Game. If the model is unavailable or refuses the reading, the question is kept as cited, with a warning, and nothing is lost. Compound questions never reach it. Stored questions are not rejudged by it.
+
+### 5. Reruns, in order
+
+None of these is needed to start the new version; each brings stored data up to date with the reading the release changed. Run only the steps your corpus needs; the first column says what each is for.
+
+| Step | Command | Needed because of |
+|---|---|---|
+| Parse | `make parse-rerun` | v0.3.31 (a font's U+00AD hyphen is kept, `3-5 Werktage` no longer reads `35`; a table's group row stays its own row; a wrapped label's tail joins its label); v0.4.0 (a document with an image-only page now names it in a warning and in the stored parse's `image-only-pages` metadata; it is not refused) |
+| Chunk | `make chunk-rerun` | v0.3.31 (follows the parse), v0.3.32 (a table's footnote is written beneath the table; a colon-ended lead-in is kept with every piece of a table), v0.4.0 (a chunk ends where its prose changes language; a chapter opening mid-page starts at its own heading). A re-chunk keeps every passage whose text comes back unchanged, with its facts, so only changed passages are rebuilt |
+| Extract new passages | `make extract-start`, then `make extract` | passages the chunk rerun changed have no facts yet; the stage queues what it has not been asked to do and drains the queue, so only those passages reach the model |
+| Give back repair pieces | `make extract-recap`, then `make extract-dedup` | v0.3.14 (a repair piece no longer competes for the per-passage cap: on the v0.3.12 build all 65 `over_cap` refusals are freed, with no model call); the dedup decides the cross-passage repeats the freed facts may leave |
+| Judge facts again | `make extract-revalidate` | v0.3.15 (a bridge's heading and title are read as an atomic fact's are), v0.3.29 (polite Sie, exceptive clauses, German "dies"), v0.3.33 (numbers read as values, spelled counts past twelve). No model call |
+| Rewrite bridges | `make extract-bridge FORCE=1` | v0.3.16 (pairs follow the documents' own links across topics, under bridge prompt 6; adds about USD 0.25 to a build), v0.3.23 (fills `facts.bridge`), v0.3.28 (an earlier topic-scoped pass may have lost cross-topic bridges), v0.4.0 and v0.4.0 (links resolve in the right document; sibling pairs are dealt among passages that hold a validated fact). `FORCE=1` is needed while an accepted question cites a bridge. This is the one rerun that calls the model for every bridge |
+| Refit topics | `make topics-discover` | v0.4.0 (a refit may rename topics whose names shared an ending that is a top term, and may add topics for a small language; a name or coverage choice a person gave stays). A language left without a model now ends the fit as failed, after the other languages are stored |
+| Questions already stored | `make questions-rescore`, then `make questions-reverify` | the stored kind and citations (v0.3.20, v0.3.25: reverify holds a compound question to its kind), and the number and answer readings of v0.3.18, v0.3.19, v0.3.24 and v0.3.33. Reverify can reject a stored question; it never gives a rejected one back. A rule that frees questions takes effect only in a fresh generation (`make questions`) |
+| Redraw the release | `make questions-balance` | v0.3.27 (sizes are scanned down and the first that fills is kept, instead of bisecting), v0.3.28 onward (v0.4.0: kinds and languages held only by unanswerable rows no longer shrink the release) and the new thread trigger |
+
+Two upgrades need no rerun but a recreated dataset: the Argilla question datasets made before v0.3.28 lack the `kind` metadata term, and those made before v0.3.34 lack the `thread` field and `turn` metadata. The stale warning appears; recreate the dataset to get them.
+
+### 6. What else changes for you
+
+- The questions workbook gains a Kind column after Type on its next export (v0.3.34), and the Questions page tells Type (what a question asks) from Kind (what it was written as).
+- `POST /assessment/rerun` and the Redo button answer 409 `assessment_cannot_run` before touching any stored verdict when the assessment cannot run (`ASSESSMENT_ENABLED` off, or no judge model set); before v0.4.0 they wiped every stored verdict and answered 202.
+- Restoring an archive skips a row whose foreign-key parent is absent and prints what it left behind per table; a restored question keeps its `release_id` only when the live release holds it (v0.4.0).
+- Speed: the release draw scans sizes downward and takes seconds at one or two thousand accepted rows (minutes at 10,000), and sibling linking over one flat parent is several times faster, 16 s instead of 132 s at 2,000 sections (v0.4.0).
+
 ## Upgrading to v0.3.36
 
 ```bash

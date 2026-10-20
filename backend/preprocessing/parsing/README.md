@@ -48,6 +48,8 @@ already exist. A document with no counts counts as scanned.
 OCR is not implemented, so a scanned document is refused here, where the
 reason is still known.
 
+A digital PDF that holds a page with no text layer and a picture over at least half of it is parsed for its text pages, and the page is named in a warning, in the stored parse's `image-only-pages` metadata and in `documents.parse_error`, so the documents page, the API and `make parse-status` show it; a re-parse clears it.
+
 ### Step 3 — Convert
 
 Docling, built to accept PDF and no other input format, with heading
