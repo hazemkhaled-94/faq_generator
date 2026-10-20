@@ -313,3 +313,44 @@ def test_a_german_dies_with_no_clause_before_it_is_still_a_reference(
     result = _validated("de", passage_text, statement)
     assert not result.validated
     assert result.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Für Konten, die Zinsen zahlen, gilt dies nicht.",
+        "Bei Filialen, die ihre Kunden bedienen, gilt dies nicht.",
+        "Für Kunden, die ihre Ware zurückgeben, gilt dies nicht.",
+        "Für Karten, die gesperrt wurden, gilt dies nicht.",
+    ],
+)
+def test_a_german_dies_after_only_a_relative_clause_is_still_a_reference(
+    statement: str,
+) -> None:
+    """A relative clause modifies a noun and states nothing for `dies` to stand for."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ("dies",)
+    result = _validated("de", statement)
+    assert not result.validated
+    assert result.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Wenn die Karte gesperrt ist, gilt dies als Kündigung.",
+        "Wenn ein Kunde seine Karte verliert, muss er dies sofort melden.",
+        "Weil die Ware beschädigt ist, gilt dies als Reklamationsgrund.",
+        "Die Bank sperrt das Konto, und dies gilt als Kündigung.",
+    ],
+)
+def test_a_german_dies_after_a_conditional_causal_or_main_clause_resolves(
+    statement: str,
+) -> None:
+    """A wenn or weil clause, or a main clause, is a proposition `dies` may stand for."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ()

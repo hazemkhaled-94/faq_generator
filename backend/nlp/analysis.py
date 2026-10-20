@@ -1133,7 +1133,8 @@ def _propositional(token) -> bool:
     """Whether a neuter demonstrative stands for an earlier clause of the statement.
 
     "Wenn die Karte gesperrt ist, gilt dies als Kündigung": `dies` is the
-    finite clause before it, which is not the pronoun's own.
+    finite clause before it, which is not the pronoun's own. A relative clause
+    is not one: it modifies a noun and states nothing for `dies` to be.
     """
     if token.doc.lang_ not in _NOUN_ANAPHORIC_DEMONSTRATIVES:
         return False
@@ -1148,7 +1149,7 @@ def _propositional(token) -> bool:
     return any(
         "Fin" in one.morph.get("VerbForm", [])
         and one.i != own
-        and (_clause(one) != own or _heads_clause(one))
+        and (_clause(one) != own or (_heads_clause(one) and one.dep_ not in _RELATIVE))
         for one in token.doc[: token.i]
     )
 
