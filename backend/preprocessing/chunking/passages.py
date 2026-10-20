@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import replace
 from itertools import pairwise
-from typing import cast
+from typing import Any, cast, override
 
 from docling_core.transforms.chunker.doc_chunk import DocChunk
 from docling_core.transforms.chunker.hierarchical_chunker import (
@@ -14,6 +14,11 @@ from docling_core.transforms.chunker.hierarchical_chunker import (
 )
 from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+from docling_core.transforms.serializer.base import (
+    BaseDocSerializer,
+    SerializationResult,
+)
+from docling_core.transforms.serializer.common import create_ser_result
 from docling_core.transforms.serializer.markdown import (
     MarkdownPictureSerializer,
     MarkdownTableSerializer,
@@ -22,6 +27,7 @@ from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.group import ListGroup
 from docling_core.types.doc.items.node import DocItem, NodeItem
+from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import ListItem, TextItem
 from docling_core.types.doc.labels import DocItemLabel
 
@@ -37,6 +43,60 @@ class NoPassages(Exception):
     """Raised when a document yielded no passages to store."""
 
 
+def _with_attached(
+    result: SerializationResult,
+    refs: Iterable[RefItem],
+    document: DoclingDocument,
+    excluded: set[str],
+) -> SerializationResult:
+    """A block's rendering followed by the text items the converter attached.
+
+    The Markdown serializers write a block's captions and nothing else the
+    converter hung on it: a table's footnotes and the text printed inside a
+    picture are children no serializer renders, and the chunker does not
+    walk into them either.
+    """
+    texts = [
+        found
+        for ref in refs
+        if isinstance(found := ref.resolve(document), TextItem)
+        and found.text.strip()
+        and found.self_ref not in excluded
+    ]
+    if not texts:
+        return result
+    return create_ser_result(
+        text="\n\n".join([result.text, *(t.text.strip() for t in texts)]).strip(),
+        span_source=[
+            result,
+            *(create_ser_result(text=t.text, span_source=t) for t in texts),
+        ],
+    )
+
+
+class _Table(MarkdownTableSerializer):
+    """A Markdown table with the footnotes attached to it beneath."""
+
+    @override
+    def serialize(
+        self,
+        *,
+        item: TableItem,
+        doc_serializer: BaseDocSerializer,
+        doc: DoclingDocument,
+        **kwargs: Any,
+    ) -> SerializationResult:
+        """Serializes the table, then its footnotes."""
+        return _with_attached(
+            super().serialize(
+                item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
+            ),
+            item.footnotes,
+            doc,
+            doc_serializer.get_excluded_refs(**kwargs),
+        )
+
+
 class _Markdown(ChunkingSerializerProvider):
     """Renders every kind of block into the passage text, in Markdown."""
 
@@ -44,7 +104,7 @@ class _Markdown(ChunkingSerializerProvider):
         """Builds the serializer the chunker uses for one document."""
         return ChunkingDocSerializer(
             doc=doc,
-            table_serializer=MarkdownTableSerializer(),
+            table_serializer=_Table(),
             picture_serializer=MarkdownPictureSerializer(),
         )
 
