@@ -245,6 +245,23 @@ def engine(postgres: str):
     built.dispose()
 
 
+@pytest.fixture
+def locking():
+    """The SQL of every shared-lock read any engine runs while the test does."""
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    seen: list[str] = []
+
+    def watch(connection, cursor, statement, *rest):
+        if "FOR SHARE" in statement:
+            seen.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", watch)
+    yield seen
+    event.remove(Engine, "before_cursor_execute", watch)
+
+
 def _release() -> None:
     """Drops the cached engine, giving its pooled connections back first.
 

@@ -1,4 +1,4 @@
-"""Writes decided on a reading taken earlier (qg-check-7, -8)."""
+"""Writes decided on a reading taken earlier."""
 
 from __future__ import annotations
 
@@ -46,13 +46,14 @@ def accepted(engine, database):
         return asked.id
 
 
-def row(engine, id):
+def row(engine, one):
+    """The status, verdict and release of one question."""
     with engine.connect() as c:
         return c.execute(
             text(
                 "SELECT status, reviewed_verdict, release_id FROM questions WHERE id = :i"
             ),
-            {"i": id},
+            {"i": one},
         ).one()
 
 
@@ -156,3 +157,80 @@ def test_a_stale_recheck_still_rejects_a_source_that_changed_under_a_person(
 
     assert catalog.reject([(accepted, "source_changed")]) == 1
     assert row(engine, accepted).status == "rejected"
+
+
+TOPICS = [
+    (
+        "en",
+        "Goods may be returned within 30 days.",
+        "How long may goods be returned?",
+        "30 days",
+        "Delivery takes 3 working days.",
+    ),
+    (
+        "de",
+        "Waren dürfen innerhalb von 30 Tagen zurückgegeben werden.",
+        "Wie lange dürfen Waren zurückgegeben werden?",
+        "30 Tage",
+        "Die Lieferung dauert 3 Werktage.",
+    ),
+]
+
+
+@pytest.mark.parametrize("lang,returns,asked,answer,delivery", TOPICS)
+def test_a_fact_deleted_while_a_topic_is_written_keeps_the_other_questions(
+    engine, database, locking, lang, returns, asked, answer, delivery
+):
+    """database-6: one cited fact gone between the read and store() costs one thread."""
+    from ingestion.repository import DocumentRepository
+    from question_generation.models import CheckedQuestion, criteria_of
+    from question_generation.queue import QuestionQueue
+
+    a, b = digest("shop-returns"), digest("shop-delivery")
+    with Session(engine) as session:
+        session.add_all([document(a), document(b)])
+        held = fitted(0)
+        session.add(held)
+        session.flush()
+        pa = passage(a, ordinal=1, language=lang, text=returns)
+        pb = passage(b, ordinal=1, language=lang, text=delivery)
+        session.add_all([pa, pb])
+        session.flush()
+        session.add_all([membership(pa.id, held.id), membership(pb.id, held.id)])
+        fa, fb = fact(pa.id, statement=returns), fact(pb.id, statement=delivery)
+        session.add_all([fa, fb])
+        session.commit()
+        topic_id, fact_a, fact_b = held.id, fa.id, fb.id
+    queue = QuestionQueue()
+    queue.start()
+    queue.claim()
+
+    def checked(text_, ans, fid):
+        return CheckedQuestion(
+            question_text=text_,
+            target_answer=ans,
+            answerable=True,
+            criteria=criteria_of(
+                passages=1, documents=1, topics=1, answer_chars=len(ans)
+            ),
+            language=lang,
+            status="accepted",
+            rejected_reason=None,
+            fact_ids=(fid,),
+            embedding=[0.1] * 1024,
+        )
+
+    DocumentRepository().delete(b)  # the reading predates this
+    written = queue.store(
+        topic_id,
+        [
+            [checked(asked, answer, fact_a)],
+            [checked("?" + asked, answer, fact_b)],
+        ],
+    )
+
+    with engine.connect() as c:
+        kept = c.execute(text("SELECT question_text FROM questions")).scalars().all()
+    assert written == 1
+    assert kept == [asked]
+    assert locking and all("ORDER BY" in one for one in locking), locking

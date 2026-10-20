@@ -7,6 +7,7 @@ claims a row.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, ClassVar
 
 from sqlalchemy import false as sa_false
@@ -38,6 +39,8 @@ from question_generation.models import (
 from question_generation.types import PROMPT_VERSION
 from settings.runs import run_id
 from stages import Columns, RowQueue
+
+log = logging.getLogger(__name__)
 
 #: A topic rather than a request to refit. `topics` carries both queues, and
 #: this is what keeps this one off the fit's row: without it `start` would
@@ -506,12 +509,41 @@ class QuestionQueue(RowQueue):
         and a second run over the same topic writes only what the facts it
         skipped did not already cover.
 
+        The threads were written minutes before this, from facts read at the
+        start. A fact deleted or re-extracted since would fail the foreign
+        key and lose the whole topic, so the facts still there are read here
+        (shared-locked, so none goes before the commit) and a thread that
+        lost one is skipped and logged. The others are written.
+
         ponytail: one INSERT per question. Upgrade: one multi-row INSERT ...
         RETURNING per thread depth.
         """
         written = 0
         with self._session.begin() as session:
+            cited = {
+                fact_id
+                for thread in threads
+                for one in thread
+                for fact_id in one.fact_ids
+            }
+            held = set(
+                session.scalars(
+                    select(Fact.id)
+                    .where(Fact.id.in_(cited))
+                    .order_by(Fact.id)
+                    .with_for_update(read=True)
+                )
+            )
             for thread in threads:
+                lost = {f for one in thread for f in one.fact_ids} - held
+                if lost:
+                    log.warning(
+                        "topic %d: skipped a thread of %d question(s), fact(s) %s gone since it was read",
+                        topic_id,
+                        len(thread),
+                        sorted(lost),
+                    )
+                    continue
                 follows: int | None = None
                 for position, question in enumerate(thread, 1):
                     question_id = session.scalar(

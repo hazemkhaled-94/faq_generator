@@ -1153,7 +1153,9 @@ class QuestionCatalog(Repository):
                 if code != QuestionRejection.SOURCE_CHANGED:
                     where += [
                         Question.status == QuestionStatus.ACCEPTED,
-                        Question.reviewed_verdict.is_distinct_from(ReviewVerdict.ACCEPTED),
+                        Question.reviewed_verdict.is_distinct_from(
+                            ReviewVerdict.ACCEPTED
+                        ),
                     ]
                 changed += session.execute(
                     update(Question).where(*where).values(**_rejecting(code))
