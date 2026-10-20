@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.28
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. On a host checkout run `poetry install` to pick up the new `poetry.lock` (aiohttp 3.14.5, yarl 1.25.1). A narrowed `make extract-bridge` no longer deletes bridges opening outside the scope; run a whole-corpus `FORCE=1` pass to rebuild such bridges after a topic change. Existing Argilla question datasets lack the `kind` metadata term: the stale warning appears, recreate the dataset to get it. Stored data does not change.
+
 ## Upgrading to v0.3.27
 
 ```bash

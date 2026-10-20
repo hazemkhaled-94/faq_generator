@@ -33,7 +33,10 @@ accepted question cites one of them; `FORCE=1` replaces them anyway, and
 those questions are rejected or deleted with them. `MISSING=1` deletes
 nothing and reads only the topics holding no bridge yet: `make corpus` runs it
 that way after the topics are known, so a rebuild writes bridges and a second
-one leaves cited ones alone. It asks the model one
+one leaves cited ones alone. A pass narrowed by `TOPIC`, `SHA` or `PASSAGE`
+clears only the bridges that open on a passage of the topics it reads again, so a
+bridge opening outside the scope stays, and no pass offers a pair that already
+holds a stored bridge, whichever side heads it. It asks the model one
 question first, and deletes nothing if the model does not answer.
 
 `make extract-revalidate` re-judges stored facts without calling a model,

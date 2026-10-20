@@ -776,6 +776,26 @@ only after five refusals in a row. The retry notes now read as a reviewer's
 feedback on the quoted draft, and no longer tell the writer what it is
 supposed to produce.
 
+## Found by the QA review of 2026-10-20
+
+A second review hunted bugs on the top of the v0.3.13 to v0.3.27 stack. The
+releases from v0.3.28 on fix what it found. The first two also close the known
+issues that the release notes of v0.3.16 (the scoped bridge pass) and v0.3.26
+(the review guideline and kind) listed.
+
+### Fixed in v0.3.28: scoped bridges, review kind, dependencies
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| A bridge pass narrowed by `TOPIC`, `SHA` or `PASSAGE` lost bridges | it deleted every bridge resting on a passage of the scope but re-read only the heads inside it, so a bridge opening outside the scope whose partner sat inside was lost and never written back (cross-topic links, since v0.3.16) | it clears only the bridges opening on a passage of the scoped topics, which it rewrites ([`repository.py`](../backend/extraction/repository.py)) | red tests on bank and shop rows in German and English, green after; the scoreboard moves no value |
+| A narrowed pass or a second `MISSING=1` run wrote a second bridge on a pair already bridged | a sibling or cross-topic pair can be headed from either side and the pass remembered topics, not pairs | the pass never offers a pair a stored bridge rests on, whichever side heads it ([`links.py`](../backend/extraction/links.py), [`service.py`](../backend/extraction/service.py)) | red tests on bank and shop rows in German and English (8 red before, green after); the scoreboard moves no value |
+| aiohttp 3.14.3 in the host's `poetry.lock` carried CVE-2026-111063, CVE-2026-111064 and GHSA-2g87-pp6c-29x5 | Dependabot alerts 30 to 32; v0.3.13 had bumped only the API image's lock | `poetry.lock` pins aiohttp 3.14.5 and yarl 1.25.1, nothing else moved | the three alerts close |
+| Compound questions were rejected by reviewers for asking two things at once | the Argilla question record carried no kind while the guideline said to reject a question that asks two things at once | the record's metadata carries the kind, and the guideline says a compound question asks two separate things on purpose and is judged one half at a time ([`review/`](../review/)) | a unit test holds the kind in the record; not covered by the scoreboard |
+
+Session A's QA test commits (mutation tests of the unanswerable
+turn, the answer-incomplete reading, the bridge prompt and the link helpers)
+ship here as tests only.
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was

@@ -397,6 +397,7 @@ in [`nlp/analysis.py`](../nlp/analysis.py): a German `1,234 %` is a rate and
 either. A figure the key or the explanation writes with one mark before three
 digits is read both ways, because a model writes either convention whatever
 the language: a German key `1,000 EUR` is the `1.000 EUR` its passage states.
+A range written with a dash (`68–70 cm`) asserts both ends, so a recovery giving each end (`between 68 cm and 70 cm`) holds it.
 
 What the reader is given is not asked back. A name the question carries, or
 every heading trail of the cited passages, need not come back, so `What is
