@@ -95,6 +95,11 @@ class QuestionRow:
     confidence: float | None = None
     #: single, needs_both or compound: what the question was written to be.
     kind: str | None = None
+    #: Where it sits in its thread (1 is a root) and what was asked before
+    #: it, oldest first. A follow-up leans on those turns on purpose, so a
+    #: reviewer shown it alone would reject it for the very thing it is for.
+    turn: int = 1
+    before: list[str] = field(default_factory=list)
 
 
 def _even(total: int, groups: int) -> int:
@@ -180,7 +185,9 @@ class ReviewRepository(Repository):
                 found = session.execute(
                     select(Question).where(Question.id.in_(ids)).order_by(Question.id)
                 ).scalars()
-                return [self._question(one) for one in found]
+                return [
+                    self._question(one, self._before(session, one)) for one in found
+                ]
         with self._session() as session:
             groups = session.execute(
                 select(Question.difficulty, Question.rejected_reason).group_by(
@@ -206,11 +213,32 @@ class ReviewRepository(Repository):
                     .order_by(Question.id if each is None else func.random())
                     .limit(each)
                 ).scalars()
-                rows += [self._question(one) for one in found]
+                rows += [
+                    self._question(one, self._before(session, one)) for one in found
+                ]
         return rows
 
     @staticmethod
-    def _question(one) -> QuestionRow:
+    def _before(session, one) -> list[str]:
+        """The questions a follow-up follows, oldest first; none for a root.
+
+        Stops on a row already seen: `follows_id` is a self-reference and
+        the schema does not forbid a loop.
+        """
+        before: list[str] = []
+        seen = {one.id}
+        parent = one.follows_id
+        while parent is not None and parent not in seen:
+            seen.add(parent)
+            found = session.get(Question, parent)
+            if found is None:  # pragma: no cover - the cascade prevents it
+                break
+            before.insert(0, found.question_text)
+            parent = found.follows_id
+        return before
+
+    @staticmethod
+    def _question(one, before: Sequence[str] = ()) -> QuestionRow:
         """One stored question, as a reviewer is shown it."""
         return QuestionRow(
             id=one.id,
@@ -227,6 +255,8 @@ class ReviewRepository(Repository):
             answer_explanation=one.answer_explanation,
             confidence=one.confidence,
             kind=one.kind,
+            turn=one.thread_position,
+            before=list(before),
         )
 
     def held(self, name: str, ids: Sequence[int]) -> dict[int, Held]:

@@ -223,6 +223,9 @@ def question_settings() -> rg.Settings:
             "The exception is `kind` compound: a compound question asks two "
             "separate things on purpose, each answered by its own passage. "
             "Judge it one half at a time, and reject it if either half fails.\n\n"
+            "A question with a `thread` is a follow-up: it leans on the turns "
+            "listed there on purpose, so judge it after them and do not reject "
+            "it for not standing alone.\n\n"
             "An unanswerable question is not automatically wrong: some are "
             "written deliberately, to check that a chatbot says it does not "
             "know. `answerable` says which kind this is.\n\n"
@@ -240,6 +243,11 @@ def question_settings() -> rg.Settings:
             rg.TextField(
                 name="explanation", title="Why that is the answer, as the writer put it"
             ),
+            rg.TextField(
+                name="thread",
+                title="The turns it follows, oldest first",
+                required=False,
+            ),
             _judge_field(),
         ],
         questions=[
@@ -254,6 +262,7 @@ def question_settings() -> rg.Settings:
             rg.TermsMetadataProperty(name="difficulty", title="Difficulty band"),
             rg.TermsMetadataProperty(name="question_type", title="Type"),
             rg.TermsMetadataProperty(name="kind", title="Kind"),
+            rg.IntegerMetadataProperty(name="turn", title="Turn in its thread"),
             rg.TermsMetadataProperty(name="language", title="Language"),
             rg.TermsMetadataProperty(name="answerable", title="Answerable"),
             rg.TermsMetadataProperty(name="gate", title="What the gates said"),
@@ -330,11 +339,19 @@ def question_record(row: QuestionRow, judge: Opinion = UNJUDGED) -> rg.Record:
             # rather than arriving empty, which Argilla refuses.
             "explanation": row.answer_explanation or "(none written)",
             "judge": judge.detail,
+            # Omitted on a root: a field of "(none)" would only be noise,
+            # and this one is not required.
+            **(
+                {"thread": "\n".join(f"{n}. {t}" for n, t in enumerate(row.before, 1))}
+                if row.before
+                else {}
+            ),
         },
         metadata={
             "difficulty": row.difficulty or "unbanded",
             "question_type": row.question_type or "untyped",
             "kind": row.kind or "single",
+            "turn": row.turn,
             "language": row.language,
             "answerable": str(row.answerable).lower(),
             "gate": row.rejected_reason or row.status,
