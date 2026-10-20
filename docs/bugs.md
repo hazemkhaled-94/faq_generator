@@ -846,6 +846,14 @@ Deferred: the text a converter nests in a picture is not written into passages (
 
 Deferred (llm-nlp-12): a German spelled count read as a unit would also refuse facts whose count the cited sentence lacks but the passage states. On the scoreboard it refuses 5 more German facts (unsupported_addition 18 to 23), of which readers judged 4 correct, so the tightening would remove 4 usable facts of 5 and orphan 13 more questions; it is not shipped, and the decision is whether the check reads the passage context.
 
+### Fixed in v0.3.34: review and page vocabulary
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| The questions workbook had no kind column | a compound question read as an ordinary multi-passage row | a Kind column (single, needs_both, compound) follows Type on the Questions sheet ([`export.py`](../backend/question_generation/export.py)) | a unit test holds the column; not covered by the scoreboard |
+| A follow-up reached Argilla without the turns it follows | reviewers rejected context-dependent follow-ups that read fine in their thread | the record has an optional `thread` field (the earlier turns, oldest first, walked up `follows_id` with a loop guard) and `turn` metadata, and the guideline says a follow-up is judged after those turns ([`records.py`](../review/records.py), [`datasets.py`](../review/datasets.py)) | unit tests, with a loop-guard test whose mutant hangs and is killed |
+| The Questions page named a compound question's prompt wrongly and called two things Kind | `_sent_as` ignored `kind=compound` and showed the spans prompt, and the column `Kind` held `question_type` while the stored kind was `Written as` | a compound question's prompt is named `type (compound)`; `question_type` is `Type` in the table, the detail, the filter and the analysis rows, and the stored kind is `Kind`, with a help line for each kind ([`questions.py`](../frontend/views/questions.py)) | page tests; a slot of the compound kind that fell short of passages and was written plain still shows `(spans)`, since the prompt name is not stored |
+
 ## Found on the v0.3.12 rebuild of 2026-10-19
 
 The code of v0.3.12 rebuilt the same two PDFs and every row of the build was

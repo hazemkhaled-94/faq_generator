@@ -29,7 +29,7 @@ Each record already carried what the **checker** decided. It now also
 carries what an **LLM judge** decided, from
 [the evaluation phase](../backend/assessment/README.md): a `judge` field
 holding the judgement and its reasoning, and `judge_verdict` and
-`judge_disagrees` as metadata to filter on. The question record's metadata also carries `kind` (single, needs_both, compound); the guideline tells reviewers a compound question asks two separate things on purpose, each answered by its own passage, and is judged one half at a time and rejected if either half fails.
+`judge_disagrees` as metadata to filter on. The question record's metadata also carries `kind` (single, needs_both, compound); the guideline tells reviewers a compound question asks two separate things on purpose, each answered by its own passage, and is judged one half at a time and rejected if either half fails. A follow-up record has a `thread` field listing the turns it follows, oldest first, and a `turn` metadata term, and the guideline says it is judged after those turns and not rejected for leaning on them.
 
 `judge_disagrees=yes` is the sitting worth having. Those are the artefacts
 the pipeline **kept** and the judge refused — one of the two is wrong, and a

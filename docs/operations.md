@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.3.34
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no setting. The workbook gains a Kind column on its next export. Existing Argilla question datasets lack the `thread` field and the `turn` metadata term: the stale warning appears; recreate the dataset to get them.
+
 ## Upgrading to v0.3.33
 
 ```bash

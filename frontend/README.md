@@ -49,6 +49,8 @@ actually queues over. The page says so where it offers the control.
 
 ### A picked question links out to what produced it
 
+On the Questions page Type is what a question asks for (`question_type`) and Kind is what it was written as (single, needs_both, compound).
+
 | | From | Opens |
 |---|---|---|
 | The calls | `questions.span_id` and `questions.trace_id` | Phoenix. **Two links**: the span is the gate decision, the trace is the whole topic |
