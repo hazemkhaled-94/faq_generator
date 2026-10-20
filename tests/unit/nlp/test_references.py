@@ -341,6 +341,40 @@ def test_a_german_dies_after_only_a_relative_clause_is_still_a_reference(
 @pytest.mark.parametrize(
     "statement",
     [
+        "Wenn die Karte gesperrt wurde, gilt dies als Kündigung.",
+        "Wenn die Ware beschädigt geliefert wurde, gilt dies als Reklamationsgrund.",
+    ],
+)
+def test_a_german_dies_after_a_finite_auxiliary_of_a_conditional_resolves(
+    statement: str,
+) -> None:
+    """The auxiliary heads nothing, but it sits in the condition and not in the clause of `dies`."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ()
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Nach Artikel 5 gilt dies als Kündigung.",
+        "Laut den Bedingungen ist dies ein Reklamationsgrund.",
+    ],
+)
+def test_a_german_dies_after_only_the_verb_of_its_own_clause_is_still_a_reference(
+    statement: str,
+) -> None:
+    """The finite verb before it is its own clause's, so nothing earlier is stood for."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ("dies",)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
         "Wenn die Karte gesperrt ist, gilt dies als Kündigung.",
         "Wenn ein Kunde seine Karte verliert, muss er dies sofort melden.",
         "Weil die Ware beschädigt ist, gilt dies als Reklamationsgrund.",
@@ -351,6 +385,24 @@ def test_a_german_dies_after_a_conditional_causal_or_main_clause_resolves(
     statement: str,
 ) -> None:
     """A wenn or weil clause, or a main clause, is a proposition `dies` may stand for."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ()
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Die Karte ist gesperrt; dies gilt als Kündigung.",
+        "Das Konto ist überzogen; dies gilt als Vertragsverletzung.",
+        "Die Ware ist beschädigt; dies ist ein Reklamationsgrund.",
+    ],
+)
+def test_a_german_dies_standing_for_a_clause_before_a_semicolon_resolves(
+    statement: str,
+) -> None:
+    """The verb before it is finite and in a clause of its own, though it carries no conjunction."""
     from nlp.analysis import claim
 
     assert claim(statement, "de").references == ()
