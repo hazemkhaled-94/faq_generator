@@ -69,6 +69,30 @@ def test_every_action_from_elsewhere_is_pinned_to_a_commit(path: Path) -> None:
     assert not loose, loose
 
 
+#: The first release of the smallest major of each action that runs on node24
+#: (Node 20 actions are forced onto Node 24 and warn on every run).
+NODE24_PINS = {
+    "actions/checkout": "08c6903cd8c0fde910a37f88322edcfb5dd907a8",
+    "actions/cache": "a7833574556fa59680c1b7cb190c1735db73ebf0",
+    "actions/upload-artifact": "b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+    "actions/download-artifact": "37930b1c2abaa49bbe596cd826c3c89aef350131",
+    "actions/setup-python": "e797f83bcb11b83ae66e0230d6156d7c80228e7c",
+}
+
+
+@pytest.mark.parametrize(
+    "path",
+    [*WORKFLOWS, *sorted((ROOT / ".github/actions").glob("*/action.yml"))],
+    ids=lambda p: p.relative_to(ROOT / ".github").as_posix(),
+)
+def test_every_github_action_is_pinned_to_its_node24_release(path: Path) -> None:
+    """An older pin runs on Node 20 and warns on every run of every workflow."""
+    used = re.findall(r"uses:\s*(actions/[^@\s]+)@([0-9a-f]{40})", path.read_text())
+    stale = [name for name, sha in used if sha != NODE24_PINS.get(name)]
+
+    assert not stale, stale
+
+
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
 def test_every_marker_a_workflow_selects_on_is_registered(path: Path) -> None:
     """A renamed marker would deselect everything and pass."""
