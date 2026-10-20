@@ -222,10 +222,10 @@ def test_the_newest_copy_of_a_row_is_the_one_restored(
     assert title == "Uploaded again"
 
 
-def test_a_row_whose_parent_was_replaced_restores_nothing(
+def test_a_row_whose_parent_was_replaced_is_left_behind(
     corpus, engine, monkeypatch
 ) -> None:
-    """A re-chunk since the wipe holds the passage's key, so its facts have none."""
+    """A re-chunk since the wipe holds the passage's key; the citations stay behind."""
     from archive import restore
 
     since = now(engine)
@@ -238,9 +238,12 @@ def test_a_row_whose_parent_was_replaced_restores_nothing(
     rebuilt = rows(engine)
 
     monkeypatch.setenv("SINCE", since)
-    assert restore.main() == 1
+    assert restore.main() == 0
 
-    assert rows(engine) == rebuilt
+    after = rows(engine)
+    assert after["passages"] == rebuilt["passages"]
+    assert after["fact_passages"] == rebuilt["fact_passages"] == []
+    assert after["documents"] == rebuilt["documents"]
 
 
 def test_without_a_time_nothing_is_restored(corpus, engine, monkeypatch) -> None:
@@ -303,8 +306,16 @@ def test_a_question_resting_on_two_documents_comes_back_accepted(
 @pytest.mark.parametrize(
     ("language", "first", "second"),
     [
-        ("de", "Die Kontoführung kostet 5 EUR im Monat.", "Pro Tag sind 1000 EUR abhebbar."),
-        ("en", "Goods may be returned within 30 days.", "Delivery takes 3 working days."),
+        (
+            "de",
+            "Die Kontoführung kostet 5 EUR im Monat.",
+            "Pro Tag sind 1000 EUR abhebbar.",
+        ),
+        (
+            "en",
+            "Goods may be returned within 30 days.",
+            "Delivery takes 3 working days.",
+        ),
     ],
 )
 def test_a_restored_question_does_not_rejoin_a_superseded_release(
@@ -435,3 +446,174 @@ def test_a_restored_question_keeps_its_release_only_where_a_live_one_holds_it(
             text("SELECT release_id FROM questions WHERE id = :id"), {"id": gone_id}
         ).scalar_one()
     assert (release == old) is expected
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_refit_after_a_deletion_does_not_make_it_unrestorable(
+    engine, database, buckets, monkeypatch, capsys, language
+) -> None:
+    """The refit's topics hold the archived ones' key; their memberships stay behind."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+
+    one, other = digest(f"bank-{language}"), digest(f"shop-{language}")
+    with Session(engine) as session:
+        session.add_all([document(one), document(other)])
+        old = fitted(0, language=language)
+        session.add(old)
+        session.flush()
+        cut_one = passage(one, language=language)
+        cut_other = passage(other, language=language)
+        session.add_all([cut_one, cut_other])
+        session.flush()
+        session.add_all(
+            [membership(cut_one.id, old.id), membership(cut_other.id, old.id)]
+        )
+        session.add_all([fact(cut_one.id), fact(cut_other.id)])
+        session.commit()
+        other_id = cut_other.id
+    since = now(engine)
+
+    DocumentRepository().delete(one)
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM topics"))
+    with Session(engine) as session:
+        again = fitted(0, language=language)
+        session.add(again)
+        session.flush()
+        session.add(membership(other_id, again.id))
+        session.commit()
+
+    monkeypatch.setenv("SINCE", since)
+    restore.main()  # 1: the seeded document has no upload in the bucket
+
+    with engine.connect() as connection:
+        documents = connection.execute(
+            text("SELECT count(*) FROM documents")
+        ).scalar_one()
+        memberships = connection.execute(
+            text("SELECT count(*) FROM passage_topics")
+        ).scalar_one()
+    assert documents == 2
+    assert memberships == 1, "the deleted passage waits for the next fit"
+    out = capsys.readouterr().out
+    assert "Nothing restored" not in out
+    assert "left behind" in out
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_re_chunk_after_delete_derived_does_not_make_it_unrestorable(
+    engine, database, buckets, monkeypatch, capsys, language
+) -> None:
+    """The new passages hold the archived ones' key; their citations stay behind."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+
+    sha = digest(f"terms-{language}")
+    with Session(engine) as session:
+        session.add(document(sha))
+        session.flush()
+        cut = passage(sha, language=language)
+        session.add(cut)
+        session.flush()
+        session.add(fact(cut.id))
+        session.commit()
+    since = now(engine)
+
+    DocumentRepository().delete_derived(sha)
+    with Session(engine) as session:
+        session.add(passage(sha, language=language, text="Returns need a receipt."))
+        session.commit()
+
+    monkeypatch.setenv("SINCE", since)
+    restore.main()  # 1: the seeded document has no upload in the bucket
+
+    with engine.connect() as connection:
+        passages = connection.execute(
+            text("SELECT count(*) FROM passages")
+        ).scalar_one()
+    out = capsys.readouterr().out
+    assert "Nothing restored" not in out
+    assert passages == 1, "the re-cut passage is kept"
+    assert "left behind" in out
+
+
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("de", "Rückgaben sind 30 Tage lang möglich."),
+        ("en", "Goods may be returned within 30 days."),
+    ],
+)
+def test_a_fact_left_resting_on_no_passage_is_dropped_with_its_question(
+    engine, database, buckets, monkeypatch, capsys, language, statement
+) -> None:
+    """A re-chunk replaced the passage, so the fact and its question have no source."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+
+    sha = digest(f"shop-{language}")
+    with Session(engine) as session:
+        session.add(document(sha))
+        session.flush()
+        cut = passage(sha, language=language)
+        session.add(cut)
+        session.flush()
+        held = fact(cut.id, statement=statement)
+        session.add(held)
+        session.flush()
+        asked = question(status="accepted", language=language)
+        session.add(asked)
+        session.flush()
+        session.add(link(asked.id, held.id))
+        session.commit()
+    since = now(engine)
+
+    DocumentRepository().delete_derived(sha)
+    with Session(engine) as session:
+        session.add(passage(sha, language=language, text="Returns need a receipt."))
+        session.commit()
+
+    monkeypatch.setenv("SINCE", since)
+    restore.main()  # 1: the seeded document has no upload in the bucket
+
+    with engine.connect() as connection:
+        counts = [
+            connection.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
+            for table in ("facts", "question_facts", "questions")
+        ]
+    assert counts == [0, 0, 0], "no accepted question rests on a fact with no passage"
+    assert "facts: " in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_bridge_left_with_one_passage_is_dropped(
+    engine, database, buckets, monkeypatch, language
+) -> None:
+    """A bridge needs two passages; one was replaced by a re-chunk."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+
+    one, other = digest(f"bank-{language}"), digest(f"terms-{language}")
+    with Session(engine) as session:
+        session.add_all([document(one), document(other)])
+        session.flush()
+        cut_one = passage(one, language=language)
+        cut_other = passage(other, language=language)
+        session.add_all([cut_one, cut_other])
+        session.flush()
+        session.add(fact(cut_one.id, cut_other.id, kind="bridge"))
+        session.commit()
+    since = now(engine)
+
+    DocumentRepository().delete_derived(one)
+    with Session(engine) as session:
+        session.add(passage(one, language=language, text="Fees are listed online."))
+        session.commit()
+
+    monkeypatch.setenv("SINCE", since)
+    restore.main()  # 1: the seeded documents have no upload in the bucket
+
+    with engine.connect() as connection:
+        facts = connection.execute(text("SELECT count(*) FROM facts")).scalar_one()
+    assert facts == 0

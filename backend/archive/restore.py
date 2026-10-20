@@ -34,7 +34,9 @@ TABLES = [
 ]
 
 #: One table's archived rows, newest copy first. A row whose primary or
-#: unique key a live row holds is skipped.
+#: unique key a live row holds is skipped, and so is a row whose foreign-key
+#: parent is absent: a refit or a re-chunk replaced the parent under its
+#: unique key, so the archived row has nothing to rest on.
 #:
 #: ponytail: two ceilings. Passages restored after `make delete-derived` sit
 #: under a document still marked chunk_status `new`, an UPDATE the archive
@@ -43,13 +45,42 @@ TABLES = [
 #: fills a key missing from an older payload with NULL, not the column's
 #: default, so a NOT NULL column added since the row was archived rolls the
 #: whole restore back; the upgrade is to coalesce missing keys to defaults.
-_RESTORE = """
-INSERT INTO {table}
-SELECT r.* FROM archived_rows a, jsonb_populate_record(NULL::{table}, a.payload) r
+_FROM = """
+FROM archived_rows a, jsonb_populate_record(NULL::{table}, a.payload) r
 WHERE a.table_name = :table AND a.archived_at >= :since
+"""
+_RESTORE = (
+    "INSERT INTO {table} SELECT r.* "
+    + _FROM
+    + """{parents}
 ORDER BY a.archived_at DESC, a.id DESC
 ON CONFLICT DO NOTHING
 """
+)
+_ORPHANS = "SELECT count(*) " + _FROM + "AND NOT ({parents})"
+
+
+def _parents(table: str) -> str:
+    """The condition that every foreign key of a row has its parent.
+
+    A key to the table's own rows is left out: its parent comes back in the
+    same statement, which cannot see it yet. A NULL key rests on nothing.
+    """
+    conditions = [
+        "("
+        + " AND ".join(f"r.{column.name} IS NULL" for column in key.columns)
+        + " OR EXISTS (SELECT 1 FROM "
+        + f"{key.referred_table.name} p WHERE "
+        + " AND ".join(
+            f"p.{element.column.name} = r.{element.parent.name}"
+            for element in key.elements
+        )
+        + "))"
+        for key in Base.metadata.tables[table].foreign_key_constraints
+        if key.referred_table.name != table
+    ]
+    return " AND ".join(conditions) or "true"
+
 
 #: A restored question's release_id belonged to the draw of its day. It stays
 #: only where a question that was live all along still holds that release;
@@ -73,6 +104,20 @@ WHERE q.release_id IS NOT NULL
     + """))
 """
 )
+
+
+#: A restored fact whose citations were left behind rests on nothing, and a
+#: bridge needs two passages. The triggers that drop such a fact fire only on
+#: DELETE, so the restore does it: the cascade takes its question links, and
+#: the question trigger the question left with no fact.
+_UNSOURCED = """
+DELETE FROM facts f
+WHERE f.id IN (
+    SELECT (a.payload->>'id')::bigint FROM archived_rows a
+    WHERE a.table_name = 'facts' AND a.archived_at >= :since)
+  AND (SELECT count(*) FROM fact_passages p WHERE p.fact_id = f.id)
+      < CASE WHEN f.kind = 'bridge' THEN 2 ELSE 1 END
+"""
 
 
 def _deletions(connection: Connection) -> None:
@@ -127,8 +172,8 @@ def _objects(connection: Connection, since: datetime) -> list[tuple[str, str]]:
 def main() -> int:
     """Puts back every row and object archived at or after SINCE.
 
-    The rows go back in one transaction, so a row whose parent is gone
-    restores nothing at all.
+    The rows go back in one transaction. A row whose parent is absent is
+    left behind and counted, so the rest still comes back.
 
     Returns:
         0, 1 when nothing was restored or an upload is in neither bucket,
@@ -154,15 +199,24 @@ def main() -> int:
                 {"since": since},
             )
         }
+        behind: dict[str, int] = {}
         try:
             for table in (one for one in TABLES if one in held):
+                parents = _parents(table)
+                left = connection.execute(
+                    text(_ORPHANS.format(table=table, parents=parents)),
+                    {"table": table, "since": since},
+                ).scalar_one()
                 restored = connection.execute(
-                    text(_RESTORE.format(table=table)),
+                    text(_RESTORE.format(table=table, parents="AND " + parents)),
                     {"table": table, "since": since},
                 ).rowcount
                 print(f"  {table:<20} {restored:>8} of {held[table]} row(s)")
+                if left:
+                    behind[table] = left
                 if table == "questions":
                     connection.execute(text(_SUPERSEDED), {"since": since})
+            dropped = connection.execute(text(_UNSOURCED), {"since": since}).rowcount
         except IntegrityError as exc:
             connection.rollback()
             print(f"\nNothing restored: {exc.orig}")
@@ -171,6 +225,12 @@ def main() -> int:
         missing = _objects(connection, since)
         connection.commit()
 
+    for table, rows in behind.items():
+        print(f"  {table}: {rows} row(s) left behind, their parent is not there")
+    if dropped:
+        print(
+            f"  facts: {dropped} restored fact(s) dropped, left resting on no passage"
+        )
     for bucket, key in missing:
         print(f"  {bucket}/{key} is in neither its bucket nor the archive")
     print(
