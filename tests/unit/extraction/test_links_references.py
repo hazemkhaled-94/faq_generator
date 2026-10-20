@@ -157,6 +157,34 @@ def test_a_quoted_heading_with_a_typographic_apostrophe_is_linked(
     assert references(language, rows) == [(1, 2)]
 
 
+@pytest.mark.parametrize(
+    "language,text,paths",
+    [
+        (
+            "en",
+            "For details, see Sections 7, 9 and 11.",
+            ("Section 7 > Fees", "Section 9 > Limits", "Section 11 > Closing"),
+        ),
+        (
+            "en",
+            "The fees in Sections 4 and 5 apply.",
+            ("Section 4 > Fees", "Section 5 > Limits", "Section 6 > Closing"),
+        ),
+        (
+            "de",
+            "Die Gebühren regeln die Abschnitte 4 und 5.",
+            ("Abschnitt 4 > Gebühren", "Abschnitt 5 > Limits", "Abschnitt 6 > Schluss"),
+        ),
+    ],
+)
+def test_a_plural_label_word_before_numbers_is_a_reference(language, text, paths):
+    """'Sections 7, 9 and 11' names sections whatever the tagger calls the word."""
+    rows = [(text, "Terms > Intro", "d")] + [
+        (f"Passage {i}.", path, "d") for i, path in enumerate(paths)
+    ]
+    assert references(language, rows) == [(1, 2)]
+
+
 def titled(text, path, ident, doc, language, title):
     """One passage of a document with a title."""
     return replace(one(text, path, ident, doc, language), title=title)

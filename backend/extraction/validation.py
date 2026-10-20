@@ -7,7 +7,7 @@ matrix and for what each one is protecting against.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from functools import partial
 
@@ -58,6 +58,9 @@ def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
 #: One ' > ' segment of a heading trail that is a word and a number
 #: ('Section 7', 'Regel 5.1', '§ 3'): the document's own way to number a part.
 HEADING_LABEL = re.compile(r"^([^\W\d_]+|§)\s?(\d+(?:\.\d+)*)$")
+
+#: A heading number as the documents write it ('7', '5.1').
+NUMBER = re.compile(r"\d+(?:\.\d+)*")
 
 #: A failed check, as its code and the measurement behind it.
 Failure = tuple[str, str]
@@ -255,18 +258,48 @@ def _bridging(judged: Judged) -> Failure | None:
     )
 
 
-def _names(tokens: Sequence, word: str, number: str) -> bool:
+#: The endings a label word takes to inflect (plural, case), by ISO 639-1
+#: code. A word that merely begins with a label word is not one of its forms.
+_INFLECTIONS: dict[str, tuple[str, ...]] = {
+    "de": ("s", "n", "e", "en", "es"),
+    "en": ("s",),
+}
+
+
+def label_word(
+    tokens: Sequence, at: int, words: Collection[str], language: str | None
+) -> str | None:
+    """The learned label word the token at `at` is, or None.
+
+    By form or lemma ("section"), or inflected and directly followed by a
+    number ("Sections 7": a tagger that reads it as a proper noun leaves its
+    lemma as written). An inflection is an ending of the language's table.
+    """
+    token = tokens[at]
+    forms = {token.text.casefold(), token.lemma_.casefold()}
+    if found := next((w for w in words if w in forms), None):
+        return found
+    if at + 1 < len(tokens) and NUMBER.fullmatch(tokens[at + 1].text.rstrip(".")):
+        text = token.text.casefold()
+        ends = _INFLECTIONS.get(language or "", ())
+        return next(
+            (w for w in words if any(text == w + end for end in ends)),
+            None,
+        )
+    return None
+
+
+def _names(tokens: Sequence, word: str, number: str, language: str | None) -> bool:
     """Reports whether the label word is directly followed by its number.
 
-    The word by form or lemma ("Sections 7"), the number with a closing full
-    stop dropped, or both glued in one token ("§7").
+    The word by form, lemma or inflection ("Sections 7"), the number with a
+    closing full stop dropped, or both glued in one token ("§7").
     """
     for at, token in enumerate(tokens):
-        forms = {token.text.casefold(), token.lemma_.casefold()}
-        if word + number in forms:
+        if word + number in {token.text.casefold(), token.lemma_.casefold()}:
             return True
         if (
-            word in forms
+            label_word(tokens, at, (word,), language)
             and at + 1 < len(tokens)
             and tokens[at + 1].text.rstrip(".") == number
         ):
@@ -279,7 +312,9 @@ def _located(judged: Judged) -> Failure | None:
     tokens = list(pipeline(judged.language)(judged.statement))
     for label in judged.labels:
         match = HEADING_LABEL.match(label.strip())
-        if match and _names(tokens, match.group(1).casefold(), match.group(2)):
+        if match and _names(
+            tokens, match.group(1).casefold(), match.group(2), judged.language
+        ):
             return (
                 Rejection.NOT_BRIDGING,
                 (

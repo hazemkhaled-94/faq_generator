@@ -1020,6 +1020,56 @@ class TestBridgeReadsItsHeadings:
         assert label in (bridged.validation_error or "")
 
     @pytest.mark.parametrize(
+        ("language", "path", "text", "statement", "label"),
+        [
+            (
+                "en",
+                "Section 7 > Yearly fees",
+                "A dormant account is charged a yearly fee of 10 EUR after 9 months.",
+                "The yearly fee of 10 EUR after 9 months for a dormant account is set out in Sections 7 and 9.",
+                "Section 7",
+            ),
+            (
+                "en",
+                "Section 7 > Yearly fees",
+                "A dormant account is charged a yearly fee after 9 months.",
+                "The fees in Sections 7 and 9 apply to dormant accounts after 9 months.",
+                "Section 7",
+            ),
+            (
+                "en",
+                "Section 4 > Delivery",
+                "An order is delivered within 5 days.",
+                "The delivery of an order within 5 days is described in Sections 4 and 5.",
+                "Section 4",
+            ),
+            (
+                "de",
+                "Abschnitt 7 > Jahresgebühren",
+                "Für ein ruhendes Konto wird nach 9 Monaten eine Jahresgebühr von 10 EUR erhoben.",
+                "Die Jahresgebühr von 10 EUR nach 9 Monaten für ein ruhendes Konto regeln die Abschnitte 7 und 9.",
+                "Abschnitt 7",
+            ),
+        ],
+    )
+    def test_a_bridge_naming_its_passages_section_in_the_plural_is_refused(
+        self, checker, language, path, text, statement, label
+    ) -> None:
+        """An inflected label word is the label word whatever its tag."""
+        other = (
+            (
+                "Accounts > Dormancy",
+                "An account is dormant after 24 months without payment.",
+            )
+            if language == "en"
+            else ("Konten > Ruhe", "Ein Konto ruht nach 24 Monaten ohne Zahlung.")
+        )
+        bridged = checker.bridge(statement, _under(language, (path, text), other))
+
+        assert bridged.rejection_code == Rejection.NOT_BRIDGING
+        assert label in (bridged.validation_error or "")
+
+    @pytest.mark.parametrize(
         ("language", "rows", "statement"),
         [
             (
@@ -1362,3 +1412,31 @@ class TestBridgeKeepsItsReading:
     def test_a_candidate_with_no_reading_carries_none(self, checker, offered) -> None:
         """A bridge from a prompt before 6 has neither relation nor probe."""
         assert checker.bridge("Two kinds are named.", offered).bridge is None
+
+
+@pytest.mark.parametrize(
+    ("language", "word", "text", "named"),
+    [
+        ("en", "section", "Sections 7", True),
+        ("en", "section", "Sectional 7", False),
+        ("en", "law", "Lawn 3", False),
+        ("en", "part", "Party 3", False),
+        ("de", "abschnitt", "Abschnitte 7", True),
+        ("de", "abschnitt", "Abschnittes 7", True),
+        ("de", "abschnitt", "Abschnitten 7", True),
+        ("de", "ziffer", "Ziffern 3", True),
+        ("de", "artikel", "Artikeln 3", True),
+        ("de", "teil", "Teilen 3", True),
+        ("de", "teil", "Teilnehmer 3", False),
+    ],
+)
+def test_a_label_word_is_matched_through_an_inflection_of_its_language(
+    language, word, text, named
+) -> None:
+    """Only a suffix the language inflects with, not any letters, is an inflection."""
+    from types import SimpleNamespace as T
+
+    from extraction.validation import label_word
+
+    tokens = [T(text=w, lemma_=w) for w in text.split()]
+    assert (label_word(tokens, 0, (word,), language) == word) is named

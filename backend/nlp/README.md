@@ -192,6 +192,7 @@ missing from one fails no test.
 | `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 | `_STEP_LABEL` | [`gates.py`](../question_generation/gates.py) | The word a procedure's steps are numbered with: `Step 1:` is no figure the key lacks | `Schritt`, `Step` |
+| `_INFLECTIONS` | [`extraction/validation.py`](../extraction/validation.py) | The endings a label word takes to inflect: a form of a learned label word directly before a number counts as the label ("Sections 7"), a word that merely begins with it does not | `Abschnitte`, `Sections` |
 
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or

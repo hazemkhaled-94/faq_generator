@@ -20,12 +20,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from extraction.models import PassageToExtract
-from extraction.validation import HEADING_LABEL
+from extraction.validation import HEADING_LABEL, NUMBER, label_word
 from nlp.analysis import content, normalised
 from nlp.embedding import cosine
 from nlp.pipelines import pipeline
-
-_NUMBER = re.compile(r"\d+(?:\.\d+)*")
 
 #: A quoted span, as two patterns by what opens it. A double mark closes at a
 #: double mark and may hold apostrophes ("Customers’ rights"); a single mark
@@ -166,24 +164,17 @@ def _references(
         }
         tokens = list(nlp(head.text))
         named: dict[tuple[str, str], set[str]] = defaultdict(set)
-        for at, token in enumerate(tokens[:-1]):
-            word = next(
-                (
-                    w
-                    for w in (token.text.casefold(), token.lemma_.casefold())
-                    if w in words
-                ),
-                None,
-            )
+        for at in range(len(tokens) - 1):
+            word = label_word(tokens, at, words, language)
             if word is None:
                 continue
             nxt = at + 1
-            while nxt < len(tokens) and _NUMBER.fullmatch(tokens[nxt].text.rstrip(".")):
+            while nxt < len(tokens) and NUMBER.fullmatch(tokens[nxt].text.rstrip(".")):
                 named[(word, tokens[nxt].text.rstrip("."))].add(tokens[at].sent.text)
                 if (
                     nxt + 2 < len(tokens)
                     and tokens[nxt + 1].pos_ in ("CCONJ", "PUNCT")
-                    and _NUMBER.fullmatch(tokens[nxt + 2].text.rstrip("."))
+                    and NUMBER.fullmatch(tokens[nxt + 2].text.rstrip("."))
                 ):
                     nxt += 2
                 else:
