@@ -379,7 +379,7 @@ def view() -> None:
                 ["accepted", "rejected", "draft"],
                 "Whether the gates, or a person, accepted it.",
             ),
-            "question_type": ("Kinds", list(_TYPES), "What the question asks for."),
+            "question_type": ("Types", list(_TYPES), "What the question asks for."),
             "cognitive_level": (
                 "Levels",
                 list(_LEVELS),
@@ -491,11 +491,11 @@ def view() -> None:
                 {
                     "State": row["status"],
                     "Failed gate": row["rejected_reason"] or "—",
-                    "Kind": row["question_type"] or "—",
+                    "Type": row["question_type"] or "—",
                     "Answer shape": row["answer_form"] or "—",
                     "Answerable": "yes" if row["answerable"] else "no",
                     "Difficulty": row["difficulty"] or "—",
-                    "Written as": row["kind"],
+                    "Kind": row["kind"],
                     "Passages": _scope(row["passage_scope"], "single_passage"),
                     "Documents": _scope(row["document_scope"], "single_document"),
                     "Turn": row["thread_position"],
@@ -523,9 +523,12 @@ def view() -> None:
                     "Five things each count one point: the three scopes, a "
                     "long answer, and following another question."
                 ),
-                "Written as": st.column_config.TextColumn(
+                "Kind": st.column_config.TextColumn(
                     help="What the question was written to be. single rests on "
-                    "one passage; needs_both takes something from each of two."
+                    "one passage; needs_both takes something from each of two; "
+                    "compound asks two separate things on purpose, each "
+                    "answered by its own passage; false_premise assumes "
+                    "something the material rules out."
                 ),
                 "Passages": st.column_config.TextColumn(
                     help="How many passages the answer needs. 2+ is a question "
@@ -678,7 +681,7 @@ def _analysis(quality: dict, counts: dict[str, int], plan: dict) -> list[dict]:
     written = quality["question_type"]
     rows += [
         {
-            "Check": f"Kind: {name}",
+            "Check": f"Type: {name}",
             "Value": page.share(written.get(name, 0), sum(written.values())),
             "Should be": f"{weights.get(name, 0) / asked:.0%} asked for",
             "State": "—",
@@ -745,13 +748,13 @@ def _detail(client, question: dict) -> None:
                 "Id": question["id"],
                 "State": question["status"],
                 "Failed gate": question["rejected_reason"],
-                "Kind": question["question_type"],
+                "Type": question["question_type"],
                 "Level": question["cognitive_level"],
                 "Answer shape": question["answer_form"],
                 "Answerable": question["answerable"],
                 "Difficulty": question["difficulty"],
                 "Planned difficulty": question["planned_difficulty"],
-                "Written as": question["kind"],
+                "Kind": question["kind"],
                 "Passages": question["passage_scope"],
                 "Documents": question["document_scope"],
                 "Subjects": question["topic_scope"],
@@ -920,6 +923,8 @@ def _sent_as(question: dict) -> str | None:
     if question.get("follows_id"):
         return "follow"
     kind = question.get("question_type")
+    if question.get("kind") == "compound":
+        return f"{kind} (compound)"
     if question.get("planned_difficulty") in ("medium", "hard"):
         return f"{kind} (spans)"
     return kind

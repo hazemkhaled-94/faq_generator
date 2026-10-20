@@ -347,6 +347,7 @@ def test_the_release_is_a_filter_the_rows_figures_and_workbook_share(
         ({"answerable": False}, "perturb"),
         ({"follows_id": 7}, "follow"),
         ({"planned_difficulty": "medium"}, "factoid (spans)"),
+        ({"planned_difficulty": "medium", "kind": "compound"}, "factoid (compound)"),
         ({}, "factoid"),
     ],
 )
@@ -389,6 +390,18 @@ def test_a_type_with_no_spanning_prompt_falls_back_to_its_own(open_view) -> None
         "factoid",
     ]
     assert "The prompt that wrote this · factoid v8" in opened.folds()
+
+
+def test_the_listing_shows_the_stored_kind_apart_from_the_type(open_view) -> None:
+    """One word each: type is what it asks for, kind is what it was written as."""
+    question = changed(QUESTION, kind="compound")
+    client = Answers(**answers(questions=_one(question), question=_detail(question)))
+
+    listed = open_view("questions", client).table_with("Question")
+
+    assert list(listed["Type"]) == ["factoid"]
+    assert list(listed["Kind"]) == ["compound"]
+    assert "Written as" not in listed.columns
 
 
 def _recorded(name: str) -> dict:
