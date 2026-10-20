@@ -408,9 +408,12 @@ corpus, which is a property of the model rather than of this code.
   converter read as body text is dropped only when it repeats one the
   document prints as furniture; another document's foot printed over the
   page is kept as text.
-- **Text printed inside a picture is passage text.** A diagram whose labels
-  the converter reads as body text keeps them, so a passage can hold a run of
-  short, verbless labels. Nothing filters text inside a detected picture yet.
+- **Text set inside a picture is not written into passages.** Diagram
+  labels, logos and banner text the converter nests in a detected picture
+  reach no passage: the chunker does not walk into pictures. On a measured
+  corpus what a picture held was mostly diagram labels and page numbers,
+  and keeping the real banner text needs a filter that tells it from
+  labels, which does not exist yet.
 - **A lone conjunction is told by a word table.** In a language missing
   from `_CONJUNCTIONS`, only a segment with no letter or digit leaves the
   trail, and no heading is read as a paragraph. A real one-word heading
