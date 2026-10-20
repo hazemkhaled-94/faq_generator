@@ -339,12 +339,14 @@ _PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
 #: What a lead-in ends on: the colon, in the Latin and the full-width forms.
 _LEAD_IN = (":", "：")
+# What a lead-in introduces: the chunker cuts a long list or table into pieces.
+_LISTED = frozenset({DocItemLabel.LIST_ITEM, DocItemLabel.TABLE})
 
 
 def lead_ins_kept(
     chunks: list[DocChunk], chunker: HybridChunker, document: DoclingDocument
 ) -> list[DocChunk]:
-    """Keeps a list with the sentence that introduces it.
+    """Keeps a list or table with the sentence that introduces it.
 
     The chunker closes a chunk wherever the token budget runs out, which can
     be right after a lead-in ending in ":" and before the list it introduces;
@@ -359,7 +361,8 @@ def lead_ins_kept(
     followed by a sub-heading introduces what the sub-heading opens: it
     moves into that chunk the same way, and heads every chunk after that
     opens with a list item under a heading below it, until a heading at or
-    above its own depth ends what it introduces.
+    above its own depth ends what it introduces. A table is kept like a
+    list: the lead-in "for customers under 25:" scopes every piece of it.
 
     Args:
         chunks: What the chunker returned, in order.
@@ -475,16 +478,15 @@ def _lead_in(chunk: DocChunk, document: DoclingDocument) -> tuple[DocItem, str] 
 def _introduced(
     chunk: DocChunk, document: DoclingDocument, given: str | None
 ) -> str | None:
-    """The lead-in of the list a chunk closes on, or None.
+    """The lead-in of the list or table a chunk closes on, or None.
 
-    The paragraph ending in ":" right before the list items the chunk ends
-    on, or, where it is list items from the top, `given`: the lead-in it
-    was handed. None where it does not end on a list item, or where its list
-    has no lead-in.
+    The paragraph ending in ":" right before the list items or tables the chunk
+    ends on, or, where it is those from the top, `given`: the lead-in it was
+    handed. None where it does not end on one, or where it has no lead-in.
     """
     items = chunk.meta.doc_items
     run = len(items)
-    while run and items[run - 1].label == DocItemLabel.LIST_ITEM:
+    while run and items[run - 1].label in _LISTED:
         run -= 1
     if run == len(items):
         return None
@@ -492,10 +494,8 @@ def _introduced(
 
 
 def _opens_a_list(chunk: DocChunk) -> bool:
-    """Reports whether a chunk's first item is a list item."""
-    return bool(chunk.meta.doc_items) and (
-        chunk.meta.doc_items[0].label == DocItemLabel.LIST_ITEM
-    )
+    """Reports whether a chunk's first item is a list item or a table."""
+    return bool(chunk.meta.doc_items) and (chunk.meta.doc_items[0].label in _LISTED)
 
 
 def lines_of(text: str) -> list[dict]:
