@@ -464,3 +464,49 @@ def test_a_flat_family_is_scored_in_one_product_not_one_dot_product_per_pair(
     run(passages, wanted=1000)
 
     assert scored == []  # base: count * (count - 1) calls
+
+
+@pytest.mark.parametrize(
+    "language, texts",
+    [
+        (
+            "en",
+            (
+                "The overdraft limit is reviewed every spring.",
+                "Savings earn interest at a fixed rate.",
+                "Parcels leave the warehouse on weekdays.",
+                "Returns are refunded to the original card.",
+                "Gift vouchers expire after three years.",
+            ),
+        ),
+        (
+            "de",
+            (
+                "Der Dispositionskredit wird jedes Frühjahr geprüft.",
+                "Sparguthaben werden mit einem festen Satz verzinst.",
+                "Pakete verlassen das Lager an Werktagen.",
+                "Rücksendungen werden auf die ursprüngliche Karte erstattet.",
+                "Geschenkgutscheine verfallen nach drei Jahren.",
+            ),
+        ),
+    ],
+)
+def test_a_pair_that_cannot_grow_gives_its_slot_to_one_that_can(
+    language, texts
+) -> None:
+    """At size 3 a head whose partner has no further link is not worth a slot."""
+    a, b, c, d, e = (
+        one(text, path, ident, language)
+        for ident, (text, path) in enumerate(
+            zip(
+                texts,
+                ("Bank > A", "Bank > B", "Shop > C", "Shop > D", "Shop > E"),
+                strict=True,
+            ),
+            start=1,
+        )
+    )
+
+    got = run([a, b, c, d, e], wanted=1, size=3)
+
+    assert pairs(got) == [(3, 4, 5)]

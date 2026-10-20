@@ -368,12 +368,12 @@ def linked(
                     by_topic[topic].append(link)
                     break
         for chosen in by_topic.values():
-            count = min(wanted, len(chosen))
-            step = (len(chosen) - 1) / (count - 1) if count > 1 else 0
-            for link in (chosen[round(at * step)] for at in range(count)):
-                grown = _grown(edges, link, size)
-                if grown is not None:
-                    out.append(grown)
+            # Grown before it is strided over: a pair that cannot reach `size`
+            # must not take the slot of one that can.
+            grown = [g for link in chosen if (g := _grown(edges, link, size))]
+            count = min(wanted, len(grown))
+            step = (len(grown) - 1) / (count - 1) if count > 1 else 0
+            out.extend(grown[round(at * step)] for at in range(count))
     return out
 
 
