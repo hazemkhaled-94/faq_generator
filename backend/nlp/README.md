@@ -172,7 +172,8 @@ missing from one fails no test.
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
 | `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing | `Lehrplan`, `syllabus` |
-| `CARDINALS` | same | Cardinals from nought to twelve, each as the value it names: the one count table the fact dedup gate and the question gates both read | `zwei`, `one` |
+| `_SPELLING` | same | How the language writes a cardinal: the words nought to nineteen, the tens, the words for a hundred and a thousand, how a unit and a ten join (`twenty-five`, `fünfundzwanzig`) and whether a scale word glues to its multiplier (`zweitausend`); `CARDINALS` is spelled out of it | `fünf`, `twenty` |
+| `CARDINALS` | same | Every cardinal `_SPELLING` spells, from nought to a hundred (a German one to ninety-nine thousand), each as the value it names: the one count table the fact dedup gate and the question gates both read; two words that make one number (`twenty thousand`) are joined by `numbers` | `zwei`, `one` |
 | `DECIMAL_MARK` | same | The mark the language writes a decimal with: one such mark before three digits is a fraction, not thousands, wherever the question gates read a figure the passages or the verifier's reply state | `,`, `.` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds, by language, each as the digits it names | `zweite`, `second` |

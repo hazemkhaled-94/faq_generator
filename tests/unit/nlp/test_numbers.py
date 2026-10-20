@@ -103,3 +103,23 @@ def test_a_statement_naming_no_number_reads_none() -> None:
     from nlp.analysis import numbers
 
     assert numbers("The card is blocked when it is reported stolen.", "en") == ()
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "wanted"),
+    [
+        ("en", "The bank charges thirty one-time fees.", ("1", "30")),
+        ("en", "The shop sells twenty two-week passes.", ("2", "20")),
+        ("en", "The card has fifty one-off offers.", ("1", "50")),
+        ("en", "The loan runs one hundred two-year terms.", ("100", "2")),
+        ("en", "The fee is twenty-five euros.", ("25",)),
+        ("de", "Die Gebühr beträgt fünfzig fünf Euro.", ("5", "50")),
+        ("de", "Das Konto hat zwanzig fünf Karten.", ("20", "5")),
+        ("de", "Die Gebühr beträgt fünfundzwanzig Euro.", ("25",)),
+    ],
+)
+def test_a_cardinal_joins_only_the_cardinal_it_continues(language, text, wanted):
+    """A hyphenated word is no part of a number; German has no ten-unit order."""
+    from nlp.analysis import numbers
+
+    assert tuple(sorted(numbers(text, language))) == tuple(sorted(wanted))

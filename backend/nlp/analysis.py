@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import dataclass
 from functools import lru_cache
 from itertools import pairwise, takewhile
 
@@ -403,20 +404,97 @@ def _valued(words: str, start: int = 0) -> dict[str, str]:
     return {word: str(value) for value, word in enumerate(words.split(), start)}
 
 
-#: Cardinals by ISO 639-1 code, nought to twelve, each as the value it names.
-#: The one table every reader of a count written out holds: `numbers` below,
-#: and the question gates, which read the cardinals alone, so an ordinal -
-#: `second half` - never counts anything there.
+@dataclass(frozen=True)
+class _Spelling:
+    """How a language writes a cardinal.
+
+    The words nought to nineteen and the tens twenty to ninety, in order; the
+    words for a hundred and a thousand; what joins a unit and a ten
+    (`twenty-five`, `fünfundzwanzig`) and which comes first; the form a one
+    takes inside a compound; and whether a scale word glues to its multiplier
+    (`zweitausend`) or stands apart (`twenty thousand`). Spelling variants
+    name the second spelling of a word.
+    """
+
+    units: str
+    tens: str
+    hundred: str
+    thousand: str
+    join: str
+    unit_first: bool
+    one: str
+    glued: bool
+    variants: tuple[tuple[str, str], ...] = ()
+
+
+#: The spelling of each language's cardinals, by ISO 639-1 code.
 #:
-#: ponytail: German and English, nought to twelve. A language missing here
-#: reads its digits and whatever `like_num` says, as written. Upgrade: a
-#: table per language, as a setting.
+#: ponytail: German and English. A language missing here reads its digits and
+#: whatever `like_num` says, as written. Upgrade: a row per language.
+_SPELLING: dict[str, _Spelling] = {
+    "en": _Spelling(
+        units="zero one two three four five six seven eight nine ten eleven "
+        "twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen",
+        tens="twenty thirty forty fifty sixty seventy eighty ninety",
+        hundred="hundred",
+        thousand="thousand",
+        join="-",
+        unit_first=False,
+        one="one",
+        glued=False,
+    ),
+    "de": _Spelling(
+        units="null eins zwei drei vier fünf sechs sieben acht neun zehn elf "
+        "zwölf dreizehn vierzehn fünfzehn sechzehn siebzehn achtzehn neunzehn",
+        tens="zwanzig dreißig vierzig fünfzig sechzig siebzig achtzig neunzig",
+        hundred="hundert",
+        thousand="tausend",
+        join="und",
+        unit_first=True,
+        one="ein",
+        glued=True,
+        variants=(("dreißig", "dreissig"),),
+    ),
+}
+
+
+def _spelled_cardinals(row: _Spelling) -> dict[str, int]:
+    """Every cardinal one language spells, as the value it names."""
+    units = row.units.split()
+    below = dict(enumerate(units))
+    for index, ten in enumerate(row.tens.split(), 2):
+        below[index * 10] = ten
+        for unit in range(1, 10):
+            word = row.one if unit == 1 and row.unit_first else units[unit]
+            below[index * 10 + unit] = (
+                f"{word}{row.join}{ten}" if row.unit_first else f"{ten}{row.join}{word}"
+            )
+    words = {word: value for value, word in below.items()}
+    words[row.hundred] = 100
+    words[row.thousand] = 1000
+    if row.glued:
+        glue = {**below, 1: row.one}
+        for multiple in range(1, 10):
+            head = f"{glue[multiple]}{row.hundred}"
+            words[head] = multiple * 100
+            words |= {
+                f"{head}{below[rest]}": multiple * 100 + rest for rest in range(1, 100)
+            }
+        words |= {f"{row.hundred}{below[rest]}": 100 + rest for rest in range(1, 100)}
+        words |= {f"{glue[many]}{row.thousand}": many * 1000 for many in range(1, 100)}
+    for word, variant in row.variants:
+        words[variant] = words[word]
+    return words
+
+
+#: Cardinals by ISO 639-1 code, each as the value it names. The one table
+#: every reader of a count written out holds: `numbers` below, and the
+#: question gates, which read the cardinals alone, so an ordinal -
+#: `second half` - never counts anything there. A count past this table is
+#: read as written; two words that make one - `twenty thousand` - are joined
+#: by `numbers` and `numerals`.
 CARDINALS: dict[str, dict[str, int]] = {
-    language: {word: value for value, word in enumerate(words.split())}
-    for language, words in (
-        ("en", "zero one two three four five six seven eight nine ten eleven twelve"),
-        ("de", "null eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf"),
-    )
+    language: _spelled_cardinals(row) for language, row in _SPELLING.items()
 }
 
 #: The mark each language writes a decimal with, by ISO 639-1 code. One
@@ -516,6 +594,105 @@ _PADDING = re.compile(r"^0+(?=\d)")
 _NUMERAL = frozenset({"NUM", "ADJ"})
 
 
+#: The smallest cardinal that is a number and nothing else. Below it a word
+#: is spelled like others the tagger reads as they are used - `acht` in
+#: `achten`, `Elf` the team, `one` in "No one" - so its tag decides; from
+#: thirteen on it is read whatever the tagger made of it, which gave
+#: `fünfundzwanzig` an adverb in "Die Gebühr beträgt fünfundzwanzig Euro".
+UNAMBIGUOUS = 13
+
+
+def _joined(so_far: int, last: int, word: int, unit_first: bool) -> int | None:
+    """The number a cardinal word makes with one already read, or None.
+
+    `last` is the value of the word read last. A scale multiplies what it
+    follows - `twenty` `thousand`, `two thousand five` `hundred` - and any
+    other word is the rest: a unit after a ten (`twenty` `five`, but not in a
+    language that puts the unit first), anything
+    under the scale a round number leaves open (`one hundred` `twenty`,
+    `two thousand` `five hundred`).
+    """
+    tail = so_far % 1000
+    if word == 1000:
+        return so_far * word if so_far < word else None
+    if word == 100:
+        return so_far - tail + tail * word if 0 < tail < word else None
+    if word < 10 and 20 <= last < 100 and last % 10 == 0:
+        return so_far + word if so_far % 10 == 0 and not unit_first else None
+    if word < 100:
+        return so_far + word if so_far >= 100 and so_far % 100 == 0 else None
+    return so_far + word if so_far >= 1000 and tail == 0 and word < 1000 else None
+
+
+def _spoken(document: Doc | Span) -> dict[int, str | None]:
+    """The value of each number word in a text, by token index.
+
+    A cardinal from `CARDINALS` reads as the digits it names, an ordinal as
+    its row in `_ORDINALS`, and a count past both as written. Cardinals side
+    by side, or a hyphen apart, make one number where one follows the other
+    as a scale or as the rest of it - `twenty-five` is 25, `twenty thousand`
+    is 20000, `one hundred twenty` is 120 - and the later word then maps to
+    None. Only a token tagged as a numeral is read, unless the word is
+    `UNAMBIGUOUS`.
+    """
+    spelled = _NUMBER_WORDS.get(document.doc.lang_, {})
+    cardinals = CARDINALS.get(document.doc.lang_, {})
+    spelling = _SPELLING.get(document.doc.lang_)
+    unit_first = bool(spelling and spelling.unit_first)
+    out: dict[int, str | None] = {}
+    # The token holding the number so far, the last token read into it, its
+    # value and the value of its last word.
+    run: tuple[int, int, int, int] | None = None
+    for token in document:
+        word = token.text.casefold()
+        count = cardinals.get(word)
+        if _DIGITS.search(token.text) or not (
+            token.pos_ in _NUMERAL or (count or 0) >= UNAMBIGUOUS
+        ):
+            # A hyphen goes on a number only into another cardinal:
+            # `twenty-five`, but not `thirty one-time`.
+            ahead = (
+                document.doc[token.i + 1].text.casefold()
+                if token.i + 1 < len(document.doc)
+                else ""
+            )
+            hyphen = (
+                run
+                and token.text == "-"
+                and token.i == run[1] + 1
+                and ahead in cardinals
+            )
+            run = (run[0], token.i, run[2], run[3]) if run and hyphen else None
+            continue
+        if count is None:
+            run = None
+            if word in spelled:
+                out[token.i] = spelled[word]
+            # A count past the table is read as written: `de_core_news_md` gives
+            # `zwanzig` no `like_num`, and it still differs from `dreißig`.
+            elif token.like_num or token.pos_ == "NUM":
+                out[token.i] = word
+            continue
+        compound = (
+            token.i + 2 < len(document.doc)
+            and document.doc[token.i + 1].text == "-"
+            and document.doc[token.i + 2].text.casefold() not in cardinals
+        )
+        total = (
+            run
+            and not compound
+            and run[1] == token.i - 1
+            and _joined(run[2], run[3], count, unit_first)
+        )
+        if run and total:
+            out[run[0]], out[token.i] = str(total), None
+            run = (run[0], token.i, total, count)
+        else:
+            out[token.i] = str(count)
+            run = (token.i, token.i, count, count)
+    return out
+
+
 def _value(run: str, language: str | None) -> str:
     """A run of digits as the value it writes, in the language's convention.
 
@@ -547,20 +724,13 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     read by the default pipeline and in that pipeline's number words.
     """
     document = _read(text, language)
-    spelled = _NUMBER_WORDS.get(document.lang_, {})
+    spoken = _spoken(document)
     found: list[str] = []
     for token in document:
-        written = token.text.casefold()
         if digits := _DIGITS.findall(token.text):
             found += [_value(one, document.lang_) for one in digits]
-        elif token.pos_ not in _NUMERAL:
-            continue
-        elif written in spelled:
-            found.append(spelled[written])
-        # A count past the table is read as written: `de_core_news_md` gives
-        # `zwanzig` no `like_num`, and it still differs from `dreißig`.
-        elif token.like_num or token.pos_ == "NUM":
-            found.append(written)
+        elif spoken.get(token.i):
+            found.append(str(spoken[token.i]))
     return tuple(sorted(found))
 
 
@@ -571,16 +741,15 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
     `08:00` carries the 8 and the 0 that `8:00` does and `09:00` does not.
     """
     document = _read(text, language)
-    spelled = _NUMBER_WORDS.get(document.lang_, {})
     found: set[str] = set()
     for token in document:
         if digits := _DIGITS.findall(token.text):
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )
-        elif token.pos_ in _NUMERAL and token.text.casefold() in spelled:
-            found.add(spelled[token.text.casefold()])
-    return frozenset(found)
+    return frozenset(
+        found | {one for one in _spoken(document).values() if one and one.isdigit()}
+    )
 
 
 def as_noun(word: str, language: str | None) -> frozenset[str]:

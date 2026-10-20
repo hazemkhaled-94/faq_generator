@@ -40,6 +40,7 @@ from database.qa_generator import (
 from nlp.analysis import (
     CARDINALS,
     FIGURE,
+    UNAMBIGUOUS,
     claim,
     content,
     figures,
@@ -178,7 +179,8 @@ def _written(text: str, language: str | None) -> dict[str, str]:
     return {
         token.lower_: repr(float(counted[token.lower_]))
         for token in pipeline(language)(text)
-        if token.pos_ == "NUM" and token.lower_ in counted
+        if token.lower_ in counted
+        and (token.pos_ == "NUM" or counted[token.lower_] >= UNAMBIGUOUS)
     }
 
 
