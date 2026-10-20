@@ -377,6 +377,10 @@ def _map(client, fit: dict) -> None:
     except _NoFigure:
         st.caption(f"No map for {language}. A fit draws one.")
         return
+    except requests.exceptions.RequestException as exc:
+        # An optional figure: its failure is said here, not by the page-wide guard.
+        st.caption(f"The map could not be read: {refusal(exc)}")
+        return
     st.iframe(drawn)
 
 

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from pages import QUESTION, QUESTION_SOURCE, Answers, answers, changed
+import requests
+from pages import QUESTION, QUESTION_SOURCE, Answers, answers, changed, status
 
 pytestmark = pytest.mark.frontend
 
@@ -37,7 +38,9 @@ def test_changing_page_does_not_open_another_rows_panel(open_view) -> None:
     # same position is still selected over page 2's rows; nothing is clicked.
     opened.numbers()["Page of 3"].set_value(2)
     after = opened._rerun()
-    panels = [p for p in after.panels() if p.startswith("Question ") and p[9:].isdigit()]
+    panels = [
+        p for p in after.panels() if p.startswith("Question ") and p[9:].isdigit()
+    ]
     assert panels == [], f"nobody picked a row on page 2, yet the page opened {panels}"
 
 
@@ -86,7 +89,9 @@ def test_a_filter_change_does_not_open_another_rows_panel(open_view) -> None:
     assert "Question 2" in opened.panels()
     state["rows"] = _rows([7, 8, 9])
     after = opened._rerun()
-    assert not any(p.startswith("Question ") and p[9:].isdigit() for p in after.panels())
+    assert not any(
+        p.startswith("Question ") and p[9:].isdigit() for p in after.panels()
+    )
 
 
 def test_a_verdict_press_survives_a_row_leaving_above(open_view) -> None:
@@ -111,3 +116,24 @@ def test_a_verdict_press_survives_a_row_leaving_above(open_view) -> None:
     opened.press("Reject")
 
     assert decided == [(8036, "rejected")]
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["500 Server Error: Konten-Store nicht erreichbar", "503 Shop image store down"],
+)
+def test_a_failed_topic_map_leaves_the_topics_table(open_view, reason) -> None:
+    """The map fetch failing is said in its own place; table and Delete stay."""
+
+    def fail(*_a, **_k):
+        raise requests.HTTPError(reason)
+
+    opened = open_view(
+        "topics",
+        topic_visualisation=fail,
+        stage_status=lambda *a, **k: status(modelled=1),
+    )
+    assert "topics-search" in opened.widget_keys()
+    assert "danger-topics-all" in opened.control_keys()
+    assert not opened.errors()
+    assert any(reason in c for c in opened.captions())
