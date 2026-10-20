@@ -16,6 +16,7 @@ import pytest
 
 from database.qa_generator import Difficulty, QuestionType
 from question_generation.balance import (
+    Quota,
     Release,
     Row,
     choose,
@@ -25,7 +26,7 @@ from question_generation.balance import (
     quota_of,
     shares,
 )
-from question_generation.service import _supplied
+from question_generation.service import _report, _supplied
 
 BANDS = {Difficulty.EASY: 1, Difficulty.MEDIUM: 1, Difficulty.HARD: 1}
 TYPES = {QuestionType.FACTOID: 1, QuestionType.REASON: 1}
@@ -609,3 +610,41 @@ def test_each_question_is_ranked_once_however_long_the_draw(monkeypatch) -> None
 
     assert drawn.size == 30
     assert len(taken) == len(held), len(taken)
+
+
+def test_a_release_written_short_of_its_draw_says_so(caplog) -> None:
+    """The draw was 3, the write 2: one line gives both and warns."""
+    import logging
+    import uuid
+
+    pool = [
+        Row(id=i, answerable=True, difficulty="easy", question_type="factoid")
+        for i in (1, 2, 3)
+    ]
+    release = Release([1, 2, 3], Quota(3, 0, {"easy": 3}, {"factoid": 3}), {})
+
+    with caplog.at_level(logging.INFO):
+        _report(pool, release, uuid.uuid4(), 2)
+
+    assert "drew 3, wrote 2" in caplog.text
+    assert any(
+        r.levelno == logging.WARNING and "drew 3" in r.message for r in caplog.records
+    )
+
+
+def test_a_release_written_whole_does_not_warn(caplog) -> None:
+    """Drawn equals written: the line is there, the warning is not."""
+    import logging
+    import uuid
+
+    pool = [
+        Row(id=i, answerable=True, difficulty="easy", question_type="factoid")
+        for i in (1, 2)
+    ]
+    release = Release([1, 2], Quota(2, 0, {"easy": 2}, {"factoid": 2}), {})
+
+    with caplog.at_level(logging.INFO):
+        _report(pool, release, uuid.uuid4(), 2)
+
+    assert "drew 2, wrote 2" in caplog.text
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]

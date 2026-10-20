@@ -438,6 +438,12 @@ class QuestionCatalog(Repository):
         release is not history worth keeping here: every question it held
         is still in the table, and the draw is reproducible from the
         settings that made it.
+
+        Only a question still accepted is written: the draw was read before
+        minutes of twin checks, and a person or the fact trigger may have
+        rejected one since. The count returned is what was written, so the
+        shortfall against the draw is visible. A follow-up whose turn was
+        not written is not written either.
         """
         drawn = uuid.uuid4()
         with self._session.begin() as session:
@@ -448,9 +454,32 @@ class QuestionCatalog(Repository):
             )
             if not ids:
                 return drawn, 0
+            held = dict(
+                session.execute(
+                    select(Question.id, Question.follows_id)
+                    .where(
+                        Question.id.in_(list(ids)),
+                        Question.status == QuestionStatus.ACCEPTED,
+                    )
+                    .order_by(Question.id)
+                    .with_for_update()
+                ).all()
+            )
+            # A follow-up is released with the turn it follows or not at all:
+            # the thread trigger already ran, before this write, for a root
+            # rejected since the draw, so nothing else clears what rests on it.
+            while cut := [
+                one
+                for one, follows in held.items()
+                if follows is not None and follows not in held
+            ]:
+                for one in cut:
+                    del held[one]
+            if not held:
+                return drawn, 0
             return drawn, session.execute(
                 update(Question)
-                .where(Question.id.in_(list(ids)))
+                .where(Question.id.in_(list(held)))
                 .values(release_id=drawn)
             ).rowcount
 

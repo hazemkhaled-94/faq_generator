@@ -642,6 +642,16 @@ def _report(pool, release, drawn, written: int) -> None:
         len(pool),
         100.0 * written / len(pool),
     )
+    log.info("drew %d, wrote %d", len(release.ids), written)
+    if written != len(release.ids):
+        log.warning(
+            "drew %d, wrote %d: %d drawn question(s) were rejected or lost "
+            "their thread between the draw and the write, so the tables below "
+            "describe the draw, not the release.",
+            len(release.ids),
+            written,
+            len(release.ids) - written,
+        )
     made = composition(pool, release.ids)
     for name, counted in made.items():
         log.info(
