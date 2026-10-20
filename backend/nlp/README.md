@@ -179,6 +179,7 @@ missing from one fails no test.
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
 | `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |
+| `_POLITE` | same | Forms of polite address, read as written with their capital: the tagger calls `Sie` third person plural, and a statement addressing the reader points at nothing before it. One opening a statement counts only where another polite form follows it | `Sie`, `Ihre` |
 | `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several, so a singular noun can be what they refer to | `their` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
 | `_DISJUNCTIVE` | same | Coordinators that offer alternatives: a conjunct one joins is no claim of its own | `oder`, `or` |
@@ -192,7 +193,7 @@ missing from one fails no test.
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
 by the word as written, `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
-`_EXCEPTIVE` and `_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
+`_EXCEPTIVE`, `_POLITE` and `_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
 

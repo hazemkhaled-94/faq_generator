@@ -616,7 +616,37 @@ def _refers(token) -> bool:
         return False
     if _fixed_expletive(token) or _clausal_correlate(token):
         return False
+    if _polite(token):
+        return False
     return "3" in token.morph.get("Person") or "Dem" in token.morph.get("PronType")
+
+
+#: Forms of polite address by ISO 639-1 code, as written. The tagger reads
+#: them as the third person plural, which they are spelled like: German
+#: `Sie können Ihre Karte sperren` names the reader, not someone earlier.
+_POLITE: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {"Sie", "Ihnen", "Ihr", "Ihre", "Ihren", "Ihrem", "Ihrer", "Ihres"}
+    ),
+    "en": frozenset(),
+}
+
+
+def _polite(token) -> bool:
+    """Whether a pronoun is the polite form of address, which names the reader.
+
+    The capitalised form is the signal, so one inside a statement is polite.
+    One opening a statement is capitalised either way, and `Sie werden
+    geliefert` cannot be told from the third person plural, so it is polite
+    only where the statement also holds a capitalised polite form after it:
+    `Sie können Ihre Karte sperren`. Otherwise it stays a reference.
+    """
+    forms = _POLITE.get(token.doc.lang_, frozenset())
+    if token.text not in forms:
+        return False
+    if any(not one.is_punct for one in token.doc[: token.i]):
+        return True
+    return any(one.text in forms for one in token.doc[token.i + 1 :])
 
 
 #: What a pronoun and a noun it stands for agree in, where both carry it.

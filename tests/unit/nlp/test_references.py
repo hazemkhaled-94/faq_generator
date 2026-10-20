@@ -155,3 +155,72 @@ def test_it_before_a_condition_is_a_reference_where_nothing_before_is_known() ->
     from nlp.analysis import claim
 
     assert claim("It is an offence if the PIN is shared.", "en").references == ("it",)
+
+
+def _validated(language: str, statement: str, fact: str | None = None):
+    """The fact checker's verdict on a fact, cited from a passage holding `statement`."""
+    from drivers import Checker, passage
+
+    return Checker(passage(statement, language=language)).atomic(fact or statement)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Sie können Ihre Karte jederzeit online sperren.",
+        "Sie können Ihre Waren innerhalb von 30 Tagen zurückgeben.",
+        "Bitte senden Sie die Ware in der Originalverpackung zurück.",
+        "Wenn Sie Ihre PIN vergessen haben, können Sie eine neue anfordern.",
+        "Wenn Sie Ihr Konto überziehen, berechnet die Bank Zinsen.",
+        "Sie erhalten Ihre Bestellung innerhalb von zwei Werktagen.",
+    ],
+)
+def test_the_german_polite_sie_is_no_pronoun_pointing_outside(statement: str) -> None:
+    """Formal address is spelled like the third person plural and names the reader."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ()
+    assert _validated("de", statement).validated
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Sie wurde gesperrt.",
+        "Sie kann am selben Tag ausgeführt werden.",
+        "Sie werden innerhalb von 5 Tagen geliefert.",
+        "Sie können Waren innerhalb von 30 Tagen zurückgeben.",
+        "Sie haben keinen Anspruch auf Erstattung.",
+    ],
+)
+def test_a_german_third_person_sie_with_no_antecedent_is_still_a_reference(
+    statement: str,
+) -> None:
+    """The singular she, with a verb to say so, is someone the passage named."""
+    from nlp.analysis import claim
+
+    assert "sie" in claim(statement, "de").references
+    result = _validated("de", statement)
+    assert not result.validated
+    assert result.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+def test_the_english_you_is_unchanged_by_the_polite_table() -> None:
+    """English has no polite forms: `you` was never a reference and `they` still is."""
+    from nlp.analysis import claim
+
+    assert claim("You can block your card online at any time.", "en").references == ()
+    assert claim("They can return items within 30 days.", "en").references == ("they",)
+
+
+@pytest.mark.nlp
+def test_a_lower_case_german_sie_is_the_third_person_whatever_follows_it() -> None:
+    """Only the capital makes it polite."""
+    from nlp.analysis import claim
+
+    assert claim(
+        "Wenn sie ihre Karte verlieren, sperrt die Bank sie.", "de"
+    ).references == ("sie",)
