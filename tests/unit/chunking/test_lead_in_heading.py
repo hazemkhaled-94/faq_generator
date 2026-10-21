@@ -1,8 +1,7 @@
-"""A lead-in labelled a heading, or buried in a list item, heads its sections."""
+"""A lead-in a page join buries in a list item heads the list after it."""
 
 from __future__ import annotations
 
-import pytest
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import DoclingDocument, ProvenanceItem
 from docling_core.types.doc.labels import DocItemLabel
@@ -28,54 +27,6 @@ def pages(count: int) -> DoclingDocument:
     for page in range(1, count + 1):
         document.add_page(page_no=page, size=Size(width=595, height=842))
     return document
-
-
-@pytest.mark.parametrize(
-    ("lang", "chapter", "lead", "sections"),
-    [
-        (
-            "de",
-            "Entgelte für Geschäftskunden",
-            "Für Kunden mit einem Jahresumsatz unter 1 Mio. EUR gilt:",
-            [
-                ("Kontoführung", ["Das Konto kostet 9 EUR im Monat."]),
-                ("Karten", ["Die Debitkarte kostet 12 EUR im Jahr."]),
-            ],
-        ),
-        (
-            "en",
-            "Shipping",
-            "For orders to islands and remote areas:",
-            [
-                ("Standard delivery", ["costs 9.95 EUR"]),
-                ("Express delivery", ["costs 19.95 EUR"]),
-            ],
-        ),
-    ],
-)
-def test_a_lead_in_the_converter_labels_a_heading_scopes_the_sections_it_introduces(
-    lang, chapter, lead, sections
-) -> None:
-    """As a paragraph it heads both sections; as a heading it reaches neither."""
-    document = pages(1)
-    document.add_heading(text=chapter, level=1, prov=on(1, 40))
-    document.add_heading(text=lead, level=2, prov=on(1, 60))
-    top = 60
-    for heading, items in sections:
-        top += 20
-        document.add_heading(text=heading, level=2, prov=on(1, top))
-        group = document.add_list_group()
-        for item in items:
-            top += 12
-            document.add_list_item(text=item, parent=group, prov=on(1, top))
-
-    _, chunks = chunks_of(document, word_chunker(200), lang)
-
-    for chunk in chunks:
-        assert lead in chunk.text or lead in (chunk.meta.headings or []), (
-            chunk.meta.headings,
-            chunk.text,
-        )
 
 
 def test_a_lead_in_a_page_join_put_inside_a_list_item_heads_every_piece() -> None:

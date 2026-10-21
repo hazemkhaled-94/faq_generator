@@ -560,10 +560,7 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
     """The document with each lone conjunction between alternatives a paragraph.
 
     A heading that is one, between two list items or two paragraphs - a
-    picture between aside - is the word joining them. A heading ending on a
-    lead-in's colon, opening its section and followed by a heading of its own
-    level, is the lead-in of the sections that follow: as a heading the
-    chunker would replace it with the next one, and it would reach no passage. Anywhere else it
+    picture between aside - is the word joining them. Anywhere else it
     stays a heading, which `headed` leaves out of the trail: the word
     between two headed sections belongs to neither. So does one holding no
     letter or digit, which names nothing.
@@ -587,7 +584,6 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
             or {before.label, after.label} <= _PROSE
         )
     }
-    between |= _leads(blocks)
     found = [
         index for index, item in enumerate(document.texts) if item.self_ref in between
     ]
@@ -606,30 +602,6 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
             label=DocItemLabel.TEXT,
         )
     return demoted
-
-
-def _leads(blocks: list[DocItem]) -> set[str]:
-    """The headings that are lead-ins of the sections right after them.
-
-    One ending in `LEAD_IN`, the first block under the heading above it, and
-    followed by a heading of its own level, which it does not enclose.
-    """
-    found: set[str] = set()
-    above: int | None = None
-    for item, after in pairwise(blocks):
-        if isinstance(item, SectionHeaderItem):
-            if (
-                above is not None
-                and above < item.level
-                and item.text.rstrip().endswith(LEAD_IN)
-                and isinstance(after, SectionHeaderItem)
-                and after.level == item.level
-            ):
-                found.add(item.self_ref)
-            above = item.level
-        elif isinstance(item, TitleItem):
-            above = 0
-    return found
 
 
 def _page_number(
