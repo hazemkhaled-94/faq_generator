@@ -126,7 +126,8 @@ The files stay required. A variable missing from its file stops the service
 at start-up naming itself, bar a few: a setting whose absence means
 something, such as a stage's own model; `LOG_LEVEL`, which falls back to
 INFO; the two pool sizes, which fall back to 5; `QUESTIONS_MEETS_SHARE`,
-which reads its shipped value when absent; and `QUESTIONS_CATEGORIZATIONS`,
+which reads its shipped value when absent; `QUESTIONS_KIND_MIX`, which deals
+`needs_both:5,compound:1` when absent; and `QUESTIONS_CATEGORIZATIONS`,
 which reads `DEFAULT_CATEGORIZATIONS` in
 [`question_generation/config.py`](../backend/question_generation/config.py)
 when absent, because its value is JSON and no file here can hold one (see

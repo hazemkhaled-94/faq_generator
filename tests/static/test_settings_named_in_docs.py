@@ -238,10 +238,6 @@ def _settings_opening() -> str:
     return text.split("\n## ", 1)[0]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="QUESTIONS_KIND_MIX reads needs_both:5,compound:1 in code when absent, and neither the configuration guide nor the settings README lists it among the settings that read a default",
-)
 def test_every_default_in_code_is_one_the_docs_list() -> None:
     """Both pages give the exceptions to "a missing variable stops the service"."""
     unlisted = {

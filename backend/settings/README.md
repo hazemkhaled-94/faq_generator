@@ -16,8 +16,9 @@ what, and for the values that are derived rather than declared.
 The files stay required. A variable missing from its file **stops the
 service at start-up naming itself**, bar the few whose absence reads a value
 of its own: a stage's own model, which falls back to `LLM_MODEL`; the two
-pool sizes, which the engine falls back on; and `QUESTIONS_MEETS_SHARE` and
-`QUESTIONS_CATEGORIZATIONS`, which read a default in code.
+pool sizes, which the engine falls back on; and `QUESTIONS_MEETS_SHARE`,
+`QUESTIONS_KIND_MIX` and `QUESTIONS_CATEGORIZATIONS`, which read a default in
+code.
 `QUESTIONS_CATEGORIZATIONS` is only a comment in its file: its value is
 JSON, and bash, which sources the files, cannot hold one.
 [docs/configuration.md](../../docs/configuration.md#precedence) lists the
