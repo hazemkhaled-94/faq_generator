@@ -205,6 +205,16 @@ released as a second PDF has different bytes and the same text.
 `content_sha256` is not written on the copy that fails, so every later copy
 fails against the one that parsed.
 
+The digest is taken over the mended text, so a change to `_mend` changes it
+for every document whose body the change rewrites beyond case and spacing.
+Spelling a ligature out did so for a ligature right before a line-break
+hyphen, `Kontoeröﬀ-` over `nung`, now joined as `Kontoeröffnung` (a bare
+`ﬀ` does not move the digest, which casefolds it to `ff` anyway), and
+keeping a joiner did so for an Arabic-script or Indic document holding one.
+A copy parsed after such a change is told from a stored one only once the
+stored one is parsed again: `make parse-rerun` re-parses every document and
+writes its digest anew.
+
 Both run after Step 5, so a new document failing either leaves a converted
 form in the `parsed` bucket with no row pointing at it. It is collected when
 the document is deleted. A re-parse failing either leaves the earlier
