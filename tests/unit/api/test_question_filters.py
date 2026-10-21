@@ -6,6 +6,8 @@ tests/unit/api/test_params.py for why.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -22,6 +24,11 @@ class _Catalog:
     def __init__(self) -> None:
         """Holds nothing and has been asked nothing."""
         self.asked: dict[str, dict] = {}
+
+    @contextmanager
+    def snapshot(self):
+        """The one moment `export` reads in; the reads here take no session."""
+        yield None
 
     def page(self, *args, **where):
         """The listing, as `questions` and `export` call it."""
