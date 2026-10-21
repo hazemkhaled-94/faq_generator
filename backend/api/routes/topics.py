@@ -21,7 +21,7 @@ from api.dependencies import (
     topics_queue,
 )
 from api.errors import ApiError, ErrorBody
-from api.params import RowId, RunName
+from api.params import NO_NUL, RowId, RunName
 from api.routes.stage import StageAction, StageStatus, answered, status_of
 from topic_modelling.models import StoredTopic, TopicFit, TopicRemoval
 from topic_modelling.repository import KEEP
@@ -52,7 +52,7 @@ class TopicDescription(BaseModel):
     cleared.
     """
 
-    label: str | None = Field(default=None, max_length=120)
+    label: str | None = Field(default=None, max_length=120, pattern=NO_NUL)
     include_in_coverage: bool | None = None
 
 

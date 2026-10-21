@@ -145,6 +145,9 @@ def within_bounds(setting: catalog.Setting, value: str) -> None:
     Raises:
         Refused: `not_a_choice` or `out_of_range`.
     """
+    # PostgreSQL text cannot hold a NUL, and psycopg refuses the write as an error.
+    if "\x00" in value:
+        raise Refused("out_of_range", f"{setting.name} may not hold a NUL byte.")
     # A flag reads anything it does not know as off, so a typo written here
     # would switch the flag off rather than fail.
     if setting.kind == "boolean" and value.strip().lower() not in _TRUE | _FALSE:

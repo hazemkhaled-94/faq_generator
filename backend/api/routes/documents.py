@@ -156,11 +156,16 @@ def add_document(file: UploadFile) -> IngestResult:
     documents.parse_status.
 
     Raises:
-        ApiError: 413 `too_large` if the file is over the size limit, 415
-            `unsupported_type` if it is not a readable document of an
-            accepted type. Each code is the ingest outcome itself.
+        ApiError: 400 `invalid_value` if the filename holds a NUL byte, which
+            no text column can store. 413 `too_large` if the file is over the
+            size limit, 415 `unsupported_type` if it is not a readable
+            document of an accepted type. Each of those two codes is the
+            ingest outcome itself.
     """
     filename = file.filename or "unnamed"
+    # A browser percent-encodes one; only a hand-made request sends it raw.
+    if "\x00" in filename:
+        raise ApiError(400, "invalid_value", "a filename may not hold a NUL byte")
     # Per upload: ingestion has no worker to pick a changed limit up.
     service = ingesting()
 
@@ -187,7 +192,7 @@ router.add_api_route(
     "/documents",
     add_document,
     methods=["POST"],
-    responses={code: _REFUSALS[code] for code in (411, 413, 415)},
+    responses={code: _REFUSALS[code] for code in (400, 411, 413, 415)},
     route_class_override=_DeclaredSize,
 )
 

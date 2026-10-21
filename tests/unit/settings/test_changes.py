@@ -176,6 +176,27 @@ class Recording(Environment):
         return []
 
 
+@pytest.mark.parametrize(
+    ("service", "name", "value"),
+    [
+        ("topics", "TOPIC_LANGUAGE_NAMES", "de:Ger\x00man,en:English"),
+        ("parsing", "DOCLING_ARTIFACTS_PATH", "/models/doc\x00ling"),
+    ],
+)
+def test_a_value_holding_a_nul_is_refused_before_it_is_stored(
+    service: str, name: str, value: str
+) -> None:
+    """PostgreSQL text cannot hold one, so psycopg would refuse the write as a 500."""
+    store = Recording()
+
+    with pytest.raises(changes.Refused) as refused:
+        changes.apply(service, {name: value}, store=store)
+
+    assert refused.value.code == "out_of_range"
+    assert name in refused.value.detail
+    assert store.written == {}
+
+
 def test_a_structured_mode_instructor_does_not_have_is_refused() -> None:
     """Otherwise every model worker fails its rebuild on every poll."""
     with pytest.raises(changes.Refused) as refused:

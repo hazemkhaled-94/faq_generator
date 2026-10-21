@@ -61,3 +61,21 @@ def test_a_label_of_null_still_clears_it(described) -> None:
     asked = described({"label": None})
 
     assert asked == {"label": None, "include_in_coverage": None}
+
+
+@pytest.mark.parametrize("label", ["Kon\x00toführung", "Re\x00turns"])
+def test_a_label_holding_a_nul_is_refused_before_the_catalogue(
+    monkeypatch, label
+) -> None:
+    """PostgreSQL text cannot hold one, so the write would have answered 500."""
+    from api.main import app
+    from api.routes import topics
+
+    catalog = Catalog()
+    monkeypatch.setattr(topics, "topic_catalog", catalog)
+    client = TestClient(app, base_url="http://localhost:8000")
+
+    answered = client.patch("/topics/1", json={"label": label})
+
+    assert answered.status_code == 422
+    assert catalog.asked == []

@@ -155,6 +155,28 @@ def test_something_that_is_not_a_document_is_refused_as_415(client) -> None:
     assert answered.json()["code"] == "unsupported_type"
 
 
+@pytest.mark.parametrize("filename", [b"Preis\x00liste.pdf", b"price\x00list.pdf"])
+def test_a_filename_holding_a_raw_nul_is_refused_as_400(client, pdf, filename) -> None:
+    """PostgreSQL text cannot hold one; a browser would have percent-encoded it."""
+    body = (
+        b'--b\r\nContent-Disposition: form-data; name="file"; filename="'
+        + filename
+        + b'"\r\nContent-Type: application/pdf\r\n\r\n'
+        + pdf
+        + b"\r\n--b--\r\n"
+    )
+
+    answered = client.post(
+        "/documents",
+        content=body,
+        headers={"content-type": "multipart/form-data; boundary=b"},
+    )
+
+    assert answered.status_code == 400, answered.text[:200]
+    assert answered.json()["code"] == "invalid_value"
+    assert client.get("/documents").json()["total"] == 0
+
+
 def test_an_upload_over_the_limit_is_refused_as_413(client) -> None:
     """Checked against Content-Length before the body is read."""
     answered = client.post(
