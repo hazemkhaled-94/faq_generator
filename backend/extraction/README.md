@@ -249,7 +249,8 @@ name one, as in "The bank replaces its cards"; a standalone possessive,
 no noun before it, are refused as before, and so is a statement opening on a
 noun whose modifier points as far: "Such a card", "Die vorgenannte Karte", or
 a plural "the following fees" (a singular one is the next, "am folgenden
-Tag", and stands alone). A German statement opening on `Sie` names the
+Tag", as is one a figure counts, "the following 12 months", and one whose
+items the statement lists after a colon points at them: both stand alone). A German statement opening on `Sie` names the
 reader where a polite form follows inside it or stands inside a sentence of
 the passage it was drawn from ("Bitte geben Sie Ihre IBAN an"); one opening a
 sentence there is capitalised either way and says nothing.

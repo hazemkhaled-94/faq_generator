@@ -579,12 +579,19 @@ def test_a_statement_opening_on_a_noun_its_modifier_points_away_from_is_refused(
         ("On the following day, the amount is credited to the account.", "en"),
         ("Am folgenden Bankarbeitstag wird der Betrag gutgeschrieben.", "de"),
         ("Der Betrag wird am folgenden Bankarbeitstag gutgeschrieben.", "de"),
+        ("The following fees apply: 2 EUR per transfer and 5 EUR per month.", "en"),
+        (
+            "Folgende Gebühren fallen an: 2 EUR pro Überweisung und 5 EUR im Monat.",
+            "de",
+        ),
+        ("For the following 12 months, the card is free.", "en"),
+        ("In den folgenden zwölf Monaten ist die Karte kostenlos.", "de"),
     ],
 )
 def test_a_modifier_naming_its_noun_or_the_next_day_is_not_a_reference(
     statement, language
 ) -> None:
-    """The card named first, an example list, and `following` meaning next stand alone."""
+    """The card named first, an example list, the items after a colon, and a span to come."""
     judged = Checker(passage(statement, language=language)).atomic(statement, 0)
 
     assert not judged.unresolved_references, judged.validation_error

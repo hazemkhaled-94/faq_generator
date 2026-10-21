@@ -1531,8 +1531,10 @@ _ANAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
 
 #: Modifiers that make a plural noun a list the passage gives after the
 #: statement, by ISO 639-1 code, as lemma or as written: `the following
-#: fees`, `die folgenden Gebühren`. On a singular noun they mean the next
-#: one, `am folgenden Tag`, and point nowhere.
+#: fees`, `die folgenden Gebühren`. On a singular noun, or one a figure
+#: counts, they mean the next, `am folgenden Tag`, `the following 12
+#: months`, and a list the statement gives after a colon is the one meant:
+#: neither points outside.
 _CATAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
     "de": frozenset({"folgend", "nachstehend"}),
     "en": frozenset({"following"}),
@@ -1560,9 +1562,19 @@ def _opens(token) -> bool:
     if token.head.pos_ not in _NOMINAL:
         return False
     words = {token.lemma_.casefold(), token.text.casefold()}
-    return bool(words & _ANAPHORIC_MODIFIERS.get(language, frozenset())) or (
-        bool(words & _CATAPHORIC_MODIFIERS.get(language, frozenset()))
-        and "Plur" in token.head.morph.get("Number", [])
+    if words & _ANAPHORIC_MODIFIERS.get(language, frozenset()):
+        return True
+    if not words & _CATAPHORIC_MODIFIERS.get(language, frozenset()):
+        return False
+    noun = token.head
+    colon = next((one for one in token.doc[token.i :] if one.text == ":"), None)
+    return (
+        "Plur" in noun.morph.get("Number", [])
+        and not any(child.pos_ == "NUM" for child in noun.children)
+        and not (
+            colon is not None
+            and any(not one.is_punct for one in token.doc[colon.i + 1 :])
+        )
     )
 
 
