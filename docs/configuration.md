@@ -198,7 +198,12 @@ calibration the questions written distant from the document and those asked
 by an expert fell below the floor for complete keys (0.57 and 0.60 against
 0.72), and a categorization left with its one other category would rewrite
 every question. Listed beside the default's two, they read in the paper's
-words:
+words but for two: distant-from-document is told to keep the meaning of
+every term it rewords and coin no word, where the paper's "terms completely
+different" swapped the ones that carry the meaning; and the expert is
+described by what an expert asks, in the material's own terms, where the
+paper's "a specialized user" invented insider words and asked basic
+questions in an expert's voice. Neither rewording has been measured yet:
 
 ```json
 [
@@ -206,14 +211,14 @@ words:
     "categorization_name": "Linguistic variation",
     "categories": [
       {"name": "similar-to-document", "description": "phrased using the same terminology and phrases appearing in the document."},
-      {"name": "distant-from-document", "description": "phrased using terms completely different from the ones appearing in the document."}
+      {"name": "distant-from-document", "description": "phrased in other words than the document uses, as a reader who has not seen it would put them; every thing, party, period and action it names keeps exactly the meaning it has in the document, and no word is coined."}
     ]
   },
   {
     "categorization_name": "User expertise",
     "role": "user",
     "categories": [
-      {"name": "expert", "description": "The user asking the question is a specialized user with a deep understanding of the corpus."},
+      {"name": "expert", "description": "The user asking the question knows the material and its terms, uses them exactly as the material writes them, and asks about a detail, an exception or a condition a newcomer would not know to ask about."},
       {"name": "novice", "description": "The user asking the question is a regular user with no understanding of specialized terms."}
     ]
   }
@@ -291,7 +296,9 @@ is refused as not recoverable where one of them answers it differently. Table
 5's short and long search queries are of form `query`, and
 neither is dealt unset: in calibration the short ones fell below the floors
 for correct and complete keys (0.70 and 0.57 against 0.80 and 0.72), and a
-third of the long ones written were not queries. A Phrasing listing them
+third of the long ones written were not queries. The long one is therefore
+described as keywords and nothing else, with no question word and nothing
+about the asker, not yet measured either. A Phrasing listing them
 beside the two natural phrasings, set in place of the default's, deals all
 four at even odds:
 
@@ -303,7 +310,7 @@ four at even odds:
       {"name": "concise-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a concise, direct question consisting of less than 10 words.", "words": {"max": 9}},
       {"name": "verbose-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a relatively long question consisting of more than 9 words.", "words": {"min": 10}},
       {"name": "short-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of less than 7 words.", "words": {"max": 6}},
-      {"name": "long-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of more than 6 words.", "words": {"min": 7}}
+      {"name": "long-search-query", "form": "query", "description": "phrased as a typed web query for search engines: keywords only, the nouns, names and figures of what is wanted, with no article, no auxiliary verb, no question word and nothing about the asker. It consists of more than 6 words.", "words": {"min": 7}}
     ]
   }
 ]

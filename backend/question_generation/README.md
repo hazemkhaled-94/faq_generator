@@ -64,7 +64,9 @@ are there to opt into. In calibration the questions written distant from the
 document and those asked by an expert fell below the floor for complete
 keys, and a categorization left with its one other category would rewrite
 every question. A value listing them beside the default's two deals them in
-the paper's words:
+the paper's words but for two, neither measured yet: distant-from-document
+keeps the meaning of every term it rewords and coins no word, and the expert
+is described by what an expert asks, in the material's own terms:
 
 ```json
 [
@@ -72,14 +74,14 @@ the paper's words:
     "categorization_name": "Linguistic variation",
     "categories": [
       {"name": "similar-to-document", "description": "phrased using the same terminology and phrases appearing in the document."},
-      {"name": "distant-from-document", "description": "phrased using terms completely different from the ones appearing in the document."}
+      {"name": "distant-from-document", "description": "phrased in other words than the document uses, as a reader who has not seen it would put them; every thing, party, period and action it names keeps exactly the meaning it has in the document, and no word is coined."}
     ]
   },
   {
     "categorization_name": "User expertise",
     "role": "user",
     "categories": [
-      {"name": "expert", "description": "The user asking the question is a specialized user with a deep understanding of the corpus."},
+      {"name": "expert", "description": "The user asking the question knows the material and its terms, uses them exactly as the material writes them, and asks about a detail, an exception or a condition a newcomer would not know to ask about."},
       {"name": "novice", "description": "The user asking the question is a regular user with no understanding of specialized terms."}
     ]
   }
@@ -247,7 +249,8 @@ A category of `"form": "query"` is a search query: keywords typed into a
 box, as Table 5's short and long search queries are. Neither is dealt
 unset, and both are there to opt into: in calibration the short search
 queries fell below the floors for correct and complete keys, and a third of
-the long ones written were not queries. Neither is told on a slot that spans
+the long ones written were not queries, so the long one is described as
+keywords and nothing else, not yet measured. Neither is told on a slot that spans
 two passages, whose keywords cannot say how the two meet, nor on a type whose
 question word is the ask (`TypeSpec.keywords` false: `reason`, `comparison`,
 `implication` and `temporal`); such a slot is written as no category of the
@@ -263,7 +266,7 @@ odds:
       {"name": "concise-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a concise, direct question consisting of less than 10 words.", "words": {"max": 9}},
       {"name": "verbose-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a relatively long question consisting of more than 9 words.", "words": {"min": 10}},
       {"name": "short-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of less than 7 words.", "words": {"max": 6}},
-      {"name": "long-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of more than 6 words.", "words": {"min": 7}}
+      {"name": "long-search-query", "form": "query", "description": "phrased as a typed web query for search engines: keywords only, the nouns, names and figures of what is wanted, with no article, no auxiliary verb, no question word and nothing about the asker. It consists of more than 6 words.", "words": {"min": 7}}
     ]
   }
 ]

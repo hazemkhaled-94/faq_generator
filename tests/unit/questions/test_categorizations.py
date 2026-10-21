@@ -318,12 +318,14 @@ def opt_in(guide: str, name: str) -> Categorization:
 @pytest.mark.parametrize(
     "guide", ["docs/configuration.md", "backend/question_generation/README.md"]
 )
-def test_the_wording_and_the_asker_are_table_5s_to_opt_into(guide: str) -> None:
-    """Not dealt unset, and given in each guide as JSON that reads as the paper's.
+def test_the_wording_and_the_asker_are_there_to_opt_into(guide: str) -> None:
+    """Not dealt unset, and given in each guide as JSON, distant and expert reworded.
 
     Calibration found distant-from-document and expert below the floor for
     complete keys, and a categorization left with one category would rewrite
-    every question.
+    every question. Distant swapped the terms that carry the meaning and
+    coined words; expert invented insider words and asked basic questions in
+    an expert's voice.
     """
     unset = {one.name for one in categorizations(DEFAULT_CATEGORIZATIONS)}
     assert not unset & {"Linguistic variation", "User expertise"}
@@ -333,14 +335,17 @@ def test_the_wording_and_the_asker_are_table_5s_to_opt_into(guide: str) -> None:
     assert [one.description for one in variation.categories] == [
         "phrased using the same terminology and phrases appearing in the document.",
         (
-            "phrased using terms completely different from the ones appearing in "
-            "the document."
+            "phrased in other words than the document uses, as a reader who has "
+            "not seen it would put them; every thing, party, period and action it "
+            "names keeps exactly the meaning it has in the document, and no word "
+            "is coined."
         ),
     ]
     assert [one.description for one in expertise.categories] == [
         (
-            "The user asking the question is a specialized user with a deep "
-            "understanding of the corpus."
+            "The user asking the question knows the material and its terms, uses "
+            "them exactly as the material writes them, and asks about a detail, an "
+            "exception or a condition a newcomer would not know to ask about."
         ),
         (
             "The user asking the question is a regular user with no understanding "
@@ -352,11 +357,12 @@ def test_the_wording_and_the_asker_are_table_5s_to_opt_into(guide: str) -> None:
 @pytest.mark.parametrize(
     "guide", ["docs/configuration.md", "backend/question_generation/README.md"]
 )
-def test_the_search_queries_are_table_5s_to_opt_into(guide: str) -> None:
+def test_the_search_queries_are_there_to_opt_into(guide: str) -> None:
     """Not dealt unset, and given in each guide as a Phrasing of four to set instead.
 
     Calibration found short-search-query below the floors for correct and
-    complete keys, and a third of the long search queries were not queries.
+    complete keys, and a third of the long search queries were not queries,
+    so the long one is described as keywords and nothing else.
     """
     unset = categorizations(DEFAULT_CATEGORIZATIONS)[0]
     assert {one.form for one in unset.categories} == {"question"}
@@ -367,13 +373,18 @@ def test_the_search_queries_are_table_5s_to_opt_into(guide: str) -> None:
         ("short-search-query", "query", (None, 6)),
         ("long-search-query", "query", (7, None)),
     ]
-    typed = (
-        "phrased as a typed web query for search engines (only keywords, without "
-        "punctuation and without a natural-sounding structure). It consists of "
-    )
     assert [one.description for one in phrasing.categories[2:]] == [
-        typed + "less than 7 words.",
-        typed + "more than 6 words.",
+        (
+            "phrased as a typed web query for search engines (only keywords, "
+            "without punctuation and without a natural-sounding structure). It "
+            "consists of less than 7 words."
+        ),
+        (
+            "phrased as a typed web query for search engines: keywords only, the "
+            "nouns, names and figures of what is wanted, with no article, no "
+            "auxiliary verb, no question word and nothing about the asker. It "
+            "consists of more than 6 words."
+        ),
     ]
     assert [one.description for one in phrasing.categories[:2]] == [
         one.description for one in unset.categories
