@@ -33,9 +33,8 @@ from extraction.models import (
 )
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
-from nlp.analysis import claim, content, normalised, numbers
+from nlp.analysis import claim, normalised, numbers
 from nlp.embedding import Embedder, cosine
-from nlp.pipelines import pipeline
 from settings.runs import run_id
 from stages import StageService
 from telemetry import tracer, working
@@ -746,9 +745,7 @@ def skipped(passage: PassageToExtract) -> str | None:
     if _is_heading(passage):
         return "heading"
     if not passage.claims:
-        # A definition states one claim, its term being what it says, and
-        # the checks below count claims off the verbs it does not have.
-        return None if _defines(passage) else "no finite verb"
+        return "no finite verb"
     # What the checks above are for, applied to what the parser did not
     # label. Between them these produced questions asking which pages a
     # term appears on and how the document is licensed - answerable,
@@ -758,46 +755,6 @@ def skipped(passage: PassageToExtract) -> str | None:
     if _reference_list(passage):
         return "an index, a bibliography or a contents page rather than prose"
     return None
-
-
-#: How a word hangs off a phrase's head without modifying it: as the next
-#: item of a list, or as another name for it in apposition or parentheses.
-#: English and German labels.
-_BESIDE = frozenset({"cc", "cd", "conj", "cj", "parataxis", "appos", "app", "par"})
-
-
-def _defines(passage: PassageToExtract) -> bool:
-    """Whether a passage with no finite verb says what its heading names.
-
-    A glossary entry, "Glossary > Chargeback": "Reversal of a card payment by
-    the card issuer." One sentence on one line, built on a noun or a gerund
-    that words after it modify, under a heading it does not repeat whole. A
-    caption or a version line numbers its noun ("Figure 3"), a key or a date
-    line puts a colon after it, a list or an address joins or appends nouns,
-    a key repeats its heading, and a cross-reference is built on a verb.
-    """
-    term = (passage.section_path or "").split(" > ")[-1].strip()
-    if not term or len(passage.sentences) != 1 or "\n" in passage.text.strip():
-        return False
-    document = pipeline(passage.language)(passage.text)
-    roots = [one for one in document if one.head.i == one.i and not one.is_punct]
-    if len(roots) != 1:
-        return False
-    (root,) = roots
-    if root.pos_ != "NOUN" and "Prog" not in root.morph.get("Aspect", []):
-        return False
-    after = root.nbor() if root.i + 1 < len(document) else None
-    if any(child.pos_ == "NUM" for child in root.children) or (
-        after is not None and after.text == ":"
-    ):
-        return False
-    if not any(
-        child.i > root.i and not child.is_punct and child.dep_ not in _BESIDE
-        for child in root.children
-    ):
-        return False
-    named = content(term, passage.language)
-    return not named or not named <= content(passage.text, passage.language)
 
 
 def _unread_prose(passage: PassageToExtract) -> bool:
