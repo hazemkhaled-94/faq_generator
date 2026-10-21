@@ -36,6 +36,7 @@ and [v0.3.0](operations.md#upgrading-to-v030).
 | [Fact dedup folded a different rule into a stored fact](#fact-dedup-folded-a-different-rule-into-a-stored-fact) | 24 | [`extraction/service.py`](../backend/extraction/service.py) | v0.2.2 |
 | [The widen retry replaced an honest draft](#the-widen-retry-replaced-an-honest-draft) | 5 | [`service.py`](../backend/question_generation/service.py) | v0.2.2 |
 | [The count rule misread stated counts](#the-count-rule-misread-stated-counts) | 2 | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
+| [The written-count gate has the digit rule's blind spot](#the-written-count-gate-has-the-digit-rules-blind-spot) | 4 | [`gates.py`](../backend/question_generation/gates.py) | no |
 | [The comparison gate split at the wrong seam](#the-comparison-gate-split-at-the-wrong-seam) | 2 | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial; worse in v0.3.0 |
 | [A fact may drop its sentence's scope](#a-fact-may-drop-its-sentences-scope) | 4 | [`validation.py`](../backend/extraction/validation.py), [`extractors/llm.py`](../backend/extraction/extractors/llm.py) | v0.3.0, in part |
 | [A two-item key was read as a value](#a-two-item-key-was-read-as-a-value) | not measured | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
@@ -1521,9 +1522,24 @@ gives back one of them, because a key with no content lemma has to be held
 in its recovery rather than hold it. The comparison half of the same fix is
 held until a model-backed replay measures it.
 
+## The written-count gate has the digit rule's blind spot
+
+Of the 3 accepted rows the written-count gate moved, 2 were sound: `zwei
+Lernziele` (question 4255) and `zwei Faktoren` (5355) count something their
+own facts state, and only happen to equal the number of facts cited. The digit
+rule refuses the same shape: `2 coverage items` (1409).
+
+**Narrowed in v0.2.2; open.** A count a cited statement states is exempt from
+both rules. A true count that only equals the number of facts cited, because
+each fact states one item, is still refused, which is the blind spot itself:
+questions 3248, 3773 and 4336 on the v0.3.0 rebuild, and 4316, whose count
+only its passage states. It is the rule that
+[The count rule misread stated counts](#the-count-rule-misread-stated-counts)
+leaves open, in [`gates.py`](../backend/question_generation/gates.py).
+
 ## Known trade-offs
 
-Not defects: each is a rule doing what it is for, at a cost in sound rows.
+Not a defect: a rule doing what it is for, at a cost in sound rows.
 
 **More citations, fewer questions.** Giving boilerplate facts their missing
 citations moved 6 accepted questions from one passage or document to several.
@@ -1538,17 +1554,6 @@ took the claim with it and left the refusal standing.
 `make delete` and `make delete-derived` now run `extract-dedup` afterwards,
 which gives the refusal back and re-judges and re-caps its passage. A
 deletion through the API or the UI needs `make extract-dedup` run after it.
-
-**The written-count gate has the digit rule's blind spot.** Of the 3 accepted
-rows it moved, 2 were sound: `zwei Lernziele` (question 4255) and `zwei
-Faktoren` (5355) count something their own facts state, and only happen to
-equal the number of facts cited. The digit rule refuses the same shape —
-`2 coverage items` (1409).
-**Narrowed in v0.2.2; open.** A count a cited statement states is exempt from
-both rules. A true count that only equals the number of facts cited, because
-each fact states one item, is still refused, which is the blind spot itself:
-questions 3248, 3773 and 4336 on the v0.3.0 rebuild, and 4316, whose count
-only its passage states.
 
 ## Reproducing this page
 
