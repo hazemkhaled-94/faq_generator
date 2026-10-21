@@ -1609,9 +1609,9 @@ def relabelled(
 
 
 def counts_a_list(
-    answer: str | None, statements: Sequence[str], language: str | None
+    question: str, answer: str | None, statements: Sequence[str], language: str | None
 ) -> bool:
-    """Whether a count is the number of items one cited fact lists.
+    """Whether a count is the number of items the fact it asks about lists.
 
     `Wie viele Gebühren ...?` answered `3` from `Die Bank berechnet eine
     Kontoführungsgebühr, eine Kartengebühr und eine Gebühr für
@@ -1619,13 +1619,22 @@ def counts_a_list(
     the question looks their count up. A list is two items at least,
     counted as `enumerates` counts a coordination: its first item and every
     conjunct naming one more.
+
+    The fact asked about is the cited one sharing the most content words
+    with the question, any of them on a tie: an unrelated one that happens
+    to list as many - `Visa, Mastercard und PayPal` beside a count of days -
+    states nothing about this count.
     """
     said = _count(_leading(answer))
     if said is None or said < _ENUMERATED:
         return False
-    return any(
-        1 + sum(map(_coordinated_item, pipeline(language)(statement))) == said
-        for statement in statements
+    asked = content(question, language)
+    shared = [len(asked & content(statement, language)) for statement in statements]
+    most = max(shared, default=0)
+    return most > 0 and any(
+        share == most
+        and 1 + sum(map(_coordinated_item, pipeline(language)(statement))) == said
+        for share, statement in zip(shared, statements, strict=True)
     )
 
 

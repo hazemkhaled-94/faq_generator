@@ -1468,8 +1468,9 @@ class QuestionChecker:
             candidate.target_answer,
             candidate.group.language,
         )
-        # A count one cited fact lists the items of is looked up, not summed.
+        # A count of what the fact asked about lists is looked up, not summed.
         if spec(kind).derived == Derivation.ARITHMETIC and counts_a_list(
+            candidate.question_text,
             candidate.target_answer,
             candidate.group.statements,
             candidate.group.language,

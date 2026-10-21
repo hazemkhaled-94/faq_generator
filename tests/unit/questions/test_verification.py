@@ -2828,6 +2828,42 @@ def test_a_count_no_one_fact_lists_stays_a_count() -> None:
     assert result.question_type == QuestionType.AGGREGATION
 
 
+@pytest.mark.parametrize(
+    ("question", "asked_about", "unrelated", "language"),
+    [
+        (
+            "Wie viele Tage dauern Lieferung und Rücksendung zusammen?",
+            "Die Lieferung dauert 1 Tag und die Rücksendung 2 Tage.",
+            "Wir akzeptieren Visa, Mastercard und PayPal.",
+            "de",
+        ),
+        (
+            "How many fees does the bank charge for a current account in total?",
+            "The bank charges an account fee and a card fee for a current account.",
+            "The bank accepts Visa, Mastercard and PayPal.",
+            "en",
+        ),
+    ],
+)
+def test_a_count_is_no_lookup_for_an_unrelated_fact_listing_as_many(
+    question, asked_about, unrelated, language
+) -> None:
+    """Only the fact the question asks about can state its count."""
+    result = build(Recording(recovers="3", backs=True)).check(
+        candidate(
+            question_text=question,
+            target_answer="3",
+            question_type=QuestionType.AGGREGATION,
+            facts=group(
+                source(1, passage_id=1, statement=asked_about, language=language),
+                source(2, passage_id=2, statement=unrelated, language=language),
+            ),
+        )
+    )
+
+    assert result.question_type == QuestionType.AGGREGATION
+
+
 def test_the_categories_it_was_written_as_are_carried_to_the_row() -> None:
     """What the writer was told, beside what the gates made of it."""
     from dataclasses import replace
