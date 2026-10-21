@@ -52,6 +52,7 @@ from dataclasses import asdict
 from typing import Any, cast
 
 import pandas as pd
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
@@ -173,13 +174,17 @@ def _flatten(value: Any, joiner: str = ", ") -> Any:
     Lists become a joined string - a spreadsheet has no cell type for a
     list, and `str(list)` would put Python's brackets and quotes in front
     of a reader. Long text is cut at the limit Excel enforces, with the cut
-    marked so nobody reads a truncated answer as a short one.
+    marked so nobody reads a truncated answer as a short one. Control
+    characters openpyxl refuses (a vertical tab pasted from Word, an escape
+    in a model's answer) are dropped, so one of them cannot fail the workbook.
 
     `joiner` is a comma for the short coded lists and a newline for the two
     holding sentences, which a comma would run together into one.
     """
     if isinstance(value, (list, tuple)):
         value = joiner.join(str(item) for item in value)
+    if isinstance(value, str):
+        value = ILLEGAL_CHARACTERS_RE.sub("", value)
     if isinstance(value, str) and len(value) > _CELL_LIMIT:
         return value[:_CELL_LIMIT] + "… [truncated]"
     return value

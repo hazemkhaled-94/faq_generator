@@ -997,6 +997,8 @@ question written before prompt version 17.
 The same on `GET /questions/export` and behind **Build a workbook** on the
 Questions page, built when asked for rather than on every render.
 
+A control character in any text is dropped from its cell, which Excel would otherwise refuse.
+
 **The filter is the caller's and there is no default scope.** Ask for nothing
 and you get everything, rejected rows included, because that is what the same
 request to `/questions` returns.
