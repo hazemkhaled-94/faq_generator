@@ -41,9 +41,10 @@ It is computed once, by chunking, and stored. Nothing recomputes it.
 
 The parser's cuts are corrected where a statement would not end: inside a
 word joined by a slash or a dash, before a clause opened by a comma, after an
-abbreviation followed by a lower-case word or, on its line, a figure that
-numbers no item (`approx. 3 days`, but not `etc.` before a line opening `2.`),
-and between an item's number and the item. A slash or a dash after a
+abbreviation that never ends one (`incl. VAT`, `gem. Ziff. 3`) on its line,
+after one that may (`etc.`, `Art.`, `Mo.–Fr.`) followed by a lower-case word
+or, on its line, a figure that numbers no item (`max. 3 days`, but not `etc.`
+before a line opening `2.`), and between an item's number and the item. A slash or a dash after a
 sentence's end and a space joins nothing: it opens the next sentence, as a
 free `- ` does or as the bullet of the next line. An abbreviation's full stop
 ends no sentence there either, so `inkl. / zzgl. Versand` stays whole.
@@ -190,7 +191,8 @@ missing from one fails no test.
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
 | `_DISJUNCTIVE` | same | Coordinators that offer alternatives: a conjunct one joins is no claim of its own | `oder`, `or` |
 | `_FINITE_TAGS` | same | Fine tags of a finite verb: a statement carrying one asserts something, whatever part of speech the tagger gave the word | `VVFIN`, `VBZ` |
-| `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence before a lower-case word or a figure | `ca.`, `approx.` |
+| `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence on their line, whatever follows | `inkl.`, `incl.` |
+| `_CLOSING_ABBREVIATIONS` | same | Abbreviations ending in a full stop that may end a sentence, closing a list or spelled as a word, and end none before a lower-case word or a figure | `usw.`, `Art.`, `Mon.` |
 | `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
 | `UNFINISHED` | [`text.py`](text.py) | Articles, prepositions and conjunctions that cannot end a table label: a label alone on a row that ends on one goes on in the row below, whatever follows | `und`, `at` |
 | `_CONJUNCTIONS` | [`preprocessing/chunking/furniture.py`](../preprocessing/chunking/furniture.py) | Conjunctions joining two alternatives or items: one printed alone is no heading, in the trail or as a heading the layout made of it | `oder`, `or` |
@@ -204,7 +206,7 @@ missing from one fails no test.
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
 by the word as written, `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
-`_EXCEPTIVE`, `_POLITE` and `_ABBREVIATIONS` by the word as written, the openings off the start of the question, `_COUNTS`
+`_EXCEPTIVE`, `_POLITE` and the two abbreviation tables by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
 

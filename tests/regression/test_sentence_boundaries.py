@@ -195,6 +195,90 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "Ist die Ware beschädigt/ unvollständig, erstattet der Händler den Preis.",
         ("Ist die Ware beschädigt/ unvollständig, erstattet der Händler den Preis.",),
     ),
+    (
+        "a clause cited by its number ends nothing",
+        "de",
+        "Die Gebühr nach Art. 12 der AGB beträgt 5 EUR.",
+        ("Die Gebühr nach Art. 12 der AGB beträgt 5 EUR.",),
+    ),
+    (
+        "an abbreviation before a capitalised one ends nothing",
+        "de",
+        "Die Gebühr beträgt gem. Ziff. 3 des Preisverzeichnisses 5 EUR.",
+        ("Die Gebühr beträgt gem. Ziff. 3 des Preisverzeichnisses 5 EUR.",),
+    ),
+    (
+        "a yearly fee abbreviated before a lower-case word ends nothing",
+        "de",
+        "Das Konto kostet 58,80 EUR jährl. inkl. aller Buchungen.",
+        ("Das Konto kostet 58,80 EUR jährl. inkl. aller Buchungen.",),
+    ),
+    (
+        "a range of weekdays ends nothing",
+        "de",
+        "Der Kundenservice ist Mo.–Fr. von 8 bis 18 Uhr erreichbar.",
+        ("Der Kundenservice ist Mo.–Fr. von 8 bis 18 Uhr erreichbar.",),
+    ),
+    (
+        "a limit abbreviated before its figure ends nothing",
+        "en",
+        "Withdrawals are limited to max. 1,000 EUR per day.",
+        ("Withdrawals are limited to max. 1,000 EUR per day.",),
+    ),
+    (
+        "an article cited by its number ends nothing",
+        "en",
+        "Per Art. 6 of the GDPR, we process your data.",
+        ("Per Art. 6 of the GDPR, we process your data.",),
+    ),
+    (
+        "weekdays abbreviated before lower-case words end nothing",
+        "en",
+        "Returns are accepted Mon. to Fri. at the counter.",
+        ("Returns are accepted Mon. to Fri. at the counter.",),
+    ),
+    (
+        "incl. before a capitalised word ends nothing",
+        "en",
+        "Prices are shown incl. VAT and shipping.",
+        ("Prices are shown incl. VAT and shipping.",),
+    ),
+    (
+        "incl. inside a subject ends nothing",
+        "en",
+        "The price incl. VAT is 20 EUR.",
+        ("The price incl. VAT is 20 EUR.",),
+    ),
+    (
+        "cf. before a section's name ends nothing",
+        "en",
+        "Compare our accounts, cf. Section 4 of the terms.",
+        ("Compare our accounts, cf. Section 4 of the terms.",),
+    ),
+    (
+        "approx. before a capitalised number ends nothing",
+        "en",
+        "Delivery takes approx. Two days.",
+        ("Delivery takes approx. Two days.",),
+    ),
+    (
+        "etc. before a capital does end a sentence",
+        "en",
+        "We accept Visa, Mastercard etc. Payment is immediate.",
+        ("We accept Visa, Mastercard etc.", "Payment is immediate."),
+    ),
+    (
+        "u. a. closing a list ends a sentence",
+        "de",
+        "Wir bieten Girokonten, Sparkonten u. a. Die Karte kostet 5 EUR.",
+        ("Wir bieten Girokonten, Sparkonten u. a.", "Die Karte kostet 5 EUR."),
+    ),
+    (
+        "the word no ends a sentence",
+        "en",
+        "Is a transfer free? No. A transfer costs 1 EUR.",
+        ("Is a transfer free?", "No.", "A transfer costs 1 EUR."),
+    ),
 )
 
 

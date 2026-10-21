@@ -1758,32 +1758,77 @@ _SENTENCE_ENDS = ".!?"
 #: comma or a closing bracket is not a sentence of its own.
 _CONTINUING = ",;:)"
 
-#: Abbreviations that end in a full stop and end no sentence when a
-#: lower-case word or a figure follows, by ISO 639-1 code, case-folded, as
-#: the tokenizer cuts them ("z. B." is two).
+#: Abbreviations that end in a full stop and, on their line, end no sentence
+#: whatever follows ("incl. VAT", "gem. Ziff. 3"), by ISO 639-1 code,
+#: case-folded, as the tokenizer cuts them.
 _ABBREVIATIONS: dict[str, frozenset[str]] = {
     "de": frozenset(
         {
-            "etc.",
-            "usw.",
             "bzw.",
-            "z.",
-            "b.",
-            "d.",
-            "h.",
             "ca.",
             "nr.",
             "vgl.",
             "inkl.",
+            "zzgl.",
             "evtl.",
             "ggf.",
-            "u.",
-            "a.",
             "sog.",
             "abs.",
+            "gem.",
+            "ziff.",
+            "abschn.",
         }
     ),
-    "en": frozenset({"etc.", "e.g.", "i.e.", "approx.", "no.", "vs.", "cf.", "incl."}),
+    "en": frozenset({"e.g.", "i.e.", "approx.", "vs.", "cf.", "incl."}),
+}
+
+#: Abbreviations that may end a sentence as well, and end none when a
+#: lower-case word or a figure follows: one closing a list ("etc.", "u. a."),
+#: a single letter ("z. B." is two), or one spelled as a word ("No.", "Art.",
+#: "Sat."), by ISO 639-1 code, as above.
+_CLOSING_ABBREVIATIONS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "etc.",
+            "usw.",
+            "z.",
+            "b.",
+            "d.",
+            "h.",
+            "u.",
+            "a.",
+            "art.",
+            "max.",
+            "min.",
+            "mtl.",
+            "jährl.",
+            "tägl.",
+            "mo.",
+            "di.",
+            "mi.",
+            "do.",
+            "fr.",
+            "sa.",
+            "so.",
+        }
+    ),
+    "en": frozenset(
+        {
+            "etc.",
+            "no.",
+            "art.",
+            "sect.",
+            "max.",
+            "min.",
+            "mon.",
+            "tue.",
+            "wed.",
+            "thu.",
+            "fri.",
+            "sat.",
+            "sun.",
+        }
+    ),
 }
 
 #: An item's number alone at the start of its line: "2.", "b)", "(iv)", or
@@ -1795,9 +1840,10 @@ def _boundaries(document: Doc) -> list[int]:
     """Where each sentence starts, by token, the parser's cuts corrected.
 
     The parser cuts where a statement would not: inside a word joined by a
-    slash, before a clause opened by a comma, after an abbreviation followed
-    by a lower-case word or, on its line, a figure numbering no item
-    ("approx. 3 days"), and between an item's number and the item, leaving
+    slash, before a clause opened by a comma, after an abbreviation that
+    ends no sentence on its line ("incl. VAT") or one followed by a
+    lower-case word or, on its line, a figure numbering no item ("max. 3
+    days"), and between an item's number and the item, leaving
     the number at the end of the item before. A citation resolves against
     these sentences, so a cut there leaves a fact's evidence half a rule.
     A cut is dropped in the first three cases and moved to the number in
@@ -1814,14 +1860,16 @@ def _boundaries(document: Doc) -> list[int]:
     """
     spans = list(document.sents)
     starts = [spans[0].start] if spans else []
-    abbreviations = _ABBREVIATIONS.get(document.lang_, frozenset())
+    medial = _ABBREVIATIONS.get(document.lang_, frozenset())
+    abbreviations = medial | _CLOSING_ABBREVIATIONS.get(document.lang_, frozenset())
     for previous, sentence in pairwise(spans):
         left, right = previous.text.rstrip(), sentence.text.lstrip()
         if not left or not right:
             starts.append(sentence.start)
             continue
         spaced = previous.text != left or sentence.text != right
-        last_word = left.split()[-1].casefold()
+        # A range ends on its last abbreviation: "Mo.–Fr.".
+        last_word = re.split(r"[\s\u2013-]", left)[-1].casefold()
         joined = not spaced and (left[-1] in _JOINERS or right[0] in _JOINERS)
         if joined:
             # `text`, not `text_with_ws`, decides `spaced`: read the space
@@ -1858,6 +1906,7 @@ def _boundaries(document: Doc) -> list[int]:
             joined
             or right[0] in _CONTINUING
             or (last_word in abbreviations and (right[0].islower() or figure))
+            or (last_word in medial and "\n" not in gap)
         ):
             continue
         line = left[left.rfind("\n") + 1 :]
