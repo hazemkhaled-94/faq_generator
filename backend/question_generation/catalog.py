@@ -291,7 +291,7 @@ def _listing() -> Select:
                 Question.release_id.is_not(None).label("released"),
                 func.count(func.distinct(QuestionFact.fact_id)).label("facts"),
                 func.array_agg(
-                    func.distinct(func.coalesce(Document.title, Passage.doc_sha256))
+                    func.distinct(func.coalesce(Document.title, func.left(Passage.doc_sha256, 12)))
                 ).label("documents"),
                 func.array_agg(func.distinct(Topic.label)).label("topics"),
                 func.array_agg(func.distinct(Fact.statement)).label("statements"),

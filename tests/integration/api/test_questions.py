@@ -155,7 +155,9 @@ def test_a_question_citing_two_facts_is_returned_once(written) -> None:
 
     assert len(crossing) == 1
     assert crossing[0]["facts"] == 2
-    assert sorted(crossing[0]["documents"]) == sorted([digest("a"), digest("b")])
+    assert sorted(crossing[0]["documents"]) == sorted(
+        [digest("a")[:12], digest("b")[:12]]
+    )
 
 
 def test_the_listing_carries_what_each_question_cites(written) -> None:
