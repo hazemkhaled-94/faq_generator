@@ -186,7 +186,7 @@ class TopicFitter:
             no_above=no_above,
             keep_n=None,  # pyright: ignore[reportArgumentType]
         )
-        if before and not dictionary and self._small(counted):
+        if before and not dictionary and self._small(len(distinct)):
             # Terms exist but none can tell a passage from another, as with
             # one passage or copies of it, and there are too few passages to
             # be given more than one topic anyway.
@@ -214,7 +214,7 @@ class TopicFitter:
         # does, the whole weighted matrix is zero, and the factorisation
         # divides by its norm and returns a model of NaN.
         if not any(bool(weighted) for weighted in weighting[bows]):
-            if self._small(counted):
+            if self._small(len(distinct)):
                 return self._single(corpus, language, counted)
             raise NoVocabulary(
                 f"every one of the {len(dictionary)} terms kept appears in all "

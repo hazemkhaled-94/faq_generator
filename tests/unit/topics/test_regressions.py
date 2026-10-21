@@ -83,3 +83,13 @@ def test_a_language_the_fit_could_not_model_fails_the_request_it_still_stored() 
     assert driver.failure is not None
     assert "de" in driver.failure
     assert driver.queue.kept == [1]
+
+
+@pytest.mark.parametrize("copies", [79, 80, 200])
+def test_copies_of_one_text_beside_one_variant_get_one_topic_at_any_size(
+    copies,
+) -> None:
+    """Copies of a shop's disclaimer and one variant of it are one subject however many."""
+    texts = ["terms apply"] * copies + ["terms apply online"]
+    fitting = FitterDriver(dict(DEFAULTS), corpus(*texts)).fit("en").fitting
+    assert len(fitting.topics) == 1
