@@ -427,6 +427,8 @@ corpus, which is a property of the model rather than of this code.
   corpus what a picture held was mostly diagram labels and page numbers,
   and keeping the real banner text needs a filter that tells it from
   labels, which does not exist yet.
+  A footnote the converter attaches to a picture, an offer's conditions under
+  a banner, is written beneath its caption, as a table's is.
 - **A lone conjunction is told by a word table.** In a language missing
   from `_CONJUNCTIONS`, only a segment with no letter or digit leaves the
   trail, and no heading is read as a paragraph. A real one-word heading

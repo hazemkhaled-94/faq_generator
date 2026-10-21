@@ -26,7 +26,8 @@ from docling_core.transforms.serializer.markdown import (
 from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.group import ListGroup
-from docling_core.types.doc.items.node import DocItem, NodeItem
+from docling_core.types.doc.items.node import DocItem, FloatingItem, NodeItem
+from docling_core.types.doc.items.picture.picture import PictureItem
 from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import ListItem, TextItem
 from docling_core.types.doc.labels import DocItemLabel
@@ -45,25 +46,25 @@ class NoPassages(Exception):
 
 def _footnoted(
     result: SerializationResult,
-    table: TableItem,
+    item: FloatingItem,
     document: DoclingDocument,
     serializer: BaseDocSerializer,
     **kwargs: Any,
 ) -> SerializationResult:
-    """A table's rendering followed by the footnotes the converter attached.
+    """A table's or picture's rendering and the footnotes the converter attached.
 
-    The Markdown table serializer writes captions and no footnotes, and the
+    The Markdown serializers write captions and no footnotes, and the
     chunker does not walk into them. A note outside the layers the document
     serializer writes (furniture, invisible text), one it excludes, and one
-    the table also lists as a caption, which the rendering already holds,
+    the item also lists as a caption, which the rendering already holds,
     stay out.
     """
     excluded = serializer.get_excluded_refs(**kwargs)
     layers = serializer.params.layers if isinstance(serializer, DocSerializer) else None
-    captions = {ref.cref for ref in table.captions}
+    captions = {ref.cref for ref in item.captions}
     texts = [
         found
-        for ref in table.footnotes
+        for ref in item.footnotes
         if isinstance(found := ref.resolve(document), TextItem)
         and found.text.strip()
         and found.self_ref not in excluded | captions
@@ -104,6 +105,30 @@ class _Table(MarkdownTableSerializer):
         )
 
 
+class _Picture(MarkdownPictureSerializer):
+    """A picture's caption with the footnotes attached to it beneath."""
+
+    @override
+    def serialize(
+        self,
+        *,
+        item: PictureItem,
+        doc_serializer: BaseDocSerializer,
+        doc: DoclingDocument,
+        **kwargs: Any,
+    ) -> SerializationResult:
+        """Serializes the picture, then its footnotes."""
+        return _footnoted(
+            super().serialize(
+                item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
+            ),
+            item,
+            doc,
+            doc_serializer,
+            **kwargs,
+        )
+
+
 class _Markdown(ChunkingSerializerProvider):
     """Renders every kind of block into the passage text, in Markdown."""
 
@@ -112,7 +137,7 @@ class _Markdown(ChunkingSerializerProvider):
         return ChunkingDocSerializer(
             doc=doc,
             table_serializer=_Table(),
-            picture_serializer=MarkdownPictureSerializer(),
+            picture_serializer=_Picture(),
         )
 
 
