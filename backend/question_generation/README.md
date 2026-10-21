@@ -205,7 +205,9 @@ answer, and a follow-up is told none either. A slot asked for as a compound
 question is told none too, because its reply is one question joining two
 asks, which a category written for one ask contradicts; one written single
 for want of a partner is told its categories. A slot told none is sent the
-message prompt version 16 sent, byte for byte. A retry is sent the same block
+message prompt version 16 sent, byte for byte, but for the line version 22
+changed: a heading or a title may name the thing asked about, never where the
+answer is. A retry is sent the same block
 as the draft it rewrites. The question records the categories it was told in
 `questions.categories`, as categorization, category, role, form and
 description, so a categorization edited later does not rewrite what an

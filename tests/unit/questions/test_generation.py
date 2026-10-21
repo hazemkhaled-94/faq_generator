@@ -523,17 +523,18 @@ def test_a_compound_slot_dealt_one_passage_is_written_as_a_single_question() -> 
 # ── The categories a slot was dealt ───────────────────────────────────────
 
 
-#: What the user message an answerable slot dealt no category is sent, as
-#: version 16 sent it. A deployment that turns categories off with [] is
-#: asking the same questions it asked before them.
+#: What the user message an answerable slot dealt no category is sent: as
+#: version 16 sent it, but for the heading line version 22 changed. A
+#: deployment that turns categories off with [] is asking the same questions
+#: it asked before them.
 GOLDEN = (
     "FACTS - your question must be answered by these:\n"
     "[1] The device weighs 4 kg.\n"
     "\n"
     "PASSAGE(S) - context only, so you know what the material is about. Phrase "
-    "the question from these; never quote or name a heading or a title out of "
-    "them, and never ask about anything here that the facts above do not "
-    "state:\n"
+    "the question from these. A heading or a title out of them may name the "
+    "thing you ask about, never where the answer is; and never ask about "
+    "anything here that the facts above do not state:\n"
     "[1] Under: Rules > Fees\n"
     "The device weighs 4 kg. It ships from Hamburg.\n"
     "\n"
@@ -558,7 +559,7 @@ def asked_with(*categories: Category, note: str = "") -> StubModel:
 
 
 def test_a_slot_dealt_no_category_is_sent_what_it_was_sent_before() -> None:
-    """Byte for byte: no categories is version 16's message."""
+    """Byte for byte: no categories is the message before categories."""
     model = asked_with()
 
     assert model.user == GOLDEN
@@ -796,3 +797,23 @@ def test_every_writer_is_told_to_ask_the_rule_a_story_shows_and_never_the_page()
         flat = " ".join(prompt.split())
         assert "ask about the rule, never about the person" in flat
         assert "a contact box, a legend, a list of changes" in flat
+
+
+def test_a_heading_may_name_what_is_asked_about_and_never_where_the_answer_is() -> None:
+    """On a page titled with its subject, the title and the subject are one string.
+
+    Told never to name a heading, a writer on such a page either avoids the
+    subject the rules tell it to name or names it and is refused.
+    """
+    from question_generation.types import READS
+
+    answerable = asked_with().user
+    unanswerable = StubModel(question="Q?")
+    QuestionWriter(unanswerable).write(group(), plan(answerable=False))
+
+    for user in (answerable, unanswerable.user):
+        assert "may name the thing you ask about, never where the answer is" in user
+        assert "never quote or name a heading" not in user.casefold()
+    assert "A heading or a title may still name the thing asked about" in " ".join(
+        READS.split()
+    )

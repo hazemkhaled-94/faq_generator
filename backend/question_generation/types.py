@@ -31,7 +31,7 @@ from database.qa_generator import (
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "21"
+PROMPT_VERSION = "22"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -118,10 +118,14 @@ asking.
 READS = """Rules, all of them mandatory:
 
 - NEVER SAY WHERE THE ANSWER IS. No "according to the report", no "in this
-  circular", no naming or quoting a document, a section or a heading. Nobody
-  asks a service desk a question while telling it which file to open. A
-  question that cites its own source has already done the work it was meant to
-  test, and it is thrown away.
+  circular", no naming or quoting a document, a section or a heading as the
+  place the answer is. Nobody asks a service desk a question while telling it
+  which file to open. A question that cites its own source has already done
+  the work it was meant to test, and it is thrown away. A heading or a title
+  may still name the thing asked about: under a heading "Immobiliendarlehen",
+  "Wie lange läuft die Zinsbindung eines Immobiliendarlehens?" names its
+  subject, and "Was steht unter Immobiliendarlehen zur Zinsbindung?" names
+  where its answer is.
 
 - NAME THE SUBJECT, NOT THE SOURCE. The subject is what the question is about:
   the thing, the party, the duty, the period. The source is which document
