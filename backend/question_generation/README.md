@@ -930,8 +930,13 @@ within `TOLERANCE` of every quota: the draw scans sizes down from the largest
 the pool's supply of each band, kind and language allows and keeps the first
 that fills, since a size can fill where a larger one does not. A kind the
 pool holds too few of to fill its share within `TOLERANCE` is asked for what
-the pool holds, and the places it cannot take go to the other kinds by largest
-remainder, so one scarce kind does not cap the whole release. The command reports what it drew, the yield,
+the pool can release of it (not the spare members of twin groups, not rows in a
+language the release gives no weight), and the places it cannot take go to the
+other kinds by largest remainder, but no kind is asked for more than its share
+of the size plus `TOLERANCE`. So one scarce kind does not cap the whole release,
+and the release grows only as far as that balance allows: where the others
+cannot take the freed places the size is too big and the scan goes below it.
+The command reports what it drew, the yield,
 its spread over every share, the languages included, and any quota the pool
 came up short on.
 

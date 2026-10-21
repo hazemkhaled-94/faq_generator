@@ -6,6 +6,7 @@ delivery times), German and English.
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 
 import pytest
@@ -62,7 +63,10 @@ def test_a_kind_the_pool_holds_one_of_does_not_cap_the_whole_release(language):
 
 
 def test_the_places_an_exhausted_kind_cannot_take_go_to_the_others():
-    """Three kinds weighed alike over 30 places, one with 2 rows: the other two take 14 each."""
+    """Three kinds weighed alike over 30 places, one with 2 rows.
+
+    The other two take their ten and the slack close_enough allows, 11 each.
+    """
     quota = quota_of(
         30,
         {"easy": 1},
@@ -70,7 +74,89 @@ def test_the_places_an_exhausted_kind_cannot_take_go_to_the_others():
         0.0,
         supply={"fees": 2, "returns": 50, "delivery": 50},
     )
-    assert quota.types == {"fees": 2, "returns": 14, "delivery": 14}
+    assert quota.types == {"fees": 2, "returns": 11, "delivery": 11}
+
+
+def _within_tolerance(release, pool, weights):
+    """No kind holds more of the release than its share and the tolerance allow."""
+    drawn = Counter(row.question_type for row in pool if row.id in set(release.ids))
+    total = sum(weights.values())
+    for kind, count in drawn.items():
+        share = math.ceil(release.quota.size * weights[kind] / total)
+        assert count <= share + int(max(1, 0.1 * share)), (
+            f"{kind} {count} of {release.size}; quota {release.quota.types}"
+        )
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_kind_that_floods_the_pool_is_held_within_the_tolerance(language):
+    """Five kinds with 30 rows each and a `condition` with 30 roots and 150 follow-ups.
+
+    The scarce kinds are capped at what they hold, their places go to
+    condition, but only up to its share and the tolerance: not the pool's own
+    split. The release is larger than the base's and condition stays near 1/6.
+    """
+    kinds = ("factoid", "definition", "procedure", "reason", "application")
+    roots = _roots([(kind, 30) for kind in kinds] + [("condition", 30)], language)
+    follows = [
+        Row(
+            1000 + root.id,
+            True,
+            "easy",
+            "condition",
+            follows_id=root.id,
+            language=language,
+        )
+        for root in roots
+        if root.question_type != "condition"
+    ]
+    pool = roots + follows
+    weights = dict.fromkeys([*kinds, "condition"], 1)
+    release = largest(pool, {"easy": 1}, weights, 0.0, languages={language: 1})
+    _within_tolerance(release, pool, weights)
+    assert 180 < release.size < len(pool)
+
+
+def test_a_pool_with_two_scarce_kinds_and_one_flood_does_not_release_the_flood():
+    """a: 2, b: 2, c: 500 rows, weighed alike: balance allows only a handful."""
+    pool = _roots([("a", 2), ("b", 2), ("c", 500)], "de")
+    weights = {"a": 1, "b": 1, "c": 1}
+    release = largest(pool, {"easy": 1}, weights, 0.0, languages={"de": 1})
+    _within_tolerance(release, pool, weights)
+    assert release.size < 20
+
+
+def test_the_release_grows_where_balance_allows_it():
+    """40 rows of each of ten kinds and one implication: grows past the base's size."""
+    pool = _roots([(kind, 40) for kind in KINDS] + [("implication", 1)], "en")
+    weights = dict.fromkeys([*KINDS, "implication"], 1)
+    release = largest(pool, {"easy": 1}, weights, 0.0, languages={"en": 1})
+    _within_tolerance(release, pool, weights)
+    assert release.size > 100
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_twinned_rows_of_a_scarce_kind_count_as_one_supply(language):
+    """Three rewordings of one question are one place: the kind is capped at one."""
+    pool = _roots([(kind, 40) for kind in KINDS] + [("implication", 3)], language)
+    ids = [row.id for row in pool if row.question_type == "implication"]
+    twins = {one: set(ids) - {one} for one in ids}
+    weights = dict.fromkeys([*KINDS, "implication"], 1)
+    release = largest(
+        pool, {"easy": 1}, weights, 0.0, languages={language: 1}, twins=twins
+    )
+    _within_tolerance(release, pool, weights)
+    assert release.size >= 200, f"{release.size}; short {release.short}"
+
+
+def test_rows_in_a_language_the_release_gives_no_weight_are_no_supply():
+    """The scarce kind has 3 de rows and 3 en: only the de ones can be drawn."""
+    pool = _roots([(kind, 40) for kind in KINDS] + [("implication", 3)], "de")
+    pool += [Row(900 + n, True, "easy", "implication", language="en") for n in range(3)]
+    weights = dict.fromkeys([*KINDS, "implication"], 1)
+    release = largest(pool, {"easy": 1}, weights, 0.0, languages={"de": 1})
+    _within_tolerance(release, pool, weights)
+    assert release.size >= 200, f"{release.size}; short {release.short}"
 
 
 @pytest.mark.parametrize("language", ["de", "en"])

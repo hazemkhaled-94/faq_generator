@@ -105,6 +105,11 @@ def shares(weights: Mapping[str, int], size: int) -> dict[str, int]:
     return whole
 
 
+def _slack(count: int, tolerance: float) -> int:
+    """How many places short of `count` `close_enough` lets a bucket come."""
+    return int(max(1, tolerance * count))
+
+
 def _capped(
     weights: Mapping[str, int],
     size: int,
@@ -115,19 +120,41 @@ def _capped(
 
     A bucket short of its share by more than `close_enough` allows would
     refuse the size, and with it every size that asks it for that much. It is
-    asked for what the pool holds instead, and the places it cannot take are
-    spread over the others by the same largest remainder.
+    asked for what the pool holds instead, and the places it cannot take go
+    to the others by the same largest remainder, but no bucket is asked for
+    more than its own share plus the slack `close_enough` allows, nor for
+    more than the pool holds of it. So the spread over the kinds stays within
+    the tolerance of the weights, and the places no bucket may take are left
+    unplaced: the size is then too big to fill, and the scan goes below it.
     """
     spread = shares(weights, size)
-    exhausted = {
+    capped = {
         name: supply.get(name, 0)
         for name, count in spread.items()
-        if count - supply.get(name, 0) > max(1, tolerance * count)
+        if count - supply.get(name, 0) > _slack(count, tolerance)
     }
-    if not exhausted:
+    if not capped:
         return spread
-    rest = {name: weight for name, weight in weights.items() if name not in exhausted}
-    return exhausted | _capped(rest, size - sum(exhausted.values()), supply, tolerance)
+    room = {
+        name: max(0, min(count + _slack(count, tolerance), supply.get(name, 0)) - count)
+        for name, count in spread.items()
+        if name not in capped
+    }
+    freed = sum(spread[name] - held for name, held in capped.items())
+    result = capped | {name: spread[name] for name in room}
+    open_weights = {name: weights[name] for name in room}
+    while freed > 0 and open_weights:
+        extra = shares(open_weights, freed)
+        full = {name for name, more in extra.items() if more >= room[name]}
+        if not full:
+            for name, more in extra.items():
+                result[name] += more
+            break
+        for name in full:
+            result[name] += room[name]
+            freed -= room[name]
+            del open_weights[name]
+    return result
 
 
 def quota_of(
@@ -388,10 +415,13 @@ def largest(
     most = Release(
         ids=[], quota=quota_of(0, bands, types, unanswerable, languages), short={}
     )
-    supply = _supply(pool, unanswerable)
+    drawable = _drawable(pool, languages, twins)
     for size in range(
-        _fillable(pool, bands, types, unanswerable, languages, tolerance), 0, -1
+        _fillable(pool, bands, types, unanswerable, languages, tolerance, twins),
+        0,
+        -1,
     ):
+        supply = _supply(drawable, unanswerable, size)
         release = choose(
             pool,
             quota_of(size, bands, types, unanswerable, languages, supply, tolerance),
@@ -404,11 +434,39 @@ def largest(
     return most
 
 
-def _supply(pool: Sequence[Row], unanswerable: float) -> Counter[str]:
-    """How many questions the pool holds of each kind a release could draw."""
-    return Counter(
-        row.question_type for row in pool if row.answerable or unanswerable > 0
-    )
+def _drawable(
+    pool: Sequence[Row],
+    languages: Mapping[str, int] | None,
+    twins: Mapping[int, set[int]] | None,
+) -> list[Row]:
+    """The rows a draw could release.
+
+    Not a language it gives no weight, and one of any rows that are twins of
+    each other, the first by `_rank`.
+    """
+    alike = twins or {}
+    held: set[int] = set()
+    for row in sorted(pool, key=_rank):
+        if languages and languages.get(row.language, 0) <= 0:
+            continue
+        if alike.get(row.id, set()).isdisjoint(held):
+            held.add(row.id)
+    return [row for row in pool if row.id in held]
+
+
+def _supply(drawable: Sequence[Row], unanswerable: float, size: int) -> Counter[str]:
+    """How many questions a release of this size could draw of each kind.
+
+    Unanswerable rows count only up to the ceiling of that size.
+    """
+    ceiling = int(size * unanswerable)
+    supply: Counter[str] = Counter()
+    unanswered: Counter[str] = Counter()
+    for row in drawable:
+        (supply if row.answerable else unanswered)[row.question_type] += 1
+    for kind, count in unanswered.items():
+        supply[kind] += min(count, ceiling)
+    return supply
 
 
 def _fillable(
@@ -418,6 +476,7 @@ def _fillable(
     unanswerable: float,
     languages: Mapping[str, int] | None,
     tolerance: float,
+    twins: Mapping[int, set[int]] | None = None,
 ) -> int:
     """The largest size whose every quota the pool holds rows enough for, within its slack.
 
@@ -438,8 +497,9 @@ def _fillable(
         for name in (row.difficulty, row.question_type, row.language)
     )
     unanswered = sum(not row.answerable for row in pool)
-    supply = _supply(pool, unanswerable)
+    drawable = _drawable(pool, languages, twins)
     for size in range(len(pool), 0, -1):
+        supply = _supply(drawable, unanswerable, size)
         quota = quota_of(size, bands, types, unanswerable, languages, supply, tolerance)
         wanted = {**quota.difficulty, **quota.types, **quota.languages}
         answerable = size - quota.unanswerable
@@ -451,6 +511,11 @@ def _fillable(
             size - min(quota.unanswerable, unanswered) - (len(pool) - unanswered)
         )
         wanted["answerable"] = answerable
+        # Places the capped kinds leave unplaced: the draw cannot spend them,
+        # and only unanswerable places are not reported when unspent.
+        unplaced = size - sum(quota.types.values())
+        if unplaced > quota.unanswerable + _slack(answerable, tolerance):
+            continue
         if all(
             short <= max(1, tolerance * wanted[name]) for name, short in missing.items()
         ):
