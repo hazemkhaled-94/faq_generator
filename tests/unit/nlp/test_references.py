@@ -280,6 +280,38 @@ def test_an_opening_sie_stays_a_reference_where_its_passage_addresses_no_one(
 
 @pytest.mark.nlp
 @pytest.mark.parametrize(
+    ("passage_text", "statement"),
+    [
+        (
+            (
+                "Bitte geben Sie Ihre IBAN an. Händler, die am Programm "
+                "teilnehmen, werben neue Kunden. Sie erhalten dafür eine "
+                "Provision von 20 Euro."
+            ),
+            "Sie erhalten eine Provision von 20 Euro.",
+        ),
+        (
+            (
+                "Bitte prüfen Sie Ihre Kontoauszüge. Die Banken melden jeden "
+                "Fehler. Sie erstatten den Betrag innerhalb von 14 Tagen."
+            ),
+            "Sie erstatten den Betrag innerhalb von 14 Tagen.",
+        ),
+    ],
+)
+def test_an_opening_sie_after_a_plural_subject_stays_a_reference(
+    passage_text: str, statement: str
+) -> None:
+    """The passage addresses its reader, but the Sie can be the plural just named."""
+    from drivers import Checker, passage
+
+    result = Checker(passage(passage_text, language="de")).atomic(statement, 2)
+    assert not result.validated
+    assert result.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
     ("language", "statement"),
     [
         ("de", "Ein Artikel kann zurückgegeben werden, es sei denn, er wurde benutzt."),

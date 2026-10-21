@@ -255,7 +255,9 @@ Tag", as is one a figure counts, "the following 12 months", and one whose
 items the statement lists after a colon points at them: both stand alone). A German statement opening on `Sie` names the
 reader where a polite form follows inside it or stands inside a sentence of
 the passage it was drawn from ("Bitte geben Sie Ihre IBAN an"); one opening a
-sentence there is capitalised either way and says nothing.
+sentence there is capitalised either way and says nothing, and a passage
+that opens a sentence on `Sie` after a plural subject ("Händler werben Kunden.
+Sie erhalten ...") leaves it a reference.
 
 What `nothing invented` compares is **numbers and proper nouns only** — both
 are things a writer reports rather than chooses. A number keeps its surface

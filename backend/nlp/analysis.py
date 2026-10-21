@@ -1128,8 +1128,10 @@ def _polite(token, passages: Sequence[str] = ()) -> bool:
     geliefert` cannot be told from the third person plural, so it is polite
     only where the statement also holds a capitalised polite form after it,
     `Sie können Ihre Karte sperren`, or one of the passages it was drawn from
-    holds one inside a sentence, `Bitte geben Sie Ihre IBAN an`. Otherwise it
-    stays a reference.
+    holds one inside a sentence, `Bitte geben Sie Ihre IBAN an`, and opens no
+    sentence on the form after one whose subject is plural, which the form
+    may be the third person of: "Händler werben Kunden. Sie erhalten ...".
+    Otherwise it stays a reference.
     """
     forms = _POLITE.get(token.doc.lang_, frozenset())
     if token.text not in forms:
@@ -1139,12 +1141,30 @@ def _polite(token, passages: Sequence[str] = ()) -> bool:
     if any(one.text in forms for one in token.doc[token.i + 1 :]):
         return True
     return any(
-        one.text in forms
-        and any(not before.is_punct for before in one.doc[one.sent.start : one.i])
+        _addresses(_read(text, token.doc.lang_), forms, token.text)
         for text in passages
         if any(form in text for form in forms)
-        for one in _read(text, token.doc.lang_)
     )
+
+
+def _addresses(document: Doc, forms: frozenset[str], form: str) -> bool:
+    """Whether a passage addresses its reader, and only its reader, as `form`."""
+    inside = any(
+        one.text in forms
+        and any(not before.is_punct for before in document[one.sent.start : one.i])
+        for one in document
+    )
+    rival = any(
+        next((one.text for one in after if not one.is_punct), None) == form
+        and any(
+            one.dep_ in _SUBJECTS
+            and one.pos_ in _NOMINAL
+            and "Plur" in one.morph.get("Number", [])
+            for one in before
+        )
+        for before, after in pairwise(document.sents)
+    )
+    return inside and not rival
 
 
 #: What a pronoun and a noun it stands for agree in, where both carry it.
