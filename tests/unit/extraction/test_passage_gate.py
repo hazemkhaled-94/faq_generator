@@ -26,6 +26,95 @@ def test_a_passage_with_no_finite_verb_is_skipped(text: str) -> None:
     assert skipped(passage(text, language="de")) == "no finite verb", text
 
 
+@pytest.mark.parametrize(
+    ("language", "path", "text"),
+    [
+        (
+            "en",
+            "Glossary > Chargeback",
+            "Reversal of a card payment by the card issuer.",
+        ),
+        (
+            "en",
+            "Glossary > Click and collect",
+            "Ordering online and picking the goods up in a store.",
+        ),
+        (
+            "en",
+            "Glossary > Dormant account",
+            "An account with no payment by its holder for 24 months.",
+        ),
+        (
+            "de",
+            "Glossar > Rückbuchung",
+            "Rückgängigmachen einer Kartenzahlung durch den Kartenaussteller.",
+        ),
+        (
+            "de",
+            "Glossar > Dispositionskredit",
+            (
+                "Ein Kredit, den die Bank auf dem Girokonto bis zu einem "
+                "vereinbarten Rahmen gewährt."
+            ),
+        ),
+        (
+            "de",
+            "Begriffe > Retoure",
+            "Rücksendung einer bestellten Ware an den Händler.",
+        ),
+    ],
+)
+def test_a_definition_under_the_term_it_defines_is_read(language, path, text) -> None:
+    """A glossary entry has no verb: its heading names what the phrase is."""
+    assert skipped(passage(text, language=language, section_path=path)) is None
+
+
+@pytest.mark.parametrize(
+    ("language", "path", "text"),
+    [
+        ("en", "Fees > Transfers", "See Section 7 for the fees."),
+        ("de", "Gebühren > Überweisungen", "Siehe Abschnitt 7."),
+        ("en", "Figures > Monthly fees", "Figure 3: Monthly fees by account type."),
+        (
+            "de",
+            "Abbildungen > Gebühren",
+            "Abbildung 3: Monatliche Gebühren nach Kontoart.",
+        ),
+        ("en", "Abbreviations > IBAN", "IBAN: International Bank Account Number."),
+        ("de", "Abkürzungen > IBAN", "IBAN – Internationale Bankkontonummer."),
+        ("de", "Preise > Preisverzeichnis", "Stand: 1. Januar 2026."),
+        ("en", "Notes > Version", "Version 2.1 of the terms of 1 January 2026."),
+        ("en", "Overview > Contents", "Fees, cards and transfers."),
+        ("en", "Fees > Card fees", "Card fees."),
+        (
+            "de",
+            "Kontakt > Anschrift",
+            "Beispielbank AG, Hauptstraße 1, 60311 Frankfurt am Main.",
+        ),
+    ],
+    ids=[
+        "cross-reference en",
+        "cross-reference de",
+        "caption en",
+        "caption de",
+        "key en",
+        "key de",
+        "date line de",
+        "version line en",
+        "contents en",
+        "label en",
+        "address de",
+    ],
+)
+def test_a_verbless_line_defining_nothing_is_still_skipped(
+    language, path, text
+) -> None:
+    """Under a heading too: a reference, a caption, a key, a label, a list or an address."""
+    under = passage(text, language=language, section_path=path)
+
+    assert skipped(under) == "no finite verb", text
+
+
 def test_a_passage_repeating_its_own_heading_trail_is_skipped() -> None:
     """A heading that carries a verb is still a heading."""
     heading = passage(
