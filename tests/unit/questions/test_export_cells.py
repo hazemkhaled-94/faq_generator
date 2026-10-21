@@ -14,9 +14,10 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from openpyxl import load_workbook
-from test_export import cited, stored
+from test_export import _Judged, _Metric, cited, stored
 
 from question_generation.export import _CELL_LIMIT, workbook
+from question_generation.models import QuestionQuality
 
 #: Text an XML 1.0 document can carry, which is what an .xlsx is: no C0
 #: control but tab, newline and return, no surrogate, no U+FFFE or U+FFFF.
@@ -83,3 +84,21 @@ def test_a_control_character_does_not_stop_the_export(where) -> None:
     heading = {"topics": "Topics", "target_answer": "Answer"}.get(column, "Question")
     kept = "".join(ch for ch in value if ch >= " " or ch in "\t\n\r")
     assert _cell(drawn, "Questions", heading) == kept
+
+
+def test_a_judge_explanation_with_an_escape_still_exports() -> None:
+    """The judge's reasons reach their column by a path of their own."""
+    judged = {1: _Judged(_Metric("faithfulness", "yes", True, "Holds\x1b here."))}
+    workbook([stored(1)], judged=judged)
+
+
+def test_a_category_with_a_control_character_still_exports() -> None:
+    """The Summary sheet writes each category=label as stored."""
+    quality = QuestionQuality(
+        *[0] * 9,
+        *[{}] * 9,
+        cognitive_level_checked=0,
+        planned_met=0,
+        categories={"Ton=kurz\x0bknapp": 1},
+    )
+    workbook([stored(1)], quality=quality)

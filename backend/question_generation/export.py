@@ -175,17 +175,13 @@ def _flatten(value: Any, joiner: str = ", ") -> Any:
     Lists become a joined string - a spreadsheet has no cell type for a
     list, and `str(list)` would put Python's brackets and quotes in front
     of a reader. Long text is cut at the limit Excel enforces, with the cut
-    marked so nobody reads a truncated answer as a short one. Control
-    characters openpyxl refuses (a vertical tab pasted from Word, an escape
-    in a model's answer) are dropped, so one of them cannot fail the workbook.
+    marked so nobody reads a truncated answer as a short one.
 
     `joiner` is a comma for the short coded lists and a newline for the two
     holding sentences, which a comma would run together into one.
     """
     if isinstance(value, (list, tuple)):
         value = joiner.join(str(item) for item in value)
-    if isinstance(value, str):
-        value = ILLEGAL_CHARACTERS_RE.sub("", value)
     if isinstance(value, str) and len(value) > _CELL_LIMIT:
         return value[:_CELL_LIMIT] + "… [truncated]"
     return value
@@ -371,6 +367,11 @@ def _dress(sheet: Any, frame: pd.DataFrame) -> None:
                 cell.data_type = "s"
 
 
+def _printable(value: Any) -> Any:
+    """Drops the control characters openpyxl refuses from one cell."""
+    return ILLEGAL_CHARACTERS_RE.sub("", value) if isinstance(value, str) else value
+
+
 def workbook(
     questions: Sequence[StoredQuestion],
     citations: Sequence[Citation] = (),
@@ -404,7 +405,10 @@ def workbook(
     # the stubs decline to match structurally.
     with pd.ExcelWriter(cast("Any", buffer), engine="openpyxl") as writer:
         for name, frame in sheets.items():
-            frame.to_excel(writer, sheet_name=name, index=False)
+            # Control characters openpyxl refuses (a vertical tab pasted from
+            # Word, an escape in a model's answer) are dropped from every
+            # sheet, so one of them cannot fail the workbook.
+            frame.map(_printable).to_excel(writer, sheet_name=name, index=False)
             _dress(writer.sheets[name], frame)
     log.info(
         "wrote a workbook of %d question(s), %d citation row(s) and %d "
