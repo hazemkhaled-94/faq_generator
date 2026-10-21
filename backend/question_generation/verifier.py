@@ -34,7 +34,7 @@ from llm.client import Client
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "6"
+PROMPT_VERSION = "7"
 
 #: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
 #: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
@@ -46,8 +46,8 @@ answer a test question from the material it was drawn from, without having
 seen the answer somebody wrote for it.
 
 ACTION
-Answer the QUESTION using ONLY the PASSAGES, and say whether they gave you
-the answer at all.
+Answer the QUESTION using ONLY the PASSAGES, say whether they gave you the
+answer at all, and say whether the question asks ONE thing.
 
 STEPS
 1. Read the passages.
@@ -58,6 +58,12 @@ STEPS
    the passages.
 5. If you would need something the passages do not contain, set `in_passage`
    false and leave `answer` empty.
+6. Say whether the question asks ONE thing. It does when one answer - a
+   value, a list, a rule, a difference, a total - answers the whole of it,
+   even where it names two cases or two parties. It does not when it puts two
+   questions under one question word, each with an answer of its own, or
+   when its words can be read as asking two things the passages answer
+   differently.
 
 CONTEXT
 You have no knowledge outside the passages and may use none.
@@ -66,8 +72,9 @@ Saying it is not in the passages is a correct answer whenever it is true, and
 inventing one is the failure. But so is refusing an answer that IS there
 because it took two sentences to find: look before you decline.
 
-This call asks for nothing else. Three judgements about the question's own
-phrasing used to share it, and what that cost is measured in
+Besides the answer, this call asks only whether the question asks one thing:
+a chatbot answering half of two questions is neither right nor wrong. Three
+judgements about the question's own phrasing used to share it, and what that cost is measured in
 `evaluation/README.md`: answered here they were right 7 times out of 7 in
 English and 6 out of 12 in German, in a call whose recall half is good in
 both. They are `gates.subject`, `gates.cites_source` and `phrasing.py` now.
@@ -80,6 +87,20 @@ IN PASSAGE:     passages "Requests are answered within 48 hours." and "The
 NOT IN PASSAGE: same passages
                 question "How long is allowed on a public holiday?"
                 (the passages never mention public holidays)
+ONE THING:      question "How do the fees for a standard and an express
+                          transfer differ?"
+                (two cases, and one difference asked)
+TWO THINGS:     question "How long does a refund take for a late delivery and
+                          for a wrong item?"
+                (two refund periods, each an answer of its own)
+TWO THINGS:     question "Wie hoch sind die Gebühr für eine Ersatzkarte und
+                          der Zins für den Dispokredit?"
+                (one question word over a fee and a rate)
+TWO THINGS:     passages "Card payments abroad cost 1.5 percent." and "Cash
+                          withdrawals abroad cost 4 EUR."
+                question "card fee abroad"
+                (paying by card or drawing cash: the passages answer each
+                 differently)
 
 FORMAT
 - `in_passage` is true when the passages give the answer. READING IS ALLOWED:
@@ -93,6 +114,10 @@ FORMAT
   Leave it empty otherwise. IN THE WORDS OF THE PASSAGES, and so in their
   language, whatever it is: an answer translated into any other language is
   compared against a target in the material's own and agrees with nothing.
+- `asks_one` is true when the question asks one thing (step 6). It is false
+  when it asks two under one question word, or can be read as asking two
+  things the passages answer differently. Judge it whether or not the
+  passages give the answer.
 """
 
 
@@ -497,6 +522,13 @@ class _Recovered(BaseModel):
         description="The answer, taken from the passages and in their "
         "language. Empty when in_passage is false.",
     )
+    asks_one: bool = Field(
+        default=True,
+        description="True when one answer answers the whole question. False "
+        "when it asks two things under one question word, each with an "
+        "answer of its own, or can be read as asking two things the passages "
+        "answer differently.",
+    )
 
 
 class _Quoted(BaseModel):
@@ -579,12 +611,15 @@ class Settled:
 class Reading:
     """What the verifier got back out of one question's passages.
 
-    `recovered` is the answer, or None for NOT IN PASSAGE. One field,
-    because one call now asks one thing: what a question's own phrasing
-    amounts to is read off its parse in `gates` and asked in `phrasing`.
+    `recovered` is the answer, or None for NOT IN PASSAGE. `asks_one` is
+    whether the question asks one thing, which no parse can say of a keyword
+    query or of one question word over two cases; True where nobody read it.
+    What else a question's own phrasing amounts to is read off its parse in
+    `gates` and asked in `phrasing`.
     """
 
     recovered: str | None
+    asks_one: bool = True
 
 
 @dataclass(frozen=True)
@@ -797,7 +832,8 @@ class Verifier:
         return Reading(
             recovered=(
                 got.answer.strip() if got.in_passage and got.answer.strip() else None
-            )
+            ),
+            asks_one=got.asks_one,
         )
 
     def stated(

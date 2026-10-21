@@ -482,7 +482,7 @@ phrasing judge's to tell from naming the source.
 | Gate | Rejects a question that | Costs |
 |---|---|---|
 | `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or answers with the number of facts it cites where no cited fact states that number, when it asks how many or the answer is that count alone | nothing |
-| `compound` | asks two things | nothing |
+| `compound` | asks two things: two question words, or, as the round trip's read finds, two asks under one question word or one ask read two ways | nothing, or the round trip's read |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |
 | `wrong_form` | answers in the wrong shape | nothing |

@@ -5,7 +5,8 @@ it:
 
   malformed       structural, free
   compound        free: it asks two things, so half an answer is neither
-                  right nor wrong
+                  right nor wrong; or the round trip's read finds two asks
+                  under one question word
   answer_too_short  free: nothing worth scoring against
   answer_too_long   free: not the form of answer that was asked for
   wrong_form        free: a value carrying a verb, an explanation with none
@@ -992,7 +993,7 @@ class QuestionChecker:
             return QuestionRejection.UNANCHORED, reason
         return None
 
-    def _recovered(self, candidate: Candidate) -> str | None:
+    def _recovered(self, candidate: Candidate) -> Reading:
         """The answer the cited passages give back, from whichever reader.
 
         The extractive model first, where one is configured and the question
@@ -1018,6 +1019,10 @@ class QuestionChecker:
         verifier regardless. Nor is the verifier asked to read one:
         `_round_trip` asks an unanswerable question whether the passages
         settle it, and never calls this.
+
+        shortcut: a span the extractive model gives is not read for whether
+        the question asks one thing, so `asks_one` holds; ask the verifier
+        too if QA_MODEL is ever shipped on.
         """
         if self._extractive is not None and not candidate.thread:
             found = self._extractive.answer(
@@ -1032,12 +1037,12 @@ class QuestionChecker:
                     found.score,
                     candidate.question_text,
                 )
-                return found.text
+                return Reading(recovered=found.text)
         return self._verifier.read(
             candidate.question_text,
             candidate.group.passages,
             candidate.thread,
-        ).recovered
+        )
 
     def _round_trip(
         self,
@@ -1063,7 +1068,19 @@ class QuestionChecker:
             return self._computable(candidate, candidate.target_answer or "")
 
         if candidate.answerable:
-            read = Reading(recovered=self._recovered(candidate))
+            read = self._recovered(candidate)
+            # Two asks under one question word, or one ask read two ways: the
+            # free rule counts question words, and a keyword query or a
+            # question naming two cases has one or none to count.
+            if not read.asks_one:
+                return (
+                    QuestionRejection.COMPOUND,
+                    (
+                        "the verifier reads it as asking two things, or one "
+                        "thing two ways, so a chatbot answering one of them is "
+                        "neither right nor wrong"
+                    ),
+                )
             target = candidate.target_answer or ""
             # What the verifier got back, against what the key claims, on
             # the same lemmas `agrees` compares. Recorded whichever way the
