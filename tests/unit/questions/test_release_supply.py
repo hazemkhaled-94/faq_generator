@@ -98,7 +98,7 @@ def _tight_fillable(pool, bands, types, unanswerable, languages, tolerance):
     """The fix hint's bound: unanswerable rows count only up to the ceiling."""
     from collections import Counter
 
-    from question_generation.balance import quota_of
+    from question_generation.balance import _supply, quota_of
 
     held = Counter(
         n
@@ -114,7 +114,9 @@ def _tight_fillable(pool, bands, types, unanswerable, languages, tolerance):
     )
     unanswered = sum(not r.answerable for r in pool)
     for size in range(len(pool), 0, -1):
-        quota = quota_of(size, bands, types, unanswerable, languages)
+        quota = quota_of(
+            size, bands, types, unanswerable, languages, _supply(pool, unanswerable)
+        )
         wanted = {**quota.difficulty, **quota.types, **quota.languages}
         missing = {
             n: c - held[n] - min(spare[n], quota.unanswerable)

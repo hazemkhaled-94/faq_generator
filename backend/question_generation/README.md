@@ -926,7 +926,10 @@ pairs is in [docs/bugs.md](../../docs/bugs.md#found-on-the-v022-rebuild-of-2026-
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota: the draw scans sizes down from the largest
 the pool's supply of each band, kind and language allows and keeps the first
-that fills, since a size can fill where a larger one does not. The command reports what it drew, the yield,
+that fills, since a size can fill where a larger one does not. A kind the
+pool holds too few of to fill its share within `TOLERANCE` is asked for what
+the pool holds, and the places it cannot take go to the other kinds by largest
+remainder, so one scarce kind does not cap the whole release. The command reports what it drew, the yield,
 its spread over every share, the languages included, and any quota the pool
 came up short on.
 

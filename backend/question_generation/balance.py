@@ -80,6 +80,13 @@ class Release:
         return len(self.ids)
 
 
+#: How far short of its own quota one bucket may come and still be taken,
+#: as a share of that quota. The target is "about a third each", not exactly
+#: a third: the marginals cannot all land on zero together out of a finite
+#: pool, and the last few places are where it always fails.
+TOLERANCE = 0.10
+
+
 def shares(weights: Mapping[str, int], size: int) -> dict[str, int]:
     """Spreads `size` over named weights, summing to exactly `size`.
 
@@ -98,19 +105,52 @@ def shares(weights: Mapping[str, int], size: int) -> dict[str, int]:
     return whole
 
 
+def _capped(
+    weights: Mapping[str, int],
+    size: int,
+    supply: Mapping[str, int],
+    tolerance: float,
+) -> dict[str, int]:
+    """`shares`, with a bucket the pool cannot fill held to what it has.
+
+    A bucket short of its share by more than `close_enough` allows would
+    refuse the size, and with it every size that asks it for that much. It is
+    asked for what the pool holds instead, and the places it cannot take are
+    spread over the others by the same largest remainder.
+    """
+    spread = shares(weights, size)
+    exhausted = {
+        name: supply.get(name, 0)
+        for name, count in spread.items()
+        if count - supply.get(name, 0) > max(1, tolerance * count)
+    }
+    if not exhausted:
+        return spread
+    rest = {name: weight for name, weight in weights.items() if name not in exhausted}
+    return exhausted | _capped(rest, size - sum(exhausted.values()), supply, tolerance)
+
+
 def quota_of(
     size: int,
     bands: Mapping[str, int],
     types: Mapping[str, int],
     unanswerable: float,
     languages: Mapping[str, int] | None = None,
+    supply: Mapping[str, int] | None = None,
+    tolerance: float = TOLERANCE,
 ) -> Quota:
-    """The quota a release of this size wants."""
+    """The quota a release of this size wants.
+
+    `supply` is how many questions the pool holds of each kind. Given, a kind
+    it cannot fill within `tolerance` is capped at what it holds.
+    """
     return Quota(
         size=size,
         unanswerable=int(size * unanswerable),
         difficulty=shares(bands, size),
-        types=shares(types, size),
+        types=_capped(types, size, supply, tolerance)
+        if supply is not None
+        else shares(types, size),
         languages=shares(languages, size) if languages else {},
     )
 
@@ -281,13 +321,6 @@ def choose(
     return Release(ids=sorted(chosen), quota=quota, short=short)
 
 
-#: How far short of its own quota one bucket may come and still be taken,
-#: as a share of that quota. The target is "about a third each", not exactly
-#: a third: the marginals cannot all land on zero together out of a finite
-#: pool, and the last few places are where it always fails.
-TOLERANCE = 0.10
-
-
 def close_enough(release: Release, tolerance: float = TOLERANCE) -> bool:
     """Whether every bucket came within its slack of what was asked for.
 
@@ -342,17 +375,27 @@ def largest(
     most = Release(
         ids=[], quota=quota_of(0, bands, types, unanswerable, languages), short={}
     )
+    supply = _supply(pool, unanswerable)
     for size in range(
         _fillable(pool, bands, types, unanswerable, languages, tolerance), 0, -1
     ):
         release = choose(
-            pool, quota_of(size, bands, types, unanswerable, languages), twins
+            pool,
+            quota_of(size, bands, types, unanswerable, languages, supply, tolerance),
+            twins,
         )
         if close_enough(release, tolerance):
             return release
         if release.size > most.size:
             most = release
     return most
+
+
+def _supply(pool: Sequence[Row], unanswerable: float) -> Counter[str]:
+    """How many questions the pool holds of each kind a release could draw."""
+    return Counter(
+        row.question_type for row in pool if row.answerable or unanswerable > 0
+    )
 
 
 def _fillable(
@@ -382,8 +425,9 @@ def _fillable(
         for name in (row.difficulty, row.question_type, row.language)
     )
     unanswered = sum(not row.answerable for row in pool)
+    supply = _supply(pool, unanswerable)
     for size in range(len(pool), 0, -1):
-        quota = quota_of(size, bands, types, unanswerable, languages)
+        quota = quota_of(size, bands, types, unanswerable, languages, supply, tolerance)
         wanted = {**quota.difficulty, **quota.types, **quota.languages}
         answerable = size - quota.unanswerable
         missing = {
