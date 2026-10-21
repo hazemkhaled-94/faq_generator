@@ -58,6 +58,10 @@ _PUNCTUATION = re.compile(r"[\W_]+")
 #: rate, a phone number, a date or a time carries more than that.
 _PAGE_NUMBER = re.compile(r"[-–—(\[\s]*\d{1,4}[-–—)\]\s]*")
 
+#: The share of a page's height, at its top and at its foot, that is the
+#: margin a page number is printed in.
+_MARGIN = 0.1
+
 #: The labels of a heading the converter took as one.
 _HEADINGS = frozenset({DocItemLabel.SECTION_HEADER, DocItemLabel.TITLE})
 
@@ -382,8 +386,9 @@ def tidied(
     in lower case, or in capitals where the tagger reads the first as
     wanting a noun and the second as opening with one, takes that paragraph's text and its place on the page,
     and the paragraph moves to the furniture layer. A paragraph that is a
-    page number read as body text, a bare integer where the page's number is
-    printed, moves there too, and one beside or between its label does not; a price, a rate, a phone
+    page number read as body text, a bare integer in the top or bottom margin
+    of its page, moves there too, and one beside or under its label, or right after a lead-in's colon, does not;
+    a price, a rate, a phone
     number or a date with no letter beside it stays, and so does an elision
     mark, `(…)`. A paragraph that only
     repeats a running field or a heading of the document - a chapter title
@@ -632,32 +637,39 @@ def _page_number(
 ) -> bool:
     """Whether a paragraph is a page number and nothing else.
 
-    A bare integer alone in its paragraph, and where a page's number is
-    printed: its value is what a running page number adds to its page's
-    number, or - where the document has none - it is a block of its own
-    above or below everything else the page holds. A value printed beside
-    or between its label, `30` under `Return period (days):`, is no page
-    number.
+    A bare integer alone in its paragraph, in the top or bottom margin of its
+    page, and - where the document's running page numbers show an offset -
+    equal to its page's number plus one of them. A value beside or under its
+    label, `30` after `Return period (days):`, is no page number, and neither
+    is a value whose item has no position: it stays text.
     """
     if _PAGE_NUMBER.fullmatch(item.text.strip()) is None or not item.prov:
         return False
     page, box = item.prov[0].page_no, item.prov[0].bbox
+    size = document.pages.get(page)
+    if size is None or size.size.height <= 0:
+        return False
+    height = size.size.height
+    placed = box.to_top_left_origin(height)
+    if not (placed.b <= height * _MARGIN or placed.t >= height * (1 - _MARGIN)):
+        return False
+    if _follows_lead_in(item, document):
+        return False
     if furniture.offsets:
         number = int(re.search(r"\d+", item.text).group())  # type: ignore[union-attr]
         return number - page in furniture.offsets
-    low, high = sorted((box.t, box.b))
-    spans = [
-        sorted((there.bbox.t, there.bbox.b))
-        for other, _ in document.iterate_items()
-        if isinstance(other, DocItem)
-        and other is not item
-        and other.content_layer == ContentLayer.BODY
-        for there in other.prov
-        if there.page_no == page
-    ]
-    return all(low >= above[1] for above in spans) or all(
-        high <= below[0] for below in spans
-    )
+    return True
+
+
+def _follows_lead_in(item: TextItem, document: DoclingDocument) -> bool:
+    """Whether the text block right before an item ends on a lead-in's colon."""
+    before = None
+    for other, _ in document.iterate_items():
+        if other.self_ref == item.self_ref:
+            break
+        if isinstance(other, TextItem) and other.content_layer == ContentLayer.BODY:
+            before = other
+    return before is not None and before.text.rstrip().endswith(LEAD_IN)
 
 
 def _plain(text: str) -> str:

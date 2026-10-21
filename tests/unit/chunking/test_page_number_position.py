@@ -78,6 +78,47 @@ def test_a_page_number_the_foot_missed_is_not_passage_text() -> None:
     document.add_text(
         label=DocItemLabel.TEXT, text="Das Konto ist kostenlos.", prov=on(2, 100)
     )
-    document.add_text(label=DocItemLabel.TEXT, text="2", prov=on(2, 100, left=300))
+    document.add_text(label=DocItemLabel.TEXT, text="2", prov=on(2, 800))
 
     assert "2" not in texts(document, "de").split()
+
+
+@pytest.mark.parametrize(
+    ("lang", "label", "value"),
+    [
+        ("de", "Kündigungsfrist in Monaten:", "3"),
+        ("en", "Return window in days:", "30"),
+    ],
+)
+def test_a_value_stacked_under_its_label_at_a_page_foot_stays(
+    lang, label, value
+) -> None:
+    """No running page numbers, and the value is the page's last line, in its margin."""
+    document = pages(2)
+    document.add_heading(text="Konditionen", level=1, prov=on(1, 50))
+    document.add_text(
+        label=DocItemLabel.TEXT, text="Das Konto ist kostenlos.", prov=on(1, 100)
+    )
+    document.add_text(label=DocItemLabel.TEXT, text=label, prov=on(1, 780))
+    document.add_text(label=DocItemLabel.TEXT, text=value, prov=on(1, 800))
+
+    assert value in texts(document, lang).split()
+
+
+def test_a_value_beside_its_label_equal_to_its_page_number_stays() -> None:
+    """On page 3 of a numbered document, `3` printed mid-page is still a value."""
+    document = pages(3)
+    for page in (1, 2, 3):
+        document.add_text(
+            label=DocItemLabel.PAGE_FOOTER,
+            text=str(page),
+            prov=on(page, 800),
+            content_layer=ContentLayer.FURNITURE,
+        )
+    document.add_heading(text="Konditionen", level=1, prov=on(3, 50))
+    document.add_text(
+        label=DocItemLabel.TEXT, text="Kündigungsfrist in Monaten:", prov=on(3, 100)
+    )
+    document.add_text(label=DocItemLabel.TEXT, text="3", prov=on(3, 100, left=300))
+
+    assert "3" in texts(document, "de").split()

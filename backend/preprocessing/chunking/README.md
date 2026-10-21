@@ -403,12 +403,11 @@ corpus, which is a property of the model rather than of this code.
   too. A price, a rate, a phone number, a date or a time with no letter
   beside it (`4,90 €`, `0800 123 4567`, `01.01.2026`) stays, and so does an
   elision mark such as `(…)`. A bare integer alone in its paragraph is a page
-  number only where a page's number is: where the document's running page
-  numbers show one, its value is the page's number plus the offset they print
-  (page 7 printing `7`, or `3` in a chapter that restarts), and where it has
-  none, the integer is a block of its own above or below everything else on
-  its page. A value printed beside its label (`30` after `Return period
-  (days):`) stays.
+  number only in the top or bottom tenth of its page, and, where the
+  document's running page numbers show an offset, only when its value is its
+  page's number plus one of them (page 7 printing `7`, or `3` in a chapter
+  that restarts). A value beside or under its label (`30` after `Return
+  period (days):`), or right after a block ending on a lead-in's colon, stays, and so does an integer whose item has no position.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed
