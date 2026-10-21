@@ -59,6 +59,10 @@ _C1 = re.compile(r"[\x80-\x84\x86-\x9f]")
 #: Every space that is not U+0020.
 _SPACES = re.compile(r"[\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]")
 
+#: The zero-width non-joiner and joiner, the format characters a word can be
+#: spelled with: `_spells` tells where.
+_JOINERS = frozenset("\u200c\u200d")
+
 #: The Latin and Armenian ligatures, `ﬀ` to `ﬆ` and `ﬓ` to `ﬗ`, spelled as
 #: their letters. A font's glyph list names an `ff` glyph so; NFKC would
 #: spell them too, but would also fold superscripts, fractions and
@@ -351,9 +355,9 @@ def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """Rejoins a line-broken word and spells the rest so it can be copied.
 
     Composes to NFC, spells a ligature as its letters, joins soft and
-    line-break hyphens, drops control and format characters, reads a C1
-    control as the cp1252 character it stands for, and turns every other
-    kind of space into U+0020.
+    line-break hyphens, drops control and format characters but a joiner a
+    word is spelled with, reads a C1 control as the cp1252 character it
+    stands for, and turns every other kind of space into U+0020.
 
     Args:
         text: One string as the converter read it.
@@ -363,16 +367,31 @@ def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     Returns:
         The mended string.
     """
-    composed = unicodedata.normalize("NFC", text).translate(_LIGATURES)
+    composed = _softened(unicodedata.normalize("NFC", text).translate(_LIGATURES))
     # Every format character, zero-width marks and bidi marks and isolates
-    # alike, renders as nothing and so cannot be quoted.
+    # alike, renders as nothing and so cannot be quoted, but for a joiner a
+    # word is spelled with.
     formatted = "".join(
-        char for char in _softened(composed) if unicodedata.category(char) != "Cf"
+        char
+        for at, char in enumerate(composed)
+        if unicodedata.category(char) != "Cf" or _spells(composed, at)
     )
     cleaned = _SPACES.sub(" ", _C1.sub(_legacy, _CONTROL.sub("", formatted)))
     # After the space normalisation, so the broken-word rule sees one kind of
     # space.
     return rejoined(cleaned, whole)
+
+
+def _spells(text: str, at: int) -> bool:
+    """Whether the character at `at` is a joiner the word around it is spelled with.
+
+    The zero-width non-joiner and joiner spell Persian, Urdu and the Indic
+    scripts, and join an emoji sequence. Beside a cased letter, in a script
+    that never spells with one, a joiner only steers a ligature.
+    """
+    return text[at] in _JOINERS and not any(
+        other.islower() or other.isupper() for other in text[max(at - 1, 0) : at + 2]
+    )
 
 
 def _repaired(document: DoclingDocument) -> DoclingDocument:

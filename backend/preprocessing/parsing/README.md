@@ -128,8 +128,11 @@ it:
   at its own hyphen keeps it where the document prints the word whole
   elsewhere, so `third- party` is `third-party` and not `thirdparty`
 - drop control characters and every format character (zero-width marks, bidi
-  marks and isolates), and read a C1 control as the cp1252 character it stands
-  for (`U+0096` is an en dash), dropping the five it leaves unassigned
+  marks and isolates), but for a zero-width non-joiner or joiner beside no
+  cased letter, which Persian, Urdu and the Indic scripts spell words with
+  and an emoji sequence is joined by, and read a C1 control as the cp1252
+  character it stands for (`U+0096` is an en dash), dropping the five it
+  leaves unassigned
 - fold every other kind of space to U+0020
 
 It runs on the text items *and* on the table grid. A character a model cannot
@@ -291,7 +294,8 @@ the two buckets and Docling itself are stood in for.
 | [`tests/static/test_intake_pinned.py`](../../../tests/static/test_intake_pinned.py) | That the PDF pipeline handles exactly the types ingestion may accept, and that this README carries its three sections |
 
 The regression suite holds one test each for: every space codepoint folding
-to U+0020 and every zero-width mark removed, named one at a time; every
+to U+0020 and every zero-width mark removed between Latin letters, named
+one at a time; every
 control character except newline and tab dropped; the repair reaching `orig`
 and the table grid; `enforce_same_font` off and the backend Docling's own;
 `generate_parsed_pages` following `PARSING_HEADING_HIERARCHY`; `do_ocr` off;

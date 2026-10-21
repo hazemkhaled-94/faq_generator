@@ -28,14 +28,6 @@ def test_a_superscript_a_fraction_and_a_full_width_letter_are_kept(kept) -> None
     assert _mend(kept) == kept
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "_mend drops every format character, ZWNJ and ZWJ too, which Persian and "
-        "the Indic scripts spell words with, so 'می\u200cخواهم' is stored as the "
-        "misspelling 'میخواهم'"
-    ),
-)
 @pytest.mark.parametrize(
     "word",
     ["\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645", "\u0915\u094d\u200d\u0937"],
