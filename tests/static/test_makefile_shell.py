@@ -87,10 +87,6 @@ def test_every_recipe_runs_in_the_bash_a_mac_ships(target: str) -> None:
     assert not _BASH4.findall(printed), _BASH4.findall(printed)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="make spend and spend-by-shape exit 0 printing 'no priced calls in the log' when LOG names no readable file",
-)
 @pytest.mark.parametrize("target", ["spend", "spend-by-shape"])
 def test_a_log_that_cannot_be_read_fails_the_cost_targets(
     target: str, tmp_path: Path

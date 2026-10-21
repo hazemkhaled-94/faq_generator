@@ -1228,7 +1228,9 @@ questions-diff:
 # defaulted to /var/log/qa/*.log, which is a path inside the containers and
 # not on the host they run on - and holds JSON, which the pattern below
 # cannot match anyway. Both printed "no priced calls in the log", which
-# reads as "the pipeline cost nothing" rather than "I read nothing".
+# reads as "the pipeline cost nothing" rather than "I read nothing". A LOG
+# naming no readable file stops them for the same reason: cat said so on
+# stderr, and the total still said nothing was spent, with exit status 0.
 #
 # For the LIVE numbers, neither of these: Grafana's Pipeline throughput
 # dashboard sums llm.cost_usd off Elasticsearch, and Phoenix has the same
@@ -1241,7 +1243,8 @@ questions-diff:
 #
 #   make spend LOG=run.log
 #   make spend LOG=run.log SINCE=2026-09-18
-SPENT = cat "$(LOG)" \
+SPENT = test -r "$(LOG)" && test ! -d "$(LOG)" || { echo "cannot read LOG=$(LOG)" >&2; exit 2; }; \
+ cat "$(LOG)" \
  | $(if $(SINCE),grep "$(SINCE)",cat) \
  | grep -oE '[^ ]+ (answered|did not answer) _[A-Za-z]+ in [0-9.]+s \([0-9,]+ in, [0-9,]+ out, \$$[0-9.]+\)' \
  | sed -E 's/^([^ ]+) (answered|did not answer) (_[A-Za-z]+) in [0-9.]+s \(([0-9,]+) in, ([0-9,]+) out, \$$([0-9.]+)\)/\1 \3 \4 \5 \6/' \
