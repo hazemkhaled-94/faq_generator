@@ -32,6 +32,7 @@ from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import ListItem, TextItem
 from docling_core.types.doc.labels import DocItemLabel
 
+from database.qa_generator.passages import trail_of
 from nlp.analysis import read
 from nlp.language import detect, detect_surely
 from nlp.models import Sentence
@@ -785,9 +786,7 @@ class PassageBuilder:
             text=text,
             page_from=boxes[0]["page"] if boxes else None,
             page_to=boxes[-1]["page"] if boxes else None,
-            section_path=" > ".join(chunk.meta.headings)
-            if chunk.meta.headings
-            else None,
+            section_path=trail_of(chunk.meta.headings) if chunk.meta.headings else None,
             block_type=_block_type(chunk.meta.doc_items),
             doc_item_refs=[item.self_ref for item in chunk.meta.doc_items],
             bbox=boxes,

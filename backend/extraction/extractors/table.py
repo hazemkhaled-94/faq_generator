@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from typing import ClassVar
 
+from database.qa_generator.passages import headings_of
 from extraction.extractors.base import Extractor
 from extraction.models import CandidateFact, PassageToExtract
 
@@ -127,7 +128,7 @@ def _nearest(passage: PassageToExtract) -> str | None:
     """
     if not passage.section_path:
         return None
-    return passage.section_path.rsplit(" > ", 1)[-1].strip() or None
+    return headings_of(passage.section_path)[-1].strip() or None
 
 
 def _is_header(cell: dict) -> bool:

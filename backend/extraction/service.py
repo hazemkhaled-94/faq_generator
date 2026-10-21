@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from confidence import Measurement, confidence, scored
 from database.qa_generator import FactKind, Passage, Rejection
+from database.qa_generator.passages import headings_of
 from extraction.extractors import (
     BridgeExtractor,
     DigestExtractor,
@@ -573,7 +574,7 @@ def _is_heading(passage: PassageToExtract) -> bool:
         return False
     text = normalised(passage.text)
     return any(
-        text == normalised(segment) for segment in passage.section_path.split(" > ")
+        text == normalised(segment) for segment in headings_of(passage.section_path)
     )
 
 

@@ -28,7 +28,7 @@ class Chunk:
         text: The passage content. Every evidence offset indexes this.
         page_from: Page the passage starts on.
         page_to: Page the passage ends on.
-        section_path: Heading trail, joined with " > ".
+        section_path: Heading trail, joined with " > " (`trail_of`).
         block_type: The converter's label for the source item.
         doc_item_refs: The converter's identifiers for those items.
         bbox: One box per page spanned, [{page, l, t, r, b}], top-left

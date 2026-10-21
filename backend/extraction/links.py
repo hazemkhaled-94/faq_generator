@@ -21,6 +21,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from database.qa_generator.passages import headings_of
 from extraction.models import PassageToExtract
 from extraction.validation import HEADING_LABEL, NUMBER, label_word
 from nlp.analysis import content, normalised
@@ -68,7 +69,7 @@ class Link:
 
 def _segments(passage: PassageToExtract) -> list[str]:
     """The headings of a passage's trail, outermost first."""
-    return [s.strip() for s in (passage.section_path or "").split(" > ") if s.strip()]
+    return [s.strip() for s in headings_of(passage.section_path) if s.strip()]
 
 
 def _plain(text: str) -> str:

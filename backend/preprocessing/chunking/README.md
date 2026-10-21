@@ -344,6 +344,13 @@ corpus, which is a property of the model rather than of this code.
   `section_path`, and of every later passage of the same list. A lead-in
   that does not end in a colon, or one split across two chunks, is not
   carried.
+- **A heading that holds ` > ` is spelled ` › ` in `section_path`.** The path
+  joins its headings with ` > `, and every reader that splits it (the link
+  pass, the table extractor, fact validation) would take `Orders > 50 EUR`
+  for two headings. `headings_of` in `database.qa_generator.passages` splits
+  it and writes the heading back as printed. A passage stored before this
+  keeps its old path until its document is chunked again, and then, its trail
+  having changed, is replaced with the facts resting on it.
 - **A sentence cut at a page or column break is joined back.** A paragraph
   or list item ending on no sentence mark (`.`, `!`, `?`, `:`, `;`),
   followed on the next page or in the next column by a paragraph opening in

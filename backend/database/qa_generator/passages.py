@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,30 @@ if TYPE_CHECKING:
     from database.qa_generator.documents import Document
     from database.qa_generator.fact_passages import FactPassage
     from database.qa_generator.passage_topics import PassageTopic
+
+
+#: What joins the headings of a section path, and what stands for it inside
+#: one: a heading `Orders > 50 EUR` is written `Orders › 50 EUR`.
+_TRAIL = " > "
+_INSIDE = " › "
+
+
+def trail_of(headings: Sequence[str]) -> str:
+    """Writes a heading trail as a section path.
+
+    A heading that holds the separator is spelled so that no reader splits
+    it in two.
+    """
+    return _TRAIL.join(heading.replace(_TRAIL, _INSIDE) for heading in headings)
+
+
+def headings_of(section_path: str | None) -> list[str]:
+    """Reads a section path back into its headings, outermost first."""
+    return [
+        heading.replace(_INSIDE, _TRAIL)
+        for heading in (section_path or "").split(_TRAIL)
+        if section_path
+    ]
 
 
 class Passage(Base):

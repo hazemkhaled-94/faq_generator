@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from functools import partial
 
 from database.qa_generator import FactKind, Rejection
+from database.qa_generator.passages import headings_of
 from extraction.models import (
     BULLET,
     MIN_POINTS,
@@ -470,7 +471,7 @@ class FactChecker:
             labels=tuple(
                 segment
                 for passage, _ in rested
-                for segment in (passage.section_path or "").split(" > ")
+                for segment in headings_of(passage.section_path)
                 if HEADING_LABEL.match(segment.strip())
             ),
             language=anchor.language,
