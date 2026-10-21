@@ -71,9 +71,10 @@ class Settings:
 def cannot_run(settings: Settings) -> str | None:
     """Why no worker would judge anything now, or None where one would.
 
-    The one check the command line and the API share before a verb that
-    clears stored verdicts: a rerun that blanks them for a worker that will
-    claim nothing loses them for good.
+    The API's rerun checks it before it clears stored verdicts: a rerun that
+    blanks them for a worker that will claim nothing loses them for good. The
+    command line does not call it: the queue's preflight in run.py proves the
+    judge answers before it claims an artefact.
     """
     if not settings.enabled:
         return OFF
