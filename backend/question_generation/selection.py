@@ -819,11 +819,12 @@ class Deal:
         the span rules spend three paragraphs on. A compound sample (`apart`)
         is the exception: its second passage was dealt for sharing least, so
         it offers its own facts in its own order. And no second passage
-        offers a copy of what the first did.
+        offers a copy of what the first did, nor takes the room the cap
+        leaves the passages after it.
         """
         each = max(1, self._size // len(passages))
         facts: list[SourceFact] = []
-        for passage in passages:
+        for at, passage in enumerate(passages):
             left = _ordered(self._left(passage), condensed, prefer)
             if facts:
                 left = self._fresh(left, facts)
@@ -831,9 +832,8 @@ class Deal:
             if condensed:
                 # A reading asks for the whole of what a passage says, so a
                 # list is one unit against the cap rather than its items.
-                chosen = _with_siblings(
-                    chosen, left, max(len(chosen), _GROUP_CEILING - len(facts))
-                )
+                room = _GROUP_CEILING - len(facts) - (len(passages) - at - 1)
+                chosen = _with_siblings(chosen, left, max(len(chosen), room))
             facts.extend(chosen)
         dealt = [passage[0].passage_id for passage in passages]
         counted = dealt

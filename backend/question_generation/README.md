@@ -154,6 +154,7 @@ head's first word for word, and a passage holding nothing but such copies is
 not offered, since it answers nothing the head does not. A second passage
 never offers a fact that copies one already offered word for word, and a
 compound partner is never a passage whose claims are all copies of the head's.
+A reading's lists leave each later passage room under the cap of eight facts.
 
 **The corpus's own furniture is never offered.** A copyright notice, contents
 page or revision table is real text a fact extracts from cleanly and no gate

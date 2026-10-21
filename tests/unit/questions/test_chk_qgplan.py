@@ -5,6 +5,8 @@ Bank and shop rows, German and English.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from factories import plan, source
 
@@ -13,7 +15,7 @@ from question_generation.generation import QuestionWriter
 from question_generation.kinds import KINDS
 from question_generation.models import FactGroup
 from question_generation.planning import instead, plans
-from question_generation.selection import Deal, Shape
+from question_generation.selection import _GROUP_CEILING, Deal, Shape
 
 pytestmark = pytest.mark.nlp
 
@@ -240,6 +242,40 @@ def test_a_declined_one_passage_slot_swapped_keeps_a_band_its_shape_can_reach() 
     assert other is not None
     assert (other.spec.name, other.shape) == (QuestionType.FACTOID, Shape.SINGLE)
     assert other.band == "easy", other.band
+
+
+# -- qg-plan-10: a two-passage reading offers more than the ceiling -----------
+
+
+def test_a_two_passage_reading_holds_no_more_than_the_ceiling() -> None:
+    """A head list filling the cap leaves the partner one fact past it."""
+    lead_in = "To open an account you need: " + ", ".join(
+        f"document {at}" for at in range(9)
+    )
+    items = [
+        replace(
+            source(
+                100 + at,
+                document="bank-a",
+                passage_id=1,
+                statement=f"To open an account you need document {at}.",
+            ),
+            evidence=lead_in,
+        )
+        for at in range(9)
+    ]
+    partner = source(
+        200,
+        document="bank-b",
+        passage_id=2,
+        statement="Accounts are free for students.",
+    )
+    deal = Deal([*items, partner], wanted=2, size=2)
+
+    sample = deal.sample(Shape.CROSS, condensed=True)
+
+    assert sample is not None
+    assert len(sample.facts) <= _GROUP_CEILING, len(sample.facts)
 
 
 # -- A partner's different rule is not a copy ---------------------------------
