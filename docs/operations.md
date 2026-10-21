@@ -205,9 +205,14 @@ read back through `/{stage}/status`.
 ```bash
 podman compose --env-file configs/env/deployment.env --env-file .env build
 make up
+make schema
 ```
 
-No migration, no setting, no prompt change and no model call. `make diversity` also prints the part-of-speech compression ratio and the homogenization score; it loads the language's spaCy pipeline and the embedding model `EMBEDDING_MODEL` names on the host, so a report takes about a minute.
+`make schema` applies two revisions on top of v0.4.0's head `d5b2f8a60c14`. `733a3eadef7c` lets `assessment_metrics` hold the six `rubric_*` scores of the DataMorgana paper's judge; its downgrade deletes those rows before the old CHECK returns. `626a5b07ae34` adds `questions.categories`, the categories a question's writer was told; it stays empty on stored questions.
+
+No setting is required. `QUESTIONS_CATEGORIZATIONS` is new and optional: unset, a fresh generation deals the paper's Phrasing (concise, verbose) and Premise (direct, with-premise) at even odds, and the [configuration guide](configuration.md) gives the JSON for the categories to opt into. The writer prompt moves from version 16 to 19. The assessment template moves from version 2 to 4: a root question is judged in six calls and eleven metrics and a follow-up in five, and phoenix-evals' question relevance is no longer asked (stored rows are kept and read as before). On a host checkout run `poetry install`: scipy is now declared, and it was already installed through gensim.
+
+Stored questions keep what they were written with: a fresh `make questions` writes categories, and `make assess-rerun ONLY=--only\ kind=question` judges stored questions again with the paper's judge, which clears and replaces every stored question verdict. `make diversity FILE=<workbook>` measures an exported workbook (n-gram diversity, self-repetition, word and part-of-speech compression ratios, homogenization; `AGAINST=`, `BY=category`, `BY=kind`, `BY=document`) and changes nothing stored. A declined one-passage application slot is now written as a one-passage question instead of being told to span while labelled single.
 
 ## Upgrading to v0.4.1
 
