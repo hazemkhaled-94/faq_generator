@@ -122,3 +122,22 @@ def test_a_value_beside_its_label_equal_to_its_page_number_stays() -> None:
     document.add_text(label=DocItemLabel.TEXT, text="3", prov=on(3, 100, left=300))
 
     assert "3" in texts(document, "de").split()
+
+
+def test_a_page_number_the_foot_missed_after_a_lead_in_is_not_passage_text() -> None:
+    """With running numbers elsewhere, a lead-in ending the page does not make its number a value."""
+    document = pages(3)
+    for page in (1, 3):
+        document.add_text(
+            label=DocItemLabel.PAGE_FOOTER,
+            text=str(page),
+            prov=on(page, 800),
+            content_layer=ContentLayer.FURNITURE,
+        )
+    document.add_heading(text="Voraussetzungen", level=1, prov=on(2, 50))
+    document.add_text(
+        label=DocItemLabel.TEXT, text="Dafür benötigen Sie:", prov=on(2, 780)
+    )
+    document.add_text(label=DocItemLabel.TEXT, text="2", prov=on(2, 800))
+
+    assert "2" not in texts(document, "de").split()

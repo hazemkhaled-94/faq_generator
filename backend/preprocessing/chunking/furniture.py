@@ -387,7 +387,7 @@ def tidied(
     wanting a noun and the second as opening with one, takes that paragraph's text and its place on the page,
     and the paragraph moves to the furniture layer. A paragraph that is a
     page number read as body text, a bare integer in the top or bottom margin
-    of its page, moves there too, and one beside or under its label, or right after a lead-in's colon, does not;
+    of its page, moves there too, and one beside or under its label, or, in a document with no running page numbers, right after a lead-in's colon, does not;
     a price, a rate, a phone
     number or a date with no letter beside it stays, and so does an elision
     mark, `(…)`. A paragraph that only
@@ -625,12 +625,10 @@ def _page_number(
     placed = box.to_top_left_origin(height)
     if not (placed.b <= height * _MARGIN or placed.t >= height * (1 - _MARGIN)):
         return False
-    if _follows_lead_in(item, document):
-        return False
     if furniture.offsets:
         number = int(re.search(r"\d+", item.text).group())  # type: ignore[union-attr]
         return number - page in furniture.offsets
-    return True
+    return not _follows_lead_in(item, document)
 
 
 def _follows_lead_in(item: TextItem, document: DoclingDocument) -> bool:
