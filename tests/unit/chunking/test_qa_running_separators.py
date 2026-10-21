@@ -45,6 +45,21 @@ def test_a_chapter_named_between_dashes_or_dots_leads_the_trail(separator) -> No
     assert chapter_of_last_page(separator) == ["Kreditkarten"]
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "A head parted by single spaces only, `Preisverzeichnis Kreditkarten "
+        "Seite 4`, is one field: its own text does not say where its fields end, "
+        "and telling them needs the heads of the other pages, which neither "
+        "fields() nor _repeats reads. It differs on every page, so it is read as "
+        "a page number and names no chapter"
+    ),
+)
+def test_a_chapter_named_between_single_spaces_leads_the_trail() -> None:
+    """`Preisverzeichnis Kreditkarten Seite 4` names the chapter of page 4."""
+    assert chapter_of_last_page(" ") == ["Kreditkarten"]
+
+
 def chapter_of_last_page(separator: str) -> list[str] | None:
     """The trail of the last passage of a two-chapter price list."""
     document = pages(4)
