@@ -380,15 +380,25 @@ def test_a_language_of_one_distinct_passage_gets_one_topic_holding_it(settings) 
 
 
 @pytest.mark.parametrize(
+    "sizing",
+    [{"passages_per_topic": 40}, {"num_topics": 7, "passages_per_topic": 0}],
+    ids=["sized", "off"],
+)
+@pytest.mark.parametrize(
     "texts",
     [
         ["kreditkarte gebühr", "kreditkarte gebühr gebühr"],
         ["terms apply"] * 3 + ["terms apply online"],
     ],
 )
-def test_passages_the_filter_cannot_tell_apart_get_one_topic(settings, texts) -> None:
-    """The same words in other counts, or copies plus a near-copy, still fit."""
-    sized = settings | {"passages_per_topic": 40}
+def test_passages_the_filter_cannot_tell_apart_get_one_topic(
+    settings, sizing, texts
+) -> None:
+    """The same words in other counts, or copies plus a near-copy, still fit.
+
+    With TOPIC_PASSAGES_PER_TOPIC off too, which is a documented value.
+    """
+    sized = settings | sizing
 
     fitting = FitterDriver(sized, corpus(*texts)).fit("de").fitting
 

@@ -50,6 +50,27 @@ def test_enough_distinct_passages_for_two_topics_name_the_filter(distinct) -> No
         FitterDriver(dict(DEFAULTS), _counts("fee", "card", distinct)).fit("en")
 
 
+@pytest.mark.parametrize("distinct", [2, 39])
+def test_with_sizing_off_fewer_distinct_passages_than_topics_are_one_topic(
+    distinct,
+) -> None:
+    """TOPIC_PASSAGES_PER_TOPIC=0 fits TOPIC_NUM_TOPICS, so that many are too few."""
+    off = dict(DEFAULTS) | {"passages_per_topic": 0}
+
+    fitting = FitterDriver(off, _counts("konto", "karte", distinct)).fit()
+
+    assert len(fitting.fitting.topics) == 1
+    assert fitting.unplaced == 0
+
+
+def test_with_sizing_off_as_many_distinct_passages_as_topics_name_the_filter() -> None:
+    """From TOPIC_NUM_TOPICS distinct passages an empty filter is refused."""
+    off = dict(DEFAULTS) | {"passages_per_topic": 0}
+
+    with pytest.raises(NoVocabulary, match="TOPIC_NO_BELOW"):
+        FitterDriver(off, _counts("fee", "card", 40)).fit("en")
+
+
 def test_a_large_corpus_tfidf_weighs_flat_is_refused_naming_the_share() -> None:
     """Every kept term in every passage of a corpus big enough for topics is refused."""
     flat = dict(DEFAULTS) | {"no_above": 1.0}
@@ -109,7 +130,9 @@ def test_an_ending_only_half_its_carriers_hold_as_a_term_is_still_the_domain() -
 
 def test_a_name_the_ending_is_all_of_keeps_it() -> None:
     """Stripping the whole name would store an empty one."""
-    named = _named("Fees in banking", "Cards in banking", "Loans in banking", "In banking")
+    named = _named(
+        "Fees in banking", "Cards in banking", "Loans in banking", "In banking"
+    )
 
     assert named == {0: "Fees", 1: "Cards", 2: "Loans", 3: "In banking"}
 

@@ -149,7 +149,8 @@ class TopicFitter:
         Passages that cannot be told apart, one passage or copies of it, are
         not fitted: where the frequency filter leaves no term or tf-idf
         weighs every term zero, and the language has too few passages for two
-        topics by TOPIC_PASSAGES_PER_TOPIC, they get one topic holding them.
+        topics by TOPIC_PASSAGES_PER_TOPIC, or fewer than TOPIC_NUM_TOPICS
+        with that off, they get one topic holding them.
 
         Raises:
             NoVocabulary: If the corpus is empty, if no passage has a lemma, if
@@ -276,15 +277,16 @@ class TopicFitter:
         )
 
     def _small(self, passages: int) -> bool:
-        """Whether this many passages are too few for a second topic.
+        """Whether this many passages are too few to split into topics.
 
         By the same sizing `_count` uses: one topic is worth
-        TOPIC_PASSAGES_PER_TOPIC passages and a fit has at least two.
+        TOPIC_PASSAGES_PER_TOPIC passages and a fit has at least two. With
+        that off a fit is TOPIC_NUM_TOPICS topics, which takes as many
+        passages.
         """
-        return (
-            self._passages_per_topic > 0
-            and passages < _FEWEST * self._passages_per_topic
-        )
+        if self._passages_per_topic <= 0:
+            return passages < self._num_topics
+        return passages < _FEWEST * self._passages_per_topic
 
     def _single(self, corpus: Corpus, language: str, counted: int) -> Fitting:
         """The fit of a language too small to split, whose passages cannot be told apart.
