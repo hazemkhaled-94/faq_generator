@@ -8,3 +8,11 @@ Nothing is re-exported here: `llm.config` is plain values and `llm.client`
 loads litellm, and a caller that needs only the first must not pay for the
 second.
 """
+
+import os
+
+# litellm calls load_dotenv() on import unless LITELLM_MODE says otherwise,
+# and a process started as `python -c` (every xdist worker) searches for the
+# file from its working directory up: a worktree under a checkout would read
+# that checkout's .env. The project loads its settings itself (LOADENV, compose).
+os.environ.setdefault("LITELLM_MODE", "PRODUCTION")

@@ -25,6 +25,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 TUNING = ROOT / "configs/env/backend.env"
 
+# Before any test imports litellm, which would otherwise read a .env found
+# above the working directory into every xdist worker (see backend/llm/__init__.py).
+os.environ.setdefault("LITELLM_MODE", "PRODUCTION")
+
 for line in TUNING.read_text().splitlines():
     name, sign, value = line.partition("=")
     if sign and not name.lstrip().startswith("#"):
