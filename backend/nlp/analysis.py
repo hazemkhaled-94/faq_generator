@@ -61,7 +61,32 @@ def _read(text: str, language: str | None) -> Doc:
     Read-only to every caller here, which is what makes sharing a Doc safe:
     nothing below writes to a token, a span or an extension.
     """
-    return pipeline(language)(text)
+    return _grouped(pipeline(language)(text), language)
+
+
+def _grouped(document: Doc, language: str | None) -> Doc:
+    """Merges the digit groups a space joins where the text writes an amount.
+
+    The tokenizer splits `100 000` and `12 500.00` at the space, so a reader
+    of tokens takes each for two figures. A merge keeps every offset and
+    gives the token its own text as its lemma.
+    """
+    spans = []
+    for found in _SPACED.finditer(document.text):
+        if _amount(document.text, found.start(), found.end(), language):
+            span = document.char_span(found.start(), found.end())
+            if span is not None and len(span) > 1:
+                spans.append(span)
+    if spans:
+        with document.retokenize() as merger:
+            for span in spans:
+                merger.merge(span, attrs={"LEMMA": span.text})
+    return document
+
+
+def parse(text: str, language: str | None) -> Doc:
+    """The parse every reading here is made on: `_read`, for a gate that needs a token."""
+    return _read(text, language)
 
 
 @lru_cache(maxsize=1)
@@ -416,7 +441,7 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 #: past its unit and is a word; a name ending in digits starts with a letter.
 #: The unit follows a digit directly: after a dash - `2-mal`, `3-fach` - the
 #: letters make the digits a number word, which states no figure.
-_FIGURE_TOKEN = re.compile(r"[+±−-]?\(?\d[\d.,:/()–-]*(?:(?<=\d)[^\W\d_]{1,4})?%?")
+_FIGURE_TOKEN = re.compile(r"[+±−-]?\(?\d[\d.,:/()– -]*(?:(?<=\d)[^\W\d_]{1,4})?%?")
 
 
 def _figures(span: Doc | Span) -> tuple[str, ...]:
@@ -543,13 +568,119 @@ CARDINALS: dict[str, dict[str, int]] = {
 #: A language missing here reads three digits after either mark as thousands.
 DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 
+#: The words that mark an amount of money, by ISO 639-1 code, as lower case:
+#: codes, symbols and names. A number grouped by a space - `5 000 Euro`,
+#: `EUR 100 000`, `12 500.00 GBP` (DIN 5008 and SI) - is read as one figure
+#: only with one of them directly before or after it. Anywhere else a space
+#: is no thousands mark: a flattened table row, a phone number. A language
+#: missing here reads the groups as separate figures.
+#:
+#: ponytail: one group of three digits after the head, so an amount past
+#: 999 999 written `1 000 000` stays three figures. Upgrade: read a longer
+#: run where a currency stands beside each of its numbers.
+AMOUNT_WORDS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        [
+            "eur",
+            "euro",
+            "usd",
+            "dollar",
+            "gbp",
+            "pfund",
+            "chf",
+            "franken",
+            "€",
+            "$",
+            "£",
+        ]
+    ),
+    "en": frozenset(
+        [
+            "eur",
+            "euro",
+            "euros",
+            "usd",
+            "dollar",
+            "dollars",
+            "gbp",
+            "pound",
+            "pounds",
+            "chf",
+            "€",
+            "$",
+            "£",
+        ]
+    ),
+}
+
+#: The words that label a reference by a number, by ISO 639-1 code, as lower
+#: case: `Section 3 100 customers` is a section and a count, whatever stands
+#: after it.
+REFERENCE_LABELS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        [
+            "abschnitt",
+            "absatz",
+            "artikel",
+            "art",
+            "ziff",
+            "ziffer",
+            "nr",
+            "kapitel",
+            "seite",
+            "§",
+            "tabelle",
+        ]
+    ),
+    "en": frozenset(
+        [
+            "section",
+            "article",
+            "art",
+            "clause",
+            "chapter",
+            "no",
+            "page",
+            "paragraph",
+            "para",
+            "table",
+        ]
+    ),
+}
+
+#: A head of one to three digits and one group of exactly three, alone: not
+#: part of a longer run of groups, as a table row is.
+_SPACED = re.compile(r"(?<![\w.,])(?<!\d )\d{1,3} \d{3}(?:[.,]\d+)?(?![\w])(?! \d)")
+
+
+def _beside(found: re.Match[str] | None) -> str:
+    """The word a match holds, lower case and bare of punctuation."""
+    return found[1].strip(".,;:()").casefold() if found else ""
+
+
+def _amount(text: str, start: int, end: int, language: str | None) -> bool:
+    """Whether a space-grouped run is an amount: a currency word beside it, no label before.
+
+    A text that is the run alone is one, as a unit read back out of an amount.
+    """
+    if not text[:start].strip() and not text[end:].strip(" ."):
+        return True
+    code = (language or "").strip().lower()
+    before = _beside(re.search(r"(\S+)\s?$", text[:start]))
+    after = _beside(re.match(r"\s?(\S+)", text[end:]))
+    return before not in REFERENCE_LABELS.get(code, ()) and bool(
+        {before, after} & AMOUNT_WORDS.get(code, frozenset())
+    )
+
+
 #: A figure as either convention writes one: 1.234,56 and 1,234.56 are the
 #: same value, and 65 is itself. The second alternative stops at a separator
 #: that carries a digit, so 1200 in `1200.` is a figure and the 1 of `1.234`
 #: is not. The third alternative is a long figure with a fraction and no
-#: thousands mark: `1299,99`, `2500.00`.
+#: thousands mark: `1299,99`, `2500.00`. The first is a number grouped by
+#: spaces, which `figures` reads as one only beside a currency, see `_amount`.
 FIGURE = re.compile(
-    r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
+    _SPACED.pattern + r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
     r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
 )
@@ -571,6 +702,14 @@ def figures(text: str, language: str | None = None) -> list[float]:
     found: list[float] = []
     for match in FIGURE.finditer(text):
         raw = match.group()
+        if " " in raw:
+            if _amount(text, match.start(), match.end(), language):
+                raw = raw.replace(" ", "")
+            else:
+                found += [
+                    one for part in raw.split() for one in figures(part, language)
+                ]
+                continue
         head, separator, tail = (
             raw.rpartition(",") if "," in raw[-4:] else raw.rpartition(".")
         )
@@ -622,7 +761,7 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: A run of digits, with the decimal or thousands marks inside it. Read off a
 #: token rather than off `like_num`, so a figure glued to its unit - `45m` -
 #: or written as a time - `08:00` - is still a number.
-_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
+_DIGITS = re.compile(r"\d+(?: \d{3})*(?:[.,]\d+)*")
 
 #: The zeros a run of digits opens with, which are no part of its value.
 _PADDING = re.compile(r"^0+(?=\d)")

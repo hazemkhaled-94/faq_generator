@@ -48,6 +48,7 @@ from nlp.analysis import (
     interrogatives,
     is_number,
     normalised,
+    parse,
     phrases,
     vocabulary,
 )
@@ -1504,7 +1505,7 @@ def relabelled(
         return kind
     numbers = sum(
         1
-        for token in pipeline(language)(answer or "")
+        for token in parse(answer or "", language)
         if token.pos_ == "NUM"
         or token.like_num
         or any(char.isdigit() for char in token.text)

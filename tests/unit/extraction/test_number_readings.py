@@ -3,7 +3,7 @@
 import pytest
 from drivers import Checker, passage
 
-from nlp.analysis import numbers
+from nlp.analysis import figures, numbers
 
 
 def ok(lang, text, fact=None):
@@ -195,3 +195,68 @@ def test_one_as_a_number_is_still_checked(text, fact):
 def test_one_card_per_account_is_still_read_as_one():
     """The numeral reading of `one` survives."""
     must_validate("en", "Each account holds 1 card.", "Each account holds one card.")
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "de",
+            "Ihr Geld ist bis zu 100 000 Euro geschützt.",
+            "Ihr Geld ist bis zu 100.000 Euro geschützt.",
+        ),
+        (
+            "en",
+            "Deposits are protected up to EUR 100,000.",
+            "Deposits are protected up to EUR 100 000.",
+        ),
+    ],
+)
+def test_a_space_grouped_amount_is_one_value_in_the_fact_check(lang, text, fact):
+    """One amount written two ways adds nothing; `numbers` reads it as one."""
+    must_validate(lang, text, fact)
+    assert numbers(fact, lang) == numbers(text, lang)
+
+
+def test_a_reference_and_a_figure_are_not_one_grouped_number():
+    """A heading number and a figure after it stay two."""
+    assert numbers("Artikel 3 Absatz 12 gilt.", "de") == ("12", "3")
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "en",
+            "Under Section 3 100 customers were refunded.",
+            "Under Section 3, 100 customers were refunded.",
+        ),
+        (
+            "de",
+            "Laut Abschnitt 2 300 Euro werden erstattet.",
+            "Laut Abschnitt 2 werden 300 Euro erstattet.",
+        ),
+    ],
+)
+def test_a_reference_then_a_figure_still_validates(lang, text, fact):
+    """A reference label before a space-grouped run keeps its two numbers."""
+    must_validate(lang, text, fact)
+
+
+@pytest.mark.parametrize(
+    ("text", "lang", "expected"),
+    [
+        ("Fees by tier: 100 200 300 GBP.", "en", [100.0, 200.0, 300.0]),
+        ("Gebühren je Stufe 10 250 500 Euro.", "de", [10.0, 250.0, 500.0]),
+        ("Rufen Sie 030 123 456 an.", "de", [30.0, 123.0, 456.0]),
+        ("Deposits up to 1 299,99 EUR.", "en", [1299.99]),
+    ],
+)
+def test_a_row_of_figures_is_not_one_grouped_number(text, lang, expected):
+    """A flattened table row or a phone number is not thousands."""
+    assert sorted(figures(text, lang)) == sorted(expected)
+
+
+def test_a_language_without_amount_words_reads_no_grouped_number():
+    """`fr` is read by the English model, and still groups nothing."""
+    assert numbers("Codes 100 200 300 EUR", "fr") == ("100", "200", "300")
