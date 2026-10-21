@@ -531,7 +531,12 @@ fact minus its answer.
 ### The round trip
 
 `not_recoverable` is the one no similarity measure makes. A second model is
-shown **only the cited passages** and asked to answer; the question survives
+shown **only the cited passages** and asked to answer, and to answer only
+where they answer the question as it is asked rather than a narrower one, so
+a reworded question that drifted from its passage comes back not in the
+passages. The same read says whether the question asks one thing, which
+`compound` refuses when it does not, and whether a why has a reason beyond
+its own rule, which `not_recoverable` refuses when it has none. The question survives
 if what comes back carries every number, name and date the target asserts,
 and enough of what it is about. A `value` is compared whole, on its verbs as
 well as its nouns and adjectives, so `a report` is what a passage saying

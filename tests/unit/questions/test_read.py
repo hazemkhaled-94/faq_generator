@@ -234,3 +234,19 @@ def test_a_question_not_asking_why_is_not_held_to_a_reason() -> None:
     result = build(verifier).check(_welded("en"))
 
     assert result.status == QuestionStatus.ACCEPTED
+
+
+# ── The question as it is asked ────────────────────────────────────────────
+
+
+def test_the_read_answers_only_the_question_as_it_is_asked() -> None:
+    """A passage answering a narrower question is not one answering this one."""
+    client = Client(in_passage=False)
+
+    Verifier(client).read(
+        "What do card payments abroad cost?",
+        ["Card payments abroad in a currency other than euro cost 1.5 percent."],
+    )
+
+    system = " ".join(client.asked[-1][0].split())
+    assert "the question as it is asked" in system

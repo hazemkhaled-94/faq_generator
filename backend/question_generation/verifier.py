@@ -34,7 +34,7 @@ from llm.client import Client
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "8"
+PROMPT_VERSION = "9"
 
 #: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
 #: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
@@ -121,6 +121,9 @@ FORMAT
 - It is false when you would need something the passages do not contain - a
   fact you know from elsewhere, a number you would have to estimate or
   round, a party or a period they never name.
+- Answer only when the passages answer the question as it is asked, not a
+  narrower one: passages giving what card payments in a foreign currency
+  cost do not say what card payments abroad cost.
 - `answer` is the answer, taken from the passages, when in_passage is true.
   Leave it empty otherwise. IN THE WORDS OF THE PASSAGES, and so in their
   language, whatever it is: an answer translated into any other language is
