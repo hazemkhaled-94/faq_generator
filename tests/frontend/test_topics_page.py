@@ -441,3 +441,18 @@ def test_the_deletion_warning_is_different_when_there_is_nothing_to_delete(
     )
 
     assert "There are no topics" in drawn.text()
+
+
+def test_the_steps_describe_what_a_refit_and_the_placing_of_passages_do(page) -> None:
+    """A person's name and coverage choice carry, a model's name is given again.
+
+    And a passage above no weight floor joins its nearest topic where it has a
+    vector, so the page does not say it stays unplaced.
+    """
+    text = page(topic_fit=fit()).tables()
+
+    assert "does not rename the corpus" not in text
+    assert "only signature" not in text
+    assert "reported rather than hidden" not in text
+    assert "nearest" in text
+    assert "again" in text

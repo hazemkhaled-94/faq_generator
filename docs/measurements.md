@@ -183,7 +183,8 @@ can rest on.
 | Largest topic, share of its language | 6.6% | 5.9% |
 
 Topics hold 10 to 99 dominant passages, 40.4 on average. 9 of the 76 went
-unlabelled, below `TOPIC_LABEL_MIN_FACT_SHARE`.
+unlabelled, below the fact share that `TOPIC_LABEL_MIN_FACT_SHARE` set and
+v0.4.4 removed.
 
 ## Question generation
 

@@ -96,8 +96,9 @@ class Topic(Base):
     )
     top_terms: Mapped[list[str]] = mapped_column(
         ARRAY(Text),
-        comment="Highest-weighted terms, descending. The topic's readable identity "
-        "and the only signature a label is matched on across a refit.",
+        comment="Highest-weighted terms, descending. The topic's readable identity. "
+        "A label is carried across a refit by the passages a topic holds, not by "
+        "these terms.",
     )
     label: Mapped[str | None] = mapped_column(
         Text, comment="The subject this topic is, in words."
@@ -108,8 +109,9 @@ class Topic(Base):
         "normalised back to length 1. Derived rather than asked for: it is an "
         "average of passages.embedding computed in SQL, so no worker loads a "
         "model to write it and it cannot disagree with the passages it is the "
-        "mean of. Written by every fit; nothing reads it. NULL until the "
-        "passages are embedded.",
+        "mean of. Written by every fit, and read to place each passage the "
+        "fit left in no topic in the nearest one. NULL until the passages "
+        "are embedded.",
     )
     labelled_by: Mapped[str | None] = mapped_column(
         Text,

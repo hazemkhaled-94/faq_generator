@@ -78,24 +78,27 @@ _STEPS = (
     ),
     explain.Step(
         "Read the topics out",
-        "The highest-weighted terms of each component. This is also the only "
-        "signature a label is matched on across a refit.",
+        "The highest-weighted terms of each component, which are its readable "
+        "identity. A decision is carried across a refit by the passages a "
+        "topic holds, not by these terms.",
         ("service.py",),
         ("TOPIC_TOP_TERMS",),
     ),
     explain.Step(
         "Score every passage",
         "Each passage is scored against the fitted model, keeping every "
-        "membership above the floor. A passage above none of them is "
-        "unplaced, which is reported rather than hidden.",
+        "membership above the floor. A passage above none of them joins the "
+        "topic whose centroid is nearest, where it has a vector, and is "
+        "reported as unplaced where it has none.",
         ("service.py",),
         ("TOPIC_MIN_WEIGHT",),
     ),
     explain.Step(
         "Name and carry the labels over",
-        "A served model names each topic from its terms. Labels from the "
-        "previous fit a person gave go where most of their passages went, "
-        "each used at most once, so a refit does not rename the corpus.",
+        "A served model names each topic from its terms and excerpts. A name or "
+        "coverage choice a person made goes to the new topic holding most of "
+        "the passages it was made for, each used at most once; a model's name "
+        "is given again by the next fit.",
         ("service.py",),
         ("TOPIC_MODEL",),
     ),

@@ -46,8 +46,10 @@ class TopicDiscovery:
 class TopicDescription(BaseModel):
     """What a person decided about one topic.
 
-    Both survive a refit by being matched on top terms. A field left out is
-    left as it is: `label: null` is how a name is cleared.
+    Both survive a refit by the passages: they go to the new topic holding
+    most of the passages they were made for, and a name a model gave is given
+    again. A field left out is left as it is: `label: null` is how a name is
+    cleared.
     """
 
     label: str | None = Field(default=None, max_length=120)
