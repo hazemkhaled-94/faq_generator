@@ -146,6 +146,9 @@ class TopicFitter:
             The topics, the memberships above the weight floor, and the whole
             fitted space.
 
+        Passages that are all one text, or one passage, are not fitted: they
+        get one topic holding them.
+
         Raises:
             NoVocabulary: If the corpus is empty, if the frequency filter left
                 no terms, if a second walk yields nothing, or if tf-idf weighs
@@ -153,14 +156,19 @@ class TopicFitter:
         """
         dictionary = corpora.Dictionary()
         counted = 0
+        distinct: set[int] = set()
         for batch in batched((p.lemmas for p in corpus()), _BATCH):
             dictionary.add_documents(batch, prune_at=None)  # pyright: ignore[reportArgumentType]
             counted += len(batch)
+            distinct.update(hash(tuple(sorted(one))) for one in batch if one)
 
         if not counted:
             raise NoVocabulary(
                 f"there are no {language} passages to fit a topic model over"
             )
+
+        if len(distinct) == 1:
+            return self._single(corpus, language, counted)
 
         before = len(dictionary)
         # A count against a share is unsatisfiable on a small corpus: no term
@@ -254,6 +262,47 @@ class TopicFitter:
             vocabulary=len(dictionary),
             space=space,
             unplaced=tuple(unplaced),
+        )
+
+    def _single(self, corpus: Corpus, language: str, counted: int) -> Fitting:
+        """The fit of a language whose passages are all one text.
+
+        There is nothing to split, and every term is in every passage, so
+        tf-idf weighs them all zero. The one topic holds every passage that
+        has lemmas, so the facts they carry reach a question unit; a passage
+        with none is left unplaced, as in any fit.
+        """
+        terms: Counter[str] = Counter()
+        held: list[PassageVocabulary] = []
+        without: list[int] = []
+        for passage in corpus():
+            if passage.lemmas:
+                terms.update(passage.lemmas)
+                held.append(passage)
+            else:
+                without.append(passage.id)
+        vocabulary = [term for term, _ in terms.most_common()]
+        total = sum(terms.values())
+        log.info(
+            "%s: %d passage(s) are one text, so one topic holds them", language, counted
+        )
+        return Fitting(
+            language=language,
+            topics=[
+                FittedTopic(topic_index=0, top_terms=vocabulary[: self._top_terms])
+            ],
+            weights=[PassageWeight(one.id, 0, 1.0) for one in held],
+            passages=counted,
+            without_topics=len(without),
+            vocabulary=len(vocabulary),
+            space=TopicSpace(
+                topic_term=[[terms[term] / total for term in vocabulary]],
+                doc_topic=[[1.0] for _ in held],
+                doc_lengths=[len(one.lemmas) for one in held],
+                vocabulary=vocabulary,
+                term_frequency=[terms[term] for term in vocabulary],
+            ),
+            unplaced=tuple(without),
         )
 
     def _count(self, passages: int) -> int:

@@ -60,7 +60,9 @@ is an outstanding request, and a row that has one is a topic.
    callable returning a fresh walk, because a fit reads the corpus once to
    build the vocabulary, once to read each passage's tf-idf vector (which it
    holds), and for each of its eight draws once per pass to fit and once more
-   to score.
+   to score. A language whose passages are all one text, one passage or copies
+   of it, is not fitted: it gets one topic holding them, its most frequent
+   lemmas as terms, so the facts it carries still reach a question unit.
 4. **Filter it.** `filter_extremes` drops terms below `TOPIC_NO_BELOW`
    passages and above `TOPIC_NO_ABOVE` of them. Two failures are raised
    rather than fitted through: an empty vocabulary, and a vocabulary whose

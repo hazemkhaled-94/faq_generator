@@ -6,7 +6,7 @@ from math import isnan
 
 import pytest
 import synth_topics as st
-from topic_drivers import FitterDriver, corpus
+from topic_drivers import FitterDriver
 
 from topic_modelling.models import PassageVocabulary
 from topic_modelling.topics import NoVocabulary
@@ -256,12 +256,6 @@ def test_a_settings_refusal_names_the_environment_variable(settings) -> None:
         FitterDriver(settings | {"num_topics": 1})
 
 
-def test_a_corpus_of_one_passage_has_no_vocabulary_to_tell_apart(settings) -> None:
-    """Every term appears in the only passage, so the share filter takes it."""
-    with pytest.raises(NoVocabulary):
-        FitterDriver(settings, corpus("lieferung versand transport")).fit("de")
-
-
 def test_the_fit_keeps_the_most_cohesive_of_its_seeded_draws(
     settings, passages, monkeypatch
 ) -> None:
@@ -362,3 +356,24 @@ def test_two_identical_passages_get_identical_memberships(domain, language) -> N
         )
     ]
     assert differ == []
+
+
+def test_a_language_of_one_distinct_passage_gets_one_topic_holding_it(settings) -> None:
+    """One passage, or copies of it, is one subject: a fit has nothing to split."""
+    same = ("zinsen", "kredit", "kredit")
+    fitting = (
+        FitterDriver(settings)
+        .with_passage(1, *same)
+        .with_passage(2, *same)
+        .with_passage(3)
+        .fit("de")
+        .fitting
+    )
+
+    assert [t.top_terms for t in fitting.topics] == [["kredit", "zinsen"]]
+    assert {(w.passage_id, w.topic_index, w.weight) for w in fitting.weights} == {
+        (1, 0, 1.0),
+        (2, 0, 1.0),
+    }
+    assert fitting.unplaced == (3,)
+    assert fitting.space.doc_topic == [[1.0], [1.0]]

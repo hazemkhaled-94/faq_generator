@@ -8,7 +8,8 @@ gensim and pyLDAvis.
 from __future__ import annotations
 
 import pytest
-from topic_drivers import LabellerDriver, corpus
+import synth_topics as st
+from topic_drivers import LabellerDriver, ServiceDriver, corpus
 
 from topic_modelling.models import FittedTopic, PassageVocabulary
 from topic_modelling.space import load
@@ -118,7 +119,9 @@ def test_a_language_the_filter_empties_is_left_out_and_fails_the_request(
     service, passages, english
 ) -> None:
     """One language failing must not take the others with it, nor go unsaid."""
-    flow = service({"de": passages, "en": corpus("solitary", first_id=900)})
+    flow = service(
+        {"de": passages, "en": corpus("alpha", "beta", "gamma", first_id=900)}
+    )
 
     flow.request_and_run()
 
@@ -594,3 +597,24 @@ def test_the_prompt_holds_no_more_excerpts_than_the_service_allows(
         for block in str(ask["user"]).split("Topic ")[1:]:
             excerpts = block.count("\n- ")
             assert excerpts <= _EXCERPTS, excerpts
+
+
+@pytest.mark.parametrize(
+    ("big", "small"),
+    [(("bank", "de"), ("bank", "en")), (("shop", "en"), ("shop", "de"))],
+)
+def test_a_language_of_one_passage_still_gets_a_topic(big, small) -> None:
+    """One English disclaimer in a German bank brochure: its facts need a topic."""
+    flow = ServiceDriver(
+        settings=dict(st.DEFAULTS),
+        corpora={
+            big[1]: st.corpus(*big, 80, seed=3),
+            small[1]: st.corpus(*small, 1, seed=4, first_id=5_001),
+        },
+    )
+
+    flow.request_and_run()
+
+    assert small[1] in flow.languages_stored, flow.failure
+    assert flow.failure is None
+    assert small[1] in flow.figures

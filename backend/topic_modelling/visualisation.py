@@ -29,6 +29,9 @@ def _real_pcoa(distances):
     which returns complex values that json.dumps then refuses. The upgrade is
     `eigh`, which is the routine for a symmetric matrix.
     """
+    if len(distances) == 1:
+        # One topic has no distance to place it by.
+        return np.zeros((1, 2))
     return np.real(pyLDAvis.js_PCoA(distances))
 
 

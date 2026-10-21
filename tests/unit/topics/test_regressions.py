@@ -26,7 +26,7 @@ def test_a_corpus_tfidf_weighs_flat_is_refused_rather_than_fitted(settings) -> N
     """
     flat = FitterDriver(
         settings | {"no_below": 1, "no_above": 1.0},
-        corpus("lieferung versand", "lieferung versand"),
+        corpus("lieferung lieferung versand", "lieferung versand versand"),
     )
 
     with pytest.raises(NoVocabulary, match="TOPIC_NO_ABOVE"):
@@ -61,7 +61,7 @@ def test_a_language_of_a_few_passages_still_gets_topics(domain, small) -> None:
 
 
 def test_a_language_the_fit_could_not_model_fails_the_request_it_still_stored() -> None:
-    """One passage cannot be modelled, and that is said, not logged.
+    """Passages with no lemma cannot be modelled, and that is said, not logged.
 
     The other language's topics are stored all the same, and the request is
     kept failed with the reason, which is what the stage and the API show.
@@ -70,7 +70,7 @@ def test_a_language_the_fit_could_not_model_fails_the_request_it_still_stored() 
         settings=DEFAULTS,
         corpora={
             "en": synthetic("bank", "en", 400, seed=2),
-            "de": synthetic("bank", "de", 1, seed=3, first_id=1001),
+            "de": corpus("", "", first_id=1001),
         },
     )
 
