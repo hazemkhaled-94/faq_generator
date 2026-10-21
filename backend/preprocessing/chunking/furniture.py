@@ -422,12 +422,16 @@ def tidied(
     """
     junk = _junk(language)
     given, document = document, _demoted(document, junk)
+    after_lead_in = _after_lead_in(document)
     debris = _dividers(document) | {
         item.self_ref
         for item in document.texts
         if item.content_layer == ContentLayer.BODY
         and item.label in _PROSE
-        and (_repeats(item.text, furniture) or _page_number(item, document, furniture))
+        and (
+            _repeats(item.text, furniture)
+            or _page_number(item, document, furniture, after_lead_in)
+        )
     }
     restated = _restated(document, debris, junk)
     debris |= {reference for reference, level in restated if level is None}
@@ -614,7 +618,10 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
 
 
 def _page_number(
-    item: TextItem, document: DoclingDocument, furniture: Furniture
+    item: TextItem,
+    document: DoclingDocument,
+    furniture: Furniture,
+    after_lead_in: set[str],
 ) -> bool:
     """Whether a paragraph is a page number and nothing else.
 
@@ -622,7 +629,8 @@ def _page_number(
     page, and - where the document's running page numbers show an offset -
     equal to its page's number plus one of them. A value beside or under its
     label, `30` after `Return period (days):`, is no page number, and neither
-    is a value whose item has no position: it stays text.
+    is a value whose item has no position: it stays text. `after_lead_in`
+    holds the items `_after_lead_in` finds.
     """
     if _PAGE_NUMBER.fullmatch(item.text.strip()) is None or not item.prov:
         return False
@@ -637,18 +645,22 @@ def _page_number(
     if furniture.offsets:
         number = int(re.search(r"\d+", item.text).group())  # type: ignore[union-attr]
         return number - page in furniture.offsets
-    return not _follows_lead_in(item, document)
+    return item.self_ref not in after_lead_in
 
 
-def _follows_lead_in(item: TextItem, document: DoclingDocument) -> bool:
-    """Whether the text block right before an item ends on a lead-in's colon."""
-    before = None
-    for other, _ in document.iterate_items():
-        if other.self_ref == item.self_ref:
-            break
-        if isinstance(other, TextItem) and other.content_layer == ContentLayer.BODY:
-            before = other
-    return before is not None and before.text.rstrip().endswith(LEAD_IN)
+def _after_lead_in(document: DoclingDocument) -> set[str]:
+    """The items whose text block right before them ends on a lead-in's colon.
+
+    Read in one walk, so a document is not walked again for each page number.
+    """
+    found: set[str] = set()
+    before: TextItem | None = None
+    for item, _ in document.iterate_items():
+        if before is not None and before.text.rstrip().endswith(LEAD_IN):
+            found.add(item.self_ref)
+        if isinstance(item, TextItem) and item.content_layer == ContentLayer.BODY:
+            before = item
+    return found
 
 
 def _plain(text: str) -> str:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import DoclingDocument, ProvenanceItem
 from docling_core.types.doc.labels import DocItemLabel
@@ -61,14 +60,6 @@ def items_walked(document: DoclingDocument, monkeypatch) -> int:
     return walked
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "_follows_lead_in walks the whole document once per page number read as "
-        "body text, so tidying is quadratic in pages: 23 s of an 800-page document's "
-        "24 s go there"
-    ),
-)
 def test_tidying_walks_each_item_a_bounded_number_of_times(monkeypatch) -> None:
     """Doubling the pages at most doubles the walk, give or take a page."""
     short = items_walked(price_list(40), monkeypatch)
