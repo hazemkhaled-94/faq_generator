@@ -75,6 +75,18 @@ def test_a_preposition_opening_a_fact_points_nowhere(text) -> None:
 
 
 @pytest.mark.parametrize(
+    "text",
+    [
+        "An above-average interest rate is paid on savings.",
+        "Above-average balances earn 2% interest.",
+    ],
+)
+def test_a_hyphen_compound_on_a_pointing_word_points_nowhere(text) -> None:
+    """`above-average` is one adjective, not the pointing `above`."""
+    assert references(text, "en") == ()
+
+
+@pytest.mark.parametrize(
     "between",
     [
         "Wir prüfen alle Angaben.",

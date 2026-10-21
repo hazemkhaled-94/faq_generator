@@ -1600,6 +1600,10 @@ def _opens(token) -> bool:
             return False
     if noun.i < token.i:
         return False
+    # The first part of a hyphen compound, `above-average`, is no word alone.
+    glued = not token.whitespace_ and token.i + 1 < len(token.doc)
+    if glued and token.nbor().text in ("-", "\u2013"):
+        return False
     text = token.text.casefold()
     forms = {text, token.doc[token.i - 1].text.casefold() + text if token.i else text}
     words = {token.lemma_.casefold(), *forms} | {
