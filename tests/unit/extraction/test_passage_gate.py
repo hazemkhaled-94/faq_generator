@@ -41,8 +41,8 @@ def test_a_passage_with_no_finite_verb_is_skipped(text: str) -> None:
         ),
         (
             "en",
-            "Glossary > Dormant account",
-            "An account with no payment by its holder for 24 months.",
+            "Glossary > Standing order",
+            "An instruction to the bank to pay a fixed amount at regular intervals.",
         ),
         (
             "de",
@@ -113,6 +113,38 @@ def test_a_verbless_line_defining_nothing_is_still_skipped(
     under = passage(text, language=language, section_path=path)
 
     assert skipped(under) == "no finite verb", text
+
+
+@pytest.mark.parametrize(
+    ("language", "path", "text", "reason"),
+    [
+        (
+            "en",
+            "Index > Fees",
+            "Overdraft interest on page 12 of the brochure.",
+            "an index, a bibliography or a contents page rather than prose",
+        ),
+        (
+            "de",
+            "Stichwortverzeichnis > Konto",
+            "Kontoeröffnung auf Seite 4 und 7.",
+            "an index, a bibliography or a contents page rather than prose",
+        ),
+        (
+            "de",
+            "Rechtliches > Lizenz",
+            "Nutzung der Broschüre nur für private Zwecke, © 2026 Beispielbank.",
+            "a copyright notice, which is about the document",
+        ),
+    ],
+)
+def test_a_line_read_as_a_definition_faces_every_other_check(
+    language, path, text, reason
+) -> None:
+    """An index entry or a notice shaped like a definition is still skipped as one."""
+    under = passage(text, language=language, section_path=path)
+
+    assert skipped(under) == reason, skipped(under)
 
 
 def test_a_passage_repeating_its_own_heading_trail_is_skipped() -> None:
