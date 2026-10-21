@@ -17,6 +17,9 @@ from llm.prompt import fill
 from llm.spans import RELATIONS
 from nlp.models import named as in_language
 
+#: What the model may answer as the relation: none, or one of the table's.
+_NAMES = ("none", *RELATIONS)
+
 #: Recorded on every bridge drawn with the prompt below. Bumped whenever that
 #: prompt changes what counts as a bridge or how one is cited: two prompts are
 #: two datasets.
@@ -98,8 +101,7 @@ Two excerpts:
 FORMAT
 Return ONE object:
 
-- `relation`: one of none, defines, limits, consequence, applies, parallel,
-  contrast. With `none`, leave the rest empty.
+{{relation_names}}
 - `facts`: exactly two entries, one per excerpt: the excerpt's number
   (`excerpt`) and the number of the fact you picked (`fact`).
 - `statement`: ONE claim relating the two facts, written by you, naming its
@@ -129,6 +131,16 @@ Rules, all of them mandatory:
             subsequent_indent="     ",
         )
     ),
+).replace(
+    "{{relation_names}}",
+    "\n".join(
+        wrap(
+            f"- `relation`: one of {', '.join(_NAMES)}. With `none`, leave the rest "
+            "empty.",
+            width=79,
+            subsequent_indent="  ",
+        )
+    ),
 )
 
 #: The user message, as the catalogue records it and `_prompt` renders it.
@@ -153,9 +165,9 @@ class _Chosen(BaseModel):
 class _Answer(BaseModel):
     """The model's answer for one pair of passages: one bridge, or none."""
 
-    relation: Literal[
-        "none", "defines", "limits", "consequence", "applies", "parallel", "contrast"
-    ] = Field(description="How the two facts relate; none when no question needs both.")
+    relation: Literal[_NAMES] = Field(  # pyright: ignore[reportInvalidTypeForm]
+        description="How the two facts relate; none when no question needs both."
+    )
     facts: list[_Chosen] = Field(
         default_factory=list,
         description="One fact of each excerpt: its excerpt number and fact number.",

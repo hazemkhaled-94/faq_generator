@@ -1,13 +1,9 @@
-"""What a question or a bridge over N passages needs from each: the relations a bridge may name and (B4) the per-passage reading. Shared by extraction and question generation, which may not import each other."""
+"""What a question or a bridge over N passages needs from each: the relations a bridge may name and (B4) the per-passage reading. Here rather than in extraction, so question generation, which may not import it, can read the same table; today only the bridge pass does."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
-
-RelationName = Literal[
-    "defines", "limits", "consequence", "applies", "parallel", "contrast"
-]
 
 
 @dataclass(frozen=True)

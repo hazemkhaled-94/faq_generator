@@ -169,10 +169,14 @@ the check.
 
 `spans.py` holds the relations a bridge may name (defines, limits,
 consequence, applies, parallel, contrast), each with the meaning the bridge
-prompt gives it and where its answer comes from. The bridge pass and the
-question checker read the one table, and the quote check that decides what a
-passage holds lives in `nlp/text.py` for the same reason: extraction and
-question generation may not import each other.
+prompt gives it and where its answer comes from. Only the bridge pass reads it
+today: its prompt's list of relations, the names its FORMAT line offers and
+the names its answer schema takes are all read off the one table, so a
+relation added there is one the model is offered and may answer (the
+`facts.bridge` CHECK takes it once a revision adds it). Where an answer comes
+from is not read yet. It sits here rather than in extraction, as the quote
+check that decides what a passage holds sits in `nlp/text.py`, because
+extraction and question generation may not import each other.
 
 ## Cost and latency
 
