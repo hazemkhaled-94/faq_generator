@@ -106,8 +106,9 @@ is an outstanding request, and a row that has one is a topic.
    they print takes their spelling, case aside (`Grosskunden` where the
    model wrote `Großkunden`); a letter they never use is folded; and two or
    more trailing words that more than half of three or more names end on —
-   the domain the whole corpus shares — are taken off. `Mixed` is stored as
-   no name. `labelled_by` records `person` or the model identifier.
+   the domain the whole corpus shares — are taken off. A topic the model flags
+   `no_subject` is stored as no name, whatever language it would have said so
+   in. `labelled_by` records `person` or the model identifier.
 10. **Replace the fitted languages, in one transaction** for all of them. A
     language the fit skipped keeps its topics and memberships; one that no
     passage carries any more, its last document removed, loses its topics,
@@ -307,5 +308,6 @@ Most tests act through an object rather than the code under test directly —
 The quality of the topics themselves is not asserted. Whether the number of
 topics is right is a measurement, and a threshold on coherence would fail on
 somebody else's corpus rather than on a regression. What is asserted is that
-the prompt carries what it should, that `Mixed` is stored as no name, and
+the prompt carries what it should, that a topic flagged `no_subject` is stored
+as no name, and
 that an unreachable model does not lose the fit.

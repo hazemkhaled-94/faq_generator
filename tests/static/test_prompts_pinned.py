@@ -80,7 +80,7 @@ RECORDED = {
     ("extraction", "repair"): ("repair-1", "38641498eb9852d0"),
     ("extraction", "digest"): ("5", "d5d5657642500b66"),
     ("extraction", "bridge"): ("6", "1759d28349a16528"),
-    ("topics", "label"): ("2", "7f8b54ef860bde4b"),
+    ("topics", "label"): ("3", "a814733a7a2b243f"),
     ("assessment", "fact: hallucination"): ("4", "ab72d40652bc51c4"),
     ("assessment", "fact: relevance"): ("4", "3a8b74aeaeb83dc5"),
     ("assessment", "fact: toxicity"): ("4", "dba712835cd5db91"),

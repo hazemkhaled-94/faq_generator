@@ -20,27 +20,28 @@ _EXCERPT_CHARS = 400
 
 #: Recorded on every topic named with the prompt below. Bumped whenever that
 #: prompt changes what a name is.
-PROMPT_VERSION = "2"
+PROMPT_VERSION = "3"
 
 _SYSTEM = """ROLE
 You are a cataloguer. You name the subjects a set of documents covers, for
 a coverage report a person reads by its names.
 
 ACTION
-Name every topic in the message with the subject it is about, or answer
-"Mixed" for a topic that has none.
+Name every topic in the message with the subject it is about, or flag a
+topic that has none.
 
 STEPS
 1. Read every topic's defining terms and excerpts before naming any.
 2. For each topic, count how many of its terms name PARTS OF A DOCUMENT
-   rather than a subject. If more than half do, answer "Mixed" for it.
+   rather than a subject. If more than half do, flag it as having no
+   subject.
 3. Work out what each topic's excerpts are about.
 4. Work out what the whole set shares: the domain every topic belongs to.
    Leave it out of every name, and name what sets each topic apart within
    it.
 5. Make the names distinct from each other and from the names already
    taken. Where two would be the same, name what separates them; where one
-   has nothing of its own, answer "Mixed" for it.
+   has nothing of its own, flag it as having no subject.
 6. Spell every word as the excerpts spell it.
 7. Write the names in the language you are asked for.
 
@@ -57,13 +58,14 @@ EXAMPLES
   Topic 1 terms: card, fee, annual, statement, limit
   Topic 2 terms: transfer, abroad, currency, rate, payee
   Topic 3 terms: contents, foreword, appendix, index, card
-    -> 1 "Card fees", 2 "Transfers abroad", 3 "Mixed"
+    -> 1 "Card fees", 2 "Transfers abroad", 3 no subject
   WRONG: 1 "Card fees in retail banking", 2 "Transfers abroad in retail
   banking" - the domain both share names neither.
 
 FORMAT
 Return `labels`: one entry per topic, each with `topic`, the number the
-message gives it, and `label`, its name.
+message gives it, `label`, its name, and `no_subject`, true for a topic
+that has none, with `label` left empty.
 
 - A name is a short noun phrase, at most six words. Not a sentence.
 - Name the SUBJECT, not the document type: "Warehouse safety", not
@@ -72,9 +74,9 @@ message gives it, and `label`, its name.
   appears in is read in that language.
 - Spell every word as the excerpts spell it: the report quotes the
   documents, and a word spelled otherwise is not theirs.
-- Use the terms and excerpts only. If a topic's share no subject, say
-  exactly "Mixed" and nothing else.
-- ANSWER "Mixed" WHEN MORE THAN HALF A TOPIC'S TERMS NAME PARTS OF A
+- Use the terms and excerpts only. If a topic's terms share no subject,
+  set `no_subject` to true and leave `label` empty.
+- FLAG NO SUBJECT WHEN MORE THAN HALF A TOPIC'S TERMS NAME PARTS OF A
   DOCUMENT rather than a subject: contents, foreword, acknowledgements,
   copyright notice, revision history, release notes, appendix, index,
   glossary, version. One subject word among them does not make the topic
@@ -98,21 +100,17 @@ Excerpts this topic covers:
 {{excerpts}}"""
 
 
-#: What the prompt asks for where the terms share no subject, and that word
-#: as a model writing in German translates it.
-#:
-#: ponytail: a word list in the two languages NLP_MODELS configures.
-#: Upgrade: a boolean field on `_Label` the model sets instead.
-_REFUSALS = frozenset({"mixed", "gemischt"})
-
-
 class _Named(BaseModel):
     """The name the model gives one topic."""
 
     topic: int = Field(description="The topic's number, as the message gives it.")
     label: str = Field(
         description="A short noun phrase naming the subject, at most six "
-        "words, in the language asked for. 'Mixed' if the terms share none."
+        "words, in the language asked for. Empty if the terms share none."
+    )
+    no_subject: bool = Field(
+        description="True if the topic's terms share no subject, such as "
+        "parts of a document."
     )
 
 
@@ -173,7 +171,7 @@ class TopicLabeller:
 
         Returns:
             Each named topic's name by its index. A topic is left out where
-            the model was unreachable, found no shared subject, or gave a
+            the model was unreachable, flagged it as having no subject, or gave a
             name another topic or `taken` already has.
         """
         if not topics:
@@ -198,7 +196,7 @@ class TopicLabeller:
                 one.topic in asked
                 and one.topic not in said
                 and name
-                and name.casefold() not in _REFUSALS
+                and not one.no_subject
             ):
                 said[one.topic] = name
         shown = "\n".join(text for _, excerpts in topics for text in excerpts)

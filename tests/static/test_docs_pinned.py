@@ -639,7 +639,7 @@ def test_nlp_readme_lists_every_word_table() -> None:
 
     assert {"JOINING", "_DIVISIONS"} <= keyed
     assert "def _broken_word(" in text and "[A-Za-zÄÖÜäöüß]" in text
-    wanted = keyed | coded | {"_broken_word", "_REFUSALS"}
+    wanted = keyed | coded | {"_broken_word"}
     missing = sorted(name for name in wanted if f"`{name}`" not in section)
     assert not missing, f"'Adding a language' does not name {missing}"
 

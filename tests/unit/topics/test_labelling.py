@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from topic_drivers import LabellerDriver
+from topic_drivers import LabellerDriver, NoSubject
 
 from llm.client import ModelUnavailable
 from topic_modelling.labels import _EXCERPT_CHARS, _unshared
@@ -48,13 +48,10 @@ def test_the_wrapping_a_model_adds_is_taken_off(said, stored) -> None:
     assert LabellerDriver(said).names("a", "b") == stored
 
 
-@pytest.mark.parametrize(
-    "refusal",
-    ["Mixed", "mixed", "MIXED", "  Mixed. ", "„Mixed“", "“Mixed”", "Gemischt"],
-)
-def test_a_refusal_is_not_stored_as_a_name(refusal) -> None:
-    """A model that finds no subject leaves the topic unnamed."""
-    assert LabellerDriver(refusal).names("a", "b") is None
+@pytest.mark.parametrize("refusal", ["Mixed", "Gemischt", "Mixte", "Mixto", ""])
+def test_a_topic_the_model_flags_as_no_subject_is_not_stored_as_a_name(refusal) -> None:
+    """The flag is read, not a word in one language: a French model writes `Mixte`."""
+    assert LabellerDriver(NoSubject(refusal)).names("a", "b") is None
 
 
 @pytest.mark.parametrize("blank", ["", "   ", '"."', "..."])

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 import synth_topics as st
-from topic_drivers import LabellerDriver, ServiceDriver, corpus
+from topic_drivers import LabellerDriver, NoSubject, ServiceDriver, corpus
 
 from topic_modelling.models import FittedTopic, PassageVocabulary
 from topic_modelling.space import load
@@ -588,8 +588,10 @@ def test_the_passage_that_says_most_of_a_topic_is_shown_first(
 
 
 def test_a_model_that_finds_no_subject_leaves_the_topic_unnamed(service) -> None:
-    """A wrong name is worse than none, so `Mixed` is not stored."""
-    flow = service(labeller=LabellerDriver("Mixed", languages={"de": "German"}))
+    """A wrong name is worse than none, so a topic it flags as having none is not stored."""
+    flow = service(
+        labeller=LabellerDriver(NoSubject("Mixte"), languages={"de": "German"})
+    )
 
     flow.request_and_run()
 

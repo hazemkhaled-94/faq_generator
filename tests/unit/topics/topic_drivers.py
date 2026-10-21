@@ -141,6 +141,10 @@ class FitterDriver:
 _TOPIC = re.compile(r"^Topic (\d+)$", re.MULTILINE)
 
 
+class NoSubject(str):
+    """An answer given for a topic the model flags as sharing no subject."""
+
+
 class ScriptedModel:
     """A served model that answers whatever it was told to, and counts asks."""
 
@@ -166,7 +170,17 @@ class ScriptedModel:
         for number in _TOPIC.findall(str(kwargs.get("user", ""))):
             said = self.says[min(self._named, len(self.says) - 1)]
             self._named += 1
-            labels.append(type("Named", (), {"topic": int(number), "label": said})())
+            labels.append(
+                type(
+                    "Named",
+                    (),
+                    {
+                        "topic": int(number),
+                        "label": said,
+                        "no_subject": isinstance(said, NoSubject),
+                    },
+                )()
+            )
         return type("Answer", (), {"labels": labels})()
 
 

@@ -153,7 +153,7 @@ keyed by language code are held to `NLP_MODELS` by
 [`test_language_tables.py`](../../tests/static/test_language_tables.py), so a
 language added there without its rows fails that test, naming each table.
 The rest — `_DOCUMENTS`, `_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY`,
-`_ANAPHORIC`, `_ASKING`, `_SOURCE` and `_REFUSALS` — hold every language's
+`_ANAPHORIC`, `_ASKING` and `_SOURCE` — hold every language's
 words in one set or pattern, so that test cannot see them: a language
 missing from one fails no test.
 
@@ -198,7 +198,6 @@ missing from one fails no test.
 | `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
 | `UNFINISHED` | [`text.py`](text.py) | Articles, prepositions and conjunctions that cannot end a table label: a label alone on a row that ends on one goes on in the row below, whatever follows | `und`, `at` |
 | `_CONJUNCTIONS` | [`preprocessing/chunking/furniture.py`](../preprocessing/chunking/furniture.py) | Conjunctions joining two alternatives or items: one printed alone is no heading, in the trail or as a heading the layout made of it | `oder`, `or` |
-| `_REFUSALS` | [`topic_modelling/labels.py`](../topic_modelling/labels.py) | The topic-naming model's word for "no subject" | `gemischt`, `mixed` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
 | `_SPEAKING` | [`generation.py`](../question_generation/generation.py) | First- and second-person pronouns and possessive determiners, read in lower case: a premise holding none is asked again for the asker's own situation. A language with no row is never asked again | `meine`, `my` |
 | `_ENQUIRING` | same | Verbs of wanting, trying, checking and understanding, as lemmas: a premise whose main verbs, read through the infinitive one takes, are only these is asked again for the asker's own situation. A language with no row is never asked again | `prüfen`, `understand` |
@@ -209,7 +208,7 @@ None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHOR
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS`, `_SOURCE` and the two modifier tables by lemma or
 by the word as written, `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
 `_EXCEPTIVE`, `_POLITE` and the two abbreviation tables by the word as written, the openings off the start of the question, `_COUNTS`
-against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is
+against an answer's first word. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
 
 `_broken_word`, beside `JOINING` in [`text.py`](text.py), rejoins a word
