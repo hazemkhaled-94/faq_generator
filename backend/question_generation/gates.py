@@ -40,6 +40,7 @@ from database.qa_generator import (
 from nlp.analysis import (
     CARDINALS,
     FIGURE,
+    ORDINAL_SUFFIX,
     UNAMBIGUOUS,
     asked,
     claim,
@@ -48,6 +49,7 @@ from nlp.analysis import (
     interrogatives,
     is_number,
     normalised,
+    ordinal,
     parse,
     phrases,
     vocabulary,
@@ -107,7 +109,9 @@ def _folded(token: str, language: str | None) -> str:
     did: `U.S.A.` folded to `USA`, and a version like `1.2.3` folded to
     `123`.
 
-    A count written out is `_written`'s, which reads the parse.
+    A count written out is `_written`'s, which reads the parse. An ordinal
+    figure, `3rd` or `3.`, is the ordinal its word `third` is, never the 3
+    of `3 days`.
 
     A time is read group by group, each as the number it is, so `08:00` is
     `8:00`; and a group of zeros closing it adds nothing, as `,00` adds
@@ -119,10 +123,22 @@ def _folded(token: str, language: str | None) -> str:
         while len(groups) > 1 and not groups[-1]:
             groups.pop()
         return ":".join(map(repr, groups))
+    for suffix in ORDINAL_SUFFIX.get((language or "").lower(), ()):
+        if token.lower().endswith(suffix) and token[: -len(suffix)].isdigit():
+            return _ordinal_value(token[: -len(suffix)])
     if FIGURE.fullmatch(token) is None:
         return token
     found = figures(token, language)
     return repr(found[0]) if len(found) == 1 else token
+
+
+#: What follows the digits of a value that is an ordinal, so 3rd is not 3.
+_ORDINAL_MARK = "º"
+
+
+def _ordinal_value(digits: str) -> str:
+    """The value an ordinal has, apart from the count of the same digits."""
+    return repr(float(digits)) + _ORDINAL_MARK
 
 
 #: A figure one lone mark splits before three digits - `1.000`, `1,000` -
@@ -169,29 +185,36 @@ def _readings(unit: str, language: str | None) -> frozenset[str]:
     return frozenset({repr(float(head + tail)), repr(float(f"{head}.{tail}"))})
 
 
-def _written(text: str, language: str | None) -> dict[str, str]:
+def _written(text: str, language: str | None, ordinals: bool = False) -> dict[str, str]:
     """Each count a text writes out, by its word, as the figure `_folded` gives.
 
     `two` is `2` and `zehn` is `10`, so a passage that lists two conditions
     in words agrees with a key that says `2 conditions`. In the language
     `_COUNTED` holds the word for, because `elf` is eleven in German and a
     word in English; and only a token tagged `NUM`, because `außer Acht` is
-    a phrase and `die Elf` a team, and both models tag those as nouns.
+    a phrase and `die Elf` a team, and both models tag those as nouns. An
+    ordinal word, an adjective, is `third` and `dritten`: the ordinal that
+    `3rd` and `3.` are, where `ordinals` asks for it, and not the count 3.
+    What a text asserts of its own is not one: a recovery's `first month` is
+    not a figure its key lacks.
     """
     counted = _COUNTED.get((language or "").lower(), {})
-    return {
-        token.lower_: repr(float(counted[token.lower_]))
-        for token in pipeline(language)(text)
-        if token.lower_ in counted
-        and (token.pos_ == "NUM" or counted[token.lower_] >= UNAMBIGUOUS)
-    }
+    written = {}
+    for token in pipeline(language)(text):
+        if token.lower_ in counted and (
+            token.pos_ == "NUM" or counted[token.lower_] >= UNAMBIGUOUS
+        ):
+            written[token.lower_] = repr(float(counted[token.lower_]))
+        elif ordinals and token.pos_ in ("NUM", "ADJ") and (digits := ordinal(token)):
+            written[token.lower_] = _ordinal_value(digits)
+    return written
 
 
 def _values(text: str, language: str | None) -> frozenset[str]:
     """Every form a text's words take, its figures and its counts as values."""
     return frozenset(
         _folded(one, language) for one in vocabulary(text, language)
-    ) | frozenset(_written(text, language).values())
+    ) | frozenset(_written(text, language, ordinals=True).values())
 
 
 def _misfits(
@@ -1980,8 +2003,8 @@ def unnamed(
         for reading in one
     }
     found += [
-        min(one)
-        for one in _number_readings(unmarked, language)
+        min(one).removesuffix(_ORDINAL_MARK)
+        for one in _number_readings(unmarked, language, ordinals=False)
         if not one & stated and any(char.isdigit() for char in "".join(one))
     ]
     found += [
@@ -2375,9 +2398,15 @@ def _numbers(text: str, language: str | None) -> frozenset[str]:
     ) | frozenset(written.values())
 
 
-def _number_readings(text: str, language: str | None) -> frozenset[frozenset[str]]:
-    """`_numbers`, with each value as every reading `_readings` gives it."""
-    written = _written(text, language)
+def _number_readings(
+    text: str, language: str | None, ordinals: bool = True
+) -> frozenset[frozenset[str]]:
+    """`_numbers`, with each value as every reading `_readings` gives it.
+
+    An ordinal word is one of them unless `ordinals` is off: it is a value to
+    compare, and no figure of its own that a text states.
+    """
+    written = _written(text, language, ordinals)
     read = claim(text, language)
     return frozenset(
         frozenset({written[unit]}) if unit in written else _readings(unit, language)
@@ -2390,6 +2419,19 @@ def _carried(units: frozenset[frozenset[str]], found: frozenset[str]) -> bool:
     return all(readings & found for readings in units)
 
 
+def _ordinals(text: str, language: str | None) -> frozenset[str]:
+    """The lemmas of the ordinals a text writes, `third` and `3rd` alike.
+
+    Left out of what lemmas are compared on, because they are values:
+    `_written` and `_folded` give both the ordinal that `agrees` has compared.
+    """
+    return frozenset(
+        token.lemma_.casefold()
+        for token in pipeline(language)(text)
+        if token.pos_ in ("NUM", "ADJ") and ordinal(token)
+    )
+
+
 def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
     """The lemmas `agrees` compares a text on, for an answer of this form.
 
@@ -2398,7 +2440,7 @@ def _compared(text: str, language: str | None, form: str) -> frozenset[str]:
     as a noun - `a report` for `must be reported` - shares its lemma with
     the recovery only once the verb is read.
     """
-    lemmas = content(text, language)
+    lemmas = content(text, language) - _ordinals(text, language)
     if form != AnswerForm.VALUE:
         return lemmas
     return lemmas | frozenset(
@@ -2643,7 +2685,7 @@ def agrees(
     if missing:
         return False
 
-    wanted = content(target, language)
+    wanted = content(target, language) - _ordinals(target, language)
     # The unit a range carries, `cm` in `1–3 cm`, is a number to the tagger in
     # one sentence and a noun in the other, so its lemma cannot be compared
     # like a content word's: it has to come back by surface form or lemma, and

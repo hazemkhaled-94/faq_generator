@@ -179,6 +179,7 @@ missing from one fails no test.
 | `REFERENCE_LABELS` | same | The words that label a reference by a number, before which a space-grouped run is never an amount (`Section 3 100 customers`) | `Abschnitt`, `Section` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds, by language, each as the digits it names | `zweite`, `second` |
+| `ORDINAL_SUFFIX` | same | What a language writes after the digits of an ordinal figure, so `3rd` and a German `3.` are the ordinal that `third` and `dritte` are, never the count 3, where the question gates compare a key with what came back | `st`, `nd`, `rd`, `th`, `.` |
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
 | `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |

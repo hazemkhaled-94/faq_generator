@@ -6,7 +6,14 @@ import pytest
 
 from database.qa_generator import AnswerForm, QuestionType
 from nlp.analysis import figures
-from question_generation.gates import adds_up, agrees, relabelled
+from question_generation.gates import (
+    OVERLAP,
+    _stated,
+    adds_up,
+    agrees,
+    explains,
+    relabelled,
+)
 
 pytestmark = pytest.mark.nlp
 
@@ -73,3 +80,109 @@ def test_a_space_grouped_amount_is_one_number_to_relabelled():
     """An aggregation keyed with `EUR 100 000` holds one number."""
     kind = relabelled(QuestionType.AGGREGATION, AnswerForm.VALUE, "EUR 100 000", "en")
     assert kind == QuestionType.AGGREGATION
+
+
+# QAB-qg-check-6: an ordinal written as a word on one side and a figure on the other.
+@pytest.mark.parametrize(
+    ("recovered", "key", "language", "question", "passage"),
+    [
+        (
+            "A fee is charged from the 3rd reminder.",
+            "the third reminder",
+            "en",
+            "From which reminder is a fee charged?",
+            "A fee of 5 EUR is charged from the 3rd reminder.",
+        ),
+        (
+            "Ab der dritten Mahnung wird eine Gebühr fällig.",
+            "ab der 3. Mahnung",
+            "de",
+            "Ab welcher Mahnung wird eine Gebühr fällig?",
+            "Ab der dritten Mahnung wird eine Gebühr von 5 EUR fällig.",
+        ),
+        (
+            "A fee is charged from the third reminder.",
+            "the 3rd reminder",
+            "en",
+            "From which reminder is a fee charged?",
+            "A fee of 5 EUR is charged from the third reminder.",
+        ),
+    ],
+)
+def test_qab_qg_check_6_an_ordinal_word_agrees_with_its_figure(
+    recovered, key, language, question, passage
+):
+    """QAB-qg-check-6: `the third reminder` and `the 3rd reminder` agree."""
+    assert agrees(
+        recovered, key, language, AnswerForm.VALUE, OVERLAP, question, "", (passage,)
+    )
+
+
+# NEW-qg-writer-gates-4: an explanation writing an ordinal as a figure the passage spells out.
+@pytest.mark.parametrize(
+    ("explanation", "key", "passage", "language"),
+    [
+        (
+            (
+                "The shop sends reminders for unpaid invoices. The first two reminders cost "
+                "nothing, but from the 3rd reminder onwards a fee of 5 EUR is added to the "
+                "invoice, so a customer who pays after two reminders pays no fee."
+            ),
+            "from the third reminder",
+            (
+                "A fee of 5 EUR is charged from the third reminder onwards. The first and "
+                "second reminders are free of charge."
+            ),
+            "en",
+        ),
+        (
+            (
+                "Der Shop verschickt Mahnungen für offene Rechnungen. Die ersten beiden "
+                "Mahnungen kosten nichts, doch ab der 3. Mahnung wird eine Gebühr von 5 EUR "
+                "auf die Rechnung aufgeschlagen, sodass nur spätes Zahlen etwas kostet."
+            ),
+            "ab der dritten Mahnung",
+            (
+                "Ab der dritten Mahnung wird eine Gebühr von 5 EUR fällig. Die erste und "
+                "zweite Mahnung sind kostenlos."
+            ),
+            "de",
+        ),
+    ],
+)
+def test_new_4_an_ordinal_figure_in_an_explanation_is_carried_by_its_word(
+    explanation, key, passage, language
+):
+    """NEW-qg-writer-gates-4: `3rd` in an explanation is carried by `third`."""
+    assert explains(explanation, key, (passage,), language)
+
+
+@pytest.mark.parametrize(
+    ("statements", "language"),
+    [
+        (
+            ["The second reminder costs 5 euros.", "A late fee applies after 14 days."],
+            "en",
+        ),
+        (
+            ["The 2nd reminder costs 5 euros.", "A late fee applies after 14 days."],
+            "en",
+        ),
+        (
+            ["Die zweite Mahnung kostet 5 Euro.", "Nach 14 Tagen gilt eine Gebühr."],
+            "de",
+        ),
+    ],
+)
+def test_an_ordinal_is_no_stated_count(statements, language):
+    """`the second reminder` states no count of 2."""
+    assert not _stated(2, statements, language)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key"),
+    [("The 5th day.", "5 days"), ("At the third reminder.", "3 reminders")],
+)
+def test_an_ordinal_does_not_agree_with_a_cardinal(recovered, key):
+    """An ordinal is the same ordinal in another form, never a count."""
+    assert not agrees(recovered, key, "en")

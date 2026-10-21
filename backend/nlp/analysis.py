@@ -392,8 +392,24 @@ def is_number(token: Token) -> bool:
         return False
     if any(char.isdigit() for char in token.text):
         return True
-    ordinal = token.lower_ in _ORDINALS.get(token.doc.lang_, {})
-    return token.pos_ == "NUM" or (token.pos_ == "ADJ" and ordinal)
+    return token.pos_ == "NUM" or (token.pos_ == "ADJ" and ordinal(token) is not None)
+
+
+def ordinal(token: Token) -> str | None:
+    """The digits an ordinal, `third`, `3rd` or a German `3.`, names, or None.
+
+    A full stop after a figure is an ordinal only inside a sentence: at its
+    end it closes the sentence.
+    """
+    language, text = token.doc.lang_, token.lower_
+    for suffix in ORDINAL_SUFFIX.get(language, ()):
+        if text.endswith(suffix) and text[: -len(suffix)].isdigit():
+            return (
+                None
+                if token.is_sent_end and not suffix.isalpha()
+                else text[: -len(suffix)]
+            )
+    return _ORDINALS.get(language, {}).get(text)
 
 
 def _units(span: Doc | Span) -> tuple[str, ...]:
@@ -423,7 +439,8 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
     capitalising = span.doc.lang_ in _capitalises_nouns()
     for token in span:
         if is_number(token):
-            found.add(_bare(token.text).casefold())
+            # An ordinal keeps what marks it, so `3.` is not the count 3.
+            found.add((token.text if ordinal(token) else _bare(token.text)).casefold())
         elif token.pos_ == "PROPN":
             if (
                 capitalising
@@ -746,6 +763,13 @@ _ORDINALS: dict[str, dict[str, str]] = {
         ).items()
         for ending in ("", "n", "r", "s", "m")
     },
+}
+
+#: What each language writes after the digits of an ordinal figure, by ISO
+#: 639-1 code: `3rd`, and German `3.`.
+ORDINAL_SUFFIX: dict[str, tuple[str, ...]] = {
+    "de": (".",),
+    "en": ("st", "nd", "rd", "th"),
 }
 
 #: Number words by ISO 639-1 code, as the digits each names: the cardinals
