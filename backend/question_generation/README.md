@@ -343,7 +343,7 @@ writer's instruction and response shape and the extra checks a draft gets; the
 stored kind (`questions.kind`) follows the citations, so a `needs_both` draft
 that ends up citing one passage is stored `single`, and `make questions-rescore`
 narrows it the same way. A kind's entry may fix a band; none does yet except
-`compound`, which is banded medium. `QUESTIONS_KIND_MIX` (optional,
+`compound`, which is banded medium however the slot was first planned. `QUESTIONS_KIND_MIX` (optional,
 `kind:weight`) shares the kinds out over the slots that span passages; it
 names only kinds that span, and absent it deals every such slot `needs_both`.
 

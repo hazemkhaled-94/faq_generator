@@ -24,6 +24,7 @@ from dataclasses import dataclass, replace
 from math import floor
 
 from database.qa_generator import Difficulty, QuestionKind, QuestionType
+from question_generation.kinds import KINDS
 from question_generation.models import Categorization, Category
 from question_generation.selection import Shape, spread
 from question_generation.types import SPECS, TypeSpec
@@ -37,6 +38,9 @@ SHAPES: dict[str, str] = {
     Difficulty.MEDIUM: Shape.CROSS,
     Difficulty.HARD: Shape.BRIDGE,
 }
+
+#: The band each sample shape is worth: `SHAPES` read the other way.
+_BANDS: dict[str, str] = {shape: band for band, shape in SHAPES.items()}
 
 #: The kinds an unanswerable slot may be written as: those asking for one
 #: detail (a value, a party, a reason) that the material can leave out while
@@ -183,7 +187,9 @@ def _kinded(planned: list[Plan], kinds: Mapping[str, int]) -> list[Plan]:
 def _dealt(plan: Plan, kind: str) -> Plan:
     """The slot as the kind it is dealt: a compound one is shaped apart."""
     if kind == QuestionKind.COMPOUND:
-        return replace(plan, kind=kind, shape=Shape.APART)
+        # Its band is the one criteria_of fixes for the kind, whatever was dealt.
+        band = KINDS[kind].band or plan.band
+        return replace(plan, kind=kind, shape=Shape.APART, band=band)
     return replace(plan, kind=kind)
 
 
@@ -237,7 +243,9 @@ def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
     reason. The swap the unanswerable slots get, for the same reason: the
     slot was planned before the material was read, and writing the kind
     anyway gets a question its material cannot answer. Cycled over the
-    mix's other kinds that do not span, by `turn`, with the slot's band.
+    mix's other kinds that do not span, by `turn`, at the band its shape
+    reaches: the shape is kept, and a one-passage sample is `easy` however
+    hard the slot was planned.
 
     And with the slot's shape, and so its kind. A slot the writer declined
     has its sample dealt already: re-shaped by its band, a one-passage
@@ -258,7 +266,10 @@ def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
     if not others:
         return None
     other = _slot(
-        others[turn % len(others)], plan.band, plan.answerable, plan.categories
+        others[turn % len(others)],
+        _BANDS.get(plan.shape, plan.band),
+        plan.answerable,
+        plan.categories,
     )
     other = replace(other, shape=plan.shape)
     return _dealt(other, plan.kind if other.spans else QuestionKind.SINGLE)

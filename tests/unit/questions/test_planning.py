@@ -511,7 +511,7 @@ def test_a_one_passage_slot_swapped_for_another_type_keeps_its_one_passage() -> 
     assert other is not None
     assert (other.spec.name, other.band, other.shape, other.kind) == (
         QuestionType.FACTOID,
-        Difficulty.MEDIUM,
+        Difficulty.EASY,
         Shape.SINGLE,
         "single",
     )
