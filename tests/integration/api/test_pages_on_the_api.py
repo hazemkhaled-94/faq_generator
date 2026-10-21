@@ -225,12 +225,6 @@ def test_the_workbook_holds_the_kind_of_every_question(corpus) -> None:
     assert summary["Questions in this workbook"] == 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A topic named through PATCH /topics/{id} with a control character "
-    "(a vertical tab pasted from Word) is stored, and every export holding "
-    "one of its questions then answers 500 from openpyxl",
-)
 def test_a_topic_named_with_a_control_character_still_exports(corpus) -> None:
     """The name is either refused at the edge or written without the character."""
     client, held = corpus
