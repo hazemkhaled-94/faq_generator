@@ -13,7 +13,7 @@ from question_generation.generation import QuestionWriter
 from question_generation.kinds import KINDS
 from question_generation.models import FactGroup
 from question_generation.planning import instead, plans
-from question_generation.selection import Shape
+from question_generation.selection import Deal, Shape
 
 pytestmark = pytest.mark.nlp
 
@@ -92,6 +92,93 @@ def test_a_follow_up_on_a_compound_pair_is_not_stored_needs_both(language) -> No
 
     assert len(written.group.resting) == 2
     assert written.kind != QuestionKind.NEEDS_BOTH
+
+
+# -- qg-plan-7: an APART partner's fact is the one closest to the head --------
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_partner_offers_its_own_first_fact(language) -> None:
+    """The passage is chosen for sharing least; its fact should not be re-ranked toward the head."""
+    t = _T[language]
+    kw = {"language": language}
+    head = source(
+        1,
+        document="a",
+        passage_id=1,
+        statement=t["standard"],
+        lemmas=("delivery",),
+        **kw,
+    )
+    own_first = source(
+        3,
+        document="b",
+        passage_id=2,
+        statement=t["wrap"],
+        units=("3",),
+        lemmas=("gift",),
+        **kw,
+    )
+    near_head = source(
+        4, document="b", passage_id=2, statement=t["wrap_near"], lemmas=("gift",), **kw
+    )
+    deal = Deal([head, own_first, near_head], wanted=2, size=2)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert [one.id for one in sample.facts] == [1, 3]
+
+
+# -- NEW-qg-plan-1: closest() picks a bridge the compound slot then drops -------
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_partner_holding_a_bridge_still_offers_its_own_claim(
+    language,
+) -> None:
+    """The partner was chosen for its unspent claim; a bridge ranked first must not cost it."""
+    from factories import bridge, resting
+
+    span = {
+        "en": "The return period starts on the day the delivery arrives.",
+        "de": "Die Rückgabefrist beginnt am Tag der Lieferung.",
+    }[language]
+    own = {"en": "Returns are free of charge.", "de": "Rücksendungen sind kostenlos."}[
+        language
+    ]
+    t = _T[language]
+    head = source(
+        1,
+        document="a",
+        passage_id=1,
+        statement=t["standard"],
+        lemmas=("standard", "delivery"),
+        language=language,
+    )
+    spanning = bridge(
+        resting(3, document="c", language=language),
+        fact_id=2,
+        passage_id=2,
+        document="b",
+        statement=span,
+        lemmas=("return", "period"),
+        language=language,
+    )
+    claim = source(
+        4,
+        document="b",
+        passage_id=2,
+        statement=own,
+        lemmas=("return", "period"),
+        language=language,
+    )
+    deal = Deal([head, spanning, claim], wanted=2, size=2)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert [one.id for one in sample.facts] == [1, 4]
 
 
 # -- NEW-qg-plan-2: a swapped slot keeps a band its shape can reach ------------

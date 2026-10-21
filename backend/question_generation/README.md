@@ -118,7 +118,8 @@ tie.
 
 Likeness pairs the **passages**, then picks the **facts**: the second
 passage's share is the facts closest to what the first offered, not its own
-best. Cosine where the corpus is embedded, shared lemmas where it is not —
+best, except for a compound sample, whose partner offers its own facts in its own
+order. Cosine where the corpus is embedded, shared lemmas where it is not —
 vectors are preferred because a lemma overlap cannot see a synonym. A fact is
 weighed against the **nearest** of the facts already offered, not their mean.
 

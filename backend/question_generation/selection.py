@@ -524,7 +524,10 @@ class Deal:
             # bands as the single-passage question it actually is.
             partner = None
         return self._group(
-            [head, partner] if partner else [head], condensed=condensed, prefer=prefer
+            [head, partner] if partner else [head],
+            condensed=condensed,
+            prefer=prefer,
+            apart=shape == Shape.APART,
         )
 
     def holds(self, prefer: Callable[[SourceFact], bool]) -> bool:
@@ -759,6 +762,7 @@ class Deal:
         passages: list[list[SourceFact]],
         condensed: bool = False,
         prefer: Callable[[SourceFact], bool] | None = None,
+        apart: bool = False,
     ) -> FactGroup:
         """Counts a round against these passages and offers unspent facts.
 
@@ -781,13 +785,15 @@ class Deal:
         to a question of its own, and two passages the corpus calls related
         still hold facts with nothing between them: offering those produced
         a question welding them together with "and", which is the failure
-        the span rules spend three paragraphs on.
+        the span rules spend three paragraphs on. A compound sample (`apart`)
+        is the exception: its second passage was dealt for sharing least, so
+        it offers its own facts in its own order.
         """
         each = max(1, self._size // len(passages))
         facts: list[SourceFact] = []
         for passage in passages:
             left = _ordered(self._left(passage), condensed, prefer)
-            chosen = closest(facts, left, each)
+            chosen = left[:each] if apart and facts else closest(facts, left, each)
             if condensed:
                 # A reading asks for the whole of what a passage says, so a
                 # list is one unit against the cap rather than its items.
