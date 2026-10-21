@@ -721,7 +721,8 @@ def _chapter_starts(
 
     A chapter opens on the first block of the page whose running head names
     it, unless that page holds the chapter's own heading, a heading whose
-    text is one of the label's fields: a head that names the chapter opening
+    text, letters and digits only, is one of the label's fields or holds or is
+    held by one: a head that names the chapter opening
     on its page, as a first-on-page mark does, is wrong above that heading,
     and what precedes it stays in the chapter before.
     """
@@ -740,7 +741,7 @@ def _chapter_starts(
     for index, (node, page) in enumerate(blocks):
         label = furniture.chapter(page)
         if label and label != current:
-            named = {_key(one) for one in label}
+            named = {plain for one in label if (plain := _plain(one))}
             opening = next(
                 (
                     later
@@ -755,11 +756,17 @@ def _chapter_starts(
 
 
 def _heads(node: NodeItem, named: set[str], document: DoclingDocument) -> bool:
-    """Whether a block holds a heading whose text is one of the given keys."""
+    """Whether a block holds a heading that matches one of the given names.
+
+    Letters and digits only: a running head abbreviates a chapter or
+    prefixes its letter, `B Geschäftskunden` over the heading
+    `B. Geschäftskunden`, `Kapitel B: Business` over `B Business`.
+    """
     return any(
         isinstance(item, TextItem)
         and item.label in _HEADINGS
-        and _key(item.text) in named
+        and (plain := _plain(item.text))
+        and any(one in plain or plain in one for one in named)
         for item, _ in document.iterate_items(root=node)
     )
 
