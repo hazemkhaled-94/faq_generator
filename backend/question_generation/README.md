@@ -956,7 +956,8 @@ the same labels:
 No quota holds a category. The shares the release is held to are kinds,
 bands, languages and answerability, and those correlate with categories: a
 search query, where a configured categorization deals one, tends to be a
-factoid, and a thread drawn whole brings its uncategorised follow-ups. So a
+factoid, and a thread brings the uncategorised follow-ups its quotas have room for,
+ending at the first turn with no place left. So a
 release can drift from the mix its questions were written in, and the two
 lines are where that shows. A share is of every question in the release or
 the pool, the unanswerable, compound and follow-up questions included, which
