@@ -16,9 +16,10 @@ runs:
         # which is why pyproject stops short of it. Both images are 3.13.
         python-version: "3.13"
 
+    # The version that wrote poetry.lock (its first line says which).
     - name: Install poetry
       shell: bash
-      run: pipx install poetry
+      run: pipx install poetry==2.3.2
 
     # In the workspace rather than in poetry's own directory, so one cache
     # entry covers the environment and the spaCy pipelines installed into it.
