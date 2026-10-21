@@ -239,15 +239,26 @@ PYTHONPATH=backend poetry run python -m settings.run --service questions \
 ```
 
 Not `make settings-set`: it splits `SET` at its spaces, so a JSON value
-reaches the store in pieces. A value is refused, naming the categorization
-at fault, before anything is stored when it is not JSON, misspells a key,
-names a category twice, puts an `=` or a comma in a name, gives a role other
-than `question` or `user` or a form other than `question`, `query` or
-`premise`, gives
-word bounds that are not whole numbers of at least 1 or a minimum above its
-maximum, or has probabilities that do not sum to 1. `make settings-unset
-SERVICE=questions UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default
-in code.
+reaches the store in pieces. A value is refused before anything is stored,
+naming the categorization or category at fault, when:
+
+- it is not JSON, or an item of it is not a categorization object;
+- a categorization has no `categorization_name`, or one holding an `=`, a
+  comma or a line break;
+- two categorizations have the same name;
+- a categorization or a category has a key the format does not have;
+- a categorization's role is not `question` or `user`;
+- a categorization has no categories, or names one category twice;
+- a category has no name, or one that is empty or holds an `=`, a comma or a
+  line break, or has no description;
+- some categories of a categorization have a probability and others do not,
+  a probability is not between 0 and 1, or the probabilities do not sum to 1;
+- a category's `words` is not an object of `min` and `max`, a bound is not a
+  whole number of at least 1, or its minimum is above its maximum;
+- a category's form is not `question`, `query` or `premise`.
+
+`make settings-unset SERVICE=questions UNSET=QUESTIONS_CATEGORIZATIONS` goes
+back to the default in code.
 
 A categorization describes the question unless it says `"role": "user"`,
 which makes it describe the person asking. The writer is told the asker in a

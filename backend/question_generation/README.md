@@ -274,7 +274,7 @@ odds:
 ]
 ```
 
- The rules ask for a
+The rules ask for a
 question ending in a question mark, and the rules win, so its question block
 carries one more line, before the rules are said to win:
 
