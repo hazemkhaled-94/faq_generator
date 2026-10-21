@@ -7,14 +7,16 @@ the morning halfway through a run.
 
 Separate from that module rather than importing it, because this runs in an
 image of its own - dagster, requests and nothing else - and `settings` is a
-backend package that image does not carry. The reader is named `required`
-for the same reason it is there: tests/static/test_settings_documented.py
-finds settings by the name of the function that reads them, so a private
-spelling here would exempt this package from the gate.
+backend package that image does not carry. The readers are named `required`
+and `decimal` for the same reason they are there:
+tests/static/test_settings_documented.py finds settings by the name of the
+function that reads them, so a private spelling here would exempt this
+package from the gate.
 """
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 
@@ -38,6 +40,25 @@ def required(name: str) -> str:
     return value
 
 
+def decimal(name: str) -> float:
+    """Reads a number of seconds, which must be finite and above zero.
+
+    Raises:
+        KeyError: If it is unset or empty.
+        ValueError: If it is not such a number, naming the variable. float()
+            reads nan and inf too: nan never times a drain out, a negative
+            poll raises in time.sleep mid-run, and 0 asks without pause.
+    """
+    value = required(name)
+    try:
+        number = float(value)
+    except ValueError:
+        raise ValueError(f"{name}={value!r} is not a number") from None
+    if not (math.isfinite(number) and number > 0):
+        raise ValueError(f"{name}={value!r} is not a finite number above zero")
+    return number
+
+
 @dataclass(frozen=True)
 class Settings:
     """Where the backend is, and how patiently to watch it."""
@@ -59,8 +80,8 @@ class Settings:
         """Reads settings from the environment."""
         return cls(
             backend_url=required("BACKEND_URL"),
-            drain_timeout=float(required("ORCHESTRATION_DRAIN_TIMEOUT_SECONDS")),
-            poll_seconds=float(required("ORCHESTRATION_POLL_SECONDS")),
+            drain_timeout=decimal("ORCHESTRATION_DRAIN_TIMEOUT_SECONDS"),
+            poll_seconds=decimal("ORCHESTRATION_POLL_SECONDS"),
             ingestion_open=required("INGESTION_OPEN").lower()
             in ("1", "true", "yes", "on"),
         )

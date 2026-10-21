@@ -36,18 +36,16 @@ def test_a_timing_that_is_not_a_number_stops_the_code_location(
         Settings.load()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="QA-security-4: ORCHESTRATION_DRAIN_TIMEOUT_SECONDS and "
-    "ORCHESTRATION_POLL_SECONDS take nan and negatives: nan never times a "
-    "drain out, a negative poll raises in time.sleep mid-run",
-)
-@pytest.mark.parametrize("value", ["nan", "-1"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-1", "0"])
 @pytest.mark.parametrize("name", _TIMINGS)
 def test_a_timing_no_wait_can_be_made_of_stops_the_code_location(
     monkeypatch, name: str, value: str
 ) -> None:
-    """As backend/settings/env.py decimal() refuses nan for the stages."""
+    """As backend/settings/env.py decimal() refuses nan for the stages.
+
+    nan never times a drain out, a negative poll raises in time.sleep mid-run,
+    and a poll of 0 asks the api without pause.
+    """
     monkeypatch.setenv(name, value)
 
     with pytest.raises((KeyError, ValueError)):
