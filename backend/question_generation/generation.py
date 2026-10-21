@@ -298,21 +298,27 @@ def _profile(categories: tuple[Category, ...]) -> str:
     )
 
 
-def _held(categories: tuple[Category, ...]) -> tuple[Category, ...]:
+def _held(
+    categories: tuple[Category, ...], spec: TypeSpec, spans: bool
+) -> tuple[Category, ...]:
     """The categories a slot can hold, in the order dealt.
 
-    One that cannot hold beside the others is not told, and so is stored as
-    no category of its categorization, as a compound slot is told none. A
-    premise needs words of its own: beside a category capping the question's
-    words it shrinks to a label naming a setting, as 31 of the 33 such labels
-    in one calibration did on concise slots, and a search query has no
-    sentence to open on one.
+    One that cannot hold on the slot is not told, and so is stored as no
+    category of its categorization, as a compound slot is told none. A
+    search query cannot ask what needs two passages, because its keywords
+    cannot say how the two meet, nor a type whose question word is the ask.
+    A premise needs words of its own: beside a category capping the
+    question's words it shrinks to a label naming a setting, as 31 of the 33
+    such labels in one calibration did on concise slots, and a search query
+    has no sentence to open on one.
     """
+    queried = spec.keywords and not (spans or spec.spans)
+    kept = tuple(one for one in categories if one.form != "query" or queried)
     crowded = any(
         one.form == "query" or (one.form != "premise" and one.words[1] is not None)
-        for one in categories
+        for one in kept
     )
-    return tuple(one for one in categories if one.form != "premise" or not crowded)
+    return tuple(one for one in kept if one.form != "premise" or not crowded)
 
 
 def _addressed(question: str, language: str | None) -> bool:
@@ -411,7 +417,11 @@ class QuestionWriter:
         # written for one ask, such as a concise phrasing, would contradict:
         # it is told none. Keyed on the kind asked for, so a compound slot
         # short of its partner, written single, is told its categories.
-        told = () if kind.name == QuestionKind.COMPOUND else _held(plan.categories)
+        told = (
+            ()
+            if kind.name == QuestionKind.COMPOUND
+            else _held(plan.categories, plan.spec, spans)
+        )
         system = plan.spec.system(spans=spans, instruction=kind.instruction or None)
         written = self._client.answer(
             system=system,

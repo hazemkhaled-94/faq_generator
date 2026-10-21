@@ -966,3 +966,61 @@ def test_a_retry_a_gate_asked_for_is_not_noted_again() -> None:
     premised_by(model, "en", note="a reviewer found two questions.")
 
     assert len(model.asked) == 1
+
+
+# ── A search query where its keywords cannot ask ──────────────────────────
+
+
+#: The types whose question word is the ask: a why, a difference, what
+#: follows, what changed. A keyword string has no word to ask them with.
+_WORDED = {"reason", "comparison", "implication", "temporal"}
+
+
+def test_the_types_whose_question_word_is_the_ask_cannot_be_keywords() -> None:
+    """A flag on the type, and on exactly those four."""
+    assert {name for name, one in SPECS.items() if not one.keywords} == _WORDED
+
+
+@pytest.mark.parametrize(
+    ("asked", "beside"),
+    [
+        (plan(shape="cross", kind="needs_both", categories=(keywords(),)), ()),
+        (plan(question_type="reason", categories=(keywords(),)), ()),
+        (plan(question_type="comparison", categories=(keywords(),)), ()),
+    ],
+    ids=["spanning", "reason", "comparison"],
+)
+def test_a_query_is_not_told_where_its_keywords_cannot_ask(asked, beside) -> None:
+    """Told as no category of its categorization, and stored as not told."""
+    model = StubModel(question="Q?", answer="A", facts=[1, 2])
+    pair = group(
+        source(1, document="a", passage_id=11), source(2, document="b", passage_id=22)
+    )
+
+    written = QuestionWriter(model).write(pair, asked)
+
+    assert keywords().description not in model.user
+    assert "search box" not in model.user
+    assert written.categories == beside
+
+
+@pytest.mark.nlp
+def test_a_premise_is_told_where_the_query_beside_it_is_not() -> None:
+    """With the query not told, nothing crowds the premise out."""
+    model = StubModel(question="Ich habe ein Konto: Was kostet es?", answer="A")
+
+    written = QuestionWriter(model).write(
+        group(), plan(question_type="reason", categories=(keywords(), premised()))
+    )
+
+    assert written.categories == (premised(),)
+
+
+def test_a_query_is_told_on_a_single_passage_slot_that_keywords_can_ask() -> None:
+    """A factoid from one passage is what a search query is for."""
+    model = StubModel(question="fee abroad", answer="A")
+
+    written = QuestionWriter(model).write(group(), plan(categories=(keywords(),)))
+
+    assert written.categories == (keywords(),)
+    assert "search box" in model.user

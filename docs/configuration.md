@@ -281,7 +281,11 @@ A category is a question asked unless it says `"form": "query"`, which
 makes it a search query: keywords typed into a box. The writer is told the
 question-mark rule does not apply to it, and no gate refuses it for ending
 without one, when it is written or when it is re-checked; every other rule
-holds. Table 5's short and long search queries are of form `query`, and
+holds. A search query is not told on a slot that spans two passages, whose
+keywords cannot say how the two meet, nor on a `reason`, `comparison`,
+`implication` or `temporal` slot, whose question word is the ask: such a slot
+is written as no category of the query's categorization. Table 5's short and
+long search queries are of form `query`, and
 neither is dealt unset: in calibration the short ones fell below the floors
 for correct and complete keys (0.70 and 0.57 against 0.80 and 0.72), and a
 third of the long ones written were not queries. A Phrasing listing them

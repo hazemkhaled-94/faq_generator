@@ -247,7 +247,11 @@ A category of `"form": "query"` is a search query: keywords typed into a
 box, as Table 5's short and long search queries are. Neither is dealt
 unset, and both are there to opt into: in calibration the short search
 queries fell below the floors for correct and complete keys, and a third of
-the long ones written were not queries. A Phrasing listing them beside the
+the long ones written were not queries. Neither is told on a slot that spans
+two passages, whose keywords cannot say how the two meet, nor on a type whose
+question word is the ask (`TypeSpec.keywords` false: `reason`, `comparison`,
+`implication` and `temporal`); such a slot is written as no category of the
+query's categorization. A Phrasing listing them beside the
 two natural phrasings, set in place of the default's, deals all four at even
 odds:
 
