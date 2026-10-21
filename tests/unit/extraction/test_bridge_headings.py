@@ -44,13 +44,59 @@ def _read(language: str, text: str):
         ("de", "Die Gebühr steht in Regeln 5", "regel", "5", True),
         ("de", "Die Gebühr steht in Regel", "regel", "5", False),
         ("de", "Die Gebühr steht in Regel 6", "regel", "5", False),
+        ("en", "The fees in Sections 7 and 9 apply abroad", "section", "9", True),
+        ("en", "The fees in Sections 7, 9 and 11 apply", "section", "11", True),
+        ("en", "Section 7 sets a fee of 9 EUR", "section", "9", False),
+        ("de", "Die Gebühren der Abschnitte 7 und 9 gelten", "abschnitt", "9", True),
+        ("de", "Abschnitt 7 regelt 9 Gebühren", "abschnitt", "9", False),
     ],
 )
 def test_a_label_word_is_named_by_the_number_that_follows_it(
     language, statement, word, number, expected
 ) -> None:
-    """Glued, spaced, closed by a full stop, at the end of the statement, or inflected."""
+    """Glued, spaced, closed by a full stop, at the end of the statement, inflected, or conjoined."""
     assert _names(_read(language, statement), word, number, language) is expected
+
+
+@pytest.mark.parametrize(
+    ("language", "statement", "label_path", "other_path", "texts"),
+    [
+        (
+            "en",
+            "The fees in Sections 7 and 9 apply to transfers abroad.",
+            "Section 9 > Transfers",
+            "Accounts > Fees",
+            (
+                "A transfer abroad costs 1 EUR.",
+                "Section 7 sets the fees for transfers.",
+            ),
+        ),
+        (
+            "de",
+            "Die Gebühren der Abschnitte 7 und 9 gelten für Auslandsüberweisungen.",
+            "Abschnitt 9 > Überweisungen",
+            "Konten > Gebühren",
+            (
+                "Eine Auslandsüberweisung kostet 1 EUR.",
+                "Abschnitt 7 regelt die Gebühren für Überweisungen.",
+            ),
+        ),
+    ],
+)
+def test_a_bridge_naming_its_passages_section_second_in_a_list_is_refused(
+    language, statement, label_path, other_path, texts
+) -> None:
+    """'Sections 7 and 9' names Section 9 as much as 'Section 9' does."""
+    under = passage(
+        texts[0], language=language, section_path=label_path, id=1, doc_sha256="bank"
+    )
+    other = passage(
+        texts[1], language=language, section_path=other_path, id=2, doc_sha256="bank"
+    )
+
+    judged = Checker().bridge(statement, [under, other])
+
+    assert judged.rejection_code == Rejection.NOT_BRIDGING, judged.validation_error
 
 
 @pytest.mark.parametrize(

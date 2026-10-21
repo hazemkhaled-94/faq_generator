@@ -290,20 +290,38 @@ def label_word(
     return None
 
 
-def _names(tokens: Sequence, word: str, number: str, language: str | None) -> bool:
-    """Reports whether the label word is directly followed by its number.
+def numbered(tokens: Sequence, at: int) -> list[str]:
+    """The numbers a label word at `at` names, a closing full stop dropped.
 
-    The word by form, lemma or inflection ("Sections 7"), the number with a
-    closing full stop dropped, or both glued in one token ("§7").
+    The one directly after it, and each joined to that by a conjunction or a
+    comma: "Sections 7, 9 and 11" names all three.
+    """
+    found = []
+    nxt = at + 1
+    while nxt < len(tokens) and NUMBER.fullmatch(tokens[nxt].text.rstrip(".")):
+        found.append(tokens[nxt].text.rstrip("."))
+        if (
+            nxt + 2 < len(tokens)
+            and tokens[nxt + 1].pos_ in ("CCONJ", "PUNCT")
+            and NUMBER.fullmatch(tokens[nxt + 2].text.rstrip("."))
+        ):
+            nxt += 2
+        else:
+            break
+    return found
+
+
+def _names(tokens: Sequence, word: str, number: str, language: str | None) -> bool:
+    """Reports whether the label word names its number.
+
+    The word by form, lemma or inflection ("Sections 7"), the number after it
+    or conjoined to the one after it ("Sections 7 and 9"), or both glued in
+    one token ("§7").
     """
     for at, token in enumerate(tokens):
         if word + number in {token.text.casefold(), token.lemma_.casefold()}:
             return True
-        if (
-            label_word(tokens, at, (word,), language)
-            and at + 1 < len(tokens)
-            and tokens[at + 1].text.rstrip(".") == number
-        ):
+        if label_word(tokens, at, (word,), language) and number in numbered(tokens, at):
             return True
     return False
 

@@ -23,7 +23,7 @@ import numpy as np
 
 from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
-from extraction.validation import HEADING_LABEL, NUMBER, label_word
+from extraction.validation import HEADING_LABEL, label_word, numbered
 from nlp.analysis import content, normalised
 from nlp.embedding import cosine
 from nlp.pipelines import pipeline
@@ -180,17 +180,8 @@ def _references(
             word = label_word(tokens, at, words, language)
             if word is None:
                 continue
-            nxt = at + 1
-            while nxt < len(tokens) and NUMBER.fullmatch(tokens[nxt].text.rstrip(".")):
-                named[(word, tokens[nxt].text.rstrip("."))].add(tokens[at].sent.text)
-                if (
-                    nxt + 2 < len(tokens)
-                    and tokens[nxt + 1].pos_ in ("CCONJ", "PUNCT")
-                    and NUMBER.fullmatch(tokens[nxt + 2].text.rstrip("."))
-                ):
-                    nxt += 2
-                else:
-                    break
+            for number in numbered(tokens, at):
+                named[(word, number)].add(tokens[at].sent.text)
         for key in sorted(k for k in named if k not in own):
             # A numbered reference names a section of its own document, or of
             # another whose title the sentence names.
