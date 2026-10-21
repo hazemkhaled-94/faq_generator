@@ -1570,6 +1570,8 @@ _CATAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
 #: leaves a capitalised opening as written, `Besagter Kunde`.
 _ADJECTIVE_ENDINGS: dict[str, tuple[str, ...]] = {
     "de": ("e", "em", "en", "er", "es"),
+    # English adjectives take no ending, so the form as written is the lemma.
+    "en": (),
 }
 
 
