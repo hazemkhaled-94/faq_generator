@@ -172,7 +172,9 @@ page, and one of rows from both cites both.
 `_read` detects each passage's language on its own text, falling back to the
 document's when the passage is too short to judge. Per passage rather than per
 document, because a document carrying an English summary of a German report
-would send half its passages to the wrong pipeline. A table passage takes the
+would send half its passages to the wrong pipeline. A chunk ends where its
+paragraphs or list items change language, so a bilingual list is not one
+passage read as one language. A table passage takes the
 document's language without detection.
 
 Then one spaCy batch per language, producing the **numbered units** a fact may

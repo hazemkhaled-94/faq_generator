@@ -370,6 +370,9 @@ def _depth(reference: str, document: DoclingDocument) -> int:
 #: What a lead-in is: a paragraph, as the converter labels one.
 _PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
+#: What is read for its language: a paragraph or a list item.
+_SPOKEN = _PROSE | {DocItemLabel.LIST_ITEM}
+
 #: What a lead-in ends on: the colon, in the Latin and the full-width forms.
 _LEAD_IN = (":", "：")
 # What a lead-in introduces: the chunker cuts a long list or table into pieces.
@@ -470,13 +473,13 @@ def lead_ins_kept(
 
 
 def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[DocChunk]:
-    """Ends a chunk where its prose changes language.
+    """Ends a chunk where its prose or list items change language.
 
     Merging undersized peers joins neighbours without regard to language, and
     a passage is read as one language, so a bilingual page printing each
-    paragraph beside its translation would lose one language's vocabulary. A
-    paragraph too short to detect or not surely one language, and any other
-    item, stays with the run it follows.
+    paragraph or list item beside its translation would lose one language's
+    vocabulary. An item too short to detect or not surely one language, and
+    any other item, stays with the run it follows.
 
     Args:
         chunks: What the chunker returned, in order.
@@ -490,7 +493,9 @@ def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[Doc
     for chunk in chunks:
         items = chunk.meta.doc_items
         spoken = [
-            detect_surely(text) if (text := _prose_text(item, document)) else None
+            detect_surely(text)
+            if (text := _prose_text(item, document, _SPOKEN))
+            else None
             for item in items
         ]
         first = next((code for code in spoken if code), None)
@@ -505,12 +510,13 @@ def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[Doc
         # Each run's text opens where its first item's text is found.
         cursor, offsets = 0, []
         for index, item in enumerate(items):
-            text = _prose_text(item, document)
+            text = _prose_text(item, document, _SPOKEN)
             found = chunk.text.find(text, cursor) if text is not None else -1
             if text is not None and found >= 0:
-                cursor = found + len(text)
                 if index in starts:
-                    offsets.append(found)
+                    # From the line's start, so a list item keeps its marker.
+                    offsets.append(max(cursor, chunk.text.rfind("\n", 0, found) + 1))
+                cursor = found + len(text)
         if len(offsets) != len(starts):
             split.append(chunk)
             continue
@@ -534,13 +540,15 @@ def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[Doc
     return split
 
 
-def _prose_text(item: DocItem, document: DoclingDocument) -> str | None:
+def _prose_text(
+    item: DocItem, document: DoclingDocument, labels: frozenset = _PROSE
+) -> str | None:
     """The text of a prose item, or None for any other item.
 
     The chunker hands its items over as bare copies, so the text is read
     off the document the reference names.
     """
-    if item.label not in _PROSE:
+    if item.label not in labels:
         return None
     found = RefItem.model_validate({"$ref": item.self_ref}).resolve(document)
     return found.text.strip() if isinstance(found, TextItem) else None
