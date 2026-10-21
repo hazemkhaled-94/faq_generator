@@ -552,7 +552,7 @@ calls too, and so is one whose spans Phoenix would not hand over.
 | `make lint` | ruff check and format check |
 | `make format` | Apply every fix ruff can make |
 | `make typecheck` | pyright, at zero |
-| `make audit` | Known advisories, read from OSV, against both image locks and the host `poetry.lock`, torch and torchvision left out. Fails on one, after reading all three. Its scratch files live in a temporary directory |
+| `make audit` | Known advisories, read from OSV, against both image locks and the host `poetry.lock`, torch and torchvision left out. Fails on one, after reading all three. Its scratch files live in a temporary directory. Linux only, as the nightly job runs it: on a Mac the `poetry.lock` leg fails on CUDA wheels with no macOS build |
 | `make lint-imports` | The two architecture rules, as import-linter contracts |
 | `make deps` | A declared dependency nothing imports, and an import nothing declares |
 | `make lock` | Rewrite `backend/api/requirements.lock` and `frontend/requirements.lock`, resolved under the pins of `poetry.lock` in a throwaway container |

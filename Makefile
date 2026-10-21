@@ -1582,6 +1582,11 @@ typecheck:
 # are not covered here - `pip-audit -r` inside the built image is what
 # would cover them.
 #
+# It runs whole on Linux only, where the nightly job runs it: poetry.lock
+# also pins CUDA wheels with no macOS build, cuda-bindings among them, so
+# on a Mac its leg fails on a package pip cannot find rather than on an
+# advisory, and only the two image locks are audited.
+#
 # The scratch files live in a temporary directory, removed on any exit, so an
 # interrupted run leaves nothing among the sources. poetry.lock is read with
 # its own parser into the same name==version form.
