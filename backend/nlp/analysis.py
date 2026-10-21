@@ -1541,12 +1541,17 @@ def _sourced(token) -> bool:
 
 
 #: Modifiers that make their noun one the passage named before, by ISO 639-1
-#: code, as lemma or as written: `such a card`, `eine solche Karte`, `the
-#: aforementioned card`. Not `_ANAPHORIC`, which the question side reads as a
-#: measurement that may over-read: `former customers` names no earlier mention.
+#: code, as lemma or as written, alone or joined to the word before it (`oben
+#: genannt`): `such a card`, `eine solche Karte`, `the aforementioned card`.
+#: Before their noun only, so `Withdrawals above EUR 500` points nowhere. Not
+#: `_ANAPHORIC`, which the question side reads as a measurement that may
+#: over-read: `former customers` names no earlier mention. Nor a bare
+#: `genannt`, for the reason given there.
 _ANAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
-    "de": frozenset({"solcher", "vorgenannt", "obengenannt", "obig", "besagt"}),
-    "en": frozenset({"such", "aforementioned", "abovementioned"}),
+    "de": frozenset(
+        {"solcher", "vorgenannt", "obengenannt", "vorstehend", "obig", "besagt"}
+    ),
+    "en": frozenset({"such", "aforementioned", "abovementioned", "above", "said"}),
 }
 
 #: Modifiers that make a plural noun a list the passage gives after the
@@ -1592,11 +1597,15 @@ def _opens(token) -> bool:
         noun = next((one for one in token.children if one.pos_ in _NOMINAL), None)
         if noun is None:
             return False
+    if noun.i < token.i:
+        return False
     text = token.text.casefold()
-    words = {token.lemma_.casefold(), text} | {
-        text.removesuffix(end)
+    forms = {text, token.doc[token.i - 1].text.casefold() + text if token.i else text}
+    words = {token.lemma_.casefold(), *forms} | {
+        form.removesuffix(end)
+        for form in forms
         for end in _ADJECTIVE_ENDINGS.get(language, ())
-        if text.endswith(end)
+        if form.endswith(end)
     }
     if words & _ANAPHORIC_MODIFIERS.get(language, frozenset()):
         return True

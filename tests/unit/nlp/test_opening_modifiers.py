@@ -46,14 +46,6 @@ def test_a_modifier_the_lemmatizer_reads_points_outside(text) -> None:
     assert references(text, "de")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A fact opening on a common back-pointing modifier no table holds "
-        "validates: the above fees, the said card, die oben genannten / "
-        "vorstehenden Gebühren"
-    ),
-)
 @pytest.mark.parametrize(
     ("text", "language"),
     [
