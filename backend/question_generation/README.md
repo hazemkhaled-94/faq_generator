@@ -176,7 +176,9 @@ passage.
 
 [`generation.py`](generation.py), [`types.py`](types.py). One shared rule
 block holds what is true of every question — do not name the source, name the
-subject, one question, the language of the facts — and each kind adds what it
+subject, ask about the rule a person or a story in the material illustrates
+and never about the person or the page's contact box, legend or list of
+changes, one question, the language of the facts — and each kind adds what it
 asks for, what its answer looks like, and one or two worked examples.
 
 Each call returns **two answers**: `target_answer`, the key a chatbot is

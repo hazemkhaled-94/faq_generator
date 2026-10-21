@@ -784,3 +784,15 @@ def test_an_aggregation_counts_what_the_facts_state_and_never_the_facts() -> Non
 
     assert "count" not in aggregation.asks or "facts state" in aggregation.asks
     assert "A COUNT IS OF WHAT THE FACTS STATE, NEVER OF THE FACTS" in system
+
+
+def test_every_writer_is_told_to_ask_the_rule_a_story_shows_and_never_the_page() -> (
+    None
+):
+    """A sample person or a contact box passes every gate, so the writer is told."""
+    from question_generation.generation import _PERTURB
+
+    for prompt in [spec.system() for spec in SPECS.values()] + [_PERTURB]:
+        flat = " ".join(prompt.split())
+        assert "ask about the rule, never about the person" in flat
+        assert "a contact box, a legend, a list of changes" in flat

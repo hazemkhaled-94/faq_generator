@@ -31,7 +31,7 @@ from database.qa_generator import (
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "20"
+PROMPT_VERSION = "21"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -127,6 +127,11 @@ READS = """Rules, all of them mandatory:
   the thing, the party, the duty, the period. The source is which document
   says it. Name the first, never the second. A question opening with a bare
   "What" or "Which" that names nothing at all is no good either.
+
+- ASK ABOUT WHAT THE MATERIAL SAYS, NOT ABOUT ITS PAGES. A person or a story
+  in the material is an example of a rule: ask about the rule, never about the
+  person. Never ask about the page itself - a contact box, a legend, a list of
+  changes.
 
 - DO NOT HAND THE FACT BACK. Taking the sentence and replacing one part with a
   question word is the failure this task is about. Ask what a person would ask.
