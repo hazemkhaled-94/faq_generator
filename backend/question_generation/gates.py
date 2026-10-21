@@ -562,7 +562,6 @@ def structural(
     forms: Sequence[str] = (AnswerForm.VALUE,),
     bounds: Mapping[str, tuple[int, int]] | None = None,
     titles: Sequence[str] = (),
-    passages: Sequence[str] = (),
     kind: str = QuestionKind.SINGLE,
     query: bool = False,
 ) -> tuple[tuple[str, str] | None, str]:
@@ -581,9 +580,6 @@ def structural(
     one it asked for first. The form reported back is the one the answer
     actually fits, and it is what the later gates and the stored row read:
     a factoid answered with a list is compared as a list.
-
-    `passages` are what the facts rest on. With `statements` they say whether
-    a title the question quotes is a word of the material or a name for it.
 
     `kind` is what the slot was dealt to be. A compound question asks two
     things on purpose, so for it the two-question-word refusal is skipped.
@@ -702,20 +698,19 @@ def structural(
             return failed, form
 
     # The question quotes the title of the document it came from, which is
-    # the free half of the source-leak check. Whole, and only for a title
-    # long enough to be a title: `Contents` and `March 2018` are rows in this
-    # corpus's documents table, and a question is allowed to contain either
-    # by accident. `Risiken im Fokus 2026` it is not.
+    # the free half of the source-leak check. Verbatim and whole, and only
+    # for a title long enough to be a title: `Contents` and `March 2018` are
+    # rows in this corpus's documents table, and a question is allowed to
+    # contain either by accident. `Risiken im Fokus 2026` it is not.
     #
     # The model catches the rest - `Laut dem Jahresbericht 2025` names a
     # source without quoting `Druckversion - Jahresbericht 2025` exactly -
     # but this half costs nothing and runs before any call.
-    material = (*statements, *passages)
+    folded = normalised(asked)
     quoted = [
         title
         for title in titles
-        if len(title.strip()) >= _TITLE_CHARS
-        and _quotes(asked, title, material, language)
+        if len(title.strip()) >= _TITLE_CHARS and normalised(title) in folded
     ]
     if quoted:
         return (
@@ -758,70 +753,6 @@ def structural(
             f"it is written in {written} and its facts are in {language}",
         ), form
     return None, form
-
-
-#: Word runs that attribute what follows them to a source, by ISO 639-1 code,
-#: compared casefolded. A title one leads to, an article or two apart, is
-#: named as where the answer is whatever the material writes: `Laut dem Preis-
-#: und Leistungsverzeichnis, was ...?`. Wider than `_ATTRIBUTIONS`, which
-#: needs no title beside it.
-_ATTRIBUTING: dict[str, tuple[tuple[str, ...], ...]] = {
-    "de": (("laut",), ("gemäß",), ("nach", "angaben"), ("entsprechend",)),
-    "en": (("according", "to"), ("as", "stated", "in"), ("under",), ("per",)),
-}
-
-
-def _attributed(before: Sequence[Token], language: str | None) -> bool:
-    """Whether the words before a span end in an attribution, its articles aside."""
-    kept = list(before)
-    while kept and kept[-1].pos_ == "DET":
-        kept.pop()
-    words = tuple(one.text.casefold() for one in kept)
-    return any(
-        len(words) >= len(run)
-        and words[len(words) - len(run) :] == tuple(map(str.casefold, run))
-        for run in _ATTRIBUTING.get((language or "").strip().lower(), ())
-    )
-
-
-def _quotes(
-    question: str, title: str, material: Sequence[str], language: str | None
-) -> bool:
-    """Whether a question names a document by its title, not what the title names.
-
-    The title is matched whole, word by word as it is written: `Kontoführung`
-    is not in `Kontoführungsgebühr`, nor `Insurance products` in `reinsurance
-    products`.
-
-    A document titled by its subject - a product page `Kreditkarten`, a help
-    page `Rücksendungen`, a rulebook's edition - is asked about by that name,
-    and its material says so: every noun and adjective the question quotes
-    the title in is written in a fact or a passage the question cites. A title
-    its material never writes, `Risiken im Fokus 2026`, names where the
-    answer is. So does any title an attribution leads to (`_ATTRIBUTING`).
-    Whether a title the material writes is otherwise named as a source -
-    `Was sagen die Spielregeln 26/27 über ...` - is `cites_source`'s and the
-    phrasing judge's.
-    """
-    words = [token for token in pipeline(language)(question) if not token.is_punct]
-    named = [
-        token.text.casefold()
-        for token in pipeline(language)(title)
-        if not token.is_punct
-    ]
-    width = len(named)
-    for start in range(len(words) - width + 1 if width else 0):
-        span = words[start : start + width]
-        if [one.text.casefold() for one in span] == named:
-            if _attributed(words[:start], language):
-                return True
-            carried = vocabulary("\n".join(material), language)
-            terms = [one for one in span if one.pos_ in ("NOUN", "PROPN", "ADJ")]
-            return not terms or not all(
-                one.text.casefold() in carried or one.lemma_.casefold() in carried
-                for one in terms
-            )
-    return False
 
 
 #: How many things a question has to be about before it is taken to name

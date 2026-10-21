@@ -496,12 +496,7 @@ is, and re-verify rejects it.
 
 Applied cheapest first, in this order. The first five are one structural
 step, and the free half of `leaks_source`, a question quoting the title of
-its own document, runs in it too: the title whole, as words and not as letters
-inside one, and only a title its cited facts and passages never write or one
-an attribution leads to (`Laut dem …`, `According to the …`, by the
-per-language `_ATTRIBUTING` table). A page titled by its subject
-(`Kreditkarten`, `Mortgage loans`) is asked about by that name, which is the
-phrasing judge's to tell from naming the source.
+its own document, runs in it too.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|
