@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -304,27 +305,60 @@ def made(
 
 @pytest.mark.parametrize(
     ("advised", "refused"),
-    [("lock.audit", True), ("frontend/requirements.lock", True), ("", False)],
-    ids=["backend-advisory", "frontend-advisory", "none"],
+    [
+        ("api.lock", True),
+        ("frontend/requirements.lock", True),
+        ("poetry.lock", True),
+        ("", False),
+    ],
+    ids=["backend-advisory", "frontend-advisory", "host-advisory", "none"],
 )
 def test_the_audit_keeps_pip_audits_exit_status(
     tmp_path: Path, advised: str, refused: bool
 ) -> None:
-    """An advisory in either lock fails it, and both locks are still read."""
+    """An advisory in any of the three locks fails it, and all are still read."""
     calls = tmp_path / "calls"
     poetry = tmp_path / "poetry"
+    # `poetry run python` runs the test's own interpreter; pip-audit is only recorded.
     poetry.write_text(
-        f'#!/bin/sh\necho "$*" >> {calls}\n'
+        f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
+        f'echo "$*" >> {calls}\n'
         + (f'case "$*" in *{advised}*) exit 1;; esac\n' if advised else "")
     )
     poetry.chmod(0o755)
-    held = tmp_path / "lock.audit"
 
-    ran = made("audit", f"AUDIT_TMP={held}", path=tmp_path)
+    ran = made("audit", path=tmp_path)
 
     assert (ran.returncode != 0) is refused, ran
-    assert len(calls.read_text().splitlines()) == 2, calls.read_text()
-    assert not held.exists()
+    assert len(calls.read_text().splitlines()) == 3, calls.read_text()
+
+
+def test_the_audit_reads_the_host_lock_without_the_torch_it_cannot_resolve(
+    tmp_path: Path,
+) -> None:
+    """poetry.lock is what CI and the host install; torch is a +cpu build there too."""
+    seen = tmp_path / "seen"
+    poetry = tmp_path / "poetry"
+    poetry.write_text(
+        f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
+        f'for f in "$@"; do case "$f" in *poetry.lock) cp "$f" {seen};; esac; done\n'
+    )
+    poetry.chmod(0o755)
+
+    assert made("audit", path=tmp_path).returncode == 0
+    pins = seen.read_text().splitlines()
+
+    assert any(pin.startswith("aiohttp==") for pin in pins), pins[:5]
+    assert not [pin for pin in pins if pin.startswith(("torch==", "torchvision=="))]
+
+
+@pytest.mark.parametrize("target", ["audit", "lock"])
+def test_the_scratch_files_of_a_target_stay_out_of_the_source_tree(target: str) -> None:
+    """An interrupted run would leave them untracked among the sources."""
+    recipe = "\n".join(printed(target))
+
+    assert "backend/api/requirements.lock." not in recipe, recipe
+    assert "mktemp" in recipe and "trap" in recipe, recipe
 
 
 @pytest.mark.parametrize(

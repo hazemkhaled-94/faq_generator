@@ -24,9 +24,6 @@ COMPOSE_CMD = $(COMPOSE) --env-file configs/env/deployment.env --env-file .env
 # equivalent of --target.
 CONTAINER ?= podman
 
-LOCK_TMP := backend/api/requirements.lock.new
-AUDIT_TMP := backend/api/requirements.lock.audit
-
 # Every directory ruff reads, so `lint` and `format` cannot cover different
 # ones. orchestration, review and evaluation are here and not in pyright's
 # `include`: they are checked by both, but pyright is configured in
@@ -1547,8 +1544,9 @@ check: test
 typecheck:
 	poetry run pyright
 
-# Known advisories against what the images install. Fails on one in either
-# lock, after reading both: the nightly job that runs it blocks no merge, so
+# Known advisories against what the images install and what the host and CI
+# install: both image locks and poetry.lock. Fails on one in any of them,
+# after reading all three: the nightly job that runs it blocks no merge, so
 # a red run is how an advisory is reported, and a run that always passed
 # reported none.
 #
@@ -1559,12 +1557,21 @@ typecheck:
 # only for linux. Resolving them anywhere else fails, so their advisories
 # are not covered here - `pip-audit -r` inside the built image is what
 # would cover them.
+#
+# The scratch files live in a temporary directory, removed on any exit, so an
+# interrupted run leaves nothing among the sources. poetry.lock is read with
+# its own parser into the same name==version form.
+#
+# shortcut: a package poetry.lock holds twice (the CUDA wheels for another
+# platform) is audited at its first version, when one of those matters read
+# the second off the lock by hand.
 audit:
-	@grep -viE "^(torch|torchvision)==" backend/api/requirements.lock > $(AUDIT_TMP)
-	poetry run pip-audit --no-deps --progress-spinner off -r $(AUDIT_TMP); \
-	  s=$$?; rm -f $(AUDIT_TMP); \
-	  poetry run pip-audit --no-deps --progress-spinner off \
-	    -r frontend/requirements.lock && exit $$s
+	@d=$$(mktemp -d) && trap 'rm -rf $$d' EXIT && \
+	  grep -viE "^(torch|torchvision)==" backend/api/requirements.lock > $$d/api.lock; \
+	  poetry run python -c 'import tomllib; seen = {}; [seen.setdefault(p["name"], p["version"]) for p in tomllib.load(open("poetry.lock", "rb"))["package"] if p["name"] not in ("torch", "torchvision")]; print(*(f"{n}=={v}" for n, v in seen.items()), sep="\n")' > $$d/poetry.lock && \
+	  s=0 && for f in $$d/api.lock frontend/requirements.lock $$d/poetry.lock; do \
+	    poetry run pip-audit --no-deps --progress-spinner off -r $$f || s=1; \
+	  done; exit $$s
 
 # ruff check and format check over every source directory. Configuration
 # lives in [tool.ruff] in pyproject.toml.
@@ -1608,9 +1615,10 @@ format:
 lock:
 	$(CONTAINER) build --target resolve -t qa_generator-resolve \
 	  -f backend/api/Dockerfile .
-	@awk '/^#/ {print; next} {exit}' backend/api/requirements.lock > $(LOCK_TMP)
-	set -o pipefail; $(CONTAINER) run --rm qa_generator-resolve | sort >> $(LOCK_TMP)
-	@mv $(LOCK_TMP) backend/api/requirements.lock
+	@t=$$(mktemp) && trap 'rm -f $$t' EXIT && \
+	  awk '/^#/ {print; next} {exit}' backend/api/requirements.lock > $$t && \
+	  { set -o pipefail; $(CONTAINER) run --rm qa_generator-resolve | sort >> $$t; } && \
+	  cp $$t backend/api/requirements.lock
 	@echo "backend/api/requirements.lock rewritten; rebuild with: $(COMPOSE_CMD) build api"
 
 # ── TLS certificates ───────────────────────────────────────────────────────
