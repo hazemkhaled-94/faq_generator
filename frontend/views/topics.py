@@ -7,7 +7,7 @@ from datetime import datetime
 import requests
 import streamlit as st
 
-from lib import backend, catalog, configure, explain, lineage, page, stage
+from lib import backend, catalog, config, configure, explain, lineage, page, stage
 from lib.backend.base import refusal
 
 #: The one stage this page runs. A fit is all-or-nothing over one
@@ -117,9 +117,6 @@ _SERVICE = explain.Service(
     steps=_STEPS,
     gates=_GATES,
 )
-
-#: The longest label the API takes, past which it refuses the whole save.
-_LABEL_MAX = 120
 
 #: What the search box can look in.
 _FIELDS = {"Label and terms": "both", "Label": "label", "Terms": "terms"}
@@ -426,7 +423,7 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             "Label",
             value=chosen["label"] or "",
             key=f"topics-label-{chosen['id']}",
-            max_chars=_LABEL_MAX,
+            max_chars=config.LABEL_MAX,
             placeholder="a short name for this subject",
             help="Shown wherever the topic is, in place of its number.",
         )
@@ -453,7 +450,7 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
         ):
             described: dict = {"include_in_coverage": included}
             # A longer stored name is drawn cut, so it is sent only when edited.
-            if label != (chosen["label"] or "")[:_LABEL_MAX]:
+            if label != (chosen["label"] or "")[: config.LABEL_MAX]:
                 described["label"] = label.strip() or None
             try:
                 client.describe_topic(chosen["id"], **described)

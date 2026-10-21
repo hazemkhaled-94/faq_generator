@@ -266,6 +266,23 @@ def test_the_listing_bounds_are_the_apis(name) -> None:
     assert ceiling.value == getattr(params, name)
 
 
+def test_the_topic_label_bound_is_the_apis() -> None:
+    """The Topics page's label box holds what PATCH /topics takes, and no more.
+
+    The page also compares the box against the stored label cut to it, to
+    tell an edit from a long name drawn cut.
+    """
+    from api.routes.topics import TopicDescription
+
+    bound = _bound(ROOT / "frontend/lib/config.py", "LABEL_MAX")
+    (taken,) = [
+        one.max_length for one in TopicDescription.model_fields["label"].metadata
+    ]
+
+    assert isinstance(bound, ast.Constant), ast.dump(bound)
+    assert bound.value == taken
+
+
 @pytest.mark.parametrize(
     ("page", "name", "vocabulary"),
     [

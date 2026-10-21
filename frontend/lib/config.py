@@ -37,6 +37,10 @@ PAGE_MAX = 500
 #: and held the same way.
 SEARCH_MAX = 200
 
+#: The longest topic label PATCH /topics takes, past which it refuses the
+#: whole save; copied and held the same way.
+LABEL_MAX = 120
+
 #: Rows per page in the listings.
 PAGE_SIZE = _integer("PAGE_SIZE")
 if not 1 <= PAGE_SIZE <= PAGE_MAX:
