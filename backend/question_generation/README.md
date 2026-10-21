@@ -151,7 +151,9 @@ so no cosine is tuned to a corpus or a language, and the closest pair always
 clears it. While `QUESTIONS_MEETS_FLOOR` or `QUESTIONS_MEETS_SHARE` is above
 0, the floor is read over the second passage's facts that do not restate the
 head's first word for word, and a passage holding nothing but such copies is
-not offered, since it answers nothing the head does not.
+not offered, since it answers nothing the head does not. A second passage
+never offers a fact that copies one already offered word for word, and a
+compound partner is never a passage whose claims are all copies of the head's.
 
 **The corpus's own furniture is never offered.** A copyright notice, contents
 page or revision table is real text a fact extracts from cleanly and no gate

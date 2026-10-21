@@ -94,6 +94,28 @@ def test_a_follow_up_on_a_compound_pair_is_not_stored_needs_both(language) -> No
     assert written.kind != QuestionKind.NEEDS_BOTH
 
 
+# -- qg-plan-3: an APART partner that restates the head ------------------------
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_partner_is_never_a_copy_of_the_head(language) -> None:
+    """Two editions of one return clause say the same thing; the shipped share is in force."""
+    t = _T[language]
+    kw = {"language": language, "lemmas": ("goods", "return", "day", "receipt")}
+    edition_2025 = source(
+        1, document="shop-2025", passage_id=1, statement=t["returns"], **kw
+    )
+    edition_2026 = source(
+        2, document="shop-2026", passage_id=2, statement=t["returns"], **kw
+    )
+    deal = Deal([edition_2025, edition_2026], wanted=2, size=2, share=0.02)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert len(sample.resting) == 1, [one.statement for one in sample.facts]
+
+
 # -- qg-plan-7: an APART partner's fact is the one closest to the head --------
 
 
@@ -128,6 +150,31 @@ def test_a_compound_partner_offers_its_own_first_fact(language) -> None:
 
     assert sample is not None
     assert [one.id for one in sample.facts] == [1, 3]
+
+
+# -- FIX-R103: a CROSS partner's restatement is offered ------------------------
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_two_passage_deal_never_offers_the_partners_copy_of_the_head(
+    language,
+) -> None:
+    """_clears sets the copy aside to measure the partner; the offer should too."""
+    t = _T[language]
+    kw = {"language": language}
+    # Documents named so the terms passage is dealt first and is the head.
+    head = source(
+        1, document="shop-a-terms", passage_id=1, statement=t["returns"], **kw
+    )
+    copy = source(21, document="shop-b-faq", passage_id=2, statement=t["returns"], **kw)
+    other = source(22, document="shop-b-faq", passage_id=2, statement=t["refund"], **kw)
+    deal = Deal([head, copy, other], wanted=2, size=2, share=0.02)
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert sample.facts[0].id == 1, "the terms passage is the head"
+    assert 21 not in {one.id for one in sample.facts}, [one.id for one in sample.facts]
 
 
 # -- NEW-qg-plan-1: closest() picks a bridge the compound slot then drops -------
@@ -193,3 +240,94 @@ def test_a_declined_one_passage_slot_swapped_keeps_a_band_its_shape_can_reach() 
     assert other is not None
     assert (other.spec.name, other.shape) == (QuestionType.FACTOID, Shape.SINGLE)
     assert other.band == "easy", other.band
+
+
+# -- A partner's different rule is not a copy ---------------------------------
+
+# Each pair differs in a preposition, a negation or a verb, which a reading of
+# the nouns alone would call the same rule.
+_CONTRASTS = [
+    (
+        "en",
+        "Returns are accepted before delivery.",
+        "Returns are accepted after delivery.",
+    ),
+    (
+        "en",
+        "Customers may withdraw cash at the counter.",
+        "Customers may not withdraw cash at the counter.",
+    ),
+    (
+        "en",
+        "Customers may withdraw cash at the counter.",
+        "Customers may deposit cash at the counter.",
+    ),
+    (
+        "de",
+        "Rücksendungen werden vor der Lieferung angenommen.",
+        "Rücksendungen werden nach der Lieferung angenommen.",
+    ),
+    (
+        "de",
+        "Der Kunde darf Bargeld am Schalter abheben.",
+        "Der Kunde darf kein Bargeld am Schalter abheben.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("language", "head_rule", "other_rule"), _CONTRASTS)
+def test_a_partners_different_rule_is_still_offered(
+    language, head_rule, other_rule
+) -> None:
+    """Shop B's rule contradicts shop A's; that is the comparison, not a copy."""
+    unrelated = {
+        "en": "Refunds are paid by bank transfer.",
+        "de": "Erstattungen werden per Überweisung gezahlt.",
+    }[language]
+    head = source(
+        1, document="shop-a", passage_id=1, statement=head_rule, language=language
+    )
+    rule = source(
+        21, document="shop-b", passage_id=2, statement=other_rule, language=language
+    )
+    other = source(
+        22, document="shop-b", passage_id=2, statement=unrelated, language=language
+    )
+    deal = Deal([head, rule, other], wanted=2, size=2, share=0.02)
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert sample.facts[0].id == 1
+    assert 21 in {one.id for one in sample.facts}, [
+        one.statement for one in sample.facts
+    ]
+
+
+@pytest.mark.parametrize(("language", "head_rule", "other_rule"), _CONTRASTS)
+def test_a_compound_partner_with_a_different_rule_is_kept(
+    language, head_rule, other_rule
+) -> None:
+    """The partner's only claim differs from the head's by a word: it is a partner."""
+    head = source(
+        1,
+        document="shop-a",
+        passage_id=1,
+        statement=head_rule,
+        language=language,
+        lemmas=("rule",),
+    )
+    rule = source(
+        21,
+        document="shop-b",
+        passage_id=2,
+        statement=other_rule,
+        language=language,
+        lemmas=("rule",),
+    )
+    deal = Deal([head, rule], wanted=2, size=2, share=0.02)
+
+    sample = deal.sample(Shape.APART)
+
+    assert sample is not None
+    assert [one.id for one in sample.facts] == [1, 21]

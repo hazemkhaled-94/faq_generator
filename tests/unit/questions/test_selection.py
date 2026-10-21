@@ -1180,7 +1180,15 @@ def test_a_compound_partner_is_kept_under_the_shipped_meets_share() -> None:
     """Unrelated on purpose: the floor that asks a partner to meet the head is not applied."""
     head = facts_of(1, "a", count=1, axis=0, passage_axis=0, lemmas=("x", "y"))
     close = facts_of(2, "b", count=1, axis=0, passage_axis=0, lemmas=("x", "y"))
-    far = facts_of(3, "c", count=1, axis=1, passage_axis=1, lemmas=("z",))
+    far = facts_of(
+        3,
+        "c",
+        count=1,
+        axis=1,
+        passage_axis=1,
+        lemmas=("z",),
+        statement="Parcels are collected by courier on weekdays.",
+    )
     deal = Deal(head + close + far, wanted=3, size=4, share=0.02)
 
     sample = deal.sample(Shape.APART)

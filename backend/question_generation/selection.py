@@ -158,6 +158,21 @@ def _restates(one: SourceFact, other: SourceFact) -> bool:
     )
 
 
+def _copy(one: SourceFact, other: SourceFact) -> bool:
+    """Whether two facts are the same words, apart from case, spacing and punctuation.
+
+    Narrower than `_restates` on purpose: a rule that differs by a verb, a
+    negation or a preposition is another rule, and is what a comparison of
+    two sources asks for.
+    """
+    return _spelt(one.statement) == _spelt(other.statement)
+
+
+def _spelt(statement: str) -> list[str]:
+    """A statement's words, casefolded, with its spacing and punctuation gone."""
+    return re.findall(r"\w+", statement.casefold())
+
+
 def _relative_floor(facts: Sequence[SourceFact], share: float) -> float:
     """The cosine a second passage's fact must reach, read off the topic itself.
 
@@ -605,7 +620,8 @@ class Deal:
             passage = self._by_passage.get(pid)
             if not passage:
                 continue
-            fresh.extend(closest(list(group.facts) + fresh, self._left(passage), more))
+            left = self._fresh(self._left(passage), [*group.facts, *fresh])
+            fresh.extend(closest(list(group.facts) + fresh, left, more))
         for fact in fresh:
             self._spent.add(fact.id)
         return FactGroup((*group.facts, *fresh)) if fresh else group
@@ -613,6 +629,19 @@ class Deal:
     def _left(self, passage: list[SourceFact]) -> list[SourceFact]:
         """The facts of this passage no sample has taken yet, in rank order."""
         return [fact for fact in passage if fact.id not in self._spent]
+
+    def _fresh(
+        self, facts: list[SourceFact], offered: Sequence[SourceFact]
+    ) -> list[SourceFact]:
+        """The facts that are no copy of one already offered, where a floor is in force.
+
+        A copy of a clause is the closest fact there is to the one it
+        copies, so a partner ranked by closeness would offer it, and one
+        ranked for sharing least would offer it when nothing else is left.
+        """
+        if not self._ceiling:
+            return facts
+        return [fact for fact in facts if not any(_copy(one, fact) for one in offered)]
 
     def _taken(self, passage: list[SourceFact]) -> bool:
         """Whether this passage has nothing left to offer.
@@ -679,12 +708,14 @@ class Deal:
         one with the lowest `overlap`; ties go to the lower passage id. A
         passage with no lemmas is not eligible: it would score 0 against
         everything and always win, and neither is one holding only bridges,
-        which a compound sample drops. None where there is no such passage.
+        which a compound sample drops, and neither is one whose claims are
+        all copies of the head's. None where there is no such passage.
         """
         candidates = [
             one
             for one in (*self._free(head), *self._free(head, bridging=True))
-            if one[0].lemmas and any(not fact.spans for fact in self._left(one))
+            if one[0].lemmas
+            and any(not fact.spans for fact in self._fresh(self._left(one), head))
         ]
         if not candidates:
             return None
@@ -787,12 +818,15 @@ class Deal:
         a question welding them together with "and", which is the failure
         the span rules spend three paragraphs on. A compound sample (`apart`)
         is the exception: its second passage was dealt for sharing least, so
-        it offers its own facts in its own order.
+        it offers its own facts in its own order. And no second passage
+        offers a copy of what the first did.
         """
         each = max(1, self._size // len(passages))
         facts: list[SourceFact] = []
         for passage in passages:
             left = _ordered(self._left(passage), condensed, prefer)
+            if facts:
+                left = self._fresh(left, facts)
             chosen = left[:each] if apart and facts else closest(facts, left, each)
             if condensed:
                 # A reading asks for the whole of what a passage says, so a
