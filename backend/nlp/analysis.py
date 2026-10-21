@@ -1611,7 +1611,12 @@ def _opens(token) -> bool:
     if glued and token.nbor().text in ("-", "\u2013"):
         return False
     text = token.text.casefold()
-    forms = {text, token.doc[token.i - 1].text.casefold() + text if token.i else text}
+    before = token.doc[: token.i]
+    # Written apart, `oben genannt`, or with its hyphen, `above-mentioned`.
+    forms = {text, before[-1:].text.casefold() + text}
+    hyphen = len(before) > 1 and before[-1].text in ("-", "\u2013")
+    if hyphen and not (before[-2].whitespace_ or before[-1].whitespace_):
+        forms.add(before[-2].text.casefold() + text)
     words = {token.lemma_.casefold(), *forms} | {
         form.removesuffix(end)
         for form in forms

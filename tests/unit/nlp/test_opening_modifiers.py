@@ -90,6 +90,18 @@ def test_a_hyphen_compound_on_a_pointing_word_points_nowhere(text) -> None:
 
 
 @pytest.mark.parametrize(
+    "text",
+    [
+        "The above-mentioned fee applies to every account.",
+        "Above-mentioned fees apply to every account.",
+    ],
+)
+def test_a_table_word_written_with_its_hyphen_points_outside(text) -> None:
+    """`above-mentioned` is the table's `abovementioned`, as `above mentioned` is."""
+    assert references(text, "en")
+
+
+@pytest.mark.parametrize(
     "between",
     [
         "Wir prüfen alle Angaben.",
