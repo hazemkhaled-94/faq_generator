@@ -124,7 +124,9 @@ it:
   beside another letter, `cré- dit`, is not rejoined; and a compound broken
   at its own hyphen keeps it where the document prints the word whole
   elsewhere, so `third- party` is `third-party` and not `thirdparty`
-- drop control and zero-width characters
+- drop control characters and every format character (zero-width marks, bidi
+  marks and isolates), and read a C1 control as the cp1252 character it stands
+  for (`U+0096` is an en dash), dropping the five it leaves unassigned
 - fold every other kind of space to U+0020
 
 It runs on the text items *and* on the table grid. A character a model cannot

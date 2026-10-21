@@ -51,8 +51,10 @@ _SOFT_HYPHEN = re.compile(r"[\x02\u00ad]")
 #: Control characters other than newline and tab.
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
-#: Zero-width marks.
-_INVISIBLE = re.compile(r"[\u200b-\u200d\u2060\ufeff]")
+#: The C1 controls but U+0085, which `_SPACES` folds to a space: a legacy
+#: cp1252 character the converter read as its Unicode control, an en dash as
+#: U+0096.
+_C1 = re.compile(r"[\x80-\x84\x86-\x9f]")
 
 #: Every space that is not U+0020.
 _SPACES = re.compile(r"[\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]")
@@ -320,11 +322,20 @@ def image_only_pages(data: bytes) -> tuple[int, ...]:
     return tuple(pages)
 
 
+def _legacy(found: re.Match[str]) -> str:
+    """A C1 control as the cp1252 character it stands for, or nothing if none."""
+    try:
+        return found.group().encode("latin-1").decode("cp1252")
+    except UnicodeDecodeError:
+        return ""
+
+
 def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """Rejoins a line-broken word and spells the rest so it can be copied.
 
     Composes to NFC, joins soft and line-break hyphens, drops control and
-    zero-width characters, and turns every other kind of space into U+0020.
+    format characters, reads a C1 control as the cp1252 character it stands
+    for, and turns every other kind of space into U+0020.
 
     Args:
         text: One string as the converter read it.
@@ -335,9 +346,12 @@ def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
         The mended string.
     """
     composed = unicodedata.normalize("NFC", text)
-    cleaned = _SPACES.sub(
-        " ", _INVISIBLE.sub("", _CONTROL.sub("", _softened(composed)))
+    # Every format character, zero-width marks and bidi marks and isolates
+    # alike, renders as nothing and so cannot be quoted.
+    formatted = "".join(
+        char for char in _softened(composed) if unicodedata.category(char) != "Cf"
     )
+    cleaned = _SPACES.sub(" ", _C1.sub(_legacy, _CONTROL.sub("", formatted)))
     # After the space normalisation, so the broken-word rule sees one kind of
     # space.
     return rejoined(cleaned, whole)
