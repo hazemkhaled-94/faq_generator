@@ -675,10 +675,10 @@ def test_a_paragraph_repeating_a_heading_heads_what_follows() -> None:
 
 @pytest.mark.parametrize("number", ["47", "– 12 –", "(3)"])
 def test_a_paragraph_with_no_letter_is_not_passage_text(number: str) -> None:
-    """A page number the converter read as body text."""
+    """A page number the converter read as body text, at the page's foot."""
     document = paged(1)
     say(document, 1, "An account opens once checked.")
-    say(document, 1, number)
+    document.add_text(label=DocItemLabel.TEXT, text=number, prov=on(1, 800))
 
     texts = [text for text, _ in trails(document)]
 

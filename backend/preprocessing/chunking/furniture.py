@@ -110,12 +110,15 @@ class Furniture:
             page numbers left out.
         numbered: The shapes, numerals masked, of the fields that number
             pages.
+        offsets: What the running page numbers add to their page's number,
+            as each prints it: 0 where page 7 prints `7`.
     """
 
     starts: tuple[int, ...] = ()
     labels: tuple[tuple[str, ...], ...] = ()
     running: frozenset[tuple[str, ...]] = frozenset()
     numbered: frozenset[str] = frozenset()
+    offsets: frozenset[int] = frozenset()
 
     def chapter(self, page: int | None) -> tuple[str, ...]:
         """The chapter a page is in, empty when it is in none."""
@@ -166,6 +169,14 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             spelled.setdefault(_key(one), one)
     numbers = _numbers(pages_of, spelled)
     numbered = frozenset(_key(_NUMERAL.sub("#", spelled[key])) for key in numbers)
+    offsets = frozenset(
+        int(digits[0]) - page
+        for page, found in printed
+        for one in found
+        if _key(one) in numbers
+        and len(pages_of[_key(one)]) == 1
+        and len(digits := re.findall(r"\d+", one)) == 1
+    )
     spelled = _respaced(spelled, document)
     running = frozenset(
         keys
@@ -204,7 +215,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             "%s: its running heads come back out of order, so name no chapters",
             document.name,
         )
-        return Furniture(running=running, numbered=numbered)
+        return Furniture(running=running, numbered=numbered, offsets=offsets)
 
     def shape(keys: tuple[str, ...]) -> tuple[bool, ...]:
         """Which of an item's fields are constant, in the order it prints them."""
@@ -273,7 +284,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
         if label != before:
             starts.append(page)
             labels.append(label)
-    return Furniture(tuple(starts), tuple(labels), running, numbered)
+    return Furniture(tuple(starts), tuple(labels), running, numbered, offsets)
 
 
 def _respaced(spelled: dict[str, str], document: DoclingDocument) -> dict[str, str]:
@@ -359,7 +370,8 @@ def tidied(
     followed on the next page or in the next column by a paragraph opening
     in lower case, takes that paragraph's text and its place on the page,
     and the paragraph moves to the furniture layer. A paragraph that is a
-    page number read as body text moves there too; a price, a rate, a phone
+    page number read as body text, a bare integer where the page's number is
+    printed, moves there too, and one beside or between its label does not; a price, a rate, a phone
     number or a date with no letter beside it stays, and so does an elision
     mark, `(…)`. A paragraph that only
     repeats a running field or a heading of the document - a chapter title
@@ -389,7 +401,7 @@ def tidied(
         for item in document.texts
         if item.content_layer == ContentLayer.BODY
         and item.label in _PROSE
-        and (_repeats(item.text, furniture) or _page_number(item.text))
+        and (_repeats(item.text, furniture) or _page_number(item, document, furniture))
     }
     restated = _restated(document, debris, junk)
     debris |= {reference for reference, level in restated if level is None}
@@ -575,13 +587,37 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
     return demoted
 
 
-def _page_number(text: str) -> bool:
+def _page_number(
+    item: TextItem, document: DoclingDocument, furniture: Furniture
+) -> bool:
     """Whether a paragraph is a page number and nothing else.
 
-    A bare integer alone in its paragraph is read as one, so a value printed
-    under its label as one, `30` under `Return period (days):`, goes with it.
+    A bare integer alone in its paragraph, and where a page's number is
+    printed: its value is what a running page number adds to its page's
+    number, or - where the document has none - it is a block of its own
+    above or below everything else the page holds. A value printed beside
+    or between its label, `30` under `Return period (days):`, is no page
+    number.
     """
-    return _PAGE_NUMBER.fullmatch(text.strip()) is not None
+    if _PAGE_NUMBER.fullmatch(item.text.strip()) is None or not item.prov:
+        return False
+    page, box = item.prov[0].page_no, item.prov[0].bbox
+    if furniture.offsets:
+        number = int(re.search(r"\d+", item.text).group())  # type: ignore[union-attr]
+        return number - page in furniture.offsets
+    low, high = sorted((box.t, box.b))
+    spans = [
+        sorted((there.bbox.t, there.bbox.b))
+        for other, _ in document.iterate_items()
+        if isinstance(other, DocItem)
+        and other is not item
+        and other.content_layer == ContentLayer.BODY
+        for there in other.prov
+        if there.page_no == page
+    ]
+    return all(low >= above[1] for above in spans) or all(
+        high <= below[0] for below in spans
+    )
 
 
 def _plain(text: str) -> str:
