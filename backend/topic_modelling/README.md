@@ -189,9 +189,11 @@ Properties of the input, not defects here. Figures in
 `facts.validated` for reporting.
 
 **Writes:** `topics`, one row per topic per language; `passage_topics`, one
-row per passage-topic pair above the weight floor; `topics/<language>.npz`
-in the `models` bucket; and `topics/<language>.html` in the `export` bucket,
-moving the previous fit's two into the `archive` bucket.
+row per passage-topic pair above the weight floor;
+`topics/<database>/<language>.npz` in the `models` bucket; and
+`topics/<database>/<language>.html` in the `export` bucket, `<database>`
+being the path of `DATABASE_URL`, moving the previous fit's two into the
+`archive` bucket.
 
 ### The model and the picture of it are two artefacts
 
