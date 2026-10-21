@@ -264,14 +264,20 @@ def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
     # written into the gap did not fit the window the count had already
     # decided on, and the export quietly came up one row short of the
     # figure printed on its own Summary sheet.
-    _, rows = question_catalog.page(limit=None, **where)
+    # And the citations and the counts from that same session, one moment.
+    with question_catalog.snapshot() as read:
+        _, rows = question_catalog.page(limit=None, read=read, **where)
+        cited = (
+            question_catalog.citations(read=read, **where) if chosen.citations else ()
+        )
+        quality = question_catalog.quality(read=read, **where)
     # ponytail: the whole workbook is built in memory before the first byte
     # is sent; the upgrade is a StreamingResponse over openpyxl's write-only
     # mode.
     drawn = workbook(
         rows,
-        question_catalog.citations(**where) if chosen.citations else (),
-        question_catalog.quality(**where),
+        cited,
+        quality,
         assessment_catalog.verdicts_for("question", [one.id for one in rows]),
     )
     return Response(

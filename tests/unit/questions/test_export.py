@@ -11,6 +11,7 @@ Excel will hold.
 from __future__ import annotations
 
 import io
+from contextlib import contextmanager
 
 import pandas as pd
 import pytest
@@ -345,19 +346,24 @@ class _Catalog:
         self.limits: list[int | None] = []
         self.asked: dict[str, dict] = {}
 
-    def page(self, limit=50, **where):
+    @contextmanager
+    def snapshot(self):
+        """The one session the three reads share, which here is nothing."""
+        yield None
+
+    def page(self, limit=50, read=None, **where):
         """Records the window asked for and answers within it."""
         self.asked["page"] = where
         self.limits.append(limit)
         taken = self._rows if limit is None else min(limit, self._rows)
         return self._rows, [stored(one) for one in range(1, taken + 1)]
 
-    def citations(self, **where):
+    def citations(self, read=None, **where):
         """No citations."""
         self.asked["citations"] = where
         return []
 
-    def quality(self, **where):
+    def quality(self, read=None, **where):
         """No report, which the workbook takes as None."""
         self.asked["quality"] = where
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 from collections import Counter
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
@@ -27,7 +28,7 @@ from sqlalchemy import (
     true,
     update,
 )
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import Session, aliased
 
 from confidence import Measurement, scored
 from database.qa_generator import (
@@ -291,7 +292,9 @@ def _listing() -> Select:
                 Question.release_id.is_not(None).label("released"),
                 func.count(func.distinct(QuestionFact.fact_id)).label("facts"),
                 func.array_agg(
-                    func.distinct(func.coalesce(Document.title, func.left(Passage.doc_sha256, 12)))
+                    func.distinct(
+                        func.coalesce(Document.title, func.left(Passage.doc_sha256, 12))
+                    )
                 ).label("documents"),
                 func.array_agg(func.distinct(Topic.label)).label("topics"),
                 func.array_agg(func.distinct(Fact.statement)).label("statements"),
@@ -403,6 +406,27 @@ class QuestionCatalog(Repository):
 
     Separate from the queue: the API serves these and never claims a row.
     """
+
+    @contextmanager
+    def snapshot(self) -> Iterator[Session]:
+        """One session that sees the database as of its first statement.
+
+        Handed to `page`, `citations` and `quality` as `read`, so an
+        export reads its rows, its citations and its counts as one moment
+        and a question the worker writes meanwhile is in all three or none.
+        """
+        with self._session() as session:
+            session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            yield session
+
+    @contextmanager
+    def _reading(self, session: Session | None) -> Iterator[Any]:
+        """The session given, or a fresh one for this read alone."""
+        if session is not None:
+            yield session
+        else:
+            with self._session() as own:
+                yield own
 
     def releasable(self, within=None) -> list[Row]:
         """Every accepted question a release may be chosen from.
@@ -1237,6 +1261,7 @@ class QuestionCatalog(Repository):
         status: str | None = None,
         answerable: bool | None = None,
         field: str | None = None,
+        read: Session | None = None,
         **scopes: Any,
     ) -> tuple[int, list[StoredQuestion]]:
         """Reads one page of questions and the total behind it.
@@ -1252,7 +1277,7 @@ class QuestionCatalog(Repository):
         # the facts of the chosen document. Uncorrelated, as `_narrowed` is.
         listing = _listing().where(Question.id.in_(chosen.correlate(None)))
         counting = select(func.count()).select_from(chosen.subquery())
-        with self._session() as session:
+        with self._reading(read) as session:
             total = session.scalar(counting) or 0
             rows = session.execute(listing.limit(limit).offset(offset)).all()
         return total, [_stored(row) for row in rows]
@@ -1342,7 +1367,7 @@ class QuestionCatalog(Repository):
             ],
         )
 
-    def citations(self, **where: Any) -> list[Citation]:
+    def citations(self, read: Session | None = None, **where: Any) -> list[Citation]:
         """What every question a filter selects was written from.
 
         The same rows :meth:`detail` reads one question at a time, for a
@@ -1362,7 +1387,7 @@ class QuestionCatalog(Repository):
         query and emptied the subquery's own FROM.
         """
         chosen = _ids(**where).correlate(None).subquery()
-        with self._session() as session:
+        with self._reading(read) as session:
             rows = session.execute(
                 select(
                     QuestionFact.question_id,
@@ -1407,6 +1432,7 @@ class QuestionCatalog(Repository):
         status: str | None = None,
         answerable: bool | None = None,
         field: str | None = None,
+        read: Session | None = None,
         **scopes: Any,
     ) -> QuestionQuality:
         """Measures how generation is doing, under the listing's filter.
@@ -1462,7 +1488,7 @@ class QuestionCatalog(Repository):
             "document_scope": Question.document_scope,
             "topic_scope": Question.topic_scope,
         }
-        with self._session() as session:
+        with self._reading(read) as session:
             row = session.execute(totals).one()
             spread = {
                 name: dict(

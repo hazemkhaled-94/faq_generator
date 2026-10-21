@@ -548,8 +548,10 @@ def main(argv: list[str] | None = None) -> int:
     # counted and then windowed to that count: those were two statements
     # with a gap between them, and a question written into the gap did not
     # fit the window the count had already decided on.
-    _, questions = catalog.page(limit=None, **where)
-    citations = () if args.no_citations else catalog.citations(**where)
+    with catalog.snapshot() as read:
+        _, questions = catalog.page(limit=None, read=read, **where)
+        citations = () if args.no_citations else catalog.citations(read=read, **where)
+        quality = catalog.quality(read=read, **where)
 
     # Imported inside `main` rather than at the top of the module, like
     # the catalogue beside it. `workbook` is also called by the api, and
@@ -558,7 +560,7 @@ def main(argv: list[str] | None = None) -> int:
     judged = AssessmentCatalog().verdicts_for("question", [one.id for one in questions])
 
     with open(args.out, "wb") as handle:
-        handle.write(workbook(questions, citations, catalog.quality(**where), judged))
+        handle.write(workbook(questions, citations, quality, judged))
     log.info("wrote %s", args.out)
     return 0
 
