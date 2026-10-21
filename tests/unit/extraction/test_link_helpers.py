@@ -12,6 +12,7 @@ from dataclasses import replace
 import pytest
 from drivers import passage
 
+from database.qa_generator.passages import trail_of
 from extraction.links import (
     _Edges,
     _near,
@@ -109,6 +110,17 @@ def test_a_sibling_group_is_named_by_the_headings_above_its_sections() -> None:
 
     assert edges.parent == {1: "Accounts > Fees", 2: "Accounts"}
     assert edges.family["Accounts"] == [flat]
+
+
+def test_a_heading_holding_the_separator_keeps_its_family_key_unambiguous() -> None:
+    """The parent is written as a path again, so `Orders > 50 EUR` stays one heading."""
+    deep = at(trail_of(["Shop", "Orders > 50 EUR", "Yearly"]), 1)
+    other = at(trail_of(["Shop", "Orders", "50 EUR", "Yearly"]), 2)
+    edges = _Edges()
+
+    _siblings(edges, [deep, other])
+
+    assert edges.parent[1] != edges.parent[2]
 
 
 @pytest.mark.parametrize(
