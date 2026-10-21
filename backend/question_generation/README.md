@@ -388,22 +388,19 @@ They are two columns because they are scored by two gates. Recoverability's
 denominator is the target's own content lemmas, so every lemma the target
 gains is another one the verifier has to reproduce.
 
-The explanation faces `explanation_unusable`, which reads four things and
+The explanation faces `explanation_unusable`, which reads three things and
 calls no model:
 
 | | |
 |---|---|
 | Length | Within `QUESTIONS_EXPLANATION_CHARS`. The floor is the half that matters |
 | Supported | Every figure and date it asserts is in the cited passages |
-| What a reader sees | No person (a `PER` or `PERSON` entity) the cited passages and the key never name, a German genitive (`Olivias`) read as the name; and none of the writer's inputs called by the prompt's labels, by the per-language `_LABELS` table (`fact`, `passage`; `Fakt`, `Passage`) with an article, a demonstrative or a possessive and no clause of its own, so `the passage says` and `Suzanne's fact` are refused and `in fact` or `the fact that …` are not |
 | Not a copy | Fewer than 90% of its content lemmas are already in the target |
 
-Only the units that carry a digit are read as figures. A spelled-out numeral is
-not a claim, so `48` is checkable and `two` is how a sentence is built. A name
-the explanation uses to describe the answer is not one either: the key's own
-checks hold its names, and a figure is what can be wrong. A person is the
-exception, because one the cited passages never name was brought in from
-another passage of the sample.
+Only the units that carry a digit are read. A spelled-out numeral is not a
+claim, so `48` is checkable and `two` is how a sentence is built. A name the
+explanation uses to describe the answer is not one either: the key's own
+checks hold its names, and a figure is what can be wrong.
 
 The column is NULL on questions written before it and is not backfilled, and
 NULL on every unanswerable question by CHECK. An answerable question written
@@ -490,14 +487,14 @@ that name, which is the phrasing judge's to tell from naming the source.
 | `off_topic` | was written to have no answer and is about nothing the material mentions. **Off** as shipped — see [Unanswerable questions](#unanswerable-questions) | nothing |
 | `wrong_type` | is not the kind it was planned as, where a rule can say so. A question whose opening asks for another kind (`Wann`, `What happens if`, by the per-language `_ASKED_FOR` table) is not refused for it: the checker types it by its opening and holds it to that kind's rules. The opening is read where the question begins after a premise, past the last sentence or clause end before its first question word that asks, one inside no relative or adverbial clause (`Ich bin neu bei der Bank. Wann …?`, `As a new customer, why …?`, and `When I travel abroad, why …?`, whose `When` opens the premise), or before its first question word at all where none asks; a question opening on its question word reads at its start. The checker stores a count whose key holds no single number as an enumeration (a list) or a factoid, and a count of the items one cited fact lists as a factoid, since that fact states it. An `enumeration` counts each part of a suspended compound (`Junioren-, Senioren- und Breitenfussball`) as an item, and a coordination with no noun phrase as a set where neither a conjunct nor what it is joined to is a verb and no conjunct is a number (`political, religious and personal`, but not `complete and signed` or `one or two days`). A `comparison` has to state a difference between the two subjects it names: a comparative with one subject before it and the other after, both within its stretch between seams (`;`, `,` or a conjunction, coordinating or subordinating); or, across a seam that divides the subjects, a comparative on each side, one comparative where the seam opens a subordinate clause (`…, while …` or `… while …`), or a word both sides share and the question does not | nothing |
 | `restates_question` | is answered with almost no word the question did not already carry, counting nouns, proper nouns, adjectives, verbs, adverbs and interjections. An answer with a number, one saying yes or no where the question did not, one stating a negative the question did not (unless it asks why), an answer to a question asking who, and a `comparison`, are not read | nothing |
-| `explanation_unusable` | is answerable and carries no long answer, or carries one that is the wrong length, asserts a figure the passages do not, names a person neither the passages nor the key name, speaks of the writer's inputs by the prompt's labels (`the passage`, `these facts`, by the per-language `_LABELS` table), or only restates the key | nothing |
+| `explanation_unusable` | is answerable and carries no long answer, or carries one that is the wrong length, asserts a figure the passages do not, or only restates the key | nothing |
 | `asks_nothing_new` | is a follow-up citing nothing its root did not, unless every fact it cites is a summary or an outline and at least a quarter of its key's content words are new to the thread | nothing |
 | `off_thread` | is a follow-up resting on no passage an earlier turn of its thread used | nothing |
 | `duplicate` | is a near twin of one already accepted in its own language and of its own answerability. How near depends on what the two cite: a shared fact, a shared passage, or nothing in common, each a higher bar, and a different question word lifts any pair to the highest | one index probe among the accepted questions of its language and answerability; two for an unanswerable question, one per kind that can refuse it |
 | `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages settle it | the probe among answerable questions, the second of the two, or one `settles` call |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
-| `not_recoverable` | cites evidence its own answer is not in, or asks why where the verifier, reading the passages for the reason, finds only the question's own rule. Free, ahead of the embedding, for an answerable question naming a person (a `PER` or `PERSON` entity) that no passage it cites, their headings or their titles name | the round trip |
+| `not_recoverable` | cites evidence its own answer is not in, or asks why where the verifier, reading the passages for the reason, finds only the question's own rule | the round trip |
 | `answer_incomplete` | has a `list` key naming far less than the verifier found, whether recall found the key or the entailment pass rescued it | the same round trip |
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite settles it | a passage probe and a second `settles` call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |

@@ -171,8 +171,6 @@ missing from one fails no test.
 | `_RELATES` | same | Lemmas by which a question claims a relation between what it asks about, by language: a comparison, a total, a cause. A compound question that says one is refused | `unterscheiden`, `differ` |
 | `_POLARITY` | same | Words answering a yes-or-no question by their polarity, by language | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why, by language: what a `reason` slot is dealt | `damit`, `so that` |
-| `_LABELS` | same | The writer prompt's labels for its inputs, FACTS and PASSAGE(S), as an explanation in the language writes them, by language. Only the prompt's words, never the material's | `Fakt`, `passage` |
-| `_GENITIVE` | same | The ending a language's genitive puts on a name, by language, empty where the tokenizer splits it off | `s` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
 | `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing | `Lehrplan`, `syllabus` |

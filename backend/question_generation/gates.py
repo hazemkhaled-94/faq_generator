@@ -1320,81 +1320,6 @@ def _asserts(text: str, language: str | None) -> tuple[str, ...]:
     )
 
 
-#: The writer's labels for what it is handed, by ISO 639-1 code: the prompt's
-#: FACTS and PASSAGE(S), as an explanation in the language writes them. A
-#: reader is shown neither, so `the passage says` and `Suzanne's fact` speak
-#: of nothing they can see. The prompt's words only, not the material's: a
-#: corpus calls what it holds `Angaben` or `material` in its own sense.
-_LABELS: dict[str, frozenset[str]] = {
-    "de": frozenset({"fakt", "passage"}),
-    "en": frozenset({"fact", "passage"}),
-}
-
-#: The entity labels a person is named under: `PER` in the German pipeline's
-#: scheme, `PERSON` in the English one's. An entity and not every proper
-#: noun, because the German tagger calls common nouns proper ones.
-_PERSONS = frozenset({"PER", "PERSON"})
-
-#: The ending a language's genitive puts on a name, by ISO 639-1 code. German
-#: writes `Olivias Vertrag`; English splits its `'s` off as a token of its own,
-#: so the name is written bare.
-_GENITIVE: dict[str, str] = {"de": "s", "en": ""}
-
-
-def _labelled(text: str, language: str | None) -> bool:
-    """Whether a text speaks of the writer's inputs by the prompt's labels.
-
-    A label points at one input, so it comes with an article, a
-    demonstrative or a possessive and has no clause of its own: `the
-    passage`, `these facts`, `Suzanne's fact`. The word in its own sense is
-    bare or says what it is: `in fact`, `the fact that ...`, `facts
-    connected with play`.
-    """
-    labels = _LABELS.get((language or "").strip().lower(), frozenset())
-    return any(
-        token.pos_ in ("NOUN", "PROPN")
-        and token.lemma_.casefold() in labels
-        and any(child.pos_ == "DET" or child.dep_ == "poss" for child in token.children)
-        and not any(child.pos_ in ("VERB", "AUX") for child in token.children)
-        for token in pipeline(language)(text)
-    )
-
-
-def strangers(
-    text: str, material: Sequence[str], language: str | None
-) -> tuple[str, ...]:
-    """The people a text names whom its material never names.
-
-    A writer shown a sample of several passages brings a person from one
-    into a question or an explanation resting on another, and a chatbot
-    reading the cited passage finds nobody of that name. A person is
-    carried when the material holds one proper noun of the name, as written,
-    as its lemma or in its genitive (`_GENITIVE`): `Herrn Becker` is
-    `Herr Becker`, `Monikas Fall` is Monika's. A word written in lower case
-    is no name, whatever the tagger says of a keyword query.
-    """
-    carried = vocabulary("\n".join(material), language)
-    ending = _GENITIVE.get((language or "").strip().lower(), "")
-
-    def known(token: Token) -> bool:
-        forms = {token.text.casefold(), token.lemma_.casefold()}
-        if ending:
-            forms |= {form + ending for form in forms}
-            forms |= {form.removesuffix(ending) for form in forms}
-        return bool(forms & carried)
-
-    found = []
-    for entity in pipeline(language)(text).ents:
-        names = [
-            token
-            for token in entity
-            if token.pos_ == "PROPN" and not token.text.islower()
-        ]
-        if entity.label_ in _PERSONS and names and not any(map(known, names)):
-            found.append(entity.text)
-    return tuple(found)
-
-
 def explains(
     explanation: str,
     target: str,
@@ -1404,7 +1329,7 @@ def explains(
 ) -> bool:
     """Whether the long answer is worth showing a reader.
 
-    Four readings, and none of them is recoverability. That gate compares
+    Three readings, and none of them is recoverability. That gate compares
     the TARGET against what a verifier independently wrote back, and its
     denominator is the target's own content lemmas - so every lemma an
     answer gains is another one the verifier has to reproduce, and an answer
@@ -1420,10 +1345,6 @@ def explains(
       `_asserts` keeps. This is the only one of the three that can put a
       wrong claim in front of a reader, and it is why the gate is not simply
       a length check.
-
-    - SPEAKING ONLY OF WHAT A READER SEES. No person the cited passages and
-      the target never name (`strangers`), and none of the writer's inputs
-      called by the prompt's labels (`_labelled`).
 
     - SAYING SOMETHING THE TARGET DID NOT. An explanation whose every
       content lemma is already in the target has expanded nothing. The floor
@@ -1445,10 +1366,6 @@ def explains(
         found = _values("\n".join(passages), language)
         if not all(_readings(unit, language) & found for unit in units):
             return False
-    if _labelled(explanation, language) or strangers(
-        explanation, (*passages, target), language
-    ):
-        return False
     said = content(explanation, language)
     if not said or not target:
         return bool(said)
