@@ -144,6 +144,7 @@ class PdfPipeline(Pipeline):
         heading_hierarchy: bool,
         document_timeout_seconds: float | None,
         artifacts_path: str | None,
+        ocr_char_threshold: int = 0,
     ) -> None:
         """Initialises the pipeline. Every value comes from the environment.
 
@@ -153,7 +154,11 @@ class PdfPipeline(Pipeline):
             document_timeout_seconds: Longest one conversion may run.
             artifacts_path: Where the model weights are, or None to let
                 Docling download them.
+            ocr_char_threshold: The characters a page may hold and still be
+                named image-only when a picture covers it; 0 names only a
+                page with no text.
         """
+        self._ocr_characters = ocr_char_threshold
         self._table_mode = TableFormerMode(table_mode)
         self._heading_hierarchy = heading_hierarchy
         self._timeout = document_timeout_seconds
@@ -208,7 +213,7 @@ class PdfPipeline(Pipeline):
             ),
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
-            unread_pages=image_only_pages(source.data),
+            unread_pages=image_only_pages(source.data, self._ocr_characters),
         )
 
     def fetch_weights(self) -> None:
@@ -324,24 +329,27 @@ def _union_area(rects: list[pymupdf.Rect]) -> float:
     return total
 
 
-def image_only_pages(data: bytes) -> tuple[int, ...]:
-    """Names the pages that are a picture and carry no text layer.
+def image_only_pages(data: bytes, characters: int = 0) -> tuple[int, ...]:
+    """Names the pages that are a picture and carry next to no text layer.
 
     A document's mean characters per page hides one scanned page among
-    digital ones, and OCR is not enabled, so such a page converts to nothing.
+    digital ones, and OCR is not enabled, so such a page converts to nothing
+    but a stamp a merge tool put on it, `Seite 2 von 3`.
 
     Args:
         data: The raw PDF bytes.
+        characters: The most characters a page may hold and still be named,
+            PARSING_OCR_CHAR_THRESHOLD: the least a text page has.
 
     Returns:
-        The 1-based numbers of the pages with no text and pictures covering
-        most of the page.
+        The 1-based numbers of the pages with that little text and pictures
+        covering most of the page.
     """
     pages: list[int] = []
     with pymupdf.open(stream=data, filetype="pdf") as document:
         for number in range(1, document.page_count + 1):
             page = document[number - 1]
-            if str(page.get_text()).strip():
+            if len(str(page.get_text()).strip()) > characters:
                 continue
             area = abs(page.rect)
             covered = _union_area(

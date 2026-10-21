@@ -44,4 +44,5 @@ def pdf_pipeline(settings: Settings) -> PdfPipeline:
         heading_hierarchy=settings.heading_hierarchy,
         document_timeout_seconds=settings.document_timeout_seconds,
         artifacts_path=settings.artifacts_path,
+        ocr_char_threshold=settings.ocr_char_threshold,
     )

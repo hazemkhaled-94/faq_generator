@@ -9,6 +9,10 @@ from test_intake_parsing import SHA, claimed
 
 from preprocessing.parsing.pipelines.pdf import image_only_pages
 
+#: PARSING_OCR_CHAR_THRESHOLD as shipped: fewer characters than this on a page
+#: that a picture covers is a scan with a stamp on it.
+OCR_CHARS = 100
+
 TEXT = {
     "de": "Die Kontoführung kostet 4,90 EUR im Monat. Die Debitkarte kostet 10 EUR im Jahr. ",
     "en": "Standard delivery costs 4.95 EUR. Returns are free of charge within 30 days. ",
@@ -63,6 +67,32 @@ def test_overlapping_pictures_are_not_counted_twice(language) -> None:
         pymupdf.Rect(0, 0, 595, 300), pixmap=_picture(), keep_proportion=False
     )
     assert image_only_pages(pdf.tobytes()) == ()
+
+
+def _stamped_scan(stamp: str | None) -> bytes:
+    """Three pages; page 2 is a full-page picture, optionally stamped as text."""
+    pdf = pymupdf.open(stream=_pdf("de", "tst"), filetype="pdf")
+    if stamp:
+        pdf[1].insert_text((480, 830), stamp, fontsize=8)
+    return pdf.tobytes()
+
+
+@pytest.mark.parametrize("stamp", ["Seite 2 von 3", "Page 2", "Anlage 2"])
+def test_a_scanned_page_carrying_a_stamped_line_is_named(stamp) -> None:
+    """A merge tool's page number puts text on the page; its picture is still unread."""
+    assert image_only_pages(_stamped_scan(None), OCR_CHARS) == (2,)
+    assert image_only_pages(_stamped_scan(stamp), OCR_CHARS) == (2,)
+
+
+def test_a_page_of_text_with_a_picture_over_half_of_it_is_not_named() -> None:
+    """Text above the threshold is a text page whatever else covers it."""
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=595, height=842)
+    page.insert_textbox(pymupdf.Rect(50, 50, 545, 400), TEXT["de"] * 12, fontsize=10)
+    page.insert_image(
+        pymupdf.Rect(0, 420, 595, 842), pixmap=_picture(), keep_proportion=False
+    )
+    assert image_only_pages(pdf.tobytes(), OCR_CHARS) == ()
 
 
 def test_the_service_warns_and_records_the_named_pages(caplog) -> None:
