@@ -118,6 +118,9 @@ _SERVICE = explain.Service(
     gates=_GATES,
 )
 
+#: The longest label the API takes, past which it refuses the whole save.
+_LABEL_MAX = 120
+
 #: What the search box can look in.
 _FIELDS = {"Label and terms": "both", "Label": "label", "Terms": "terms"}
 
@@ -419,8 +422,7 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             "Label",
             value=chosen["label"] or "",
             key=f"topics-label-{chosen['id']}",
-            # The API's own bound, past which it refuses the whole save.
-            max_chars=120,
+            max_chars=_LABEL_MAX,
             placeholder="a short name for this subject",
             help="Shown wherever the topic is, in place of its number.",
         )
@@ -445,8 +447,12 @@ def _detail(client, chosen: dict, topics: list[dict]) -> None:
             if fitting
             else "Records the label and the coverage choice.",
         ):
+            described: dict = {"include_in_coverage": included}
+            # A longer stored name is drawn cut, so it is sent only when edited.
+            if label != (chosen["label"] or "")[:_LABEL_MAX]:
+                described["label"] = label.strip() or None
             try:
-                client.describe_topic(chosen["id"], label.strip() or None, included)
+                client.describe_topic(chosen["id"], **described)
             except requests.exceptions.RequestException as exc:
                 st.error(refusal(exc))
             else:

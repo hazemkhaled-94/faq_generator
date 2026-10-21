@@ -199,6 +199,10 @@ None of them reaches a network.
   while it was required still asks for one until it is recreated:
   `make review-pull-topics`, then delete the dataset in Argilla and push
   again.
+- **A corrected name over 120 characters is not pulled.** PATCH /topics and
+  the Topics page take no longer name, so a pull logs the topic ids and
+  leaves the answer, coverage included, in Argilla for the reviewer to
+  shorten.
 - **A questions dataset created before v0.4.3 has no `categories` field.** A push
   to it drops the field (a warning names the pull and delete steps), and its
   guideline is the old one: `make review-pull-questions`, then delete the

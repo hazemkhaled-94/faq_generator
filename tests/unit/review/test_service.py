@@ -283,6 +283,44 @@ def test_a_topic_answer_without_a_name_writes_only_its_coverage(
     assert catalogs.facts.covered == [(3, False, ANSWERED)]
 
 
+@pytest.mark.parametrize(
+    "label",
+    [
+        (
+            "Kontoführung, Entgelte und Gebühren für Girokonten, Sparkonten und "
+            "Kreditkarten einschließlich Rücklastschriften und Mahnungen"
+        ),
+        (
+            "Delivery, returns, refunds and exchanges for parcels, bulky goods and "
+            "gift cards bought online, in store or through the app"
+        ),
+    ],
+)
+def test_a_corrected_name_longer_than_the_api_takes_is_left_in_argilla(
+    monkeypatch, settings, caplog, label
+) -> None:
+    """PATCH /topics and the Topics page hold a name to 120 characters.
+
+    Written here, it was one the page then drew cut and saved back cut.
+    Skipped and said, as a disputed record is, for the reviewer to shorten.
+    """
+    assert len(label) > 120
+    catalogs = wired(
+        monkeypatch,
+        [
+            Record(
+                {"topic_id": 3},
+                [submitted("corrected_label", label), submitted("in_coverage", "no")],
+            )
+        ],
+    )
+
+    assert pull(datasets.TOPIC_LABELS, settings, catalogs) == 0
+    assert catalogs.topics.described == []
+    assert catalogs.facts.covered == []
+    assert "longer than the 120 characters" in caplog.text
+
+
 #: Each kind, its id metadata, and an answer a pull would write.
 KINDS = pytest.mark.parametrize(
     ("name", "key", "answers"),

@@ -86,15 +86,13 @@ class CatalogApi(Endpoint):
         response.raise_for_status()
         return response.text
 
-    def describe_topic(
-        self, topic_id: int, label: str | None, include_in_coverage: bool
-    ) -> dict:
-        """Names a topic, or takes it out of coverage reporting."""
-        return self._request(
-            "PATCH",
-            f"/topics/{topic_id}",
-            json={"label": label, "include_in_coverage": include_in_coverage},
-        ).json()
+    def describe_topic(self, topic_id: int, **described: str | bool | None) -> dict:
+        """Names a topic, or takes it out of coverage reporting.
+
+        `label` and `include_in_coverage`, each sent only when given: the
+        route leaves a field left out as it is, and `label=None` clears it.
+        """
+        return self._request("PATCH", f"/topics/{topic_id}", json=described).json()
 
     def discover_topics(self) -> dict:
         """Queues a fit over the whole corpus."""

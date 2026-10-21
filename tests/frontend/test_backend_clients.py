@@ -84,6 +84,20 @@ def test_each_verb_is_sent_with_its_own_timeout(call, sent) -> None:
     assert session.sent == [sent]
 
 
+def test_a_topic_is_described_by_only_what_was_given() -> None:
+    """A label left out of the PATCH is left as it is; `null` would clear it."""
+    bodies: list = []
+
+    class Recorded(Session):
+        def request(self, method: str, url: str, *, timeout: float, **kwargs):
+            bodies.append(kwargs.get("json"))
+            return super().request(method, url, timeout=timeout, **kwargs)
+
+    CatalogApi("http://api", Recorded()).describe_topic(3, include_in_coverage=False)  # type: ignore[arg-type]
+
+    assert bodies == [{"include_in_coverage": False}]
+
+
 def test_an_error_status_is_raised_rather_than_read() -> None:
     """The page renders the refusal; the client never hands back its body."""
     session = Session(status=500)

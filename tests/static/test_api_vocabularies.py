@@ -103,3 +103,16 @@ def test_every_service_the_catalogue_names_has_a_setting() -> None:
     described = {one.service for one in SETTINGS}
 
     assert set(get_args(Service)) == described
+
+
+def test_a_pulled_topic_name_is_held_to_what_patch_topics_takes() -> None:
+    """`review-pull` names a topic through the same write as PATCH /topics."""
+    pytest.importorskip("argilla", reason="the observability group is not installed")
+    from api.routes.topics import TopicDescription
+    from review.service import LABEL_MAX
+
+    (bound,) = [
+        one.max_length for one in TopicDescription.model_fields["label"].metadata
+    ]
+
+    assert LABEL_MAX == bound

@@ -272,7 +272,13 @@ def test_naming_a_topic_sends_the_label_and_the_coverage_choice(open_view) -> No
 
     page.type_in(f"topics-label-{TOPIC['id']}", "Shipping").press("Save")
 
-    assert ("describe_topic", (TOPIC["id"], "Shipping", True), {}) in client.asked
+    assert client.calls("describe_topic") == [
+        (
+            "describe_topic",
+            (TOPIC["id"],),
+            {"include_in_coverage": True, "label": "Shipping"},
+        )
+    ]
 
 
 def test_a_label_of_only_spaces_is_sent_as_no_label(open_view) -> None:
@@ -282,7 +288,9 @@ def test_a_label_of_only_spaces_is_sent_as_no_label(open_view) -> None:
 
     page.type_in(f"topics-label-{TOPIC['id']}", "   ").press("Save")
 
-    assert ("describe_topic", (TOPIC["id"], None, True), {}) in client.asked
+    assert client.calls("describe_topic") == [
+        ("describe_topic", (TOPIC["id"],), {"include_in_coverage": True, "label": None})
+    ]
 
 
 def test_taking_a_topic_out_of_coverage_sends_the_choice(open_view) -> None:
@@ -292,7 +300,48 @@ def test_taking_a_topic_out_of_coverage_sends_the_choice(open_view) -> None:
 
     page.uncheck(f"topics-coverage-{TOPIC['id']}").press("Save")
 
-    assert ("describe_topic", (TOPIC["id"], None, False), {}) in client.asked
+    assert client.calls("describe_topic") == [
+        ("describe_topic", (TOPIC["id"],), {"include_in_coverage": False})
+    ]
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        (
+            "Kontoführung, Entgelte und Gebühren für Girokonten, Sparkonten und "
+            "Kreditkarten einschließlich Rücklastschriften und Mahnungen"
+        ),
+        (
+            "Delivery, returns, refunds and exchanges for parcels, bulky goods and "
+            "gift cards bought online, in store or through the app"
+        ),
+    ],
+)
+def test_saving_only_the_coverage_leaves_a_long_stored_label_alone(
+    open_view, label
+) -> None:
+    """The box holds 120 characters and draws a longer stored name cut.
+
+    An Argilla correction or a model's name can be longer. Sent back, the
+    cut name replaced it; the label is sent only when somebody edits it.
+    """
+    assert len(label) > 120
+    named = changed(TOPIC, label=label, labelled_by="person")
+    client = Answers(
+        **answers(
+            topics=[named],
+            describe_topic=named,
+            stage_status=lambda *a, **k: status(modelled=1),
+        )
+    )
+    page = open_view("topics", client).select(0)
+
+    page.uncheck(f"topics-coverage-{TOPIC['id']}").press("Save")
+
+    assert client.calls("describe_topic") == [
+        ("describe_topic", (TOPIC["id"],), {"include_in_coverage": False})
+    ]
 
 
 def test_a_refused_save_is_shown_and_the_page_stays(open_view) -> None:

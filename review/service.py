@@ -310,8 +310,12 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
         written = len(dated)
     else:
         written = 0
+        overlong: list[int] = []
         for row_id, record, at in answered:
             label = (_answer(record, "corrected_label") or "").strip()
+            if len(label) > LABEL_MAX:
+                overlong.append(row_id)
+                continue
             coverage = _answer(record, "in_coverage")
             # Unanswered leaves the coverage as it is.
             include = None if coverage is None else coverage != "no"
@@ -324,10 +328,25 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
             elif include is not None:
                 # No name keeps the topic's label and its labelled_by.
                 written += catalogs.facts.cover(row_id, include, at)
+        if overlong:
+            # Stored, the page would draw the name cut and a Save write it so.
+            log.warning(
+                "%s: %d answer(s) skipped because the corrected name is longer "
+                "than the %d characters PATCH /topics and the Topics page take; "
+                "shorten it in Argilla and pull again: %s",
+                name,
+                len(overlong),
+                LABEL_MAX,
+                ", ".join(map(str, overlong)),
+            )
 
     log.info("%s: %d verdict(s) written", name, written)
     return written
 
+
+#: The longest topic name PATCH /topics takes, which the Topics page holds
+#: too; a static test holds it to the route's.
+LABEL_MAX = 120
 
 #: How Argilla spells a response somebody has finished giving.
 _SUBMITTED = ("submitted", "ResponseStatus.submitted")
