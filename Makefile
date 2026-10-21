@@ -24,6 +24,13 @@ COMPOSE_CMD = $(COMPOSE) --env-file configs/env/deployment.env --env-file .env
 # equivalent of --target.
 CONTAINER ?= podman
 
+# poetry.lock's pins as name==version lines, torch and torchvision at their +cpu
+# builds, which resolve only from PyTorch's index. The audit reads them, and the
+# image locks are resolved under them, so a package both lock is held to one version.
+# A package poetry.lock holds twice (the CUDA wheels for another platform)
+# comes out at its first version.
+HOST_PINS = poetry run python -c 'import tomllib; seen = {}; [seen.setdefault(p["name"], p["version"]) for p in tomllib.load(open("poetry.lock", "rb"))["package"] if p["name"] not in ("torch", "torchvision") or p["version"].endswith("+cpu")]; print(*(f"{n}=={v}" for n, v in seen.items()), sep="\n")'
+
 # Every directory ruff reads, so `lint` and `format` cannot cover different
 # ones. orchestration, review and evaluation are here and not in pyright's
 # `include`: they are checked by both, but pyright is configured in
@@ -1572,7 +1579,7 @@ typecheck:
 audit:
 	@d=$$(mktemp -d) && trap 'rm -rf $$d' EXIT && \
 	  grep -viE "^(torch|torchvision)==" backend/api/requirements.lock > $$d/api.lock; \
-	  poetry run python -c 'import tomllib; seen = {}; [seen.setdefault(p["name"], p["version"]) for p in tomllib.load(open("poetry.lock", "rb"))["package"] if p["name"] not in ("torch", "torchvision")]; print(*(f"{n}=={v}" for n, v in seen.items()), sep="\n")' > $$d/poetry.lock && \
+	  $(HOST_PINS) | grep -vE "^(torch|torchvision)==" > $$d/poetry.lock && \
 	  s=0 && for f in $$d/api.lock frontend/requirements.lock $$d/poetry.lock; do \
 	    poetry run pip-audit --no-deps --progress-spinner off -r $$f || s=1; \
 	  done; exit $$s
@@ -1608,22 +1615,29 @@ format:
 
 # ── Dependency locks ───────────────────────────────────────────────────────
 
-# Rewrites backend/api/requirements.lock from the ranges in
-# requirements.txt. Run it after changing requirements.txt; the image build
-# refuses a lock that does not pin everything requirements.txt declares.
+# Rewrites backend/api/requirements.lock and frontend/requirements.lock from
+# the ranges in their requirements.txt, under the pins of poetry.lock. Run it
+# after changing a requirements.txt; the image build refuses a lock that does
+# not pin everything requirements.txt declares.
 #
 # The resolving happens in the Dockerfile's `resolve` stage, in the same
 # base image the runtime uses, because a lock resolved on macOS pins wheels
 # that do not exist for linux/aarch64. The file's comment header is carried
 # over; everything below it is replaced.
 lock:
-	$(CONTAINER) build --target resolve -t qa_generator-resolve \
-	  -f backend/api/Dockerfile .
-	@t=$$(mktemp) && trap 'rm -f $$t' EXIT && \
-	  awk '/^#/ {print; next} {exit}' backend/api/requirements.lock > $$t && \
-	  { set -o pipefail; $(CONTAINER) run --rm qa_generator-resolve | sort >> $$t; } && \
-	  cp $$t backend/api/requirements.lock
-	@echo "backend/api/requirements.lock rewritten; rebuild with: $(COMPOSE_CMD) build api"
+	@d=$$(mktemp -d) && trap 'rm -rf $$d' EXIT && \
+	  $(HOST_PINS) | grep -v '^nvidia-' > $$d/pins && \
+	  $(CONTAINER) build --target resolve --build-arg "HOST_PINS=$$(cat $$d/pins)" \
+	    -t qa_generator-resolve -f backend/api/Dockerfile . && \
+	  awk '/^#/ {print; next} {exit}' backend/api/requirements.lock > $$d/api && \
+	  { set -o pipefail; $(CONTAINER) run --rm qa_generator-resolve | sort >> $$d/api; } && \
+	  cp $$d/api backend/api/requirements.lock && \
+	  awk '/^#/ {print; next} {exit}' frontend/requirements.lock > $$d/frontend && \
+	  { set -o pipefail; $(CONTAINER) run --rm \
+	      -v ./frontend/requirements.txt:/r.txt:ro -v $$d/pins:/c.txt:ro python:3.13-slim \
+	      sh -c 'pip install -q -c /c.txt -r /r.txt && pip freeze' | sort >> $$d/frontend; } && \
+	  cp $$d/frontend frontend/requirements.lock
+	@echo "backend/api/requirements.lock and frontend/requirements.lock rewritten; rebuild with: $(COMPOSE_CMD) build api frontend"
 
 # ── TLS certificates ───────────────────────────────────────────────────────
 

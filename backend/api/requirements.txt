@@ -15,8 +15,9 @@ numpy>=2.0.0,<3.0.0
 # One image serves the api and all six workers, so every stage's libraries
 # ship in it whether or not the process that starts uses them. The api
 # imports none of these: each stage package loads on demand. Docling brings
-# torch, which is most of the image size. Held to the version poetry.lock
-# pins, which the suite runs: a Docling upgrade changes parse output.
+# torch, which is most of the image size. Held at the version poetry.lock
+# pins, so the image runs the Docling the tests run. A Docling upgrade changes
+# parse output.
 docling==2.137.0
 lingua-language-detector>=2.2.0,<3.0.0
 # Extraction: the model client, structured output and retries.

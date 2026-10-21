@@ -7,13 +7,11 @@
 # builds a month apart were two different images - poetry.lock pins the host
 # and nothing else, and the container never read it.
 #
-# Regenerate after changing requirements.txt, by resolving it afresh in a
-# throwaway container of the image's base and keeping this header:
+# Regenerate after changing requirements.txt:
+#   make lock
 #
-#   { awk '/^#/ {print; next} {exit}' frontend/requirements.lock; \
-#     podman run --rm -v ./frontend/requirements.txt:/r.txt:ro python:3.13-slim \
-#       sh -c 'pip install -q -r /r.txt && pip freeze' | sort; } > lock.tmp \
-#     && mv lock.tmp frontend/requirements.lock
+# That resolves it afresh in a throwaway container of the image's base, under
+# the pins of poetry.lock, and keeps this header.
 #
 # Rebuilding the image cannot do it: the image installs this file and never
 # reads requirements.txt, so a new dependency would never reach pip.
@@ -45,12 +43,9 @@ numpy==2.5.3
 opentelemetry-api==1.44.0
 opentelemetry-exporter-otlp-proto-common==1.44.0
 opentelemetry-exporter-otlp-proto-grpc==1.44.0
-opentelemetry-instrumentation-requests==0.65b0
-opentelemetry-instrumentation==0.65b0
 opentelemetry-proto==1.44.0
 opentelemetry-sdk==1.44.0
 opentelemetry-semantic-conventions==0.65b0
-opentelemetry-util-http==0.65b0
 packaging==26.3
 pandas==2.3.3
 pillow==12.3.0
@@ -59,6 +54,7 @@ pyarrow==25.0.1
 pydeck==0.9.3
 python-dateutil==2.9.0.post0
 python-multipart==0.0.32
+pytz==2026.3.post1
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.6.3
@@ -68,8 +64,8 @@ streamlit-pdf==2.0.1
 streamlit==1.63.0
 toml==0.10.2
 typing_extensions==4.16.0
+tzdata==2026.3
 urllib3==2.8.0
 uvicorn==0.52.4
 watchdog==6.0.0
 websockets==16.1.1
-wrapt==2.4.1

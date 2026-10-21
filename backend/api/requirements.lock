@@ -164,6 +164,7 @@ python-dotenv==1.2.3
 python-multipart==0.0.32
 python-oxmsg==0.0.2
 python-pptx==1.0.2
+pytz==2026.3.post1
 rapidocr==3.9.2
 referencing==0.37.0
 regex==2026.9.10
@@ -208,6 +209,7 @@ tree-sitter==0.26.0
 typer==0.26.8
 typing-inspection==0.4.4
 typing_extensions==4.16.0
+tzdata==2026.3
 urllib3==2.8.0
 uvicorn==0.52.4
 uvloop==0.22.1

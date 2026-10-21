@@ -17,11 +17,15 @@ WORKDIR /app
 
 COPY backend/api/requirements.txt .
 
-# CPU-only torch first, so resolving the ranges below finds torch already
-# satisfied and never reaches PyPI for a CUDA build. Unpinned on purpose:
-# what this stage resolves is what the lock is about to say.
-RUN pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision \
-    && pip install -r requirements.txt \
+# poetry.lock's pins, one name==version per line, passed by `make lock`: the
+# image runs the versions the test suite runs, wherever both name a package.
+ARG HOST_PINS=""
+
+# CPU-only torch first, at the versions the pins name, so resolving the ranges
+# below finds torch already satisfied and never reaches PyPI for a CUDA build.
+RUN printf '%s\n' "$HOST_PINS" > /pins.txt \
+    && pip install --index-url https://download.pytorch.org/whl/cpu $(grep -E '^(torch|torchvision)==' /pins.txt) \
+    && pip install -c /pins.txt -r requirements.txt \
     && ! pip list --format=freeze | grep -q '^nvidia-'
 
 CMD ["pip", "freeze"]
