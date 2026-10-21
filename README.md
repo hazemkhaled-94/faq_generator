@@ -48,14 +48,16 @@ See [docs/measurements.md](docs/measurements.md) for what one run produced.
 | [Python](https://www.python.org/downloads/) | 3.12 or 3.13 | 3.14 is not supported: gensim does not build there |
 | [Poetry](https://python-poetry.org/docs/#installation) | 2.0 or later | Dependency management |
 | [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-started/get-docker/) | with Compose | 23 containers |
-| [Ollama](https://ollama.com/download) | any recent | **Required.** See below |
+| [Ollama](https://ollama.com/download) | any recent | **Required** for the container workers. See below |
 | Disk | ~15 GB | Images, model weights and volumes |
 | RAM | 16 GB | 6 GB of it for the question worker. Podman's machine has a size of its own: see [Memory](docs/operations.md#memory) |
 
-**Ollama is not optional.** `LLM_CONTAINER_MODEL` has to name a model Ollama
-serves: compose refuses to start without it, `make doctor` refuses one that
-is not an Ollama model, and a container never inherits the host's
-`LLM_MODEL`. The host may call a hosted provider as well. Pull at least one
+**The containers call Ollama and nothing else.** `LLM_CONTAINER_MODEL` has
+to name a model Ollama serves: compose refuses to start without it, `make
+doctor` refuses one that is not an Ollama model, and a container never
+inherits the host's `LLM_MODEL`. The host may call a hosted provider as
+well. Without Ollama, the stages that call a model run on the host instead:
+see [A hosted model only](#a-hosted-model-only). Otherwise pull at least one
 model before the first run:
 
 ```bash
@@ -132,7 +134,8 @@ make help       # every target, grouped
 
 ### Choosing a setup
 
-Four choices, independent of each other.
+Four choices. The model provider can settle the third: with no Ollama, the
+stages that call a model run on the host.
 
 **Container engine.** Podman is the default; the Makefile calls
 `podman compose`.
@@ -154,7 +157,9 @@ container workers build the dataset. A host drain is for developing a stage,
 and nothing keeps its rows out of the dataset: it writes the same tables in
 the same database as the workers, nothing but a `RUN_ID`, where one is set,
 tells its rows apart, and the refusal checks only that the stage's worker is
-stopped. Do not build the dataset with one.
+stopped. Do not build the dataset with one, unless the only model you have is
+hosted: then the host drains are the way, as
+[A hosted model only](#a-hosted-model-only) shows.
 
 **How the pipeline is driven.**
 
@@ -244,6 +249,47 @@ ASSESSMENT_JUDGE_CONTAINER_MODEL=azure/gpt-4.1    # who judges in assess-worker;
 make up                                  # assess-worker reads them
 make assess-enrol                        # enrol and count, before paying; not a dry run
 make assess-start                        # assess-worker judges what this queues
+```
+
+### A hosted model only
+
+The container workers call Ollama and nothing else, so a deployment whose
+only model is hosted drains the stages that call one on the host, where
+`LLM_MODEL` and `configs/env/provider.env` reach the provider. Parsing and
+chunking call no model and stay in their workers, which keeps the parse of
+an uploaded file off the host.
+
+In `.env`, name the hosted model in `LLM_MODEL`. `LLM_BASE_URL` may keep the
+Ollama address `make setup` wrote: a hosted model is then sent to its
+provider's own. Leave `LLM_CONTAINER_MODEL` as it is, since compose and
+`make doctor` need an Ollama model there and on this path no container calls
+it. Point the three judgements in `configs/env/backend.env` at the hosted
+model or blank them (see [Install](#install)), put the credentials in
+`configs/env/provider.env`, and run `make doctor`, which asks every model a
+stage calls.
+
+Start the [smaller set of services](docs/operations.md#a-smaller-stack), the
+frontend and the parse and chunk workers, and none of the four workers that
+call a model:
+
+```bash
+make certs logs-dir
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+podman compose up -d api streamlit phoenix seaweedfs-volume seaweedfs-volume2 parse-worker chunk-worker
+make schema
+```
+
+Then upload a file as above, and:
+
+```bash
+make parse-start                         # parse-worker parses it; make parse-status says when
+make chunk-start                         # once it is parsed; chunk-worker cuts it into passages
+make extract-start   && make extract     # on the host from here on
+make topics-discover
+make extract-bridge MISSING=1
+make questions-start && make questions
+make questions-balance
+make questions-export OUT=exam.xlsx FILTER="--released"
 ```
 
 ## Documentation
