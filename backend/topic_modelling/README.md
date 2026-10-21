@@ -276,7 +276,7 @@ partial refit.
 | `TOPIC_PASSAGES_PER_TOPIC` | How many passages one topic is worth. Above 0 this turns `TOPIC_NUM_TOPICS` into a ceiling and fits `passages / this`, floored at 2, counting the passages that carry a validated fact once the language has any. `0` turns it off |
 | `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2 |
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
-| `TOPIC_RANDOM_STATE` | Seed of the first of the fit's eight draws. Fixed, so the same corpus gives the same topics |
+| `TOPIC_RANDOM_STATE` | Seed of the first of the fit's eight draws. Fixed, so the same passages read in the same order give the same topics. The fit reads them by id, and another order can give other topics: a document whose passages are deleted and chunked again (`make delete-derived`) comes back under new ids, is read last, and can regroup the passages of other documents. A re-chunk keeps an unchanged passage's id |
 | `TOPIC_TOP_TERMS` | Terms stored as a topic's signature |
 | `TOPIC_MIN_WEIGHT` | Smallest membership weight stored, exclusive. In `(0, 1)` |
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |

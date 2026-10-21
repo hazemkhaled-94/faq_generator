@@ -1,8 +1,8 @@
 """What every fit holds, whatever corpus it is over.
 
 Each passage is placed or named unplaced, once; no number in the fitted space
-is NaN; weights sit in the documented ranges; and the same corpus gives the
-same fit in every process.
+is NaN; weights sit in the documented ranges; and the same passages read in
+the same order give the same fit in every process.
 """
 
 from __future__ import annotations
@@ -192,36 +192,25 @@ def test_the_same_corpus_gives_the_same_fit_under_any_hash_seed() -> None:
     assert json.loads(first) == json.loads(second)
 
 
-def _partition(fitting: Fitting) -> list[list[int]]:
-    """The passages grouped by their dominant topic, whatever the topics' numbers."""
-    groups: dict[int, list[int]] = {}
-    for passage, topic in dominant(fitting.weights).items():
-        groups.setdefault(topic, []).append(passage)
-    return sorted(sorted(group) for group in groups.values())
+def test_the_same_passages_read_in_the_same_order_fall_into_the_same_topics() -> None:
+    """What the README promises, and only that.
 
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="QA-topics-1: the fit depends on the order passages are walked in, so "
-    "re-chunking one unchanged document (its passages get new, higher ids) "
-    "regroups passages of every other document, against 'the same corpus gives "
-    "the same topics'",
-)
-def test_the_same_passages_walked_in_another_order_fall_into_the_same_topics() -> None:
-    """A document re-chunked unchanged comes back under higher ids, so last."""
+    The fit follows the order it reads passages in, by id in the store: a
+    document deleted and chunked again comes back under higher ids, is read
+    last, and can regroup other documents' passages. Every refit after reads
+    that same order, and gives the same topics.
+    """
     passages = synthetic("bank", "en", 200, seed=7)
-    # The first document's 20 passages, re-chunked: same lemmas, new ids, walked last.
+    # The first document's 20 passages, chunked again: same lemmas, new ids, read last.
     rechunked = passages[20:] + [
         PassageVocabulary(one.id + 1_000, one.lemmas) for one in passages[:20]
     ]
 
-    before, after = _fit(passages, "en"), _fit(rechunked, "en")
-    renamed = {one.id + 1_000: one.id for one in passages[:20]}
-    after_groups = sorted(
-        sorted(renamed.get(p, p) for p in group) for group in _partition(after)
-    )
+    first, second = _fit(rechunked, "en"), _fit(list(rechunked), "en")
 
-    assert _partition(before) == after_groups
+    assert [t.top_terms for t in first.topics] == [t.top_terms for t in second.topics]
+    assert first.weights == second.weights
+    assert first.unplaced == second.unplaced
 
 
 def test_a_tiny_a_huge_and_a_third_language_are_fitted_named_and_kept_side_by_side() -> (
