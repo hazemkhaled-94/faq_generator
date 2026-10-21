@@ -408,8 +408,14 @@ def test_the_default_premise_is_the_askers_own_situation() -> None:
     """
     premise = categorizations(DEFAULT_CATEGORIZATIONS)[1].categories[1]
     assert (premise.name, premise.form) == ("with-premise", "premise")
-    assert "the asker says, in the first person," in premise.description
-    assert "naming only a topic or a setting is not a premise" in premise.description
+    assert (
+        "states, in the first person, a fact of their own situation: something "
+        "they have, did, bought or plan"
+    ) in premise.description
+    assert (
+        "never names only the topic, the kind of answer wanted, or that the "
+        "asker is reading, checking or trying to understand something"
+    ) in premise.description
     assert "never gives the answer" in premise.description
 
 

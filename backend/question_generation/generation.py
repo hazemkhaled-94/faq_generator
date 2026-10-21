@@ -28,6 +28,7 @@ from llm.client import Client
 from llm.prompt import fill
 from nlp.analysis import asked
 from nlp.models import named
+from nlp.pipelines import pipeline
 from question_generation.kinds import KINDS, _Answered, stored
 from question_generation.models import Candidate, Category, FactGroup
 from question_generation.planning import Plan
@@ -233,10 +234,12 @@ _ASKER = (
 #: premise says nothing of the asker.
 _UNADDRESSED = (
     'The previous draft was "{{question}}". A reviewer found that it does not '
-    "open on a premise about the asker: it names a topic or a setting, or "
-    "nothing at all. Open on a short premise in which the asker says, in the "
-    "first person, who they are, what they are doing or what they need, and "
-    "then ask."
+    "open on a premise about the asker's own situation: it names a topic or a "
+    "setting, says what the asker wants to know or that they are reading or "
+    "checking something, or nothing at all. Open on a short premise in which "
+    "the asker states, in the first person, something they have, did, bought "
+    'or plan - "I ordered a sofa last week, ...", "Meine Karte wurde gestern '
+    'im Ausland gestohlen, ..." - and then ask.'
 )
 
 #: The user message an unanswerable question is asked with.
@@ -361,6 +364,65 @@ def _premise(question: str, language: str | None) -> str:
     return question[: dashed.start()] if dashed else ""
 
 
+#: The verbs of wanting, trying, checking and understanding, by ISO 639-1
+#: code, as lemmas: a premise whose verbs are only these, followed through
+#: the infinitives they take, says what the asker wants to know and nothing
+#: of their situation. Wanting to return a jacket is a plan; wanting to know
+#: is not.
+_ENQUIRING: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            *("wollen", "möchten", "mögen", "wünschen", "versuchen", "prüfen"),
+            *("überprüfen", "kontrollieren", "lesen", "informieren"),
+            *("verstehen", "wissen", "erfahren", "lernen"),
+        }
+    ),
+    "en": frozenset(
+        {
+            *("want", "wish", "like", "try", "attempt", "check", "verify"),
+            *("review", "read", "look", "study", "understand", "know", "learn"),
+            "wonder",
+        }
+    ),
+}
+
+
+def _enquiring(question: str, language: str | None) -> bool:
+    """Whether a question's premise only wants, tries, checks or understands.
+
+    Read off each sentence's main verb, and through the infinitive one of
+    these verbs takes, so `I want to know` is read to `know` and `I want to
+    return` to `return`. A premise with no verb, and a language with no row
+    in `_ENQUIRING`, is never read so.
+    """
+    enquiring = _ENQUIRING.get(language or "")
+    premise = _premise(question, language)
+    if not enquiring or not premise.strip():
+        return False
+    roots = [
+        one.root
+        for one in pipeline(language)(premise).sents
+        if one.root.pos_ in ("VERB", "AUX")
+    ]
+    for verb in roots:
+        while verb.lemma_.casefold() in enquiring:
+            then = next(
+                (
+                    one
+                    for one in verb.children
+                    if one.pos_ in ("VERB", "AUX")
+                    and "Inf" in one.morph.get("VerbForm", [])
+                ),
+                None,
+            )
+            if then is None:
+                break
+            verb = then
+        if verb.lemma_.casefold() not in enquiring:
+            return False
+    return bool(roots)
+
+
 def _addressed(question: str, language: str | None) -> bool:
     """Whether a question's premise holds a word by which the asker speaks.
 
@@ -478,9 +540,15 @@ class QuestionWriter:
         if (
             not note
             and any(one.form == "premise" for one in told)
-            and not _addressed(question, sample.language)
+            and (
+                not _addressed(question, sample.language)
+                or _enquiring(question, sample.language)
+            )
         ):
-            log.info("asking again for %r: its premise names no asker", question)
+            log.info(
+                "asking again for %r: its premise states nothing of the asker",
+                question,
+            )
             again = self._client.answer(
                 system=system,
                 user=self._prompt(

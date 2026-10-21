@@ -54,8 +54,9 @@ holds them as the paper's Figure 2 JSON. Unset, it reads two of the paper's
 Table 5 categorizations, every category at even odds: Phrasing, a concise
 natural question of fewer than 10 words or a verbose one of more than 9; and
 Premise, a direct question or one opening with a short premise in which the
-asker says, in the first person, who they are, what they are doing or what
-they need. That one is reworded from the paper's, which made the asker
+asker states, in the first person, a fact of their own situation, something
+they have, did, bought or plan, never only the topic, the kind of answer
+wanted or that they are reading or checking something. That one is reworded from the paper's, which made the asker
 optional: a quarter of accepted with-premise rows opened on a label naming a
 setting, never the asker, and one gave its answer away. `[]` deals none.
 
@@ -216,8 +217,11 @@ the question's words, as concise-and-natural does, nor beside a search query,
 where the writer shrank it to a label naming a setting. A first draft told a
 premise whose premise, the text before `asked()` finds the question or before
 a dash set off by spaces where it finds none, holds none of its language's
-first- or second-person pronouns and possessives (`_SPEAKING`) is written
-once more with a note asking for the asker's own situation, and the second
+first- or second-person pronouns and possessives (`_SPEAKING`), or whose main
+verbs, read through the infinitive each takes, only want, try, check or
+understand (`_ENQUIRING`: `I want to know` is noted, `I want to return a
+jacket` is not), is written once more with a note asking for the asker's own
+situation, and the second
 draft is the one checked; nothing is refused for it, and a language with no
 row is never noted. A slot told none is sent the
 message prompt version 16 sent, byte for byte. A retry is sent the same block

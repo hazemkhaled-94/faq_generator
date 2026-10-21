@@ -900,7 +900,10 @@ def test_a_premise_naming_no_asker_is_written_once_more_with_a_note(
 
     assert len(model.asked) == 2
     assert f'The previous draft was "{_LABEL[language]}".' in model.user
-    assert "premise" in model.user.rsplit("FEEDBACK ON THE PREVIOUS DRAFT", 1)[1]
+    note = model.user.rsplit("FEEDBACK ON THE PREVIOUS DRAFT", 1)[1]
+    assert "states, in the first person, something they have, did, bought or plan" in (
+        " ".join(note.split())
+    )
     assert written.question_text == _ASKER[language]
 
 
@@ -1069,3 +1072,79 @@ def test_a_query_is_told_on_a_single_passage_slot_that_keywords_can_ask() -> Non
 
     assert written.categories == (keywords(),)
     assert "search box" in model.user
+
+
+#: Premises in which the asker only wants, tries, checks or understands
+#: something, by language: they name what is asked about, not the asker.
+_ENQUIRING = [
+    (
+        "en",
+        "I'm trying to understand my card terms: what does a replacement card cost?",
+    ),
+    ("en", "I'm checking the terms of my account: when is the fee charged?"),
+    ("en", "I want to know about delivery times, how long does a sofa take?"),
+    (
+        "de",
+        "Ich prüfe gerade die Unterlagen zu meinem Kredit: Wann endet die Widerrufsfrist?",
+    ),
+    (
+        "de",
+        "Ich versuche, die Bedingungen meines Kontos zu verstehen: Wann wird die Gebühr fällig?",
+    ),
+    ("de", "Ich informiere mich gerade über Girokonten: Was kostet eine Ersatzkarte?"),
+]
+
+#: Premises stating what the asker has, did, bought or plans, by language.
+_SITUATED = [
+    ("en", "I ordered a sofa last week, when will it be delivered?"),
+    ("en", "I want to return a jacket I bought online - how many days do I have?"),
+    ("en", "I'd like to close my savings account: what notice period applies?"),
+    ("de", "Ich habe letzte Woche ein Sofa bestellt, wann wird es geliefert?"),
+    ("de", "Meine Karte wurde gestern im Ausland gestohlen, was muss ich tun?"),
+    ("de", "Ich will mein Sparkonto kündigen: Welche Frist gilt?"),
+]
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(("language", "question"), _ENQUIRING)
+def test_a_premise_that_only_wants_or_checks_is_read_as_enquiring(
+    language: str, question: str
+) -> None:
+    """Its verbs, followed through their infinitives, all want, try, check or understand."""
+    from question_generation.generation import _enquiring
+
+    assert _enquiring(question, language)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(("language", "question"), _SITUATED)
+def test_a_premise_stating_the_askers_situation_is_not(
+    language: str, question: str
+) -> None:
+    """Wanting to return a jacket is a plan; wanting to know is not."""
+    from question_generation.generation import _enquiring
+
+    assert not _enquiring(question, language)
+
+
+def test_a_language_with_no_row_is_never_read_as_enquiring() -> None:
+    """No note at all rather than a false one."""
+    from question_generation.generation import _enquiring
+
+    assert not _enquiring("Je vérifie mon contrat : quel est le délai ?", "fr")
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_premise_that_only_enquires_is_written_once_more_with_a_note(
+    language: str,
+) -> None:
+    """In the first person, and still about the topic rather than the asker."""
+    enquiring = next(q for lang, q in _ENQUIRING if lang == language)
+    model = Drafts(enquiring, _ASKER[language])
+
+    written = premised_by(model, language)
+
+    assert len(model.asked) == 2
+    assert f'The previous draft was "{enquiring}".' in model.user
+    assert written.question_text == _ASKER[language]

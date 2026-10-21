@@ -183,8 +183,9 @@ table gives no probabilities. with-premise alone is reworded: the paper's
 "very short premise, where the user reveals their needs or some information"
 made the asker optional, and a quarter of accepted with-premise questions
 opened on a label naming a setting. It now asks for a premise in which the
-asker says, in the first person, who they are, what they are doing or what
-they need, never a topic or a setting, and never the answer:
+asker states, in the first person, a fact of their own situation, something
+they have, did, bought or plan, and never only the topic, the kind of answer
+wanted or that they are reading or checking something, nor the answer:
 
 | Categorization | Categories |
 |---|---|
@@ -287,8 +288,11 @@ slots the writer shrank it to a label naming a setting. Such a slot is
 written as no category of the premise's categorization. A first draft whose
 premise holds none of its language's first- or second-person pronouns and
 possessives (`_SPEAKING` in `question_generation/generation.py`, German and
-English) is written once more, with a note asking for the asker's own
-situation, and the second draft is kept; neither is refused for it. The
+English), or whose verbs only want, try, check or understand (`_ENQUIRING`
+beside it, read through the infinitive such a verb takes, so "I want to
+know" is noted and "I want to return a jacket" is not), is written once
+more, with a note asking for the asker's own situation, and the second draft
+is kept; neither is refused for it. The
 premise ends where a comma, a colon, a full stop or a dash set off by spaces
 opens the question, and a language with no row is never noted.
 

@@ -207,10 +207,12 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                     "name": "with-premise",
                     "form": "premise",
                     "description": "question opening with a short premise in "
-                    "which the asker says, in the first person, who they are, "
-                    "what they are doing or what they need, and then asks. A "
-                    "phrase naming only a topic or a setting is not a premise, "
-                    "and the premise never gives the answer.",
+                    "which the asker states, in the first person, a fact of "
+                    "their own situation: something they have, did, bought or "
+                    "plan, and then asks. The premise never names only the "
+                    "topic, the kind of answer wanted, or that the asker is "
+                    "reading, checking or trying to understand something, and "
+                    "it never gives the answer.",
                 },
             ],
         },
