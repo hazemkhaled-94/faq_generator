@@ -61,6 +61,20 @@ def test_a_back_pointing_modifier_points_outside(text, language) -> None:
 
 
 @pytest.mark.parametrize(
+    "text",
+    [
+        "Above EUR 500, a fee of 1% applies.",
+        "Above EUR 50, shipping is free.",
+        "Following the price changes, the bank charges EUR 5 per month.",
+        "Following customer complaints, the shop extends its return period.",
+    ],
+)
+def test_a_preposition_opening_a_fact_points_nowhere(text) -> None:
+    """A preposition heading its object is no modifier, whatever word it is."""
+    assert references(text, "en") == ()
+
+
+@pytest.mark.parametrize(
     "between",
     [
         "Wir prüfen alle Angaben.",

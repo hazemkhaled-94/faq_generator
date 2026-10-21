@@ -1593,9 +1593,10 @@ def _opens(token) -> bool:
         return True
     noun = token.head
     if noun.pos_ not in _NOMINAL:
-        # A modifier the parser made its noun's head, `Obengenannte Gebühren`.
+        # An adjective the parser made its noun's head, `Obengenannte Gebühren`;
+        # a preposition heading its object, `Above EUR 500`, modifies nothing.
         noun = next((one for one in token.children if one.pos_ in _NOMINAL), None)
-        if noun is None:
+        if noun is None or token.pos_ != "ADJ":
             return False
     if noun.i < token.i:
         return False
