@@ -406,7 +406,7 @@ def test_the_refused_metrics_reach_the_span_as_plain_strings() -> None:
 
 
 #: The label that approves each answer-level metric a question is asked.
-APPROVES = {"factual", "correct", "relevant", "answered", "concise", "non-toxic"}
+APPROVES = {"factual", "correct", "answered", "concise", "non-toxic"}
 
 
 def test_a_rubric_that_abstains_leaves_the_verdict_thin() -> None:
@@ -414,8 +414,8 @@ def test_a_rubric_that_abstains_leaves_the_verdict_thin() -> None:
 
     The rubric is one call returning six metrics, so what a root question is
     due is counted in metrics, not in calls. Counted in calls, the six lost
-    here would be one, and a verdict missing half its metrics would read
-    nearly whole.
+    here would be one, and a verdict missing more than half its metrics
+    would read nearly whole.
     """
     from assessment.judge import Judge
     from llm.client import ModelUnavailable
@@ -451,6 +451,6 @@ def test_a_rubric_that_abstains_leaves_the_verdict_thin() -> None:
     _service(queue, Judge(_Client())).process_next()
 
     written = queue.recorded[0]
-    assert (len(written.judgements), written.metrics_due) == (6, 12)
+    assert (len(written.judgements), written.metrics_due) == (5, 11)
     assert written.abstained == 6
     assert written.approved is False

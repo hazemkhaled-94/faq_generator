@@ -174,23 +174,20 @@ def _question(answer: str = "Five days.", root: str = "True") -> ArtifactToJudge
 
 
 def test_a_question_is_asked_every_metric_its_kind_declares() -> None:
-    """Twelve of them, and three have no counterpart anywhere upstream.
+    """Eleven of them, and three have no counterpart anywhere upstream.
 
     `qa_correctness` asks whether the answer answers the question,
     `refusal` whether it is an answer at all, and `conciseness` whether it
     is only the answer. No gate asks any of those. The paper's six come
     after them, about the question rather than its answer.
     """
-    client = _Answering(
-        "factual", "correct", "relevant", "answered", "concise", "non-toxic"
-    )
+    client = _Answering("factual", "correct", "answered", "concise", "non-toxic")
 
     judged = Judge(client).judge(_question())
 
     assert [one.metric for one in judged] == [
         JudgeMetric.HALLUCINATION,
         JudgeMetric.QA_CORRECTNESS,
-        JudgeMetric.RELEVANCE,
         JudgeMetric.REFUSAL,
         JudgeMetric.CONCISENESS,
         JudgeMetric.TOXICITY,
@@ -207,9 +204,7 @@ def test_an_answer_that_declines_to_answer_is_caught_by_nothing_else() -> None:
     leaks no source. Every gate passes it, and a benchmark built from it
     scores a chatbot against a non-answer.
     """
-    client = _Answering(
-        "factual", "correct", "relevant", "refused", "concise", "non-toxic"
-    )
+    client = _Answering("factual", "correct", "refused", "concise", "non-toxic")
     question = _question(answer="The document does not specify a period.")
 
     judged = {one.metric: one for one in Judge(client).judge(question)}
@@ -250,7 +245,7 @@ def test_one_call_returns_the_six_scores() -> None:
         (JudgeMetric.RUBRIC_CONSISTENCY, "3", 1.0, True),
         (JudgeMetric.RUBRIC_ANSWERABILITY, "1", 0.0, False),
     ]
-    assert len(client.asked) == 7
+    assert len(client.asked) == 6
     assert (
         "_Rubric",
         (
@@ -260,12 +255,12 @@ def test_one_call_returns_the_six_scores() -> None:
     ) in client.asked
 
 
-@pytest.mark.parametrize(("root", "calls", "due"), [("False", 6, 6), ("True", 7, 12)])
+@pytest.mark.parametrize(("root", "calls", "due"), [("False", 5, 5), ("True", 6, 11)])
 def test_a_follow_up_is_not_asked_the_rubric(root: str, calls: int, due: int) -> None:
     """A follow-up leans on the turn before it, which the rubric is not shown.
 
-    So it is asked the six about its answer and not the paper's six, and is
-    due six metrics where a root is due twelve from seven calls.
+    So it is asked the five about its answer and not the paper's six, and is
+    due five metrics where a root is due eleven from six calls.
     """
     client = _Answering()
     judge = Judge(client)

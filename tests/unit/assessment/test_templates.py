@@ -185,18 +185,17 @@ def test_a_shape_is_named_after_its_metric() -> None:
 
 
 def test_a_question_is_judged_on_more_than_a_fact() -> None:
-    """Twelve judgements against three, and most are about the answer.
+    """Eleven judgements against three, and most are about the answer.
 
     A fact is asked whether its evidence supports it and whether the
-    evidence is about the right thing. A question is asked both of those
-    about its ANSWER, plus whether the answer answers the question - which
-    is the judgement that has no counterpart upstream - and then the
+    evidence is about the right thing. A question is asked the first of
+    those about its ANSWER, plus whether the answer answers the question -
+    which is the judgement that has no counterpart upstream - and then the
     paper's six about the question itself, from one call.
     """
     assert metrics_of(ArtifactKind.QUESTION) == (
         JudgeMetric.HALLUCINATION,
         JudgeMetric.QA_CORRECTNESS,
-        JudgeMetric.RELEVANCE,
         JudgeMetric.REFUSAL,
         JudgeMetric.CONCISENESS,
         JudgeMetric.TOXICITY,
@@ -212,6 +211,22 @@ def test_a_question_is_judged_on_more_than_a_fact() -> None:
         JudgeMetric.RELEVANCE,
         JudgeMetric.TOXICITY,
     )
+
+
+def test_a_question_is_asked_its_relevance_by_the_papers_judge_alone() -> None:
+    """One judge of whether the passages bear on the question, not two.
+
+    The paper's answerability agreed with the labelled review at least as
+    well as the question-relevance template did, in both languages, so
+    template version 4 asks a question the paper's six and no `relevance`.
+    A fact and a topic are still asked theirs, and a question's relevance
+    row stored under version 3 stays readable under the same name.
+    """
+    assert JudgeMetric.RELEVANCE not in metrics_of(ArtifactKind.QUESTION)
+    assert JudgeMetric.RELEVANCE in metrics_of(ArtifactKind.FACT)
+    assert JudgeMetric.RELEVANCE in metrics_of(ArtifactKind.TOPIC)
+    assert direction_of(JudgeMetric.RELEVANCE) == "maximize"
+    assert PROMPT_VERSION == "4"
 
 
 def test_a_template_says_the_material_may_be_in_any_language() -> None:

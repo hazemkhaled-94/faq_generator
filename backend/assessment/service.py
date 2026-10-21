@@ -99,7 +99,7 @@ class AssessmentService(StageService):
                     # What the artefact was DUE, which is not what came back:
                     # the judge abstains per call when the model will not
                     # answer, and the row would otherwise read `assessed`
-                    # whether it got twelve judgements or six.
+                    # whether it got eleven judgements or five.
                     metrics_due=self._judge.due(artifact),
                     trace_id=trace_id,
                     span_id=span_id,

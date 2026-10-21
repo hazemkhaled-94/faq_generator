@@ -56,9 +56,8 @@ nothing here keeps one.
 | | `toxicity` | Did the pipeline write something offensive of its own? | |
 | `topic` | `summarization` | Is the label a good short name for these terms? | 2 |
 | | `relevance` | Are these terms a subject, or the document's furniture? | |
-| `question` | `hallucination` | Do the facts support every part of the answer? | 7 |
+| `question` | `hallucination` | Do the facts support every part of the answer? | 6 |
 | | `qa_correctness` | Does the answer answer the question that was asked? | |
-| | `relevance` | Do the facts contain what the question needs? | |
 | | `refusal` | Is the answer an answer, or a refusal written down as one? | |
 | | `conciseness` | Does the answer give what was asked for and stop? | |
 | | `toxicity` | Did the pipeline write something offensive of its own? | |
@@ -98,13 +97,13 @@ Of the evaluators phoenix-evals ships, the seven named above without a
 
 **An artefact is approved only when every one of its metrics approves.** Not
 a majority: an answer that is well-sourced and answers the wrong question is
-worth somebody's time even though five of its six passed. The paper's six
+worth somebody's time even though four of its five passed. The paper's six
 scores count too, and only a 3 approves.
 
 ### Unanswerable questions are not judged
 
-Two of the six question metrics ask whether the facts support the answer,
-and a deliberately unanswerable question has none. Scoring it anyway would
+Every one of the five answer metrics reads the answer, and a deliberately
+unanswerable question has none. Scoring it anyway would
 report the pipeline's most careful output as its worst.
 
 ## The paper's judge
@@ -152,8 +151,20 @@ things.
 
 Only a question that opens its thread is asked. A follow-up leans on the turn
 before it, which the rubric is not shown, so it would be scored down for
-context it was never given. A root question is due twelve metrics from seven
-calls, and a follow-up six from six.
+context it was never given. A root question is due eleven metrics from six
+calls, and a follow-up five from five.
+
+### One judge of a question's relevance
+
+Up to template version 3 a question was also asked phoenix-evals'
+`relevance`: whether the facts it was written from hold what it needs. The
+paper's judge asks the same of the passages, and before version 4 the two
+were held against the labelled v0.3.0 review on 350 root questions, half in
+each language. The paper's answerability agreed with the reviewers at least
+as well (kappa 0.200 against 0.191 in German, 0.288 against 0.256 in
+English), so version 4 asks a question the paper's judge alone. A fact and a
+topic are still asked `relevance`, and a question's `relevance` row stored
+under version 3 is kept, counted and listed under the same name.
 
 ## The names are phoenix-evals'. The prompts are not.
 
@@ -265,7 +276,7 @@ this codebase does nowhere else.
 
 ## Cost
 
-A model call per metric: **three per fact, two per topic, six per question**,
+A model call per metric: **three per fact, two per topic, five per question**,
 and one more for the paper's six scores of a root question.
 A corpus of twenty thousand facts is sixty thousand calls, which is why the
 default is a **sample per kind (`ASSESSMENT_SAMPLE`), newest first** and why
@@ -353,7 +364,7 @@ make diversity FILE=new.xlsx AGAINST=old.xlsx
 
 | File | Holds |
 |---|---|
-| [`templates.py`](templates.py) | The twelve judging templates (three fact, two topic, seven question) over thirteen metric names: the names, labels and scores borrowed from phoenix-evals, and the DataMorgana paper's judge |
+| [`templates.py`](templates.py) | The eleven judging templates (three fact, two topic, six question) over thirteen metric names: the names, labels and scores borrowed from phoenix-evals, and the DataMorgana paper's judge |
 | [`judge.py`](judge.py) | Asking one model one judgement, and abstaining when it will not answer |
 | [`repository.py`](repository.py) | The queue, the enrolment, and reading the verdicts back |
 | [`service.py`](service.py) | The drain loop, and the annotations it posts |
@@ -394,10 +405,11 @@ poetry run pytest tests/unit/assessment
   Read the direction.
 - **A sample is the default.** `ASSESSMENT_SAMPLE=0` judges the corpus, and
   on a large one that is tens of thousands of model calls.
-- **A root question costs seven calls, a follow-up six and a fact three.**
+- **A root question costs six calls, a follow-up five and a fact three.**
   Judging questions alone is the setting that buys the most.
-- **A row judged under template version 1 carries three metrics fewer, and
-  one under version 2 none of the paper's six.** The version is on the row;
+- **A row judged under template version 1 carries three metrics fewer, one
+  under version 2 none of the paper's six, and a question judged under
+  version 3 a `relevance` row version 4 no longer asks.** The version is on the row;
   `make assess-rerun` re-judges it.
 - **Enrolment ignores `--only`.** The requeue after it does not.
 - **A judge named as `LLM_MODEL` is marking its own work.** Warned, not

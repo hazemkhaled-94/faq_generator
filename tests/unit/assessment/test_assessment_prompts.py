@@ -14,7 +14,7 @@ from assessment.templates import PROMPT_VERSION, TEMPLATES
 
 
 def test_every_template_is_recorded_under_a_name_of_its_own() -> None:
-    """All of them, and `relevance` three times under three names."""
+    """All of them, and `relevance` twice under two names."""
     every = catalogue()
 
     assert len(every) == sum(len(group) for group in TEMPLATES.values())

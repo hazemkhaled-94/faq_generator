@@ -58,9 +58,14 @@ from llm.prompt import fill
 #: than mysterious because the version is on the row.
 #:
 #: Version 3 added the DataMorgana paper's rubric: one more call for a root
-#: question, returning six scores, so a root is due twelve metrics and a
-#: follow-up six.
-PROMPT_VERSION = "3"
+#: question, returning six scores.
+#:
+#: Version 4 stopped asking a question `relevance`: the paper's judge reads
+#: the question against its passages, and its answerability agreed with the
+#: labelled review at least as well. A root is due eleven metrics from six
+#: calls and a follow-up five from five; a question's `relevance` row stored
+#: under version 3 is kept and read as it was.
+PROMPT_VERSION = "4"
 
 #: The DataMorgana paper's six dimensions (Filice et al., 2025, Appendix D),
 #: in its order, by the name each score is stored under. One call answers
@@ -262,7 +267,7 @@ class _Rubric(BaseModel):
 class Rubric(Template):
     """The DataMorgana paper's judge: one call, six scores, about the question.
 
-    The six phoenix-evals templates above it judge the ANSWER, one call
+    The five phoenix-evals templates above it judge the ANSWER, one call
     each. This one judges the question against the passages it was written
     from, and asks the six together because that is how the paper asked
     them: its Table 3 compares with nothing asked another way. The single
@@ -555,43 +560,6 @@ incorrect: "Which three checks are required?" / "A visual check and a
 FORMAT
 Return `label`, one of `correct` or `incorrect`, and `explanation`."""
 
-_QUESTION_RELEVANCE = f"""ROLE
-You are a retrieval analyst. You judge ONE property of ONE question and
-nothing else about it.
-
-ACTION
-Say whether the facts beneath contain the information needed to answer the
-question.
-
-STEPS
-1. Read the question.
-2. Read the facts.
-3. Decide whether somebody holding only these facts could answer it.
-4. Answer `relevant` when they could, `unrelated` when the facts are about
-   something else.
-
-CONTEXT
-This is the question a retrieval system is scored on: were the right passages
-found. Here it is asked of the facts a question was WRITTEN from, so
-`unrelated` means the question drifted away from its own source while it was
-being written.
-
-Do not judge whether the expected answer is right, and do not use knowledge
-of your own. Only whether these facts bear on this question.
-
-{_ANY_LANGUAGE}
-
-EXAMPLES
-relevant:  question asks for a notice period; facts state notice periods.
-relevant:  question asks why a step exists; facts give the reason.
-unrelated: question asks about storage temperature; facts are about invoice
-           handling.
-unrelated: question asks what a term means; facts use the term and never
-           define it.
-
-FORMAT
-Return `label`, one of `relevant` or `unrelated`, and `explanation`."""
-
 _QUESTION_REFUSAL = f"""ROLE
 You are an examiner. You judge ONE property of ONE expected answer and
 nothing else about it.
@@ -754,12 +722,6 @@ _QUESTION_USER = """QUESTION
 
 EXPECTED ANSWER
 {{answer}}
-
-FACTS IT WAS WRITTEN FROM
-{{facts}}"""
-
-_QUESTION_NO_ANSWER_USER = """QUESTION
-{{question}}
 
 FACTS IT WAS WRITTEN FROM
 {{facts}}"""
@@ -1007,13 +969,6 @@ TEMPLATES: dict[str, tuple[Template, ...]] = {
             system=_QUESTION_QA_CORRECTNESS,
             user=_QUESTION_USER,
             fields=("question", "answer", "facts"),
-        ),
-        Template(
-            metric=JudgeMetric.RELEVANCE,
-            kind=ArtifactKind.QUESTION,
-            system=_QUESTION_RELEVANCE,
-            user=_QUESTION_NO_ANSWER_USER,
-            fields=("question", "facts"),
         ),
         Template(
             metric=JudgeMetric.REFUSAL,

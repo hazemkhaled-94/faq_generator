@@ -107,7 +107,7 @@ def test_start_enrols_every_artefact_and_queues_it(corpus, engine) -> None:
 
 
 def test_an_unanswerable_question_is_not_enrolled(corpus, engine) -> None:
-    """It has no answer for five of its six metrics to be about.
+    """It has no answer for its five answer metrics to be about.
 
     Written deliberately, to test whether a chatbot admits it does not
     know. Judging it would report the pipeline's most careful output as

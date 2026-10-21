@@ -72,7 +72,7 @@ class Judge:
         """How many metrics this artefact is due, which is not how many calls.
 
         The rubric is one call returning six, so a root question is due
-        twelve metrics from seven calls. Counted in calls, a rubric that
+        eleven metrics from six calls. Counted in calls, a rubric that
         abstained would cost a verdict one metric rather than six.
         """
         return sum(len(one.metrics) for one in self.asked(artifact))
