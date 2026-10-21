@@ -1011,6 +1011,29 @@ pushed for review. The database is what has the set.
 
 The Citations sheet is the expensive half; `--no-citations` leaves it empty.
 
+### Reading the benchmark
+
+Two studies of generated benchmarks set the limits within which a set from
+this project should be read: van Elburg, van der Putten and Marx, [*Can We
+Evaluate RAGs with Synthetic Data?*](https://arxiv.org/abs/2508.11758) (ECML
+PKDD 2025 workshops), and Rahmani et al., [*Synthetic Test Collections for
+Retrieval Evaluation*](https://arxiv.org/abs/2405.07767) (SIGIR 2024). Their
+figures are on [the measurements page](../../docs/measurements.md#what-a-generated-benchmark-can-rank).
+In short:
+
+- It ranks retrieval set-ups (retriever, chunking, top-k) more reliably than
+  it ranks the models that write the answers.
+- Its questions run easier than real users' questions, so absolute scores
+  are optimistic. Differences between two set-ups are what it measures
+  best.
+- A question's cited passages are one passage that answers it, not every
+  passage that does. Score a retriever by whether the answer can be got
+  from what it returned.
+- Agreement with real questions was best where the generated questions
+  matched their form, which is what the categories vary.
+- As a precaution, judge the chatbot with another model family than the
+  one that wrote the set.
+
 ## Reading back the prompt that wrote a question
 
 Every question carries `prompt_version`, and three modules declare one:

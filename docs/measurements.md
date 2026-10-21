@@ -27,6 +27,55 @@ their own.
 This is the only place in the repository that holds run figures. A README
 that needs one links here.
 
+## What a generated benchmark can rank
+
+The figures in this section are not this project's: they come from two
+studies of generated benchmarks. Read them as the limits within which the
+project's figures below should be read. The first study is van Elburg, van
+der Putten and Marx, [*Can We Evaluate RAGs with Synthetic
+Data?*](https://arxiv.org/abs/2508.11758) (ECML PKDD 2025 workshops,
+Springer CCIS, doi:10.1007/978-3-032-19102-1_11; read as arXiv:2508.11758v2).
+It compares a generated benchmark with a human one over four datasets, on
+four or five RAG set-ups each, with no significance test. The second is
+Rahmani, Craswell, Yilmaz, Mitra and Campos, [*Synthetic Test Collections for
+Retrieval Evaluation*](https://arxiv.org/abs/2405.07767) (SIGIR 2024,
+doi:10.1145/3626772.3657942). It ranks 31 retrieval runs on 51 real and 31
+generated, curated queries.
+
+- **A generated benchmark ranks retrieval set-ups better than generators.**
+  With only the retrieval varied, it ranked the set-ups close to the human
+  benchmark: mean Kendall's τ 0.84 on BLEU over the four datasets. With five
+  generators it failed: mean τ −0.35 on BLEU, and −1.00 on one dataset (van
+  Elburg et al., §5.2–5.3, Fig. 2). Use a benchmark from this project to
+  compare retrievers, chunking and top-k. Compare generators with care, and
+  with real questions beside it.
+- **Its questions run easier than real ones.** Every system scored higher
+  on the generated questions under every metric (van Elburg et al., §5.2,
+  Fig. 3–6). Context Precision stayed high at every k on generated questions
+  (Fig. 4), so it could not rank retrievers (τ 0.08 over four systems). In
+  Rahmani et al., a fully synthetic collection, with generated queries and
+  LLM relevance judgments, overestimated NDCG@10 for every system type. With
+  human judgments, the generated queries did not (§2.1, Fig. 1; §3, Fig. 3).
+  So part of the effect belongs to the LLM judge, which holds for this
+  project's own judge too. Read absolute scores as optimistic, and read
+  differences between set-ups.
+- **The cited passages are not a full relevance set.** Counting only the
+  passage a query was written from as relevant ranked systems poorly
+  (τ 0.157). Pooled judgments ranked them well (τ 0.82 with human
+  judgments, 0.86 with GPT-4's) (Rahmani et al., §2.1–2.2, Fig. 1–2). A
+  retriever that returns another passage stating the same answer is not
+  wrong. Score retrieval by whether the answer can be got from what was
+  retrieved, not only by whether the cited passage came back.
+- **Form matters.** Agreement was best where the generated and the real
+  questions matched in length and form (van Elburg et al., §6.1). The
+  project's categories exist to widen the form, and `make diversity
+  BY=category` shows how far they do.
+- **Judge a chatbot with another model family than the one that wrote the
+  benchmark, as a precaution.** Van Elburg et al. suggest a stylistic bias
+  towards the generating model without testing it (§6.1). Rahmani et al.
+  tested one collection and found little to no bias, with hedges (§3,
+  Fig. 3).
+
 ## Every run at a glance
 
 The IFAB *Laws of the Game 2026/27*, German and English, taken through every
