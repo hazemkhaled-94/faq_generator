@@ -392,6 +392,30 @@ def test_a_type_with_no_spanning_prompt_falls_back_to_its_own(open_view) -> None
     assert "The prompt that wrote this · factoid v8" in opened.folds()
 
 
+@pytest.mark.parametrize(("kind", "said"), [("single", True), ("needs_both", False)])
+def test_a_spanning_slot_written_single_says_it_may_have_had_the_plain_prompt(
+    open_view, kind, said
+) -> None:
+    """A compound slot short of its second passage is written single, unspanned.
+
+    Stored `single`, like a needs_both slot written single, which did get the
+    spanning prompt, so the row cannot say which of the two it was sent.
+    """
+    question = changed(QUESTION, planned_difficulty="medium", kind=kind)
+    client = Answers(
+        **answers(
+            questions=_one(question),
+            question=_detail(question),
+            prompts=lambda **asked: [_recorded(asked["name"])],
+        )
+    )
+
+    opened = open_view("questions", client).select(0)
+
+    assert "The prompt that wrote this · factoid (spans) v8" in opened.folds()
+    assert any("plain `factoid` prompt" in one for one in opened.captions()) is said
+
+
 def test_the_listing_shows_the_stored_kind_apart_from_the_type(open_view) -> None:
     """One word each: type is what it asks for, kind is what it was written as."""
     question = changed(QUESTION, kind="compound")

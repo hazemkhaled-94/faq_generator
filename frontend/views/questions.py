@@ -930,6 +930,13 @@ def _prompt(client, question: dict) -> None:
             f"{written['first_seen_at'][:10]}. Read-only: a prompt is changed "
             f"in the source, and what is here is the record of what was sent."
         )
+        if name == f"{kind} (spans)" and question.get("kind") == "single":
+            st.caption(
+                f"Stored single on a spanning slot. A compound slot short of its "
+                f"second passage is written so too, and is sent the plain "
+                f"`{kind}` prompt instead of this one; the row does not record "
+                f"which it was."
+            )
         st.caption("System")
         st.code(written["text"], language="text", wrap_lines=True)
         # Both halves, because both were sent. A row written before the
