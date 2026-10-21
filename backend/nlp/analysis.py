@@ -1935,8 +1935,11 @@ def _boundaries(document: Doc) -> list[int]:
             starts.append(sentence.start)
             continue
         spaced = previous.text != left or sentence.text != right
-        # A range ends on its last abbreviation: "Mo.–Fr.".
-        last_word = re.split(r"[\s\u2013-]", left)[-1].casefold()
+        word = left.split()[-1].casefold()
+        # A range or a compound ends on its last abbreviation, "Mo.–Fr.",
+        # "Kunden-Nr.": a noun, which may end a sentence, so it is no medial one.
+        last_word = re.split(r"[\u2013-]", word)[-1]
+        compound = last_word != word
         joined = not spaced and (left[-1] in _JOINERS or right[0] in _JOINERS)
         if joined:
             # `text`, not `text_with_ws`, decides `spaced`: read the space
@@ -1973,7 +1976,7 @@ def _boundaries(document: Doc) -> list[int]:
             joined
             or right[0] in _CONTINUING
             or (last_word in abbreviations and (right[0].islower() or figure))
-            or (last_word in medial and "\n" not in gap)
+            or (last_word in medial and not compound and "\n" not in gap)
         ):
             continue
         line = left[left.rfind("\n") + 1 :]

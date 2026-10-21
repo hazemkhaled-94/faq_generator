@@ -220,6 +220,18 @@ ROWS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         ("Der Kundenservice ist Mo.–Fr. von 8 bis 18 Uhr erreichbar.",),
     ),
     (
+        "a compound ending in an abbreviation may end a sentence",
+        "de",
+        "Bitte nennen Sie Ihre Kunden-Nr. Die Bank prüft dann den Auftrag.",
+        ("Bitte nennen Sie Ihre Kunden-Nr.", "Die Bank prüft dann den Auftrag."),
+    ),
+    (
+        "a compound ending in an abbreviation before its figure ends nothing",
+        "de",
+        "Die Kunden-Nr. 4711 steht auf jeder Karte.",
+        ("Die Kunden-Nr. 4711 steht auf jeder Karte.",),
+    ),
+    (
         "a limit abbreviated before its figure ends nothing",
         "en",
         "Withdrawals are limited to max. 1,000 EUR per day.",
