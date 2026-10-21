@@ -26,7 +26,7 @@ def test_a_corpus_tfidf_weighs_flat_is_one_topic_rather_than_a_model_of_nan(
     topic holding both passages.
     """
     flat = FitterDriver(
-        settings | {"no_below": 1, "no_above": 1.0},
+        settings | {"no_below": 1, "no_above": 1.0, "passages_per_topic": 40},
         corpus("lieferung lieferung versand", "lieferung versand versand"),
     )
 

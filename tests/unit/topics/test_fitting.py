@@ -388,7 +388,23 @@ def test_a_language_of_one_distinct_passage_gets_one_topic_holding_it(settings) 
 )
 def test_passages_the_filter_cannot_tell_apart_get_one_topic(settings, texts) -> None:
     """The same words in other counts, or copies plus a near-copy, still fit."""
-    fitting = FitterDriver(settings, corpus(*texts)).fit("de").fitting
+    sized = settings | {"passages_per_topic": 40}
+
+    fitting = FitterDriver(sized, corpus(*texts)).fit("de").fitting
 
     assert len(fitting.topics) == 1
     assert {w.passage_id for w in fitting.weights} == set(range(1, len(texts) + 1))
+
+
+def test_a_corpus_big_enough_for_topics_whose_terms_the_filter_drops_names_the_setting(
+    settings,
+) -> None:
+    """TOPIC_NO_BELOW above every term's count is a misconfiguration, not one topic."""
+    many = [f"{word} shared{index % 3}" for index, word in enumerate(_WORDS)]
+    sized = settings | {"passages_per_topic": 5, "no_below": 999}
+
+    with pytest.raises(NoVocabulary, match="TOPIC_NO_BELOW"):
+        FitterDriver(sized, corpus(*many)).fit("de")
+
+
+_WORDS = [f"word{index}" for index in range(60)]

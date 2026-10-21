@@ -148,11 +148,14 @@ class TopicFitter:
 
         Passages that cannot be told apart, one passage or copies of it, are
         not fitted: where the frequency filter leaves no term or tf-idf
-        weighs every term zero, they get one topic holding them.
+        weighs every term zero, and the language has too few passages for two
+        topics by TOPIC_PASSAGES_PER_TOPIC, they get one topic holding them.
 
         Raises:
-            NoVocabulary: If the corpus is empty, if no passage has a lemma, or
-                if a second walk yields nothing.
+            NoVocabulary: If the corpus is empty, if no passage has a lemma, if
+                the frequency filter left no terms or tf-idf weighs every term
+                zero in a corpus large enough for more than one topic, or if a
+                second walk yields nothing.
         """
         dictionary = corpora.Dictionary()
         counted = 0
@@ -183,9 +186,10 @@ class TopicFitter:
             no_above=no_above,
             keep_n=None,  # pyright: ignore[reportArgumentType]
         )
-        if before and not dictionary:
+        if before and not dictionary and self._small(counted):
             # Terms exist but none can tell a passage from another, as with
-            # one passage or copies of it.
+            # one passage or copies of it, and there are too few passages to
+            # be given more than one topic anyway.
             return self._single(corpus, language, counted)
         if not dictionary:
             raise NoVocabulary(
@@ -210,7 +214,14 @@ class TopicFitter:
         # does, the whole weighted matrix is zero, and the factorisation
         # divides by its norm and returns a model of NaN.
         if not any(bool(weighted) for weighted in weighting[bows]):
-            return self._single(corpus, language, counted)
+            if self._small(counted):
+                return self._single(corpus, language, counted)
+            raise NoVocabulary(
+                f"every one of the {len(dictionary)} terms kept appears in all "
+                f"{counted} {language} passage(s), so tf-idf weighs each of them "
+                f"zero and nothing separates one passage from another. Lower "
+                f"TOPIC_NO_ABOVE, which is {self._no_above:.0%}, to drop them."
+            )
 
         wanted = self._count(counted)
         log.info(
@@ -264,11 +275,22 @@ class TopicFitter:
             unplaced=tuple(unplaced),
         )
 
-    def _single(self, corpus: Corpus, language: str, counted: int) -> Fitting:
-        """The fit of a language the filter or tf-idf leaves nothing to split.
+    def _small(self, passages: int) -> bool:
+        """Whether this many passages are too few for a second topic.
 
-        One passage, copies of it, or passages whose terms the frequency
-        filter drops or tf-idf weighs zero. The one topic holds every passage that
+        By the same sizing `_count` uses: one topic is worth
+        TOPIC_PASSAGES_PER_TOPIC passages and a fit has at least two.
+        """
+        return (
+            self._passages_per_topic > 0
+            and passages < _FEWEST * self._passages_per_topic
+        )
+
+    def _single(self, corpus: Corpus, language: str, counted: int) -> Fitting:
+        """The fit of a language too small to split, whose passages cannot be told apart.
+
+        One passage, copies of it, or too few passages for the frequency
+        filter or tf-idf to leave a term that separates them. The one topic holds every passage that
         has lemmas, so the facts they carry reach a question unit; a passage
         with none is left unplaced, as in any fit.
         """
