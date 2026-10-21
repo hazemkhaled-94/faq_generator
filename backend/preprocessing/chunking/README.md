@@ -296,7 +296,7 @@ Read from the environment with no defaults in code, and overridable as
 | Setting | What it does |
 |---|---|
 | `EMBEDDING_MODEL` | The model whose tokenizer sizes a passage, and the model that will embed it. One name for both |
-| `EMBEDDING_MAX_TOKENS` | The model's context window. The chunker cuts a passage to it less the tokens the embedder adds, its prefix and special tokens, so an embedded passage still fits. Keep it equal to the model's context window |
+| `EMBEDDING_MAX_TOKENS` | The model's context window. The chunker cuts a passage to it less the tokens the embedder adds, its prefix and special tokens, so an embedded passage still fits. Keep it equal to the model's context window. At least 64: a settings change below that is refused, since it leaves a passage no room for a sentence |
 | `CHUNKING_MERGE_PEERS` | Whether undersized neighbours sharing a heading are combined |
 
 There is deliberately no character floor and no character ceiling: a
