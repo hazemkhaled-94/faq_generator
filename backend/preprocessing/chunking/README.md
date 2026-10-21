@@ -416,7 +416,10 @@ corpus, which is a property of the model rather than of this code.
   document's running page numbers show an offset, only when its value is its
   page's number plus one of them (page 7 printing `7`, or `3` in a chapter
   that restarts). A value beside or under its label (`30` after `Return
-  period (days):`), or right after a block ending on a lead-in's colon, stays, and so does an integer whose item has no position.
+  period (days):`) stays, and so does an integer whose item has no position.
+  In a document whose running page numbers show no offset, an integer right
+  after a block ending on a lead-in's colon stays too; where they show one,
+  the offset alone decides.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed
