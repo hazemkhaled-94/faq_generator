@@ -245,8 +245,7 @@ class Question(Base):
         JSONB(none_as_null=True),
         comment="The categories QUESTIONS_CATEGORIZATIONS dealt this question, each "
         "as its writer was told it, one JSON object per categorization. NULL "
-        "where none was rendered: an unanswerable question, a follow-up, a run "
-        "with no categorizations, and every question written before this column.",
+        "where none was rendered.",
     )
     passage_scope: Mapped[str | None] = mapped_column(
         Text,

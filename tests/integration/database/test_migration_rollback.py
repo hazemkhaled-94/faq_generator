@@ -41,6 +41,7 @@ BRIDGED = "c3a9e1470b5d"
 THREADED = "d5b2f8a60c14"
 JUDGED = "733a3eadef7c"
 CATEGORIZED = "626a5b07ae34"
+COMMENTS_CORRECTED = "20e31b1656f7"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -64,6 +65,7 @@ LATER = (
     THREADED,
     JUDGED,
     CATEGORIZED,
+    COMMENTS_CORRECTED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
@@ -442,6 +444,56 @@ def test_a_question_s_categories_are_added_empty_and_taken_back_out(spare: str) 
 
     command.upgrade(config, CATEGORIZED)
     assert sql(spare, "SELECT * FROM questions") == [(*held[0], None)]
+
+
+def _column_comments(url: str) -> dict[tuple[str, str], str]:
+    """The comment of the three columns the corrected revision rewrites."""
+    return {
+        (table, column): sql(
+            url,
+            "SELECT col_description(CAST(:table AS regclass), a.attnum) "
+            "FROM pg_attribute a WHERE a.attrelid = CAST(:table AS regclass) "
+            "AND a.attname = :column",
+            table=table,
+            column=column,
+        )[0][0]
+        for table, column in (
+            ("questions", "categories"),
+            ("topics", "top_terms"),
+            ("topics", "embedding"),
+        )
+    }
+
+
+def test_the_corrected_comments_are_written_and_the_old_ones_put_back(
+    spare: str,
+) -> None:
+    """Comment only: the comments read as the models say, and no data moves."""
+    from alembic import command
+
+    from database.qa_generator import Question, Topic
+
+    config = alembic(spare)
+    command.upgrade(config, CATEGORIZED)
+    before = _column_comments(spare)
+
+    command.upgrade(config, COMMENTS_CORRECTED)
+    now = _column_comments(spare)
+    assert now[("questions", "categories")] == (
+        "The categories QUESTIONS_CATEGORIZATIONS dealt this question, each as its "
+        "writer was told it, one JSON object per categorization. NULL where none "
+        "was rendered."
+    )
+    assert now == {
+        ("questions", "categories"): Question.__table__.c.categories.comment,
+        ("topics", "top_terms"): Topic.__table__.c.top_terms.comment,
+        ("topics", "embedding"): Topic.__table__.c.embedding.comment,
+    }
+    assert "only signature" not in now[("topics", "top_terms")]
+    assert "nothing reads it" not in now[("topics", "embedding")]
+
+    command.downgrade(config, CATEGORIZED)
+    assert _column_comments(spare) == before
 
 
 def test_a_citation_naming_sentences_needs_both_bounds(spare: str) -> None:

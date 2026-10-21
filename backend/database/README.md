@@ -179,6 +179,7 @@ The twenty-three revisions, oldest first:
 | `20261020_1200_a_thread_leaves_the_release_whole.py` | A trigger takes every follow-up below a question that stops being accepted out of the release, and the upgrade does the same for the threads already split |
 | `20261021_0100_the_papers_judge_scores_a_question.py` | `assessment_metrics.metric` also accepts the DataMorgana paper's six question scores, `rubric_fluency` to `rubric_answerability`, in its CHECK and its comment |
 | `20261021_0200_a_question_records_its_categories.py` | Adds `questions.categories`, a nullable JSONB column holding the categories `QUESTIONS_CATEGORIZATIONS` dealt a question as its writer was told them, NULL where none was rendered and on every question already stored |
+| `20261021_0300_three_column_comments_say_what_is_there.py` | Comments only: `questions.categories` is NULL wherever no category was rendered, `topics.top_terms` is not what a label is matched on across a refit, and `topics.embedding` is read to place a passage the fit left in no topic |
 
 ## Column comments
 
