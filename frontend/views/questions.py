@@ -45,11 +45,10 @@ _GATES = (
     ),
     explain.Gate(
         "compound",
-        "structural or round_trip",
-        "The question asks one thing: it uses one interrogative, and the "
-        "second model reads no two asks under it, nor one ask two ways.",
-        "nothing, or the round trip's read",
-        "rule, then opinion",
+        "structural",
+        "The question uses one interrogative, so it asks one thing.",
+        "nothing",
+        "rule",
     ),
     explain.Gate(
         "answer_too_short",

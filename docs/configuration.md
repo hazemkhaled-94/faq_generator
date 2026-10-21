@@ -352,7 +352,7 @@ the facts no accepted question rests on and judges no stored question again,
 which `make questions-reverify` does for the gates that need no model.
 `make questions-rejudge` asks again about every accepted unanswerable
 question whose `settles` verdict was given under another verifier prompt
-version, and v0.4.3 moved that version from 6 to 10 for the round trip's
+version, and v0.4.3 moved that version from 6 to 12 for the round trip's
 read alone: on a database upgraded to it, its first run costs one `settles`
 reading per stored accepted unanswerable question, and a second where the
 cited passages are silent and the passage probe is on.

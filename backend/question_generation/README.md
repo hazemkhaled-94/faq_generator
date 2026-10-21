@@ -506,7 +506,7 @@ phrasing judge's to tell from naming the source.
 | Gate | Rejects a question that | Costs |
 |---|---|---|
 | `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or answers with the number of facts it cites where no cited fact states that number, when it asks how many or the answer is that count alone | nothing |
-| `compound` | asks two things: two question words, or, as the round trip's read finds, two asks under one question word or one ask read two ways | nothing, or the round trip's read |
+| `compound` | asks two things | nothing |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |
 | `wrong_form` | answers in the wrong shape | nothing |
@@ -525,11 +525,7 @@ phrasing judge's to tell from naming the source.
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite settles it | a passage probe and a second `settles` call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
 
-`compound` is refused two ways under one code: by the free rule in the
-structural step, two question words, or by the round trip's read, two asks
-under one question word or one ask read two ways. A row the read refused has
-`round_trip` in `gates_ran`, and one the free rule refused does not. A
-`not_recoverable` row refused because a why has no reason beyond its rule, or
+A `not_recoverable` row refused because a why has no reason beyond its rule, or
 because an uncited passage answers a short search query differently, is told
 from a plain miss only by the reason the checker logs.
 
@@ -566,9 +562,8 @@ fact minus its answer.
 shown **only the cited passages** and asked to answer, and to answer only
 where they answer the question as it is asked rather than a narrower one, so
 a reworded question that drifted from its passage comes back not in the
-passages. The same read says whether the question asks one thing, which
-`compound` refuses when it does not, and whether a why has a reason beyond
-its own rule, which `not_recoverable` refuses when it has none. The question survives
+passages. The same read says whether a why has a reason beyond its own rule,
+which `not_recoverable` refuses when it has none. The question survives
 if what comes back carries every number, name and date the target asserts,
 and enough of what it is about. A `value` is compared whole, on its verbs as
 well as its nouns and adjectives, so `a report` is what a passage saying
@@ -787,7 +782,7 @@ about, so neither is recycled.
 writes its verdicts on each row the same way, and does not ask again about
 a row that already carries one given under the current prompt. The prompt is
 the verifier's `PROMPT_VERSION`, which every verifier prompt shares: v0.4.3
-moved it from 6 to 10 for the round trip's read alone, so on a database
+moved it from 6 to 12 for the round trip's read alone, so on a database
 upgraded to it the first rejudge asks again about every stored accepted
 unanswerable question, one `settles` reading each and a second where the
 cited passages are silent and the passage probe is on. A question the model will not answer about

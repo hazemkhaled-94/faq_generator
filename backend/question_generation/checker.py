@@ -5,8 +5,7 @@ it:
 
   malformed       structural, free
   compound        free: it asks two things, so half an answer is neither
-                  right nor wrong; or the round trip's read finds two asks
-                  under one question word
+                  right nor wrong
   answer_too_short  free: nothing worth scoring against
   answer_too_long   free: not the form of answer that was asked for
   wrong_form        free: a value carrying a verb, an explanation with none
@@ -1022,9 +1021,9 @@ class QuestionChecker:
         `_round_trip` asks an unanswerable question whether the passages
         settle it, and never calls this.
 
-        shortcut: a span the extractive model gives is not read for whether
-        the question asks one thing, so `asks_one` holds; ask the verifier
-        too if QA_MODEL is ever shipped on.
+        shortcut: a span the extractive model gives is not read for whether a
+        why has a reason, so `reason_given` holds; ask the verifier too if
+        QA_MODEL is ever shipped on.
         """
         if self._extractive is not None and not candidate.thread:
             found = self._extractive.answer(
@@ -1071,18 +1070,6 @@ class QuestionChecker:
 
         if candidate.answerable:
             read = self._recovered(candidate)
-            # Two asks under one question word, or one ask read two ways: the
-            # free rule counts question words, and a keyword query or a
-            # question naming two cases has one or none to count.
-            if not read.asks_one:
-                return (
-                    QuestionRejection.COMPOUND,
-                    (
-                        "the verifier reads it as asking two things, or one "
-                        "thing two ways, so a chatbot answering one of them is "
-                        "neither right nor wrong"
-                    ),
-                )
             target = candidate.target_answer or ""
             # What the verifier got back, against what the key claims, on
             # the same lemmas `agrees` compares. Recorded whichever way the

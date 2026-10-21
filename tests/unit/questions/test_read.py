@@ -12,7 +12,7 @@ from dataclasses import replace
 
 import pytest
 from factories import candidate, group, source
-from test_verification import _BANK, PerHalf, Recording, _compound, build
+from test_verification import Recording, build
 
 from database.qa_generator import QuestionRejection, QuestionStatus
 from question_generation.checker import QuestionChecker
@@ -41,124 +41,44 @@ class Client:
 
 
 class Reads(Recording):
-    """A verifier whose read also says what it made of the question."""
+    """A verifier whose read also says whether a why has a reason."""
 
-    def __init__(
-        self, *, asks_one: bool = True, reason_given: bool = True, **kwargs
-    ) -> None:
+    def __init__(self, *, reason_given: bool = True, **kwargs) -> None:
         """Initialises with what the read says beside the answer."""
         super().__init__(**kwargs)
-        self.asks_one = asks_one
         self.reason_given = reason_given
 
     def read(self, question: str, passages, thread=()) -> Reading:
         """Answers with the scripted reading, and counts the ask."""
         self.verified += 1
-        return Reading(
-            recovered=self.recovers,
-            asks_one=self.asks_one,
-            reason_given=self.reason_given,
-        )
+        return Reading(recovered=self.recovers, reason_given=self.reason_given)
 
 
-#: Two things asked under one question word, each with an answer of its own:
-#: the passages and the welded question, by language.
-_WELDED = {
-    "de": (
-        (
-            "Bei einem Verbraucherkredit beträgt die Widerrufsfrist 14 Tage, bei "
-            "einem Immobiliendarlehen ebenfalls 14 Tage ab Vertragsschluss."
-        ),
-        (
-            "Wie lange gilt die Widerrufsfrist bei einem Verbraucherkredit und "
-            "bei einem Immobiliendarlehen?"
-        ),
-        "14 Tage",
-    ),
-    "en": (
-        (
-            "A refund for a late delivery is paid within 14 days, and a refund "
-            "for a wrong item within 14 days of its return."
-        ),
-        "How long does a refund take for a late delivery and for a wrong item?",
-        "within 14 days",
-    ),
-}
+#: A question that does not ask why: its passage, the question and the key.
+_PRICE = (
+    "A replacement debit card costs 10 EUR.",
+    "How much does a replacement debit card cost at the branch?",
+    "10 EUR",
+)
 
 
-def _welded(language: str):
-    """The welded question, written from its own passage."""
-    passage, question, key = _WELDED[language]
-    return candidate(
-        question_text=question,
-        target_answer=key,
-        facts=group(source(statement=passage, language=language)),
-    )
+# ── What the read asks of the question ────────────────────────────────────
 
 
-# ── One thing asked ────────────────────────────────────────────────────────
+def test_the_read_asks_of_the_question_only_whether_a_why_has_a_reason() -> None:
+    """Whether a question asks one thing was asked twice and failed its bar twice."""
+    from dataclasses import fields
 
+    from question_generation.verifier import _VERIFY, _Recovered
 
-def test_the_read_says_whether_the_question_asks_one_thing() -> None:
-    """A field of the read's own shape, carried onto the reading."""
-    client = Client(in_passage=True, answer="14 days", asks_one=False)
+    flat = " ".join(_VERIFY.split())
 
-    got = Verifier(client).read(_WELDED["en"][1], [_WELDED["en"][0]])
-
-    assert got.asks_one is False
-    assert "asks_one" in client.asked[-1][0]
-
-
-def test_a_read_that_says_nothing_of_it_reads_as_one_thing() -> None:
-    """A reply missing the field refuses nothing."""
-    client = Client(in_passage=True, answer="14 days")
-
-    assert Verifier(client).read("What does it cost?", ["It costs 5 EUR."]).asks_one
-
-
-@pytest.mark.parametrize("language", ["de", "en"])
-def test_a_question_the_read_finds_asking_two_things_is_refused_compound(
-    language: str,
-) -> None:
-    """One question word over two asks is still two questions."""
-    verifier = Reads(asks_one=False, recovers=_WELDED[language][2])
-
-    result = build(verifier).check(_welded(language))
-
-    assert result.rejected_reason == QuestionRejection.COMPOUND
-    assert "round_trip" in result.gates_ran
-
-
-@pytest.mark.parametrize("language", ["de", "en"])
-def test_a_question_the_read_finds_asking_one_thing_is_kept(language: str) -> None:
-    """The same question and passage, read as one ask, is accepted."""
-    verifier = Reads(asks_one=True, recovers=_WELDED[language][2])
-
-    result = build(verifier).check(_welded(language))
-
-    assert result.status == QuestionStatus.ACCEPTED
-
-
-class Halves(PerHalf):
-    """A verifier answering each half alone, and reading each as two asks."""
-
-    def read(self, question: str, passages, thread=()) -> Reading:
-        """Answers by the question, saying it asks two things."""
-        return replace(super().read(question, passages, thread), asks_one=False)
-
-
-@pytest.mark.parametrize("language", ["de", "en"])
-def test_a_compound_question_is_never_refused_for_asking_two_things(
-    language: str,
-) -> None:
-    """It asks two on purpose, and its halves are read one at a time."""
-    _, _, _, parts = _BANK[language]
-
-    result = build(Halves({part[1]: part[2] for part in parts})).check(
-        _compound(language)
-    )
-
-    assert result.rejected_reason is None
+    assert list(_Recovered.model_fields) == ["in_passage", "answer", "reason_given"]
+    assert [one.name for one in fields(Reading)] == ["recovered", "reason_given"]
+    for gone in ("asks_one", "ONE THING", "TWO THINGS", "asks ONE thing"):
+        assert gone not in flat, gone
+    assert "`reason_given`" in flat
+    assert "answer the question as it is asked" in flat
 
 
 # ── A reason the passages give ─────────────────────────────────────────────
@@ -231,9 +151,16 @@ def test_a_why_whose_passages_give_a_reason_is_kept(language: str) -> None:
 
 def test_a_question_not_asking_why_is_not_held_to_a_reason() -> None:
     """The field speaks of a why; another type is read for its answer alone."""
-    verifier = Reads(reason_given=False, recovers=_WELDED["en"][2])
+    passage, question, key = _PRICE
+    verifier = Reads(reason_given=False, recovers=key)
 
-    result = build(verifier).check(_welded("en"))
+    result = build(verifier).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            facts=group(source(statement=passage)),
+        )
+    )
 
     assert result.status == QuestionStatus.ACCEPTED
 
