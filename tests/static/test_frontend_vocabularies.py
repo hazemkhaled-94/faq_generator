@@ -252,17 +252,18 @@ def test_the_facts_page_lists_exactly_the_codes_a_fact_can_be_rejected_under() -
     )
 
 
-def test_the_page_size_ceiling_is_the_apis() -> None:
-    """The frontend refuses a PAGE_SIZE the listing routes would refuse.
+@pytest.mark.parametrize("name", ["PAGE_MAX", "SEARCH_MAX"])
+def test_the_listing_bounds_are_the_apis(name) -> None:
+    """The frontend holds a PAGE_SIZE and a search to what the listing routes take.
 
     A copy, because the frontend image carries no backend to import it from.
     """
-    from api.params import PAGE_MAX
+    from api import params
 
-    ceiling = _bound(ROOT / "frontend/lib/config.py", "PAGE_MAX")
+    ceiling = _bound(ROOT / "frontend/lib/config.py", name)
 
     assert isinstance(ceiling, ast.Constant), ast.dump(ceiling)
-    assert ceiling.value == PAGE_MAX
+    assert ceiling.value == getattr(params, name)
 
 
 @pytest.mark.parametrize(

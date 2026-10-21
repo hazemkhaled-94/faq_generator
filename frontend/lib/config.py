@@ -33,6 +33,10 @@ def _integer(name: str) -> int:
 #: because this image carries no backend, and held to it by a static test.
 PAGE_MAX = 500
 
+#: The longest search a listing route takes, the API's SEARCH_MAX, copied
+#: and held the same way.
+SEARCH_MAX = 200
+
 #: Rows per page in the listings.
 PAGE_SIZE = _integer("PAGE_SIZE")
 if not 1 <= PAGE_SIZE <= PAGE_MAX:

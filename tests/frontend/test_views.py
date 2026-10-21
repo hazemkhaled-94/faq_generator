@@ -253,6 +253,61 @@ def test_searching_is_a_separate_control_from_filtering(open_view, name) -> None
     }, keys
 
 
+def _holding_q_to(bound: int, rows: dict):
+    """A listing that refuses a longer search, as every listing route does."""
+
+    class Unprocessable:
+        @staticmethod
+        def json() -> dict:
+            return {
+                "detail": [{"msg": f"String should have at most {bound} characters"}]
+            }
+
+    def answer(**asked):
+        if len(asked.get("q") or "") > bound:
+            refused = requests.HTTPError("422 Client Error: Unprocessable Entity")
+            refused.response = Unprocessable()  # type: ignore[assignment]
+            raise refused
+        return rows
+
+    return answer
+
+
+@pytest.mark.parametrize(
+    "pasted",
+    [
+        (
+            "Ein Entgelt von 5,00 EUR wird für jede Rücklastschrift erhoben, die der "
+            "Kunde zu vertreten hat; die Bank belastet das Entgelt dem Konto, von dem "
+            "die Lastschrift eingelöst werden sollte, und teilt dem Kunden die "
+            "Rückgabe unverzüglich mit."
+        ),
+        (
+            "Items bought online may be returned within 30 days of delivery for a "
+            "full refund to the original payment method, provided they are unused, "
+            "in their original packaging and accompanied by the receipt or order "
+            "number."
+        ),
+    ],
+)
+def test_a_pasted_sentence_does_not_take_the_page_down(open_view, pasted) -> None:
+    """The box holds no more than the listing routes take, 200 characters."""
+    assert len(pasted) > 200
+    listed = _holding_q_to(200, {"total": 0, "passages": []})
+    client = Answers(**answers(passages=listed))
+
+    after = open_view("passages", client).type_in("passages-search", pasted)
+
+    assert after.errors() == []
+    assert [len(one[2]["q"]) for one in client.calls("passages")][-1] == 200
+
+
+@pytest.mark.parametrize("name", LISTING)
+def test_every_search_box_takes_no_more_than_the_api_does(open_view, name) -> None:
+    """The one box every listing draws, held to the routes' own bound."""
+    assert open_view(name).app.text_input(f"{name}-search").max_chars == 200
+
+
 def test_the_search_and_filters_wrap_only_once_a_row_is_full() -> None:
     """Questions' eleven controls take two rows; Facts' six take one."""
     from lib.catalog import _COLUMN, _FILTER, _PAGER, _WORDS, wrapped

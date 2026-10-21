@@ -64,6 +64,8 @@ def find(
         typed = next(cells).text_input(
             "Words",
             key=f"{key}-search",
+            # Past it every listing route refuses the whole page with a 422.
+            max_chars=config.SEARCH_MAX,
             placeholder="Contains…",
             help="A case-insensitive substring. Not a word search.",
         )
