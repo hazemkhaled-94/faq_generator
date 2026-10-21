@@ -180,14 +180,26 @@ def instead(plan: Plan, types: Mapping[str, int], turn: int) -> Plan | None:
     anyway gets a question its material cannot answer. Cycled over the
     mix's other kinds that do not span, by `turn`, with the slot's band.
 
+    And with the slot's shape, and so its kind. A slot the writer declined
+    has its sample dealt already: re-shaped by its band, a one-passage
+    `application` slot became a two-passage factoid still dealt `single`,
+    told to span a sample of one. So a spanning slot is not swapped for a
+    kind dealt one passage at any band, which handed two would weld the
+    second on.
+
     None where the mix holds no other such kind. A slot asking for what the
     topic does not have is then not written: unlike an unanswerable one, a
     reason with nothing to rest on is a question with no right answer.
     """
-    others = [name for name in _alone(types) if name != plan.spec.name]
+    others = [
+        name
+        for name in _alone(types)
+        if name != plan.spec.name and not (plan.spans and _one_passage(SPECS[name]))
+    ]
     if not others:
         return None
     other = _slot(others[turn % len(others)], plan.band, plan.answerable)
+    other = replace(other, shape=plan.shape)
     return _dealt(other, plan.kind if other.spans else QuestionKind.SINGLE)
 
 
@@ -203,6 +215,11 @@ def _perturbable(types: Mapping[str, int]) -> list[str]:
     return [name for name in _alone(types) if name in PERTURBABLE]
 
 
+def _one_passage(spec: TypeSpec) -> bool:
+    """Whether a kind is dealt one passage whatever band it carries."""
+    return spec.least is not None and not spec.spans
+
+
 def _slot(name: str, band: str, answerable: bool) -> Plan:
     """One slot of a kind, its band raised to the kind's floor and shaped."""
     spec = SPECS[name]
@@ -210,6 +227,6 @@ def _slot(name: str, band: str, answerable: bool) -> Plan:
         band = spec.floor
     if not answerable:
         band = Difficulty.EASY
-    single = not answerable or (spec.least is not None and not spec.spans)
+    single = not answerable or _one_passage(spec)
     shape = Shape.SINGLE if single else SHAPES[band]
     return Plan(spec=spec, band=band, shape=shape, answerable=answerable)

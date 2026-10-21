@@ -1002,7 +1002,7 @@ class QuestionGenerationService(StageService):
                             "topic %d: a %s slot was not written: nothing left "
                             "in the topic states a reason, and "
                             "QUESTIONS_TYPE_MIX has no other kind that does not "
-                            "span to write instead",
+                            "span to write in its shape instead",
                             topic.id,
                             plan.spec.name,
                             extra={"topic.id": topic.id},

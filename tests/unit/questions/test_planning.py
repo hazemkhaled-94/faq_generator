@@ -478,6 +478,63 @@ def test_a_slot_swapped_for_another_type_keeps_its_kind() -> None:
     assert (other.spec.name, other.kind) == (QuestionType.FACTOID, "compound")
 
 
+def _first(name: str, types: dict[str, int]):
+    """The first slot of one type in a medium plan over `types`."""
+    return next(
+        one
+        for one in plans(
+            wanted=12,
+            types=types,
+            bands={Difficulty.MEDIUM: 1},
+            unanswerable_share=0.0,
+        )
+        if one.spec.name == name
+    )
+
+
+def test_a_one_passage_slot_swapped_for_another_type_keeps_its_one_passage() -> None:
+    """Its sample is dealt before the writer declines it, so the swap keeps it.
+
+    An application is dealt one passage at any band. Declined at medium and
+    re-shaped by its band, the factoid it became asked for two passages while
+    it stayed `single`: told to span a sample of one, and stored as a
+    question the checker never asked to need both.
+    """
+    mix = {QuestionType.APPLICATION: 1, QuestionType.FACTOID: 1}
+    application = _first(QuestionType.APPLICATION, mix)
+    assert (application.shape, application.kind) == (Shape.SINGLE, "single")
+
+    other = instead(application, mix, 0)
+
+    assert other is not None
+    assert (other.spec.name, other.band, other.shape, other.kind) == (
+        QuestionType.FACTOID,
+        Difficulty.MEDIUM,
+        Shape.SINGLE,
+        "single",
+    )
+
+
+def test_a_spanning_slot_is_not_swapped_for_a_type_dealt_one_passage() -> None:
+    """An application handed the two passages a spanning slot was dealt welds one on.
+
+    So a spanning slot is swapped for a type that can span, keeping its shape
+    and kind, and is not written where the mix holds none.
+    """
+    mix = {QuestionType.FACTOID: 1, QuestionType.APPLICATION: 1}
+    factoid = _first(QuestionType.FACTOID, mix)
+    assert factoid.spans
+
+    assert instead(factoid, mix, 0) is None
+    other = instead(factoid, {**mix, QuestionType.CONDITION: 1}, 0)
+    assert other is not None
+    assert (other.spec.name, other.shape, other.kind) == (
+        QuestionType.CONDITION,
+        factoid.shape,
+        factoid.kind,
+    )
+
+
 # -- The kind mix names only kinds that span ---------------------------------
 
 

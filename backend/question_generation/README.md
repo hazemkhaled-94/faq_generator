@@ -194,9 +194,10 @@ dealt as before.
 **The writer may decline a slot.** Its answer carries `declined`, set where
 the facts it was dealt cannot answer a question of the kind asked honestly —
 a reason they never give, a list they hold one item of. A declined slot is
-swapped to another kind of the mix on the same facts, cycled as the reason
-swap is, and skipped if the mix has no other kind or the writer declines
-that too; a declined retry ends the retries, and a declined follow-up ends
+swapped to another kind of the mix on the same facts, in the shape and kind
+the slot was dealt, cycled as the reason swap is (a slot spanning passages is
+never swapped to `application`, which is dealt one), and skipped if the mix
+has no such kind or the writer declines that too; a declined retry ends the retries, and a declined follow-up ends
 its thread. The writer is also told to write about the subject and never
 about the facts or the task: "the material says", "both statements".
 

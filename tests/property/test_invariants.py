@@ -330,6 +330,53 @@ def test_a_plan_never_asks_for_a_shape_its_type_cannot_use(wanted, mix, share) -
             assert one.shape == "single"
 
 
+#: A mix that may hold `application`, the one kind dealt one passage at any band.
+SWAP_MIX = st.dictionaries(
+    st.sampled_from(["factoid", "reason", "condition", "application", "comparison"]),
+    st.integers(0, 6),
+    min_size=1,
+    max_size=5,
+).filter(lambda one: any(weight > 0 for weight in one.values()))
+
+
+@given(
+    wanted=st.integers(0, 40),
+    mix=SWAP_MIX,
+    share=st.floats(0.0, 1.0),
+    turn=st.integers(0, 12),
+    kinds=st.sampled_from(
+        [{"needs_both": 1}, {"compound": 1}, {"needs_both": 5, "compound": 1}]
+    ),
+)
+@settings(deadline=None)
+def test_a_swapped_slot_keeps_the_shape_and_kind_it_was_dealt(
+    wanted, mix, share, turn, kinds
+) -> None:
+    """The writer declines a slot after its sample is dealt.
+
+    So the type it is written as instead takes the slot's shape and the kind
+    that reads it: no slot spanning passages is labelled single, and no
+    one-passage slot is told to span.
+    """
+    from question_generation.planning import instead, plans
+
+    for one in plans(
+        wanted=wanted,
+        types=mix,
+        bands={"easy": 1, "medium": 1, "hard": 1},
+        unanswerable_share=share,
+        kinds=kinds,
+    ):
+        other = instead(one, mix, turn)
+        if other is None:
+            continue
+        assert other.spec.name != one.spec.name
+        assert (other.shape, other.kind) == (one.shape, one.kind)
+        assert other.spans == (other.kind != "single")
+        if other.spec.least is not None and not other.spec.spans:
+            assert not other.spans
+
+
 @given(count=st.integers(1, 40), share=st.floats(0.0, 1.0))
 @settings(deadline=None)
 def test_the_unanswerable_share_is_never_more_than_it_was_asked_for(
