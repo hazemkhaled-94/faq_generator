@@ -155,3 +155,47 @@ def test_a_chapter_named_around_a_spaced_hyphen_is_one_field(
         )
     _, chunks = chunks_of(document, word_chunker(40), lang)
     assert chunks[-1].meta.headings == [chapters[1], article]
+
+
+@pytest.mark.parametrize(
+    ("lang", "chapters", "article", "label"),
+    [
+        (
+            "en",
+            ("III – Procedure", "IV – Other provisions"),
+            "Article 23",
+            ["IV", "Other provisions"],
+        ),
+        (
+            "de",
+            ("Kapitel 2 – Konten", "Kapitel 3 – Karten"),
+            "3.1 Kreditkarten",
+            ["Kapitel 3", "Karten"],
+        ),
+    ],
+)
+def test_a_chapter_split_at_its_dash_is_not_repeated_by_its_own_heading(
+    lang, chapters, article, label
+) -> None:
+    """The heading `IV – Other provisions` spells the label's fields, once."""
+    document = pages(4)
+    for page in range(1, 5):
+        document.add_text(
+            label=DocItemLabel.PAGE_HEADER,
+            text=chapters[0] if page < 3 else chapters[1],
+            prov=on(page, 20),
+            content_layer=ContentLayer.FURNITURE,
+        )
+    document.add_heading(text=chapters[0], level=1, prov=on(1, 50))
+    for page in (1, 2):
+        document.add_text(
+            label=DocItemLabel.TEXT, text=f"Rule {page} applies.", prov=on(page, 100)
+        )
+    document.add_heading(text=chapters[1], level=1, prov=on(3, 50))
+    document.add_heading(text=article, level=2, prov=on(3, 80))
+    for page in (3, 4):
+        document.add_text(
+            label=DocItemLabel.TEXT, text=f"Rule {page} applies.", prov=on(page, 100)
+        )
+    _, chunks = chunks_of(document, word_chunker(40), lang)
+    assert chunks[-1].meta.headings == [*label, article]

@@ -847,7 +847,9 @@ def headed(
     """Writes each chunk's heading trail as its passage will carry it.
 
     The chapter label of the chunk's first page leads, as its fields, unless
-    the trail already starts with them, or the chunk sits above the opening of
+    the trail already starts with them, or with a heading spelling them all,
+    `IV – Other provisions` over (`IV`, `Other provisions`), which goes as
+    they are put in; or unless the chunk sits above the opening of
     that chapter on its page and keeps the chapter before; the title `tidied` put in is
     replaced by it. A segment that is
     a lone conjunction or holds no word at all is dropped.
@@ -880,7 +882,8 @@ def headed(
             label = marked
         if label:
             named = {_key(one) for one in label}
-            while trail and _key(trail[0]) in named:
+            whole = _plain("".join(label))
+            while trail and (_key(trail[0]) in named or _plain(trail[0]) == whole):
                 trail = trail[1:]
             trail = [*label, *trail]
         trail = [segment for segment in trail if not junk(segment)]

@@ -129,7 +129,8 @@ its start (`B Business` under `Kapitel B: Business`). A heading a field holds
 anywhere else, `Fees` under `Fees and charges` or `Karten` under
 `Kreditkarten`, is a section of the chapter and opens nothing. The
 chapter's fields then lead the trail, replacing any leading segments that
-already repeat them. The title is appended to the document's texts, so no
+already repeat them, one by one or all together (the heading `IV – Other
+provisions` under the fields `IV` and `Other provisions`). The title is appended to the document's texts, so no
 stored item reference moves.
 
 **Debris is not passage text.** A paragraph that is one of the
