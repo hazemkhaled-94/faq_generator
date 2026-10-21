@@ -617,3 +617,99 @@ def test_a_bridge_left_with_one_passage_is_dropped(
     with engine.connect() as connection:
         facts = connection.execute(text("SELECT count(*) FROM facts")).scalar_one()
     assert facts == 0
+
+
+FOLLOW_UP_CASES = [
+    (
+        "de",
+        "Die Kontoführung kostet 5 EUR im Monat.",
+        "Pro Tag sind 1000 EUR abhebbar.",
+        "Und ab wann gilt das?",
+    ),
+    (
+        "en",
+        "Goods may be returned within 30 days.",
+        "Refunds are paid within 14 days.",
+        "And where does the money go?",
+    ),
+]
+
+
+def _now(engine) -> str:
+    with engine.connect() as connection:
+        return connection.execute(text("SELECT now()")).scalar_one().isoformat()
+
+
+def _rows(engine) -> dict[int, tuple[str, object]]:
+    with engine.connect() as connection:
+        return {
+            row.id: (row.status, row.release_id)
+            for row in connection.execute(
+                text("SELECT id, status::text AS status, release_id FROM questions")
+            )
+        }
+
+
+@pytest.mark.parametrize(
+    ("language", "first", "second", "follow_text"), FOLLOW_UP_CASES
+)
+def test_a_restored_follow_up_does_not_rejoin_a_release_its_root_left(
+    engine, database, buckets, monkeypatch, language, first, second, follow_text
+) -> None:
+    """A follow-up archived released comes back undrawn once its root left the release.
+
+    Root and sibling on one document, the follow-up on another; the root leaves after.
+    """
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+    from question_generation.catalog import QuestionCatalog
+
+    kept_doc, gone_doc = digest(f"kept-{language}"), digest(f"gone-{language}")
+    drawn = uuid.uuid4()
+    with Session(engine) as session:
+        session.add_all([document(kept_doc), document(gone_doc)])
+        session.flush()
+        on_kept = passage(kept_doc, language=language, text=first)
+        on_gone = passage(gone_doc, language=language, text=second)
+        session.add_all([on_kept, on_gone])
+        session.flush()
+        root_fact = fact(on_kept.id, statement=first)
+        sibling_fact = fact(on_kept.id, statement=first + " Immer.")
+        follow_fact = fact(on_gone.id, statement=second)
+        session.add_all([root_fact, sibling_fact, follow_fact])
+        session.flush()
+        root = question(status="accepted", release_id=drawn, language=language)
+        sibling = question(status="accepted", release_id=drawn, language=language)
+        session.add_all([root, sibling])
+        session.flush()
+        follow = question(
+            status="accepted",
+            release_id=drawn,
+            language=language,
+            follows_id=root.id,
+            thread_position=2,
+            question_text=follow_text,
+        )
+        session.add(follow)
+        session.flush()
+        session.add_all(
+            [
+                link(root.id, root_fact.id),
+                link(sibling.id, sibling_fact.id),
+                link(follow.id, follow_fact.id),
+            ]
+        )
+        session.commit()
+        root_id, follow_id = root.id, follow.id
+    since = _now(engine)
+
+    DocumentRepository().delete(gone_doc)  # the follow-up goes, archived released
+    QuestionCatalog().decide(root_id, "rejected")  # then a person rejects the root
+    monkeypatch.setenv("SINCE", since)
+    restore.main()  # 1: the seeded document has no upload in the bucket
+
+    live = _rows(engine)
+    assert live[root_id] == ("rejected", None)
+    assert live[follow_id][1] is None, (
+        f"follow-up {follow_id} came back released under rejected root {root_id}"
+    )
