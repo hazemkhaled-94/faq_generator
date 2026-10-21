@@ -855,7 +855,7 @@ The categories calibration cost USD 26.51 together with the judge's agreement ru
 
 ## The v0.4.3 calibration
 
-v0.4.3 changes how questions are planned, written, accepted and released (see [the finalize review](bugs.md#found-by-the-finalize-review-of-2026-10-21)). Its calibration has a rule for what counts as a pass, written before anything was measured, and replays that need no model or only a small one. The two calibration links, Link Q and Link C, are still to be reported.
+v0.4.3 changes how questions are planned, written, accepted and released (see [the finalize review](bugs.md#found-by-the-finalize-review-of-2026-10-21)). Its calibration has a rule for what counts as a pass, written before anything was measured, and replays that need no model or only a small one. The two calibration links, Link Q and Link C, and the premise iteration's own run are below.
 
 ### The floor rule
 

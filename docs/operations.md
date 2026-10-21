@@ -200,6 +200,39 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.4.3
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+There is no migration: `make schema` has nothing new to apply, and the head stays at `626a5b07ae34`. Nothing in `backend/database` changed.
+
+No setting is new. Unset, `QUESTIONS_CATEGORIZATIONS` now deals three categorizations: Phrasing and Premise as before, and Linguistic variation, a question in the document's own terms (similar-to-document) or in other words that keep every term's meaning (distant-from-document), at even odds. To keep v0.4.2's two, set it to `DEFAULT_CATEGORIZATIONS` in `backend/question_generation/config.py` without its Linguistic variation entry. The setting accepts one more value, and two of its fields now do more than before:
+
+- A category may be `"form": "premise"`, besides `question` and `query`. The default's with-premise category is of this form, and its description is reworded: the premise states a fact of the asker's own situation, something they have, did, bought or plan, never only the topic, the answer wanted or that they are reading or checking something. A premise is not told beside a category that caps the question's words, nor beside a search query; such a slot is written as no category of the premise's categorization.
+- A category's `words` bound `max` now has two effects besides the report: a premise is not told beside it, and a search query carrying it is read once more against the passages it does not cite and is refused as not recoverable where one of them answers it differently. A `min` alone has neither effect.
+- A search query is no longer told on a slot that spans two passages, nor on a `reason`, `comparison`, `implication` or `temporal` slot. Such a slot is written as no category of the query's categorization.
+- The descriptions of distant-from-document, now in the default, and of expert and long-search-query, in the guide's opt-in JSON, are reworded. A value you set yourself is used as written, so copy the new JSON from the [configuration guide](configuration.md) if you want it.
+- A value is refused, naming the categorization or category at fault, in nine cases, all listed in the guide, among them a categorization named twice, a line break in a name, a category with no description, probabilities given to some categories only and a probability outside 0 to 1.
+
+The prompt versions move. The writer's goes from 19 to 28: 20 is the aggregation prompt's count rule, 21 the line on people and stories in the material and on contact boxes, 23 to 25 and 27 the premise, and 26 the search queries; 22 let a title name what a question asks about, and 28 takes that back, so the writer is told about titles what 19 told it. The verifier's goes from 6 to 12: the round trip's read also says whether the passages give a reason beyond the rule, and answers only where the passages answer the question as it is asked. No other module changed its version (phrasing stays at 4, the assessment template at 4, and extraction and topics are untouched), and `tests/static/test_prompts_pinned.py` pins both new versions. Questions already stored keep the version they were written under.
+
+Model calls: the reason check rides on the round trip's read, which every answerable question already gets, so it adds no call. A short search query, one that has a `words` maximum, costs one passage probe (an index lookup, no model) and one more verifier read, and only while a category of that kind is configured and `QUESTIONS_ELSEWHERE_PASSAGES` is above 0 (the default is 20); long queries and every other question are unchanged. A with-premise question whose first draft holds no first- or second-person word is written once more, with a note. The default categories use no query, so a default run adds at most that rewrite. `make questions-rejudge` asks again about every accepted unanswerable question whose `settles` verdict was given under another verifier version. Because v0.4.3 moved that version, its first run on an upgraded database costs one `settles` reading for each stored accepted unanswerable question, and a second where the cited passages are silent and the passage probe is on. It is a one-time cost: later runs ask nothing.
+
+Stored questions meet the new gates only when you rerun them:
+
+- `make questions` writes new rows under writer prompt 28 and the new categories.
+- `make questions-reverify` holds the stored rows to the new gates and reads.
+- `make questions-balance` draws the release again. The draw now caps a kind the pool holds too few of at what a release can take of it and spreads its places over the other kinds, so a release grows where one scarce kind used to cap it. Draw it once after the other two.
+
+The export command line refuses a `--question-type` or `--answer-form` that does not exist, as `GET /questions/export` does, where it wrote an empty workbook and exited 0. A review dataset made before v0.4.3 must be recreated to carry the categories field and the new guideline; the [review README](../review/README.md) says how.
+
+Test runs from a checkout no longer load the checkout's `.env`: `LITELLM_MODE=PRODUCTION` is set when the model client is imported, so an xdist worker started from a worktree cannot pick up another checkout's model names and credentials. A process that imports the client does not read a `.env` above its working directory; the project's own settings loading (`LOADENV`, compose) is unchanged.
+
+A build made from scratch writes everything under these versions and needs none of the reruns above.
+
 ## Upgrading to v0.4.2
 
 ```bash
