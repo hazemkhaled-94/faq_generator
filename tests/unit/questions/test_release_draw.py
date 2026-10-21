@@ -11,7 +11,8 @@ from collections import Counter
 
 import pytest
 
-from question_generation.balance import Row, choose, largest, quota_of
+from question_generation import service
+from question_generation.balance import Row, _rank, choose, largest, quota_of
 from question_generation.models import Posed
 from question_generation.service import _judged
 
@@ -231,29 +232,57 @@ class _Adjacent:
         ("en", "How much does a replacement card cost?"),
     ],
 )
-def test_the_release_handed_back_holds_no_pair_the_judge_was_never_asked(
-    language, text
-):
-    """R3 P3: after the last twin round the release is drawn again and not judged.
+def test_the_release_handed_back_holds_no_pair_the_last_round_found(language, text):
+    """R3 P3: the round after the last redraw reads that draw and drops what it finds.
 
     Twelve rewordings of one bank question; the judge reads every pair it sees as
-    one answer, so each round finds twins and the redraw after round 3 holds a
-    pair nobody asked about.
+    one answer, so each round finds twins. The pairs the last round found are
+    not both in the release handed back, and it does not draw again.
     """
     pool = _roots([("factoid", 12)], language)
     twins: dict[int, set[int]] = {}
+    draws = []
 
     def draw():
+        draws.append(1)
         return choose(
             pool, quota_of(4, {"easy": 1}, {"factoid": 1}, 0.0, {language: 1}), twins
         )
 
     judge = _Everything()
     catalog = _Adjacent(text)
-    release = _judged(catalog, judge, twins, draw(), draw)
-    unasked = [
-        (a.id, b.id)
-        for a, b in catalog.closest_among(release.ids)
-        if (a.id, b.id) not in judge.asked
-    ]
-    assert not unasked, f"released {release.ids}; never judged: {unasked}"
+    release = _judged(catalog, judge, twins, draw(), draw, pool=pool)
+    held = set(release.ids)
+    kept = [pair for pair in judge.asked if set(pair) <= held]
+    assert not kept, f"released {release.ids}; judged one answer and kept: {kept}"
+    assert release.ids and len(draws) == service._TWIN_ROUNDS + 1
+
+
+def test_a_twin_dropped_by_the_last_round_takes_its_follow_ups_with_it():
+    """The later-ranked member of a pair goes with its thread."""
+    pool = _roots([("factoid", 2)], "de")
+    pool.append(Row(50, True, "easy", "factoid", follows_id=2, language="de"))
+    pool.append(Row(51, True, "easy", "factoid", follows_id=50, language="de"))
+
+    class _Pair:
+        """Fresh pairs for the first three rounds, then the pair 1 and 2."""
+
+        rounds = 0
+
+        def closest_among(self, ids):
+            self.rounds += 1
+            a, b = (
+                (1, 2)
+                if self.rounds > service._TWIN_ROUNDS
+                else (100 + self.rounds, 200 + self.rounds)
+            )
+            return [(Posed(a, f"q #{a}", "5"), Posed(b, f"q #{b}", "5"))]
+
+    twins: dict[int, set[int]] = {}
+    release = choose(pool, quota_of(5, {"easy": 1}, {"factoid": 1}, 0.0, {"de": 1}))
+    assert release.ids == [1, 2, 50, 51]
+    kept = _judged(_Pair(), _Everything(), twins, release, lambda: release, pool=pool)
+    later = max((1, 2), key=lambda one: _rank(next(r for r in pool if r.id == one)))
+    assert later not in kept.ids
+    assert len(kept.ids) in (1, 3)
+    assert (50 in kept.ids) == (later == 1)

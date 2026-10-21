@@ -21,7 +21,13 @@ from database.qa_generator import (
 )
 from llm.client import ModelRefused, ModelUnavailable
 from nlp.analysis import content
-from question_generation.balance import choose, composition, largest, quota_of
+from question_generation.balance import (
+    _rank,
+    choose,
+    composition,
+    largest,
+    quota_of,
+)
 from question_generation.catalog import QuestionCatalog
 from question_generation.checker import (
     PASSED,
@@ -527,7 +533,7 @@ def balance(
 
         release = draw()
         if verifier is not None:
-            release = _judged(catalog, verifier, twins, release, draw)
+            release = _judged(catalog, verifier, twins, release, draw, pool)
 
         drawn, written = catalog.release(release.ids)
         current.set_attribute("release.quota", release.quota.size)
@@ -539,11 +545,12 @@ def balance(
 #: How many times the release is drawn again over newly judged twins. A
 #: redraw brings in questions whose own nearest has not been asked about;
 #: each round asks only about pairs no round has, and the third finds few.
-#: The last redraw is judged too, so one more round asks, and does not draw.
+#: The last redraw is judged too, in one more round that drops what it finds
+#: and does not draw.
 _TWIN_ROUNDS = 3
 
 
-def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw):
+def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw, pool):
     """The release, drawn again until the judge finds no twin left in it.
 
     No measure separates two questions restating one rule as two documents
@@ -553,15 +560,18 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw):
     a bar - and a pair it reads as wanting one answer joins `twins`, which
     the next draw holds to. Every pair is asked once. A verifier that cannot
     be reached leaves the release as the last draw made it. The release handed
-    back is always one the judge was asked about: after the last redraw it
-    reads that draw's pairs once more and keeps it, twins it finds in it
-    named in `twins` and left in.
+    back is always one the judge was asked about: the round after the last
+    redraw reads that draw's pairs and, for each it finds, drops the member the
+    draw's hash ranks later, with the turns that follow it from `pool`, instead
+    of drawing again.
     """
     asked: set[tuple[int, int]] = set()
+    ranked = {row.id: _rank(row) for row in pool}
     for number in range(1, _TWIN_ROUNDS + 2):
         with span.start_as_current_span("questions.balance.round") as current:
             current.set_attribute("release.round", number)
             found = 0
+            dropped: set[int] = set()
             for first, second in catalog.closest_among(list(release.ids)):
                 if (first.id, second.id) in asked:
                     continue
@@ -587,13 +597,30 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw):
                     twins.setdefault(first.id, set()).add(second.id)
                     twins.setdefault(second.id, set()).add(first.id)
                     found += 1
+                    if number > _TWIN_ROUNDS and not {first.id, second.id} & dropped:
+                        dropped.add(max(first.id, second.id, key=ranked.__getitem__))
             current.set_attribute("release.twins", found)
             # Worded as it was: a review reads the count off this line.
             log.info("release: %d more twin pair(s) judged", found)
-        if not found or number > _TWIN_ROUNDS:
+        if number > _TWIN_ROUNDS:
+            return replace(release, ids=_without(release.ids, dropped, pool))
+        if not found:
             break
         release = draw()
     return release
+
+
+def _without(ids: Sequence[int], dropped: set[int], pool) -> list[int]:
+    """`ids` less the dropped questions and every turn that follows from one."""
+    follows = {row.id: row.follows_id for row in pool}
+    out = set(dropped)
+    for one in ids:
+        above = follows.get(one)
+        while above is not None and above not in out:
+            above = follows.get(above)
+        if above is not None:
+            out.add(one)
+    return [one for one in ids if one not in out]
 
 
 def _twins(catalog: QuestionCatalog, settings: Settings, pool) -> dict[int, set[int]]:
