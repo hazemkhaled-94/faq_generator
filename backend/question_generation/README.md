@@ -515,7 +515,7 @@ phrasing judge's to tell from naming the source.
 | `answerable_after_all` | was written to have no answer and turns out to have one: an accepted answerable question resting on the same fact sits near it, or its own passages settle it | the probe among answerable questions, the second of the two, or one `settles` call |
 | `leaks_source` | names the material its answer is in | nothing, or one question-only call |
 | `unanchored` | nobody could have asked without the passage in front of them | nothing, or up to two question-only calls |
-| `not_recoverable` | cites evidence its own answer is not in, or asks why where the verifier, reading the passages for the reason, finds only the question's own rule or says they give no reason beyond it | the round trip |
+| `not_recoverable` | cites evidence its own answer is not in, or asks why where the verifier, reading the passages for the reason, finds only the question's own rule or says they give no reason beyond it, or is a search query bounded to a few words that a passage it does not cite answers differently | the round trip; for such a query, a passage probe and one more read |
 | `answer_incomplete` | has a `list` key naming far less than the verifier found, whether recall found the key or the entailment pass rescued it | the same round trip |
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite settles it | a passage probe and a second `settles` call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
@@ -631,7 +631,13 @@ Three things about it are load-bearing. The verifier is meant to be a
 just wrote; the stage warns when it is the writer's. The escape hatch is
 explicit — the verifier answers whether the passage states it at all. And it
 sees only the cited passages, never the corpus: what is being measured is
-the dataset, not a retriever.
+the dataset, not a retriever. One kind of question is read once more against
+the rest of it: a search query bounded to a few words, as
+short-search-query is, whose keywords drop the qualifier that tells two cases
+apart. The passages the unanswerable probe would show it
+(`QUESTIONS_ELSEWHERE_PASSAGES`) are read with it, and an answer they give
+that does not agree with the key refuses it as `not_recoverable`. A long
+query is not read so: its keys passed in calibration without it.
 
 `unanchored` and `leaks_source` are asked of `QUESTIONS_PHRASING_MODEL`, one
 judgement per call. Each is a judgement rather than a measurement — an

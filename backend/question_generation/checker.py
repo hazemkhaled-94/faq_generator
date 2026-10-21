@@ -31,7 +31,9 @@ it:
   leaks_source    free where the title is quoted, in the structural step;
                   the phrasing judge's otherwise
   unanchored      a question nobody could have asked without the passage
-  not_recoverable  the answer is not in the evidence the question cites
+  not_recoverable  the answer is not in the evidence the question cites; or,
+                  for a short search query, one probe and one more read find
+                  a passage it does not cite answering it differently
   answer_incomplete  the key names much less than the round trip found
   answerable_elsewhere  one corpus-wide passage probe and a second call, on
                   the unanswerable share only: a passage it does not cite
@@ -1209,7 +1211,7 @@ class QuestionChecker:
                         f"{read.recovered!r}"
                     ),
                 )
-            return None
+            return self._ambiguous(candidate, target, form, embedding)
 
         failed, opinions = settle(
             self._verifier,
@@ -1221,6 +1223,47 @@ class QuestionChecker:
         )
         readings.extend(opinions)
         return failed
+
+    def _ambiguous(
+        self, candidate: Candidate, target: str, form: str, embedding: list[float]
+    ) -> tuple[str, str] | None:
+        """Whether a passage a short search query does not cite answers it differently.
+
+        A few keywords drop the qualifier that tells two cases apart, and the
+        writer and the round trip read only the cited passages, so a chatbot
+        answering from another passage the keywords fit equally is marked
+        wrong for being right. One probe and one more read, for a query
+        bounded to a few words only: the long queries' keys passed without it.
+        """
+        short = any(
+            one.form == "query" and one.words[1] is not None
+            for one in candidate.categories
+        )
+        probe = self._corpus(candidate, embedding) if short else None
+        passages = probe() if probe is not None else ()
+        if not passages:
+            return None
+        other = self._verifier.read(
+            candidate.question_text, passages, candidate.thread
+        ).recovered
+        if other is None or agrees(
+            other,
+            target,
+            candidate.group.language,
+            form,
+            self._overlap,
+            candidate.question_text,
+            "",
+            passages,
+        ):
+            return None
+        return (
+            QuestionRejection.NOT_RECOVERABLE,
+            (
+                f"a passage it does not cite answers it differently, {other!r}, "
+                f"and its keywords do not say which of the two is asked"
+            ),
+        )
 
     def _computable(self, candidate: Candidate, target: str) -> tuple[str, str] | None:
         """Whether a derived answer follows from what the passages do state.
@@ -1387,8 +1430,9 @@ class QuestionChecker:
         marks a correct chatbot wrong, which is the one failure the gates
         exist to stop.
 
-        Costs one probe and one call, on the unanswerable share only. None
-        where no probe is configured.
+        Costs one probe and one call, on the unanswerable share and on a
+        short search query, whose keywords another passage may answer
+        differently. None where no probe is configured.
         """
         if self._elsewhere is None or self._elsewhere_passages <= 0:
             return None

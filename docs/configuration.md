@@ -284,8 +284,11 @@ without one, when it is written or when it is re-checked; every other rule
 holds. A search query is not told on a slot that spans two passages, whose
 keywords cannot say how the two meet, nor on a `reason`, `comparison`,
 `implication` or `temporal` slot, whose question word is the ask: such a slot
-is written as no category of the query's categorization. Table 5's short and
-long search queries are of form `query`, and
+is written as no category of the query's categorization. A query bounded to
+a few words, by a `max` in its `words`, is also read against the
+`QUESTIONS_ELSEWHERE_PASSAGES` passages nearest it that it does not cite, and
+is refused as not recoverable where one of them answers it differently. Table
+5's short and long search queries are of form `query`, and
 neither is dealt unset: in calibration the short ones fell below the floors
 for correct and complete keys (0.70 and 0.57 against 0.80 and 0.72), and a
 third of the long ones written were not queries. A Phrasing listing them
@@ -315,7 +318,9 @@ The default bounds concise-and-natural to at most 9 words and
 verbose-and-natural to at least 10, the counts their descriptions name; the
 search queries above are bounded to at most 6 and at least 7 the same way. The
 report reads the bounds configured when it runs, so a question written under
-other bounds is counted against today's.
+other bounds is counted against today's. A `max` also says a category is
+short, and two things read that: a premise is not told beside it, and a
+search query with one is read against the passages it does not cite.
 
 A stage's rerun is its `-rerun` target, bar topics, which have none:
 `make topics-discover` fits them again and carries what a person decided
