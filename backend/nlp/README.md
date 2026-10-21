@@ -43,8 +43,10 @@ The parser's cuts are corrected where a statement would not end: inside a
 word joined by a slash or a dash, before a clause opened by a comma, after an
 abbreviation that never ends one (`incl. VAT`, `gem. Ziff. 3`) on its line,
 after one that may (`etc.`, `Art.`, `Mo.–Fr.`) followed by a lower-case word
-or, on its line, a figure that numbers no item (`max. 3 days`, but not `etc.`
-before a line opening `2.`), and between an item's number and the item. A slash or a dash after a
+or, on its line, a figure (`max. 3 days`, `Sect. 4.`, but not `etc.` before a
+line opening `2.`), before a figure ending a sentence on its line (`EUR 5.`,
+`Ziffer 3.`), and between an item's number and the item: only a number opening
+its line numbers an item. A slash or a dash after a
 sentence's end and a space joins nothing: it opens the next sentence, as a
 free `- ` does or as the bullet of the next line. An abbreviation's full stop
 ends no sentence there either, so `inkl. / zzgl. Versand` stays whole.

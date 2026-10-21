@@ -1929,11 +1929,12 @@ def _boundaries(document: Doc) -> list[int]:
     The parser cuts where a statement would not: inside a word joined by a
     slash, before a clause opened by a comma, after an abbreviation that
     ends no sentence on its line ("incl. VAT") or one followed by a
-    lower-case word or, on its line, a figure numbering no item ("max. 3
-    days"), and between an item's number and the item, leaving
+    lower-case word or, on its line, a figure ("max. 3 days", "Sect. 4."),
+    before a figure ending a sentence on its line ("EUR 5."), and between
+    an item's number, which opens its line, and the item, leaving
     the number at the end of the item before. A citation resolves against
     these sentences, so a cut there leaves a fact's evidence half a rule.
-    A cut is dropped in the first three cases and moved to the number in
+    A cut is dropped in the first four cases and moved to the number in
     the last. Only ever drops or moves a cut the parser made: a full stop
     with no space after it still ends a sentence, as it does in a PDF that
     lost its spaces.
@@ -1984,25 +1985,28 @@ def _boundaries(document: Doc) -> list[int]:
                 if last.i > starts[-1]:
                     starts.append(last.i)
                 continue
-        # A figure on the next line, or an item's number, opens the next
-        # item rather than finishing the abbreviation: "etc.\n2. Card fees".
+        # A figure on the next line opens the next item rather than finishing
+        # the abbreviation: "etc.\n2. Card fees". On its line it finishes the
+        # sentence, after a word as after an abbreviation: "EUR 5.", "Sect. 4.".
         gap = document.text[
             previous.start_char + len(left) : sentence.end_char - len(right)
         ]
-        figure = right[0].isdigit() and not (
-            "\n" in gap or _ENUMERATOR.fullmatch(right.split()[0])
-        )
+        figure = right[0].isdigit() and "\n" not in gap
         if (
             joined
             or right[0] in _CONTINUING
+            or (figure and left[-1].isalnum())
             or (last_word in abbreviations and (right[0].islower() or figure))
             or (last_word in medial and not compound and "\n" not in gap)
         ):
             continue
-        line = left[left.rfind("\n") + 1 :]
+        # The line as the sentence so far reads it, not the parser's span,
+        # which may hold alone the figure it cut off the sentence before.
+        line = document.text[document[starts[-1]].idx : previous.start_char + len(left)]
+        line = line[line.rfind("\n") + 1 :]
         if _ENUMERATOR.fullmatch(line.strip()):
             numbered = previous.start_char + len(left) - len(line.lstrip())
-            token = next(one for one in previous if one.idx >= numbered)
+            token = next(one for one in document[starts[-1] :] if one.idx >= numbered)
             if token.i > starts[-1]:
                 starts.append(token.i)
             continue

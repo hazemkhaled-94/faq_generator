@@ -23,13 +23,6 @@ def texts(text: str, language: str | None) -> list[str]:
     return [one.text for one in sentences(text, language)]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A one-digit figure ending a German sentence (EUR 5., Ziffer 3., "
-        "Kapitel 2., Nr. 2.) is moved to the next sentence as if it numbered an item"
-    ),
-)
 @pytest.mark.parametrize(
     ("text", "language", "first"),
     [
