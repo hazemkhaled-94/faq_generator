@@ -141,6 +141,21 @@ def test_a_search_does_not_run_from_the_label_into_the_terms(page, typed) -> Non
     assert found(page(topics=SHOP).type_in("topics-search", typed)) == []
 
 
+@pytest.mark.parametrize(("language", "named"), [("de", "de #0"), (None, "— #0")])
+def test_a_picked_topic_a_search_drops_is_named_as_the_table_shows_it(
+    page, language, named
+) -> None:
+    """By its language and number, not by the tuple the pick is held under."""
+    topics = [changed(SHOP[0], language=language), SHOP[1]]
+
+    after = page(topics=topics).select(0).type_in("topics-search", "refund")
+
+    assert (
+        f"Row {named} is no longer in this list; anything pressed for it was not done."
+        in after.captions()
+    )
+
+
 # ── Model health ──────────────────────────────────────────────────────────
 
 
