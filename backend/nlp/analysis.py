@@ -1843,7 +1843,8 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
         for token in document
         for form in (token.text, token.lemma_)
         for variant in (form, _bare(form))
-        if variant
+        # An ordinal figure, `3.`, is no bare 3 as well.
+        if variant and not (variant != form and ordinal(token))
     )
 
 

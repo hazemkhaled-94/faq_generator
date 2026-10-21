@@ -213,3 +213,22 @@ def test_an_imperative_key_is_still_an_action(key, language):
     """An imperative is an action, not a value."""
     _, stopped = fitting(key, [AnswerForm.VALUE], BOUNDS, language)
     assert stopped is not None, f"{key!r} passed as a value"
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key"),
+    [
+        ("Ab der 3. Mahnung fallen 5 Euro an.", "3 Mahnungen"),
+        ("Die Rückgabe ist bis zum 14. möglich.", "14"),
+    ],
+)
+def test_a_german_ordinal_figure_does_not_agree_with_a_cardinal(recovered, key):
+    """English `the 14th` against `14` disagrees; German `zum 14.` must too."""
+    assert not agrees(recovered, key, "de")
+
+
+def test_a_german_ordinal_figure_is_no_stated_count():
+    """`Ab der 3. Mahnung` states no count of 3."""
+    assert not _stated(
+        3, ["Ab der 3. Mahnung gilt eine Gebühr.", "Y gilt.", "Z gilt."], "de"
+    )
