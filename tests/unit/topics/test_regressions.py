@@ -12,25 +12,28 @@ from synth_topics import DEFAULTS
 from synth_topics import corpus as synthetic
 from topic_drivers import FitterDriver, ServiceDriver, corpus
 
-from topic_modelling.topics import NoVocabulary
 
-
-def test_a_corpus_tfidf_weighs_flat_is_refused_rather_than_fitted(settings) -> None:
-    """A model of NaN is refused instead of being stored as topics.
+def test_a_corpus_tfidf_weighs_flat_is_one_topic_rather_than_a_model_of_nan(
+    settings,
+) -> None:
+    """The same words in other counts: every term is in every passage.
 
     A term in every passage has an idf of zero. With TOPIC_NO_ABOVE at 1 the
     filter keeps such terms, and a corpus where every surviving term is one
     weighed to an all-zero matrix: the factorisation divided by its norm,
     every topic came out NaN, and the fit reported success with two
-    identically signed topics, no memberships and a NaN figure.
+    identically signed topics, no memberships and a NaN figure. It is one
+    topic holding both passages.
     """
     flat = FitterDriver(
         settings | {"no_below": 1, "no_above": 1.0},
         corpus("lieferung lieferung versand", "lieferung versand versand"),
     )
 
-    with pytest.raises(NoVocabulary, match="TOPIC_NO_ABOVE"):
-        flat.fit("de")
+    fitting = flat.fit("de").fitting
+
+    assert len(fitting.topics) == 1
+    assert {w.passage_id for w in fitting.weights} == {1, 2}
 
 
 @pytest.mark.parametrize(

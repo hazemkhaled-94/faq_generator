@@ -6,7 +6,7 @@ from math import isnan
 
 import pytest
 import synth_topics as st
-from topic_drivers import FitterDriver
+from topic_drivers import FitterDriver, corpus
 
 from topic_modelling.models import PassageVocabulary
 from topic_modelling.topics import NoVocabulary
@@ -101,10 +101,10 @@ def test_an_empty_corpus_is_refused_by_name(settings) -> None:
         FitterDriver(settings).fit("de")
 
 
-def test_a_filter_that_removes_every_term_fails_the_run(settings, passages) -> None:
+def test_passages_with_no_lemma_fail_the_run(settings) -> None:
     """An empty vocabulary is a failure, not an empty fit."""
     with pytest.raises(NoVocabulary, match="frequency filter"):
-        FitterDriver(settings | {"no_below": 99}, passages).fit("de")
+        FitterDriver(settings, corpus("", "", "")).fit("de")
 
 
 def test_the_refusal_says_what_the_filter_was_and_what_it_left(
@@ -112,7 +112,7 @@ def test_the_refusal_says_what_the_filter_was_and_what_it_left(
 ) -> None:
     """A reader has to be able to tell which setting to move."""
     with pytest.raises(NoVocabulary) as raised:
-        FitterDriver(settings | {"no_below": 99}, passages).fit("de")
+        FitterDriver(settings | {"no_below": 99}, corpus("", "", "", "")).fit("de")
 
     said = str(raised.value)
     assert "99" in said, said
@@ -377,3 +377,18 @@ def test_a_language_of_one_distinct_passage_gets_one_topic_holding_it(settings) 
     }
     assert fitting.unplaced == (3,)
     assert fitting.space.doc_topic == [[1.0], [1.0]]
+
+
+@pytest.mark.parametrize(
+    "texts",
+    [
+        ["kreditkarte gebühr", "kreditkarte gebühr gebühr"],
+        ["terms apply"] * 3 + ["terms apply online"],
+    ],
+)
+def test_passages_the_filter_cannot_tell_apart_get_one_topic(settings, texts) -> None:
+    """The same words in other counts, or copies plus a near-copy, still fit."""
+    fitting = FitterDriver(settings, corpus(*texts)).fit("de").fitting
+
+    assert len(fitting.topics) == 1
+    assert {w.passage_id for w in fitting.weights} == set(range(1, len(texts) + 1))
