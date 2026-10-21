@@ -367,7 +367,7 @@ a caller branches on the code rather than on English:
 | `too_large` | 413 | An upload is over the size limit |
 | `unsupported_type` | 415 | An upload is not a readable document of an accepted type |
 | `no_orchestrator` | 503 | `run`, `GET /pipeline/runs` or `PUT /pipeline/automation` with no orchestrator answering |
-| `orchestrator_refused` | 503 | The orchestrator answered `run` with an error |
+| `orchestrator_refused` | 503 | The orchestrator answered `run`, `GET /pipeline/runs` or `PUT /pipeline/automation` with an error |
 
 A request whose `Host` is not in `API_ALLOWED_HOSTS` is answered 400 by
 Starlette's `TrustedHostMiddleware` before any route reads it, as plain text

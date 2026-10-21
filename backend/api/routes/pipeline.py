@@ -53,6 +53,7 @@ from api.orchestrator import (
     Run,
     Unavailable,
 )
+from api.params import Limit
 from api.routes.stage import StageStatus, answered, status_of
 from database.qa_generator import engine
 
@@ -371,16 +372,19 @@ def retry() -> PipelineAction:
 
 
 @router.get("/runs", responses={_NO_ORCHESTRATOR: {"model": ErrorBody}})
-def runs(limit: int = 20) -> list[Run]:
+def runs(limit: Limit = 20) -> list[Run]:
     """The recent runs of the corpus job, newest first.
 
     Raises:
-        ApiError: 503 `no_orchestrator` if this deployment has none.
+        ApiError: 503 `no_orchestrator` if this deployment has none, or
+            `orchestrator_refused` if it answered with an error.
     """
     try:
         return orchestrator.runs(limit=limit)
-    except (Unavailable, Refused) as missing:
+    except Unavailable as missing:
         raise ApiError(_NO_ORCHESTRATOR, "no_orchestrator", str(missing)) from None
+    except Refused as refusal:
+        raise ApiError(_NO_ORCHESTRATOR, "orchestrator_refused", str(refusal)) from None
 
 
 @router.get("/automation")
@@ -405,11 +409,14 @@ def automate(change: AutomationChange) -> Automation:
     Omitting either, or sending null, leaves it as it is.
 
     Raises:
-        ApiError: 503 `no_orchestrator` if there is none to switch.
+        ApiError: 503 `no_orchestrator` if there is none to switch, or
+            `orchestrator_refused` if it answered with an error.
     """
     try:
         return orchestrator.automate(
             on_arrival=change.on_arrival, nightly=change.nightly
         )
-    except (Unavailable, Refused) as missing:
+    except Unavailable as missing:
         raise ApiError(_NO_ORCHESTRATOR, "no_orchestrator", str(missing)) from None
+    except Refused as refusal:
+        raise ApiError(_NO_ORCHESTRATOR, "orchestrator_refused", str(refusal)) from None
