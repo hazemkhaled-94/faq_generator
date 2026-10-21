@@ -120,7 +120,10 @@ make dev
 
 Generates TLS certificates, starts every service, waits for PostgreSQL and
 creates the schema. The frontend is then at <http://localhost:8501> and the
-API documentation at <http://localhost:8000/docs>.
+API documentation at <http://localhost:8000/docs>. Those are the default
+ports, set in `configs/env/deployment.env`;
+[a second stack](docs/operations.md#a-second-stack-beside-the-first) moves
+them.
 
 ```bash
 make services   # which containers are up, and where to open them

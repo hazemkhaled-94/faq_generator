@@ -4,7 +4,9 @@ Running the stack, watching it, and what goes wrong.
 
 ## The services
 
-Once `make dev` reports ready:
+Once `make dev` reports ready, at the default ports
+`configs/env/deployment.env` sets ([a second stack](#a-second-stack-beside-the-first)
+moves them):
 
 | Service | URL | Purpose |
 |---|---|---|
@@ -90,6 +92,43 @@ podman compose stop parse-worker
 `make pipeline` and `make all` need Dagster, so a run on this stack is driven
 with the `-start` targets, or with the host drains while a stage's worker is
 stopped.
+
+## A second stack beside the first
+
+Two checkouts on one machine each run a stack of their own once the second
+has its own project name and its own published ports. Compose names every
+container, volume, network and built image for the project, which is
+`qa_generator` unless something sets another, so a second project has its own
+database, object store and images. The database names in
+`configs/env/deployment.env` can stay as they are.
+
+Set the name and the ten ports in the second checkout's `.env`. Compose and
+the Makefile read it after `configs/env/deployment.env`, so a value there
+wins:
+
+```ini
+COMPOSE_PROJECT_NAME=qa_second
+POSTGRES_PORT=25432
+S3_PORT=28333
+PHOENIX_PORT=26006
+PHOENIX_GRPC_PORT=24317
+BACKEND_PORT=28000
+STREAMLIT_PORT=28501
+DAGSTER_WEBSERVER_PORT=23000
+GRAFANA_PORT=23001
+ARGILLA_PORT=26900
+ADMINER_PORT=29001
+```
+
+Every address a host command or a page uses is derived from these ports, so
+nothing else moves: the URLs in the table above answer on the new ports, and
+`make services` lists them. The smoke layer reads its image tags' project
+name and the Dagster port from the shell rather than from `.env`, so give
+`make test-smoke` both:
+
+```bash
+COMPOSE_PROJECT_NAME=qa_second DAGSTER_WEBSERVER_PORT=23000 make test-smoke
+```
 
 ## Scaling
 
