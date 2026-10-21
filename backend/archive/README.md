@@ -79,7 +79,7 @@ what it held.
   transaction.
 - **A restored question keeps its release only where it still belongs to
   one.** The release stays where a question live all along holds the same id,
-  and a follow-up also needs a root that is still accepted; otherwise the
+  and a follow-up also needs the turn it follows still accepted and released in it; otherwise the
   question comes back accepted but undrawn.
 - **A fact left resting on no passage is dropped.** Its citations were left
   behind, and the trigger that drops such a fact fires only on `DELETE`, so

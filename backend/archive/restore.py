@@ -106,14 +106,16 @@ WHERE q.release_id IS NOT NULL
 )
 
 #: A thread is released whole, so a restored follow-up keeps its release only
-#: under a root still accepted. The trigger that clears a thread fires on a
-#: root's UPDATE, and the follow-up was in the archive when the root left, so
-#: this is the rule of that trigger's upgrade, applied to the restored rows.
+#: under the turn it follows still released in it: a parent that is not
+#: accepted, or sits in no release or another one, takes the follow-up and
+#: every turn below it out. The trigger that clears a thread fires on a root's
+#: UPDATE, and the follow-up was in the archive then, so this applies the rule
+#: of that trigger's upgrade to the restored rows.
 _ROOTLESS = (
     """
 WITH RECURSIVE below AS (
     SELECT q.id FROM questions q JOIN questions r ON q.follows_id = r.id
-    WHERE r.status <> 'accepted'
+    WHERE r.status <> 'accepted' OR r.release_id IS DISTINCT FROM q.release_id
     UNION SELECT q.id FROM questions q JOIN below b ON q.follows_id = b.id)
 UPDATE questions SET release_id = NULL
 WHERE release_id IS NOT NULL AND id IN (SELECT id FROM below)

@@ -713,3 +713,123 @@ def test_a_restored_follow_up_does_not_rejoin_a_release_its_root_left(
     assert live[follow_id][1] is None, (
         f"follow-up {follow_id} came back released under rejected root {root_id}"
     )
+
+
+def _thread_across_two_documents(engine, language: str, turns: int):
+    """Root and sibling on a kept document; follow-ups 2..turns on a gone one."""
+    kept_doc, gone_doc = (
+        digest(f"kept-{language}-{turns}"),
+        digest(f"gone-{language}-{turns}"),
+    )
+    drawn = uuid.uuid4()
+    with Session(engine) as session:
+        session.add_all([document(kept_doc), document(gone_doc)])
+        session.flush()
+        on_kept = passage(kept_doc, language=language, text="Konto kostet 5 EUR.")
+        on_gone = passage(gone_doc, language=language, text="Refunds take 14 days.")
+        session.add_all([on_kept, on_gone])
+        session.flush()
+        root_fact = fact(on_kept.id, statement="Konto kostet 5 EUR.")
+        sibling_fact = fact(on_kept.id, statement="Konto kostet 5 EUR. Immer.")
+        session.add_all([root_fact, sibling_fact])
+        session.flush()
+        root = question(status="accepted", release_id=drawn, language=language)
+        sibling = question(status="accepted", release_id=drawn, language=language)
+        session.add_all([root, sibling])
+        session.flush()
+        session.add_all(
+            [link(root.id, root_fact.id), link(sibling.id, sibling_fact.id)]
+        )
+        parent, ids = root.id, []
+        for position in range(2, turns + 1):
+            follow_fact = fact(on_gone.id, statement=f"Refunds take {position} days.")
+            session.add(follow_fact)
+            session.flush()
+            follow = question(
+                status="accepted",
+                release_id=drawn,
+                language=language,
+                follows_id=parent,
+                thread_position=position,
+                question_text=f"Und dann, Teil {position}?",
+            )
+            session.add(follow)
+            session.flush()
+            session.add(link(follow.id, follow_fact.id))
+            parent = follow.id
+            ids.append(follow.id)
+        session.commit()
+        return gone_doc, root.id, sibling.id, ids, drawn
+
+
+@pytest.mark.parametrize("language", ["de", "en", "fr"])
+def test_a_follow_up_restored_under_a_re_accepted_root_is_not_released_alone(
+    engine, database, buckets, monkeypatch, language
+) -> None:
+    """Root rejected then accepted again while its follow-up sat in the archive.
+
+    The re-accept leaves the root accepted but undrawn (decide clears release_id
+    on reject, and accept keeps what is there: NULL). The thread rule says a
+    follow-up is released only with the turn it follows; the restore keeps the
+    follow-up in the old release because a live sibling still holds it.
+    """
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+    from question_generation.catalog import QuestionCatalog
+
+    gone_doc, root_id, sibling_id, (follow_id,), drawn = _thread_across_two_documents(
+        engine, language, 2
+    )
+    since = _now(engine)
+    DocumentRepository().delete(gone_doc)
+    QuestionCatalog().decide(root_id, "rejected")
+    QuestionCatalog().decide(root_id, "accepted")
+    monkeypatch.setenv("SINCE", since)
+    restore.main()
+
+    live = _rows(engine)
+    assert live[root_id] == ("accepted", None)
+    assert live[sibling_id][1] == drawn
+    assert live[follow_id][1] is None, (
+        f"follow-up {follow_id} released in {live[follow_id][1]} while root {root_id} is in no release"
+    )
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_three_turn_thread_restored_under_a_rejected_root_leaves_the_release(
+    engine, database, buckets, monkeypatch, language
+) -> None:
+    """Every turn below a rejected root comes back undrawn, and still accepted."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+    from question_generation.catalog import QuestionCatalog
+
+    gone_doc, root_id, _, follows, _ = _thread_across_two_documents(engine, language, 3)
+    since = _now(engine)
+    DocumentRepository().delete(gone_doc)
+    QuestionCatalog().decide(root_id, "rejected")
+    monkeypatch.setenv("SINCE", since)
+    restore.main()
+
+    live = _rows(engine)
+    assert set(follows) <= set(live)
+    assert [live[one][1] for one in follows] == [None, None]
+    assert [live[one][0] for one in follows] == ["accepted", "accepted"]
+
+
+def test_a_follow_up_under_a_root_still_released_keeps_its_release(
+    engine, database, buckets, monkeypatch
+) -> None:
+    """Control: nothing happened to the root, so the thread comes back whole."""
+    from archive import restore
+    from ingestion.repository import DocumentRepository
+
+    gone_doc, root_id, _, follows, drawn = _thread_across_two_documents(engine, "de", 3)
+    since = _now(engine)
+    DocumentRepository().delete(gone_doc)
+    monkeypatch.setenv("SINCE", since)
+    restore.main()
+
+    live = _rows(engine)
+    assert live[root_id][1] == drawn
+    assert [live[one][1] for one in follows] == [drawn, drawn]
