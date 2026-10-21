@@ -459,6 +459,31 @@ The figures are per language, as everything on this page is: the paper
 judged English questions with an English prompt, and this corpus is half
 German.
 
+### The paper's judge against the review
+
+Under template version 3, the paper's judge was held against the labelled
+v0.3.0 review: 350 answerable root questions of the Laws of the Game (175
+accepted, 175 rejected, half in each language), judged by azure/gpt-4.1 for
+USD 1.26, every reply complete.
+
+| | German | English |
+|---|---|---|
+| Spearman's rho, the judge's mean score against the reviewers' verdict | 0.385 | 0.295 |
+| Kappa, answerability below 3 against the reviewers' "breaks" signal | 0.200 | 0.288 |
+| Kappa, question relevance's `unrelated` against the same signal | 0.191 | 0.256 |
+| Questions question relevance called `unrelated` | 3 | 3 |
+| Share the judge approves (every score 3) | 90% | 90% |
+| Share the reviewers found usable | 62% | 69% |
+| Kappa, the judge's approval against "usable" | 0.239 | 0.212 |
+| Kappa, question relevance's approval against "usable" | 0.114 | 0.064 |
+
+The rule was set before the run: a question's `relevance` goes if the
+paper's answerability agrees with the reviewers at least as well and the
+judge's mean correlates with their verdict, in both languages. Both held, so
+template version 4 no longer asks it. The margins are thin, since question
+relevance called three questions in each language `unrelated`. These are
+agreement figures on one corpus; nothing was tuned to them.
+
 ## Model latency
 
 Per call, over the run:
