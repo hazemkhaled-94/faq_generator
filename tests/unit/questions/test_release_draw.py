@@ -11,6 +11,8 @@ from collections import Counter
 import pytest
 
 from question_generation.balance import Row, choose, largest, quota_of
+from question_generation.models import Posed
+from question_generation.service import _judged
 
 KINDS = (
     "factoid",
@@ -104,3 +106,68 @@ def test_follow_ups_do_not_draw_a_kind_past_its_quota(language):
         f"short {release.short}"
     )
     assert release.size == 60 and not release.short
+
+
+class _Everything:
+    """A twin judge that reads every pair it is shown as wanting one answer."""
+
+    def __init__(self):
+        self.asked: set[tuple[int, int]] = set()
+
+    def same_answer(self, first, second):
+        self.asked.add(
+            tuple(sorted((int(first[0].split("#")[1]), int(second[0].split("#")[1]))))
+        )
+        return True
+
+
+class _Adjacent:
+    """Pairs each released question with the next one by id, as nearest."""
+
+    def __init__(self, text):
+        self.text = text
+
+    def closest_among(self, ids):
+        held = sorted(ids)
+        return [
+            (
+                Posed(a, f"{self.text} #{a}", "5 EUR"),
+                Posed(b, f"{self.text} #{b}", "5 EUR"),
+            )
+            for a, b in zip(held[::2], held[1::2], strict=False)
+        ]
+
+
+@pytest.mark.parametrize(
+    "language, text",
+    [
+        ("de", "Wie hoch ist die Gebühr für eine Ersatzkarte?"),
+        ("en", "How much does a replacement card cost?"),
+    ],
+)
+def test_the_release_handed_back_holds_no_pair_the_judge_was_never_asked(
+    language, text
+):
+    """R3 P3: after the last twin round the release is drawn again and not judged.
+
+    Twelve rewordings of one bank question; the judge reads every pair it sees as
+    one answer, so each round finds twins and the redraw after round 3 holds a
+    pair nobody asked about.
+    """
+    pool = _roots([("factoid", 12)], language)
+    twins: dict[int, set[int]] = {}
+
+    def draw():
+        return choose(
+            pool, quota_of(4, {"easy": 1}, {"factoid": 1}, 0.0, {language: 1}), twins
+        )
+
+    judge = _Everything()
+    catalog = _Adjacent(text)
+    release = _judged(catalog, judge, twins, draw(), draw)
+    unasked = [
+        (a.id, b.id)
+        for a, b in catalog.closest_among(release.ids)
+        if (a.id, b.id) not in judge.asked
+    ]
+    assert not unasked, f"released {release.ids}; never judged: {unasked}"

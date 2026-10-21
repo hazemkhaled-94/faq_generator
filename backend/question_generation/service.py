@@ -539,6 +539,7 @@ def balance(
 #: How many times the release is drawn again over newly judged twins. A
 #: redraw brings in questions whose own nearest has not been asked about;
 #: each round asks only about pairs no round has, and the third finds few.
+#: The last redraw is judged too, so one more round asks, and does not draw.
 _TWIN_ROUNDS = 3
 
 
@@ -551,10 +552,13 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw):
     nearest released neighbour of its language and answerability - rank, not
     a bar - and a pair it reads as wanting one answer joins `twins`, which
     the next draw holds to. Every pair is asked once. A verifier that cannot
-    be reached leaves the release as the last draw made it.
+    be reached leaves the release as the last draw made it. The release handed
+    back is always one the judge was asked about: after the last redraw it
+    reads that draw's pairs once more and keeps it, twins it finds in it
+    named in `twins` and left in.
     """
     asked: set[tuple[int, int]] = set()
-    for number in range(1, _TWIN_ROUNDS + 1):
+    for number in range(1, _TWIN_ROUNDS + 2):
         with span.start_as_current_span("questions.balance.round") as current:
             current.set_attribute("release.round", number)
             found = 0
@@ -586,7 +590,7 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw):
             current.set_attribute("release.twins", found)
             # Worded as it was: a review reads the count off this line.
             log.info("release: %d more twin pair(s) judged", found)
-        if not found:
+        if not found or number > _TWIN_ROUNDS:
             break
         release = draw()
     return release
