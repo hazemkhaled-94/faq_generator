@@ -34,6 +34,63 @@ Credentials are `PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD` for Phoenix (sign in
 as `admin@localhost`), `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`, and
 `ARGILLA_USERNAME` / `ARGILLA_PASSWORD`.
 
+## Memory
+
+The memory limits in [`compose.yaml`](../compose.yaml) add up to about
+30 GiB: the question worker may take 6, the parse and extract workers 4
+each, the chunk and topic workers 3 each, Elasticsearch 2, and every other
+service 1 or less. They are ceilings rather than reservations, and a
+container that reaches its own is killed.
+
+On macOS and Windows the containers run inside Podman's virtual machine,
+which has a memory size of its own, whatever the host has.
+`podman machine inspect` shows it (`Resources.Memory`, in MiB), and the
+machine has to be stopped to change it:
+
+```bash
+podman machine stop
+podman machine set --memory 16384
+podman machine start
+```
+
+A machine smaller than the workers you run at once is what the smaller
+stack below is for: its services with the parse or the chunk worker have run
+in a machine of 8 GiB. The question worker's limit alone is 6 GiB.
+
+### A smaller stack
+
+`make dev` starts every service. A run needs fewer: the database, the object
+store, the api and the stage workers it uses. Logs and dashboards
+(Elasticsearch, Filebeat, Grafana), review (Argilla and Redis), Adminer and
+Dagster are for watching and driving a run, and the `-start` targets and the
+host drains need none of them.
+
+```bash
+make certs logs-dir
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+podman compose up -d api phoenix seaweedfs-volume seaweedfs-volume2
+make schema
+```
+
+`up` starts what these depend on as well: PostgreSQL and the SeaweedFS
+master, filer and S3 gateway. The two volume servers are named because no
+service depends on them, and the object store cannot write without them.
+Phoenix is where the host commands send their traces. Add `streamlit` for the
+pages.
+
+Then bring up one stage worker at a time, queue its stage, and stop it once
+its queue is drained:
+
+```bash
+podman compose up -d parse-worker
+make parse-start                 # make parse-status says when it is done
+podman compose stop parse-worker
+```
+
+`make pipeline` and `make all` need Dagster, so a run on this stack is driven
+with the `-start` targets, or with the host drains while a stage's worker is
+stopped.
+
 ## Scaling
 
 `parse-worker`, `chunk-worker` and `extract-worker` scale horizontally — each

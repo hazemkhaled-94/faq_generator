@@ -50,7 +50,7 @@ See [docs/measurements.md](docs/measurements.md) for what one run produced.
 | [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-started/get-docker/) | with Compose | 23 containers |
 | [Ollama](https://ollama.com/download) | any recent | **Required.** See below |
 | Disk | ~15 GB | Images, model weights and volumes |
-| RAM | 16 GB | 6 GB of it for the question worker |
+| RAM | 16 GB | 6 GB of it for the question worker. Podman's machine has a size of its own: see [Memory](docs/operations.md#memory) |
 
 **Ollama is not optional.** `LLM_CONTAINER_MODEL` has to name a model Ollama
 serves: compose refuses to start without it, `make doctor` refuses one that
