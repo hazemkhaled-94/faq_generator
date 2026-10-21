@@ -1021,7 +1021,7 @@ def test_a_question_whose_passage_has_no_topic_lists_no_topic(engine, database) 
     _, rows = QuestionCatalog().page()
 
     assert rows[0].topics == []
-    assert rows[0].documents == [digest("a")]
+    assert rows[0].documents == [digest("a")[:12]]
 
 
 def test_a_topic_with_no_memberships_has_no_facts_to_ask_about(corpus, engine) -> None:
@@ -1906,7 +1906,9 @@ def test_a_bridge_backed_question_is_found_by_either_of_its_documents(
     assert catalog.page(document=digest("b"))[0] == 1, "its other half"
     # A document filter chooses the question and never trims what it cites.
     for listed in (catalog.page()[1], catalog.page(document=digest("a"))[1]):
-        assert sorted(listed[0].documents) == sorted([digest("a"), digest("b")])
+        assert sorted(listed[0].documents) == sorted(
+            [digest("a")[:12], digest("b")[:12]]
+        )
 
 
 # ── The corpus-wide probe ─────────────────────────────────────────────────
