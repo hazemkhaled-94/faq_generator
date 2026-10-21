@@ -90,6 +90,15 @@ def render(space: TopicSpace, language: str) -> bytes:
     )
     # An empty stylesheet in place of the CDN one the template would link.
     page = pyLDAvis.prepared_data_to_html(prepared, ldavis_css_url="data:text/css,")
+    # The vocabulary is lemmas read out of uploaded documents, and the template
+    # writes the data unescaped into a script block. `<`, `>` and `&` as JSON
+    # escapes parse to the same terms and can close nothing.
+    data = prepared.to_json()
+    assert data in page, "pyLDAvis no longer embeds the data as to_json() writes it"
+    page = page.replace(
+        data,
+        data.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"),
+    )
     return _inlined(page).encode("utf-8")
 
 
