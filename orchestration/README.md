@@ -74,7 +74,7 @@ distance, and the one most likely to reach
 |---|---|
 | The `corpus` job | Every stage but the topic fit, in order. Run it by hand from the UI, from `make pipeline` or `make all`, from the Run button, or from `POST /pipeline/run` |
 | The `nightly_corpus` schedule | The `corpus` job at 02:00 UTC, so it fits no topics |
-| The `arrivals` sensor | Polls parsing every minute and requests a run when documents other than the ones it last asked about are sitting `new` and `INGESTION_OPEN` is on. It requests none while a corpus run is going, while parsing has rows queued or in progress, or after a stopped run |
+| The `arrivals` sensor | Polls parsing every minute and requests a run when documents other than the ones it last asked about are sitting `new` and `INGESTION_OPEN` is on. It requests none while a corpus run is going, while parsing has rows queued or in progress, or after a stopped run. A run that failed is asked for once more; after a second failure on the same documents it waits for `make pipeline` or the Run button |
 
 The schedule and the sensor both ship **stopped**. A stack that starts
 running the pipeline the moment it comes up is one nobody chose. Either can

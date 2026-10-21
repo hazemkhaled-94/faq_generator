@@ -252,6 +252,39 @@ def test_a_key_whose_run_failed_is_not_asked_for_again(monkeypatch, instance) ->
     assert again.run_key != first
 
 
+@pytest.mark.parametrize("batch", ["preisverzeichnis", "returns-policy"])
+def test_a_batch_whose_runs_keep_failing_is_not_relaunched_every_tick(
+    monkeypatch, instance, batch
+) -> None:
+    """Asked once more, then left to a person: a cause that fails one run fails each.
+
+    A run worker that cannot start, or the api down, would otherwise file a
+    failed run every minute.
+    """
+    answering(monkeypatch, batch=batch, new=2)
+    asked: list[str] = []
+    cursor = None
+    for tick in range(5):
+        context = build_sensor_context(cursor=cursor, instance=instance)
+        answer = orchestration.arrivals(context)
+        cursor = context.cursor
+        if not isinstance(answer, RunRequest):
+            continue
+        asked.append(answer.run_key)
+        instance.add_run(
+            DagsterRun(
+                job_name="corpus",
+                run_id=f"failed-{tick}",
+                status=DagsterRunStatus.FAILURE,
+                tags={"dagster/run_key": answer.run_key},
+            )
+        )
+
+    assert len(asked) == 2, f"a new failing run every tick: {asked}"
+    assert isinstance(answer, SkipReason)
+    assert "make pipeline" in str(answer.skip_message)
+
+
 def test_two_ticks_over_an_unchanged_queue_share_a_key_through_the_cursor(
     monkeypatch, instance
 ) -> None:

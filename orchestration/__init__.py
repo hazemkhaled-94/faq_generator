@@ -147,7 +147,9 @@ def arrivals(context):
             f"{queue.outstanding} document(s) already queued or in progress"
         )
 
-    run = asked.get("run", 0) + (batch != asked.get("batch"))
+    fresh = batch != asked.get("batch")
+    run = asked.get("run", 0) + fresh
+    retried = not fresh and asked.get("retried", False)
     # A key whose run failed is one Dagster will not run again.
     if context.instance.get_runs(
         filters=RunsFilter(
@@ -155,8 +157,15 @@ def arrivals(context):
         ),
         limit=1,
     ):
+        # Once: a cause that failed two runs would fail one a minute.
+        if retried:
+            return SkipReason(
+                "the corpus run failed twice on these documents; start the next "
+                "with `make pipeline` or the Run button once the cause is fixed"
+            )
         run += 1
-    context.update_cursor(json.dumps({"batch": batch, "run": run}))
+        retried = True
+    context.update_cursor(json.dumps({"batch": batch, "run": run, "retried": retried}))
     log.info("%d document(s) uploaded and never asked for; starting", waiting)
     return RunRequest(run_key=f"new-{run}-{waiting}")
 
