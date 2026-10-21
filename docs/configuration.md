@@ -320,17 +320,18 @@ four at even odds:
 ```
 
 A category may also carry word bounds, `"words": {"min": 10}`, `{"max": 9}`
-or both, each a whole number of at least 1. They are a label for reading the
-result, never an instruction and never a refusal: the writer is not sent
-them, no question is refused for missing them, and `make diversity
-BY=category` reports the share of each category's questions inside them.
+or both, each a whole number of at least 1. The writer is not sent them, no
+question is refused for missing them, and `make diversity BY=category`
+reports the share of each category's questions inside them.
 The default bounds concise-and-natural to at most 9 words and
 verbose-and-natural to at least 10, the counts their descriptions name; the
 search queries above are bounded to at most 6 and at least 7 the same way. The
 report reads the bounds configured when it runs, so a question written under
-other bounds is counted against today's. A `max` also says a category is
-short, and two things read that: a premise is not told beside it, and a
-search query with one is read against the passages it does not cite.
+other bounds is counted against today's. A `max` does two things besides,
+whatever the `min` beside it: a premise is not told beside a category
+carrying one, and a search query carrying one is read once more against the
+passages it does not cite and is refused as not recoverable where one of
+them answers it differently.
 
 A stage's rerun is its `-rerun` target, bar topics, which have none:
 `make topics-discover` fits them again and carries what a person decided
@@ -338,6 +339,12 @@ about a topic over to the new topic matching it. Rerunning extraction leaves
 the bridges to `make extract-bridge`. Rerunning questions writes only about
 the facts no accepted question rests on and judges no stored question again,
 which `make questions-reverify` does for the gates that need no model.
+`make questions-rejudge` asks again about every accepted unanswerable
+question whose `settles` verdict was given under another verifier prompt
+version, and v0.4.3 moved that version from 6 to 10 for the round trip's
+read alone: on a database upgraded to it, its first run costs one `settles`
+reading per stored accepted unanswerable question, and a second where the
+cited passages are silent and the passage probe is on.
 
 A fixed setting is the exception: it changes only in its file, with a
 restart, and no surface reports what the change left stale. After changing
