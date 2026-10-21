@@ -174,7 +174,7 @@ because bash sources that file and would split a JSON value at its spaces and
 strip its quotes. Unset, it reads `DEFAULT_CATEGORIZATIONS` in code; `[]`
 turns categories off.
 
-The default is four of the paper's Table 5 categorizations, in its
+The default is two of the paper's Table 5 categorizations, in its
 descriptions without the examples, every category at even odds because the
 table gives no probabilities:
 
@@ -182,11 +182,35 @@ table gives no probabilities:
 |---|---|
 | Phrasing | concise-and-natural, verbose-and-natural |
 | Premise | direct, with-premise |
-| Linguistic variation | similar-to-document, distant-from-document |
-| User expertise, of role `user` | expert, novice |
 
 Table 5's Factuality is not among them: whether a question is factoid or
-open-ended is read off the answer form its type gives it.
+open-ended is read off the answer form its type gives it. Its Linguistic
+variation and User expertise are not either, and are there to opt into: in
+calibration the questions written distant from the document and those asked
+by an expert fell below the floor for complete keys (0.57 and 0.60 against
+0.72), and a categorization left with its one other category would rewrite
+every question. Listed beside the default's two, they read in the paper's
+words:
+
+```json
+[
+  {
+    "categorization_name": "Linguistic variation",
+    "categories": [
+      {"name": "similar-to-document", "description": "phrased using the same terminology and phrases appearing in the document."},
+      {"name": "distant-from-document", "description": "phrased using terms completely different from the ones appearing in the document."}
+    ]
+  },
+  {
+    "categorization_name": "User expertise",
+    "role": "user",
+    "categories": [
+      {"name": "expert", "description": "The user asking the question is a specialized user with a deep understanding of the corpus."},
+      {"name": "novice", "description": "The user asking the question is a regular user with no understanding of specialized terms."}
+    ]
+  }
+]
+```
 
 Set it on the Questions page's Configuration panel, through the API, or with
 `settings.run` in the environment `make` loads, each of which stores the

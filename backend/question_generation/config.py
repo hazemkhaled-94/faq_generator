@@ -160,8 +160,7 @@ _ROUNDING = 0.01
 #: QUESTIONS_CATEGORIZATIONS when it is absent: categorizations of the
 #: paper's Table 5, its descriptions without the examples its caption calls
 #: illustrative, every category at even odds because the table gives none.
-#: User expertise describes the person asking, so it is told in the asker's
-#: block. The two natural phrasings are bounded by the word counts their
+#: The two natural phrasings are bounded by the word counts their
 #: descriptions name. The table's `direct` ends on a stray closing
 #: parenthesis, left out here. Here rather than in backend.env, which bash
 #: sources and so cannot hold a JSON value.
@@ -201,37 +200,6 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                     "description": "question starting with a very short premise, "
                     "where the user reveals their needs or some information "
                     "about himself.",
-                },
-            ],
-        },
-        {
-            "categorization_name": "Linguistic variation",
-            "categories": [
-                {
-                    "name": "similar-to-document",
-                    "description": "phrased using the same terminology and "
-                    "phrases appearing in the document.",
-                },
-                {
-                    "name": "distant-from-document",
-                    "description": "phrased using terms completely different "
-                    "from the ones appearing in the document.",
-                },
-            ],
-        },
-        {
-            "categorization_name": "User expertise",
-            "role": "user",
-            "categories": [
-                {
-                    "name": "expert",
-                    "description": "The user asking the question is a "
-                    "specialized user with a deep understanding of the corpus.",
-                },
-                {
-                    "name": "novice",
-                    "description": "The user asking the question is a regular "
-                    "user with no understanding of specialized terms.",
                 },
             ],
         },

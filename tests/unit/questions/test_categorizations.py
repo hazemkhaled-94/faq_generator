@@ -8,6 +8,8 @@ categorization at fault, rather than turning up as a prompt nobody meant.
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -260,12 +262,7 @@ def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None
     """On by default, with the descriptions of the paper's Table 5, each uniform."""
     monkeypatch.delenv("QUESTIONS_CATEGORIZATIONS", raising=False)
     read_ = Settings.load().categorizations
-    assert [one.name for one in read_] == [
-        "Phrasing",
-        "Premise",
-        "Linguistic variation",
-        "User expertise",
-    ]
+    assert [one.name for one in read_] == ["Phrasing", "Premise"]
     assert [
         [(one.name, one.probability, one.role) for one in each.categories]
         for each in read_
@@ -275,17 +272,35 @@ def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None
             ("verbose-and-natural", 0.5, "question"),
         ],
         [("direct", 0.5, "question"), ("with-premise", 0.5, "question")],
-        [
-            ("similar-to-document", 0.5, "question"),
-            ("distant-from-document", 0.5, "question"),
-        ],
-        [("expert", 0.5, "user"), ("novice", 0.5, "user")],
     ]
 
 
-def test_the_default_wording_and_asker_are_table_5s() -> None:
-    """The asker described as the paper describes them, in the block of its own."""
-    _, _, variation, expertise = categorizations(DEFAULT_CATEGORIZATIONS)
+#: The repository, for the guides whose JSON examples are read here.
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def opt_in(guide: str, name: str) -> Categorization:
+    """The categorization a guide's JSON example defines under one name."""
+    blocks = re.findall(r"```json\n(.*?)```", (ROOT / guide).read_text(), re.DOTALL)
+    found = [one for block in blocks if name in block for one in categorizations(block)]
+    return next(one for one in found if one.name == name)
+
+
+@pytest.mark.parametrize(
+    "guide", ["docs/configuration.md", "backend/question_generation/README.md"]
+)
+def test_the_wording_and_the_asker_are_table_5s_to_opt_into(guide: str) -> None:
+    """Not dealt unset, and given in each guide as JSON that reads as the paper's.
+
+    Calibration found distant-from-document and expert below the floor for
+    complete keys, and a categorization left with one category would rewrite
+    every question.
+    """
+    unset = {one.name for one in categorizations(DEFAULT_CATEGORIZATIONS)}
+    assert not unset & {"Linguistic variation", "User expertise"}
+    variation = opt_in(guide, "Linguistic variation")
+    expertise = opt_in(guide, "User expertise")
+    assert {one.role for one in expertise.categories} == {"user"}
     assert [one.description for one in variation.categories] == [
         "phrased using the same terminology and phrases appearing in the document.",
         (
