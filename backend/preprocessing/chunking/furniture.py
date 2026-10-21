@@ -772,9 +772,8 @@ def _chapter_starts(
     """The top-level block each chapter opens on, with the chapter's label.
 
     A chapter opens on the first block of the page whose running head names
-    it, unless that page holds the chapter's own heading, a heading whose
-    text, letters and digits only, holds one of the label's fields or is one
-    with words cut from its start: a head that names the chapter opening
+    it, unless that page holds the chapter's own heading, a heading that
+    `_heads` reads as naming the label: a head that names the chapter opening
     on its page, as a first-on-page mark does, is wrong above that heading,
     and what precedes it stays in the chapter before.
     """
@@ -809,24 +808,56 @@ def _chapter_starts(
 def _heads(node: NodeItem, label: tuple[str, ...], document: DoclingDocument) -> bool:
     """Whether a block holds the heading of the chapter a label names.
 
-    Letters and digits only, a heading holding one of the label's fields or
-    being one with words cut from its start: a running head abbreviates a
-    chapter or prefixes its letter, `B Geschäftskunden` over the heading
-    `B. Geschäftskunden`, `Kapitel B: Business` over `B Business`. A heading
-    a field holds anywhere else names a part of the chapter, `Fees` under
-    `Fees and charges`, `Karten` under `Kreditkarten`.
+    A heading `_names` reads as one of the label's fields. A field of fewer
+    than two letters, or only a numeral, names no heading: `TITLE I` holds
+    the `I` of chapter `I – General provisions` too.
     """
-    words = [
-        [part.casefold() for part in _PUNCTUATION.split(one) if part] for one in label
+    named = [
+        one
+        for one in label
+        if sum(char.isalpha() for char in one) >= 2
+        and _NUMERAL.fullmatch(one.strip()) is None
     ]
-    whole = {"".join(each) for each in words if each}
-    ends = {"".join(each[at:]) for each in words for at in range(len(each))}
     return any(
         isinstance(item, TextItem)
         and item.label in _HEADINGS
-        and (plain := _plain(item.text))
-        and (plain in ends or any(one in plain for one in whole))
+        and any(_names(item.text, one) for one in named)
         for item, _ in document.iterate_items(root=node)
+    )
+
+
+def _names(heading: str, field: str) -> bool:
+    """Whether a heading names what a running field does.
+
+    Word for word, letters and digits only: the two are one, or one is the
+    other with words cut from its start where the cut falls beside a
+    number - the last word cut or the first word kept is `_numbering`. A
+    running head drops or adds the chapter's number: `B Geschäftskunden`
+    over the heading `B. Geschäftskunden`, `Geschäftskunden` over
+    `B Geschäftskunden`, `Kapitel B: Business` over `B Business`. A heading
+    a field holds otherwise names a part of the chapter: `Fees` under
+    `Fees and charges` or `Charges and fees`, `Late fees` under `Fees`,
+    `Kreditkarten` under `Karten`.
+    """
+    if _plain(heading) == _plain(field):
+        return True
+    one, other = (
+        [part for part in _PUNCTUATION.split(text) if part] for text in (heading, field)
+    )
+    longer, shorter = (one, other) if len(one) > len(other) else (other, one)
+    cut = len(longer) - len(shorter)
+    return (
+        cut > 0
+        and [word.casefold() for word in longer[cut:]]
+        == [word.casefold() for word in shorter]
+        and (_numbering(longer[cut - 1]) or _numbering(longer[cut]))
+    )
+
+
+def _numbering(word: str) -> bool:
+    """Whether a word numbers a chapter: digits, a capital letter, a Roman numeral."""
+    return word.isdigit() or (
+        word.isupper() and (len(word) == 1 or _NUMERAL.fullmatch(word) is not None)
     )
 
 

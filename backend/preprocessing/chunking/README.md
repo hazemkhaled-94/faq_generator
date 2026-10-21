@@ -122,12 +122,17 @@ do not name chapters and none is read.
 A title naming the chapter is put before the chapter's first block, so the
 chunker starts it with an empty trail and never merges across it. Where the
 chapter's first page holds its own heading, the title goes before that
-heading and the text above it stays in the chapter before: a heading that,
-letters and digits only, holds one of the label's fields
-(`B. Geschäftskunden` under `Geschäftskunden`) or is one with words cut from
-its start (`B Business` under `Kapitel B: Business`). A heading a field holds
-anywhere else, `Fees` under `Fees and charges` or `Karten` under
-`Kreditkarten`, is a section of the chapter and opens nothing. The
+heading and the text above it stays in the chapter before. Compared word
+for word, letters and digits only, that heading is one of the label's
+fields, or one of the two is the other with words cut from its start where
+the cut falls beside a number (digits, a capital letter, a Roman numeral):
+`B Geschäftskunden` under `Geschäftskunden`, `Kapitel 3: Gebühren` under
+`Gebühren`, `B Business` under `Kapitel B: Business`. Any other heading a
+field holds or ends, `Fees` under `Fees and charges` or `Charges and fees`,
+`Late fees` under `Fees`, `Kreditkarten` under `Karten`, is a section of the
+chapter and opens nothing, and a field of fewer than two letters or only a
+numeral is matched to no heading (`TITLE I` holds chapter `I`'s numeral
+too). The
 chapter's fields then lead the trail, replacing any leading segments that
 already repeat them, one by one or all together (the heading `IV – Other
 provisions` under the fields `IV` and `Other provisions`). The title is appended to the document's texts, so no
