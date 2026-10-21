@@ -58,6 +58,9 @@ _PUNCTUATION = re.compile(r"[\W_]+")
 #: A run of letters, which a block opening in lower case opens with.
 _LETTERS = re.compile(r"[^\W\d_]+")
 
+#: A word: a run of letters and digits.
+_WORD = re.compile(r"[^\W_]+")
+
 #: A page number as a page prints one: a bare integer of up to four digits,
 #: framed at most by dashes or brackets - `47`, `– 12 –`, `(3)`. A price, a
 #: rate, a phone number, a date or a time carries more than that.
@@ -846,24 +849,27 @@ def _names(heading: str, field: str) -> bool:
     """
     if _plain(heading) == _plain(field):
         return True
-    one, other = (
-        [part for part in _PUNCTUATION.split(text) if part] for text in (heading, field)
-    )
+    one, other = (list(_WORD.finditer(text)) for text in (heading, field))
     longer, shorter = (one, other) if len(one) > len(other) else (other, one)
     cut = len(longer) - len(shorter)
     return (
         cut > 0
-        and [word.casefold() for word in longer[cut:]]
-        == [word.casefold() for word in shorter]
+        and [word.group().casefold() for word in longer[cut:]]
+        == [word.group().casefold() for word in shorter]
         and (_numbering(longer[cut - 1]) or _numbering(longer[cut]))
     )
 
 
-def _numbering(word: str) -> bool:
-    """Whether a word numbers a chapter: digits, a capital letter, a Roman numeral."""
-    return word.isdigit() or (
-        word.isupper() and (len(word) == 1 or _NUMERAL.fullmatch(word) is not None)
-    )
+def _numbering(word: re.Match[str]) -> bool:
+    """Whether a word numbers a chapter.
+
+    Digits, or a letter or a Roman numeral written in capitals or followed
+    by `.` or `)`: `B`, `IV`, `a)`, `ii.`.
+    """
+    text = word.group()
+    lettered = len(text) == 1 or _NUMERAL.fullmatch(text) is not None
+    marked = word.string[word.end() : word.end() + 1] in (".", ")")
+    return text.isdigit() or (lettered and (text.isupper() or marked))
 
 
 def _first_page(node: NodeItem, document: DoclingDocument) -> int | None:

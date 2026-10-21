@@ -93,6 +93,11 @@ def test_a_sub_heading_inside_the_label_leaves_the_text_above_in_its_chapter(
         ("Kapitel 3: Gebühren", ("Konten", "Gebühren"), "de"),
         ("3 Fees", ("Accounts", "Fees"), "en"),
         ("B Business", ("Kapitel A: Personal", "Kapitel B: Business"), "en"),
+        ("a) Allgemeines", ("Konten", "Allgemeines"), "de"),
+        ("b. Allgemeines", ("Konten", "Allgemeines"), "de"),
+        ("ii. Allgemeines", ("Konten", "Allgemeines"), "de"),
+        ("A) General terms", ("Accounts", "General terms"), "en"),
+        ("IV. General terms", ("Accounts", "General terms"), "en"),
     ],
 )
 def test_the_chapters_own_heading_numbered_on_one_side_only_opens_it(

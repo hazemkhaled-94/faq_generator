@@ -125,9 +125,10 @@ chapter's first page holds its own heading, the title goes before that
 heading and the text above it stays in the chapter before. Compared word
 for word, letters and digits only, that heading is one of the label's
 fields, or one of the two is the other with words cut from its start where
-the cut falls beside a number (digits, a capital letter, a Roman numeral):
-`B Geschäftskunden` under `Geschäftskunden`, `Kapitel 3: Gebühren` under
-`Gebühren`, `B Business` under `Kapitel B: Business`. Any other heading a
+the cut falls beside a number (digits, or a letter or a Roman numeral in
+capitals or followed by `.` or `)`): `B Geschäftskunden` under
+`Geschäftskunden`, `Kapitel 3: Gebühren` under `Gebühren`, `a) Allgemeines`
+under `Allgemeines`, `B Business` under `Kapitel B: Business`. Any other heading a
 field holds or ends, `Fees` under `Fees and charges` or `Charges and fees`,
 `Late fees` under `Fees`, `Kreditkarten` under `Karten`, is a section of the
 chapter and opens nothing, and a field of fewer than two letters or only a
