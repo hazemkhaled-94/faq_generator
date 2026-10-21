@@ -130,8 +130,9 @@ it:
 - drop control characters and every format character (zero-width marks, bidi
   marks and isolates), but for a zero-width non-joiner or joiner between two
   letters or marks of a script that spells words with one (`_JOINING_SCRIPTS`:
-  Arabic and its kin, which write Persian and Urdu, and the Indic scripts),
-  and read a C1 control as the cp1252
+  Arabic and its kin, which write Persian and Urdu, the Indic scripts,
+  Khmer, Myanmar and Tibetan) or inside an emoji sequence, and read a C1
+  control as the cp1252
   character it stands for (`U+0096` is an en dash), dropping the five it
   leaves unassigned
 - fold every other kind of space to U+0020
@@ -213,7 +214,8 @@ hyphen, `Kontoeröﬀ-` over `nung`, now joined as `Kontoeröffnung` (a bare
 keeping a joiner did so for an Arabic-script or Indic document holding one.
 A copy parsed after such a change is told from a stored one only once the
 stored one is parsed again: `make parse-rerun` re-parses every document and
-writes its digest anew.
+writes its digest anew, though a document whose re-parse fails keeps its old
+one.
 
 Both run after Step 5, so a new document failing either leaves a converted
 form in the `parsed` bucket with no row pointing at it. It is collected when

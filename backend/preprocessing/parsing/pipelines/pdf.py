@@ -65,7 +65,8 @@ _JOINERS = frozenset("\u200c\u200d")
 
 #: The scripts whose words a joiner spells, by the first word of their
 #: characters' Unicode names: Arabic and the scripts joined as it is, which
-#: write Persian and Urdu, and the Brahmic scripts of South Asia.
+#: write Persian and Urdu, the Brahmic scripts of South and Southeast Asia,
+#: and Tibetan; and the variation selector an emoji is drawn with.
 _JOINING_SCRIPTS = frozenset(
     {
         "ARABIC",
@@ -82,6 +83,10 @@ _JOINING_SCRIPTS = frozenset(
         "KANNADA",
         "MALAYALAM",
         "SINHALA",
+        "KHMER",
+        "MYANMAR",
+        "TIBETAN",
+        "VARIATION",
     }
 )
 
@@ -407,9 +412,10 @@ def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
 def _spells(text: str, at: int) -> bool:
     """Whether the character at `at` is a joiner the word around it is spelled with.
 
-    Between two letters or marks of one of `_JOINING_SCRIPTS`: Persian
-    `می‌خواهم`, Devanagari `क्‍ष`. Anywhere else, beside a Latin letter, a
-    space, a digit, a sign or another joiner, it renders as nothing.
+    Between two letters or marks of one of `_JOINING_SCRIPTS`, or of an
+    emoji sequence: Persian `می‌خواهم`, Devanagari `क्‍ष`, a family emoji.
+    Anywhere else, beside a Latin letter, a space, a digit, a sign or
+    another joiner, it renders as nothing.
     """
     return text[at] in _JOINERS and all(
         _joining(other) for other in (text[at - 1 : at], text[at + 1 : at + 2])
@@ -417,10 +423,10 @@ def _spells(text: str, at: int) -> bool:
 
 
 def _joining(char: str) -> bool:
-    """Whether a character is a letter or a mark of a script a joiner spells."""
-    return (
-        char != ""
-        and unicodedata.category(char)[0] in "LM"
+    """Whether a character is a letter or a mark of a script a joiner spells, or an emoji."""
+    return char != "" and (
+        unicodedata.category(char) in ("So", "Sk")
+        or unicodedata.category(char)[0] in "LM"
         and unicodedata.name(char, "").split(" ")[0] in _JOINING_SCRIPTS
     )
 

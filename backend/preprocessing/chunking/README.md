@@ -456,7 +456,11 @@ corpus, which is a property of the model rather than of this code.
   numerals are masked, dropped as single-page fields when they do not — and
   neither does a one-page chapter whose foot is laid out unlike the feet of
   longer chapters, or that sits beside guide words: its passages keep
-  today's trail, unprefixed and not reset. A head whose fields are parted
+  today's trail, unprefixed and not reset. A chapter's own heading that
+  differs from its label's fields by a number stays in the trail after
+  them: `Kapitel 2 · Gebühren` over the heading `2 Gebühren` reads
+  `Kapitel 2 > Gebühren > 2 Gebühren`; only a heading spelling one field,
+  or all of them together, is replaced. A head whose fields are parted
   by single spaces only, `Preisverzeichnis Kreditkarten Seite 4`, is one
   field, which differs on every page and so names no chapter either, and a
   copy of such a foot read as body text stays passage text: its own text
