@@ -10,9 +10,11 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from assessment import run as cli
@@ -640,3 +642,247 @@ def test_the_command_line_draws_the_curve_by_document(
     table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
     assert table[0].split() == ["language", "documents", "n", "PoS-CR", "sd"]
     assert [row.split()[:3] for row in table[1:]] == [["de", "5", "10"]]
+
+
+def labelled_set(
+    tmp_path: Path,
+    rows: list[tuple[int, str, bool | None]],
+    labels: list[dict],
+    english: frozenset[int] = frozenset(),
+) -> tuple[Path, Path]:
+    """A workbook of (id, category, verdict) rows and its labels file.
+
+    German but for the ids in `english`. A verdict of None leaves the
+    question unjudged. The paper's judge is stored only for the questions it
+    judged, as the exporter reads it.
+    """
+    path, file = tmp_path / "labelled.xlsx", tmp_path / "labels.jsonl"
+    path.write_bytes(
+        workbook(
+            [
+                asked(
+                    id,
+                    f"Frage {id}?",
+                    "en" if id in english else "de",
+                    (category,) if category else (),
+                )
+                for id, category, _ in rows
+            ],
+            judged={
+                id: replace(judged(id, 1.0), approved=verdict)
+                for id, _, verdict in rows
+                if verdict is not None
+            },
+        )
+    )
+    file.write_text("\n".join(json.dumps(one) for one in labels))
+    return path, file
+
+
+def usable(ids: range, answers: list[int]) -> list[dict]:
+    """One `usable` label per id."""
+    return [
+        {"id": i, "usable": "yes" if a else "no"}
+        for i, a in zip(ids, answers, strict=True)
+    ]
+
+
+#: ARES-1's fixture 1: eight rows only the judge saw, four it also had labelled.
+UNLABELLED = [(i, "", bool(v)) for i, v in enumerate([1, 1, 0, 1, 1, 0, 1, 1], 1)]
+LABELLED = [(i, "", bool(v)) for i, v in enumerate([1, 0, 1, 1], 9)]
+
+
+def corrected_rows(capsys) -> list[list[str]]:
+    """The corrected table's rows, each split into its cells."""
+    out = capsys.readouterr().out.split("Labelled shares corrected", 1)[1]
+    _, heading, *rows = out.split("\n\n", 1)[0].splitlines()
+    assert heading.split()[-9:] == [
+        "label",
+        "n",
+        "N",
+        "judge",
+        "labels",
+        "corrected",
+        "95%",
+        "interval",
+        "weight",
+    ]
+    return [row.split() for row in rows]
+
+
+def test_labels_are_read_from_jsonl(tmp_path) -> None:
+    """Yes and true are 1, no and false 0 in any case, na and null no label."""
+    file = tmp_path / "labels.jsonl"
+    file.write_text(
+        '{"id": 1, "usable": "yes", "key_complete": "na"}\n'
+        '{"id": 2, "usable": "No", "key_complete": false, "question": "Q?"}\n'
+    )
+    assert cli._labels(file) == (
+        {1: {"usable": 1}, 2: {"usable": 0, "key_complete": 0}},
+        {2: "Q?"},
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"id": 1, "usable": "partly"}',
+        '{"id": 1, "question": "Q?"}',
+        '{"usable": "yes"}',
+    ],
+    ids=["not-yes-or-no", "no-labels", "no-id"],
+)
+def test_a_labels_file_that_cannot_be_read_is_refused(tmp_path, text) -> None:
+    """A label that is not yes or no, no label at all and no id are each refused."""
+    file = tmp_path / "labels.jsonl"
+    file.write_text(text)
+    with pytest.raises(SystemExit) as refused:
+        cli._labels(file)
+    assert refused.value.code == 2
+
+
+def test_the_report_corrects_a_labelled_share(exported, tmp_path, capsys) -> None:
+    """Judge 0.750 over twelve; labels 0.500 over four; weight 0.407 on the judge."""
+    path, file = labelled_set(
+        tmp_path, UNLABELLED + LABELLED, usable(range(9, 13), [1, 0, 0, 1])
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    cells = ["usable", "4", "8", "0.750", "0.500", "0.500", "[0.067,", "0.933]"]
+    assert corrected_rows(capsys) == [
+        ["de", *cells, "0.407"],
+        ["all", *cells, "-"],
+    ]
+
+
+def test_labels_from_another_database_are_refused(exported, tmp_path, capsys) -> None:
+    """Two databases share ids; a question that differs is not the row labelled."""
+    path, file = labelled_set(
+        tmp_path,
+        UNLABELLED + LABELLED,
+        [
+            {**one, "question": "Frage 9?" if one["id"] == 9 else "Other?"}
+            for one in usable(range(9, 13), [1, 0, 0, 1])
+        ],
+    )
+    with pytest.raises(SystemExit) as refused:
+        cli.main(["--diversity", "--file", str(path), "--labels", str(file)])
+    assert refused.value.code == 2
+    assert "10" in capsys.readouterr().err
+
+
+def test_unjudged_rows_are_left_out(exported, tmp_path, capsys) -> None:
+    """A labelled row nobody judged says nothing about the judge; it is counted."""
+    path, file = labelled_set(
+        tmp_path,
+        UNLABELLED + LABELLED + [(13, "", None)],
+        usable(range(9, 14), [1, 0, 0, 1, 1]),
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    out = capsys.readouterr().out
+    assert "1 labelled row was not judged" in out
+    table = out.split("Labelled shares corrected", 1)[1].splitlines()
+    assert [row.split()[2] for row in table if row.startswith("de")] == ["4"]
+
+
+def test_the_correction_splits_by_category(
+    exported, configured, tmp_path, capsys
+) -> None:
+    """Each category is corrected on its own, with its own weight, which may be negative."""
+    b = [(i, "B", bool(v)) for i, v in enumerate([1, 0, 1, 0], 13)] + [
+        (i, "B", bool(v)) for i, v in enumerate([1, 1, 0, 0, 1, 0], 17)
+    ]
+    path, file = labelled_set(
+        tmp_path,
+        [(i, "A", v) for i, _, v in UNLABELLED + LABELLED] + b,
+        usable(range(9, 13), [1, 0, 0, 1]) + usable(range(17, 23), [0, 0, 1, 1, 0, 1]),
+    )
+    argv = ["--diversity", "--file", str(path), "--labels", str(file)]
+    assert cli.main([*argv, "--by", "category"]) == 0
+    rows = corrected_rows(capsys)
+    assert [row[:2] + row[3:5] + row[7:] for row in rows if row[0] == "de"] == [
+        ["de", "A", "4", "8", "0.500", "[0.067,", "0.933]", "0.407"],
+        ["de", "B", "6", "4", "0.500", "[0.189,", "0.811]", "-0.360"],
+    ]
+
+
+def test_a_language_not_measured_leaves_nothing_pooled(
+    exported, tmp_path, capsys
+) -> None:
+    """An `all` row over the German rows alone would pass for both languages."""
+    english = [(i, "", bool(v)) for i, v in enumerate([1, 1, 0, 1], 101)]
+    path, file = labelled_set(
+        tmp_path,
+        UNLABELLED + LABELLED + english,
+        usable(range(9, 13), [1, 0, 0, 1]) + usable(range(101, 102), [1]),
+        english=frozenset(range(101, 105)),
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    out = capsys.readouterr().out
+    rows = [row.split() for row in out.split("Labelled shares", 1)[1].splitlines()]
+    assert not [row for row in rows if row[:1] == ["all"] and "0.500" in row]
+    assert "usable not pooled: en not measured" in out
+
+
+def test_a_group_labelled_whole_is_read_on_its_labels(
+    exported, tmp_path, capsys
+) -> None:
+    """Every judged row labelled: the labels' own share, the judge given no weight."""
+    path, file = labelled_set(tmp_path, LABELLED, usable(range(9, 13), [1, 0, 1, 1]))
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    row = corrected_rows(capsys)[0]
+    assert row[:7] + row[-1:] == [
+        "de",
+        "usable",
+        "4",
+        "0",
+        "0.750",
+        "0.750",
+        "0.750",
+        "0.000",
+    ]
+
+
+def test_a_blank_judge_cell_is_not_judged(exported, tmp_path, capsys) -> None:
+    """Only approved and refused are verdicts; a blank cell is not a refusal."""
+    path, file = labelled_set(
+        tmp_path, UNLABELLED + LABELLED, usable(range(9, 13), [1, 0, 0, 1])
+    )
+    frame = pd.read_excel(path, sheet_name=None, keep_default_na=False)
+    frame["Questions"].loc[frame["Questions"]["ID"] <= 2, "Judge"] = ""
+    with pd.ExcelWriter(path) as writer:
+        for name, sheet in frame.items():
+            sheet.to_excel(writer, sheet_name=name, index=False)
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    assert corrected_rows(capsys)[0][3] == "6"
+
+
+def test_the_question_check_ignores_spacing_and_nulls(
+    exported, tmp_path, capsys
+) -> None:
+    """A trailing space or a null question is not another question."""
+    labels = usable(range(9, 13), [1, 0, 0, 1])
+    labels[0]["question"], labels[1]["question"] = "Frage 9? ", None
+    path, file = labelled_set(tmp_path, UNLABELLED + LABELLED, labels)
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+
+
+def test_labels_that_all_agree_have_no_spread(exported, tmp_path, capsys) -> None:
+    """Two yes labels give a zero standard error; no interval is printed for it."""
+    path, file = labelled_set(
+        tmp_path, UNLABELLED + LABELLED[:2], usable(range(9, 11), [1, 1])
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    assert "no spread" in " ".join(corrected_rows(capsys)[0])
+
+
+@pytest.mark.parametrize("other", [["--against", "{}"], ["--by", "document"]])
+def test_labels_take_no_against_and_no_document_curve(
+    exported, tmp_path, other
+) -> None:
+    """The correction is of one workbook's shares, not a comparison or a curve."""
+    file = tmp_path / "labels.jsonl"
+    file.write_text('{"id": 1, "usable": "yes"}')
+    argv = ["--diversity", "--file", str(exported), "--labels", str(file)]
+    with pytest.raises(SystemExit) as refused:
+        cli.main([*argv, *(one.format(exported) for one in other)])
+    assert refused.value.code == 2

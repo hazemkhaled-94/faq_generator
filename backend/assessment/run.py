@@ -13,6 +13,7 @@ empty queue.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -21,7 +22,7 @@ from collections.abc import Sequence
 from functools import lru_cache
 from math import floor, isnan
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import telemetry
 from assessment import prompts
@@ -164,7 +165,9 @@ def diversity(argv: list[str]) -> int:
     language on its own, then says how many of each category's questions
     keep to its word bounds and how many are factoid and open-ended, and
     `--by kind` measures each kind. Where the workbook holds the paper's
-    judge, its mean scores follow, over the same groups.
+    judge, its mean scores follow, over the same groups. With `--labels`, each
+    share a reviewer labelled on some of the questions follows, corrected by
+    the judge's verdict on all of them.
     """
     parser = argparse.ArgumentParser(
         prog="python -m assessment.run --diversity",
@@ -184,8 +187,15 @@ def diversity(argv: list[str]) -> int:
         help="one row per category or per kind of each language, or the "
         "few-documents curve",
     )
+    parser.add_argument(
+        "--labels",
+        type=Path,
+        metavar="FILE",
+        help="reviewers' labels of some questions, to correct each share by the "
+        "judge's verdict",
+    )
     args = parser.parse_args(argv)
-    for named in (args.file, args.against):
+    for named in (args.file, args.against, args.labels):
         if named is not None and not named.is_file():
             parser.error(f"{named} is not a file")
     if args.size is not None and args.size < 1:
@@ -194,6 +204,11 @@ def diversity(argv: list[str]) -> int:
         parser.error("--against draws 80% of the smaller set; it takes no --size")
     if args.by is not None and args.against is not None:
         parser.error("--by measures one workbook; it takes no --against")
+    if args.labels is not None and (args.against is not None or args.by == "document"):
+        parser.error(
+            "--labels corrects one workbook's shares; it takes no --against "
+            "and no --by document"
+        )
 
     if args.by == "document":
         return _curve(args.file, args.language, args.size or 200)
@@ -244,6 +259,8 @@ def diversity(argv: list[str]) -> int:
         _conformance(args.file, groups, args.by)
     if args.against is None:
         _judged(args.file, groups, args.by)
+        if args.labels is not None:
+            _corrected(args.file, groups, args.labels, args.by)
     return 0
 
 
@@ -457,6 +474,175 @@ def _judged(
                 for one in metrics
             )
         )
+
+
+def _refuse(message: str) -> NoReturn:
+    """Says why on stderr and exits 2, as a parser error does."""
+    print(message, file=sys.stderr)
+    raise SystemExit(2)
+
+
+#: What a labels file may say: one place where a label is normalised.
+_YES, _NO = ("yes", "true"), ("no", "false")
+
+
+def _labels(path: Path) -> tuple[dict[int, dict[str, int]], dict[int, str]]:
+    """Reads a JSONL file of an integer `id`, an optional `question` and labels.
+
+    Every other field is a label: yes or true is 1, no or false 0 in any
+    case, na or null no label. Anything else is refused, naming the field
+    and the line. The questions are by id, for the check that the labels
+    belong to the workbook.
+    """
+    labels: dict[int, dict[str, int]] = {}
+    questions: dict[int, str] = {}
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            _refuse(f"{path} line {number} is not JSON")
+        id = row.get("id") if isinstance(row, dict) else None
+        if not isinstance(id, int) or isinstance(id, bool):
+            _refuse(f"{path} line {number} has no integer id")
+        if id in labels:
+            _refuse(f"{path} line {number} labels id {id} again")
+        labels[id] = {}
+        if row.get("question") is not None:
+            questions[id] = str(row["question"])
+        for field, value in row.items():
+            if field in ("id", "question"):
+                continue
+            word = str(value).lower() if value is not None else "na"
+            if word in ("na", "none"):
+                continue
+            if word not in (*_YES, *_NO):
+                _refuse(f"{path} line {number}: {field} is {value!r}, not yes or no")
+            labels[id][field] = int(word in _YES)
+    if not any(labels.values()):
+        _refuse(f"{path} holds no labels")
+    return labels, questions
+
+
+def _corrected(
+    path: Path,
+    groups: dict[tuple[str, str], list[tuple[int, str]]],
+    labels: Path,
+    by: str | None,
+) -> None:
+    """Prints each labelled share corrected by the judge's verdict on every row.
+
+    The verdict is the Questions sheet's Judge column, approved 1 and
+    refused 0, and a row not judged is left out. Per group and label, the
+    labelled rows give the label and the judged rows without one give what
+    the judge says alone; prediction-powered inference (ARES, Saad-Falcon et
+    al., NAACL 2024, section 3.3) corrects the second by the first. The
+    languages of each label are then pooled by their size as the row `all`.
+    """
+    import pandas as pd
+
+    from assessment import ppi
+
+    given, asked = _labels(labels)
+    frame = pd.read_excel(
+        path,
+        sheet_name="Questions",
+        dtype={"Question": str, "Judge": str},
+        keep_default_na=False,
+    )
+    if "Judge" not in frame:
+        _refuse(f"{path} has no Judge column to correct by")
+    texts = dict(zip(frame["ID"], frame["Question"], strict=True))
+    # Only these two are verdicts: "not judged", and a blank cell, are none.
+    verdict = {
+        int(id): int(one == "approved")
+        for id, one in zip(frame["ID"], frame["Judge"], strict=True)
+        if one in ("approved", "refused")
+    }
+    for id in sorted(asked):
+        if id in texts and asked[id].strip() != str(texts[id]).strip():
+            _refuse(f"label {id} is for another question than the workbook's id {id}")
+    unjudged = sum(id in texts and id not in verdict for id in given)
+    absent = sum(id not in texts for id in given)
+
+    named = f"{by:<36}" if by else ""
+    print("\nLabelled shares corrected by the paper's judge:")
+    print(
+        f"{'language':<9}{named}{'label':<16}{'n':>5}{'N':>6}{'judge':>8}"
+        f"{'labels':>8}{'corrected':>11}  {'95% interval':<18}{'weight':>7}"
+    )
+    pool: dict[tuple[str, str], list] = defaultdict(list)
+    # Languages a label could not be measured in, which leave it unpooled:
+    # an `all` row over the others would pass for every language.
+    unmeasured: dict[tuple[str, str], list[str]] = defaultdict(list)
+    fields = sorted({f for id in verdict for f in given.get(id, {})})
+    for (language, label), group in sorted(groups.items()):
+        ids = [id for id, _ in group if id in verdict]
+        for field in fields:
+            tagged = [id for id in ids if field in given.get(id, {})]
+            rest = [id for id in ids if field not in given.get(id, {})]
+            shown = f"{language:<9}{label:<36}" if by else f"{language:<9}"
+            if len(tagged) < 2:
+                print(
+                    f"{shown}{field:<16}{len(tagged):>5}{len(rest):>6}  "
+                    "fewer than 2 labelled"
+                )
+                unmeasured[(label, field)].append(language)
+                continue
+            one = ppi.corrected_mean(
+                [verdict[id] for id in rest],
+                [verdict[id] for id in tagged],
+                [given[id][field] for id in tagged],
+            )
+            pool[(label, field)].append((one, tagged, rest))
+            _print_corrected(shown, field, one, tagged + rest, tagged, verdict, given)
+    for (label, field), parts in sorted(pool.items()):
+        shown = f"{'all':<9}{label:<36}" if by else f"{'all':<9}"
+        if unmeasured[(label, field)]:
+            missing = ", ".join(unmeasured[(label, field)])
+            print(f"{shown}{field} not pooled: {missing} not measured")
+            continue
+        tagged = [id for _, t, _ in parts for id in t]
+        ids = tagged + [id for _, _, rest in parts for id in rest]
+        _print_corrected(
+            shown, field, ppi.pooled([p[0] for p in parts]), ids, tagged, verdict, given
+        )
+    print()
+    if unjudged:
+        print(
+            f"{unjudged} labelled row{' was' if unjudged == 1 else 's were'} not judged"
+        )
+    if absent:
+        print(
+            f"{absent} labelled id{' is' if absent == 1 else 's are'} not in the workbook"
+        )
+
+
+def _print_corrected(
+    shown: str,
+    field: str,
+    one,
+    ids: list[int],
+    tagged: list[int],
+    verdict: dict[int, int],
+    given: dict[int, dict[str, int]],
+) -> None:
+    """One row of the corrected table; the interval is clipped to [0, 1] to show.
+
+    Labels that all agree, under a judge given no weight, leave no spread to
+    build an interval from, and an interval of one point would read as
+    certainty.
+    """
+    low, high = (min(max(end, 0.0), 1.0) for end in one.interval())
+    interval = "no spread" if one.se == 0 else f"[{low:.3f}, {high:.3f}]"
+    weight = "-" if isnan(one.weight) else f"{one.weight:.3f}"
+    print(
+        f"{shown}{field:<16}{one.labelled:>5}{one.judged:>6}"
+        f"{sum(verdict[id] for id in ids) / len(ids):>8.3f}"
+        f"{sum(given[id][field] for id in tagged) / len(tagged):>8.3f}"
+        f"{one.estimate:>11.3f}  {interval:<18}{weight:>7}"
+    )
 
 
 def _metrics(texts: list[str], tags: list[str], vectors: ArrayLike) -> dict[str, float]:

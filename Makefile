@@ -1181,7 +1181,10 @@ assess-rerun:
 # the paper's judge, its mean scores follow. BY=document draws the paper's
 # Figure 1: the part-of-speech compression ratio of SIZE questions (200
 # unless given) drawn from 5, 10, 15 ... documents, for a corpus of many
-# documents. CODE and not LANG, as for topics-render.
+# documents. LABELS=<file> takes reviewers' yes/no labels of some questions
+# (JSONL, an id and one field per label) and corrects each labelled share by
+# the paper's judge's verdict on all of them, per language and pooled, with
+# its 95% interval. CODE and not LANG, as for topics-render.
 #
 #   make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --roots-only"
 #   make diversity FILE=set.xlsx SIZE=200
@@ -1189,9 +1192,10 @@ assess-rerun:
 #   make diversity FILE=set.xlsx BY=category
 #   make diversity FILE=set.xlsx BY=kind
 #   make diversity FILE=pool.xlsx BY=document SIZE=200
+#   make diversity FILE=set.xlsx LABELS=labels.jsonl
 diversity:
-	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category|kind|document] [CODE=de] [SIZE=200]'; exit 2; }
-	$(ASSESS) --diversity --file "$(FILE)" $(if $(AGAINST),--against "$(AGAINST)") $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE))
+	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category|kind|document] [CODE=de] [SIZE=200] [LABELS=<file>]'; exit 2; }
+	$(ASSESS) --diversity --file "$(FILE)" $(if $(AGAINST),--against "$(AGAINST)") $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE)) $(if $(LABELS),--labels "$(LABELS)")
 
 # ── Question runs ──────────────────────────────────────────────────────────
 
