@@ -525,6 +525,14 @@ phrasing judge's to tell from naming the source.
 | `answerable_elsewhere` | was written to have no answer and a passage it does not cite settles it | a passage probe and a second `settles` call |
 | `source_changed` | rests on a fact that no longer passes its own checks or that a person rejected, or whose citations no longer match its stored passage or document scope | nothing |
 
+`compound` is refused two ways under one code: by the free rule in the
+structural step, two question words, or by the round trip's read, two asks
+under one question word or one ask read two ways. A row the read refused has
+`round_trip` in `gates_ran`, and one the free rule refused does not. A
+`not_recoverable` row refused because a why has no reason beyond its rule, or
+because an uncited passage answers a short search query differently, is told
+from a plain miss only by the reason the checker logs.
+
 A question written as a search query, dealt a category of form `query`, is
 not `malformed` for ending without a question mark, when it is written or
 when it is re-checked: a re-check reads the form off the categories the row

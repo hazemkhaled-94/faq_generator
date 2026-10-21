@@ -92,8 +92,20 @@ def test_the_phase_is_carried_beside_the_code(page) -> None:
     phases = dict(zip(listed["Rejected as"], listed["In phase"], strict=True))
 
     assert phases["malformed"] == "structural"
-    assert phases["compound"] == "structural"
     assert phases["duplicate"] == "near_duplicate"
+
+
+def test_compound_is_both_the_free_rule_and_the_round_trips_read(page) -> None:
+    """Two question words in the structural step, or two asks the read finds."""
+    listed = page().table_with("Rejected as")
+    rows = {
+        code: (phase, kind)
+        for code, phase, kind in zip(
+            listed["Rejected as"], listed["In phase"], listed["Kind"], strict=True
+        )
+    }
+
+    assert rows["compound"] == ("structural or round_trip", "rule, then opinion")
 
 
 # ── The confidence ────────────────────────────────────────────────────────

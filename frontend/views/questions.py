@@ -45,10 +45,11 @@ _GATES = (
     ),
     explain.Gate(
         "compound",
-        "structural",
-        "The question uses one interrogative, so it asks one thing.",
-        "nothing",
-        "rule",
+        "structural or round_trip",
+        "The question asks one thing: it uses one interrogative, and the "
+        "second model reads no two asks under it, nor one ask two ways.",
+        "nothing, or the round trip's read",
+        "rule, then opinion",
     ),
     explain.Gate(
         "answer_too_short",
@@ -145,8 +146,10 @@ _GATES = (
     explain.Gate(
         "not_recoverable",
         "round_trip",
-        "A second model got the answer out of the cited passages.",
-        "the round trip",
+        "A second model got the answer out of the cited passages, and a reason "
+        "beyond its rule for a why; a short search query no uncited passage "
+        "answers differently.",
+        "the round trip; for a short search query, a passage probe and one more read",
         "measurement, then opinion",
     ),
     explain.Gate(
