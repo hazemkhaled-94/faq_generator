@@ -8,6 +8,9 @@ row is picked, and no page reaching into another page's stage.
 
 from __future__ import annotations
 
+import html
+import re
+
 import pytest
 import requests
 from pages import (
@@ -392,6 +395,71 @@ def test_a_page_with_nothing_on_it_says_so(open_view, name) -> None:
 
     assert page.raised == []
     assert "matches" in page.text() or "Fit the model" in page.text()
+
+
+# ── Stored text, drawn as written ─────────────────────────────────────────
+
+
+def literal(said: str) -> str:
+    """What Markdown draws of it: each backslash escape as the mark it escapes."""
+    return re.sub(r"\\(.)", r"\1", said)
+
+
+def formatting(said: str) -> list[str]:
+    """The marks in it Markdown would read as formatting rather than draw."""
+    return re.findall(r"(?<!\\)[$*_`\[\]~]", said)
+
+
+@pytest.mark.parametrize(
+    "filename", ["Konditionen <Entwurf> & Preise.pdf", "Fees <draft> & charges.pdf"]
+)
+def test_a_documents_panel_is_headed_with_its_name_as_uploaded(
+    open_view, filename
+) -> None:
+    """`st.html` drops an element it does not know, so `<Entwurf>` went."""
+    named = changed(DOCUMENT, filename=filename)
+    client = Answers(
+        **answers(
+            documents={"total": 1, "documents": [named]},
+            document_names=[{"sha256": SHA, "filename": filename}],
+        )
+    )
+
+    opened = open_view("documents", client).select(0)
+
+    assert html.escape(filename, quote=False) in opened.panels()
+
+
+@pytest.mark.parametrize(
+    "filename", ["Preisliste_2026_*Entwurf*.pdf", "returns_policy_*final*.pdf"]
+)
+def test_the_delete_question_names_the_file_as_it_was_uploaded(
+    open_view, filename
+) -> None:
+    """Drawn as Markdown, `*Entwurf*` was a name no document has, in italics."""
+    named = changed(DOCUMENT, filename=filename)
+    client = Answers(**answers(documents={"total": 1, "documents": [named]}))
+
+    (asked,) = (
+        open_view("documents", client).select(0).press("Delete document").warnings()
+    )
+
+    assert literal(asked).startswith(f"Delete {filename} and everything")
+    assert formatting(asked) == []
+
+
+@pytest.mark.parametrize(
+    "filename", ["Preisliste_2026_*Entwurf*.pdf", "returns_policy_*final*.pdf"]
+)
+def test_an_upload_names_the_file_as_it_was_chosen(open_view, filename) -> None:
+    """The message after an upload is Markdown too."""
+    page = open_view("upload")
+    page.uploader()[0].upload(filename, b"%PDF-1.4", "application/pdf")
+
+    (said,) = [str(one.value) for one in page.press("Upload all").app.success]
+
+    assert literal(said) == f"{filename}: stored."
+    assert formatting(said) == []
 
 
 # ── Deletion ──────────────────────────────────────────────────────────────

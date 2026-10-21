@@ -15,7 +15,7 @@ from __future__ import annotations
 import requests
 import streamlit as st
 
-from lib import backend, config
+from lib import backend, config, page
 from telemetry import pipeline
 
 #: What each step is called on the page, by the stage that produces it.
@@ -129,8 +129,9 @@ def _step(step: dict) -> None:
         [
             {
                 "Id": one["id"][:12],
-                "What it says": one["label"],
-                "Verdict": _verdict(one),
+                # A cell is Markdown, so stored text is escaped; the links are not.
+                "What it says": page.plain(one["label"]),
+                "Verdict": page.plain(_verdict(one)),
                 "In Phoenix": _phoenix(one),
             }
             for one in step["artifacts"]

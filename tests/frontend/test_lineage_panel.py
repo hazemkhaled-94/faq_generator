@@ -11,6 +11,8 @@ running deployment.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from pages import Answers
 
@@ -132,3 +134,38 @@ def test_an_unanswered_service_list_is_not_remembered(open_view) -> None:
     listed.extend({"name": name, "url": url} for name, url in PUBLISHED.items())
 
     assert "Where to look next" in opened.rerun().text()
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "Orders over $50 ship free; returns under $20 cost $4.99.",
+        "Die Gebühr beträgt 2*3 EUR bzw. *ermäßigt* 1 EUR.",
+    ],
+)
+def test_an_artefacts_own_text_is_drawn_as_written(open_view, stored) -> None:
+    """`st.table` reads every cell as Markdown: `$...$` as math, `*...*` as italics.
+
+    The artefact's text and the reason its stage gave are stored text, so
+    each mark in them is escaped; the Phoenix links stay Markdown.
+    """
+    traced = Answers(
+        lineage=lambda kind, one: chain(
+            "fact", label=stored, verdict="rejected", reason=stored
+        )
+    )
+    health = Answers(services=list)
+    opened = open_view("questions", lineage_api=traced, health_api=health).select()
+
+    (row,) = [
+        table.value.iloc[0]
+        for table in opened.app.table
+        if "What it says" in table.value.columns
+    ]
+
+    for said, meant in (
+        (row["What it says"], stored),
+        (row["Verdict"], f"rejected · {stored}"),
+    ):
+        assert re.sub(r"\\(.)", r"\1", said) == meant
+        assert re.findall(r"(?<!\\)[$*_]", said) == [], said

@@ -56,17 +56,18 @@ def view() -> None:
 
 def _report(filename: str, client: UploadApi, data: bytes) -> None:
     """Uploads one file and shows what became of it."""
+    named = page.plain(filename)
     try:
         outcome = client.add_document(filename, data)["outcome"]
     except requests.exceptions.RequestException as exc:
         # The reason for a 413 or 415 is in the response body.
-        st.error(f"{filename}: {refusal(exc)}")
+        st.error(f"{named}: {refusal(exc)}")
         return
 
     if outcome == "stored":
-        st.success(f"{filename}: stored.")
+        st.success(f"{named}: stored.")
     else:
-        st.info(f"{filename}: {outcome.replace('_', ' ')} — already held.")
+        st.info(f"{named}: {outcome.replace('_', ' ')} — already held.")
 
 
 page.render(view)

@@ -15,7 +15,9 @@ way to draw one.
 
 from __future__ import annotations
 
+import html
 import logging
+import re
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
@@ -43,6 +45,20 @@ STATUS_HELP = {
 #: Left by an action, so the next table is drawn with nothing picked.
 _ACTED = "page-acted"
 
+#: Every ASCII punctuation mark, each of which Markdown draws as itself once
+#: a backslash is put before it.
+_MARKUP = re.compile(r"([!-/:-@\[-`{-~])")
+
+
+def plain(text: str) -> str:
+    """Stored text as Markdown that draws it as written.
+
+    For a filename or an artefact's own text put into a Markdown renderer
+    (a message, a spinner, a `st.table` cell), where `$4.99 ... $20` would
+    read as math and `*Entwurf*` as italics.
+    """
+    return _MARKUP.sub(r"\\\1", text)
+
 
 def share(part: int, whole: int) -> str:
     """Renders a count as itself and its share of a whole, in one string."""
@@ -54,7 +70,8 @@ def share(part: int, whole: int) -> str:
 def header(title: str) -> None:
     """Renders the page's title, with the product's name on the same line."""
     st.html(
-        f"<div class='qa-header'><div class='qa-page-title'>{title}</div>"
+        f"<div class='qa-header'><div class='qa-page-title'>"
+        f"{html.escape(title, quote=False)}</div>"
         "<div class='qa-brand-title'>FAQ Generator</div></div>"
     )
 
@@ -67,7 +84,8 @@ def panel(title: str) -> Iterator[None]:
     and its heading cannot drift apart.
     """
     with st.container(border=True):
-        st.html(f"<div class='qa-panel-label'>{title}</div>")
+        # Escaped: a document's panel is headed by its filename.
+        st.html(f"<div class='qa-panel-label'>{html.escape(title, quote=False)}</div>")
         yield
 
 

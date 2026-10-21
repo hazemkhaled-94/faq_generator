@@ -262,7 +262,7 @@ def _detail(client, document: dict) -> None:
         # A toggle, not an expander: an expander runs its body whichever way
         # it is folded, so the fetch would happen on every rerun regardless.
         if st.toggle("View the file", key=f"documents-file-{sha}"):
-            with st.spinner(f"Loading {name}…"):
+            with st.spinner(f"Loading {page.plain(name)}…"):
                 data = _file(client, sha)
             st.download_button(
                 "Download", data=data, file_name=name, mime="application/pdf"
@@ -289,7 +289,7 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
                     "document, its file and its parsed form stay, and "
                     "chunking returns to new."
                 ),
-                f"Delete every passage and fact drawn from {name}? {_ALSO}",
+                f"Delete every passage and fact drawn from {page.plain(name)}? {_ALSO}",
             ),
             "whole": (
                 "Delete document",
@@ -297,7 +297,7 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
                     "Deletes the document row, the file, the parsed form and "
                     "everything drawn from it."
                 ),
-                f"Delete {name} and everything drawn from it? {_ALSO}",
+                f"Delete {page.plain(name)} and everything drawn from it? {_ALSO}",
             ),
         },
         subject=sha,
