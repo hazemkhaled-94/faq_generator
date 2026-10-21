@@ -53,8 +53,12 @@ def test_a_plural_label_names_a_joined_number_before_a_document_name(
     ones = placed(
         language,
         (text, "AGB > Abschnitt 1" if language == "de" else "Terms > Section 1"),
-        ("Studenten zahlen keine Gebühr." if language == "de" else "Students pay no fee.",
-         f"Preise > {heading}"),
+        (
+            "Studenten zahlen keine Gebühr."
+            if language == "de"
+            else "Students pay no fee.",
+            f"Preise > {heading}",
+        ),
     )
 
     (link,) = linked(ones, ones, {one.id: 1 for one in ones}, 4, 2)
@@ -63,7 +67,10 @@ def test_a_plural_label_names_a_joined_number_before_a_document_name(
 
 
 BANK = (
-    ("Bitte geben Sie Ihre IBAN an. Die Kontoführung kostet 5 Euro im Monat.", "Konto > Preise"),
+    (
+        "Bitte geben Sie Ihre IBAN an. Die Kontoführung kostet 5 Euro im Monat.",
+        "Konto > Preise",
+    ),
     ("Studenten zahlen keine Gebühr für die Kontoführung.", "Konto > Studenten"),
 )
 
@@ -86,8 +93,10 @@ def test_a_bridge_opening_on_sie_after_a_plural_subject_is_refused() -> None:
     offered = placed(
         "de",
         (
-            "Händler werben Kunden. Sie zahlen für die Kontoführung 5 Euro im Monat. "
-            "Bitte geben Sie Ihre IBAN an.",
+            (
+                "Händler werben Kunden. Sie zahlen für die Kontoführung 5 Euro im Monat. "
+                "Bitte geben Sie Ihre IBAN an."
+            ),
             "Konto > Preise",
         ),
         BANK[1],
@@ -105,11 +114,27 @@ def test_a_bridge_opening_on_sie_after_a_plural_subject_is_refused() -> None:
 
 #: An amount as a bank or shop passage writes it, and the fact's other spellings.
 AMOUNTS = (
-    ("de", "Die Kontoführung kostet 4,90 € im Monat.", "Die Kontoführung kostet 4,90 Euro im Monat."),
-    ("de", "Die Kontoführung kostet 4,90 € im Monat.", "Die Kontoführung kostet € 4,90 im Monat."),
+    (
+        "de",
+        "Die Kontoführung kostet 4,90 € im Monat.",
+        "Die Kontoführung kostet 4,90 Euro im Monat.",
+    ),
+    (
+        "de",
+        "Die Kontoführung kostet 4,90 € im Monat.",
+        "Die Kontoführung kostet € 4,90 im Monat.",
+    ),
     ("de", "Eine Überweisung kostet EUR 0,50.", "Eine Überweisung kostet 0,50 EUR."),
-    ("en", "Account maintenance costs €4.90 a month.", "Account maintenance costs 4.90 EUR a month."),
-    ("en", "Account maintenance costs €4.90 a month.", "Account maintenance costs € 4.90 a month."),
+    (
+        "en",
+        "Account maintenance costs €4.90 a month.",
+        "Account maintenance costs 4.90 EUR a month.",
+    ),
+    (
+        "en",
+        "Account maintenance costs €4.90 a month.",
+        "Account maintenance costs € 4.90 a month.",
+    ),
     ("en", "The limit is EUR 2,500 a day.", "The limit is EUR 2500 a day."),
 )
 
@@ -127,14 +152,27 @@ def test_an_amount_with_its_currency_moved_is_the_same_amount(
 @pytest.mark.parametrize(
     ("language", "text", "statement"),
     [
-        ("de", "Die Kontoführung kostet 4,90 € im Monat.", "Die Kontoführung kostet 5,90 € im Monat."),
-        ("de", "Die Kontoführung kostet 4,90 € im Monat.", "Die Kontoführung kostet 490 € im Monat."),
+        (
+            "de",
+            "Die Kontoführung kostet 4,90 € im Monat.",
+            "Die Kontoführung kostet 5,90 € im Monat.",
+        ),
+        (
+            "de",
+            "Die Kontoführung kostet 4,90 € im Monat.",
+            "Die Kontoführung kostet 490 € im Monat.",
+        ),
         ("de", "Eine Überweisung kostet EUR 0,50.", "Eine Überweisung kostet 50 Cent."),
-        ("en", "Account maintenance costs €4.90 a month.", "Account maintenance costs €5.90 a month."),
+        (
+            "en",
+            "Account maintenance costs €4.90 a month.",
+            "Account maintenance costs €5.90 a month.",
+        ),
         ("en", "The limit is EUR 2500 a day.", "The limit is EUR 25 a day."),
     ],
 )
 def test_another_amount_is_an_addition(language, text, statement) -> None:
+    """A figure the passage does not hold is refused, whatever currency carries it."""
     judged = Checker(passage(text, language=language)).atomic(statement)
 
     assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
@@ -144,10 +182,38 @@ _LANGUAGES = st.sampled_from(["de", "en", "fr", "es", None])
 
 _WORDS = st.sampled_from(
     [
-        "Sie", "zahlen", "die", "folgenden", "Gebühren", "4,90", "€", "EUR",
-        "Section", "7", "and", "9", "such", "a", "card", "costs", "Le", "compte",
-        "coûte", "frais", "suivants", "La", "comisión", "es", "de", "1 000",
-        "Abschnitte", "und", "AGB", ":", ",", ".",
+        "Sie",
+        "zahlen",
+        "die",
+        "folgenden",
+        "Gebühren",
+        "4,90",
+        "€",
+        "EUR",
+        "Section",
+        "7",
+        "and",
+        "9",
+        "such",
+        "a",
+        "card",
+        "costs",
+        "Le",
+        "compte",
+        "coûte",
+        "frais",
+        "suivants",
+        "La",
+        "comisión",
+        "es",
+        "de",
+        "1 000",
+        "Abschnitte",
+        "und",
+        "AGB",
+        ":",
+        ",",
+        ".",
     ]
 )
 
@@ -181,7 +247,9 @@ def test_a_bridge_verdict_and_its_citations_hold_in_any_language(
 
 
 def _grid(columns: int, *texts: str) -> list[dict]:
-    return [{"cells": [cell(i // columns, i % columns, t, 0) for i, t in enumerate(texts)]}]
+    return [
+        {"cells": [cell(i // columns, i % columns, t, 0) for i, t in enumerate(texts)]}
+    ]
 
 
 @pytest.mark.xfail(
@@ -202,7 +270,10 @@ def _grid(columns: int, *texts: str) -> list[dict]:
     ids=["de-eur", "en-gbp", "chf"],
 )
 def test_a_fee_table_with_currency_codes_is_read(cells) -> None:
-    fees = passage("| Konto | Monat | Jahr |", block_type="table", table_cells=_grid(3, *cells))
+    """EUR 5 is an amount, no identifier, so the table is read."""
+    fees = passage(
+        "| Konto | Monat | Jahr |", block_type="table", table_cells=_grid(3, *cells)
+    )
 
     assert skipped(fees) is None
 
@@ -216,7 +287,10 @@ def test_a_fee_table_with_currency_codes_is_read(cells) -> None:
     ids=["de-sign-after", "en-sign-before"],
 )
 def test_a_fee_table_with_currency_signs_is_read(cells) -> None:
-    fees = passage("| Konto | Monat | Jahr |", block_type="table", table_cells=_grid(3, *cells))
+    """The sign before or after an amount leaves the table read."""
+    fees = passage(
+        "| Konto | Monat | Jahr |", block_type="table", table_cells=_grid(3, *cells)
+    )
 
     assert skipped(fees) is None
 
@@ -232,19 +306,31 @@ def test_a_fee_table_with_currency_signs_is_read(cells) -> None:
 @pytest.mark.parametrize(
     ("language", "text", "heading"),
     [
-        ("en", "The fee for a dormant account is set in Section 7(2) of these terms.", "Section 7"),
-        ("de", "Die Gebühr für ein ruhendes Konto regelt § 7(2) dieser Bedingungen.", "§ 7"),
+        (
+            "en",
+            "The fee for a dormant account is set in Section 7(2) of these terms.",
+            "Section 7",
+        ),
+        (
+            "de",
+            "Die Gebühr für ein ruhendes Konto regelt § 7(2) dieser Bedingungen.",
+            "§ 7",
+        ),
     ],
 )
 def test_a_subsection_reference_links_its_section(language, text, heading) -> None:
+    """Section 7(2) names Section 7, as Section 7 (2) does."""
     ones = placed(
         language,
         (text, "Terms > Section 1" if language == "en" else "AGB > § 1"),
-        ("A yearly fee of EUR 10 is charged." if language == "en"
-         else "Es wird eine Jahresgebühr von 10 Euro berechnet.", f"Preise > {heading}"),
+        (
+            "A yearly fee of EUR 10 is charged."
+            if language == "en"
+            else "Es wird eine Jahresgebühr von 10 Euro berechnet.",
+            f"Preise > {heading}",
+        ),
     )
 
     (link,) = linked(ones, ones, {one.id: 1 for one in ones}, 4, 2)
 
     assert (link.kind, link.named) == ("reference", heading)
-

@@ -7,6 +7,8 @@ is a number the fact citing its own sentence is refused for.
 
 from __future__ import annotations
 
+from itertools import pairwise
+
 import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
@@ -17,6 +19,7 @@ pytestmark = pytest.mark.nlp
 
 
 def texts(text: str, language: str | None) -> list[str]:
+    """The text of each sentence the passage splits into."""
     return [one.text for one in sentences(text, language)]
 
 
@@ -78,7 +81,7 @@ def test_an_item_number_opening_its_line_opens_its_item(text, language) -> None:
     strict=True,
     reason=(
         "An abbreviation the table lists ends a sentence after an opening "
-        "bracket or quote, as in (cf. Section 4) and \"incl. VAT\""
+        'bracket or quote, as in (cf. Section 4) and "incl. VAT"'
     ),
 )
 @pytest.mark.parametrize(
@@ -89,6 +92,7 @@ def test_an_item_number_opening_its_line_opens_its_item(text, language) -> None:
     ],
 )
 def test_an_abbreviation_inside_brackets_ends_nothing(text) -> None:
+    """The bracket or quote before the word hides no abbreviation."""
     assert len(texts(text, "en")) == 2
 
 
@@ -109,6 +113,7 @@ def test_an_abbreviation_inside_brackets_ends_nothing(text) -> None:
 def test_a_price_abbreviation_before_a_lower_case_word_ends_nothing(
     text, language
 ) -> None:
+    """A rate per year or a price per month ends no sentence before what it qualifies."""
     assert len(texts(text, language)) == 2
 
 
@@ -119,7 +124,11 @@ def test_a_price_abbreviation_before_a_lower_case_word_ends_nothing(
         ("Ihre Bestell-Nr. 12345 steht auf der Rechnung. Die Bank zahlt.", "de", 2),
         ("Wir liefern Mo.–Fr. Die Bank ist geschlossen.", "de", 2),
         ("Die Gebühr beträgt 5 € zzgl. MwSt. Der Versand kostet 4,90 €.", "de", 2),
-        ("Der Zins beträgt 2,5 % p. a. für alle Guthaben. Die Bank zahlt ihn.", "de", 2),
+        (
+            "Der Zins beträgt 2,5 % p. a. für alle Guthaben. Die Bank zahlt ihn.",
+            "de",
+            2,
+        ),
         ("Das Limit beträgt 1 Mio. Euro pro Jahr. Die Bank prüft es.", "de", 2),
         ("The order no. 123 is printed on the invoice. The shop ships.", "en", 2),
         ("Our opening hours are Mon.–Fri. The shop is closed on Sundays.", "en", 2),
@@ -194,7 +203,7 @@ def test_sentences_cover_their_passage_in_order(pieces, language) -> None:
     for one in found:
         assert text[one.start : one.end] == one.text
         assert one.text.strip()
-    for before, after in zip(found, found[1:], strict=False):
+    for before, after in pairwise(found):
         assert before.end <= after.start
     covered = "".join(one.text for one in found)
     assert "".join(covered.split()) == "".join(text.split())
@@ -228,4 +237,5 @@ def test_an_abbreviation_ending_its_line_may_end_its_sentence(text, language) ->
     ],
 )
 def test_a_cut_before_a_lower_case_word_after_an_abbreviation_is_dropped(text) -> None:
+    """The parser's later cut before a lower-case word ends no sentence either."""
     assert texts(text, "de") == [text]

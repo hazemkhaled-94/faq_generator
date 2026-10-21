@@ -15,6 +15,7 @@ pytestmark = pytest.mark.nlp
 
 
 def references(text: str, language: str, *passages: str) -> tuple[str, ...]:
+    """What the statement points to outside itself, read against its passages."""
     return claim(text, language, passages).references
 
 
@@ -35,6 +36,7 @@ def references(text: str, language: str, *passages: str) -> tuple[str, ...]:
     ],
 )
 def test_an_inflected_modifier_opening_a_statement_points_outside(text) -> None:
+    """The lemmatizer leaves a capitalised opening inflected; the table names its base."""
     assert references(text, "de")
 
 
@@ -70,6 +72,7 @@ def test_a_modifier_the_lemmatizer_reads_points_outside(text) -> None:
     ],
 )
 def test_a_back_pointing_modifier_points_outside(text, language) -> None:
+    """Each names something said before the fact, which the fact does not hold."""
     assert references(text, language)
 
 
@@ -87,7 +90,9 @@ def test_sie_after_a_sentence_with_no_plural_noun_subject_addresses_the_reader(
 
     A plural pronoun subject (`Wir`) or a plural object (`alle Angaben`) is not.
     """
-    passage = f"Bitte geben Sie Ihre IBAN an. {between} Sie erhalten dann eine Bestätigung."
+    passage = (
+        f"Bitte geben Sie Ihre IBAN an. {between} Sie erhalten dann eine Bestätigung."
+    )
 
     assert references("Sie erhalten dann eine Bestätigung.", "de", passage) == ()
 
@@ -149,6 +154,8 @@ def test_sie_behind_an_opening_quote_is_no_polite_form_inside_a_sentence() -> No
     ],
     ids=["de-colon-ends", "en-colon-ends", "de-colon-before", "en-colon-before"],
 )
-def test_a_following_list_no_colon_after_it_gives_points_outside(text, language) -> None:
+def test_a_following_list_no_colon_after_it_gives_points_outside(
+    text, language
+) -> None:
     """A colon spares the list only where words follow it, after the modifier."""
     assert references(text, language)

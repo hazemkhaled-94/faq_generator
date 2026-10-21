@@ -50,6 +50,7 @@ class Store(Catalogue):
         self.bridges: list[tuple[tuple[int, ...], int]] = []
 
     def by_topic(self, within=None):
+        """Streams each topic's passages, recording the scope asked for."""
         self.narrowed.append(within)
         for topic, ones in enumerate(self._topics, start=1):
             if within is None or topic in within:
@@ -59,21 +60,23 @@ class Store(Catalogue):
         return within is None or self.topic_of[head] in within
 
     def clear_bridges(self, within=None) -> int:
+        """Deletes the bridges headed in scope, as the repository does."""
         kept = [one for one in self.bridges if not self._in(one[1], within)]
         cleared, self.bridges = len(self.bridges) - len(kept), kept
         return cleared
 
     def bridged_topics(self, within=None) -> frozenset[int]:
+        """The topics in scope whose passages head a stored bridge."""
         return frozenset(
-            self.topic_of[head]
-            for _, head in self.bridges
-            if self._in(head, within)
+            self.topic_of[head] for _, head in self.bridges if self._in(head, within)
         )
 
     def bridged_pairs(self) -> frozenset[frozenset[int]]:
+        """The passage pairs a stored bridge links."""
         return frozenset(frozenset(rests[:2]) for rests, _ in self.bridges)
 
     def add_bridges(self, facts) -> int:
+        """Stores each bridge under the passage that headed its link."""
         for fact in facts:
             rests = tuple(one.passage_id for one in fact.citations)
             head = (fact.bridge or {}).get("head", rests[0])
@@ -131,6 +134,7 @@ PASSES = st.lists(
 
 
 def run(store: Store, how: str, within, wanted: int) -> None:
+    """Runs one bridge pass, whole, narrowed or missing."""
     bridge(
         store,  # type: ignore[arg-type]
         BridgeExtractor(Model(ANSWER)),  # type: ignore[arg-type]
@@ -143,6 +147,7 @@ def run(store: Store, how: str, within, wanted: int) -> None:
 
 
 def fresh(topics, wanted: int) -> Store:
+    """A store holding the corpus's stated facts and no bridge yet."""
     store = Store(**topics)
     store.stating()
     return store
