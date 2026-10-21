@@ -58,7 +58,12 @@ what the sub-heading opens, as `The bank charges a fee when:` does a section
 per case: it moves into that chunk the same way, and heads every later chunk
 opening with a list item under a heading below its own, until a heading at
 or above its depth ends what it introduces. A lead-in ends on ":" or on the
-full-width "：".
+full-width "：". A heading ending on one that opens its section and is
+followed by a heading of its own level is read as the paragraph it
+introduces, since a heading of that level would be replaced by the next one
+and reach no passage. A list item ending on one, as a page join leaves
+`bestehen, wenn:` at the end of a list, is a lead-in too, but it stays where
+it is and heads the list after it through the trail.
 
 ### Step 2 — Number and count
 

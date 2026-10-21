@@ -36,7 +36,7 @@ from nlp.analysis import read
 from nlp.language import detect, detect_surely
 from nlp.models import Sentence
 from nlp.windows import reserved
-from preprocessing.chunking.furniture import furniture_of, headed, tidied
+from preprocessing.chunking.furniture import LEAD_IN, furniture_of, headed, tidied
 from preprocessing.chunking.models import Chunk, Chunking
 
 
@@ -370,11 +370,10 @@ def _depth(reference: str, document: DoclingDocument) -> int:
 #: What a lead-in is: a paragraph, as the converter labels one.
 _PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
-#: What is read for its language: a paragraph or a list item.
+#: What is read for its language, and what can end on a lead-in's colon: a
+#: paragraph or a list item.
 _SPOKEN = _PROSE | {DocItemLabel.LIST_ITEM}
 
-#: What a lead-in ends on: the colon, in the Latin and the full-width forms.
-_LEAD_IN = (":", "：")
 # What a lead-in introduces: the chunker cuts a long list or table into pieces.
 _LISTED = frozenset({DocItemLabel.LIST_ITEM, DocItemLabel.TABLE})
 
@@ -436,8 +435,10 @@ def lead_ins_kept(
                     ),
                 }
             )
+            # A list item is its list's own: it stays, and heads the next chunk.
             if (
-                chunker.tokenizer.count_tokens(chunker.contextualize(moved))
+                item.label in _PROSE
+                and chunker.tokenizer.count_tokens(chunker.contextualize(moved))
                 <= chunker.max_tokens
             ):
                 before = kept.pop()
@@ -572,13 +573,13 @@ def _headed(chunk: DocChunk, text: str) -> DocChunk:
 
 
 def _lead_text(item: DocItem, document: DoclingDocument) -> str | None:
-    """The text of a paragraph ending in ":", or None for any other item."""
-    text = _prose_text(item, document)
-    return text if text and text.endswith(_LEAD_IN) else None
+    """The text of a paragraph or list item ending in ":", or None for any other item."""
+    text = _prose_text(item, document, _SPOKEN)
+    return text if text and text.endswith(LEAD_IN) else None
 
 
 def _lead_in(chunk: DocChunk, document: DoclingDocument) -> tuple[DocItem, str] | None:
-    """The paragraph ending in ":" a chunk closes on, and its text, or None."""
+    """The paragraph or list item ending in ":" a chunk closes on, and its text, or None."""
     last = chunk.meta.doc_items[-1] if chunk.meta.doc_items else None
     text = None if last is None else _lead_text(last, document)
     if last is not None and text is not None and chunk.text.rstrip().endswith(text):
