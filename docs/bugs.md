@@ -36,7 +36,7 @@ and [v0.3.0](operations.md#upgrading-to-v030).
 | [Fact dedup folded a different rule into a stored fact](#fact-dedup-folded-a-different-rule-into-a-stored-fact) | 24 | [`extraction/service.py`](../backend/extraction/service.py) | v0.2.2 |
 | [The widen retry replaced an honest draft](#the-widen-retry-replaced-an-honest-draft) | 5 | [`service.py`](../backend/question_generation/service.py) | v0.2.2 |
 | [The count rule misread stated counts](#the-count-rule-misread-stated-counts) | 2 | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
-| [The written-count gate has the digit rule's blind spot](#the-written-count-gate-has-the-digit-rules-blind-spot) | 4 | [`gates.py`](../backend/question_generation/gates.py) | no |
+| [The written-count gate has the digit rule's blind spot](#the-written-count-gate-has-the-digit-rules-blind-spot) | not measured | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
 | [The comparison gate split at the wrong seam](#the-comparison-gate-split-at-the-wrong-seam) | 2 | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial; worse in v0.3.0 |
 | [A fact may drop its sentence's scope](#a-fact-may-drop-its-sentences-scope) | 4 | [`validation.py`](../backend/extraction/validation.py), [`extractors/llm.py`](../backend/extraction/extractors/llm.py) | v0.3.0, in part |
 | [A two-item key was read as a value](#a-two-item-key-was-read-as-a-value) | not measured | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
@@ -262,8 +262,8 @@ only where the tagger marks it a number, so "außer Acht" is not eight.
 **Still open.** The exemption reads the cited statements, not the cited
 passages, so a count only the passage states is still refused, and so is a
 true count that equals the number of facts cited because each fact states one
-item. On the v0.3.0 rebuild 7 of the 28 `malformed` refusals were wrong, all
-of them usable (questions 4316, 3248, 3773, 4336).
+item: see
+[The written-count gate has the digit rule's blind spot](#the-written-count-gate-has-the-digit-rules-blind-spot).
 
 ## The comparison gate split at the wrong seam
 
@@ -1035,7 +1035,6 @@ One finding was refuted by its tester: the export of the questions was said to e
 | The unanswerable writer's reading (settles prompt 7) | Of 20 drafts the passages answer, it flagged 4 (it needed more than 4): in 16 the reader listed only silent statements while its own replies said the passages give no answer. `QUESTIONS_RELEASE_UNANSWERABLE` stays 0. Two choices are left open: release only unanswerable questions a person confirmed, or write unanswerable slots as reason questions only |
 | The two writer features for two-passage questions | Both are dropped: the needs_both check relabels after writing, and what it leaves (bridge-cited rows) no writer reaches. Writer v1 would remove about 1.0 to 1.3 false joins a build; writer v2 about 1.7 padded rows a build, and would lose about half of the honest needs_both rows dealt as pairs |
 | Questions on a false premise | Redesigned (F1): a premise built from one passage's plausible misreading (a dropped condition, a misremembered number, a scope stretched too far), accepted only when the settles reading refutes it with a quote the passage holds. On 20 passages of the v0.3.12 corpus it accepted 4 (German 1 of 10, English 3 of 10) against a bar of 10 and 4 per language: 7 premises the passage did not refute, 5 malformed drafts, 3 the passage answered as asked and 1 that named its source. Not merged; `QuestionKind.FALSE_PREMISE` stays named for a later design |
-| The host `poetry.lock` is not audited | `make audit` reads only the two image locks, so the gate stayed green while Dependabot flagged aiohttp in the host lock (fixed in v0.3.28); auditing it needs the shared environment reinstalled |
 | The limits of the shipped needs_both check | One gold compound of the v0.3.0 pool (row 4392) is still relabelled single, so the calibration bar of none was missed on that build; by citation only 34% of padded questions of the v0.3.12 pool are narrowed, because of the bridge-cited rows above |
 
 ## Found on the v0.3.12 rebuild of 2026-10-19
@@ -1529,13 +1528,14 @@ Lernziele` (question 4255) and `zwei Faktoren` (5355) count something their
 own facts state, and only happen to equal the number of facts cited. The digit
 rule refuses the same shape: `2 coverage items` (1409).
 
-**Narrowed in v0.2.2; open.** A count a cited statement states is exempt from
-both rules. A true count that only equals the number of facts cited, because
-each fact states one item, is still refused, which is the blind spot itself:
-questions 3248, 3773 and 4336 on the v0.3.0 rebuild, and 4316, whose count
-only its passage states. It is the rule that
+**Fixed in v0.2.2, in part; open.** A count a cited statement states is
+exempt from both rules. A true count that only equals the number of facts
+cited, because each fact states one item, is still refused, which is the
+blind spot itself. On the v0.3.0 rebuild 4 of the 28 `malformed` refusals were
+this, all usable: questions 3248, 3773 and 4336, and 4316, whose count only
+its passage states. It is the part
 [The count rule misread stated counts](#the-count-rule-misread-stated-counts)
-leaves open, in [`gates.py`](../backend/question_generation/gates.py).
+left open, in [`gates.py`](../backend/question_generation/gates.py).
 
 ## Known trade-offs
 
