@@ -801,3 +801,143 @@ The bridge relation and probe question are stored in `facts.bridge` from v0.3.23
 | Dash ranges and answer completeness | over 919 stored recoveries two verdicts move, both wrong refusals (v0.3.18, v0.3.24); `answer_incomplete` frees 31 of 75 refusals on the v0.3.12 build (27 wrong, 3 partly right, 1 right; 80.6% usable) and 23 of 67 on the v0.4.0 build (19, 4, 0; 73.9% usable) (v0.3.19) | v0.3.18, v0.3.19, v0.3.24 |
 
 Model spend of the cycle's calibrations: USD 1.60 of the USD 10 cap (the needs_both check 0.79, bridge prompt 8 0.43, the false-premise redesign 0.26, settles prompt 7 0.12). The rebuild of the corpus that was planned for this cycle was dropped, so no build cost was spent.
+
+## The DataMorgana releases: how varied the questions are, and the categories (v0.4.1 and v0.4.2)
+
+v0.4.1 and v0.4.2 added the diversity scores of the DataMorgana paper (Filice et al., Appendix E) and the question categories of its Figure 2 and Table 5; the paper is cited in full under [References](#references). Their figures were measured when the releases were made and stood only in the release notes until now. Every figure below was measured on the production database's release, the v0.3.12 build of the Laws of the Game (325 accepted answerable root questions: 166 German, 159 English), or on the calibration links named in the text. That database still runs v0.3.12's schema, so the workbook was exported with v0.3.12's code. Tags come from de_core_news_md 3.8.0 and en_core_web_md 3.8.0, and vectors from intfloat/multilingual-e5-large.
+
+### Diversity of the questions
+
+`make diversity` reads a workbook that `make questions-export` wrote and asks no model. NGD is n-gram diversity (higher is more varied). SR is self-repetition, word-CR the compression ratio of the words, PoS-CR the compression ratio of the part-of-speech tags and HS the homogenization score, the mean cosine between every two questions (lower is more varied for all four). The metrics move with the size of a set, so two sets compare only at one size. v0.4.1 measured the first three, and v0.4.2 added PoS-CR and HS.
+
+| Language | n | NGD | SR | word-CR | PoS-CR | HS |
+|---|---|---|---|---|---|---|
+| de | 166 | 3.090 | 0.157 | 3.020 | 8.492 | 0.819 |
+| en | 159 | 2.905 | 0.352 | 2.934 | 7.973 | 0.804 |
+
+- The English questions repeat themselves more than the German ones: 35% of them share a four-word run with another question in the set, against 16%. At a size of 150 the rows read 3.107, 0.127 and 2.951 (German) and 2.923, 0.340 and 2.929 (English): a smaller set shares fewer runs.
+- The embedding model's cosines sit at 0.80 to 0.82 for any two texts in one language, so an HS figure says something only beside another set embedded with the same model. It is on a scale of its own, because the corpus's multilingual model replaces the paper's English-only one.
+- Against its pool of 586 accepted answerable root questions, comparing the two workbooks with `AGAINST=` (fifty draws of 80% of the smaller set, Welch's t-test, as in the paper's Appendix E.2) finds that the release keeps the pool's variety: no score moves by more than 0.1. Eight of the ten differences still read as significant, because fifty overlapping draws spread little. The size of a difference matters more than its p.
+
+### The categories, calibrated on four links
+
+Four calibration links ran the v0.4.2 code on copies of two frozen corpus databases, the Laws of the Game and the Your Europe consumer pages, each in German and English. The writer was azure/gpt-5.4 and every other role azure/gpt-4.1. Each link was held to USD 8, so each is a sample. Links 046 (Phrasing) and 049 (Phrasing and Premise) ran the lowest topic ids at the planned N (24 questions a topic on the Laws of the Game, 41 on Your Europe) for USD 6.71 and 6.80. Links 0410 (adding Linguistic variation and User expertise) and 0411 (adding the two search queries) ran every topic at a cut N for USD 5.92 and 5.82. Link 040 is the baseline, v0.4.0's code with no categories, on link 046's topics, for USD 6.64. Thirty accepted answerable root questions of each category were labelled against the calibration rubric. The floors, set before the run, were keys correct at least 0.80, keys complete at least 0.72, and invalid rows failing a category only at 3 or more in 30 and more than its sibling's in the same link. (Read literally, the earlier floor of 2.9% invalid fails on any one invalid row in 30; the v0.4.3 calibration below replaces it.)
+
+| Category | Link | Keys correct | Keys complete | Invalid | Usable | Outcome |
+|---|---|---|---|---|---|---|
+| concise-and-natural | 046 | 0.933 | 0.733 | 1 of 30 | 0.500 | passes; default |
+| verbose-and-natural | 046 | 1.000 | 0.900 | 0 of 30 | 0.733 | passes; default |
+| direct | 049 | 0.833 | 0.767 | 3 of 30 | 0.633 | passes; default |
+| with-premise | 049 | 0.900 | 0.733 | 3 of 30 | 0.633 | passes; default |
+| similar-to-document | 0410 | 0.933 | 0.800 | 1 of 30 | 0.700 | passes; opt-in |
+| distant-from-document | 0410 | 0.900 | 0.567 | 3 of 30 | 0.467 | fails; opt-in |
+| expert | 0410 | 0.867 | 0.600 | 4 of 30 | 0.533 | fails; opt-in |
+| novice | 0410 | 0.967 | 0.767 | 0 of 30 | 0.633 | passes; opt-in |
+| short-search-query | 0411 | 0.700 | 0.567 | 3 of 30 | 0.433 | fails; opt-in |
+| long-search-query | 0411 | 0.933 | 0.833 | 2 of 30 | 0.667 | passes, but a third are not queries; opt-in |
+| no categories (v0.4.0) | 040 | 0.883 | 0.800 | 1 of 60 | 0.667 | baseline |
+
+A categorization left with one category is dropped whole, so similar-to-document and novice, which passed, stay opt-in with the four that did not.
+
+- **Phrasing** (link 046 against link 040, same topics). Acceptance was 56.1% of German rows and 55.6% of English, against 51.4% and 56.7%. German concise questions were accepted least (51.5%, against verbose's 67.9%), mostly through `leaks_source` (10 refusals in 103 rows), because the gate took a one-word page title used as the subject for naming the source. The measured sets are more varied in 19 of 20 comparisons (p at most 0.001), most of all in PoS-CR, by 0.290 to 0.404. Concise questions lose their situation: 14 of 30 do not stand alone or are ambiguous, against 2 of 30 verbose. The word bounds hold for 53 of 53 German and 52 of 55 English concise questions, and for 52 of 53 and 53 of 54 verbose ones.
+- **Premise** (link 049). With-premise questions were accepted more often: 68.7% against direct's 57.1% in German, and 65.3% against 62.5% in English. Their sets are less varied on every score in every cell but one tie. Of 130, 33 open with a scene label (*Beim Spiel:*) rather than a premise about the asker.
+- **Linguistic variation and User expertise** (link 0410). The word-gate trigger fired in English (distant +12.4 points, novice +8.7), all of it on Your Europe. Meaning drift touched 7 of 60 rows and is not specific to the reworded categories.
+- **Search queries** (link 0411). None of the 90 accepted queries ends in a question mark, and 88 of 90 keep their bounds. The German parse finds no subject in lower-cased keyword queries, so `unanchored` refused 10 of 84 German query rows, against 7 of 95 natural ones. `not_recoverable` refused 20 of 161 query rows, against 28 of 170 natural ones, but the verifier agrees with the key on queries that could mean two needs (8 of 60) or that another passage answers differently (6 of 60).
+- **The release mix.** Links 046 and 049 release within 10.0 points of their pools on every category. Links 0410 and 0411 release 14 to 21 categorised questions a corpus and drift by up to 33.9 points.
+
+The categories calibration cost USD 26.51 together with the judge's agreement run, against a cap of 40, and the baseline link cost USD 6.64 more.
+
+### What these releases did not measure
+
+- Figure 1 of the paper (PoS-CR over a growing number of documents) was not measured at a size of 200: link 046's Your Europe workbook holds 202 German questions across 20 documents and 186 English ones across 23, and the first point needs 5 documents of at least 40 questions each, where the fullest hold 25 and 22.
+- The paper's judge was checked against the labelled v0.3.0 review (see [The paper's judge against the review](#the-papers-judge-against-the-review)) but not run on any calibration link, so its means per category and per kind, and its reading of search queries, are not measured.
+- `intent`, a planned stored restatement of what each question asks, was not built, and without it the offline check of meaning drift was not run.
+
+## The v0.4.3 calibration
+
+v0.4.3 changes how questions are planned, written, accepted and released (see [the finalize review](bugs.md#found-by-the-finalize-review-of-2026-10-21)). Its calibration has a rule for what counts as a pass, written before anything was measured, and replays that need no model or only a small one. The two calibration links, Link Q and Link C, are still to be reported.
+
+### The floor rule
+
+The rule replaces the floors above (keys correct at least 0.80, complete at least 0.72, invalid at most 2.9% of 30 rows), which fail on one invalid row in 30, and each link of the DataMorgana work had its own labeller, drain and topics.
+
+- **Arms.** An arm is one set of accepted answerable root questions from one link, sharing one setting. A category is compared with its sibling or siblings in the same categorization, dealt in the same run on the same topics and code, on the slots both could be told. A code fix is compared with the base code run on a copy of the same frozen base, with the same topics, `QUESTIONS_PER_TOPIC` and seed.
+- **Sample.** 60 rows per arm, drawn evenly over the languages and corpora present, or every row where an arm has fewer. An arm under 40 rows is "not measured", never passed.
+- **Labelling.** One labeller labels every arm of a link, against one rubric, with the rows shuffled across arms and the arm and category hidden. Conformance (does the question look like its category) is labelled in a second pass that shows the category's description.
+- **Pass**, when every row holds: keys correct, and keys complete, at least the baseline's share minus 0.10; invalid per 60 at most the baseline's plus 2; and, for a category, conformance at least 0.80.
+- **Error rates**, simulated with binomial draws at a baseline of 0.85 correct, 0.75 complete and 3 to 5% invalid, with 60 rows per arm: equal arms pass keys correct 95% of the time, and an arm 0.10 worse passes 52 to 54%, 0.15 worse 29% and 0.20 worse 11%. A category as good as its sibling passes every measure 78 to 80% of the time, and about 95% after its one re-run.
+- **Sanity.** A link is suspect when its baseline arm falls below 0.70 keys correct or 0.62 complete, which flags about 1% of healthy links. A suspect link is investigated and re-labelled once by a new labeller, never until it passes.
+- **Gate changes replayed on stored rows.** Every row whose verdict changes is labelled, up to 60. A loosening passes when the newly admitted rows' usable share is at least the accepted baseline's minus 0.10, with at most 2 invalid per 60. A tightening passes when at most 35% of the newly refused rows are usable.
+
+### The offline scoreboard, base against the v0.4.3 stack
+
+The scoreboard replays the stored rows of the v0.3.0 rebuild under a checkout's code (see [above](#the-offline-scoreboard-v0312-against-v040)). At the stack's code before the prompt changes, which it cannot replay, against v0.4.2:
+
+| Row | v0.4.2 | v0.4.3 stack |
+|---|---|---|
+| Validated facts stated correctly | 2,776 of 3,199 (0.8678) | 2,776 of 3,199 (0.8678), unchanged |
+| Accepted pool replayed (usable share) | 879 (0.7088) | 878 (0.7084) |
+| Answerable keys correct / complete | 0.8111 / 0.7264 | 0.8108 / 0.7259 |
+| Weld rate, accepted two-passage | 34/184 (0.185) | 34/183 (0.186) |
+| Unanswerables: recall German / English | 0.518 / 0.610 | 0.518 / 0.610 |
+
+The one accepted row that moves is a German row newly refused `not_recoverable`, which the labels call minor.
+
+### The read fields on 300 labelled rows
+
+The round trip's read is the one call every answerable question gets. Two fields were tried on it and replayed on the 300 rows that the five calibration links' spot checks labelled (the 2026-10-21 labels: 35 welds, 22 circular reason keys, 183 usable rows), each with the question, key and cited passages as stored. The bars, set before the calls: each field must refuse at least half of its labelled rows, and at most 35% of the rows it refuses may be usable. The model was azure/gpt-4.1 and each replay was 300 calls.
+
+| Verifier version | Field | Refused | Caught | Usable among refused | Verdict | Cost |
+|---|---|---|---|---|---|---|
+| 10 | `asks_one` (welds) | 3 | 2 of 35 (0.057) | 1 of 3 | fails recall | USD 0.54 |
+| 10 | `reason_given` (circular reasons) | 20 | 9 of 22 (0.409) | 7 of 20 (0.35) | fails recall | |
+| 11 | `asks_one` | 16 | 8 of 35 (0.229) | 8 of 16 (0.50) | fails both | USD 0.66 |
+| 11 | `reason_given` | 11 | 6 of 22 (0.273) | 1 of 11 (0.09) | fails recall | |
+| 12 (`asks_one` removed) | `reason_given` | 19 | 11 of 22 (0.500) | 5 of 19 (0.26) | passes | USD 0.84 |
+
+- `asks_one` failed twice: the first version caught 2 of 35 welds and, after its one iteration on the instruction alone, 8 of 35 with half of its refusals usable. It was taken out in version 12 (see [the withdrawn items](bugs.md#tried-in-v043-and-withdrawn-with-the-reason)).
+- `reason_given` counts here as the checker's reason branch attributes it. Counted as one read, over the 54 reason rows, the read refuses 33, 28 and 28 rows in versions 10, 11 and 12, catching 21, 20 and 19 of the 22 circular keys, with 8, 4 and 5 usable rows among the refused.
+- Over all 300 rows, version 12's read refuses 30 of the 245 rows it reaches, 5 of them usable (0.17).
+- The model at temperature 0 still varies between runs: the rows the read recovers nothing for went from 22 to 11 between versions 11 and 12, so the strict recall of `reason_given` could fall on either side of 0.50 in a rerun. Version 12's figure sits exactly at the bar.
+
+### The B1 title rule on stored rows
+
+A question naming its page by a title that is also its subject (a page titled *Kreditkarten*, asked about as *Kreditkarten*) was refused `leaks_source` by a free rule. The rule was replayed read-only, with no model call, on every stored `leaks_source` row of the ten link databases (`qa_cal_laws` and `qa_cal_shop`, builds 040, 046, 049, 0410 and 0411), the base against the v0.4.3 code.
+
+| | Laws | Shop | Total |
+|---|---|---|---|
+| Stored `leaks_source` rows | 8 | 80 | 88 |
+| Refused by the base's free title rule | 4 | 75 | 79 |
+| Refused only by the phrasing judge | 4 | 5 | 9 |
+| Admitted by the v0.4.3 code | 4 | 74 | 78 |
+| Still refused | 0 | 1 | 1 |
+
+The bar for the count was that the refusals whose only trigger is a title naming the subject fall to at most 20% of the base's 79: 1 remains (1.3%), so it passes. The loosening bar, that the newly admitted rows are about as usable as the accepted pool, is decided on labelled rows: 60 of the 78 were drawn (41 German shop, 15 English shop, 4 German Laws; 8 unanswerable, 6 follow-ups) and labelled. The labeller found 27 usable and 16 invalid, with 43 of 52 answerable keys correct. These rows stopped at the free rule in the base and never met the later gates (the phrasing judge's own readings, the round trip's read), so the labels describe rows before those gates, not rows newly accepted. The decision is read on the rows that also pass the later gates, and is not yet made.
+
+### The release draw over 100 salts
+
+The release draw of the base and of the v0.4.3 stack were run on the labelled v0.3.0 snapshot (every released row carries a reviewer's label) with 100 paired hash salts. The bars, set before the run: the welded share of released two-passage rows at most 0.005 above the base's, and invalid rows per 100 released at most 0.5 above the base's.
+
+| | Base (v0.4.2) | v0.4.3 stack | Difference |
+|---|---|---|---|
+| Mean release size, rows | 371.1 | 453.3 | +82.2 (larger on every salt, 14 to 139) |
+| Smallest release of the 100 salts | 300 | 400 | |
+| Mean two-passage rows released | 95.8 | 124.2 | |
+| Welded share of released two-passage rows | 22.72% | 22.77% | +0.06 points (interval -0.32 to +0.47) |
+| Invalid rows per 100 released | 3.30 | 3.03 | -0.26 (interval -0.35 to -0.18) |
+| Usable share of the release | 0.786 | 0.781 | -0.005 |
+
+Both bars hold. The intervals are 95% bootstrap intervals over the 100 salts. The same draw on the link pools, whose released rows carry no labels, is judged on size only and belongs to Link Q and Link C below.
+
+### Link Q
+
+Figures to come.
+
+### Link C
+
+Figures to come.
+
+## References
+
+- Simone Filice, Guy Horowitz, David Carmel, Zohar Karnin, Liane Lewin-Eytan and Yoelle Maarek. 2025. [*Generating Q&A Benchmarks for RAG Evaluation in Enterprise Settings*](https://aclanthology.org/2025.acl-industry.33/). In *Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 6: Industry Track)*, pages 469–484, Vienna, Austria. Association for Computational Linguistics. doi:10.18653/v1/2025.acl-industry.33.
+- Chantal Shaib et al. 2024. [*Standardizing the Measurement of Text Diversity: A Tool and a Comparative Analysis of Scores*](https://arxiv.org/abs/2403.00553). arXiv:2403.00553.
