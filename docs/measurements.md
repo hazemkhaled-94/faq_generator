@@ -535,6 +535,32 @@ template version 4 no longer asks it. The margins are thin, since question
 relevance called three questions in each language `unrelated`. These are
 agreement figures on one corpus; nothing was tuned to them.
 
+### The judge's verdict as a correction (prediction-powered inference)
+
+ARES (Saad-Falcon et al., [*ARES: An Automated Evaluation Framework for
+Retrieval-Augmented Generation Systems*](https://aclanthology.org/2024.naacl-long.20/),
+NAACL 2024) corrects a judge's figures with a few human labels. It uses
+prediction-powered inference (Angelopoulos et al., [*Prediction-powered
+inference*](https://doi.org/10.1126/science.adi6000), Science 2023), and
+`make diversity LABELS=` does the same, with the weight tuned as PPI++ does (Angelopoulos, Duchi and Zrnic, [*PPI++: Efficient Prediction-Powered Inference*](https://arxiv.org/abs/2311.01453), 2023).
+How much that buys depends on how well the judge's verdict predicts the
+labels. On the same 350 rows, restricted to the 175 accepted ones a floor
+reads, 500 draws of 60 labelled rows (the floor rule's arm) give:
+
+| Label | Share | Correlation with the judge's approval | Mean weight | Half-width, corrected over labels only |
+|---|---|---|---|---|
+| Key correct | 0.806 | 0.26 | 0.24 | 0.971 |
+| Key complete | 0.714 | 0.12 | 0.12 | 0.991 |
+| Invalid | 0.051 | −0.02 | −0.01 | 0.995 |
+| Usable | 0.766 | 0.26 | 0.26 | 0.971 |
+
+The judge approves 91% of these rows, so its verdict says little about which
+ones a reviewer would fault. The correction narrows the intervals by under
+3%. The mechanism is sound, and it pays off with a judge that agrees better
+with the labels; with this one, a floor is read on the labels themselves.
+Script and figures: `ppi_precheck.py` and `ppi-precheck.json` in the papers
+programme's handoff folder. No model was called.
+
 ## Model latency
 
 Per call, over the run:

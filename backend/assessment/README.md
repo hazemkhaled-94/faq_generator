@@ -402,6 +402,60 @@ make diversity FILE=set.xlsx BY=kind
 make diversity FILE=pool.xlsx BY=document SIZE=200
 ```
 
+## Labelled shares corrected by the judge
+
+`make diversity FILE=<workbook> LABELS=<file>` reads reviewers' labels of
+some of a workbook's questions and corrects each labelled share by the
+paper's judge's verdict on all of them, as ARES ([Saad-Falcon et al.,
+2024](#references), section 3.3) does with prediction-powered inference
+([Angelopoulos et al., 2023](#references)). A judge can score every
+question, but only a few have a reviewer's label. The method takes the
+judge's share on the many and corrects it by how far the judge is from the
+labels on the few. The estimate stays unbiased whatever the judge is like,
+and it gets a confidence interval.
+
+The labels file is JSONL: an integer `id`, an optional `question` (the
+text, checked against the workbook's so that labels from another database,
+whose ids overlap, are refused), and one field per label. Every other field
+is a label, read as yes or true (1), no or false (0), na or null (no label).
+Keep it to those fields: a `released` flag in it would be read as a label
+too.
+
+The predictor is the Judge column: `approved` is 1, `refused` 0, and a row
+`not judged` is left out. The report prints, per language and per category
+or kind, and pooled as `all`:
+
+| Column | What it is |
+|---|---|
+| n, N | The labelled rows, and the judged rows without a label |
+| judge | The share the judge approves, over every judged row |
+| labels | The share labelled yes, over the labelled rows |
+| corrected | The labelled share, corrected by the judge's verdict on the rest |
+| 95% interval | Its interval, clipped to [0, 1] for display |
+| weight | How much of the judge's prediction was kept: 0 is the labels alone, 1 the paper's plain method |
+
+The weight is tuned from the data, as PPI++ ([Angelopoulos, Duchi and
+Zrnic, 2023](#references)) does. A judge that agrees poorly with the labels
+falls back towards the labels' own share instead of widening the interval,
+as the plain method would. It can be negative: a label whose good side is
+"no", such as `invalid`, is predicted by the judge's refusal.
+
+Read it with three caveats:
+
+- The labelled rows must be a random sample of the workbook's rows. A
+  sample drawn evenly over languages is read per language and pooled by
+  size, which the `all` row does.
+- The guarantee is asymptotic, so an interval on a few dozen labels is
+  rough. Each row's interval holds on its own; claiming K rows at once
+  needs z at α/(2K).
+- What it buys depends on the judge. With the paper's judge on this
+  project's review, the intervals narrow by under 3% ([the measurements
+  page](../../docs/measurements.md#the-judges-verdict-as-a-correction-prediction-powered-inference)).
+
+```sh
+make diversity FILE=set.xlsx LABELS=labels.jsonl BY=category
+```
+
 ## Layout
 
 | File | Holds |
@@ -413,6 +467,7 @@ make diversity FILE=pool.xlsx BY=document SIZE=200
 | [`config.py`](config.py) | The flag, the judge and the two cost dials |
 | [`factory.py`](factory.py) | Wiring |
 | [`diversity.py`](diversity.py) | How varied a set of questions is: the paper's metrics, as pure functions, and the word count and factuality a category is read by |
+| [`ppi.py`](ppi.py) | Prediction-powered inference: a share corrected by a few labels, its interval, and strata pooled by size, as pure functions |
 | [`run.py`](run.py) | The command line, and the diversity report on a workbook |
 
 Reads `database.qa_generator` directly and no other service's repository —
@@ -436,6 +491,7 @@ poetry run pytest tests/unit/assessment
 | [`test_assessment_config.py`](../../tests/unit/assessment/test_assessment_config.py) | The flag, the judge and the two cost dials |
 | [`test_assessment_prompts.py`](../../tests/unit/assessment/test_assessment_prompts.py) | Every template recorded under a name of its own, with both halves and its version |
 | [`test_diversity.py`](../../tests/unit/assessment/test_diversity.py) | The metrics against values worked out by hand, and the report on a workbook the exporter wrote |
+| [`test_ppi.py`](../../tests/unit/assessment/test_ppi.py) | The estimate, the weight and the interval against values worked out by hand, the pooling, and two properties |
 
 ## Limits
 
@@ -473,6 +529,20 @@ poetry run pytest tests/unit/assessment
   Computational Linguistics (Volume 6: Industry Track)*, pages 469–484,
   Vienna, Austria. Association for Computational Linguistics.
   doi:10.18653/v1/2025.acl-industry.33. The DataMorgana paper.
+- Jon Saad-Falcon, Omar Khattab, Christopher Potts and Matei Zaharia. 2024.
+  [*ARES: An Automated Evaluation Framework for Retrieval-Augmented Generation
+  Systems*](https://aclanthology.org/2024.naacl-long.20/). In *Proceedings of
+  the 2024 Conference of the North American Chapter of the Association for
+  Computational Linguistics: Human Language Technologies (Volume 1: Long
+  Papers)*, pages 338–354, Mexico City, Mexico. Association for Computational
+  Linguistics. doi:10.18653/v1/2024.naacl-long.20.
+- Anastasios N. Angelopoulos, Stephen Bates, Clara Fannjiang, Michael I.
+  Jordan and Tijana Zrnic. 2023. [*Prediction-powered
+  inference*](https://doi.org/10.1126/science.adi6000). *Science*
+  382(6671):669–674. doi:10.1126/science.adi6000.
+- Anastasios N. Angelopoulos, John C. Duchi and Tijana Zrnic. 2023.
+  [*PPI++: Efficient Prediction-Powered Inference*](https://arxiv.org/abs/2311.01453).
+  arXiv:2311.01453.
 - Chantal Shaib et al. 2024. [*Standardizing the Measurement of Text
   Diversity: A Tool and a Comparative Analysis of Scores*](https://arxiv.org/abs/2403.00553).
   arXiv:2403.00553.
