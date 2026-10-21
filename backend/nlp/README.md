@@ -323,4 +323,9 @@ loads encoder weights, and only when they are already cached.
   after a corpus is chunked leaves every stored citation resolving against
   the old split. `make chunk-revocabulary` re-reads language and lemmas; the
   sentence offsets need `chunk-rerun`.
+- **One capital switches the case rule back on.** A query typed all in lower
+  case keeps its nouns, but one capitalised word in it - a brand, as in
+  `girokonto kündigungsfrist Sparkasse` - makes the text read as written with
+  capitals, and in a language named in `NLP_CAPITALISED_NOUNS` its lower-case
+  nouns are dropped as foreign again.
 - **Nothing here calls a served model.**

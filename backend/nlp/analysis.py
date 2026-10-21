@@ -1671,6 +1671,10 @@ def _foreign(token, language: str) -> bool:
     Only in a text that writes its words with capitals at all. A keyword
     query typed all in lower case - `girokonto kündigungsfrist gebühr` -
     says nothing by its case, and dropping its nouns left it naming nothing.
+
+    shortcut: one capitalised brand (`girokonto kündigungsfrist Sparkasse`)
+    makes a query read as cased again; read a capitalised common noun
+    instead if such queries are refused for it.
     """
     return (
         language in _capitalises_nouns()
