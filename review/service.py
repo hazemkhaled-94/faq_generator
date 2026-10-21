@@ -163,7 +163,9 @@ def push(
     draw = None if everything else settings.sample
 
     if name == datasets.FACTS:
-        rows = catalogs.facts.facts(draw)
+        # Less what Argilla holds an answer to, as for questions below.
+        judged = answered(dataset)
+        rows = [one for one in catalogs.facts.facts(draw) if str(one.id) not in judged]
         said = opinions(catalogs.judge, "fact", [one.id for one in rows])
         records = [
             datasets.fact_record(one, said.get(one.id, UNJUDGED)) for one in rows

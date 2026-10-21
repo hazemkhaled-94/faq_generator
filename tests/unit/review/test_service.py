@@ -510,6 +510,11 @@ def asking(monkeypatch, held: list[Record], rows: list) -> tuple[Catalogs, Datas
             del sample, ids
             return rows
 
+        def facts(self, sample: int):
+            """The rows, whatever was asked for."""
+            del sample
+            return rows
+
     return Catalogs(facts=Sampled(), questions=Questions(), topics=Topics()), dataset
 
 
@@ -548,6 +553,44 @@ def test_a_second_push_does_not_offer_a_question_already_answered(
     )
 
     assert push(datasets.QUESTIONS, settings, catalogs) == 1
+    assert [one.id for one in dataset.records.logged] == ["8"]
+
+
+def fact_row(fact_id: int, statement: str):
+    """One fact as the review reads it."""
+    from review.records import FactRow
+
+    return FactRow(
+        id=fact_id,
+        statement=statement,
+        evidence=statement,
+        kind="atomic",
+        validated=True,
+        rejection_code=None,
+        validation_error=None,
+    )
+
+
+def test_a_second_push_does_not_offer_a_fact_already_answered(
+    monkeypatch, settings
+) -> None:
+    """As for questions: answered in Argilla and not pulled yet is not drawn again.
+
+    The draw skips only a verdict a pull wrote back, so a second push spent
+    its sample on facts somebody had already judged.
+    """
+    from review.service import push
+
+    catalogs, dataset = asking(
+        monkeypatch,
+        [Record({"fact_id": 7}, [submitted("verdict", "accepted")], id="7")],
+        [
+            fact_row(7, "Eine Rücklastschrift kostet 3,00 EUR."),
+            fact_row(8, "Returns are free within 30 days of delivery."),
+        ],
+    )
+
+    assert push(datasets.FACTS, settings, catalogs) == 1
     assert [one.id for one in dataset.records.logged] == ["8"]
 
 

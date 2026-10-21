@@ -107,8 +107,8 @@ default, and what `make review` sends; topics are pushed whole every time.
 holds the corpus and the reviewer filters there.
 
 Either way a row that already carries a verdict, given here or on the
-Questions page, is not sent again, and neither is a question answered in
-Argilla and not yet pulled.
+Questions page, is not sent again, and neither is a fact or a question
+answered in Argilla and not yet pulled.
 
 `make review-all` is that over all three kinds. It is the right shape when
 somebody is working through a corpus; the sample is the right shape when the
