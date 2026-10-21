@@ -114,7 +114,10 @@ converted, with a warning.
 [`_mend`](pipelines/pdf.py) then rewrites every string before anything reads
 it:
 
-- compose to NFC
+- compose to NFC, and spell a Latin or Armenian ligature as its letters
+  (`ﬀ` as `ff`, `ﬁ` as `fi`), which a font's glyph list can name a glyph
+  with; superscripts, fractions and full-width forms are kept, as NFKC
+  would not keep them
 - rejoin words the page broke across two lines — both the soft-hyphen
   spelling and a real hyphen after a letter of A–Z, an umlaut or ß and
   before a lower-case one of those, unless a word that completes a hanging

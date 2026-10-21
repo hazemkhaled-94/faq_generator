@@ -59,6 +59,15 @@ _C1 = re.compile(r"[\x80-\x84\x86-\x9f]")
 #: Every space that is not U+0020.
 _SPACES = re.compile(r"[\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]")
 
+#: The Latin and Armenian ligatures, `ﬀ` to `ﬆ` and `ﬓ` to `ﬗ`, spelled as
+#: their letters. A font's glyph list names an `ff` glyph so; NFKC would
+#: spell them too, but would also fold superscripts, fractions and
+#: full-width forms.
+_LIGATURES = {
+    code: unicodedata.normalize("NFKC", chr(code))
+    for code in (*range(0xFB00, 0xFB07), *range(0xFB13, 0xFB18))
+}
+
 #: Where a deletion stroke sits: above the baseline by this share of the font
 #: size, low and high. Through the x-height, so an underline below the
 #: baseline and a rule above the capitals are not strikes.
@@ -341,9 +350,10 @@ def _legacy(found: re.Match[str]) -> str:
 def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """Rejoins a line-broken word and spells the rest so it can be copied.
 
-    Composes to NFC, joins soft and line-break hyphens, drops control and
-    format characters, reads a C1 control as the cp1252 character it stands
-    for, and turns every other kind of space into U+0020.
+    Composes to NFC, spells a ligature as its letters, joins soft and
+    line-break hyphens, drops control and format characters, reads a C1
+    control as the cp1252 character it stands for, and turns every other
+    kind of space into U+0020.
 
     Args:
         text: One string as the converter read it.
@@ -353,7 +363,7 @@ def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     Returns:
         The mended string.
     """
-    composed = unicodedata.normalize("NFC", text)
+    composed = unicodedata.normalize("NFC", text).translate(_LIGATURES)
     # Every format character, zero-width marks and bidi marks and isolates
     # alike, renders as nothing and so cannot be quoted.
     formatted = "".join(

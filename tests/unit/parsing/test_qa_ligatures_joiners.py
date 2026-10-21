@@ -7,14 +7,6 @@ import pytest
 from preprocessing.parsing.pipelines.pdf import _mend
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "_mend composes to NFC, which keeps a presentation-form ligature "
-        "(U+FB00-FB06) that docling-parse's glyph list emits for an 'ff' or 'fi' "
-        "glyph, so 'Kontoeröﬀnung' is stored and searched unlike 'Kontoeröffnung'"
-    ),
-)
 @pytest.mark.parametrize(
     ("drawn", "spelled"),
     [
@@ -22,11 +14,18 @@ from preprocessing.parsing.pipelines.pdf import _mend
         ("ﬁnanzierung", "finanzierung"),
         ("Oﬄine-Zahlung", "Offline-Zahlung"),
         ("certiﬁed reﬂex", "certified reflex"),
+        ("\ufb13", "\u0574\u0576"),
     ],
 )
 def test_a_ligature_is_spelled_as_its_letters(drawn, spelled) -> None:
     """A quote, a search or a lemma of the word holds the letters, not the glyph."""
     assert _mend(drawn) == spelled
+
+
+@pytest.mark.parametrize("kept", ["5 m²", "½ Jahr", "Ｎｒ. 5"])
+def test_a_superscript_a_fraction_and_a_full_width_letter_are_kept(kept) -> None:
+    """Only the ligatures are spelled out, not every compatibility character."""
+    assert _mend(kept) == kept
 
 
 @pytest.mark.xfail(
