@@ -937,11 +937,12 @@ SETTINGS: tuple[Setting, ...] = (
         name="EMBEDDING_MAX_TOKENS",
         service="platform",
         kind="integer",
-        low=1,
+        # Above any embedder's prefix and special tokens, with a sentence left.
+        low=64,
         invalidates=("chunking",),
         help="That model's context window. The chunker cuts a passage to it "
-        "less the tokens the embedder adds. Larger silently truncates at embed "
-        "time.",
+        "less the tokens the embedder adds, so at least 64 leaves a passage "
+        "room for a sentence. Larger silently truncates at embed time.",
     ),
     Setting(
         name="NLP_MODELS",

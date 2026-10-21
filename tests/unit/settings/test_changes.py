@@ -197,6 +197,23 @@ def test_a_value_holding_a_nul_is_refused_before_it_is_stored(
     assert store.written == {}
 
 
+@pytest.mark.parametrize("value", ["1", "5", "6"])
+def test_an_embedding_window_no_passage_fits_in_is_refused(value: str) -> None:
+    """The chunker cuts to the window less the tokens the embedder adds.
+
+    Five of those for multilingual-e5-large, so 5 leaves no budget and every
+    document fails chunking, and 6 cuts "Eine Überweisung ins Ausland kostet
+    5,00 EUR." into sub-word passages, each a paid extraction call later.
+    """
+    store = Recording()
+
+    with pytest.raises(changes.Refused) as refused:
+        changes.apply("platform", {"EMBEDDING_MAX_TOKENS": value}, store=store)
+
+    assert refused.value.code == "out_of_range"
+    assert store.written == {}
+
+
 def test_a_structured_mode_instructor_does_not_have_is_refused() -> None:
     """Otherwise every model worker fails its rebuild on every poll."""
     with pytest.raises(changes.Refused) as refused:
