@@ -186,6 +186,8 @@ missing from one fails no test.
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
 | `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |
+| `_ANAPHORIC_MODIFIERS` | same | Modifiers making their noun one the passage named before: a statement opening on one is refused as a demonstrative is. The fact side's own, apart from `_ANAPHORIC` | `solcher`, `such` |
+| `_CATAPHORIC_MODIFIERS` | same | Modifiers making a plural noun a list the passage gives after the statement, read as the opening modifiers are; on a singular noun they mean the next one | `folgend`, `following` |
 | `_POLITE` | same | Forms of polite address, read as written with their capital: the tagger calls `Sie` third person plural, and a statement addressing the reader points at nothing before it. One opening a statement counts only where another polite form follows it, or one stands inside a sentence of the passage it was drawn from (the fact check passes that passage; the question gates do not) | `Sie`, `Ihre` |
 | `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several, so a singular noun can be what they refer to | `their` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
@@ -204,7 +206,7 @@ missing from one fails no test.
 | `_INFLECTIONS` | [`extraction/validation.py`](../extraction/validation.py) | The endings a label word takes to inflect: a form of a learned label word directly before a number counts as the label ("Sections 7"), a word that merely begins with it does not | `Abschnitte`, `Sections` |
 
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
-`_ASKING` are read by **lemma**, `_ATTRIBUTIONS` and `_SOURCE` by lemma or
+`_ASKING` are read by **lemma**, `_ATTRIBUTIONS`, `_SOURCE` and the two modifier tables by lemma or
 by the word as written, `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
 `_EXCEPTIVE`, `_POLITE` and the two abbreviation tables by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word and `_REFUSALS` against the whole name. `Risikobericht` is a thing a corpus is

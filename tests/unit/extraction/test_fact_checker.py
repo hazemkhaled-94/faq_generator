@@ -537,6 +537,60 @@ def test_a_statement_opening_on_a_demonstrative_is_refused(
 
 
 @pytest.mark.parametrize(
+    ("statement", "language", "pointer"),
+    [
+        ("Such a card is blocked after three wrong PIN entries.", "en", "such"),
+        ("The following fees apply to transfers abroad.", "en", "following"),
+        (
+            "The aforementioned card is blocked after three wrong PIN entries.",
+            "en",
+            "aforementioned",
+        ),
+        (
+            "Eine solche Karte wird nach drei falschen PIN-Eingaben gesperrt.",
+            "de",
+            "solche",
+        ),
+        ("Die folgenden Gebühren gelten für Auslandsüberweisungen.", "de", "folgenden"),
+        (
+            "Die vorgenannte Karte wird nach drei falschen PIN-Eingaben gesperrt.",
+            "de",
+            "vorgenannte",
+        ),
+    ],
+)
+def test_a_statement_opening_on_a_noun_its_modifier_points_away_from_is_refused(
+    statement, language, pointer
+) -> None:
+    """`Eine solche Karte` and `the following fees` point as far as `Diese Karte`."""
+    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNRESOLVED_REFERENCE, (
+        judged.validation_error
+    )
+    assert pointer in judged.unresolved_references
+
+
+@pytest.mark.parametrize(
+    ("statement", "language"),
+    [
+        ("A replacement card is issued per account; such a card costs 5 EUR.", "en"),
+        ("Fees such as transfer fees are charged monthly.", "en"),
+        ("On the following day, the amount is credited to the account.", "en"),
+        ("Am folgenden Bankarbeitstag wird der Betrag gutgeschrieben.", "de"),
+        ("Der Betrag wird am folgenden Bankarbeitstag gutgeschrieben.", "de"),
+    ],
+)
+def test_a_modifier_naming_its_noun_or_the_next_day_is_not_a_reference(
+    statement, language
+) -> None:
+    """The card named first, an example list, and `following` meaning next stand alone."""
+    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+
+    assert not judged.unresolved_references, judged.validation_error
+
+
+@pytest.mark.parametrize(
     ("statement", "language"),
     [
         ("This syllabus defines adaptability as the ease of modification.", "en"),

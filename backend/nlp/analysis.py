@@ -1510,21 +1510,50 @@ def _sourced(token) -> bool:
     return any({t.lemma_.casefold(), t.text.casefold()} & _SOURCE for t in nouns)
 
 
+#: Modifiers that make their noun one the passage named before, by ISO 639-1
+#: code, as lemma or as written: `such a card`, `eine solche Karte`, `the
+#: aforementioned card`. Not `_ANAPHORIC`, which the question side reads as a
+#: measurement that may over-read: `former customers` names no earlier mention.
+_ANAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
+    "de": frozenset({"solcher", "vorgenannt", "obengenannt", "obig", "besagt"}),
+    "en": frozenset({"such", "aforementioned", "abovementioned"}),
+}
+
+#: Modifiers that make a plural noun a list the passage gives after the
+#: statement, by ISO 639-1 code, as lemma or as written: `the following
+#: fees`, `die folgenden Gebühren`. On a singular noun they mean the next
+#: one, `am folgenden Tag`, and point nowhere.
+_CATAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
+    "de": frozenset({"folgend", "nachstehend"}),
+    "en": frozenset({"following"}),
+}
+
+
 def _opens(token) -> bool:
     """Whether a token opening a statement points at something before it.
 
     A demonstrative determiner, `Diese Bibliotheken`, unless it names the
     source document, `Dieser Lehrplan`; or a German pronominal adverb,
     `Hierfür`. Not an identity determiner, `Derselbe Kunde`, which says the
-    same thing again without pointing at anything.
+    same thing again without pointing at anything. Or a modifier of a noun
+    that points as far, `Eine solche Karte`, `Die folgenden Gebühren`.
     """
-    if token.lemma_.casefold() in _IDENTITY.get(token.doc.lang_, frozenset()):
+    language = token.doc.lang_
+    if token.lemma_.casefold() in _IDENTITY.get(language, frozenset()):
         return False
-    return (
+    if (
         token.pos_ == "DET"
         and "Dem" in token.morph.get("PronType", [])
         and not _sourced(token)
-    ) or token.tag_ == "PROAV"
+    ) or token.tag_ == "PROAV":
+        return True
+    if token.head.pos_ not in _NOMINAL:
+        return False
+    words = {token.lemma_.casefold(), token.text.casefold()}
+    return bool(words & _ANAPHORIC_MODIFIERS.get(language, frozenset())) or (
+        bool(words & _CATAPHORIC_MODIFIERS.get(language, frozenset()))
+        and "Plur" in token.head.morph.get("Number", [])
+    )
 
 
 def _references(span: Doc | Span, passages: Sequence[str] = ()) -> tuple[str, ...]:
