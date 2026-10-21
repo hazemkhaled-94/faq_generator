@@ -290,25 +290,43 @@ def label_word(
     return None
 
 
+#: What a number counts when it stands before one: a noun, a name, a unit.
+_COUNTED = frozenset({"NOUN", "PROPN", "SYM"})
+
+
 def numbered(tokens: Sequence, at: int) -> list[str]:
     """The numbers a label word at `at` names, a closing full stop dropped.
 
     The one directly after it, and each joined to that by a conjunction or a
-    comma: "Sections 7, 9 and 11" names all three.
+    comma: "Sections 7, 9 and 11" names all three. After a singular label a
+    joined number that counts what follows it is no section: "Section 7, 3
+    transfers a month".
     """
     found = []
+    plural = "Plur" in tokens[at].morph.get("Number", [])
     nxt = at + 1
     while nxt < len(tokens) and NUMBER.fullmatch(tokens[nxt].text.rstrip(".")):
         found.append(tokens[nxt].text.rstrip("."))
+        joined = nxt + 2
         if (
-            nxt + 2 < len(tokens)
+            joined < len(tokens)
             and tokens[nxt + 1].pos_ in ("CCONJ", "PUNCT")
-            and NUMBER.fullmatch(tokens[nxt + 2].text.rstrip("."))
+            and NUMBER.fullmatch(tokens[joined].text.rstrip("."))
+            and (plural or not _counts(tokens, joined))
         ):
-            nxt += 2
+            nxt = joined
         else:
             break
     return found
+
+
+def _counts(tokens: Sequence, at: int) -> bool:
+    """Whether the number at `at` counts something after it: "3 other rules"."""
+    number = tokens[at]
+    after = tokens[at + 1] if at + 1 < len(tokens) else None
+    return (after is not None and after.pos_ in _COUNTED) or (
+        number.head.i > number.i and number.head.pos_ in _COUNTED
+    )
 
 
 def _names(tokens: Sequence, word: str, number: str, language: str | None) -> bool:

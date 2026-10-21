@@ -49,6 +49,16 @@ def _read(language: str, text: str):
         ("en", "Section 7 sets a fee of 9 EUR", "section", "9", False),
         ("de", "Die Gebühren der Abschnitte 7 und 9 gelten", "abschnitt", "9", True),
         ("de", "Abschnitt 7 regelt 9 Gebühren", "abschnitt", "9", False),
+        ("en", "Under Section 7, 3 transfers a month are free", "section", "3", False),
+        ("en", "Section 7 and 3 other rules set the fees", "section", "3", False),
+        (
+            "de",
+            "Nach Abschnitt 7, 3 Überweisungen im Monat sind frei",
+            "abschnitt",
+            "3",
+            False,
+        ),
+        ("en", "See Section 7 and 9 for the fees", "section", "9", True),
     ],
 )
 def test_a_label_word_is_named_by_the_number_that_follows_it(
