@@ -21,10 +21,12 @@ COPY backend/api/requirements.txt .
 # image runs the versions the test suite runs, wherever both name a package.
 ARG HOST_PINS=""
 
-# CPU-only torch first, at the versions the pins name, so resolving the ranges
+# CPU-only torch first, at the versions the pins name (unpinned when built
+# without them, as a build of every stage is), so resolving the ranges
 # below finds torch already satisfied and never reaches PyPI for a CUDA build.
 RUN printf '%s\n' "$HOST_PINS" > /pins.txt \
-    && pip install --index-url https://download.pytorch.org/whl/cpu $(grep -E '^(torch|torchvision)==' /pins.txt) \
+    && pip install --index-url https://download.pytorch.org/whl/cpu \
+         $(grep -E '^(torch|torchvision)==' /pins.txt || echo torch torchvision) \
     && pip install -c /pins.txt -r requirements.txt \
     && ! pip list --format=freeze | grep -q '^nvidia-'
 
