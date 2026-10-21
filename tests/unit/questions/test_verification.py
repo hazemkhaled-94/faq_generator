@@ -3738,6 +3738,41 @@ def test_no_explanation_at_all_is_not_a_failure() -> None:
     assert explains("", "48 hours", _PASSAGES, "en")
 
 
+@pytest.mark.parametrize(
+    ("question", "key", "passage", "language"),
+    [
+        (
+            "Wie hoch ist die monatliche Kontoführungsgebühr für ein Girokonto?",
+            "4,90 EUR",
+            "Die Kontoführungsgebühr für ein Girokonto beträgt 4,90 EUR im Monat.",
+            "de",
+        ),
+        (
+            "How much is the monthly fee for a current account?",
+            "4.90 EUR",
+            "The monthly fee for a current account is 4.90 EUR.",
+            "en",
+        ),
+    ],
+)
+def test_an_answerable_question_written_without_its_explanation_is_refused(
+    question, key, passage, language
+) -> None:
+    """Every answerable question carries its second answer; a stored row may not."""
+    result = build(Recording(recovers=key)).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            facts=group(
+                source(1, statement=passage, passage_text=passage, language=language)
+            ),
+            answer_explanation=None,  # what the writer stores for an empty one
+        )
+    )
+
+    assert result.rejected_reason == QuestionRejection.EXPLANATION_UNUSABLE
+
+
 def test_an_explanation_too_short_to_be_a_reading_is_refused() -> None:
     """This is the failure the column was added for: the key said twice."""
     assert not _reads("It is 48 hours.")

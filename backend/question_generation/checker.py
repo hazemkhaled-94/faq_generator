@@ -16,10 +16,10 @@ it:
                   with one thing
   restates_question  free: the answer carries almost nothing the question did
                   not
-  explanation_unusable  free: the long answer is the wrong length, asserts a
-                  number the passages do not carry, names a person they do
-                  not, speaks of the writer's facts or passages, or only
-                  restates the key
+  explanation_unusable  free: the long answer is missing or the wrong
+                  length, asserts a number the passages do not carry, names
+                  a person they do not, speaks of the writer's facts or
+                  passages, or only restates the key
   asks_nothing_new  free: a follow-up citing nothing its root did not, so a
                   thread asks one fact twice
   off_thread      free: a follow-up resting on no passage the turn before it
@@ -837,6 +837,13 @@ class QuestionChecker:
                 ),
             )
 
+        # Written now, so required: `explains` lets an empty one through
+        # for a stored row read without one.
+        if not (candidate.answer_explanation or "").strip():
+            return (
+                QuestionRejection.EXPLANATION_UNUSABLE,
+                "it carries no long answer, the second answer every question carries",
+            )
         if not explains(
             candidate.answer_explanation or "",
             target,

@@ -137,6 +137,16 @@ def group(*facts: SourceFact) -> FactGroup:
     return FactGroup(facts or (source(),))
 
 
+#: The long answer `candidate` gives an answerable question: one the
+#: explanation gate passes whatever the key and the passages, because it
+#: asserts no figure, names nobody and is mostly words no key holds.
+EXPLAINED = (
+    "The answer is the one the material gives, said at length for a reader "
+    "who has not seen it: what the rule is, why it holds and what follows "
+    "from it, in plain words rather than as a short key to be matched."
+)
+
+
 def candidate(
     question_text: str = "How heavy is the device built at the Hamburg plant?",
     target_answer: str | None = "4 kg",
@@ -145,7 +155,7 @@ def candidate(
     thread: tuple[tuple[str, str | None], ...] = (),
     question_type: str = QuestionType.FACTOID,
     planned_difficulty: str = Difficulty.EASY,
-    answer_explanation: str | None = None,
+    answer_explanation: str | None = EXPLAINED,
     root_facts: tuple[int, ...] = (),
     parent_passages: tuple[int, ...] = (),
     kind: str = QuestionKind.SINGLE,
@@ -162,9 +172,10 @@ def candidate(
     `question_type` decides which gates read the answer how: a factoid's is
     a value and may carry no verb, a reason's is an explanation and must.
 
-    `answer_explanation` is None by default, which `explains` lets through:
-    the column is nullable, so a test about another gate is not made to
-    write a paragraph to reach it.
+    `answer_explanation` is `EXPLAINED` by default, because the checker
+    refuses an answerable question written without one, and a test about
+    another gate is not made to write a paragraph to reach it. An
+    unanswerable question carries none, as the questions table requires.
     """
     return Candidate(
         question_text=question_text,
@@ -174,7 +185,7 @@ def candidate(
         thread=thread,
         spec=SPECS[question_type],
         planned_difficulty=planned_difficulty,
-        answer_explanation=answer_explanation,
+        answer_explanation=answer_explanation if answerable else None,
         root_facts=root_facts,
         parent_passages=parent_passages,
         kind=kind,
