@@ -398,9 +398,10 @@ corpus, which is a property of the model rather than of this code.
   a language not named in `NLP_CAPITALISED_NOUNS`) or a figure, a number or
   a sign before one: `Die Gebühr für die` and `Ersatzkarte beträgt 15 EUR.`
   are one sentence, and so are `für die ersten` and `12 Monate kostenlos.`
-  A block ending on a full verb is not joined to a figure (`The card costs`
-  over `€25 a year.` stays two): a verb can close its clause, and the tags
-  do not tell one missing its object. A script
+  A block ending on a verb is not joined to a figure, an auxiliary
+  included: a German clause closes on one (`gesperrt werden` over
+  `24 Stunden am Tag …`), and the tags do not tell a verb missing its object
+  (`The card costs` over `€25 a year.` stays two). A script
   without case is joined by the tags only, and two blocks in one column of one page
   are the document's own break.
 - **A flattened list is nested again by its indents.** The converter builds

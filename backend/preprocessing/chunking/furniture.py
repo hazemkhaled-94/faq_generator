@@ -84,6 +84,10 @@ LEAD_IN = (":", "：")
 #: The tags of a word a sentence cannot end on while a noun follows.
 _WANTS_NOUN = frozenset({"DET", "ADP", "CCONJ", "SCONJ", "AUX"})
 
+#: The tags of a word a sentence cannot end on while a figure follows: not
+#: an auxiliary, on which a German clause closes, `gesperrt werden`.
+_WANTS_FIGURE = _WANTS_NOUN - {"AUX"}
+
 #: The tags of a word that opens a phrase its adjectives do not close:
 #: `für die ersten` still wants its noun.
 _OPENS_PHRASE = frozenset({"DET", "ADP"})
@@ -718,10 +722,11 @@ def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
     """Whether a tagger reads a block's last word as wanting the next block's first.
 
     An article, preposition, conjunction or auxiliary, or an adjective right
-    after an article or a preposition, before a noun or a figure - a
-    number, or a sign before one: `für die ersten` over `12 Monate`. Before a
-    proper noun only, where the language does not write every noun with a
-    capital; a figure has no case.
+    after an article or a preposition, before a noun; before a proper noun
+    only, where the language does not write every noun with a capital. The
+    same but an auxiliary before a figure, a number or a sign before one:
+    `für die ersten` over `12 Monate`, while `gesperrt werden` over
+    `24 Stunden` closes its clause.
     """
     head = " ".join(first.text.split()[-_JOIN_WORDS:])
     tail = " ".join(second.text.split()[:_JOIN_WORDS])
@@ -736,9 +741,9 @@ def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
     if last.pos_ == "ADJ" and len(before) > 1 and before[-2].pos_ in _OPENS_PHRASE:
         last = before[-2]
     opener = after[1] if after[0].pos_ == "SYM" and len(after) > 1 else after[0]
-    return last.pos_ in _WANTS_NOUN and (
-        after[0].pos_ in wanted or opener.pos_ == "NUM"
-    )
+    if after[0].pos_ in wanted:
+        return last.pos_ in _WANTS_NOUN
+    return opener.pos_ == "NUM" and last.pos_ in _WANTS_FIGURE
 
 
 def _broken(before: ProvenanceItem, after: ProvenanceItem) -> bool:

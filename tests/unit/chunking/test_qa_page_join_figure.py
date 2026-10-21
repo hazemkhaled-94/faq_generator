@@ -65,3 +65,34 @@ def test_a_rest_opening_in_lower_case_is_joined() -> None:
 def test_a_rest_opening_with_a_figure_is_joined(lang, head, rest) -> None:
     """One sentence, so one paragraph, as the converter would have read it."""
     assert joined(head, rest, lang) == [f"{head} {rest}"]
+
+
+@pytest.mark.parametrize(
+    ("lang", "head", "rest"),
+    [
+        (
+            "de",
+            "Eine verlorene Karte kann sofort gesperrt werden",
+            "24 Stunden am Tag erreichen Sie den Sperr-Notruf.",
+        ),
+        (
+            "de",
+            "Die Karte ist sofort einsatzbereit, sobald sie aktiviert wurde",
+            "2026 senken wir die Jahresgebühr.",
+        ),
+        ("en", "The fee is", "€25 a year after the first year."),
+    ],
+)
+def test_a_block_ending_on_an_auxiliary_is_not_joined_to_a_figure(
+    lang, head, rest
+) -> None:
+    """A German clause closes on its auxiliary; the figure opens a new one."""
+    document = DoclingDocument(name="t")
+    for page in (1, 2):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    document.add_heading(text="Konto", level=1, prov=on(1, 50))
+    group = document.add_list_group()
+    document.add_list_item(text=head, parent=group, prov=on(1, 780))
+    document.add_text(label=DocItemLabel.TEXT, text=rest, prov=on(2, 100))
+    _, chunks = chunks_of(document, word_chunker(200), lang)
+    assert f"{head} {rest}" not in "\n".join(chunk.text for chunk in chunks)
