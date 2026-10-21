@@ -103,6 +103,44 @@ def test_a_topic_holding_no_passage_does_not_divide_by_zero(page) -> None:
     assert "0.0" in drawn.tables()
 
 
+# ── Search ────────────────────────────────────────────────────────────────
+
+#: A shop corpus in two languages, each topic named by a person.
+SHOP = [
+    changed(TOPIC, label="Versand"),
+    changed(
+        TOPIC,
+        id=2,
+        language="en",
+        top_terms=["refund", "return", "receipt"],
+        label="Returns",
+    ),
+]
+
+
+def found(drawn) -> list[str]:
+    """The topics a search left in the table, as `language #index`."""
+    if "Nothing matches." in drawn.captions():
+        return []
+    shown = drawn.table("Top terms")
+    return [f"{one} #{n}" for one, n in zip(shown["Language"], shown["#"], strict=True)]
+
+
+@pytest.mark.parametrize(
+    ("typed", "topic"),
+    [("lieferung, versand", "de #0"), ("refund, return", "en #0")],
+)
+def test_terms_typed_as_the_table_shows_them_find_the_topic(page, typed, topic) -> None:
+    """The Top terms cell joins them with a comma, so the search does too."""
+    assert found(page(topics=SHOP).type_in("topics-search", typed)) == [topic]
+
+
+@pytest.mark.parametrize("typed", ["versand lieferung", "returns refund"])
+def test_a_search_does_not_run_from_the_label_into_the_terms(page, typed) -> None:
+    """Neither the label nor the terms hold it, so no topic matches."""
+    assert found(page(topics=SHOP).type_in("topics-search", typed)) == []
+
+
 # ── Model health ──────────────────────────────────────────────────────────
 
 

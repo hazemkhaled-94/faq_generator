@@ -211,10 +211,12 @@ def _matches(topic: dict, words: str, field: str, chosen: dict) -> bool:
         return False
     if not words:
         return True
+    # The terms joined as the table shows them, and each column looked in
+    # alone, so nothing typed runs from the label into the first term.
     label = (topic["label"] or "").lower()
-    terms = " ".join(topic["top_terms"]).lower()
-    looked = {"label": label, "terms": terms, "both": f"{label} {terms}"}[field]
-    return words.lower() in looked
+    terms = ", ".join(topic["top_terms"]).lower()
+    looked = {"label": [label], "terms": [terms], "both": [label, terms]}[field]
+    return any(words.lower() in one for one in looked)
 
 
 def _per_passage(topic: dict) -> float:
