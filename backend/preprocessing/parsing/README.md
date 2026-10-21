@@ -124,12 +124,6 @@ it:
   beside another letter, `cré- dit`, is not rejoined; and a compound broken
   at its own hyphen keeps it where the document prints the word whole
   elsewhere, so `third- party` is `third-party` and not `thirdparty`
-- read a soft hyphen (U+00AD) as a drawn hyphen where a digit or a capital
-  follows it, or where its document uses U+00AD as its hyphen: one that
-  prints no U+002D anywhere, or has one before a space, a digit or a capital,
-  spells every U+00AD in the middle of a line `-` (`pick-up`, `3-facher`);
-  in a document that prints U+002D and shows no such mark, one inside a word
-  is invisible and dropped
 - drop control characters and every format character (zero-width marks, bidi
   marks and isolates), and read a C1 control as the cp1252 character it stands
   for (`U+0096` is an en dash), dropping the five it leaves unassigned

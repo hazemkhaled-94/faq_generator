@@ -45,8 +45,7 @@ log = logging.getLogger(__name__)
 #: A discretionary hyphen, spelled either as U+00AD or as the U+0002 some
 #: fonts map it to. A soft hyphen is invisible unless its line breaks there,
 #: so it is dropped unless a space, a digit or a capital follows it, where it is
-#: the hyphen a font drew with that code, or unless its document draws every
-#: hyphen so (`_draws`).
+#: the hyphen a font drew with that code.
 _SOFT_HYPHEN = re.compile(r"[\x02\u00ad]")
 
 #: Control characters other than newline and tab.
@@ -259,54 +258,22 @@ class PdfPipeline(Pipeline):
         return self._built
 
 
-def _drawn(after: str) -> bool:
-    """Whether what follows a soft hyphen shows it was drawn: a space, a digit or a capital."""
-    return after != "" and (after.isspace() or after.isdigit() or after.isupper())
+def _softened(text: str) -> str:
+    """Spells a soft hyphen "-" before a space, a digit or a capital, else drops it.
 
-
-def _softened(text: str, drawn: bool = False) -> str:
-    """Spells a soft hyphen "-" where it was drawn, else drops it.
-
-    Drawn before a space, a digit or a capital in every text layer, and
-    before anything else too where `drawn` says the layer uses U+00AD as its
-    hyphen. Otherwise, inside a word, between letters of a script without
-    case, or after a hyphen, it is invisible. What follows a spelled hyphen,
-    a space at a line break, is left for `rejoined`, which joins the broken
-    word and keeps "Kredit- oder".
+    Inside a word, between letters of a script without case, or after a
+    hyphen, it is invisible. What follows a spelled hyphen, a space at a line
+    break, is left for `rejoined`, which joins the broken word and keeps
+    "Kredit- oder".
     """
 
     def spelled(found: re.Match[str]) -> str:
         after = found.string[found.end() : found.end() + 1]
         before = found.string[max(found.start() - 1, 0) : found.start()]
-        keep = _drawn(after) or (drawn and after != "")
-        return "-" if keep and before != "-" else ""
+        drawn = after != "" and (after.isspace() or after.isdigit() or after.isupper())
+        return "-" if drawn and before != "-" else ""
 
     return _SOFT_HYPHEN.sub(spelled, text)
-
-
-def _draws(document: DoclingDocument) -> bool:
-    """Whether a document's text layer uses U+00AD as its hyphen.
-
-    It does when one stands before a space, a digit or a capital, or when the
-    document prints no U+002D at all: an undrawn discretionary hyphen does not
-    reach a text layer in the middle of a line. A document that also prints
-    U+002D and shows no such mark keeps dropping one before a lower-case
-    letter.
-    """
-    joined = "\n".join(
-        [
-            *(item.text for item in document.texts),
-            *(
-                cell.text
-                for table in document.tables
-                for cell in table.data.table_cells
-            ),
-        ]
-    )
-    return "-" not in joined or any(
-        _drawn(joined[found.end() : found.end() + 1])
-        for found in _SOFT_HYPHEN.finditer(joined)
-    )
 
 
 #: The share of a page a picture must cover for the page to count as a scan.
@@ -371,9 +338,7 @@ def _legacy(found: re.Match[str]) -> str:
         return ""
 
 
-def _mend(
-    text: str, whole: frozenset[tuple[str, str]] = frozenset(), drawn: bool = False
-) -> str:
+def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """Rejoins a line-broken word and spells the rest so it can be copied.
 
     Composes to NFC, joins soft and line-break hyphens, drops control and
@@ -384,7 +349,6 @@ def _mend(
         text: One string as the converter read it.
         whole: The words its document prints whole around a hyphen, which
             keep theirs where a line breaks them there.
-        drawn: Whether its document uses U+00AD as its hyphen, `_draws`.
 
     Returns:
         The mended string.
@@ -393,9 +357,7 @@ def _mend(
     # Every format character, zero-width marks and bidi marks and isolates
     # alike, renders as nothing and so cannot be quoted.
     formatted = "".join(
-        char
-        for char in _softened(composed, drawn)
-        if unicodedata.category(char) != "Cf"
+        char for char in _softened(composed) if unicodedata.category(char) != "Cf"
     )
     cleaned = _SPACES.sub(" ", _C1.sub(_legacy, _CONTROL.sub("", formatted)))
     # After the space normalisation, so the broken-word rule sees one kind of
@@ -416,13 +378,13 @@ def _repaired(document: DoclingDocument) -> DoclingDocument:
     Returns:
         The same document.
     """
-    whole, drawn = _printed(document), _draws(document)
+    whole = _printed(document)
     for item in document.texts:
-        item.text = _mend(item.text, whole, drawn)
-        item.orig = _mend(item.orig, whole, drawn)
+        item.text = _mend(item.text, whole)
+        item.orig = _mend(item.orig, whole)
     for table in document.tables:
         for cell in table.data.table_cells:
-            cell.text = _mend(cell.text, whole, drawn)
+            cell.text = _mend(cell.text, whole)
     return document
 
 
