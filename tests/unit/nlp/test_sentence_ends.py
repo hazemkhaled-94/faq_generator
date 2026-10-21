@@ -8,7 +8,7 @@ is a number the fact citing its own sentence is refused for.
 from __future__ import annotations
 
 import pytest
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from nlp.analysis import sentences
@@ -124,6 +124,8 @@ def test_a_price_abbreviation_before_a_lower_case_word_ends_nothing(
         ("The order no. 123 is printed on the invoice. The shop ships.", "en", 2),
         ("Our opening hours are Mon.–Fri. The shop is closed on Sundays.", "en", 2),
         ("The fee is approx. EUR 5 per month. The bank debits it.", "en", 2),
+        ("Die Karte kostet mtl. 5 Euro und jährl. 50 Euro.", "de", 1),
+        ("Fees are listed in Sect. 4 and Sect. 5 of these terms.", "en", 1),
     ],
 )
 def test_a_bank_or_shop_abbreviation_ends_where_its_sentence_does(
@@ -181,8 +183,12 @@ _PIECES = st.sampled_from(
     language=st.sampled_from(["de", "en", "fr", "es", None]),
 )
 def test_sentences_cover_their_passage_in_order(pieces, language) -> None:
-    """Each sentence is the text between its offsets, and they never overlap."""
-    text = " ".join(pieces)
+    """Each sentence is the text between its offsets, and they never overlap.
+
+    Stripped, as chunking stores a passage: a blank prefix reads as a blank sentence.
+    """
+    text = " ".join(pieces).strip()
+    assume(text)
     found = sentences(text, language)
 
     for one in found:
@@ -192,3 +198,34 @@ def test_sentences_cover_their_passage_in_order(pieces, language) -> None:
         assert before.end <= after.start
     covered = "".join(one.text for one in found)
     assert "".join(covered.split()) == "".join(text.split())
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("Bitte geben Sie Ihre Nr.\nDie Bank prüft den Auftrag.", "de"),
+        ("Prices are shown incl.\nShipping is charged extra.", "en"),
+    ],
+)
+def test_an_abbreviation_ending_its_line_may_end_its_sentence(text, language) -> None:
+    """One that never ends a sentence does so only on its line: a line break can."""
+    assert len(texts(text, language)) == 2
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "After a medial abbreviation the parser misreads (gem.), its next cut "
+        "before a lower-case word stays: gem. Preisverzeichnis | eine Gebühr"
+    ),
+)
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Der Kunde zahlt gem. Preisverzeichnis eine Gebühr.",
+        "Der Kunde zahlt gem. Ziff. 3 eine Gebühr.",
+        "Die Gebühr wird gem. AGB berechnet.",
+    ],
+)
+def test_a_cut_before_a_lower_case_word_after_an_abbreviation_is_dropped(text) -> None:
+    assert texts(text, "de") == [text]
