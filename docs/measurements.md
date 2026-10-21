@@ -972,6 +972,102 @@ Counted on all its rows, distant's conformance is 61 of 93 (0.66): the rows also
 
 The v0.4.3 calibrations cost USD 22.4 of a USD 30 cap: Link Q 6.82, Link C 11.63 (with the stopped first run), the premise run 1.65, the read replays and the later-gates replay 2.25.
 
+## The v0.4.4 bars
+
+v0.4.4 changes how documents are read: parsing, chunking, the NLP readings that only fact validation calls, extraction and topics (see [the finalize review](bugs.md#fixed-in-v044-parsing-and-chunking)). Each bar was written before anything was measured. All but one are replays that call no model, on three real documents or on the two frozen calibration bases, `qa_cal_laws` (the Laws of the Game in German and English) and `qa_cal_shop` (the Your Europe consumer pages); the one that calls a model extracts facts with two prompts in copies of those bases. The base is the code before the fixes.
+
+### Parsing and chunking
+
+The rule: three real PDFs, one football PDF from `resources/` and two Your Europe pages, are parsed in process into a temporary folder, never the shared store, with the base and the fix code, then chunked, and the passages are diffed. A labeller reads every changed passage, up to 60. It passes when no changed passage loses source text or mixes two languages, and at most 2 are worse than the base. A fix whose target has no instance in the sample rests on its red tests.
+
+| Document | Language | Pages | Passages, base / fix | Changed |
+|---|---|---|---|---|
+| `ifab-circular-attk.pdf`, the smallest German football PDF | de | 2 | 2 / 2 | 0 |
+| `shopping-returns_de.pdf`, a lead-in and an eight-item list across a page break | de | 4 | 7 / 7 | 0 |
+| `shopping-guarantees_en.pdf`, a country list and boxed panels | en | 8 | 16 / 16 | 0 |
+
+It passes with nothing to label: base and fix wrote byte-identical converted documents and byte-identical passages. None of the parse and chunk fixes has an instance in the three documents (no lone integer outside the footer, no heading holding ` > `, no format character, no footnote on any of the 8 pictures, no table Docling labels, no page under 100 characters, no body line opening with a running head), so each rests on its red tests. Both sides read the football PDF's bullets as `∞` and flatten one nested item, which is the converter's reading and no change of this release.
+
+### Fact validation
+
+The rule: the scoreboard's facts section, v0.4.3's tip against v0.4.4's, under the replay rule, with the changed verdicts labelled against the rubric. A loosening passes when the newly validated facts' correct share is at least 0.867 − 0.10, and a tightening when at most 35% of the newly refused facts are correct. Under 20 changed rows the shares are read as counts and reported with the rows.
+
+| Row | v0.4.3 | v0.4.4 |
+|---|---|---|
+| Stored verdicts the replay reproduces | 3,403 of 3,445 | 3,400 of 3,445 |
+| Bridge verdicts reproduced | 227 of 248 | 227 of 248 |
+| Validated facts, German / English | 1,700 / 1,499 | 1,697 / 1,499 |
+| Validated facts stated correctly, by the v0.3.0 review's labels | 2,776 of 3,199 (0.8678) | 2,775 of 3,196 (0.8683) |
+| Newly validated / newly refused | | 0 / 3 |
+
+The three newly refused facts are German, and each is refused `unresolved_reference` by the new modifier tables. One labeller read them blind against the rubric:
+
+| Fact | Statement | Read | Label |
+|---|---|---|---|
+| 11783 | *Eine solche Entscheidung kann nicht geändert werden, es sei denn, es handelt sich um eine klare und offensichtliche Fehlentscheidung.* | *solche* | vague, refusal right: the decision meant is the referee's on the field, which the statement does not carry |
+| 11287 | *Die folgenden einfachen Leitlinien sollen Wettbewerbsorganisatoren bei der Anwendung der Kapitänsregelung unterstützen.* | *folgenden* | vague, refusal right: the guidelines follow the passage and are in neither it nor the statement |
+| 11500 | *Das Abbilden solcher Logos und Embleme ist auf den Fahnen an den Fahnenstangen erlaubt.* | *solcher* | vague, refusal right: which bodies' logos are meant is in the passage only |
+
+0 of the 3 are correct, under the 35% a tightening may refuse, so it passes. The v0.3.0 review had labelled fact 11287 correct, which is why the snapshot's count of correct facts falls by one; the blind label decides the bar. The other fact-check changes (polite *Sie* read against its passage, *dies* after a free relative, the list reader of the bridge check) move no verdict on this snapshot, and the new abbreviation tables cut a passage's sentences at chunking, while the replay reads the sentences as stored.
+
+### A verbless definition (FIX-R13)
+
+The rule: count the passages the new rule admits in both frozen bases, extract them into copies (USD 0.5 at most) and label every new fact; it passes at a correct share of at least 0.767, and under 20 facts with at most 2 wrong per 10. Not run: the rule was withdrawn after two reviews, before its extraction (see [the withdrawn items](bugs.md#tried-in-v044-and-withdrawn-with-the-reason)).
+
+### Extraction prompts 13 and 14 (FIX-R129)
+
+The rule: 60 passages under a heading, extracted with both prompts in copies of the bases (USD 0.6 at most). The facts that write the heading as a situation must fall to half or fewer, and the correct share must be non-inferior with a margin of 0.10.
+
+The 60 passages are 15 per corpus and language, text or list passages of 120 to 1,100 characters under a trail of two or more headings, chosen from their text and trail alone where the sentences leave their subject or situation to the heading. Copies of both bases re-extracted them with `azure/gpt-5.4` (digests with `azure/gpt-4.1`). One labeller read every validated fact blind, the prompts pooled and hidden. A fact is correct when it is true against the passage read with its trail and keeps the scope it needs to be true alone; it writes the heading as a situation when it frames heading material as a condition or a setting the cited sentence does not state (*For a corner kick*, *Beim Abstoss*).
+
+| | Prompt 12 | Prompt 13 | Prompt 14 |
+|---|---|---|---|
+| Validated facts labelled | 266 | 256 | 264 |
+| Correct | 244 (0.917) | 203 (0.793) | 238 (0.902) |
+| Heading written as a situation | 119 | 43 | 105 |
+| Facts dropping a scope the heading gives | 5 | 32 | 7 |
+| Heading bar (at most 59.5) | | passes | fails |
+| Correct bar (at least 0.817) | | fails | passes |
+| Cost (USD) | 0.59 with prompt 13 | | 0.31 |
+
+- Prompt 13 stopped writing the heading as a situation by dropping it: of its 53 wrong facts, 32 drop a scope the heading gives and 15 lean on a word pointing outside the fact, concentrated in procedure lists under a restart and in procedures that only the heading names. Counting a fact that only drops the heading's scope as correct would give 0.936 against 0.918, a pass: the verdict rests on counting such facts wrong.
+- Prompt 14, the one iteration, carried the heading in as what a fact is about and kept the scope, but named the heading's procedure or case as a setting the sentence does not state, as its own example does (*When an order is cancelled, the goods must be sent back within 14 days*), so 105 facts still count against the bar, 100 of them correct.
+- Both prompts are out of v0.4.4, and extraction stays at prompt 12. A next try first settles whether a correct fact scoped by its heading counts against the bar.
+
+### The link pass and bridges
+
+The rule: R168's expected-failure property passes and is unmarked, and an unscoped rerun, replayed in process on the frozen bases, writes the stored bridges unchanged.
+
+The property test that held R168 as an expected failure carries no marker in v0.4.4 and passes at 200 and at 1,000 examples. The replay ran each code's bridge pass, unscoped and forced, over read-only copies of both bases (`EXTRACTION_BRIDGES_PER_TOPIC` 12, `EXTRACTION_BRIDGE_PASSAGES` 2), the extractor answering each dealt link with the bridge stored on the same passages, so no model was called.
+
+| | Laws, base / v0.4.4 | Shop, base / v0.4.4 |
+|---|---|---|
+| Stored bridges (prompt) | 243 (5) | 37 (6) |
+| Links dealt | 204 / 204, the same in the same order | 109 / 109, the same in the same order |
+| Bridges written | 17 / 17 | 37 / 37 |
+| Written bridges differing | none | none, apart from the head |
+
+It passes. The only difference v0.4.4 makes is the `head` each written bridge now records: on the shop base 26 of the 37 name the passage shown first and 11 the second, sibling or term links that the later passage headed. The Laws base's 243 bridges were written by prompt 5 before the bridge pass paired the passages the documents link, so only 17 sit on a link either code deals in the same order, and neither writes the other 226 back; and one stored Laws bridge refused `unsupported_addition` (fact 23175) is validated by both codes, from a heading check that predates this release. Neither comes from v0.4.4.
+
+### Topics
+
+The rule: a fit replayed in process on both frozen bases' passages, without naming (naming is a model call) and with no store write. No language may fail, and topic counts and passage assignments must match the base's except where a fix says why.
+
+Each code's fitter ran with the bases' settings (at most 40 topics, 40 passages per topic, 10 passes, seed 42, 12 terms, weight floor 0.05, `TOPIC_NO_BELOW` 3, `TOPIC_NO_ABOVE` 0.5) over each language's fact-bearing passages. The base code reproduces the stored topics exactly.
+
+| Base, language | Topics, base / v0.4.4 | Passages fitted | Passages placed elsewhere |
+|---|---|---|---|
+| Laws, German | 9 / 9 | 362 | 1 |
+| Laws, English | 8 / 8 | 346 | 1 |
+| Shop, German | 5 / 5 | 228 | 1 |
+| Shop, English | 5 / 5 | 216 | 2 |
+
+It passes: no language fails, every topic keeps its top terms, and 5 of the 1,150 passages placed take another main topic (the two Laws passages left unplaced stay so on both sides). All 5 come from the reseed of QAB-topics-3: with the reseed taken out, v0.4.4's fit moves none.
+
+### Spend
+
+The v0.4.4 calibration cost USD 0.90, against a plan of about USD 1: the two FIX-R129 extraction runs, 0.59 and 0.31. FIX-R13's run was not made, and every other bar called no model.
+
 ## References
 
 - Simone Filice, Guy Horowitz, David Carmel, Zohar Karnin, Liane Lewin-Eytan and Yoelle Maarek. 2025. [*Generating Q&A Benchmarks for RAG Evaluation in Enterprise Settings*](https://aclanthology.org/2025.acl-industry.33/). In *Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 6: Industry Track)*, pages 469–484, Vienna, Austria. Association for Computational Linguistics. doi:10.18653/v1/2025.acl-industry.33.
