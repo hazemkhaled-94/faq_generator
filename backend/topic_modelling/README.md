@@ -67,7 +67,12 @@ is an outstanding request, and a row that has one is a topic.
    passages and above `TOPIC_NO_ABOVE` of them. Two failures are raised
    rather than fitted through: an empty vocabulary, and a vocabulary whose
    every surviving term has an idf of zero, which would make every topic
-   `NaN`.
+   `NaN`. A language too small to split, with fewer distinct passages than
+   two topics' worth of `TOPIC_PASSAGES_PER_TOPIC` (or than `TOPIC_NUM_TOPICS`
+   with that sizing off), whose passages the filter or tf-idf cannot tell
+   apart gets the one topic of step 3 instead of either failure. Two distinct
+   passages that cannot be told apart still fail at `TOPIC_NUM_TOPICS=2` with
+   the sizing off, since two passages are then enough to split.
 5. **Fit.** `Nmf` over as many components as `TOPIC_NUM_TOPICS` and
    `TOPIC_PASSAGES_PER_TOPIC` allow and `TOPIC_PASSES` passes, eight times,
    seeded from `TOPIC_RANDOM_STATE` on. The draw kept is the one whose topics'
