@@ -40,22 +40,29 @@ def required(name: str) -> str:
     return value
 
 
+#: The least either timing may be, in seconds: a real pause between two polls.
+_LEAST = 1.0
+
+
 def decimal(name: str) -> float:
-    """Reads a number of seconds, which must be finite and above zero.
+    """Reads a number of seconds, which must be finite and at least one.
 
     Raises:
         KeyError: If it is unset or empty.
         ValueError: If it is not such a number, naming the variable. float()
             reads nan and inf too: nan never times a drain out, a negative
-            poll raises in time.sleep mid-run, and 0 asks without pause.
+            poll raises in time.sleep mid-run, and a poll under a second
+            (0, or 1e-300) asks the api without pause.
     """
     value = required(name)
     try:
         number = float(value)
     except ValueError:
         raise ValueError(f"{name}={value!r} is not a number") from None
-    if not (math.isfinite(number) and number > 0):
-        raise ValueError(f"{name}={value!r} is not a finite number above zero")
+    if not (math.isfinite(number) and number >= _LEAST):
+        raise ValueError(
+            f"{name}={value!r} is not a finite number of at least {_LEAST:g} s"
+        )
     return number
 
 

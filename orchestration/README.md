@@ -198,7 +198,11 @@ From [`configs/env/orchestration.env`](../configs/env/orchestration.env):
 | Setting | What it does |
 | --- | --- |
 | `ORCHESTRATION_DRAIN_TIMEOUT_SECONDS` | How long an asset waits for a stage to drain. Giving up is not failing the rows |
-| `ORCHESTRATION_POLL_SECONDS` | How often it asks |
+| `ORCHESTRATION_POLL_SECONDS` | How often it asks, so a real pause between two polls |
+
+Both are finite numbers of seconds, at least 1: the code location refuses to
+load with nan, inf, a negative or anything under a second, which would never
+time a drain out, fail an asset mid-run, or poll the api without pause.
 
 Plus `BACKEND_URL`, the only address its assets and sensors call, and
 `INGESTION_OPEN` from [`configs/env/backend.env`](../configs/env/backend.env):

@@ -36,7 +36,7 @@ def test_a_timing_that_is_not_a_number_stops_the_code_location(
         Settings.load()
 
 
-@pytest.mark.parametrize("value", ["nan", "inf", "-1", "0"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-1", "0", "1e-300", "0.5"])
 @pytest.mark.parametrize("name", _TIMINGS)
 def test_a_timing_no_wait_can_be_made_of_stops_the_code_location(
     monkeypatch, name: str, value: str
@@ -44,7 +44,7 @@ def test_a_timing_no_wait_can_be_made_of_stops_the_code_location(
     """As backend/settings/env.py decimal() refuses nan for the stages.
 
     nan never times a drain out, a negative poll raises in time.sleep mid-run,
-    and a poll of 0 asks the api without pause.
+    and a poll of 0, or of 1e-300, asks the api without pause.
     """
     monkeypatch.setenv(name, value)
 
