@@ -175,7 +175,14 @@ incremental and skips what is already done.
 
 ## An example, end to end
 
-Upload a PDF on the Upload page, then take it through:
+Upload a PDF on the Upload page, or from a terminal:
+
+```bash
+curl -F file=@guide.pdf http://localhost:8000/documents   # BACKEND_PORT, in configs/env/deployment.env
+```
+
+which answers with the outcome (`stored` the first time) and the file's
+`sha256`. Then take it through:
 
 ```bash
 make all                                 # every stage but the topic fit, in the workers
