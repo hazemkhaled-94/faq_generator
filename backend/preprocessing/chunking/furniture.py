@@ -29,6 +29,8 @@ from docling_core.types.doc.items.node import DocItem, NodeItem
 from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
 
+from nlp.analysis import _capitalises_nouns
+from nlp.pipelines import pipeline
 from nlp.text import printed, rejoined
 
 log = logging.getLogger(__name__)
@@ -66,6 +68,12 @@ _RESPACE_WORDS = 8
 #: What a sentence or a lead-in ends on. A block ending in none of these
 #: before a page or column break goes on in the next one.
 _ENDS = (".", "!", "?", ":", ";")
+
+#: The tags of a word a sentence cannot end on while a noun follows.
+_WANTS_NOUN = frozenset({"DET", "ADP", "ADJ", "CCONJ", "SCONJ", "AUX"})
+
+#: The words either side of a break the tagger reads to decide a join.
+_JOIN_WORDS = 8
 
 #: The conjunctions that join two alternatives or two items, by ISO 639-1
 #: code: printed alone between two blocks, the layout reads one as a heading.
@@ -368,7 +376,8 @@ def tidied(
     furniture layer. A sentence the converter cut at a page or column break
     is joined back: a paragraph or list item ending in no `_ENDS` mark,
     followed on the next page or in the next column by a paragraph opening
-    in lower case, takes that paragraph's text and its place on the page,
+    in lower case, or in capitals where the tagger reads the first as
+    wanting a noun and the second as opening with one, takes that paragraph's text and its place on the page,
     and the paragraph moves to the furniture layer. A paragraph that is a
     page number read as body text, a bare integer where the page's number is
     printed, moves there too, and one beside or between its label does not; a price, a rate, a phone
@@ -407,7 +416,7 @@ def tidied(
     debris |= {reference for reference, level in restated if level is None}
     promoted = [(reference, level) for reference, level in restated if level]
     debris |= {reference for reference, _ in promoted}
-    joins = _continued(document, debris)
+    joins = _continued(document, debris, language)
     starts = _chapter_starts(document, furniture, debris)
     if not debris and not starts and not joins:
         return document, {}
@@ -625,15 +634,19 @@ def _plain(text: str) -> str:
     return _PUNCTUATION.sub("", text).casefold()
 
 
-def _continued(document: DoclingDocument, skipped: set[str]) -> list[tuple[str, str]]:
+def _continued(
+    document: DoclingDocument, skipped: set[str], language: str | None
+) -> list[tuple[str, str]]:
     """The pairs of blocks a page or column break cut one sentence between.
 
     The converter ends a block where a page or a column does, mid-sentence,
     and opens the next as a paragraph of its own. Read off the punctuation
     and the case, which a page's layout does not set: a block that ends on
     no sentence mark and a next one that opens in lower case are one
-    sentence. A script without case opens nothing in lower case, so it is
-    never joined.
+    sentence, and so are two where the language's tags say the first ends on
+    a word that wants a noun and the second opens with one. A script
+    without case opens nothing in lower case, so it is joined by the tags
+    only.
     """
     texts = [
         item
@@ -650,9 +663,30 @@ def _continued(document: DoclingDocument, skipped: set[str]) -> list[tuple[str, 
         if first.label in _PROSE | {DocItemLabel.LIST_ITEM}
         and second.label in _PROSE
         and not first.text.rstrip().endswith(_ENDS)
-        and second.text.lstrip()[0].islower()
         and _broken(first.prov[-1], second.prov[0])
+        and (second.text.lstrip()[0].islower() or _resumed(first, second, language))
     ]
+
+
+def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
+    """Whether a tagger reads a block's last word as wanting the next block's first.
+
+    An article, preposition, adjective, conjunction or auxiliary before a
+    noun; before a proper noun only, where the language does not write
+    every noun with a capital.
+    """
+    head = " ".join(first.text.split()[-_JOIN_WORDS:])
+    tail = " ".join(second.text.split()[:_JOIN_WORDS])
+    document = pipeline(language)(f"{head} {tail}")
+    at = len(head) + 1
+    before = [token for token in document if token.idx < at]
+    after = [token for token in document if token.idx >= at]
+    wanted = {"NOUN", "PROPN"} if document.lang_ in _capitalises_nouns() else {"PROPN"}
+    return (
+        bool(before and after)
+        and before[-1].pos_ in _WANTS_NOUN
+        and after[0].pos_ in wanted
+    )
 
 
 def _broken(before: ProvenanceItem, after: ProvenanceItem) -> bool:
