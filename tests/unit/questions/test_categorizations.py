@@ -288,10 +288,14 @@ def test_text_that_is_not_json_is_refused() -> None:
 
 
 def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None:
-    """On by default, with the descriptions of the paper's Table 5, each uniform."""
+    """On by default, three of the paper's Table 5, each uniform."""
     monkeypatch.delenv("QUESTIONS_CATEGORIZATIONS", raising=False)
     read_ = Settings.load().categorizations
-    assert [one.name for one in read_] == ["Phrasing", "Premise"]
+    assert [one.name for one in read_] == [
+        "Phrasing",
+        "Premise",
+        "Linguistic variation",
+    ]
     assert [
         [(one.name, one.probability, one.role) for one in each.categories]
         for each in read_
@@ -301,6 +305,28 @@ def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None
             ("verbose-and-natural", 0.5, "question"),
         ],
         [("direct", 0.5, "question"), ("with-premise", 0.5, "question")],
+        [
+            ("similar-to-document", 0.5, "question"),
+            ("distant-from-document", 0.5, "question"),
+        ],
+    ]
+
+
+def test_the_default_wording_is_dealt_as_its_calibration_ran_it() -> None:
+    """Distant passed the floor against similar within novice rows, so both enter.
+
+    Reworded from the paper's `terms completely different`, which swapped the
+    terms that carry the meaning and coined words.
+    """
+    variation = categorizations(DEFAULT_CATEGORIZATIONS)[2]
+    assert [one.description for one in variation.categories] == [
+        "phrased using the same terminology and phrases appearing in the document.",
+        (
+            "phrased in other words than the document uses, as a reader who has "
+            "not seen it would put them; every thing, party, period and action it "
+            "names keeps exactly the meaning it has in the document, and no word "
+            "is coined."
+        ),
     ]
 
 
@@ -318,29 +344,16 @@ def opt_in(guide: str, name: str) -> Categorization:
 @pytest.mark.parametrize(
     "guide", ["docs/configuration.md", "backend/question_generation/README.md"]
 )
-def test_the_wording_and_the_asker_are_there_to_opt_into(guide: str) -> None:
-    """Not dealt unset, and given in each guide as JSON, distant and expert reworded.
+def test_the_asker_is_there_to_opt_into(guide: str) -> None:
+    """Not dealt unset, and given in each guide as JSON, the expert reworded.
 
-    Calibration found distant-from-document and expert below the floor for
-    complete keys, and a categorization left with one category would rewrite
-    every question. Distant swapped the terms that carry the meaning and
-    coined words; expert invented insider words and asked basic questions in
-    an expert's voice.
+    Calibration found the expert below the floor for conformance: told on
+    slots whose fact is basic, it asks basic questions in an expert's voice.
     """
     unset = {one.name for one in categorizations(DEFAULT_CATEGORIZATIONS)}
-    assert not unset & {"Linguistic variation", "User expertise"}
-    variation = opt_in(guide, "Linguistic variation")
+    assert "User expertise" not in unset
     expertise = opt_in(guide, "User expertise")
     assert {one.role for one in expertise.categories} == {"user"}
-    assert [one.description for one in variation.categories] == [
-        "phrased using the same terminology and phrases appearing in the document.",
-        (
-            "phrased in other words than the document uses, as a reader who has "
-            "not seen it would put them; every thing, party, period and action it "
-            "names keeps exactly the meaning it has in the document, and no word "
-            "is coined."
-        ),
-    ]
     assert [one.description for one in expertise.categories] == [
         (
             "The user asking the question knows the material and its terms, uses "

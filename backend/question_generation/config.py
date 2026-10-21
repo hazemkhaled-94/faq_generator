@@ -170,6 +170,9 @@ _ROUNDING = 0.01
 #: parenthesis, left out here. Its with-premise is reworded: "where the user
 #: reveals their needs or some information" made the asker optional, and a
 #: quarter of accepted with-premise rows opened on a label naming a setting.
+#: Linguistic variation's distant-from-document is reworded too, as its
+#: calibration ran it: the paper's "terms completely different" swapped the
+#: terms that carry the meaning and coined words.
 #: Here rather than in backend.env, which bash sources and so cannot hold a
 #: JSON value.
 DEFAULT_CATEGORIZATIONS = json.dumps(
@@ -213,6 +216,23 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                     "topic, the kind of answer wanted, or that the asker is "
                     "reading, checking or trying to understand something, and "
                     "it never gives the answer.",
+                },
+            ],
+        },
+        {
+            "categorization_name": "Linguistic variation",
+            "categories": [
+                {
+                    "name": "similar-to-document",
+                    "description": "phrased using the same terminology and "
+                    "phrases appearing in the document.",
+                },
+                {
+                    "name": "distant-from-document",
+                    "description": "phrased in other words than the document "
+                    "uses, as a reader who has not seen it would put them; every "
+                    "thing, party, period and action it names keeps exactly the "
+                    "meaning it has in the document, and no word is coined.",
                 },
             ],
         },

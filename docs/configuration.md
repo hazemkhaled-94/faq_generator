@@ -177,9 +177,15 @@ because bash sources that file and would split a JSON value at its spaces and
 strip its quotes. Unset, it reads `DEFAULT_CATEGORIZATIONS` in code; `[]`
 turns categories off.
 
-The default is two of the paper's Table 5 categorizations, in its
+The default is three of the paper's Table 5 categorizations, in its
 descriptions without the examples, every category at even odds because the
-table gives no probabilities. with-premise alone is reworded: the paper's
+table gives no probabilities. Two are reworded. distant-from-document is
+told to keep the meaning of every term it rewords and coin no word, where
+the paper's "terms completely different" swapped the ones that carry the
+meaning; so worded it passed calibration against similar-to-document
+(keys 58 and 57 of 60, complete 57 and 54, invalid 4 and 11 per 60,
+conformance 0.80), and Linguistic variation entered the default. And
+with-premise is reworded: the paper's
 "very short premise, where the user reveals their needs or some information"
 made the asker optional, and a quarter of accepted with-premise questions
 opened on a label naming a setting. It now asks for a premise in which the
@@ -191,30 +197,20 @@ wanted or that they are reading or checking something, nor the answer:
 |---|---|
 | Phrasing | concise-and-natural, verbose-and-natural |
 | Premise | direct, with-premise |
+| Linguistic variation | similar-to-document, distant-from-document |
 
 Table 5's Factuality is not among them: whether a question is factoid or
-open-ended is read off the answer form its type gives it. Its Linguistic
-variation and User expertise are not either, and are there to opt into: in
-calibration the questions written distant from the document and those asked
-by an expert fell below the floor for complete keys (0.57 and 0.60 against
-0.72), and a categorization left with its one other category would rewrite
-every question. Listed beside the default's two, they read in the paper's
-words but for two: distant-from-document is told to keep the meaning of
-every term it rewords and coin no word, where the paper's "terms completely
-different" swapped the ones that carry the meaning; and the expert is
-described by what an expert asks, in the material's own terms, where the
-paper's "a specialized user" invented insider words and asked basic
-questions in an expert's voice. Neither rewording has been measured yet:
+open-ended is read off the answer form its type gives it. Its User expertise
+is not either, and is there to opt into, the expert described by what an
+expert asks, in the material's own terms, where the paper's "a specialized
+user" invented insider words. Even so worded its conformance was 0.59 in
+calibration: it is told on slots whose fact is basic, and asks basic
+questions in an expert's voice. A categorization left with its one other
+category would rewrite every question. Listed beside the default's three, it
+reads:
 
 ```json
 [
-  {
-    "categorization_name": "Linguistic variation",
-    "categories": [
-      {"name": "similar-to-document", "description": "phrased using the same terminology and phrases appearing in the document."},
-      {"name": "distant-from-document", "description": "phrased in other words than the document uses, as a reader who has not seen it would put them; every thing, party, period and action it names keeps exactly the meaning it has in the document, and no word is coined."}
-    ]
-  },
   {
     "categorization_name": "User expertise",
     "role": "user",
@@ -311,12 +307,11 @@ is written as no category of the query's categorization. A query bounded to
 a few words, by a `max` in its `words`, is also read against the
 `QUESTIONS_ELSEWHERE_PASSAGES` passages nearest it that it does not cite, and
 is refused as not recoverable where one of them answers it differently. Table
-5's short and long search queries are of form `query`, and
-neither is dealt unset: in calibration the short ones fell below the floors
-for correct and complete keys (0.70 and 0.57 against 0.80 and 0.72), and a
-third of the long ones written were not queries. The long one is therefore
-described as keywords and nothing else, with no question word and nothing
-about the asker, not yet measured either. A Phrasing listing them
+5's short and long search queries are of form `query`, and neither is dealt
+unset. The short one was accepted for 30% of its rows in calibration, against
+82-86% for the natural phrasings on the same slots. The long one, described
+as keywords and nothing else, with no question word and nothing about the
+asker, reached 36 accepted rows, under the 40 a category is measured on. A Phrasing listing them
 beside the two natural phrasings, set in place of the default's, deals all
 four at even odds:
 

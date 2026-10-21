@@ -443,7 +443,8 @@ SETTINGS: tuple[Setting, ...] = (
         optional=True,
         help="The paper's categorizations as JSON: each answerable question is "
         "written as one category of each. Unset writes the paper's two natural "
-        "phrasings and its two premises, each at even odds; [] writes none.",
+        "phrasings, its two premises and its two linguistic variations, each "
+        "at even odds; [] writes none.",
     ),
     Setting(
         name="QUESTIONS_DIFFICULTY_MIX",

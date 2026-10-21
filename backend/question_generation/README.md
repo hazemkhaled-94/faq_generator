@@ -50,34 +50,27 @@ Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Tr
 describes the traffic a benchmark should look like:
 each is a set of mutually exclusive categories, each category a description
 of what a question of it is like and how often it is wanted. The setting
-holds them as the paper's Figure 2 JSON. Unset, it reads two of the paper's
+holds them as the paper's Figure 2 JSON. Unset, it reads three of the paper's
 Table 5 categorizations, every category at even odds: Phrasing, a concise
-natural question of fewer than 10 words or a verbose one of more than 9; and
-Premise, a direct question or one opening with a short premise in which the
+natural question of fewer than 10 words or a verbose one of more than 9;
+Linguistic variation, a question in the document's own terms or one in other
+words that keeps every term's meaning and coins none, which passed its
+calibration against the first reworded so; and Premise, a direct question or one opening with a short premise in which the
 asker states, in the first person, a fact of their own situation, something
 they have, did, bought or plan, never only the topic, the kind of answer
 wanted or that they are reading or checking something. That one is reworded from the paper's, which made the asker
 optional: a quarter of accepted with-premise rows opened on a label naming a
 setting, never the asker, and one gave its answer away. `[]` deals none.
 
-Table 5's Linguistic variation and User expertise are not dealt unset, and
-are there to opt into. In calibration the questions written distant from the
-document and those asked by an expert fell below the floor for complete
-keys, and a categorization left with its one other category would rewrite
-every question. A value listing them beside the default's two deals them in
-the paper's words but for two, neither measured yet: distant-from-document
-keeps the meaning of every term it rewords and coins no word, and the expert
-is described by what an expert asks, in the material's own terms:
+Table 5's User expertise is not dealt unset, and is there to opt into, the
+expert described by what an expert asks, in the material's own terms. Its
+conformance was 0.59 in calibration: told on slots whose fact is basic, it
+asks basic questions in an expert's voice. A categorization left with its one
+other category would rewrite every question. A value listing it beside the
+default's three deals it so:
 
 ```json
 [
-  {
-    "categorization_name": "Linguistic variation",
-    "categories": [
-      {"name": "similar-to-document", "description": "phrased using the same terminology and phrases appearing in the document."},
-      {"name": "distant-from-document", "description": "phrased in other words than the document uses, as a reader who has not seen it would put them; every thing, party, period and action it names keeps exactly the meaning it has in the document, and no word is coined."}
-    ]
-  },
   {
     "categorization_name": "User expertise",
     "role": "user",
@@ -251,10 +244,10 @@ version 17 sent.
 
 A category of `"form": "query"` is a search query: keywords typed into a
 box, as Table 5's short and long search queries are. Neither is dealt
-unset, and both are there to opt into: in calibration the short search
-queries fell below the floors for correct and complete keys, and a third of
-the long ones written were not queries, so the long one is described as
-keywords and nothing else, not yet measured. Neither is told on a slot that spans
+unset, and both are there to opt into: in calibration the short search query
+was accepted for 30% of its rows against 82-86% for the natural phrasings on
+the same slots, and the long one, described as keywords and nothing else,
+reached 36 accepted rows, under the 40 a category is measured on. Neither is told on a slot that spans
 two passages, whose keywords cannot say how the two meet, nor on a type whose
 question word is the ask (`TypeSpec.keywords` false, which only `reason`
 needs: `comparison`, `implication` and `temporal` span anyway); such a slot
@@ -1115,7 +1108,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
-| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category's `form` is `question`, the default, `query` for a search query, which no gate holds to a question mark, or `premise` for a question opening on the asker's own situation; any other form is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them, no question is refused for missing them, and `make diversity BY=category` reports how many of the category's questions keep to them. A `max`, whatever the `min`, also keeps a premise from being told beside the category, and has a search query read once more against the passages it does not cite, which refuses it as not recoverable where one answers it differently. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings and its two premises from code, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise and verbose; Premise: direct and with-premise; 0.5 each** |
+| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category's `form` is `question`, the default, `query` for a search query, which no gate holds to a question mark, or `premise` for a question opening on the asker's own situation; any other form is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them, no question is refused for missing them, and `make diversity BY=category` reports how many of the category's questions keep to them. A `max`, whatever the `min`, also keeps a premise from being told beside the category, and has a search query read once more against the passages it does not cite, which refuses it as not recoverable where one answers it differently. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings, its two premises and its two linguistic variations from code, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise and verbose; Premise: direct and with-premise; Linguistic variation: similar-to-document and distant-from-document; 0.5 each** |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |
