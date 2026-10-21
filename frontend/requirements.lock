@@ -18,6 +18,10 @@
 # Rebuilding the image cannot do it: the image installs this file and never
 # reads requirements.txt, so a new dependency would never reach pip.
 #
+# Every package this shares with poetry.lock is pinned to the version
+# poetry.lock pins, which the suite runs; tests/static/test_requirements_lock.py
+# holds it, and says which pins to correct after a resolve that differs.
+#
 # Platform-specific: resolved for linux/aarch64, Python 3.13. A build for
 # another platform needs its own regeneration.
 Jinja2==3.1.6
@@ -36,8 +40,8 @@ idna==3.19
 itsdangerous==2.2.0
 jsonschema-specifications==2025.9.1
 jsonschema==4.26.0
-narwhals==2.25.0
-numpy==2.5.2
+narwhals==2.26.0
+numpy==2.5.3
 opentelemetry-api==1.44.0
 opentelemetry-exporter-otlp-proto-common==1.44.0
 opentelemetry-exporter-otlp-proto-grpc==1.44.0
@@ -48,9 +52,9 @@ opentelemetry-sdk==1.44.0
 opentelemetry-semantic-conventions==0.65b0
 opentelemetry-util-http==0.65b0
 packaging==26.3
-pandas==3.0.5
+pandas==2.3.3
 pillow==12.3.0
-protobuf==7.36.1
+protobuf==6.33.6
 pyarrow==25.0.1
 pydeck==0.9.3
 python-dateutil==2.9.0.post0
@@ -68,4 +72,4 @@ urllib3==2.8.0
 uvicorn==0.52.4
 watchdog==6.0.0
 websockets==16.1.1
-wrapt==2.4.0
+wrapt==2.4.1

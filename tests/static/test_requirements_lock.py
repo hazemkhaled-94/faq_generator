@@ -73,3 +73,35 @@ def test_the_orchestrator_image_pins_the_dagster_the_host_is_locked_to() -> None
     )
     assert dagster, "orchestration/requirements.txt declares no dagster"
     assert not unpinned, unpinned
+
+
+def _locked_versions() -> dict[str, set[str]]:
+    """Every version poetry.lock holds per package, folded; a marker can split one."""
+    import tomllib
+
+    held: dict[str, set[str]] = {}
+    for one in tomllib.loads((ROOT / "poetry.lock").read_text())["package"]:
+        held.setdefault(_folded(one["name"]), set()).add(one["version"])
+    return held
+
+
+@pytest.mark.parametrize("service", SERVICES, ids=lambda path: path.name)
+def test_an_image_lock_pins_what_the_host_lock_pins_for_every_shared_package(
+    service: Path,
+) -> None:
+    """The suite runs poetry.lock's versions, so the image must run the same ones."""
+    held = _locked_versions()
+    differ = []
+    for line in (service / "requirements.lock").read_text().splitlines():
+        name, _, version = line.partition("==")
+        if (
+            _PINNED.match(line)
+            and _folded(name) in held
+            and version not in held[_folded(name)]
+        ):
+            differ.append(
+                f"{name}: image {version}, host {sorted(held[_folded(name)])}"
+            )
+    assert not differ, (
+        f"{service.name}/requirements.lock differs from poetry.lock: {differ}"
+    )
