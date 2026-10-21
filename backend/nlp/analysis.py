@@ -1903,6 +1903,7 @@ _CLOSING_ABBREVIATIONS: dict[str, frozenset[str]] = {
             "max.",
             "min.",
             "mtl.",
+            "mon.",
             "jährl.",
             "tägl.",
             "mo.",
@@ -1918,6 +1919,7 @@ _CLOSING_ABBREVIATIONS: dict[str, frozenset[str]] = {
         {
             "etc.",
             "no.",
+            "p.a.",
             "art.",
             "sect.",
             "max.",
@@ -1974,8 +1976,9 @@ def _boundaries(document: Doc) -> list[int]:
         # An opening bracket or quote is no part of the word: "(cf.", "„inkl.".
         word = re.sub(r"^\W+", "", left.split()[-1].casefold())
         # A range or a compound ends on its last abbreviation, "Mo.–Fr.",
-        # "Kunden-Nr.": a noun, which may end a sentence, so it is no medial one.
-        last_word = re.split(r"[\u2013-]", word)[-1]
+        # "Kunden-Nr.", "EUR/Mon.": a noun, which may end a sentence, so it is
+        # no medial one.
+        last_word = re.split(r"[\u2013/-]", word)[-1]
         compound = last_word != word
         joined = not spaced and (left[-1] in _JOINERS or right[0] in _JOINERS)
         if joined:

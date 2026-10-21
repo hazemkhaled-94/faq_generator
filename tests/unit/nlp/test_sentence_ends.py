@@ -82,13 +82,6 @@ def test_an_abbreviation_inside_brackets_ends_nothing(text) -> None:
     assert len(texts(text, "en")) == 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A price abbreviation the tables lack or a slash hides (2.5% p.a. on, "
-        "5 EUR/Mon. zzgl.) ends a sentence before a lower-case word"
-    ),
-)
 @pytest.mark.parametrize(
     ("text", "language"),
     [
