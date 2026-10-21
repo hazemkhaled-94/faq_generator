@@ -1010,6 +1010,21 @@ The three newly refused facts are German, and each is refused `unresolved_refere
 
 0 of the 3 are correct, under the 35% a tightening may refuse, so it passes. The v0.3.0 review had labelled fact 11287 correct, which is why the snapshot's count of correct facts falls by one; the blind label decides the bar. The other fact-check changes (polite *Sie* read against its passage, *dies* after a free relative, the list reader of the bridge check) move no verdict on this snapshot, and the new abbreviation tables cut a passage's sentences at chunking, while the replay reads the sentences as stored.
 
+### The fixes from the QA pass, under the same bars
+
+The QA pass of 2026-10-21 found defects in parsing, chunking and extraction that v0.4.4 also fixes (see [the finalize review](bugs.md)). They were held to the same two bars, on the same code they join.
+
+**Parsing and chunking.** The bar ran on five documents this time: the three above, the 52-page UEFA disciplinary regulations (`uefa-disciplinary-regulations.pdf`, English) and a 4-page German IFAB circular (`ifab-circular-cooling.pdf`), both with running heads and page breaks. The first build of the fixes failed it: 88 passages changed (82 of the UEFA document's, 6 of the circular's), and of the 60 labelled, 28 were worse than the base against the 2 the rule allows, none losing text or mixing languages. Two causes: the running head was also split at a hyphen between spaces, so `IV - Other provisions` became two fields and the chapter's own heading stayed in every trail under it, and a one-letter field `I` matched `TITLE I - SUBSTANTIVE LAW`, so chapter I opened one heading early. Both were fixed (a head is split at dashes, dots and bullets, never at a hyphen; a heading is matched to a field word for word, and a one-letter field or a bare numeral never opens a chapter alone) and the bar ran twice more: on both later builds every document's converted text, passages and content digest are byte-identical to the base's, so it passes with nothing to label, and each fix rests on its red tests.
+
+**Fact validation.** The replay re-cuts the stored passages' sentences with each build's code, so it measures the sentence-end fixes where a cut moves: 22 of 820 passages. No fact is newly refused; two are newly validated, a loosening, and were labelled blind:
+
+| Fact | Fix | Label |
+|---|---|---|
+| 13367, *The minimum length of the goal line for international matches is 64 metres (70 yards).* | a figure ending a sentence stays in it (QA-extraction-1) | correct |
+| 11898, *Wenn der Schiedsrichter nicht abschätzen kann, …, erfolgt der Schiedsrichterball mit einem Spieler des Teams, das den Ball zuletzt berührt hat.* | a cut before a lower-case word after no full stop is dropped (QA-extraction-4) | narrowed: it drops the condition that the ball was outside the penalty area |
+
+Read per fix, the first passes (1 of 1 correct, against 0.767) and the second fails (0 of 1). The second also moved the cuts of 21 of the 22 passages, mostly joining clauses at a semicolon, so it was withdrawn and its row stays open. The fee-table fix (QA-extraction-7) changes which passages extraction skips, which a replay of stored facts cannot see; it rests on its red tests.
+
 ### A verbless definition (FIX-R13)
 
 The rule: count the passages the new rule admits in both frozen bases, extract them into copies (USD 0.5 at most) and label every new fact; it passes at a correct share of at least 0.767, and under 20 facts with at most 2 wrong per 10. Not run: the rule was withdrawn after two reviews, before its extraction (see [the withdrawn items](bugs.md#tried-in-v044-and-withdrawn-with-the-reason)).
