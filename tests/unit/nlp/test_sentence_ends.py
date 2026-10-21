@@ -70,13 +70,6 @@ def test_an_item_number_opening_its_line_opens_its_item(text, language) -> None:
     assert texts(text, language)[1].startswith("2.")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "An abbreviation the table lists ends a sentence after an opening "
-        'bracket or quote, as in (cf. Section 4) and "incl. VAT"'
-    ),
-)
 @pytest.mark.parametrize(
     "text",
     [

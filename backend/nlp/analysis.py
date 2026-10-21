@@ -1971,7 +1971,8 @@ def _boundaries(document: Doc) -> list[int]:
             starts.append(sentence.start)
             continue
         spaced = previous.text != left or sentence.text != right
-        word = left.split()[-1].casefold()
+        # An opening bracket or quote is no part of the word: "(cf.", "„inkl.".
+        word = re.sub(r"^\W+", "", left.split()[-1].casefold())
         # A range or a compound ends on its last abbreviation, "Mo.–Fr.",
         # "Kunden-Nr.": a noun, which may end a sentence, so it is no medial one.
         last_word = re.split(r"[\u2013-]", word)[-1]
