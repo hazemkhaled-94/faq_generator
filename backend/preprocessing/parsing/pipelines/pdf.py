@@ -631,18 +631,22 @@ def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:
             held.update(range(cell.start_row_offset_idx, cell.end_row_offset_idx))
     order = sorted(set(rows) - held)
     gone: set[int] = set()
-    for above, row in pairwise(order):
+    for before, row in pairwise(order):
+        # The nearest row still standing, so a label wrapped over three lines
+        # joins one line after the other.
+        above = rows.get(_kept(row, gone))
         label = rows[row].get(0)
-        top = rows[above].get(0)
+        top = above.get(0) if above else None
         if (
-            row == above + 1
+            row == before + 1
             and table.data.num_cols > 1
             and label is not None
+            and above is not None
             and top is not None
             and _label_only(rows[row])
             and all(
                 above_cell is not None and above_cell.text.strip()
-                for above_cell in map(rows[above].get, range(1, table.data.num_cols))
+                for above_cell in map(above.get, range(1, table.data.num_cols))
             )
             and _tail(top.text, label.text)
         ):

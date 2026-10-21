@@ -154,6 +154,10 @@ reading the grid and the case and never a word:
   `(inkl. MwSt.)`); a second tier of one service under an empty label,
   `online` with its own fee, joins it too, a known fault its tests mark
   as expected to fail
+- a label alone on a row that opens in lower case, or closes the bracket the
+  label above it left open, is that label's last line and joins it, however
+  many lines the label wraps over: each line joins the nearest row still
+  standing
 - a row holding a label and nothing else, over a row whose label opens in
   lower case, is that label's head and joins it
 
