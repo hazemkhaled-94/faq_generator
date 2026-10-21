@@ -33,7 +33,7 @@ from extraction.models import (
 )
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
-from nlp.analysis import claim, normalised, numbers
+from nlp.analysis import AMOUNT_WORDS, claim, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
@@ -635,10 +635,11 @@ _HAS_DIGIT = re.compile(r"\d")
 #: A cell holding an identifier rather than a statement: a learning-objective
 #: code, a level, a tick. Anchored, so a cell containing one of these among
 #: words is not one. A number carries letters before it to be one: a bare
-#: figure, `5` or `12.50`, is a value a fee or price table states.
+#: figure, `5` or `12.50`, is a value a fee or price table states, and so is
+#: one after a currency code, `EUR 5`, which `_code_grid` reads off `letters`.
 _CODE_CELL = re.compile(
     r"""^(?:
-        [^\W\d_]{1,6}[-. ]?\d+(?:\.\d+)*   # TM-2.2.1, Abschnitt 4
+        (?P<letters>[^\W\d_]{1,6})[-. ]?\d+(?:\.\d+)*   # TM-2.2.1, Abschnitt 4
       | [A-Z]{1,5}-?[A-Z]*\d+              # TA-BO1, FL4
       | [XxKk]\d?                          # K2, X
       | [✓✗X-]                   # tick, cross, dash
@@ -666,7 +667,13 @@ def _code_grid(passage: PassageToExtract) -> bool:
     ]
     if not cells:
         return False
-    codes = sum(1 for one in cells if _CODE_CELL.match(one))
+    amounts = AMOUNT_WORDS.get(passage.language or "", frozenset())
+    codes = sum(
+        1
+        for one in cells
+        if (code := _CODE_CELL.match(one))
+        and (code["letters"] or "").casefold() not in amounts
+    )
     return codes / len(cells) > _CODE_CELLS
 
 

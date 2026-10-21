@@ -252,14 +252,6 @@ def _grid(columns: int, *texts: str) -> list[dict]:
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A fee table whose amounts carry a currency code before them (EUR 5, "
-        "GBP 12.00) is skipped as a grid of identifiers: _CODE_CELL reads "
-        "letters, a space and digits as a code"
-    ),
-)
 @pytest.mark.parametrize(
     "cells",
     [
