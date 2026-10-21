@@ -287,14 +287,6 @@ def test_a_fee_table_with_currency_signs_is_read(cells) -> None:
     assert skipped(fees) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A section number with its subsection glued on (Section 7(2), § 7(2)) "
-        "names no section: the tokenizer keeps 7(2 as one token, so the link "
-        "pass offers no reference"
-    ),
-)
 @pytest.mark.parametrize(
     ("language", "text", "heading"),
     [

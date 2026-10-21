@@ -145,8 +145,8 @@ for, first failure winning:
 For a bridge, `unsupported_addition` reads each cited passage's heading trail
 and title as it does for an atomic fact (numbers in any spelling, hyphen parts,
 noun forms), and `not_bridging` also refuses a statement naming the numbered
-heading of a passage it cites ("Section 7", or "Sections 7 and 9" under
-Section 9, read as the link pass reads a list of numbers): that is a claim
+heading of a passage it cites ("Section 7", "Section 7(2)", or "Sections 7
+and 9" under Section 9, read as the link pass reads a list of numbers): that is a claim
 about the document.
 
 An atomic statement the model wrote and the checks refused as `not_atomic` is sent

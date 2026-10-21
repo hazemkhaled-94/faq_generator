@@ -63,6 +63,17 @@ HEADING_LABEL = re.compile(r"^([^\W\d_]+|§)\s?(\d+(?:\.\d+)*)$")
 #: A heading number as the documents write it ('7', '5.1').
 NUMBER = re.compile(r"\d+(?:\.\d+)*")
 
+#: A token holding a section number, with any subsection the tokenizer glued
+#: on after it ('7(2'): the section it names is the number before the bracket.
+_SECTION_TOKEN = re.compile(rf"({NUMBER.pattern})(?:\(.*)?")
+
+
+def _section(text: str) -> str | None:
+    """The section number a token names, a closing full stop dropped, or None."""
+    found = _SECTION_TOKEN.fullmatch(text.rstrip("."))
+    return found[1] if found else None
+
+
 #: A failed check, as its code and the measurement behind it.
 Failure = tuple[str, str]
 Check = Callable[["Judged"], Failure | None]
@@ -280,7 +291,7 @@ def label_word(
     forms = {token.text.casefold(), token.lemma_.casefold()}
     if found := next((w for w in words if w in forms), None):
         return found
-    if at + 1 < len(tokens) and NUMBER.fullmatch(tokens[at + 1].text.rstrip(".")):
+    if at + 1 < len(tokens) and _section(tokens[at + 1].text):
         text = token.text.casefold()
         ends = _INFLECTIONS.get(language or "", ())
         return next(
@@ -305,13 +316,13 @@ def numbered(tokens: Sequence, at: int) -> list[str]:
     found = []
     plural = "Plur" in tokens[at].morph.get("Number", [])
     nxt = at + 1
-    while nxt < len(tokens) and NUMBER.fullmatch(tokens[nxt].text.rstrip(".")):
-        found.append(tokens[nxt].text.rstrip("."))
+    while nxt < len(tokens) and (number := _section(tokens[nxt].text)):
+        found.append(number)
         joined = nxt + 2
         if (
             joined < len(tokens)
             and tokens[nxt + 1].pos_ in ("CCONJ", "PUNCT")
-            and NUMBER.fullmatch(tokens[joined].text.rstrip("."))
+            and _section(tokens[joined].text)
             and (plural or not _counts(tokens, joined))
         ):
             nxt = joined
