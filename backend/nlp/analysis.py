@@ -69,12 +69,15 @@ def _grouped(document: Doc, language: str | None) -> Doc:
 
     The tokenizer splits `100 000` and `12 500.00` at the space, so a reader
     of tokens takes each for two figures. A merge keeps every offset and
-    gives the token its own text as its lemma.
+    gives the token its own text as its lemma. A full stop the tokenizer
+    kept on the last group, at a sentence's end, goes with it.
     """
     spans = []
     for found in _SPACED.finditer(document.text):
         if _amount(document.text, found.start(), found.end(), language):
-            span = document.char_span(found.start(), found.end())
+            span = document.char_span(
+                found.start(), found.end(), alignment_mode="expand"
+            )
             if span is not None and len(span) > 1:
                 spans.append(span)
     if spans:
@@ -593,8 +596,10 @@ DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 #: missing here reads the groups as separate figures.
 #:
 #: ponytail: one group of three digits after the head, so an amount past
-#: 999 999 written `1 000 000` stays three figures. Upgrade: read a longer
-#: run where a currency stands beside each of its numbers.
+#: 999 999 written `1 000 000` stays three figures, and a two-cell table row
+#: whose second cell is an amount (`Kontoführung 5 120 Euro`, monthly 5 and
+#: yearly 120) is read as 5120. Upgrade: read a longer run where a currency
+#: stands beside each of its numbers, and a row by its table cells.
 AMOUNT_WORDS: dict[str, frozenset[str]] = {
     "de": frozenset(
         [

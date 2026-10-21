@@ -334,3 +334,18 @@ def test_a_german_ordinal_stated_earlier_in_the_passage_validates():
     )
     v, code, err = f.validated, f.rejection_code, f.validation_error
     assert v, f"refused {code}: {err}"
+
+
+def test_a_german_amount_closing_a_sentence_is_one_number():
+    """`EUR 2 500.` ends a sentence: the tokenizer keeps `500.`, so the merge misses it."""
+    text = "Die Gebühr beträgt EUR 2 500."
+    assert numbers(text, "de") == ("2500",)
+    assert figures(text, "de") == [2500.0]
+
+
+def test_a_german_amount_closing_a_sentence_restated_with_a_mark_validates():
+    """`EUR 2 500.` and `EUR 2.500.` are one amount."""
+    f = Checker(passage("Die Gebühr beträgt EUR 2 500.", language="de")).atomic(
+        "Die Gebühr beträgt EUR 2.500."
+    )
+    assert f.validated, f"refused {f.rejection_code}: {f.validation_error}"
