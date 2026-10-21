@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.4.1
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration, no setting, no prompt change and no model call. `make diversity FILE=<workbook>` is new: it measures how varied an exported workbook's questions are and changes nothing stored, so no stage needs rerunning.
+
 ## Upgrading to v0.4.0
 
 This section is for a stack that runs v0.3.12 and moves straight to v0.4.0. It replaces the sections for v0.3.13 to v0.3.36: follow it once, in the order given, and skip those. Each step says which release needs it, so a stack that already holds some of them can leave those out. Back up PostgreSQL and the `documents` bucket first (the wiki's Operations page describes the backups); the migrations below cannot all be undone.
