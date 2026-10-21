@@ -106,7 +106,10 @@ is an outstanding request, and a row that has one is a topic.
    they print takes their spelling, case aside (`Grosskunden` where the
    model wrote `Großkunden`); a letter they never use is folded; and two or
    more trailing words that more than half of three or more names end on —
-   the domain the whole corpus shares — are taken off. A topic the model flags
+   the domain the whole corpus shares — are taken off, but only when they are a
+   prepositional phrase (`im Fussball`, `in banking`: the first word tagged
+   as an adposition by the language's pipeline), so a name is never cut to a
+   dangling `Fees for` or a lone `Debit`. A topic the model flags
    `no_subject` is stored as no name, whatever language it would have said so
    in. `labelled_by` records `person` or the model identifier.
 10. **Replace the fitted languages, in one transaction** for all of them. A

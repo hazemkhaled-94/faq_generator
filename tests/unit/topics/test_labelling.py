@@ -303,7 +303,7 @@ def test_a_shared_ending_that_is_the_subject_is_kept(key) -> None:
     """
     names, terms, subject = SUBJECTS[key]
 
-    out = _unshared(dict(enumerate(names)), dict(enumerate(terms)))
+    out = _unshared(dict(enumerate(names)), dict(enumerate(terms)), key[-2:])
 
     for index in (0, 1, 2):
         assert subject.casefold() in out[index].casefold(), out
@@ -319,7 +319,7 @@ def test_one_topic_carrying_the_domain_as_a_term_does_not_keep_it_for_all() -> N
     }
     terms = {0: ["transfer", "banking"], 1: ["card"], 2: ["loan"], 3: ["saving"]}
 
-    assert _unshared(names, terms) == {
+    assert _unshared(names, terms, "en") == {
         0: "Transfers",
         1: "Cards",
         2: "Loans",
@@ -328,14 +328,15 @@ def test_one_topic_carrying_the_domain_as_a_term_does_not_keep_it_for_all() -> N
 
 
 @pytest.mark.parametrize(
-    ("ending", "term"), [("in coffee shop", "fee"), ("im Handel", "and")]
+    ("ending", "term", "language"),
+    [("in coffee shop", "fee", "en"), ("im Handel", "and", "de")],
 )
-def test_a_term_inside_a_word_is_not_the_word(ending, term) -> None:
+def test_a_term_inside_a_word_is_not_the_word(ending, term, language) -> None:
     """Three letters inside `coffee` or `Handel` are not the subject."""
     names = {i: f"{head} {ending}" for i, head in enumerate(["Beans", "Tea", "Milk"])}
     terms = {i: [term] for i in names}
 
-    assert _unshared(names, terms) == {0: "Beans", 1: "Tea", 2: "Milk"}
+    assert _unshared(names, terms, language) == {0: "Beans", 1: "Tea", 2: "Milk"}
 
 
 def test_a_domain_ending_no_term_carries_is_still_taken_off() -> None:
@@ -347,11 +348,87 @@ def test_a_domain_ending_no_term_carries_is_still_taken_off() -> None:
     }
     terms = {0: ["antrag", "kreditkarte"], 1: ["gebühr"], 2: ["konto"]}
 
-    assert _unshared(names, terms) == {
+    assert _unshared(names, terms, "de") == {
         0: "Anträge für Kreditkarten",
         1: "Gebühren",
         2: "Konten",
     }
+
+
+#: Prepositions a name can end on only when its object was cut off.
+_DANGLING = {"for", "on", "with", "of", "für", "auf", "über", "bei"}
+
+
+@pytest.mark.parametrize(
+    ("language", "names", "terms"),
+    [
+        (
+            "en",
+            [
+                "Fees for credit cards",
+                "Limits on credit cards",
+                "Insurance with credit cards",
+                "Transfers abroad",
+            ],
+            [
+                ["fee", "annual", "charge"],
+                ["limit", "daily", "withdrawal"],
+                ["insurance", "travel", "claim"],
+                ["transfer", "abroad", "iban"],
+            ],
+        ),
+        (
+            "de",
+            [
+                "Gebühren für die Kreditkarte",
+                "Limits auf die Kreditkarte",
+                "Versicherung über die Kreditkarte",
+                "Überweisungen ins Ausland",
+            ],
+            [
+                ["gebühr", "jahresgebühr", "entgelt"],
+                ["limit", "tageslimit", "verfügung"],
+                ["versicherung", "reise", "schutz"],
+                ["überweisung", "ausland", "iban"],
+            ],
+        ),
+    ],
+)
+def test_a_stripped_domain_leaves_no_preposition_hanging(
+    language, names, terms
+) -> None:
+    """The domain a corpus shares is no term; cutting it must not cut a name in half."""
+    driver = LabellerDriver(*names, languages={language: language})
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(i, t), [names[i]]) for i, t in enumerate(terms)], language
+    )
+
+    hanging = [n for n in named.values() if n.split()[-1].casefold() in _DANGLING]
+    assert hanging == [], named
+
+
+def test_a_shared_noun_phrase_is_not_stripped_down_to_its_modifier() -> None:
+    """`Debit card payments` cut to `Debit` names no subject."""
+    names = [
+        "Debit card payments",
+        "Credit card payments",
+        "Prepaid card payments",
+        "Account statements",
+    ]
+    terms = [
+        ["debit", "overdraft", "direct"],
+        ["credit", "interest", "repayment"],
+        ["prepaid", "top", "reload"],
+        ["statement", "monthly", "balance"],
+    ]
+    driver = LabellerDriver(*names, languages={"en": "English"})
+
+    named = driver.labeller.label_all(
+        [(FittedTopic(i, t), [names[i]]) for i, t in enumerate(terms)], "en"
+    )
+
+    assert all(len(named[i].split()) > 1 for i in (0, 1, 2)), named
 
 
 # ── Carrying a decision across a refit ────────────────────────────────────

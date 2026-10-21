@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
+from nlp import pipelines
 from topic_modelling.models import FittedTopic
 
 log = logging.getLogger(__name__)
@@ -202,7 +203,9 @@ class TopicLabeller:
         shown = "\n".join(text for _, excerpts in topics for text in excerpts)
         terms = {topic.topic_index: topic.top_terms for topic, _ in topics}
         said = _unshared(
-            {index: _spelled(name, shown) for index, name in said.items()}, terms
+            {index: _spelled(name, shown) for index, name in said.items()},
+            terms,
+            language,
         )
         # Asked for in the prompt and enforced here: an unnamed topic reads as
         # unnamed, where two topics under one name read as one topic.
@@ -291,7 +294,9 @@ def _spelled(name: str, excerpts: str) -> str:
     )
 
 
-def _unshared(names: dict[int, str], terms: dict[int, list[str]]) -> dict[int, str]:
+def _unshared(
+    names: dict[int, str], terms: dict[int, list[str]], language: str
+) -> dict[int, str]:
     """The names with the trailing words more than half of them share taken off.
 
     `... im Fussball` on nine names of ten is the domain the corpus shares,
@@ -301,6 +306,12 @@ def _unshared(names: dict[int, str], terms: dict[int, list[str]]) -> dict[int, s
     all of keeps it. An ending a topic's own top terms carry is that
     topic's subject, not the domain - the domain is in too many passages to
     be a term at all - so `Credit card payment` is not cut to `Credit`.
+
+    Only a prepositional phrase goes, `im Fussball` or `in banking`, which
+    is how a domain is tacked on and leaves a name whole. Any other ending
+    is a noun phrase, and cutting it leaves a dangling preposition
+    (`Fees for`) or a lone modifier (`Debit`). Read from the language's
+    parse: its first word is tagged as an adposition.
     """
     if len(names) < 3:
         return names
@@ -321,6 +332,8 @@ def _unshared(names: dict[int, str], terms: dict[int, list[str]]) -> dict[int, s
                 if len(words) > size
                 and tuple(word.casefold() for word in words[-size:]) == affix
             ]
+            if not _is_phrase(" ".join(split[carrying[0]][-size:]), language):
+                continue
             # The subject of most of the topics carrying it, not of one.
             subject = sum(
                 any(_is_term(word, terms.get(i, ())) for word in affix)
@@ -333,6 +346,12 @@ def _unshared(names: dict[int, str], terms: dict[int, list[str]]) -> dict[int, s
                 for index, words in split.items()
             }
     return names
+
+
+def _is_phrase(ending: str, language: str) -> bool:
+    """Whether a name's ending is a prepositional phrase in the language."""
+    tokens = pipelines.pipeline(language)(ending)
+    return bool(tokens) and tokens[0].pos_ == "ADP"
 
 
 def _is_term(word: str, terms: Sequence[str]) -> bool:
