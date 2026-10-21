@@ -56,6 +56,7 @@ from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
+from database.qa_generator.outcomes import AnswerForm, QuestionType
 from question_generation.models import Citation, QuestionQuality, StoredQuestion
 
 log = logging.getLogger(__name__)
@@ -434,7 +435,11 @@ def parser() -> argparse.ArgumentParser:
     built.add_argument("--status", choices=("draft", "accepted", "rejected"))
     built.add_argument("--document", metavar="SHA256", help="one document's sha256")
     built.add_argument("--topic", type=int, metavar="ID")
-    built.add_argument("--question-type", dest="question_type", metavar="KIND")
+    built.add_argument(
+        "--question-type",
+        dest="question_type",
+        choices=[one.value for one in QuestionType],
+    )
     built.add_argument("--difficulty", choices=("easy", "medium", "hard"))
     built.add_argument(
         "--planned-difficulty",
@@ -447,7 +452,11 @@ def parser() -> argparse.ArgumentParser:
         dest="cognitive_level",
         choices=("recall", "understand", "apply", "analyse"),
     )
-    built.add_argument("--answer-form", dest="answer_form", metavar="FORM")
+    built.add_argument(
+        "--answer-form",
+        dest="answer_form",
+        choices=[one.value for one in AnswerForm],
+    )
     built.add_argument(
         "--passage-scope",
         dest="passage_scope",

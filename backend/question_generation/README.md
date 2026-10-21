@@ -999,6 +999,7 @@ Questions page, built when asked for rather than on every render.
 
 A control character in any text is dropped from its cell, which Excel would otherwise refuse.
 A document with no title is named by the first 12 characters of its digest on every sheet and in the listing.
+`--question-type` and `--answer-form` on the command line take only the values the column holds, as the route does.
 
 **The filter is the caller's and there is no default scope.** Ask for nothing
 and you get everything, rejected rows included, because that is what the same
