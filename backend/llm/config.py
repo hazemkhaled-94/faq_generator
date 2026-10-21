@@ -200,9 +200,16 @@ class Settings:
         Args:
             source: Where to read them, or None for the process environment.
         """
+        model = required("LLM_MODEL", source)
+        base_url = optional("LLM_BASE_URL", source)
+        ollama_base_url = optional("OLLAMA_BASE_URL", source)
+        # The address `overridden` leaves behind, left here too: `.env.example`
+        # ships Ollama's, and a hosted LLM_MODEL is one line away from it.
+        if not _self_hosted(model) and _same_address(base_url, ollama_base_url):
+            base_url = None
         return cls(
-            model=required("LLM_MODEL", source),
-            base_url=optional("LLM_BASE_URL", source),
+            model=model,
+            base_url=base_url,
             structured_mode=required("LLM_STRUCTURED_MODE", source),
             temperature=decimal("LLM_TEMPERATURE", source),
             timeout_seconds=decimal("LLM_TIMEOUT_SECONDS", source),
@@ -211,5 +218,5 @@ class Settings:
             if (window := optional("LLM_NUM_CTX", source))
             else None,
             reasoning_effort=optional("LLM_REASONING_EFFORT", source),
-            ollama_base_url=optional("OLLAMA_BASE_URL", source),
+            ollama_base_url=ollama_base_url,
         )

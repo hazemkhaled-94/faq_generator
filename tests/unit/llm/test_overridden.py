@@ -224,6 +224,31 @@ def test_a_hosted_override_leaves_the_runtime_it_was_served_from() -> None:
     assert moved.base_url is None
 
 
+def test_a_hosted_shared_model_leaves_the_runtime_the_example_names() -> None:
+    """The same address, left behind by LLM_MODEL itself.
+
+    `make setup` writes `.env` from `.env.example`, which holds LLM_BASE_URL
+    on Ollama's port, and the README moves to a hosted model by LLM_MODEL
+    alone. Every call of that deployment was posted to Ollama's port.
+    """
+    loaded = Settings.load(
+        {
+            "LLM_MODEL": "azure/gpt-4.1",
+            "LLM_BASE_URL": "http://localhost:11434/",
+            "OLLAMA_BASE_URL": "http://localhost:11434",
+            "LLM_STRUCTURED_MODE": "JSON_SCHEMA",
+            "LLM_TEMPERATURE": "0",
+            "LLM_TIMEOUT_SECONDS": "30",
+            "LLM_MAX_ATTEMPTS": "2",
+        }
+    )
+
+    assert loaded.base_url is None
+    assert loaded.overridden("ollama_chat/gemma4:12b").base_url == (
+        "http://localhost:11434"
+    )
+
+
 def test_a_gateway_in_front_of_two_providers_keeps_its_address() -> None:
     """An address this cannot prove belongs to the runtime is left alone.
 

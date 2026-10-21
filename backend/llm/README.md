@@ -210,7 +210,7 @@ The values are in the file named beside each, once.
 | Setting | Declared in | What it does |
 |---|---|---|
 | `LLM_MODEL` | `.env` | LiteLLM model id; the prefix picks the provider |
-| `LLM_BASE_URL` | `.env` | Where that model is served |
+| `LLM_BASE_URL` | `.env` | Where that model is served. Left out for a hosted `LLM_MODEL` while it is the `OLLAMA_BASE_URL` address, so the provider's own is used |
 | `LLM_STRUCTURED_MODE` | `backend.env` | How a typed answer is asked for |
 | `LLM_TEMPERATURE` | `backend.env` | How far a re-run's answers may move from the last one's |
 | `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |
