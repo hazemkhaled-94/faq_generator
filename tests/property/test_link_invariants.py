@@ -71,12 +71,6 @@ def test_linked_never_offers_a_held_pair_and_never_offers_a_pair_twice(
     assert len(set(keys)) == len(keys)
 
 
-@pytest.mark.xfail(
-    reason="open: a hold on pairs the pass would not offer still changes which links are dealt "
-    "(six passages under Fees and Delivery: a second Fees link takes the Delivery link's slot); "
-    "so since before v0.3.36, found at the CI profile's 200 examples; the fix belongs to the link pass",
-    strict=False,
-)
 @given(world=worlds(), wanted=st.integers(1, 4))
 def test_holding_a_pair_the_pass_would_not_offer_changes_nothing(world, wanted) -> None:
     """A hold costs only the pairs it names."""

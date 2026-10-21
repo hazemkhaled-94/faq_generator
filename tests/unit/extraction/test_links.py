@@ -590,3 +590,26 @@ def test_a_held_pair_leaves_the_other_pairs_alone(language) -> None:
 
     assert all(frozenset(p.id for p in link.passages) not in held for link in left)
     assert left, "the other heads still offer theirs"
+
+
+@pytest.mark.parametrize(
+    ("language", "parents"),
+    [
+        ("en", ["Fees", "Fees", "Fees", "Fees", "Delivery", "Delivery"]),
+        ("de", ["Gebühren", "Gebühren", "Gebühren", "Gebühren", "Versand", "Versand"]),
+    ],
+)
+def test_holding_pairs_the_pass_would_not_offer_changes_nothing(
+    language, parents
+) -> None:
+    """Six shop passages in one topic worth three links: a hold off the stride moves none."""
+    passages = [
+        one(f"Item {i} costs {i} EUR.", f"{parents[i - 1]} > Part {i}", i, language)
+        for i in range(1, 7)
+    ]
+    topics = {p.id: 1 for p in passages}
+    free = linked(passages, passages, topics, 3, 2)
+    held = frozenset({frozenset({2, 3}), frozenset({2, 4})})
+    assert not {frozenset(pair) for pair in pairs(free)} & held
+
+    assert pairs(linked(passages, passages, topics, 3, 2, held=held)) == pairs(free)

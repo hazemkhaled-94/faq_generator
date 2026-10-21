@@ -337,7 +337,9 @@ def linked(
             member's own best link adds the next.
         done: Topics whose heads are skipped.
         held: Pairs of passage ids a stored bridge already rests on; a head
-            never offers one of them, and takes its next link instead.
+            never offers one of them, and takes its next link instead. The
+            links are dealt as if none were held, so a hold moves only the
+            links on its own pairs.
 
     Returns:
         The links, per language and topic in reading order.
@@ -351,26 +353,53 @@ def linked(
         _references(edges, mine, language or None)
         _siblings(edges, mine)
         _terms(edges, mine, language or None)
-        seen: set[frozenset[int]] = set(held)
-        by_topic: dict[int, list[Link]] = defaultdict(list)
+        seen: set[frozenset[int]] = set()
+        by_topic: dict[int, list[tuple[PassageToExtract, Link]]] = defaultdict(list)
         for head in (h for h in heads if (h.language or "") == language):
             topic = topic_of.get(head.id)
             if topic is None or topic in done:
                 continue
             for _, link in _best(edges, head, set()):
-                key = frozenset(p.id for p in link.passages)
+                key = _pair(link)
                 if key not in seen:
                     seen.add(key)
-                    by_topic[topic].append(replace(link, head=head.id))
+                    by_topic[topic].append((head, replace(link, head=head.id)))
                     break
+        taken = seen | held
         for chosen in by_topic.values():
             # Grown before it is strided over: a pair that cannot reach `size`
             # must not take the slot of one that can.
-            grown = [g for link in chosen if (g := _grown(edges, link, size))]
+            grown = [
+                (head, g) for head, link in chosen if (g := _grown(edges, link, size))
+            ]
             count = min(wanted, len(grown))
             step = (len(grown) - 1) / (count - 1) if count > 1 else 0
-            out.extend(grown[round(at * step)] for at in range(count))
+            for at in range(count):
+                head, link = grown[round(at * step)]
+                if _pair(link) in held:
+                    link = _instead(edges, head, size, taken)
+                if link is not None:
+                    out.append(link)
     return out
+
+
+def _pair(link: Link) -> frozenset[int]:
+    """The pair a link was dealt on: its first two passages, unordered."""
+    return frozenset(p.id for p in link.passages[:2])
+
+
+def _instead(
+    edges: _Edges, head: PassageToExtract, size: int, taken: set[frozenset[int]]
+) -> Link | None:
+    """A head's next link on a pair no other link takes or a bridge holds."""
+    for _, link in _best(edges, head, set()):
+        key = _pair(link)
+        if key not in taken and (
+            grown := _grown(edges, replace(link, head=head.id), size)
+        ):
+            taken.add(key)
+            return grown
+    return None
 
 
 def _grown(edges: _Edges, link: Link, size: int) -> Link | None:

@@ -37,6 +37,8 @@ one leaves cited ones alone. A pass narrowed by `TOPIC`, `SHA` or `PASSAGE`
 clears only the bridges headed by a passage of the topics it reads again, so a
 bridge headed outside the scope stays whichever passage it shows first, and no
 pass offers a pair that already holds a stored bridge, whichever side heads it.
+The links are dealt as if nothing were held, and a dealt link on a held pair
+goes to its head's next free link, so a hold moves no other link.
 `MISSING=1` reads a topic as holding a bridge when one of its passages headed
 one. It asks the model one
 question first, and deletes nothing if the model does not answer.
