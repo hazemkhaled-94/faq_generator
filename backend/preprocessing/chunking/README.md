@@ -120,9 +120,11 @@ chapter's fields then lead the trail, replacing any leading segments that
 already repeat them. The title is appended to the document's texts, so no
 stored item reference moves.
 
-**Debris is not passage text.** A paragraph that starts with one of the
-document's running heads or feet, field for field with whitespace removed,
-is the converter reading furniture as body text; a paragraph or heading that
+**Debris is not passage text.** A paragraph that is one of the
+document's running heads or feet, field for field with whitespace removed
+and page numbers allowed after it, is the converter reading furniture as
+body text, while a line that opens with the foot's name and goes on (an
+imprint, a contact line) stays; a paragraph or heading that
 is one letter, when the next text starts with that letter in either case, is
 a glossary's index divider — the converter takes some index letters as
 headings and some as text. Both move to the furniture layer before the cut.

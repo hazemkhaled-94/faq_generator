@@ -108,11 +108,14 @@ class Furniture:
             page that is in no chapter.
         running: Every running head and foot, as the keys of its fields,
             page numbers left out.
+        numbered: The shapes, numerals masked, of the fields that number
+            pages.
     """
 
     starts: tuple[int, ...] = ()
     labels: tuple[tuple[str, ...], ...] = ()
     running: frozenset[tuple[str, ...]] = frozenset()
+    numbered: frozenset[str] = frozenset()
 
     def chapter(self, page: int | None) -> tuple[str, ...]:
         """The chapter a page is in, empty when it is in none."""
@@ -162,6 +165,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             pages_of[_key(one)].add(page)
             spelled.setdefault(_key(one), one)
     numbers = _numbers(pages_of, spelled)
+    numbered = frozenset(_key(_NUMERAL.sub("#", spelled[key])) for key in numbers)
     spelled = _respaced(spelled, document)
     running = frozenset(
         keys
@@ -200,7 +204,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             "%s: its running heads come back out of order, so name no chapters",
             document.name,
         )
-        return Furniture(running=running)
+        return Furniture(running=running, numbered=numbered)
 
     def shape(keys: tuple[str, ...]) -> tuple[bool, ...]:
         """Which of an item's fields are constant, in the order it prints them."""
@@ -269,7 +273,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
         if label != before:
             starts.append(page)
             labels.append(label)
-    return Furniture(tuple(starts), tuple(labels), running)
+    return Furniture(tuple(starts), tuple(labels), running, numbered)
 
 
 def _respaced(spelled: dict[str, str], document: DoclingDocument) -> dict[str, str]:
@@ -344,9 +348,10 @@ def tidied(
     list items or two paragraphs, is the layout reading the word between two
     alternatives as a heading: it is read as the paragraph it is, so the
     alternatives stay in one passage with the word between them. A
-    paragraph that starts with a running head or foot, field for field and
-    with whitespace removed, is the converter reading furniture as body
-    text. A paragraph of one letter, followed by
+    paragraph that is a running head or foot, field for field and with
+    whitespace removed, page numbers allowed after it, is the converter
+    reading furniture as body text; a line that goes on past the foot's
+    name is not. A paragraph of one letter, followed by
     entries under that letter, is a glossary's index divider, where the
     document holds two or more in ascending order. Both move to the
     furniture layer. A sentence the converter cut at a page or column break
@@ -384,7 +389,7 @@ def tidied(
         for item in document.texts
         if item.content_layer == ContentLayer.BODY
         and item.label in _PROSE
-        and (_repeats(item.text, furniture.running) or _page_number(item.text))
+        and (_repeats(item.text, furniture) or _page_number(item.text))
     }
     restated = _restated(document, debris, junk)
     debris |= {reference for reference, level in restated if level is None}
@@ -621,14 +626,22 @@ def _broken(before: ProvenanceItem, after: ProvenanceItem) -> bool:
     return after.bbox.l >= before.bbox.r
 
 
-def _repeats(text: str, running: frozenset[tuple[str, ...]]) -> bool:
-    """Reports whether a paragraph starts with a running head or foot.
+def _repeats(text: str, furniture: Furniture) -> bool:
+    """Reports whether a paragraph is a running head or foot.
 
     Field for field, so a sentence that merely begins with the title is
-    not one.
+    not one, and neither is a line that opens with the foot's name and goes
+    on: only page numbers may follow the running fields.
     """
-    keys = tuple(_key(one) for one in fields(text) if _lettered(one))
-    return any(keys[: len(run)] == run for run in running)
+    lettered = [one for one in fields(text) if _lettered(one)]
+    return any(
+        tuple(_key(one) for one in lettered[: len(run)]) == run
+        and all(
+            _key(_NUMERAL.sub("#", one)) in furniture.numbered
+            for one in lettered[len(run) :]
+        )
+        for run in furniture.running
+    )
 
 
 def _chapter_starts(
