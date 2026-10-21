@@ -97,7 +97,7 @@ _STEPS = (
         "previous fit a person gave go where most of their passages went, "
         "each used at most once, so a refit does not rename the corpus.",
         ("service.py",),
-        ("TOPIC_MODEL", "TOPIC_LABEL_MIN_FACT_SHARE"),
+        ("TOPIC_MODEL",),
     ),
 )
 

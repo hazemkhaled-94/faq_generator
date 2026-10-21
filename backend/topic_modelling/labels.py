@@ -149,18 +149,6 @@ class TopicLabeller:
         """The model that names a topic, recorded on it."""
         return self._client.model
 
-    def label(
-        self,
-        topic: FittedTopic,
-        language: str,
-        excerpts: list[str],
-        taken: Sequence[str] = (),
-    ) -> str | None:
-        """Names one topic, as `label_all` names a set of one."""
-        return self.label_all([(topic, excerpts)], language, taken).get(
-            topic.topic_index
-        )
-
     def label_all(
         self,
         topics: Sequence[tuple[FittedTopic, list[str]]],

@@ -66,7 +66,6 @@ class TopicModellingService(StageService):
         models: ModelsBucket,
         archive: ArchiveBucket,
         labeller: TopicLabeller | None = None,
-        min_fact_share: float = 0.0,
     ) -> None:
         """Initialises the service with its collaborators.
 
@@ -82,8 +81,6 @@ class TopicModellingService(StageService):
                 this fit's replace them.
             labeller: Names the unnamed topics. Without one a topic keeps its
                 terms and no name.
-            min_fact_share: The smallest share of a topic's passages that must
-                carry a fact before it is worth naming. 0 names every topic.
         """
         super().__init__(repository)
         self._repository: TopicQueue = repository
@@ -92,7 +89,6 @@ class TopicModellingService(StageService):
         self._models = models
         self._archive = archive
         self._labeller = labeller
-        self._min_fact_share = min_fact_share
 
     def request(self, trigger: str | None = None) -> int:
         """Asks for a fit, without doing it.
@@ -293,34 +289,6 @@ class TopicModellingService(StageService):
             except Exception:
                 log.exception("could not draw the %s topics", fitting.language)
 
-    def _barren(
-        self, held: dict[int, list[PassageWeight]], bearing: set[int]
-    ) -> frozenset[int]:
-        """Which topics hold almost no facts, and so name no subject.
-
-        The deterministic half of "Mixed". A model reliably names whatever
-        it is shown, so what it is shown is decided here.
-
-        Read off the facts rather than off the terms, which is what makes it
-        language-neutral: a passage extraction found nothing in says nothing,
-        whatever language it says it in, and a word list of front-matter
-        terms would have to be written again for every language a deployment
-        adds.
-
-        Turned off when the corpus carries no facts at all - on a fit run
-        before extraction, every topic looks barren and the signal is absent
-        rather than unanimous.
-        """
-        floor = self._min_fact_share
-        if floor <= 0 or not bearing:
-            return frozenset()
-        return frozenset(
-            topic_index
-            for topic_index, members in held.items()
-            if sum(1 for one in members if one.passage_id in bearing) / len(members)
-            < floor
-        )
-
     def _named(
         self, topics: list[FittedTopic], fitting: Fitting, language: str
     ) -> list[FittedTopic]:
@@ -328,7 +296,8 @@ class TopicModellingService(StageService):
 
         A topic that already carries one - a person's, carried from the last
         fit - is left alone. Returns `topics` unchanged when no labeller is
-        configured.
+        configured. A topic that is no passage's strongest is left unnamed, as
+        there is nothing to read a name off: it holds no fact and no excerpt.
         """
         if self._labeller is None:
             return topics
@@ -341,7 +310,6 @@ class TopicModellingService(StageService):
         bearing = self._repository.bearing_facts(list(strongest))
         sizes = self._repository.sizes(list(strongest))
 
-        barren = self._barren(held, bearing)
         # Every name given so far, including those a person typed: the model
         # is shown them so one fit cannot put two topics under one name.
         taken = [topic.label for topic in topics if topic.label]
@@ -349,10 +317,9 @@ class TopicModellingService(StageService):
         for topic in topics:
             if topic.label:
                 continue
-            if topic.topic_index in barren:
-                # Mixed, decided before the call rather than asked for in it.
+            if topic.topic_index not in held:
                 log.info(
-                    "%s topic %d: its passages carry almost no facts; not named",
+                    "%s topic %d: no passage holds it most strongly; not named",
                     language,
                     topic.topic_index,
                 )
@@ -361,7 +328,7 @@ class TopicModellingService(StageService):
                 (
                     topic,
                     self._repository.excerpts(
-                        _representative(held.get(topic.topic_index, []), bearing, sizes)
+                        _representative(held[topic.topic_index], bearing, sizes)
                     ),
                 )
             )

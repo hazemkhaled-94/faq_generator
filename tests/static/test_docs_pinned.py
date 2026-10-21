@@ -663,15 +663,6 @@ def test_topic_count_names_fact_bearing_passages() -> None:
     assert "counting the passages that carry a validated fact" in row
 
 
-def test_the_fact_share_is_read_per_topic() -> None:
-    """The label pre-check reads the share of a topic's own passages carrying a fact."""
-    row = _row(_read("backend/topic_modelling/README.md"), "TOPIC_LABEL_MIN_FACT_SHARE")
-
-    assert "share of its own passages carrying a validated fact" in row
-    assert "share of a topic's passages" in _help("TOPIC_LABEL_MIN_FACT_SHARE")
-    assert "/ len(members)" in _read("backend/topic_modelling/service.py")
-
-
 # ── Question generation ────────────────────────────────────────────────────
 
 

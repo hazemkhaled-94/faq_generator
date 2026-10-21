@@ -13,6 +13,7 @@ from topic_drivers import LabellerDriver, ServiceDriver, corpus
 
 from topic_modelling.models import FittedTopic, PassageVocabulary
 from topic_modelling.space import load
+from topic_modelling.topics import dominant
 
 
 def test_an_empty_queue_is_not_a_run(service) -> None:
@@ -389,19 +390,49 @@ def test_topics_are_named_by_the_model_when_one_is_configured(service) -> None:
     )
 
 
-def test_a_topic_whose_passages_carry_no_fact_is_not_offered_to_the_model(
-    service,
-) -> None:
-    """Mixed is decided off the facts, before any call."""
-    labeller = LabellerDriver("Shipping", languages={"de": "German"})
-    flow = service(labeller=labeller, min_fact_share=0.15)
-    flow.queue.bearing = {1, 2}
+@pytest.mark.parametrize(
+    ("language", "blocks"),
+    [
+        (
+            "en",
+            (
+                "return refund parcel label days receipt exchange voucher",
+                "delivery courier parcel tracking dispatch address days slot",
+            ),
+        ),
+        (
+            "de",
+            (
+                "kontoführung gebühr monat konto entgelt auszug karte",
+                "überweisung ausland iban währung empfänger karte auftrag",
+            ),
+        ),
+    ],
+)
+def test_a_topic_dominant_in_no_passage_is_not_named(language, blocks) -> None:
+    """It holds no fact and has no excerpt, so the model would name it from terms alone."""
+    passages = corpus(*([blocks[0]] * 200 + [blocks[1]] * 200))
+    labeller = LabellerDriver(
+        *[f"Name {i}" for i in range(40)], languages={language: language}
+    )
+    flow = ServiceDriver(
+        settings=dict(st.DEFAULTS),
+        corpora={language: passages},
+        texts={one.id: "Text of the passage." for one in passages},
+        labeller=labeller,
+    )
+    flow.queue.bearing = {one.id for one in passages}
 
     flow.request_and_run()
 
-    assert labeller.model.calls == 1, labeller.model.asked
-    labels = sorted(flow.labels_of("de"), key=lambda label: label or "")
-    assert labels == [None, "Shipping"], labels
+    fitting = flow.stored[0]
+    held = set(dominant(fitting.weights).values())
+    named_empty = [
+        topic.topic_index
+        for topic in fitting.topics
+        if topic.label and topic.topic_index not in held
+    ]
+    assert named_empty == []
 
 
 def test_a_name_another_topic_already_took_is_refused(service) -> None:

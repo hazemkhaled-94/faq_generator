@@ -187,9 +187,9 @@ class LabellerDriver:
         self, *terms: str, language: str = "en", excerpts: list[str] | None = None
     ) -> str | None:
         """Names one topic built from these terms."""
-        return self.labeller.label(
-            FittedTopic(0, list(terms)), language, excerpts or ["an excerpt"]
-        )
+        return self.labeller.label_all(
+            [(FittedTopic(0, list(terms)), excerpts or ["an excerpt"])], language
+        ).get(0)
 
     @property
     def prompt(self) -> str:
@@ -609,7 +609,6 @@ class ServiceDriver:
         corpora: dict[str, list[PassageVocabulary]] | None = None,
         texts: dict[int, str] | None = None,
         labeller: LabellerDriver | None = None,
-        min_fact_share: float = 0.0,
     ) -> None:
         """Wires the service over the doubles."""
         self.queue = RecordingQueue(corpora or {}, texts)
@@ -626,7 +625,6 @@ class ServiceDriver:
             models=self.models,  # pyright: ignore[reportArgumentType]
             archive=self.archive,  # pyright: ignore[reportArgumentType]
             labeller=labeller.labeller if labeller else None,
-            min_fact_share=min_fact_share,
         )
 
     def request(self, trigger: str | None = None) -> int:

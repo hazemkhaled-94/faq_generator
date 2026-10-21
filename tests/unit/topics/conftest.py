@@ -70,7 +70,6 @@ def service(settings, passages):
         corpora: dict | None = None,
         texts: dict[int, str] | None = None,
         labeller: LabellerDriver | None = None,
-        min_fact_share: float = 0.0,
         **tuning: object,
     ) -> ServiceDriver:
         """Wires the service over the doubles, `tuning` overriding a setting."""
@@ -79,7 +78,6 @@ def service(settings, passages):
             corpora={"de": passages} if corpora is None else corpora,
             texts=texts,
             labeller=labeller,
-            min_fact_share=min_fact_share,
         )
 
     return build

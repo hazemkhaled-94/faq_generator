@@ -149,8 +149,9 @@ again once those are in.
 
 No HNSW index on that column: a fit is tens of rows.
 
-A topic is offered to the labeller only when its passages carry facts.
-`TOPIC_LABEL_MIN_FACT_SHARE` is the floor. It reads facts rather than terms,
+A topic is offered to the labeller only when it is some passage's main topic:
+one that is nobody's strongest holds no fact and has no excerpt to read a name
+off, so it stays unnamed. That reads the memberships rather than the terms,
 which is what keeps it language-neutral. The labeller is also shown the names
 already given and refuses one it repeats, or one it gives two topics of the
 same call.
@@ -269,7 +270,6 @@ partial refit.
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |
 | `TOPIC_NO_ABOVE` | Drop a term appearing in more than this share. In `(0, 1]` |
 | `TOPIC_LANGUAGE_NAMES` | ISO code to language name, for the naming prompt |
-| `TOPIC_LABEL_MIN_FACT_SHARE` | Below this share of its own passages carrying a validated fact, a topic is not sent to the model to be named. `0` names every topic |
 | `TOPIC_MODEL` | The model that names a topic. Read only when `LLM_MODEL` is set |
 | `LLM_MODEL` | What `TOPIC_MODEL` falls back to. Without it, topics are fitted but not named |
 

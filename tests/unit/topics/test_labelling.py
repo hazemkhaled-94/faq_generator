@@ -618,8 +618,10 @@ def test_a_name_taken_that_carries_a_placeholder_is_shown_as_written() -> None:
 
     driver = LabellerDriver("Warehouse safety")
 
-    driver.labeller.label(
-        FittedTopic(0, ["a", "b"]), "en", ["an excerpt"], ["the {{excerpts}} topic"]
+    driver.labeller.label_all(
+        [(FittedTopic(0, ["a", "b"]), ["an excerpt"])],
+        "en",
+        ["the {{excerpts}} topic"],
     )
 
     assert "the {{excerpts}} topic" in driver.prompt

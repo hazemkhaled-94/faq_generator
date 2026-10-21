@@ -117,7 +117,6 @@ def test_topic_modelling_reads_the_fitter_and_the_language_names() -> None:
         TOPIC_MIN_WEIGHT="0.23",
         TOPIC_NO_BELOW="29",
         TOPIC_NO_ABOVE="0.31",
-        TOPIC_LABEL_MIN_FACT_SHARE="0.37",
     )
 
     assert loaded.languages == {"aa": "Afar", "zu": "Zulu"}
@@ -129,7 +128,6 @@ def test_topic_modelling_reads_the_fitter_and_the_language_names() -> None:
     assert loaded.min_weight == 0.23
     assert loaded.no_below == 29
     assert loaded.no_above == 0.31
-    assert loaded.label_min_fact_share == 0.37
 
 
 @pytest.mark.parametrize("value", ["0", "-0.1", "1.5"])
