@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+import pytest
 from factories import group, plan, source
 
 from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
@@ -817,3 +818,50 @@ def test_a_heading_may_name_what_is_asked_about_and_never_where_the_answer_is() 
     assert "A heading or a title may still name the thing asked about" in " ".join(
         READS.split()
     )
+
+
+# ── A category a slot cannot hold ─────────────────────────────────────────
+
+
+def premised() -> Category:
+    """The default with-premise, as the default reads it."""
+    return categorizations(DEFAULT_CATEGORIZATIONS)[1].categories[1]
+
+
+def verbose() -> Category:
+    """The paper's verbose natural phrasing, which caps no words."""
+    return categorizations(DEFAULT_CATEGORIZATIONS)[0].categories[1]
+
+
+def keywords() -> Category:
+    """A search query bounded by no words."""
+    return Category("Phrasing", "query", "typed as keywords.", 1.0, form="query")
+
+
+@pytest.mark.parametrize("beside", [concise, keywords])
+def test_a_premise_is_not_told_beside_a_capped_phrasing_or_a_query(beside) -> None:
+    """Under ten words or in keywords, a premise shrinks to a label naming a setting.
+
+    Told as no category of its categorization, as a compound slot is told
+    none, and stored as not told.
+    """
+    model = StubModel(question="Q?", answer="A")
+
+    written = QuestionWriter(model).write(
+        group(), plan(categories=(beside(), premised()))
+    )
+
+    assert premised().description not in model.user
+    assert written.categories == (beside(),)
+
+
+def test_a_premise_beside_a_phrasing_with_room_for_it_is_told() -> None:
+    """A verbose question has the words a premise needs."""
+    model = StubModel(question="Q?", answer="A")
+
+    written = QuestionWriter(model).write(
+        group(), plan(categories=(verbose(), premised()))
+    )
+
+    assert f"- {premised().description}\n" in model.user
+    assert written.categories == (verbose(), premised())

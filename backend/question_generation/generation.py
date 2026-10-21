@@ -282,6 +282,23 @@ def _profile(categories: tuple[Category, ...]) -> str:
     )
 
 
+def _held(categories: tuple[Category, ...]) -> tuple[Category, ...]:
+    """The categories a slot can hold, in the order dealt.
+
+    One that cannot hold beside the others is not told, and so is stored as
+    no category of its categorization, as a compound slot is told none. A
+    premise needs words of its own: beside a category capping the question's
+    words it shrinks to a label naming a setting, as 31 of the 33 such labels
+    in one calibration did on concise slots, and a search query has no
+    sentence to open on one.
+    """
+    crowded = any(
+        one.form == "query" or (one.form != "premise" and one.words[1] is not None)
+        for one in categories
+    )
+    return tuple(one for one in categories if one.form != "premise" or not crowded)
+
+
 def _under(position: int, statement: str) -> str:
     """One fact under its number, every later line indented beneath it.
 
@@ -341,7 +358,8 @@ class QuestionWriter:
         the candidate carries what was rendered. An unanswerable question is
         dealt them and told none: the paper asks only questions that have an
         answer. A compound question is told none either, as the comment at
-        the call says.
+        the call says, and a category the slot cannot hold is not told, as
+        `_held` says.
 
         Raises:
             ModelUnavailable: If the model could not be reached or would not
@@ -362,7 +380,7 @@ class QuestionWriter:
         # written for one ask, such as a concise phrasing, would contradict:
         # it is told none. Keyed on the kind asked for, so a compound slot
         # short of its partner, written single, is told its categories.
-        told = () if kind.name == QuestionKind.COMPOUND else plan.categories
+        told = () if kind.name == QuestionKind.COMPOUND else _held(plan.categories)
         written = self._client.answer(
             system=plan.spec.system(spans=spans, instruction=kind.instruction or None),
             user=self._prompt(sample, note, categories=told),

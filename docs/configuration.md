@@ -169,7 +169,10 @@ Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Tr
 as JSON: one categorization object as the paper's Figure 2 prints it, or a list
 of them. Each answerable question is written as one category of each, and the
 question records which; a compound question, an unanswerable one and a
-follow-up are told none, and their Categories cell in the export is blank. Its line in `configs/env/backend.env` is a comment,
+follow-up are told none, and their Categories cell in the export is blank. A
+category a question cannot hold beside the others it was dealt is not told
+either, and the question records no category of that categorization: see
+the premise below. Its line in `configs/env/backend.env` is a comment,
 because bash sources that file and would split a JSON value at its spaces and
 strip its quotes. Unset, it reads `DEFAULT_CATEGORIZATIONS` in code; `[]`
 turns categories off.
@@ -234,7 +237,8 @@ Not `make settings-set`: it splits `SET` at its spaces, so a JSON value
 reaches the store in pieces. A value is refused, naming the categorization
 at fault, before anything is stored when it is not JSON, misspells a key,
 names a category twice, puts an `=` or a comma in a name, gives a role other
-than `question` or `user` or a form other than `question` or `query`, gives
+than `question` or `user` or a form other than `question`, `query` or
+`premise`, gives
 word bounds that are not whole numbers of at least 1 or a minimum above its
 maximum, or has probabilities that do not sum to 1. `make settings-unset
 SERVICE=questions UNSET=QUESTIONS_CATEGORIZATIONS` goes back to the default
@@ -258,6 +262,13 @@ customer, at even odds:
   }
 ]
 ```
+
+A category of `"form": "premise"` is a question opening on what the asker
+says about themselves, as the default's with-premise is. A premise needs
+words of its own, so it is not told beside a category capping the question's
+words, such as concise-and-natural, nor beside a search query: on concise
+slots the writer shrank it to a label naming a setting. Such a slot is
+written as no category of the premise's categorization.
 
 A value replaces the default whole, so a value holding only this one writes
 no phrasing category: list the default's categorizations beside it to keep

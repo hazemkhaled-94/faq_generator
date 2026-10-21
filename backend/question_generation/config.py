@@ -149,9 +149,10 @@ _CATEGORY_KEYS = ("description", "form", "name", "probability", "words")
 #: the question, and the role is never read off a name.
 _ROLES = ("question", "user")
 
-#: How a category's question is put: asked, or typed into a search box as
-#: keywords, which the end-'?' rule does not hold it to. Absent is asked.
-_FORMS = ("question", "query")
+#: How a category's question is put: asked, typed into a search box as
+#: keywords, which the end-'?' rule does not hold it to, or asked after a
+#: premise about the asker, which needs words of its own. Absent is asked.
+_FORMS = ("question", "query", "premise")
 
 #: What a name may not hold: `=` separates a categorization from its category
 #: in a label, a comma one label from the next in a workbook cell, and a line
@@ -204,6 +205,7 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                 },
                 {
                     "name": "with-premise",
+                    "form": "premise",
                     "description": "question opening with a short premise in "
                     "which the asker says, in the first person, who they are, "
                     "what they are doing or what they need, and then asks. A "
@@ -224,8 +226,9 @@ def categorizations(text: str) -> tuple[Categorization, ...]:
     category or none; none is uniform, and a sum within 0.01 of 1 is
     scaled to 1. Its `role` is `question`, or `user` for one describing
     the person asking, as the paper's Figure 3 does; absent is `question`.
-    A category's `form` is `question`, or `query` for a search query;
-    absent is `question`.
+    A category's `form` is `question`, `query` for a search query, or
+    `premise` for a question opening on what the asker says about
+    themselves; absent is `question`.
 
     Raises:
         ValueError: If the text is not JSON, or a categorization is not as

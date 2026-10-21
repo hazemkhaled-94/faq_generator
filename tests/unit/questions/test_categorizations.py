@@ -252,19 +252,21 @@ def test_words_it_cannot_read_are_refused_by_name(words: object, says: str) -> N
     )
 
 
-def test_a_category_is_written_as_a_question_unless_it_says_query() -> None:
-    """A search query is typed into a box; everything else is asked."""
+def test_a_category_is_written_as_a_question_unless_it_says_otherwise() -> None:
+    """A search query is typed into a box, a premise opens on the asker; else asked."""
     (phrasing,) = read(
         one(
             {"name": "x", "description": "d"},
             {"name": "y", "description": "d", "form": "question"},
             {"name": "z", "description": "d", "form": "query"},
+            {"name": "w", "description": "d", "form": "premise"},
         )
     )
     assert [each.form for each in phrasing.categories] == [
         "question",
         "question",
         "query",
+        "premise",
     ]
 
 
@@ -275,7 +277,7 @@ def test_a_form_it_does_not_take_is_refused_by_name(form: object) -> None:
         read(one({"name": "x", "description": "d", "form": form}))
     assert str(refused.value) == (
         f"QUESTIONS_CATEGORIZATIONS: 'phrasing''s category 'x' has the form "
-        f"{form!r}; it takes question, query"
+        f"{form!r}; it takes question, query, premise"
     )
 
 
@@ -394,7 +396,7 @@ def test_the_default_premise_is_the_askers_own_situation() -> None:
     rows opened on a label naming a setting, and one gave its answer away.
     """
     premise = categorizations(DEFAULT_CATEGORIZATIONS)[1].categories[1]
-    assert premise.name == "with-premise"
+    assert (premise.name, premise.form) == ("with-premise", "premise")
     assert "the asker says, in the first person," in premise.description
     assert "naming only a topic or a setting is not a premise" in premise.description
     assert "never gives the answer" in premise.description

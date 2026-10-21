@@ -206,7 +206,12 @@ categories and told none, because the paper asks only questions that have an
 answer, and a follow-up is told none either. A slot asked for as a compound
 question is told none too, because its reply is one question joining two
 asks, which a category written for one ask contradicts; one written single
-for want of a partner is told its categories. A slot told none is sent the
+for want of a partner is told its categories. A category a slot cannot hold
+beside the others is not told, and is stored as no category of its
+categorization: a category of `"form": "premise"`, as the default's
+with-premise is, needs words of its own, so it is not told beside one capping
+the question's words, as concise-and-natural does, nor beside a search query,
+where the writer shrank it to a label naming a setting. A slot told none is sent the
 message prompt version 16 sent, byte for byte, but for the line version 22
 changed: a heading or a title may name the thing asked about, never where the
 answer is. A retry is sent the same block
