@@ -780,6 +780,9 @@ which is the point. Two consequences: the `unanchored` half of the phrasing
 gate is not applied to one, though `leaks_source` is, and the verifier is
 shown the conversation when it judges recoverability.
 
+A follow-up is stored `needs_both` only where its root was dealt `needs_both`; one on
+a compound pair is stored `single`, as one on a one-passage root is.
+
 `Deal.widen` adds unspent facts **of the same passages** once, before the
 thread's first turn is written, and two gates hold the thread together:
 `asks_nothing_new` refuses one citing nothing outside its root, and

@@ -6,10 +6,12 @@ Bank and shop rows, German and English.
 from __future__ import annotations
 
 import pytest
-from factories import plan
+from factories import plan, source
 
 from database.qa_generator import QuestionKind, QuestionType
+from question_generation.generation import QuestionWriter
 from question_generation.kinds import KINDS
+from question_generation.models import FactGroup
 from question_generation.planning import instead, plans
 from question_generation.selection import Shape
 
@@ -55,6 +57,41 @@ def test_a_compound_slot_is_planned_at_the_band_its_kind_fixes() -> None:
 
     assert compound
     assert {one.band for one in compound} == {KINDS[QuestionKind.COMPOUND].band}
+
+
+# -- qg-plan-8 / BL-D1: a follow-up is always stored needs_both --------------
+
+
+class _Stub:
+    """A served model answering one follow-up citing both facts."""
+
+    model = "ollama/stub"
+    temperature = 0.0
+
+    def answer(self, *, system, user, shape, prompt_version=None):
+        return shape(
+            question="And for a joint account?", answer="500 euros", facts=[1, 2]
+        )
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_follow_up_on_a_compound_pair_is_not_stored_needs_both(language) -> None:
+    """The pair was dealt because it shares least; 'needs both' is not what it is."""
+    t = _T[language]
+    cash = source(
+        1, document="terms", passage_id=1, statement=t["cash"], language=language
+    )
+    close = source(
+        2, document="closing", passage_id=2, statement=t["close"], language=language
+    )
+    root_plan = plan(kind=QuestionKind.COMPOUND, shape=Shape.APART, band="medium")
+
+    written = QuestionWriter(_Stub()).follow_up(
+        FactGroup((cash, close)), (("Q?", "A"),), root_plan
+    )
+
+    assert len(written.group.resting) == 2
+    assert written.kind != QuestionKind.NEEDS_BOTH
 
 
 # -- NEW-qg-plan-2: a swapped slot keeps a band its shape can reach ------------

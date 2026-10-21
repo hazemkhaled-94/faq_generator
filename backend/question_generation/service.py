@@ -1604,6 +1604,7 @@ class QuestionGenerationService(StageService):
                         band=plan.band,
                         shape=plan.shape,
                         answerable=True,
+                        kind=plan.kind,
                     ),
                     root_facts=cited,
                     parent_passages=previous,

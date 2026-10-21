@@ -404,7 +404,9 @@ class QuestionWriter:
         Written from the same sample as the thread it joins, so a follow-up
         is about the same material rather than a fresh question that happens
         to come after one. Its own type, so a thread can move from a value to
-        the reason behind it.
+        the reason behind it. Stored `needs_both` only where the root's kind
+        is: a compound pair's follow-up is no weld, and the check that
+        narrows a weld is not run on it.
 
         Raises:
             ModelUnavailable: If the model could not be reached or would not
@@ -433,7 +435,11 @@ class QuestionWriter:
             thread=thread,
             root_facts=root_facts,
             parent_passages=parent_passages,
-            kind=QuestionKind.NEEDS_BOTH,
+            kind=(
+                QuestionKind.NEEDS_BOTH
+                if plan.kind == QuestionKind.NEEDS_BOTH
+                else QuestionKind.SINGLE
+            ),
         )
 
     def _unanswerable(self, sample: FactGroup, plan: Plan, note: str = "") -> Candidate:
