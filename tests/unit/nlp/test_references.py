@@ -393,6 +393,24 @@ def test_a_german_dies_after_only_a_relative_clause_is_still_a_reference(
 @pytest.mark.parametrize(
     "statement",
     [
+        "Wer die Karte verliert, muss dies sofort melden.",
+        "Wer eine Ware beschädigt zurückschickt, muss dies vorher anzeigen.",
+        "Wer sein Konto überzieht, muss dies innerhalb von 30 Tagen ausgleichen.",
+    ],
+)
+def test_a_german_dies_after_a_free_relative_clause_resolves(statement: str) -> None:
+    """A `wer` clause with no noun to modify states the event, as a `wenn` clause does."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references == ()
+    result = _validated("de", statement)
+    assert result.validated, (result.rejection_code, result.validation_error)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
         "Wenn die Karte gesperrt wurde, gilt dies als Kündigung.",
         "Wenn die Ware beschädigt geliefert wurde, gilt dies als Reklamationsgrund.",
     ],

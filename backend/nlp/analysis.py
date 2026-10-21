@@ -1379,7 +1379,10 @@ def _propositional(token) -> bool:
 
     "Wenn die Karte gesperrt ist, gilt dies als Kündigung": `dies` is the
     finite clause before it, which is not the pronoun's own. A relative clause
-    is not one: it modifies a noun and states nothing for `dies` to be.
+    is not one: it modifies a noun and states nothing for `dies` to be. A free
+    relative is, "Wer die Karte verliert, muss dies melden": opened by a
+    question word, it modifies no noun and stands as its head's subject or
+    object, stating the event as a `wenn` clause does.
     """
     if token.doc.lang_ not in _NOUN_ANAPHORIC_DEMONSTRATIVES:
         return False
@@ -1394,7 +1397,14 @@ def _propositional(token) -> bool:
     return any(
         "Fin" in one.morph.get("VerbForm", [])
         and one.i != own
-        and (_clause(one) != own or (_heads_clause(one) and one.dep_ not in _RELATIVE))
+        and (
+            _clause(one) != own
+            or (_heads_clause(one) and one.dep_ not in _RELATIVE)
+            or (
+                one.dep_ in _ARGUMENTS
+                and any(_interrogative(child) for child in one.children)
+            )
+        )
         for one in token.doc[: token.i]
     )
 
