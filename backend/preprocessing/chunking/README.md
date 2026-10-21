@@ -117,7 +117,14 @@ over, as on pages whose heads alternate between title and chapter, the heads
 do not name chapters and none is read.
 
 A title naming the chapter is put before the chapter's first block, so the
-chunker starts it with an empty trail and never merges across it. The
+chunker starts it with an empty trail and never merges across it. Where the
+chapter's first page holds its own heading, the title goes before that
+heading and the text above it stays in the chapter before: a heading that,
+letters and digits only, holds one of the label's fields
+(`B. Geschäftskunden` under `Geschäftskunden`) or is one with words cut from
+its start (`B Business` under `Kapitel B: Business`). A heading a field holds
+anywhere else, `Fees` under `Fees and charges` or `Karten` under
+`Kreditkarten`, is a section of the chapter and opens nothing. The
 chapter's fields then lead the trail, replacing any leading segments that
 already repeat them. The title is appended to the document's texts, so no
 stored item reference moves.

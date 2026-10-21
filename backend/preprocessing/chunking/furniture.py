@@ -734,8 +734,8 @@ def _chapter_starts(
 
     A chapter opens on the first block of the page whose running head names
     it, unless that page holds the chapter's own heading, a heading whose
-    text, letters and digits only, is one of the label's fields or holds or is
-    held by one: a head that names the chapter opening
+    text, letters and digits only, holds one of the label's fields or is one
+    with words cut from its start: a head that names the chapter opening
     on its page, as a first-on-page mark does, is wrong above that heading,
     and what precedes it stays in the chapter before.
     """
@@ -754,12 +754,11 @@ def _chapter_starts(
     for index, (node, page) in enumerate(blocks):
         label = furniture.chapter(page)
         if label and label != current:
-            named = {plain for one in label if (plain := _plain(one))}
             opening = next(
                 (
                     later
                     for later, there in blocks[index:]
-                    if there == page and _heads(later, named, document)
+                    if there == page and _heads(later, label, document)
                 ),
                 node,
             )
@@ -768,18 +767,26 @@ def _chapter_starts(
     return found
 
 
-def _heads(node: NodeItem, named: set[str], document: DoclingDocument) -> bool:
-    """Whether a block holds a heading that matches one of the given names.
+def _heads(node: NodeItem, label: tuple[str, ...], document: DoclingDocument) -> bool:
+    """Whether a block holds the heading of the chapter a label names.
 
-    Letters and digits only: a running head abbreviates a chapter or
-    prefixes its letter, `B Geschäftskunden` over the heading
-    `B. Geschäftskunden`, `Kapitel B: Business` over `B Business`.
+    Letters and digits only, a heading holding one of the label's fields or
+    being one with words cut from its start: a running head abbreviates a
+    chapter or prefixes its letter, `B Geschäftskunden` over the heading
+    `B. Geschäftskunden`, `Kapitel B: Business` over `B Business`. A heading
+    a field holds anywhere else names a part of the chapter, `Fees` under
+    `Fees and charges`, `Karten` under `Kreditkarten`.
     """
+    words = [
+        [part.casefold() for part in _PUNCTUATION.split(one) if part] for one in label
+    ]
+    whole = {"".join(each) for each in words if each}
+    ends = {"".join(each[at:]) for each in words for at in range(len(each))}
     return any(
         isinstance(item, TextItem)
         and item.label in _HEADINGS
         and (plain := _plain(item.text))
-        and any(one in plain or plain in one for one in named)
+        and (plain in ends or any(one in plain for one in whole))
         for item, _ in document.iterate_items(root=node)
     )
 

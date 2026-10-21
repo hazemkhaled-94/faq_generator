@@ -11,12 +11,6 @@ from factories import word_chunker
 
 from preprocessing.chunking.passages import chunks_of
 
-REASON = (
-    "_heads takes any heading on a chapter's first page whose letters are held in "
-    "the label for the chapter's opening, so a sub-heading 'Fees' under the running "
-    "head 'Fees and charges' refiles the text above it under the chapter before"
-)
-
 INTRO = "This chapter lists what the bank charges for its services."
 
 
@@ -74,7 +68,6 @@ def test_a_sub_heading_unlike_the_label_leaves_the_text_above_in_its_chapter() -
     ] == ("Fees and charges")
 
 
-@pytest.mark.xfail(strict=True, reason=REASON)
 @pytest.mark.parametrize(
     ("heading", "chapters", "lang"),
     [
