@@ -240,9 +240,8 @@ def diversity(argv: list[str]) -> int:
         "HS: the cosine of EMBEDDING_MODEL's vectors, which is not on the "
         "paper's MiniLM scale; compare it only between sets embedded alike"
     )
-    # Word bounds are a category's, so a kind is held to none.
-    if args.by == "category":
-        _conformance(args.file, groups)
+    if args.by:
+        _conformance(args.file, groups, args.by)
     if args.against is None:
         _judged(args.file, groups, args.by)
     return 0
@@ -355,11 +354,12 @@ def _texts(
 
 
 def _conformance(
-    path: Path, groups: dict[tuple[str, str], list[tuple[int, str]]]
+    path: Path, groups: dict[tuple[str, str], list[tuple[int, str]]], by: str
 ) -> None:
-    """Prints, per category, the share in its word bounds, factoid and open-ended.
+    """Prints, per group, the share in its word bounds, factoid and open-ended.
 
-    The bounds are today's QUESTIONS_CATEGORIZATIONS, read as the question
+    Word bounds are a category's, so a kind is held to none and prints no
+    bounds column; factoid and open-ended hold for either. The bounds are today's QUESTIONS_CATEGORIZATIONS, read as the question
     stage reads it, because a question stores the words it was told and not
     the bounds: a row written under other bounds is counted against these.
     A category with no bounds today shows none. Factoid and open-ended are
@@ -371,33 +371,38 @@ def _conformance(
     from assessment.diversity import factuality, words
     from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
 
-    source, _ = snapshot()
-    bounds = {
-        category.label: category.words
-        for one in categorizations(
-            optional("QUESTIONS_CATEGORIZATIONS", source) or DEFAULT_CATEGORIZATIONS
-        )
-        for category in one.categories
-    }
+    bounds = {}
+    if by == "category":
+        source, _ = snapshot()
+        bounds = {
+            category.label: category.words
+            for one in categorizations(
+                optional("QUESTIONS_CATEGORIZATIONS", source) or DEFAULT_CATEGORIZATIONS
+            )
+            for category in one.categories
+        }
     frame = pd.read_excel(
         path, sheet_name="Questions", dtype={"Answer form": str}, keep_default_na=False
     )
     forms = dict(zip(frame["ID"], frame["Answer form"], strict=True))
-    print(
-        "\nWord bounds as QUESTIONS_CATEGORIZATIONS sets them today, which need "
-        "not be the ones a question was written under; answer forms as stored:"
-    )
-    print(
-        f"{'language':<9}{'category':<36}{'n':>6}"
-        f"{'in bounds':>11}{'factoid':>9}{'open-ended':>12}"
-    )
+    if by == "category":
+        print(
+            "\nWord bounds as QUESTIONS_CATEGORIZATIONS sets them today, which need "
+            "not be the ones a question was written under; answer forms as stored:"
+        )
+    else:
+        print("\nAnswer forms as stored:")
+    bound = f"{'in bounds':>11}" if by == "category" else ""
+    print(f"{'language':<9}{by:<36}{'n':>6}{bound}{'factoid':>9}{'open-ended':>12}")
     for (language, label), asked in sorted(groups.items()):
         least, most = bounds.get(label, (None, None))
-        inside = f"{'-':>11}"
-        if least is not None or most is not None:
-            counts = [words(text) for _, text in asked]
-            kept = sum((least or 0) <= n <= (most or n) for n in counts)
-            inside = f"{kept / len(asked):>11.3f}"
+        inside = ""
+        if by == "category":
+            inside = f"{'-':>11}"
+            if least is not None or most is not None:
+                counts = [words(text) for _, text in asked]
+                kept = sum((least or 0) <= n <= (most or n) for n in counts)
+                inside = f"{kept / len(asked):>11.3f}"
         kinds = [factuality(forms.get(id)) for id, _ in asked]
         print(
             f"{language:<9}{label:<36}{len(asked):>6}{inside}"

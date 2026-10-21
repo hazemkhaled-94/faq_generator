@@ -370,8 +370,9 @@ against today's, and the report says so.
 `BY=kind` measures each kind of each language on its own (single,
 needs_both, compound), read from the Kind column: the paper's judge is not
 told a question's kind, and a compound question asks two things it was
-never shown how to score. Word bounds are a category's, so it has no second
-table.
+never shown how to score. A second table gives each kind its factoid and
+open-ended shares as above; word bounds are a category's, so it has no
+in-bounds column.
 
 And where the workbook holds the paper's judge (the `rubric_*` judgements on
 its Assessment sheet), the report ends with that judge's mean scores for the
