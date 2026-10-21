@@ -186,7 +186,7 @@ missing from one fails no test.
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
 | `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |
-| `_POLITE` | same | Forms of polite address, read as written with their capital: the tagger calls `Sie` third person plural, and a statement addressing the reader points at nothing before it. One opening a statement counts only where another polite form follows it | `Sie`, `Ihre` |
+| `_POLITE` | same | Forms of polite address, read as written with their capital: the tagger calls `Sie` third person plural, and a statement addressing the reader points at nothing before it. One opening a statement counts only where another polite form follows it, or one stands inside a sentence of the passage it was drawn from (the fact check passes that passage; the question gates do not) | `Sie`, `Ihre` |
 | `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several, so a singular noun can be what they refer to | `their` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
 | `_DISJUNCTIVE` | same | Coordinators that offer alternatives: a conjunct one joins is no claim of its own | `oder`, `or` |

@@ -228,6 +228,58 @@ def test_a_lower_case_german_sie_is_the_third_person_whatever_follows_it() -> No
 
 @pytest.mark.nlp
 @pytest.mark.parametrize(
+    "passage_text",
+    [
+        "Sie erhalten die Erstattung innerhalb von 14 Tagen. Bitte geben Sie dafür Ihre IBAN an.",
+        "Sie erhalten die Erstattung innerhalb von 14 Tagen. Die Gutschrift erfolgt auf Ihr Girokonto.",
+        "Sie erhalten die Erstattung innerhalb von 14 Tagen. Die Rücksendung ist für Sie kostenlos.",
+    ],
+)
+def test_an_opening_sie_is_polite_where_its_passage_addresses_the_reader(
+    passage_text: str,
+) -> None:
+    """A polite form inside a sentence of the cited passage says who `Sie` is."""
+    from nlp.analysis import claim
+
+    statement = "Sie erhalten die Erstattung innerhalb von 14 Tagen."
+    assert claim(statement, "de", (passage_text,)).references == ()
+    assert claim(statement, "de").references == ("sie",), "no passage, no address"
+    result = _validated("de", passage_text, statement)
+    assert result.validated, (result.rejection_code, result.validation_error)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("passage_text", "cites"),
+    [
+        (
+            "Die Händler prüfen jede Ware. Sie erstatten den Preis innerhalb von 14 Tagen.",
+            1,
+        ),
+        (
+            "Sie erstatten den Preis innerhalb von 14 Tagen. Ihre Prüfung dauert zwei Tage.",
+            0,
+        ),
+        (
+            "Die Banken prüfen, ob sie zahlen. Sie erstatten den Preis innerhalb von 14 Tagen.",
+            1,
+        ),
+    ],
+)
+def test_an_opening_sie_stays_a_reference_where_its_passage_addresses_no_one(
+    passage_text: str, cites: int
+) -> None:
+    """A polite form opening a sentence is capitalised either way, so it says nothing."""
+    from drivers import Checker, passage
+
+    statement = "Sie erstatten den Preis innerhalb von 14 Tagen."
+    result = Checker(passage(passage_text, language="de")).atomic(statement, cites)
+    assert not result.validated
+    assert result.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
     ("language", "statement"),
     [
         ("de", "Ein Artikel kann zurückgegeben werden, es sei denn, er wurde benutzt."),

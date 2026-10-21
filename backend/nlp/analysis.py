@@ -1088,14 +1088,15 @@ def _clausal_correlate(token) -> bool:
     )
 
 
-def _refers(token) -> bool:
+def _refers(token, passages: Sequence[str] = ()) -> bool:
     """Reports whether a pronoun points at something outside the statement.
 
     A reflexive belongs to its own verb - `sich` in `ergibt sich aus` - and an
     expletive stands in for no antecedent, so neither leaves a reader without
     a subject. Nor does the `es` of a fixed phrase, "es sei denn", or an
     `it` or `es` that anticipates the infinitive or clause its verb governs
-    further on, "It is easy to close the account".
+    further on, "It is easy to close the account". Nor does a polite form,
+    read against the passages the statement was drawn from.
     """
     if token.pos_ != "PRON" or token.dep_ in _EXPLETIVE:
         return False
@@ -1103,7 +1104,7 @@ def _refers(token) -> bool:
         return False
     if _fixed_expletive(token) or _clausal_correlate(token):
         return False
-    if _polite(token):
+    if _polite(token, passages):
         return False
     return "3" in token.morph.get("Person") or "Dem" in token.morph.get("PronType")
 
@@ -1119,21 +1120,31 @@ _POLITE: dict[str, frozenset[str]] = {
 }
 
 
-def _polite(token) -> bool:
+def _polite(token, passages: Sequence[str] = ()) -> bool:
     """Whether a pronoun is the polite form of address, which names the reader.
 
     The capitalised form is the signal, so one inside a statement is polite.
     One opening a statement is capitalised either way, and `Sie werden
     geliefert` cannot be told from the third person plural, so it is polite
-    only where the statement also holds a capitalised polite form after it:
-    `Sie können Ihre Karte sperren`. Otherwise it stays a reference.
+    only where the statement also holds a capitalised polite form after it,
+    `Sie können Ihre Karte sperren`, or one of the passages it was drawn from
+    holds one inside a sentence, `Bitte geben Sie Ihre IBAN an`. Otherwise it
+    stays a reference.
     """
     forms = _POLITE.get(token.doc.lang_, frozenset())
     if token.text not in forms:
         return False
     if any(not one.is_punct for one in token.doc[: token.i]):
         return True
-    return any(one.text in forms for one in token.doc[token.i + 1 :])
+    if any(one.text in forms for one in token.doc[token.i + 1 :]):
+        return True
+    return any(
+        one.text in forms
+        and any(not before.is_punct for before in one.doc[one.sent.start : one.i])
+        for text in passages
+        if any(form in text for form in forms)
+        for one in _read(text, token.doc.lang_)
+    )
 
 
 #: What a pronoun and a noun it stands for agree in, where both carry it.
@@ -1516,17 +1527,22 @@ def _opens(token) -> bool:
     ) or token.tag_ == "PROAV"
 
 
-def _references(span: Doc | Span) -> tuple[str, ...]:
+def _references(span: Doc | Span, passages: Sequence[str] = ()) -> tuple[str, ...]:
     """Collects what leaves a statement dependent on its context.
 
     The pronouns anywhere that the statement does not resolve itself, and
     what `_opens` reads before the first finite verb. A pronoun it resolves
-    is not recorded at all: a validated claim may carry no reference.
+    is not recorded at all: a validated claim may carry no reference. The
+    passages it was drawn from tell a polite form from a pronoun.
     """
     opening = takewhile(lambda t: "Fin" not in t.morph.get("VerbForm", []), span)
     return tuple(
         sorted(
-            {t.text.casefold() for t in span if _refers(t) and not _resolved(t)}
+            {
+                t.text.casefold()
+                for t in span
+                if _refers(t, passages) and not _resolved(t)
+            }
             | {t.text.casefold() for t in opening if _opens(t)}
         )
     )
@@ -2049,7 +2065,7 @@ def _untagged_claim(span: Doc | Span) -> bool:
     return any(token.tag_ in finite for token in span)
 
 
-def claim(text: str, language: str | None) -> Claim:
+def claim(text: str, language: str | None, passages: Sequence[str] = ()) -> Claim:
     """Reads what one written statement asserts.
 
     A statement the tagger read without a finite verb still counts as one
@@ -2057,12 +2073,16 @@ def claim(text: str, language: str | None) -> Claim:
     verb's fine tag, so that a statement is not refused as asserting nothing
     for the tagger's slip. The sentences a
     passage is chunked into keep the tagger's own reading.
+
+    `passages` are the texts the statement was drawn from, which only its
+    references read: a polite form inside one says an opening `Sie` names
+    the reader.
     """
     document = _read(text, language)
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document),
-        references=_references(document),
+        references=_references(document, passages),
         verbs=_verbs(document),
         figures=_figures(document),
     )

@@ -451,7 +451,9 @@ class FactChecker:
             known |= more
             numbers |= figures
         known |= numbers
-        said = claim(statement, anchor.language)
+        said = claim(
+            statement, anchor.language, tuple(passage.text for passage, _ in rested)
+        )
         judged = Judged(
             statement=statement,
             evidence=_JOIN.join(texts),
@@ -530,7 +532,7 @@ class FactChecker:
         evidence = _cited_text(passage, cited)
         language = passage.language
         statement = candidate.statement.strip()
-        said = claim(statement, language)
+        said = claim(statement, language, (passage.text,))
         known, numbers = _carried(evidence, passage)
         known |= numbers
         supported = _supported_units(

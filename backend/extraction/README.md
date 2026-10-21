@@ -236,7 +236,10 @@ the right to return it", since a to-infinitive has no subject of its own and
 reads as the clause it hangs in. A possessive determiner may
 name one, as in "The bank replaces its cards"; a standalone possessive,
 "hers", may not. A demonstrative, and a pronoun opening its statement with
-no noun before it, are refused as before.
+no noun before it, are refused as before. A German statement opening on
+`Sie` names the reader where a polite form follows inside it or stands inside
+a sentence of the passage it was drawn from ("Bitte geben Sie Ihre IBAN an");
+one opening a sentence there is capitalised either way and says nothing.
 
 What `nothing invented` compares is **numbers and proper nouns only** — both
 are things a writer reports rather than chooses. A number keeps its surface
