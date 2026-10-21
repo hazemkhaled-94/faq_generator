@@ -11,12 +11,6 @@ from factories import word_chunker
 
 from preprocessing.chunking.passages import chunks_of
 
-REASON = (
-    "A running head or foot whose fields are parted by an en dash, a middle dot, "
-    "a bullet or one space is read as one field that numbers pages, so it names "
-    "no chapter and a copy the converter reads as body text stays passage text"
-)
-
 
 def on(page: int, top: float) -> ProvenanceItem:
     """Provenance on one page, a line high."""
@@ -43,7 +37,6 @@ def test_a_chapter_named_between_bars_or_spaces_leads_the_trail(separator) -> No
     assert chapter_of_last_page(separator) == ["Kreditkarten"]
 
 
-@pytest.mark.xfail(strict=True, reason=REASON)
 @pytest.mark.parametrize(
     "separator", [" – ", " · ", " • "], ids=["dash", "dot", "bullet"]
 )
@@ -90,7 +83,6 @@ def test_a_foot_between_bars_read_as_body_text_is_not_passage_text(lang, foot) -
     assert foot.format(page=2) not in body_with_foot_read_as_text(foot, lang)
 
 
-@pytest.mark.xfail(strict=True, reason=REASON)
 @pytest.mark.parametrize(
     ("lang", "foot"),
     [

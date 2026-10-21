@@ -438,12 +438,17 @@ def test_running_heads_that_alternate_change_nothing() -> None:
             "Retail Banking Guide 2026   Accounts",
             ["Retail Banking Guide 2026", "Accounts"],
         ),
+        (
+            "Preisverzeichnis - Kreditkarten — Seite 4",
+            ["Preisverzeichnis", "Kreditkarten", "Seite 4"],
+        ),
+        ("Pages 3–4 · Col·lecció", ["Pages 3–4", "Col·lecció"]),
     ],
 )
 def test_a_running_head_splits_where_its_text_separates_fields(
     printed, expected
 ) -> None:
-    """On its bars when it has them, else on tabs and runs of spaces."""
+    """On its bars when it has them, else on tabs, runs of spaces and marks."""
     assert fields(printed) == expected
 
 

@@ -84,8 +84,10 @@ running heads and feet name the chapter, and
 [`furniture.py`](furniture.py) reads them before the cut, from the
 document's own `page_header` and `page_footer` items:
 
-- each is split into fields — on its bars when it has any, otherwise on tabs
-  and runs of spaces
+- each is split into fields — on its bars when it has any, otherwise on tabs,
+  runs of spaces and a dash, a middle dot or a bullet between spaces
+  (` - `, ` – `, ` — `, ` · `, ` • `), which a range `3–4` or a Catalan
+  `l·l` is not
 - a field that numbers pages is dropped: one with no letter, and every field
   of a shape, its numerals masked, that no two pages print alike ("Page 3 of
   12", "iv")
@@ -435,7 +437,11 @@ corpus, which is a property of the model rather than of this code.
   numerals are masked, dropped as single-page fields when they do not — and
   neither does a one-page chapter whose foot is laid out unlike the feet of
   longer chapters, or that sits beside guide words: its passages keep
-  today's trail, unprefixed and not reset. So does the last
+  today's trail, unprefixed and not reset. A head whose fields are parted
+  by single spaces only, `Preisverzeichnis Kreditkarten Seite 4`, is one
+  field, which differs on every page and so names no chapter either, and a
+  copy of such a foot read as body text stays passage text: its own text
+  does not say where its fields end. So does the last
   right-hand page of a chapter whose facing pages head a topic of their own,
   since the next chapter's label follows it. A
   page whose head carries an extra field printed on several pages — another

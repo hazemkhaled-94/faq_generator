@@ -41,9 +41,10 @@ _RUNNING = frozenset({DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER})
 #: The labels of a paragraph of body text.
 _PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
-#: What separates the fields of a running head with no bar in it: a tab or a
-#: run of spaces.
-_GAP = re.compile(r"\t+|\s{2,}")
+#: What separates the fields of a running head with no bar in it: a tab, a
+#: run of spaces, or a dash, a middle dot or a bullet between spaces, which
+#: a range `3–4` or a Catalan `l·l` is not.
+_GAP = re.compile(r"\s+[-–—·•]\s+|\t+|\s{2,}")
 
 #: A numeral: digits, or a word spelled only in the letters of a Roman one.
 _NUMERAL = re.compile(r"\d+|\b[ivxlcdm]+\b", re.IGNORECASE)
@@ -96,7 +97,7 @@ def fields(text: str) -> list[str]:
     """Splits a running head or foot into its fields, as its text separates them.
 
     On its bars when it has any, so a doubled space inside a field does not
-    split it; otherwise on tabs and runs of spaces.
+    split it; otherwise on `_GAP`.
     """
     parts = text.split("|") if "|" in text else _GAP.split(text)
     return [part.strip() for part in parts if part.strip()]
