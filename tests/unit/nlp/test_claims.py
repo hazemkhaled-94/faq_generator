@@ -430,3 +430,13 @@ def test_a_relative_or_subordinate_word_is_not_a_question_word(
 
     language = "de" if question.startswith("Wann") else "en"
     assert interrogatives(question, language) == asked
+
+
+def test_a_german_relative_adverb_is_not_a_question_word() -> None:
+    """`wo` opening a relative clause is tagged as a question word and asks nothing."""
+    from nlp.analysis import interrogatives
+
+    question = (
+        "Ich wohne in einem Ort, wo es keine Filiale gibt. Warum muss ich zahlen?"
+    )
+    assert interrogatives(question, "de") == ("Warum",)

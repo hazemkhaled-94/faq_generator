@@ -339,6 +339,24 @@ def _interrogative(token) -> bool:
     )
 
 
+def _asking(token) -> bool:
+    """Whether a question word asks the question rather than opening a clause in it.
+
+    Not one under a relative or adverbial clause, in either tag set: `wo` in
+    `ein Ort, wo es keine Filiale gibt`, `which` in `an account, which I
+    opened`, `When` in `When I travel abroad, why ...`. And not a Penn
+    W-word inside any clause hung off another. Penn only for that wider
+    reading: STTS labels a German question word itself `mo` and hangs a
+    modal's infinitive as `oc`, so it would drop `Wie` from `Wie viele
+    Karten darf ein Kunde besitzen?`.
+    """
+    return (
+        _interrogative(token)
+        and not (token.tag_.startswith("W") and _dependent(token))
+        and not any(parent.dep_ in _EMBEDDED for parent in token.ancestors)
+    )
+
+
 def interrogatives(text: str, language: str | None) -> tuple[str, ...]:
     """The question words one question uses.
 
@@ -349,14 +367,7 @@ def interrogatives(text: str, language: str | None) -> tuple[str, ...]:
     A finite-verb count does not separate those: `Welche Arten von Kryptowerten
     gelten als reguliert?` carries two and is one question.
     """
-    return tuple(
-        token.text
-        for token in _read(text, language)
-        if _interrogative(token)
-        # Not a Penn W-word inside a relative or adverbial clause. Penn only:
-        # STTS labels a German question word itself `mo`.
-        and not (token.tag_.startswith("W") and _dependent(token))
-    )
+    return tuple(token.text for token in _read(text, language) if _asking(token))
 
 
 #: What ends a premise before the question it leads to: a sentence, or a
@@ -370,16 +381,22 @@ def asked(text: str, language: str | None) -> str:
     A question may open on what the asker says about themselves - `Ich bin
     neu bei der Bank. Wann ...?`, `As a new customer, why ...?` - which puts
     its question word mid-text. The question begins after the last sentence
-    or clause end before its first question word. A text with no question
+    or clause end before its first question word, one `interrogatives`
+    counts: `When I travel abroad, why ...?` asks `why`. Where none is
+    counted - the parser hangs `I'm new here, when ...?` under its premise -
+    it begins at the first question word at all. A text with no question
     word, or none of those ends before it, is the question whole.
     """
     start = 0
+    first = None
     for token in _read(text, language):
-        if _interrogative(token):
+        if _asking(token):
             return text[start:].strip()
+        if first is None and _interrogative(token):
+            first = text[start:].strip()
         if token.text in _PREMISE_ENDS:
             start = token.idx + len(token.text)
-    return text
+    return text if first is None else first
 
 
 def is_number(token: Token) -> bool:

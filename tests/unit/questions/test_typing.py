@@ -161,12 +161,6 @@ def test_a_question_behind_a_premise_is_typed_by_its_own_opening(
             QuestionType.ENTITY,
         ),
         (
-            "When the branch is closed, what happens to a deposit?",
-            "en",
-            QuestionType.DEFINITION,
-            QuestionType.CONDITION,
-        ),
-        (
             "Was ist ein Dauerauftrag?",
             "de",
             QuestionType.DEFINITION,
@@ -181,6 +175,81 @@ def test_a_direct_question_is_typed_by_its_opening_as_before(
     from question_generation.gates import retyped
 
     assert retyped(question, written_as, language) == expected
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "kind"),
+    [
+        (
+            "en",
+            "When I travel abroad with my debit card, why is it blocked at some cash machines?",
+            QuestionType.REASON,
+        ),
+        (
+            "en",
+            "When my parcel arrives damaged, how do I return it?",
+            QuestionType.PROCEDURE,
+        ),
+        (
+            "en",
+            (
+                "When I pay by card abroad, what is the difference between the "
+                "exchange fee and the card fee?"
+            ),
+            QuestionType.COMPARISON,
+        ),
+        (
+            "en",
+            "When the branch is closed, what happens to a deposit?",
+            QuestionType.CONSEQUENCE,
+        ),
+        # The German twin read right before: `Wenn` is no question word.
+        (
+            "de",
+            "Wenn ich ins Ausland reise, warum wird meine Karte gesperrt?",
+            QuestionType.REASON,
+        ),
+    ],
+)
+def test_a_premise_opening_on_when_is_typed_by_the_question_behind_it(
+    language, question, kind
+) -> None:
+    """A subordinate `When ...,` is the premise; the main clause's question word asks."""
+    from question_generation.gates import retyped
+
+    assert retyped(question, kind, language) == kind
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "behind"),
+    [
+        (
+            "en",
+            "I have a savings account, which I opened in 2020. Why is a fee charged now?",
+            "Why is a fee charged now?",
+        ),
+        (
+            "en",
+            "As a customer who travels a lot, why is my card blocked abroad?",
+            "why is my card blocked abroad?",
+        ),
+        (
+            "de",
+            (
+                "Ich wohne in einem Ort, wo es keine Filiale gibt. Warum muss ich "
+                "ein Konto online eröffnen?"
+            ),
+            "Warum muss ich ein Konto online eröffnen?",
+        ),
+    ],
+)
+def test_a_relative_word_in_the_premise_is_not_where_the_question_begins(
+    language, question, behind
+) -> None:
+    """A question word inside a relative or adverbial clause asks nothing."""
+    from nlp.analysis import asked
+
+    assert asked(question, language) == behind
 
 
 def test_a_question_word_behind_a_premise_is_held_to_its_type() -> None:

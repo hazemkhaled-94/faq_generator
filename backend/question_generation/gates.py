@@ -1460,20 +1460,16 @@ _ASKED_FOR: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
 def _opened(question: str, language: str | None) -> tuple[str, ...] | None:
     """The kinds a question's opening asks for, or None where it names none.
 
-    Read at the start, and where nothing opens there, where the question
-    itself begins after a premise: `Ich bin neu bei der Bank. Wann ...?`
-    opens on its premise, which no row reads, and asks `Wann`. The start
-    goes first, so a question opening on its question word reads as it did.
+    Read where the question itself begins after a premise: `Ich bin neu bei
+    der Bank. Wann ...?` opens on its premise, which no row reads, and asks
+    `Wann`; `When I travel abroad, why ...?` opens on a premise whose `When`
+    asks nothing, and asks `why`. A question opening on its question word
+    begins at the start, so it reads as it did.
     """
     rows = _ASKED_FOR.get((language or "").strip().lower())
     if not rows:
         return None
-    kinds = _opening(question, rows)
-    if kinds is None:
-        behind = asked(question, language)
-        if behind != question:
-            kinds = _opening(behind, rows)
-    return kinds
+    return _opening(asked(question, language), rows)
 
 
 def _opening(
