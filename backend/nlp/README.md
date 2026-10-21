@@ -338,4 +338,8 @@ loads encoder weights, and only when they are already cached.
   eröffnet, erhält dies per Post.`) the reference is read as resolved, though
   what is received is something the passage named before. Telling an event
   from a thing needs the verb's meaning, which the parse does not give.
+- **A list said to follow is taken as given wherever a figure or a colon
+  stands.** `_CATAPHORIC_MODIFIERS` spares "the following fees" when a figure
+  counts the noun or a colon follows, even where the items are elsewhere:
+  "The following fees apply: see the price list."
 - **Nothing here calls a served model.**

@@ -457,5 +457,13 @@ make test-eval          # needs LLM_MODEL and LLM_BASE_URL; never gates
 - **An outline is checked on its shape, not its grammar.** The parser cannot
   read a fragment, so an outline faces neither `asserts something` nor
   `exactly one claim`.
+- **A list said to follow is taken as given wherever a figure or a colon
+  stands.** A fact opening on "the following fees" is not refused when a
+  figure counts the noun or a colon follows, even where the list is given
+  elsewhere: "The following fees apply: see the price list.", "The following
+  two documents are required."
+- **A document name after a joined section number hides that number.** In
+  "Ziffer 4 und 5 AGB" the 5 reads as counting the name after it, so neither
+  the link pass nor the bridge check reads a Ziffer 5 there.
 - **The bridge pass depends on topic modelling.** With no fit it finds no
   group, writes no bridge and logs that it wrote none, rather than failing.
