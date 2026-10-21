@@ -137,6 +137,29 @@ def test_a_refused_fact_carries_the_code_the_checker_used() -> None:
     assert record.metadata["checker"] == "copied"
 
 
+@pytest.mark.parametrize(
+    ("statement", "language"),
+    [
+        ("Eine Rücklastschrift kostet 3,00 EUR.", "de"),
+        ("Returns are free within 30 days of delivery.", "en"),
+    ],
+)
+def test_a_fact_record_says_its_language(statement, language) -> None:
+    """As a topic or a question record does.
+
+    On a bilingual corpus it is what a reviewer is given only the facts of
+    their own language by.
+    """
+    record = datasets.fact_record(fact(statement=statement, language=language))
+
+    assert record.metadata["language"] == language
+
+
+def test_a_fact_with_no_language_says_so_rather_than_saying_nothing() -> None:
+    """Its passage's own citation gone, or too short for the detector."""
+    assert datasets.fact_record(fact(language=None)).metadata["language"] == "unknown"
+
+
 def question(**overrides) -> QuestionRow:
     """A question row with the fields a record needs."""
     return QuestionRow(

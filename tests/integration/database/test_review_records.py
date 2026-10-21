@@ -169,6 +169,30 @@ def test_a_drawn_fact_carries_what_a_reviewer_is_shown(corpus) -> None:
     assert refused.kind == "atomic"
 
 
+def test_a_drawn_fact_carries_the_language_of_the_passage_it_cites(
+    engine, database
+) -> None:
+    """The passage at its own citation, position 0, as the judge's draw reads it."""
+    written = {
+        "Eine Rücklastschrift kostet 3,00 EUR.": "de",
+        "Returns are free within 30 days of delivery.": "en",
+    }
+    with Session(engine) as session:
+        for statement, language in written.items():
+            sha = digest(language)
+            session.add(document(sha))
+            session.flush()
+            held = passage(sha, text=statement, language=language)
+            session.add(held)
+            session.flush()
+            session.add(fact(held.id, statement=statement))
+        session.commit()
+
+    drawn = ReviewRepository().facts(sample=None)
+
+    assert {one.statement: one.language for one in drawn} == written
+
+
 def test_an_empty_corpus_is_an_empty_push_rather_than_an_error(database) -> None:
     """Nothing to group by, so nothing to divide a sample over."""
     assert ReviewRepository().facts(sample=200) == []

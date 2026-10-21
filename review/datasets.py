@@ -162,6 +162,7 @@ def fact_settings() -> rg.Settings:
         ],
         metadata=[
             rg.TermsMetadataProperty(name="kind", title="Fact kind"),
+            rg.TermsMetadataProperty(name="language", title="Language"),
             rg.TermsMetadataProperty(name="checker", title="What the checker said"),
             *_judge_metadata(),
             rg.IntegerMetadataProperty(name="fact_id", title="Fact id"),
@@ -308,6 +309,7 @@ def fact_record(row: FactRow, judge: Opinion = UNJUDGED) -> rg.Record:
         },
         metadata={
             "kind": row.kind,
+            "language": row.language or "unknown",
             "checker": row.rejection_code or "accepted",
             **judge_metadata(judge),
             "fact_id": row.id,

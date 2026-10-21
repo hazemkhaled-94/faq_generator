@@ -23,7 +23,15 @@ from typing import Any, NamedTuple
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import selectinload
 
-from database.qa_generator import Fact, Question, QuestionFact, ReviewVerdict, Topic
+from database.qa_generator import (
+    Fact,
+    FactPassage,
+    Passage,
+    Question,
+    QuestionFact,
+    ReviewVerdict,
+    Topic,
+)
 from database.qa_generator.repository import Repository
 
 #: Each dataset's id column, the text its record shows, and the row's own
@@ -73,6 +81,9 @@ class FactRow:
     validated: bool
     rejection_code: str | None
     validation_error: str | None
+    #: The language of the passage at its own citation, position 0. None
+    #: where that citation is gone or the passage has none.
+    language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -155,7 +166,13 @@ class ReviewRepository(Repository):
                         Fact.validated,
                         Fact.rejection_code,
                         Fact.validation_error,
+                        Passage.language,
                     )
+                    .outerjoin(
+                        FactPassage,
+                        (FactPassage.fact_id == Fact.id) & (FactPassage.position == 0),
+                    )
+                    .outerjoin(Passage, Passage.id == FactPassage.passage_id)
                     .where(
                         Fact.rejection_code.is_(code)
                         if code is None

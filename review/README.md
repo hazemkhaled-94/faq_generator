@@ -29,7 +29,7 @@ Each record already carried what the **checker** decided. It now also
 carries what an **LLM judge** decided, from
 [the evaluation phase](../backend/assessment/README.md): a `judge` field
 holding the judgement and its reasoning, and `judge_verdict` and
-`judge_disagrees` as metadata to filter on. The question record's metadata also carries `kind` (single, needs_both, compound); the guideline tells reviewers a compound question asks two separate things on purpose, each answered by its own passage, and is judged one half at a time and rejected if either half fails. A record whose question was dealt categories has a `categories` field listing them as `Categorization=category`, with `(query)` after one written as a search query; the guideline says such a question is judged as a query typed into a search box and not rejected as a malformed question. A follow-up record has a `thread` field listing the turns it follows, oldest first, and a `turn` metadata term, and the guideline says it is judged after those turns and not rejected for leaning on them.
+`judge_disagrees` as metadata to filter on. Every record's metadata carries a `language`: a topic's own, a question's own, and for a fact the language of the passage at its own citation (`unknown` where it has none). The question record's metadata also carries `kind` (single, needs_both, compound); the guideline tells reviewers a compound question asks two separate things on purpose, each answered by its own passage, and is judged one half at a time and rejected if either half fails. A record whose question was dealt categories has a `categories` field listing them as `Categorization=category`, with `(query)` after one written as a search query; the guideline says such a question is judged as a query typed into a search box and not rejected as a malformed question. A follow-up record has a `thread` field listing the turns it follows, oldest first, and a `turn` metadata term, and the guideline says it is judged after those turns and not rejected for leaning on them.
 
 `judge_disagrees=yes` is the sitting worth having. Those are the artefacts
 the pipeline **kept** and the judge refused — one of the two is wrong, and a
@@ -203,6 +203,9 @@ None of them reaches a network.
   the Topics page take no longer name, so a pull logs the topic ids and
   leaves the answer, coverage included, in Argilla for the reviewer to
   shorten.
+- **A facts dataset created before v0.4.5 has no `language` metadata.** A push
+  to it drops the term (a warning names the pull and delete steps):
+  `make review-pull-facts`, then delete the dataset in Argilla and push again.
 - **A questions dataset created before v0.4.3 has no `categories` field.** A push
   to it drops the field (a warning names the pull and delete steps), and its
   guideline is the old one: `make review-pull-questions`, then delete the
