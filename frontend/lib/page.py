@@ -178,10 +178,11 @@ def table(
             # The same pick as the last run: follow its row, if it is still here.
             position = ids.index(held[1]) if held[1] in ids else None
             if position is None:
-                # By its id, so a verdict pressed for it is known to be lost.
+                # By its id, so a verdict pressed for it is known to be lost;
+                # worded for a page or search change too, where none was.
                 st.caption(
-                    f"Row {held[1]} left this list after it was picked, so "
-                    "nothing pressed for it was done."
+                    f"Row {held[1]} is no longer in this list; anything pressed "
+                    "for it was not done."
                 )
         elif position >= len(rows):
             position = None
