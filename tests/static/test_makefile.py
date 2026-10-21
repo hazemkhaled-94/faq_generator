@@ -709,3 +709,31 @@ def test_ci_installs_without_the_container_engine() -> None:
 
     assert any("poetry install" in line for line in lines), lines
     assert not [line for line in lines if "compose" in line], lines
+
+
+@pytest.mark.parametrize(
+    ("answer", "refused"),
+    [("exit 0", False), ("exit 2", True)],
+    ids=["ready", "never-ready"],
+)
+def test_dev_waits_a_bounded_time_for_postgres(
+    tmp_path: Path, answer: str, refused: bool
+) -> None:
+    """With `sleep` a no-op the wait ends at once, and a database that never answers fails it."""
+    engine = stand_in(tmp_path, answer)
+    (tmp_path / "sleep").write_text("#!/bin/sh\n")
+    (tmp_path / "sleep").chmod(0o755)
+    wait = command("dev", "pg_isready", COMPOSE=str(engine))
+    wait = wait.split("set +a && ", 1)[1]  # past the environment the recipe loads
+
+    ran = subprocess.run(
+        ["bash", "-c", wait],
+        cwd=tmp_path,
+        env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert (ran.returncode != 0) is refused, ran

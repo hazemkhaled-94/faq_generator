@@ -325,8 +325,12 @@ dev: install certs logs-dir
 	$(COMPOSE_CMD) up -d
 	@echo "Waiting for PostgreSQL..."
 	@$(LOADENV) && \
-	  until $(COMPOSE_CMD) exec -T postgres pg_isready -h 127.0.0.1 -U "$$POSTGRES_SUPERUSER" -q; \
-	  do sleep 2; done
+	  ready=; for i in $$(seq 1 30); do \
+	    $(COMPOSE_CMD) exec -T postgres pg_isready -h 127.0.0.1 -U "$$POSTGRES_SUPERUSER" -q \
+	      && ready=1 && break; \
+	    sleep 2; \
+	  done; \
+	  [ -n "$$ready" ] || { echo "PostgreSQL was not ready after 60 seconds" >&2; exit 1; }
 	$(MAKE) schema
 	@$(MAKE) --no-print-directory grafana-grants
 
