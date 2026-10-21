@@ -78,6 +78,125 @@ def test_a_question_is_typed_by_what_its_opening_asks(
 
 
 @pytest.mark.parametrize(
+    ("question", "language", "written_as", "expected"),
+    [
+        (
+            "Ich bin neu bei der Bank. Wann wird eine Karte gesperrt?",
+            "de",
+            QuestionType.CONSEQUENCE,
+            QuestionType.CONDITION,
+        ),
+        (
+            "Als neuer Kunde, warum wird mein Konto geprüft?",
+            "de",
+            QuestionType.DEFINITION,
+            QuestionType.REASON,
+        ),
+        (
+            "Ich habe ein Girokonto: Wie viele Karten darf ich besitzen?",
+            "de",
+            QuestionType.PROCEDURE,
+            QuestionType.FACTOID,
+        ),
+        (
+            "Ich bestelle online. Was passiert, wenn das Paket verloren geht?",
+            "de",
+            QuestionType.FACTOID,
+            QuestionType.CONSEQUENCE,
+        ),
+        (
+            "I'm a new customer. When is a card blocked?",
+            "en",
+            QuestionType.DEFINITION,
+            QuestionType.CONDITION,
+        ),
+        (
+            "As a new customer, why are refunds paid only to account holders?",
+            "en",
+            QuestionType.DEFINITION,
+            QuestionType.REASON,
+        ),
+        (
+            "I'm moving abroad: what happens if a payment is late?",
+            "en",
+            QuestionType.FACTOID,
+            QuestionType.CONSEQUENCE,
+        ),
+        (
+            "For a joint account, how many cards may each holder have?",
+            "en",
+            QuestionType.PROCEDURE,
+            QuestionType.FACTOID,
+        ),
+        (
+            "I run a small shop; what does chargeback mean?",
+            "en",
+            QuestionType.FACTOID,
+            QuestionType.DEFINITION,
+        ),
+    ],
+)
+def test_a_question_behind_a_premise_is_typed_by_its_own_opening(
+    question, language, written_as, expected
+) -> None:
+    """The opening is read where the question begins, after what the asker says first."""
+    from question_generation.gates import retyped
+
+    assert retyped(question, written_as, language) == expected
+
+
+@pytest.mark.parametrize(
+    ("question", "language", "written_as", "expected"),
+    [
+        (
+            "Who decides, when the branch and the call centre disagree?",
+            "en",
+            QuestionType.ENTITY,
+            QuestionType.ENTITY,
+        ),
+        (
+            "Wer entscheidet, wann eine Karte gesperrt wird?",
+            "de",
+            QuestionType.ENTITY,
+            QuestionType.ENTITY,
+        ),
+        (
+            "When the branch is closed, what happens to a deposit?",
+            "en",
+            QuestionType.DEFINITION,
+            QuestionType.CONDITION,
+        ),
+        (
+            "Was ist ein Dauerauftrag?",
+            "de",
+            QuestionType.DEFINITION,
+            QuestionType.DEFINITION,
+        ),
+    ],
+)
+def test_a_direct_question_is_typed_by_its_opening_as_before(
+    question, language, written_as, expected
+) -> None:
+    """A clause after the question word is no premise, and an opening read at the start stands."""
+    from question_generation.gates import retyped
+
+    assert retyped(question, written_as, language) == expected
+
+
+def test_a_question_word_behind_a_premise_is_held_to_its_type() -> None:
+    """The question-word check reads past the premise too, both ways."""
+    from database.qa_generator import QuestionRejection
+    from question_generation.gates import typed
+
+    question = "Ich bin neu bei der Bank. Warum wird mein Konto geprüft?"
+
+    refused = typed(question, None, False, QuestionType.ENUMERATION, "de")
+    assert refused is not None
+    assert refused[0] == QuestionRejection.WRONG_TYPE
+    assert typed(question, None, False, QuestionType.REASON, "de") is None
+
+
+@pytest.mark.parametrize(
     ("form", "answer", "expected"),
     [
         (AnswerForm.LIST, "a passport and proof of address", QuestionType.ENUMERATION),

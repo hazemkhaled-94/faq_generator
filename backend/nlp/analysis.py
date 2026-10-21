@@ -331,6 +331,29 @@ def interrogatives(text: str, language: str | None) -> tuple[str, ...]:
     )
 
 
+#: What ends a premise before the question it leads to: a sentence, or a
+#: clause set off by a comma, a colon, a semicolon or a dash.
+_PREMISE_ENDS = frozenset({".", "!", ",", ":", ";", "\u2013", "\u2014"})
+
+
+def asked(text: str, language: str | None) -> str:
+    """The question itself, from where it begins after any premise.
+
+    A question may open on what the asker says about themselves - `Ich bin
+    neu bei der Bank. Wann ...?`, `As a new customer, why ...?` - which puts
+    its question word mid-text. The question begins after the last sentence
+    or clause end before its first question word. A text with no question
+    word, or none of those ends before it, is the question whole.
+    """
+    start = 0
+    for token in _read(text, language):
+        if _interrogative(token):
+            return text[start:].strip()
+        if token.text in _PREMISE_ENDS:
+            start = token.idx + len(token.text)
+    return text
+
+
 def is_number(token: Token) -> bool:
     """Whether a token `like_num` marks states a number, as against being spelled like one.
 
