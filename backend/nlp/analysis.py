@@ -1591,12 +1591,18 @@ def _opens(token) -> bool:
         and not _sourced(token)
     ) or token.tag_ == "PROAV":
         return True
+    # A preposition, or a word heading its object, modifies nothing, whatever
+    # the tagger made its own head: `Above EUR 500`, `Following the update`.
+    if token.pos_ == "ADP" or (
+        token.pos_ != "ADJ"
+        and any(one.pos_ in _NOMINAL and one.i > token.i for one in token.children)
+    ):
+        return False
     noun = token.head
     if noun.pos_ not in _NOMINAL:
-        # An adjective the parser made its noun's head, `Obengenannte Gebühren`;
-        # a preposition heading its object, `Above EUR 500`, modifies nothing.
+        # An adjective the parser made its noun's head, `Obengenannte Gebühren`.
         noun = next((one for one in token.children if one.pos_ in _NOMINAL), None)
-        if noun is None or token.pos_ != "ADJ":
+        if noun is None:
             return False
     if noun.i < token.i:
         return False

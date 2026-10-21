@@ -67,6 +67,9 @@ def test_a_back_pointing_modifier_points_outside(text, language) -> None:
         "Above EUR 50, shipping is free.",
         "Following the price changes, the bank charges EUR 5 per month.",
         "Following customer complaints, the shop extends its return period.",
+        # The tagger reads `applies` after an amount as a noun, the head of `Above`.
+        "Above EUR 50, a fee of EUR 2 applies.",
+        "Following the update, a fee of EUR 5 applies.",
     ],
 )
 def test_a_preposition_opening_a_fact_points_nowhere(text) -> None:
