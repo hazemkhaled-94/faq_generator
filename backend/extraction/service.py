@@ -745,8 +745,10 @@ def skipped(passage: PassageToExtract) -> str | None:
         return None
     if _is_heading(passage):
         return "heading"
-    if not passage.claims and not _defines(passage):
-        return "no finite verb"
+    if not passage.claims:
+        # A definition states one claim, its term being what it says, and
+        # the checks below count claims off the verbs it does not have.
+        return None if _defines(passage) else "no finite verb"
     # What the checks above are for, applied to what the parser did not
     # label. Between them these produced questions asking which pages a
     # term appears on and how the document is licensed - answerable,

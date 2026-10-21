@@ -74,10 +74,8 @@ A passage is skipped, and marked read with nothing found, when:
   as a glossary entry does ("Glossary > Chargeback": "Reversal of a card
   payment by the card issuer."): one sentence on one line, built on a noun or
   a gerund that words after it modify, numbered by no figure and followed by
-  no colon, under a heading it does not repeat whole. That passage faces the
-  checks below like any other, so one with a figure among few words reads as an index
-  entry and is skipped; one that passes is read, and the heading is the
-  subject its fact names;
+  no colon, under a heading it does not repeat whole. That passage is read,
+  and the heading is the subject its fact names;
 - it carries a **copyright notice** — it is about the document;
 - it reads as **an index, a bibliography or a contents page** — long for the
   claims and list items it carries, and dense with digits. The shares are
