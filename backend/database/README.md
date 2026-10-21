@@ -63,9 +63,17 @@ take the question when its **first** citation went rather than its last. A
 question that loses a fact and keeps another is rejected as `source_changed`
 instead, and its release cleared.
 
-Both triggers lock the fact or the question before deciding, so two
-deletions at once leave neither a fact with no citation nor a question with
-no fact. The assessments of whatever goes cascade with it.
+A third trigger, `questions_release_thread_whole` on `questions`, keeps a
+thread whole in the release. A question that stops being accepted, whoever
+changed its status (a person, a re-check, or the `question_facts` trigger
+above), clears the release of every follow-up below it, through `follows_id`.
+The follow-ups keep their own status. A restore from the archive applies the
+same rule to the follow-ups it puts back, because the trigger fires on the
+root's update and they were in the archive then.
+
+The two deleting triggers lock the fact or the question before deciding, so
+two deletions at once leave neither a fact with no citation nor a question
+with no fact. The assessments of whatever goes cascade with it.
 
 `ingest_events.sha256` is a plain column, not a foreign key, so the record
 that an upload happened outlives the document and keeps its digest.
@@ -179,7 +187,7 @@ The twenty-three revisions, oldest first:
 | `20261020_1200_a_thread_leaves_the_release_whole.py` | A trigger takes every follow-up below a question that stops being accepted out of the release, and the upgrade does the same for the threads already split |
 | `20261021_0100_the_papers_judge_scores_a_question.py` | `assessment_metrics.metric` also accepts the DataMorgana paper's six question scores, `rubric_fluency` to `rubric_answerability`, in its CHECK and its comment |
 | `20261021_0200_a_question_records_its_categories.py` | Adds `questions.categories`, a nullable JSONB column holding the categories `QUESTIONS_CATEGORIZATIONS` dealt a question as its writer was told them, NULL where none was rendered and on every question already stored |
-| `20261021_0300_three_column_comments_say_what_is_there.py` | Comments only: `questions.categories` is NULL wherever no category was rendered, `topics.top_terms` is not what a label is matched on across a refit, and `topics.embedding` is read to place a passage the fit left in no topic |
+| `20261021_0300_column_comments_say_what_is_there.py` | Comments only: `questions.categories` is NULL wherever no category was rendered, `topics.top_terms` is not what a label is matched on across a refit, `topics.embedding` is read to place a passage the fit left in no topic, and `facts.bridge` also holds the id of the passage that headed the link |
 
 ## Column comments
 

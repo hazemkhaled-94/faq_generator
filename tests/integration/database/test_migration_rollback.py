@@ -447,7 +447,7 @@ def test_a_question_s_categories_are_added_empty_and_taken_back_out(spare: str) 
 
 
 def _column_comments(url: str) -> dict[tuple[str, str], str]:
-    """The comment of the three columns the corrected revision rewrites."""
+    """The comment of the four columns the corrected revision rewrites."""
     return {
         (table, column): sql(
             url,
@@ -461,6 +461,7 @@ def _column_comments(url: str) -> dict[tuple[str, str], str]:
             ("questions", "categories"),
             ("topics", "top_terms"),
             ("topics", "embedding"),
+            ("facts", "bridge"),
         )
     }
 
@@ -471,7 +472,7 @@ def test_the_corrected_comments_are_written_and_the_old_ones_put_back(
     """Comment only: the comments read as the models say, and no data moves."""
     from alembic import command
 
-    from database.qa_generator import Question, Topic
+    from database.qa_generator import Fact, Question, Topic
 
     config = alembic(spare)
     command.upgrade(config, CATEGORIZED)
@@ -488,7 +489,9 @@ def test_the_corrected_comments_are_written_and_the_old_ones_put_back(
         ("questions", "categories"): Question.__table__.c.categories.comment,
         ("topics", "top_terms"): Topic.__table__.c.top_terms.comment,
         ("topics", "embedding"): Topic.__table__.c.embedding.comment,
+        ("facts", "bridge"): Fact.__table__.c.bridge.comment,
     }
+    assert "(head)" in now[("facts", "bridge")]
     assert "only signature" not in now[("topics", "top_terms")]
     assert "nothing reads it" not in now[("topics", "embedding")]
 

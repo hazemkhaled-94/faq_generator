@@ -273,9 +273,11 @@ class Fact(Base):
     )
     bridge: Mapped[dict | None] = mapped_column(
         JSONB(none_as_null=True),
-        comment="A bridge's own reading: the relation the model named and the "
-        "question and short answer it was tested with. NULL on every other "
-        "fact and on bridges older than prompt 6.",
+        comment="A bridge's own reading: the relation the model named, the "
+        "question and short answer it was tested with, and the id of the "
+        "passage that headed the link (head). NULL on every other fact and on "
+        "bridges older than prompt 6, which read as headed by the passage they "
+        "show first.",
     )
     confidence: Mapped[float | None] = mapped_column(
         Float,

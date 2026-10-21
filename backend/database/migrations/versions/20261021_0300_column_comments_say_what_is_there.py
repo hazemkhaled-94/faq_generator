@@ -1,9 +1,10 @@
-"""Three column comments say what the columns hold.
+"""Four column comments say what the columns hold.
 
 `questions.categories` is NULL wherever no category was rendered, a compound
 question included, which is told none; `topics.top_terms` is no longer what a
 label is matched on across a refit, the passages a topic holds are; and
-`topics.embedding` is read, to place each passage the fit left in no topic.
+`topics.embedding` is read, to place each passage the fit left in no topic;
+and `facts.bridge` also holds the id of the passage that headed the link.
 Comments only.
 
 Revision: 20e31b1656f7
@@ -41,6 +42,14 @@ _COLUMNS = (
         False,
         "Highest-weighted terms, descending. The topic's readable identity and the only signature a label is matched on across a refit.",
         "Highest-weighted terms, descending. The topic's readable identity. A label is carried across a refit by the passages a topic holds, not by these terms.",
+    ),
+    (
+        "facts",
+        "bridge",
+        postgresql.JSONB(astext_type=sa.Text()),
+        True,
+        "A bridge's own reading: the relation the model named and the question and short answer it was tested with. NULL on every other fact and on bridges older than prompt 6.",
+        "A bridge's own reading: the relation the model named, the question and short answer it was tested with, and the id of the passage that headed the link (head). NULL on every other fact and on bridges older than prompt 6, which read as headed by the passage they show first.",
     ),
     (
         "topics",
