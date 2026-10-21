@@ -5,6 +5,7 @@ from __future__ import annotations
 from math import isnan
 
 import pytest
+import synth_topics as st
 from topic_drivers import FitterDriver, corpus
 
 from topic_modelling.models import PassageVocabulary
@@ -335,3 +336,29 @@ def test_a_seed_at_the_top_of_its_range_still_fits(settings, passages) -> None:
     fitting = FitterDriver(settings | {"random_state": 2**32 - 1}, passages).fit("de")
 
     assert fitting.fitting.weights
+
+
+@pytest.mark.parametrize(("domain", "language"), [("bank", "en"), ("shop", "de")])
+def test_two_identical_passages_get_identical_memberships(domain, language) -> None:
+    """A repeated disclaimer is one text; the fit places both copies alike."""
+    base = st.corpus(domain, language, 200, seed=5)
+    twins = base + [
+        PassageVocabulary(id=10_000 + one.id, lemmas=list(one.lemmas)) for one in base
+    ]
+
+    fitted = FitterDriver(dict(st.DEFAULTS), twins).fit(language)
+
+    differ = [
+        one.id
+        for one in base
+        if any(
+            abs(
+                fitted.weights_of(one.id).get(k, 0.0)
+                - fitted.weights_of(10_000 + one.id).get(k, 0.0)
+            )
+            > 1e-6
+            for k in set(fitted.weights_of(one.id))
+            | set(fitted.weights_of(10_000 + one.id))
+        )
+    ]
+    assert differ == []

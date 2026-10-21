@@ -9,6 +9,7 @@ from dataclasses import replace
 from itertools import batched
 from typing import cast
 
+import numpy as np
 from gensim import corpora
 from gensim.models import Nmf, TfidfModel
 
@@ -301,6 +302,10 @@ class TopicFitter:
         without: list[int] = []
         for passage in corpus():
             bow = cast("list[tuple[int, int]]", dictionary.doc2bow(passage.lemmas))
+            # The projection draws its coordinate order from the model's one
+            # generator, so reseeded here a passage's weights depend on its
+            # vector alone, not on how many passages were scored before it.
+            model.random_state = np.random.RandomState(self._random_state)
             found = model.get_document_topics(weighting[bow], minimum_probability=0)
             if found:
                 row = [0.0] * model.num_topics
