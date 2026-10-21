@@ -19,14 +19,6 @@ def references(text: str, language: str, *passages: str) -> tuple[str, ...]:
     return claim(text, language, passages).references
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A modifier the tables name is missed at a statement's capitalised "
-        "opening where the lemmatizer leaves the inflected form "
-        "(Nachstehende Bedingungen, Besagter Kunde, Obengenannte Gebühren)"
-    ),
-)
 @pytest.mark.parametrize(
     "text",
     [

@@ -1560,6 +1560,13 @@ _CATAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
     "en": frozenset({"following"}),
 }
 
+#: The endings an adjective takes to inflect, by ISO 639-1 code: a word that is
+#: a modifier above with one of them is that modifier where the lemmatizer
+#: leaves a capitalised opening as written, `Besagter Kunde`.
+_ADJECTIVE_ENDINGS: dict[str, tuple[str, ...]] = {
+    "de": ("e", "em", "en", "er", "es"),
+}
+
 
 def _opens(token) -> bool:
     """Whether a token opening a statement points at something before it.
@@ -1579,14 +1586,22 @@ def _opens(token) -> bool:
         and not _sourced(token)
     ) or token.tag_ == "PROAV":
         return True
-    if token.head.pos_ not in _NOMINAL:
-        return False
-    words = {token.lemma_.casefold(), token.text.casefold()}
+    noun = token.head
+    if noun.pos_ not in _NOMINAL:
+        # A modifier the parser made its noun's head, `Obengenannte Gebühren`.
+        noun = next((one for one in token.children if one.pos_ in _NOMINAL), None)
+        if noun is None:
+            return False
+    text = token.text.casefold()
+    words = {token.lemma_.casefold(), text} | {
+        text.removesuffix(end)
+        for end in _ADJECTIVE_ENDINGS.get(language, ())
+        if text.endswith(end)
+    }
     if words & _ANAPHORIC_MODIFIERS.get(language, frozenset()):
         return True
     if not words & _CATAPHORIC_MODIFIERS.get(language, frozenset()):
         return False
-    noun = token.head
     colon = next((one for one in token.doc[token.i :] if one.text == ":"), None)
     return (
         "Plur" in noun.morph.get("Number", [])

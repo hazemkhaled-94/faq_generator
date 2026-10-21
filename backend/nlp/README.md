@@ -190,6 +190,7 @@ missing from one fails no test.
 | `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |
 | `_ANAPHORIC_MODIFIERS` | same | Modifiers making their noun one the passage named before: a statement opening on one is refused as a demonstrative is. The fact side's own, apart from `_ANAPHORIC` | `solcher`, `such` |
 | `_CATAPHORIC_MODIFIERS` | same | Modifiers making a plural noun a list the passage gives after the statement, read as the opening modifiers are; on a singular noun or one a figure counts they mean the next one (`the following 12 months`), and a list the statement gives after a colon is the one meant | `folgend`, `following` |
+| `_ADJECTIVE_ENDINGS` | same | The endings an adjective takes to inflect: a modifier of the two tables above written with one is that modifier, where the lemmatizer leaves a capitalised opening as written (`Besagter Kunde`). A language with no row inflects none | `-er`, `-en` |
 | `_POLITE` | same | Forms of polite address, read as written with their capital: the tagger calls `Sie` third person plural, and a statement addressing the reader points at nothing before it. One opening a statement counts only where another polite form follows it, or one stands inside a sentence of the passage it was drawn from (the fact check passes that passage; the question gates do not) and no sentence there opens on it after a plural subject it could stand for | `Sie`, `Ihre` |
 | `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several, so a singular noun can be what they refer to | `their` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
@@ -208,7 +209,7 @@ missing from one fails no test.
 
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS`, `_SOURCE` and the two modifier tables by lemma or
-by the word as written, `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
+by the word as written (the modifiers also as written with an `_ADJECTIVE_ENDINGS` ending), `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
 `_EXCEPTIVE`, `_POLITE` and the two abbreviation tables by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
