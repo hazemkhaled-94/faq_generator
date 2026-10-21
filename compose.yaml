@@ -160,8 +160,9 @@ x-model-env-files: &model-env-files
 # ── Workers ────────────────────────────────────────────────────────────────
 
 x-worker: &worker
-  # Shared with api; one build for the api and all six workers.
-  image: qa_generator-backend:latest
+  # Shared with api; one build for the api and all six workers. Named for
+  # the project, so a second checkout under -p builds its own.
+  image: ${COMPOSE_PROJECT_NAME:-qa_generator}-backend:latest
   build:
     context: .
     dockerfile: backend/api/Dockerfile
@@ -215,7 +216,7 @@ x-dagster: &dagster
   # Its own image, not the backend one. That image carries torch, spaCy,
   # Docling and litellm because some process in it needs each; this one
   # makes HTTP calls and needs none of them.
-  image: qa_generator-orchestration:latest
+  image: ${COMPOSE_PROJECT_NAME:-qa_generator}-orchestration:latest
   build:
     context: .
     dockerfile: orchestration/Dockerfile
@@ -485,7 +486,7 @@ services:
         limits: { cpus: "0.25", memory: 128M }
 
   api:
-    image: qa_generator-backend:latest
+    image: ${COMPOSE_PROJECT_NAME:-qa_generator}-backend:latest
     build:
       context: .
       dockerfile: backend/api/Dockerfile

@@ -106,6 +106,30 @@ def test_the_compose_file_resolves(resolved) -> None:
     assert resolved["services"]
 
 
+def test_a_second_project_builds_images_of_its_own() -> None:
+    """Every image this file builds is named for the project building it.
+
+    A second checkout under its own project name otherwise tags its build
+    over the first stack's images, or runs them unbuilt where the tag
+    already exists. The env files are the shipped ones, since a name is
+    not a deployment's to change.
+    """
+    answered = compose(
+        *("-p", "qa_second", "--env-file", "configs/env/deployment.env"),
+        *("--env-file", ".env.example", "config", "--format", "json"),
+    )
+    if answered.returncode != 0:
+        pytest.skip(f"compose could not resolve the file: {answered.stderr[-600:]}")
+    built = {
+        name: service.get("image", f"qa_second-{name}")
+        for name, service in json.loads(answered.stdout)["services"].items()
+        if "build" in service
+    }
+
+    assert built
+    assert all(image.startswith("qa_second-") for image in built.values()), built
+
+
 def test_every_service_the_pipeline_needs_is_declared(resolved) -> None:
     """A worker missing here is a stage nothing runs."""
     declared = set(resolved["services"])

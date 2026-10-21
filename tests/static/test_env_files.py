@@ -66,6 +66,9 @@ SUPPLIED_ELSEWHERE = {
     # it so that `compose build` bakes what the workers will load. Declaring
     # it would be the copy this whole file exists to refuse.
     "SPACY_MODELS",
+    # The project's name, which compose itself exposes: `name:` in
+    # compose.yaml, or -p.
+    "COMPOSE_PROJECT_NAME",
 }
 
 
