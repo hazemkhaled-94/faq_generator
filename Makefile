@@ -1070,7 +1070,7 @@ OUT ?= questions.xlsx
 #
 #   python -m question_generation.export --help        # every filter there is
 questions-export:
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.export --out $(OUT) $(FILTER)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.export --out "$(OUT)" $(FILTER)
 
 # ── The evaluation phase ───────────────────────────────────────────────────
 #
@@ -1185,7 +1185,7 @@ assess-rerun:
 #   make diversity FILE=pool.xlsx BY=document SIZE=200
 diversity:
 	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category|kind|document] [CODE=de] [SIZE=200]'; exit 2; }
-	$(ASSESS) --diversity --file $(FILE) $(if $(AGAINST),--against $(AGAINST)) $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE))
+	$(ASSESS) --diversity --file "$(FILE)" $(if $(AGAINST),--against "$(AGAINST)") $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE))
 
 # ── Question runs ──────────────────────────────────────────────────────────
 
@@ -1235,7 +1235,7 @@ questions-diff:
 #
 #   make spend LOG=run.log
 #   make spend LOG=run.log SINCE=2026-09-18
-SPENT = cat $(LOG) \
+SPENT = cat "$(LOG)" \
  | $(if $(SINCE),grep "$(SINCE)",cat) \
  | grep -oE '[^ ]+ (answered|did not answer) _[A-Za-z]+ in [0-9.]+s \([0-9,]+ in, [0-9,]+ out, \$$[0-9.]+\)' \
  | sed -E 's/^([^ ]+) (answered|did not answer) (_[A-Za-z]+) in [0-9.]+s \(([0-9,]+) in, ([0-9,]+) out, \$$([0-9.]+)\)/\1 \3 \4 \5 \6/' \
