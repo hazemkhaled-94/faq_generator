@@ -12,6 +12,7 @@ Slow, and excluded from `make test`. `make test-smoke` runs it.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -27,8 +28,15 @@ pytestmark = pytest.mark.smoke
 #: extra or version range.
 _NAME = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)")
 
-BACKEND = "qa_generator-smoke-backend"
-FRONTEND = "qa_generator-smoke-frontend"
+
+def tag(image: str) -> str:
+    """This suite's tag for one image, named for the compose project.
+
+    COMPOSE_PROJECT_NAME when exported, as a second stack beside the first
+    is, so its run keeps the first checkout's tags.
+    """
+    return f"{os.environ.get('COMPOSE_PROJECT_NAME') or 'qa_generator'}-smoke-{image}"
+
 
 #: Every module a container's entry point reaches. One import each is what
 #: separates an image that starts from one that does not.
@@ -77,21 +85,28 @@ def backend_image() -> str:
     built = run(
         "build",
         "-t",
-        BACKEND,
+        tag("backend"),
         "-f",
         "backend/api/Dockerfile",
         ".",
     )
     assert built.returncode == 0, built.stderr[-4000:]
-    return BACKEND
+    return tag("backend")
 
 
 @pytest.fixture(scope="module")
 def frontend_image() -> str:
     """Builds the frontend image, under a tag of this suite's own."""
-    built = run("build", "-t", FRONTEND, "-f", "frontend/Dockerfile", ".")
+    built = run("build", "-t", tag("frontend"), "-f", "frontend/Dockerfile", ".")
     assert built.returncode == 0, built.stderr[-4000:]
-    return FRONTEND
+    return tag("frontend")
+
+
+def test_the_tags_are_this_projects_own(monkeypatch) -> None:
+    """A second checkout under its own project name keeps the first's tags."""
+    monkeypatch.setenv("COMPOSE_PROJECT_NAME", "qa_second")
+
+    assert tag("backend") == "qa_second-smoke-backend"
 
 
 def test_the_backend_image_builds(backend_image) -> None:

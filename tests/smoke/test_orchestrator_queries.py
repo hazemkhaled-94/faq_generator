@@ -17,6 +17,10 @@ Skipped when there is no webserver, like the rest of the smoke layer.
 
 from __future__ import annotations
 
+import os
+import re
+from pathlib import Path
+
 import pytest
 import requests
 
@@ -24,10 +28,22 @@ from api import orchestrator
 
 pytestmark = pytest.mark.smoke
 
-#: Where `make up` publishes the webserver. The API reaches it over the
-#: compose network as `http://dagster-webserver:3000`; from the host it is
-#: this, and the queries are the same either way.
-URL = "http://localhost:3000/graphql"
+DEPLOYMENT = Path(__file__).resolve().parents[2] / "configs/env/deployment.env"
+
+
+def url() -> str:
+    """Where `make up` publishes the webserver.
+
+    DAGSTER_WEBSERVER_PORT, exported or as deployment.env sets it, so a stack
+    moved to other ports is the one asked. The API reaches it over the
+    compose network as `http://dagster-webserver:3000`; from the host it is
+    this, and the queries are the same either way.
+    """
+    port = os.environ.get("DAGSTER_WEBSERVER_PORT") or re.search(
+        r"^DAGSTER_WEBSERVER_PORT=(\S+)", DEPLOYMENT.read_text(), re.MULTILINE
+    ).group(1)
+    return f"http://localhost:{port}/graphql"
+
 
 #: Names no code location defines, so every mutation below is a lookup that
 #: fails after the query has been parsed and validated.
@@ -44,14 +60,14 @@ def _send(document: str, **variables) -> dict:
     """
     try:
         response = requests.post(
-            URL, json={"query": document, "variables": variables}, timeout=10
+            url(), json={"query": document, "variables": variables}, timeout=10
         )
     except requests.exceptions.RequestException as down:
-        pytest.skip(f"no Dagster webserver at {URL}: {down}")
+        pytest.skip(f"no Dagster webserver at {url()}: {down}")
     try:
         return response.json()
     except ValueError:
-        pytest.skip(f"no Dagster webserver at {URL}: replied {response.status_code}")
+        pytest.skip(f"no Dagster webserver at {url()}: replied {response.status_code}")
 
 
 def _accepted(document: str, **variables) -> dict:
@@ -72,6 +88,13 @@ def _selector() -> dict:
         "repositoryName": orchestrator.REPOSITORY,
         "repositoryLocationName": orchestrator.LOCATION,
     }
+
+
+def test_the_webserver_asked_is_this_stacks_own(monkeypatch) -> None:
+    """A stack on other ports is asked, not whatever listens on 3000."""
+    monkeypatch.setenv("DAGSTER_WEBSERVER_PORT", "23000")
+
+    assert url() == "http://localhost:23000/graphql"
 
 
 def test_the_state_query_is_accepted_and_finds_this_code_location() -> None:
