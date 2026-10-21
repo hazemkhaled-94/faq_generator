@@ -178,7 +178,11 @@ def table(
             # The same pick as the last run: follow its row, if it is still here.
             position = ids.index(held[1]) if held[1] in ids else None
             if position is None:
-                st.caption("That row changed meanwhile.")
+                # By its id, so a verdict pressed for it is known to be lost.
+                st.caption(
+                    f"Row {held[1]} left this list after it was picked, so "
+                    "nothing pressed for it was done."
+                )
         elif position >= len(rows):
             position = None
         if position is None:

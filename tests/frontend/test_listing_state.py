@@ -45,7 +45,12 @@ def test_changing_page_does_not_open_another_rows_panel(open_view) -> None:
 
 
 def test_a_press_for_a_row_that_left_the_page_says_so(open_view) -> None:
-    """The pressed row left the list: nothing is sent for its neighbour, and it says why."""
+    """The pressed row left the list: nothing is sent for its neighbour, and it says why.
+
+    By the row's id: a colleague, the gates or a release moved it, and a
+    reviewer told only that some row changed could not tell which verdict
+    was not recorded.
+    """
     gone = {"yes": False}
     decided: list[tuple] = []
 
@@ -66,7 +71,10 @@ def test_a_press_for_a_row_that_left_the_page_says_so(open_view) -> None:
     after = opened.press("Reject")
 
     assert decided == []
-    assert "That row changed meanwhile." in after.captions()
+    assert (
+        "Row 8036 left this list after it was picked, so nothing pressed for it "
+        "was done." in after.captions()
+    )
     assert not any(
         p.startswith("Question ") and p[9:].isdigit() for p in after.panels()
     )
