@@ -286,3 +286,46 @@ def test_a_twin_dropped_by_the_last_round_takes_its_follow_ups_with_it():
     assert later not in kept.ids
     assert len(kept.ids) in (1, 3)
     assert (50 in kept.ids) == (later == 1)
+
+
+def test_a_turn_and_the_question_it_follows_read_as_one_answer_lose_the_turn():
+    """Of a root and its own follow-up read as one answer, the follow-up goes.
+
+    Dropping the root would take its turn with it, so both would go where
+    one is spare ("Was kostet ein Dispo?" asked again as a follow-up).
+    """
+    root = next(
+        n
+        for n in range(1, 100)
+        if _rank(Row(n, True, "easy", "factoid"))
+        > _rank(Row(n + 100, True, "easy", "factoid"))
+    )
+    pool = [
+        Row(root, True, "easy", "factoid", language="de"),
+        Row(root + 100, True, "easy", "factoid", follows_id=root, language="de"),
+        Row(500, True, "easy", "factoid", language="de"),
+    ]
+    release = choose(pool, quota_of(3, {"easy": 1}, {"factoid": 1}, 0.0, {"de": 1}))
+    assert len(release.ids) == 3
+
+    class _Pair:
+        """Fresh pairs for the first rounds, then the root and its own turn."""
+
+        rounds = 0
+
+        def closest_among(self, ids):
+            self.rounds += 1
+            a, b = (
+                (root, root + 100)
+                if self.rounds > service._TWIN_ROUNDS
+                else (900 + self.rounds, 950 + self.rounds)
+            )
+            return [
+                (
+                    Posed(a, f"Was kostet ein Dispo? #{a}", "1"),
+                    Posed(b, f"Was kostet ein Dispo? #{b}", "1"),
+                )
+            ]
+
+    kept = _judged(_Pair(), _Everything(), {}, release, lambda: release, pool=pool)
+    assert sorted(kept.ids) == sorted([root, 500])

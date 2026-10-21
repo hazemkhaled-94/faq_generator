@@ -567,6 +567,7 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw, 
     """
     asked: set[tuple[int, int]] = set()
     ranked = {row.id: _rank(row) for row in pool}
+    follows = {row.id: row.follows_id for row in pool}
     for number in range(1, _TWIN_ROUNDS + 2):
         with span.start_as_current_span("questions.balance.round") as current:
             current.set_attribute("release.round", number)
@@ -598,7 +599,13 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw, 
                     twins.setdefault(second.id, set()).add(first.id)
                     found += 1
                     if number > _TWIN_ROUNDS and not {first.id, second.id} & dropped:
-                        dropped.add(max(first.id, second.id, key=ranked.__getitem__))
+                        spare = max(first.id, second.id, key=ranked.__getitem__)
+                        other = first.id if spare == second.id else second.id
+                        # A turn and the question it follows: the turn goes, since
+                        # dropping the question would take the turn with it.
+                        if spare in _above(other, follows):
+                            spare = other
+                        dropped.add(spare)
             current.set_attribute("release.twins", found)
             # Worded as it was: a review reads the count off this line.
             log.info("release: %d more twin pair(s) judged", found)
@@ -608,6 +615,16 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw, 
             break
         release = draw()
     return release
+
+
+def _above(one: int, follows: dict[int, int | None]) -> set[int]:
+    """The questions `one` follows from, its root included."""
+    out: set[int] = set()
+    above = follows.get(one)
+    while above is not None and above not in out:
+        out.add(above)
+        above = follows.get(above)
+    return out
 
 
 def _without(ids: Sequence[int], dropped: set[int], pool) -> list[int]:
