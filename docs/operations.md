@@ -200,6 +200,15 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.4.2
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration, no setting, no prompt change and no model call. `make diversity` also prints the part-of-speech compression ratio and the homogenization score; it loads the language's spaCy pipeline and the embedding model `EMBEDDING_MODEL` names on the host, so a report takes about a minute.
+
 ## Upgrading to v0.4.1
 
 ```bash
