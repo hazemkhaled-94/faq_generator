@@ -35,7 +35,6 @@ SETTINGS = Settings(
     api_key="key",
     workspace="qa_generator",
     sample=10,
-    reviewer=None,
 )
 
 #: One reviewer's answer to the verdict question: its status, then its value.

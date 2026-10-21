@@ -81,12 +81,6 @@ def test_the_filters_narrow_to_one_language_and_one_coverage(both) -> None:
     assert listed(both.choose("topics-language", "en")) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="The Topics table shows a topic's terms joined by ', ' and the "
-    "search looks in them joined by ' ', so terms typed as the table shows "
-    "them find nothing",
-)
 def test_terms_typed_as_the_table_shows_them_find_the_topic(both) -> None:
     """`lieferung, versand` is what the Top terms cell reads."""
     shown = ", ".join(TOPIC["top_terms"][:2])

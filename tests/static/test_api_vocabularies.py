@@ -112,7 +112,9 @@ def test_a_pulled_topic_name_is_held_to_what_patch_topics_takes() -> None:
     from review.service import LABEL_MAX
 
     (bound,) = [
-        one.max_length for one in TopicDescription.model_fields["label"].metadata
+        one.max_length
+        for one in TopicDescription.model_fields["label"].metadata
+        if hasattr(one, "max_length")
     ]
 
     assert LABEL_MAX == bound

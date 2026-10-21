@@ -276,7 +276,9 @@ def test_the_topic_label_bound_is_the_apis() -> None:
 
     bound = _bound(ROOT / "frontend/lib/config.py", "LABEL_MAX")
     (taken,) = [
-        one.max_length for one in TopicDescription.model_fields["label"].metadata
+        one.max_length
+        for one in TopicDescription.model_fields["label"].metadata
+        if hasattr(one, "max_length")
     ]
 
     assert isinstance(bound, ast.Constant), ast.dump(bound)
