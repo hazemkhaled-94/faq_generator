@@ -66,19 +66,22 @@ class Reads(Recording):
 _WELDED = {
     "de": (
         (
-            "Eine Ersatzkarte kostet 15 EUR, und der Dispokredit wird mit 9 "
-            "Prozent im Jahr verzinst."
+            "Bei einem Verbraucherkredit beträgt die Widerrufsfrist 14 Tage, bei "
+            "einem Immobiliendarlehen ebenfalls 14 Tage ab Vertragsschluss."
         ),
         (
-            "Wie hoch sind die Gebühr für eine Ersatzkarte und der Zins für den "
-            "Dispokredit?"
+            "Wie lange gilt die Widerrufsfrist bei einem Verbraucherkredit und "
+            "bei einem Immobiliendarlehen?"
         ),
-        "15 EUR und 9 Prozent",
+        "14 Tage",
     ),
     "en": (
-        ("Delivery of a sofa costs 49 EUR, and a lamp may be returned within 30 days."),
-        ("Which are the delivery charge for a sofa and the return period for a lamp?"),
-        "49 EUR and 30 days",
+        (
+            "A refund for a late delivery is paid within 14 days, and a refund "
+            "for a wrong item within 14 days of its return."
+        ),
+        "How long does a refund take for a late delivery and for a wrong item?",
+        "within 14 days",
     ),
 }
 
@@ -98,7 +101,7 @@ def _welded(language: str):
 
 def test_the_read_says_whether_the_question_asks_one_thing() -> None:
     """A field of the read's own shape, carried onto the reading."""
-    client = Client(in_passage=True, answer="49 EUR", asks_one=False)
+    client = Client(in_passage=True, answer="14 days", asks_one=False)
 
     got = Verifier(client).read(_WELDED["en"][1], [_WELDED["en"][0]])
 
@@ -108,7 +111,7 @@ def test_the_read_says_whether_the_question_asks_one_thing() -> None:
 
 def test_a_read_that_says_nothing_of_it_reads_as_one_thing() -> None:
     """A reply missing the field refuses nothing."""
-    client = Client(in_passage=True, answer="49 EUR")
+    client = Client(in_passage=True, answer="14 days")
 
     assert Verifier(client).read("What does it cost?", ["It costs 5 EUR."]).asks_one
 
@@ -401,10 +404,10 @@ def test_a_draft_the_read_finds_asking_two_things_is_told_so_and_not_of_an_and(
     if query:
         asked = replace(
             asked,
-            question_text="sofa delivery lamp return",
+            question_text="refund late delivery wrong item",
             categories=(short(),),
         )
-    refused = build(Reads(asks_one=False, recovers=_WELDED["en"][2])).check(asked)
+    refused = build(Reads(asks_one=False, recovers="within 14 days")).check(asked)
 
     note = again(refused)
 
@@ -427,17 +430,3 @@ def test_a_draft_with_two_question_words_is_still_told_of_the_and() -> None:
 
     assert refused.rejected_reason == QuestionRejection.COMPOUND
     assert "joined by 'and'" in (again(refused) or "")
-
-
-def test_the_read_counts_one_thing_asked_of_two_cases_as_one_ask() -> None:
-    """The parts prompt's valid two-case question is shown as one thing, not two."""
-    from question_generation.verifier import _VERIFY
-
-    flat = " ".join(_VERIFY.split())
-
-    assert "A question asking the same thing about two cases is one ask." in flat
-    assert (
-        'ONE THING: question "Until when can a standing order be changed and a '
-        'direct debit be stopped?"'
-    ) in flat
-    assert "for a late delivery and for a wrong item" not in flat

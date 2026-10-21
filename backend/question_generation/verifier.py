@@ -34,7 +34,7 @@ from llm.client import Client
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "10"
+PROMPT_VERSION = "9"
 
 #: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
 #: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
@@ -59,12 +59,12 @@ STEPS
    the passages.
 5. If you would need something the passages do not contain, set `in_passage`
    false and leave `answer` empty.
-6. Say whether the question asks ONE thing: a value, a list, a rule, a
-   difference or a total, even where it names two cases or two parties. A
-   question asking the same thing about two cases is one ask. It does not ask
-   one thing when it puts two different asks under one question word - a
-   charge and a period, a fee and a rate - or when its words can be read as
-   asking two things the passages answer differently.
+6. Say whether the question asks ONE thing. It does when one answer - a
+   value, a list, a rule, a difference, a total - answers the whole of it,
+   even where it names two cases or two parties. It does not when it puts two
+   questions under one question word, each with an answer of its own, or
+   when its words can be read as asking two things the passages answer
+   differently.
 7. Where the question asks why, or what something is for, say whether the
    passages give a reason: something they say about why the rule is there,
    beyond the rule itself. A rule said again with "because" is no reason.
@@ -96,12 +96,9 @@ NOT IN PASSAGE: same passages
 ONE THING:      question "How do the fees for a standard and an express
                           transfer differ?"
                 (two cases, and one difference asked)
-ONE THING:      question "Until when can a standing order be changed and a
-                          direct debit be stopped?"
-                (the same thing asked about two cases)
-TWO THINGS:     question "Which are the delivery charge for a sofa and the
-                          return period for a lamp?"
-                (two subjects, and a charge and a period asked of them)
+TWO THINGS:     question "How long does a refund take for a late delivery and
+                          for a wrong item?"
+                (two refund periods, each an answer of its own)
 TWO THINGS:     question "Wie hoch sind die Gebühr für eine Ersatzkarte und
                           der Zins für den Dispokredit?"
                 (one question word over a fee and a rate)
@@ -132,8 +129,8 @@ FORMAT
   language, whatever it is: an answer translated into any other language is
   compared against a target in the material's own and agrees with nothing.
 - `asks_one` is true when the question asks one thing (step 6). It is false
-  when it puts two different asks under one question word, or can be read as
-  asking two things the passages answer differently. Judge it whether or not the
+  when it asks two under one question word, or can be read as asking two
+  things the passages answer differently. Judge it whether or not the
   passages give the answer.
 - `reason_given` is for a question asking why or what for (step 7): true when
   the passages give a reason beyond the rule asked about, false when all they
@@ -544,10 +541,10 @@ class _Recovered(BaseModel):
     )
     asks_one: bool = Field(
         default=True,
-        description="True when the question asks one thing; the same thing "
-        "asked about two cases is one ask. False when it puts two different "
-        "asks under one question word, or can be read as asking two things "
-        "the passages answer differently.",
+        description="True when one answer answers the whole question. False "
+        "when it asks two things under one question word, each with an "
+        "answer of its own, or can be read as asking two things the passages "
+        "answer differently.",
     )
     reason_given: bool = Field(
         default=True,
