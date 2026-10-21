@@ -63,6 +63,28 @@ _SPACES = re.compile(r"[\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\
 #: spelled with: `_spells` tells where.
 _JOINERS = frozenset("\u200c\u200d")
 
+#: The scripts whose words a joiner spells, by the first word of their
+#: characters' Unicode names: Arabic and the scripts joined as it is, which
+#: write Persian and Urdu, and the Brahmic scripts of South Asia.
+_JOINING_SCRIPTS = frozenset(
+    {
+        "ARABIC",
+        "SYRIAC",
+        "NKO",
+        "MONGOLIAN",
+        "DEVANAGARI",
+        "BENGALI",
+        "GURMUKHI",
+        "GUJARATI",
+        "ORIYA",
+        "TAMIL",
+        "TELUGU",
+        "KANNADA",
+        "MALAYALAM",
+        "SINHALA",
+    }
+)
+
 #: The Latin and Armenian ligatures, `ﬀ` to `ﬆ` and `ﬓ` to `ﬗ`, spelled as
 #: their letters. A font's glyph list names an `ff` glyph so; NFKC would
 #: spell them too, but would also fold superscripts, fractions and
@@ -385,12 +407,21 @@ def _mend(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
 def _spells(text: str, at: int) -> bool:
     """Whether the character at `at` is a joiner the word around it is spelled with.
 
-    The zero-width non-joiner and joiner spell Persian, Urdu and the Indic
-    scripts, and join an emoji sequence. Beside a cased letter, in a script
-    that never spells with one, a joiner only steers a ligature.
+    Between two letters or marks of one of `_JOINING_SCRIPTS`: Persian
+    `می‌خواهم`, Devanagari `क्‍ष`. Anywhere else, beside a Latin letter, a
+    space, a digit, a sign or another joiner, it renders as nothing.
     """
-    return text[at] in _JOINERS and not any(
-        other.islower() or other.isupper() for other in text[max(at - 1, 0) : at + 2]
+    return text[at] in _JOINERS and all(
+        _joining(other) for other in (text[at - 1 : at], text[at + 1 : at + 2])
+    )
+
+
+def _joining(char: str) -> bool:
+    """Whether a character is a letter or a mark of a script a joiner spells."""
+    return (
+        char != ""
+        and unicodedata.category(char)[0] in "LM"
+        and unicodedata.name(char, "").split(" ")[0] in _JOINING_SCRIPTS
     )
 
 

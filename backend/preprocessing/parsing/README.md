@@ -128,9 +128,10 @@ it:
   at its own hyphen keeps it where the document prints the word whole
   elsewhere, so `third- party` is `third-party` and not `thirdparty`
 - drop control characters and every format character (zero-width marks, bidi
-  marks and isolates), but for a zero-width non-joiner or joiner beside no
-  cased letter, which Persian, Urdu and the Indic scripts spell words with
-  and an emoji sequence is joined by, and read a C1 control as the cp1252
+  marks and isolates), but for a zero-width non-joiner or joiner between two
+  letters or marks of a script that spells words with one (`_JOINING_SCRIPTS`:
+  Arabic and its kin, which write Persian and Urdu, and the Indic scripts),
+  and read a C1 control as the cp1252
   character it stands for (`U+0096` is an en dash), dropping the five it
   leaves unassigned
 - fold every other kind of space to U+0020

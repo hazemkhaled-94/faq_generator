@@ -50,3 +50,20 @@ def test_a_joiner_a_word_is_spelled_with_stays(word) -> None:
 def test_spaces_and_bidi_marks_are_folded(drawn, spelled) -> None:
     """The control: what the mend promises for spaces and bidi marks."""
     assert _mend(drawn) == spelled
+
+
+@pytest.mark.parametrize(
+    ("drawn", "spelled"),
+    [
+        ("Konto ‌ Nr", "Konto  Nr"),
+        ("5‌%", "5%"),
+        ("Preis:‍ 5 EUR", "Preis: 5 EUR"),
+        ("e‌‍ x", "e x"),
+        ("می‌ 5", "می 5"),
+    ],
+)
+def test_a_joiner_beside_anything_but_a_joining_letter_is_dropped(
+    drawn, spelled
+) -> None:
+    """Beside a space, a digit, a sign or another joiner a joiner spells nothing."""
+    assert _mend(drawn) == spelled
