@@ -987,7 +987,7 @@ One workbook, four sheets:
 | Questions | Question, with what it rests on folded in; a Kind column (single, needs_both, compound) follows Type |
 | Citations | Question × fact × passage, so a bridge takes two |
 | Assessment | Judgement of a question. Empty unless the evaluation phase has run |
-| Summary | The counts, off the same quality report the page shows |
+| Summary | The counts, off the same quality report the page shows: types, bands, levels, rejections, and the kind and each `categorization=category` a question was written as |
 
 The Questions sheet's **Categories** column, after Language, names the
 categories each question's writer was told, as `categorization=category`

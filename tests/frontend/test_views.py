@@ -678,6 +678,30 @@ def test_a_question_with_no_scope_recorded_does_not_read_as_a_wide_one(
     assert "2+" not in page.tables()
 
 
+def test_a_picked_question_shows_its_categories(open_view) -> None:
+    """What its writer was told it should be, beside its kind."""
+    page = open_view("questions").select(0)
+
+    fields = page.table("Field")
+    shown = dict(zip(fields["Field"], fields["Value"], strict=True))
+    assert shown["Categories"] == "Phrasing=concise-and-natural"
+
+
+def test_the_quality_checks_count_each_kind_and_category(open_view) -> None:
+    """Read off the report's `kind` and `categories`, as the workbook does."""
+    page = open_view(
+        "questions",
+        question_quality=changed(
+            QUESTION_QUALITY,
+            kind={"single": 1},
+            categories={"Phrasing=concise-and-natural": 1},
+        ),
+    )
+
+    assert "Kind: single" in page.tables()
+    assert "Category: Phrasing=concise-and-natural" in page.tables()
+
+
 def test_accepting_a_question_writes_the_status_and_nothing_else(open_view) -> None:
     """A person overruling a gate changes the verdict, not the question."""
     client = Answers(**answers(questions={"total": 1, "questions": [QUESTION_DRAFT]}))

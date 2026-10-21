@@ -877,3 +877,9 @@ class QuestionQuality:
     passages_asked: int = 0
     facts_validated: int = 0
     facts_asked: int = 0
+    #: What each question was written as: its kind, and each category it was
+    #: dealt as `Category.label` writes one (`Phrasing=concise-and-natural`).
+    #: A question counts once in each of its categories, as a report by
+    #: category counts it, and a compound one in none.
+    kind: dict[str, int] = field(default_factory=dict)
+    categories: dict[str, int] = field(default_factory=dict)

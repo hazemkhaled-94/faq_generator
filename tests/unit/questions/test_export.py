@@ -319,6 +319,23 @@ def test_the_summary_counts_what_the_workbook_holds() -> None:
     assert counted["rejected: duplicate"] == 1
 
 
+def test_the_summary_counts_the_kinds_and_the_categories() -> None:
+    """The same counts the quality report holds, which the page shows too."""
+    quality = QuestionQuality(
+        *[0] * 9,
+        *[{}] * 9,
+        cognitive_level_checked=0,
+        planned_met=0,
+        kind={"single": 3, "compound": 1},
+        categories={"Phrasing=concise-and-natural": 2},
+    )
+    summary = sheets(workbook([stored()], [cited()], quality))["Summary"]
+    counted = dict(zip(summary["Measure"], summary["Count"], strict=True))
+
+    assert counted["kind: compound"] == 1
+    assert counted["categories: Phrasing=concise-and-natural"] == 2
+
+
 class _Catalog:
     """A catalogue that records how the export asked for its rows."""
 

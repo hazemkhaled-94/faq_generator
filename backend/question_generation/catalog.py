@@ -8,6 +8,7 @@ the re-check. Claiming a topic is the :mod:`question_generation.queue`'s.
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from collections.abc import Iterator, Sequence
 from datetime import datetime
 from typing import Any
@@ -1456,6 +1457,7 @@ class QuestionCatalog(Repository):
             "question_type": Question.question_type,
             "cognitive_level": Question.cognitive_level,
             "answer_form": Question.answer_form,
+            "kind": Question.kind,
             "passage_scope": Question.passage_scope,
             "document_scope": Question.document_scope,
             "topic_scope": Question.topic_scope,
@@ -1473,6 +1475,17 @@ class QuestionCatalog(Repository):
                 )
                 for name, column in grouped.items()
             }
+            spread["categories"] = dict(
+                Counter(
+                    f"{one['categorization']}={one['category']}"
+                    for (stored,) in session.execute(
+                        select(Question.categories).where(
+                            selected, Question.categories.is_not(None)
+                        )
+                    )
+                    for one in stored
+                ).most_common()
+            )
             # Corpus-wide rather than filtered: coverage is about the topics
             # that exist, and a filter that selects no question of a topic
             # cannot say that topic is uncovered.

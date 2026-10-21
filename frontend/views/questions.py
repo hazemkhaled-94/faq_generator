@@ -701,6 +701,20 @@ def _analysis(quality: dict, counts: dict[str, int], plan: dict) -> list[dict]:
         for name, what in _TYPES.items()
         if weights.get(name) or written.get(name)
     ]
+    rows += [
+        {
+            "Check": f"{label}: {name}",
+            "Value": page.share(count, total),
+            "Should be": "—",
+            "State": "—",
+            "What it means": what,
+        }
+        for label, column, what in (
+            ("Kind", "kind", "What the question was written to be."),
+            ("Category", "categories", "A question counts once in each category."),
+        )
+        for name, count in quality[column].items()
+    ]
     levels = quality["cognitive_level"]
     rows += [
         {
@@ -766,6 +780,7 @@ def _detail(client, question: dict) -> None:
                 "Difficulty": question["difficulty"],
                 "Planned difficulty": question["planned_difficulty"],
                 "Kind": question["kind"],
+                "Categories": question["categories"],
                 "Passages": question["passage_scope"],
                 "Documents": question["document_scope"],
                 "Subjects": question["topic_scope"],

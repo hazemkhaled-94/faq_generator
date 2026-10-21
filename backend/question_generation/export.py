@@ -323,7 +323,14 @@ def _summary(
             ("Subjects covered", measured.get("topics_covered")),
             ("Subjects in coverage", measured.get("topics_in_coverage")),
         ]
-        for name in ("difficulty", "question_type", "cognitive_level", "rejected"):
+        for name in (
+            "difficulty",
+            "question_type",
+            "kind",
+            "categories",
+            "cognitive_level",
+            "rejected",
+        ):
             for key, value in sorted((measured.get(name) or {}).items()):
                 rows.append((f"{name}: {key}", value))
     return pd.DataFrame(rows, columns=pd.Index(["Measure", "Count"]))

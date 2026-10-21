@@ -1589,6 +1589,51 @@ def test_the_quality_report_counts_the_kinds_and_what_the_plan_asked_for(
     assert quality.planned_met == 1
 
 
+def test_the_quality_report_counts_each_kind_and_each_category(corpus) -> None:
+    """Read from what each row stored, a compound one having no category."""
+    from question_generation.catalog import QuestionCatalog
+    from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
+    from question_generation.models import CheckedQuestion, criteria_of
+
+    concise, verbose = categorizations(DEFAULT_CATEGORIZATIONS)[0].categories[:2]
+    written = corpus(topics=1, facts_per_topic=3)
+    topic_id = written["topics"][0]
+
+    def asked(fact_id: int, kind: str, *categories) -> list[CheckedQuestion]:
+        return [
+            CheckedQuestion(
+                question_text=f"Question {fact_id} {kind}?",
+                target_answer="4 kg",
+                answerable=True,
+                criteria=criteria_of(passages=1, documents=1, topics=1, answer_chars=4),
+                language="en",
+                status="accepted",
+                rejected_reason=None,
+                fact_ids=(fact_id,),
+                kind=kind,
+                categories=categories,
+            )
+        ]
+
+    one, two, three = written["facts"][topic_id]
+    QuestionQueue().store(
+        topic_id,
+        [
+            asked(one, "single", concise),
+            asked(two, "single", verbose),
+            asked(three, "compound"),
+        ],
+    )
+
+    quality = QuestionCatalog().quality()
+
+    assert quality.kind == {"single": 2, "compound": 1}
+    assert quality.categories == {
+        "Phrasing=concise-and-natural": 1,
+        "Phrasing=verbose-and-natural": 1,
+    }
+
+
 # ── Which kinds of fact a question may be written from ────────────────────
 
 

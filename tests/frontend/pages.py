@@ -227,6 +227,8 @@ QUESTION_QUALITY = {
     "question_type": {"factoid": 1},
     "cognitive_level": {"recall": 1},
     "answer_form": {"value": 1},
+    "kind": {"single": 1},
+    "categories": {"Phrasing=concise-and-natural": 1},
     "planned_difficulty": {"easy": 1},
     "planned_met": 1,
     "cognitive_level_checked": 1,
