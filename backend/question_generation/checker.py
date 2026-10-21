@@ -17,7 +17,9 @@ it:
   restates_question  free: the answer carries almost nothing the question did
                   not
   explanation_unusable  free: the long answer is the wrong length, asserts a
-                  number the passages do not carry, or only restates the key
+                  number the passages do not carry, names a person they do
+                  not, speaks of the writer's facts or passages, or only
+                  restates the key
   asks_nothing_new  free: a follow-up citing nothing its root did not, so a
                   thread asks one fact twice
   off_thread      free: a follow-up resting on no passage the turn before it
@@ -29,7 +31,9 @@ it:
   leaks_source    free where the title is quoted, in the structural step;
                   the phrasing judge's otherwise
   unanchored      a question nobody could have asked without the passage
-  not_recoverable  the answer is not in the evidence the question cites
+  not_recoverable  the answer is not in the evidence the question cites;
+                  free, beside wrong_type, for a question naming a person no
+                  cited passage names
   answer_incomplete  the key names much less than the round trip found
   answerable_elsewhere  one corpus-wide passage probe and a second call, on
                   the unanswerable share only: a passage it does not cite
@@ -104,6 +108,7 @@ from question_generation.gates import (
     rivals,
     same_material,
     shared_lemmas,
+    strangers,
     structural,
     subject,
     typed,
@@ -795,8 +800,9 @@ class QuestionChecker:
     def _kind(self, candidate: Candidate) -> tuple[str, str] | None:
         """What a rule can settle about the kind and the long answer.
 
-        `typed`, which re-verify applies to a stored row too, and the long
-        answer, which needs the passages. None calls anything. They sit ahead
+        `typed`, which re-verify applies to a stored row too, and the people
+        the question names and the long answer, which need the passages.
+        None calls anything. They sit ahead
         of the embedding because every one of them reads what the writer
         already returned, and a candidate refused here costs nothing at all.
         """
@@ -813,6 +819,24 @@ class QuestionChecker:
         target = candidate.target_answer or ""
         language = candidate.group.language
 
+        # Read against what the writer was shown of the cited passages and
+        # the titles: a person from another passage of the sample is one
+        # nothing a chatbot retrieves for this question names.
+        group = candidate.group
+        named = strangers(
+            candidate.question_text,
+            (*group.passages, group.headings, *group.titles),
+            language,
+        )
+        if named:
+            return (
+                QuestionRejection.NOT_RECOVERABLE,
+                (
+                    f"it names {named[0]!r}, whom no passage it cites names, so "
+                    f"nothing a chatbot finds for it can answer it"
+                ),
+            )
+
         if not explains(
             candidate.answer_explanation or "",
             target,
@@ -824,8 +848,10 @@ class QuestionChecker:
                 QuestionRejection.EXPLANATION_UNUSABLE,
                 (
                     "its long answer is outside the length a reading takes, "
-                    "asserts a number or a name the passages do not carry, or "
-                    "says nothing the target answer had not already said"
+                    "asserts a number the passages do not carry, names a "
+                    "person they do not, speaks of the facts or passages it "
+                    "was written from, or says nothing the target answer had "
+                    "not already said"
                 ),
             )
         return None

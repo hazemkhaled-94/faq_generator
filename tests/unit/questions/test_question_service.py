@@ -1762,9 +1762,9 @@ def test_the_verifier_is_never_shown_the_asker() -> None:
             return shape(
                 question="How heavy is the device?",
                 answer="4 kg",
-                explanation="The device weighs 4 kg, which is all the passage "
-                "says of its weight; that it ships from Hamburg has nothing to "
-                "do with how heavy it is, so the answer is the weight alone.",
+                explanation="The device weighs 4 kg, and nothing else is said "
+                "of its weight; that it ships from Hamburg has nothing to do "
+                "with how heavy it is, so the answer is the weight alone.",
                 facts=[1],
             )
 
