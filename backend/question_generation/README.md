@@ -880,11 +880,12 @@ the same labels:
 
 No quota holds a category. The shares the release is held to are kinds,
 bands, languages and answerability, and those correlate with categories: a
-search query tends to be a factoid, and a thread drawn whole brings its
-uncategorised follow-ups. So a release can drift from the mix its questions
-were written in, and the two lines are where that shows. A share is of every
-question in the release or the pool, the unanswerable and the follow-ups
-included, which are told no category.
+search query, where a configured categorization deals one, tends to be a
+factoid, and a thread drawn whole brings its uncategorised follow-ups. So a
+release can drift from the mix its questions were written in, and the two
+lines are where that shows. A share is of every question in the release or
+the pool, the unanswerable, compound and follow-up questions included, which
+are told no category.
 
 Nothing is deleted. The draw re-checks first, as `questions-reverify` does. A
 question is rejected before it can be drawn when a fact it cites no longer
