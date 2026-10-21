@@ -771,12 +771,37 @@ def figures(text: str, language: str | None = None) -> list[float]:
     return found
 
 
+def _ordinals_past_twelve(language: str) -> dict[str, str]:
+    """The ordinals from thirteenth on, each as the digits it names, composed from the cardinals.
+
+    English puts `th` after the cardinal - `thirteenth`, `hundredth` - and
+    `ieth` for `twentieth`. German puts `t` after a cardinal under twenty and
+    `st` after any other, in every ending an ordinal takes. English compounds
+    (`twenty-first`) are tokens of their own words and are not read.
+    """
+    spelled = {
+        word: value for word, value in CARDINALS[language].items() if value >= 13
+    }
+    if language == "en":
+        return {
+            (word[:-1] + "ieth" if word.endswith("y") else word + "th"): str(value)
+            for word, value in spelled.items()
+            if "-" not in word
+        }
+    return {
+        f"{word}{'t' if value < 20 else 'st'}e{ending}": str(value)
+        for word, value in spelled.items()
+        for ending in ("", "n", "r", "s", "m")
+    }
+
+
 #: Ordinals by ISO 639-1 code, as the digits a written one carries: `2nd`,
 #: and German `2.` once `_bare` has dropped its full stop. German ordinals
 #: are listed in every ending they take.
 _ORDINALS: dict[str, dict[str, str]] = {
     "en": _valued("first second third fourth fifth sixth", start=1)
-    | _valued("seventh eighth ninth tenth eleventh twelfth", start=7),
+    | _valued("seventh eighth ninth tenth eleventh twelfth", start=7)
+    | _ordinals_past_twelve("en"),
     "de": {
         f"{stem}e{ending}": value
         for stem, value in (
@@ -784,7 +809,8 @@ _ORDINALS: dict[str, dict[str, str]] = {
             | _valued("siebt acht neunt zehnt elft zwölft", start=7)
         ).items()
         for ending in ("", "n", "r", "s", "m")
-    },
+    }
+    | _ordinals_past_twelve("de"),
 }
 
 #: What each language writes after the digits of an ordinal figure, by ISO

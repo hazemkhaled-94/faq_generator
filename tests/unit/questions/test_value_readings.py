@@ -232,3 +232,32 @@ def test_a_german_ordinal_figure_is_no_stated_count():
     assert not _stated(
         3, ["Ab der 3. Mahnung gilt eine Gebühr.", "Y gilt.", "Z gilt."], "de"
     )
+
+
+# QA-questions-3: an ordinal spelled past twelve.
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        (
+            "The fee applies from the thirteenth month on.",
+            "from the 13th month on",
+            "en",
+        ),
+        ("Die Gebühr gilt ab dem dreizehnten Monat.", "ab dem 13. Monat", "de"),
+        ("Payment is due by the twentieth day.", "by the 20th day", "en"),
+        ("Die Gebühr gilt ab dem einundzwanzigsten Monat.", "ab dem 21. Monat", "de"),
+        ("Die Gebühr gilt ab dem hundertsten Tag.", "ab dem 100. Tag", "de"),
+    ],
+)
+def test_qa_questions_3_an_ordinal_past_twelve_agrees_with_its_figure(
+    recovered, key, language
+):
+    """`third` agrees with `3rd`; `thirteenth` must agree with `13th`."""
+    assert agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+def test_qa_questions_3_an_ordinal_past_twelve_does_not_agree_with_its_cardinal():
+    """`thirteenth` is the ordinal, never the count 13."""
+    assert not agrees("It applies from the thirteenth month.", "13 months", "en")
