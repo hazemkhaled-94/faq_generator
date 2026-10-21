@@ -249,6 +249,28 @@ class TopicQueue(StageQueue):
                 ).all()
             )
 
+    def gone(self) -> list[str]:
+        """Lists the languages holding topics that no passage carries any more.
+
+        The ones `replace` deletes without a fit to take their place.
+        """
+        with self._session() as session:
+            return list(
+                session.scalars(
+                    select(Topic.language)
+                    .where(
+                        ~_OUTSTANDING,
+                        Topic.language.not_in(
+                            select(Passage.language).where(
+                                Passage.language.is_not(None)
+                            )
+                        ),
+                    )
+                    .group_by(Topic.language)
+                    .order_by(Topic.language)
+                ).all()
+            )
+
     def passages(self, language: str) -> Iterator[PassageVocabulary]:
         """Streams one language's passages by id, in batches of `_BATCH`.
 

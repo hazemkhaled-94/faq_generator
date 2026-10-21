@@ -248,6 +248,7 @@ class RecordingQueue:
         #: How many decisions the store loses as it writes the fit.
         self.dropped = 0
         self._next_id = 1
+        self.held: set[str] = set()
 
     def request(self, trigger: str | None = None) -> int:
         """Queues a fit, replacing any unclaimed one."""
@@ -266,6 +267,10 @@ class RecordingQueue:
     def languages(self) -> list[str]:
         """The languages the corpus holds."""
         return list(self.corpora)
+
+    def gone(self) -> list[str]:
+        """The languages holding topics that no passage carries any more."""
+        return sorted(self.held - set(self.corpora))
 
     def passages(self, language: str) -> Iterator[PassageVocabulary]:
         """A fresh walk over one language's passages."""
@@ -313,6 +318,7 @@ class RecordingQueue:
         if self.lost:
             return None
         self.stored = list(fittings)
+        self.held = {one.language for one in fittings if one.topics}
         if keep_request:
             self.kept.append(fit_id)
         return sum(len(one.weights) for one in fittings), self.dropped

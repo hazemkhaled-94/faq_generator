@@ -346,10 +346,12 @@ def test_a_language_with_no_passages_loses_its_topics_on_the_next_fit(store) -> 
     store.given_passages(de=1, en=1)
     store.store(fitting("de"), fitting("en"))
     store.delete_passages("en")
+    assert store.queue.gone() == ["en"]
 
     store.store(fitting("de"))
 
     assert {row["language"] for row in store.stored_topics()} == {"de"}
+    assert store.queue.gone() == []
 
 
 def test_a_language_with_no_passages_drops_its_decisions_with_a_warning(

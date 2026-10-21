@@ -193,6 +193,8 @@ class TopicModellingService(StageService):
                 f"filtering, so no model was fitted ({'; '.join(skipped)})"
             )
 
+        # Read before the replace deletes their topics.
+        gone = self._repository.gone()
         stored = self._repository.replace(fit_id, fittings, keep_request=bool(skipped))
         if stored is None:
             log.warning(
@@ -206,6 +208,7 @@ class TopicModellingService(StageService):
         left = self._repository.without_topics()
         self._keep(fittings)
         self._draw(fittings)
+        self._release(gone)
         self._annotate(current, fittings, memberships, left, lost + dropped)
 
         for fitting in fittings:
@@ -230,6 +233,23 @@ class TopicModellingService(StageService):
             # The topics above are stored; the request stays, failed, so the
             # language that has none is on the stage and in `GET /topics/fit`.
             raise NoVocabulary("; ".join(skipped))
+
+    def _release(self, gone: list[str]) -> None:
+        """Archives the figure and model of each language whose topics went.
+
+        No fit reaches them again, and the figure route would still serve
+        topics that no longer exist. Every failure is logged and left, as in
+        `_keep`: the rows are already replaced.
+        """
+        for language in gone:
+            for bucket, key in (
+                (self._export, self._export.topic_visualisation_key(language)),
+                (self._models, self._models.topic_model_key(language)),
+            ):
+                try:
+                    self._archive.take(bucket.name, key)
+                except Exception:
+                    log.exception("could not archive the %s %s", language, key)
 
     def _keep(self, fittings: list[Fitting]) -> None:
         """Stores each language's factorisation.

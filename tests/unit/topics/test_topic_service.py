@@ -651,3 +651,26 @@ def test_a_language_of_one_passage_still_gets_a_topic(big, small) -> None:
     assert small[1] in flow.languages_stored, flow.failure
     assert flow.failure is None
     assert small[1] in flow.figures
+
+
+def test_a_language_whose_documents_went_takes_its_figure_and_model() -> None:
+    """The store deletes the de topics as gone; the figure and model go too."""
+    english = st.corpus("bank", "en", 80, seed=1)
+    german = st.corpus("bank", "de", 80, seed=2, first_id=1_001)
+    flow = ServiceDriver(
+        settings=dict(st.DEFAULTS), corpora={"en": english, "de": german}
+    )
+    flow.request_and_run()
+    assert "de" in flow.figures
+    assert "topics/de.npz" in flow.models.models
+
+    # Every German document removed: no passage carries de any more.
+    del flow.queue.corpora["de"]
+    flow.request_and_run()
+
+    assert flow.languages_stored == ["en"]
+    assert "de" not in flow.figures
+    assert "topics/de.npz" not in flow.models.models
+    assert {"export/topics/de.html", "models/topics/de.npz"} <= set(
+        flow.archive.objects
+    )
