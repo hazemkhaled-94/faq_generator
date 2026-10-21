@@ -21,8 +21,9 @@ from datetime import datetime
 from typing import Any, NamedTuple
 
 from sqlalchemy import case, func, select, update
+from sqlalchemy.orm import selectinload
 
-from database.qa_generator import Fact, Question, ReviewVerdict, Topic
+from database.qa_generator import Fact, Question, QuestionFact, ReviewVerdict, Topic
 from database.qa_generator.repository import Repository
 
 #: Each dataset's id column, the text its record shows, and the row's own
@@ -47,6 +48,11 @@ _HELD = {
         func.greatest(Topic.fitted_at, Topic.decided_at),
     ),
 }
+
+
+#: A question's facts, read with it: one query for every row's links and one
+#: for their facts, rather than two per question.
+_CITED = selectinload(Question.fact_links).selectinload(QuestionFact.fact)
 
 
 class Held(NamedTuple):
@@ -187,7 +193,10 @@ class ReviewRepository(Repository):
         if ids:
             with self._session() as session:
                 found = session.execute(
-                    select(Question).where(Question.id.in_(ids)).order_by(Question.id)
+                    select(Question)
+                    .options(_CITED)
+                    .where(Question.id.in_(ids))
+                    .order_by(Question.id)
                 ).scalars()
                 return [
                     self._question(one, self._before(session, one)) for one in found
@@ -203,6 +212,7 @@ class ReviewRepository(Repository):
             for difficulty, reason in groups:
                 found = session.execute(
                     select(Question)
+                    .options(_CITED)
                     .where(
                         Question.difficulty.is_(difficulty)
                         if difficulty is None

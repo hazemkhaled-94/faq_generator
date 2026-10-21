@@ -24,7 +24,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from seed import digest, document, fact, fitted, link, passage, question
-from sqlalchemy import select
+from sqlalchemy import event, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from database.qa_generator import Fact, Question, QuestionStatus, ReviewVerdict, Topic
@@ -232,6 +233,45 @@ def test_a_drawn_question_carries_the_facts_and_the_sentences_behind_them(
     assert drawn.facts == ["A reply is due in five days."]
     assert drawn.evidence == ["A reply is due in five days."]
     assert drawn.answer_explanation == "Because the policy says so."
+
+
+def test_the_questions_are_read_in_a_fixed_number_of_queries(corpus, engine) -> None:
+    """Their fact links and facts come in one query each, not one per question."""
+    with Session(engine) as session:
+        ids = []
+        for text, cited in zip(
+            (
+                "Wie hoch ist die Kontoführungsgebühr?",
+                "How long is the return window?",
+                "Was kostet eine Rücklastschrift?",
+                "What does express delivery cost?",
+                "Bis wann muss ein Widerspruch eingehen?",
+                "Can a gift card be refunded?",
+            ),
+            corpus["facts"].values(),
+            strict=True,
+        ):
+            row = question(question_text=text)
+            session.add(row)
+            session.flush()
+            session.add(link(row.id, cited))
+            ids.append(row.id)
+        session.commit()
+    selects: list[str] = []
+
+    def counted(connection, cursor, statement, *rest) -> None:
+        if statement.lstrip().upper().startswith("SELECT"):
+            selects.append(statement)
+
+    # On the class: the repository reads through the application's engine.
+    event.listen(Engine, "before_cursor_execute", counted)
+    try:
+        drawn = ReviewRepository().questions(10, ids=ids)
+    finally:
+        event.remove(Engine, "before_cursor_execute", counted)
+
+    assert len(drawn) == 6
+    assert len(selects) <= 3, f"{len(selects)} SELECTs for 6 questions"
 
 
 def test_no_questions_at_all_is_an_empty_push(database) -> None:
