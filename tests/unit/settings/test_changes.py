@@ -181,12 +181,17 @@ class Recording(Environment):
     [
         ("topics", "TOPIC_LANGUAGE_NAMES", "de:Ger\x00man,en:English"),
         ("parsing", "DOCLING_ARTIFACTS_PATH", "/models/doc\x00ling"),
+        ("topics", "TOPIC_LANGUAGE_NAMES", "de:Ger\ud800man,en:English"),
+        ("parsing", "DOCLING_ARTIFACTS_PATH", "/models/doc\udc80ling"),
     ],
 )
-def test_a_value_holding_a_nul_is_refused_before_it_is_stored(
+def test_a_value_text_cannot_hold_is_refused_before_it_is_stored(
     service: str, name: str, value: str
 ) -> None:
-    """PostgreSQL text cannot hold one, so psycopg would refuse the write as a 500."""
+    """A NUL PostgreSQL cannot store, or a lone surrogate psycopg cannot encode.
+
+    A JSON escape carries either, and the write would fail as a 500.
+    """
     store = Recording()
 
     with pytest.raises(changes.Refused) as refused:

@@ -6,6 +6,8 @@ What the catalogue then writes is tested against a real one in
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -63,11 +65,17 @@ def test_a_label_of_null_still_clears_it(described) -> None:
     assert asked == {"label": None, "include_in_coverage": None}
 
 
-@pytest.mark.parametrize("label", ["Kon\x00toführung", "Re\x00turns"])
-def test_a_label_holding_a_nul_is_refused_before_the_catalogue(
+@pytest.mark.parametrize(
+    "label", ["Kon\x00toführung", "Re\x00turns", "Kon\ud800toführung", "Re\udc80turns"]
+)
+def test_a_label_text_cannot_hold_is_refused_before_the_catalogue(
     monkeypatch, label
 ) -> None:
-    """PostgreSQL text cannot hold one, so the write would have answered 500."""
+    """A NUL PostgreSQL cannot store, or a lone surrogate psycopg cannot encode.
+
+    Sent as JSON escapes, which is how a caller carries either; the write
+    would have answered 500.
+    """
     from api.main import app
     from api.routes import topics
 
@@ -75,7 +83,11 @@ def test_a_label_holding_a_nul_is_refused_before_the_catalogue(
     monkeypatch.setattr(topics, "topic_catalog", catalog)
     client = TestClient(app, base_url="http://localhost:8000")
 
-    answered = client.patch("/topics/1", json={"label": label})
+    answered = client.patch(
+        "/topics/1",
+        content=json.dumps({"label": label}),
+        headers={"content-type": "application/json"},
+    )
 
     assert answered.status_code == 422
     assert catalog.asked == []

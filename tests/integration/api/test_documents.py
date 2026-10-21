@@ -155,9 +155,23 @@ def test_something_that_is_not_a_document_is_refused_as_415(client) -> None:
     assert answered.json()["code"] == "unsupported_type"
 
 
-@pytest.mark.parametrize("filename", [b"Preis\x00liste.pdf", b"price\x00list.pdf"])
-def test_a_filename_holding_a_raw_nul_is_refused_as_400(client, pdf, filename) -> None:
-    """PostgreSQL text cannot hold one; a browser would have percent-encoded it."""
+@pytest.mark.parametrize(
+    ("filename", "charset"),
+    [
+        (b"Preis\x00liste.pdf", "utf-8"),
+        (b"price\x00list.pdf", "utf-8"),
+        (b"Preis\\ud800liste.pdf", "unicode_escape"),
+        (b"price\\udc80list.pdf", "unicode_escape"),
+    ],
+)
+def test_a_filename_text_cannot_hold_is_refused_as_400(
+    client, pdf, filename, charset
+) -> None:
+    """A raw NUL PostgreSQL cannot store, or a lone surrogate psycopg cannot encode.
+
+    The form is decoded in the charset the request names, so a hand-made one
+    can name a codec that yields a surrogate; a browser sends neither.
+    """
     body = (
         b'--b\r\nContent-Disposition: form-data; name="file"; filename="'
         + filename
@@ -169,7 +183,7 @@ def test_a_filename_holding_a_raw_nul_is_refused_as_400(client, pdf, filename) -
     answered = client.post(
         "/documents",
         content=body,
-        headers={"content-type": "multipart/form-data; boundary=b"},
+        headers={"content-type": f"multipart/form-data; boundary=b; charset={charset}"},
     )
 
     assert answered.status_code == 400, answered.text[:200]

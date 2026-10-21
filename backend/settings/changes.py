@@ -24,6 +24,7 @@ import preprocessing.chunking.config
 import preprocessing.parsing.config
 import question_generation.config
 import topic_modelling.config
+from database.qa_generator.repository import storable
 from settings import catalog
 from settings.env import _FALSE, _TRUE
 from settings.store import Settings as Store
@@ -145,9 +146,11 @@ def within_bounds(setting: catalog.Setting, value: str) -> None:
     Raises:
         Refused: `not_a_choice` or `out_of_range`.
     """
-    # PostgreSQL text cannot hold a NUL, and psycopg refuses the write as an error.
-    if "\x00" in value:
-        raise Refused("out_of_range", f"{setting.name} may not hold a NUL byte.")
+    if not storable(value):
+        raise Refused(
+            "out_of_range",
+            f"{setting.name} may not hold a NUL byte or a lone surrogate.",
+        )
     # A flag reads anything it does not know as off, so a typo written here
     # would switch the flag off rather than fail.
     if setting.kind == "boolean" and value.strip().lower() not in _TRUE | _FALSE:

@@ -15,6 +15,7 @@ from api.dependencies import ingest_service, ingesting, removal_service
 from api.errors import ApiError, ErrorBody
 from api.params import Limit, Offset, SearchText
 from database.qa_generator import Outcome
+from database.qa_generator.repository import storable
 from ingestion.models import (
     DocumentName,
     IngestResult,
@@ -156,16 +157,20 @@ def add_document(file: UploadFile) -> IngestResult:
     documents.parse_status.
 
     Raises:
-        ApiError: 400 `invalid_value` if the filename holds a NUL byte, which
-            no text column can store. 413 `too_large` if the file is over the
+        ApiError: 400 `invalid_value` if the filename holds a NUL byte or a
+            lone surrogate, which no text column can store. 413 `too_large` if the file is over the
             size limit, 415 `unsupported_type` if it is not a readable
             document of an accepted type. Each of those two codes is the
             ingest outcome itself.
     """
     filename = file.filename or "unnamed"
-    # A browser percent-encodes one; only a hand-made request sends it raw.
-    if "\x00" in filename:
-        raise ApiError(400, "invalid_value", "a filename may not hold a NUL byte")
+    # A browser sends neither; only a hand-made request does.
+    if not storable(filename):
+        raise ApiError(
+            400,
+            "invalid_value",
+            "a filename may not hold a NUL byte or a lone surrogate",
+        )
     # Per upload: ingestion has no worker to pick a changed limit up.
     service = ingesting()
 

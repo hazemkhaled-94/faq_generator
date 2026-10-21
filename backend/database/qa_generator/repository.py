@@ -17,6 +17,20 @@ class Repository:
         self._session = sessions()
 
 
+def storable(text: str) -> bool:
+    """Whether a text column can hold `text`, rather than the write raising.
+
+    PostgreSQL text cannot hold a NUL, and psycopg cannot encode a lone
+    surrogate, which a JSON escape or a form decoded in a charset the
+    caller names can carry.
+    """
+    try:
+        text.encode()
+    except UnicodeEncodeError:
+        return False
+    return "\x00" not in text
+
+
 def matching(search: str, *columns: Any) -> Any:
     """Builds the condition a search box's words select over some columns.
 

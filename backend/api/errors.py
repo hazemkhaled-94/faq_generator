@@ -11,10 +11,14 @@ read back through its status rather than answered here.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import asdict, dataclass
+from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 log = logging.getLogger(__name__)
@@ -64,6 +68,25 @@ async def refused(request: Request, exc: ApiError) -> JSONResponse:
     return JSONResponse(status_code=exc.status, content=asdict(exc.body))
 
 
+class _Escaped(JSONResponse):
+    """JSON escaped to ASCII, so any text it echoes can be sent."""
+
+    def render(self, content: Any) -> bytes:
+        """The body, with every character past ASCII written as an escape."""
+        return json.dumps(content, allow_nan=False, separators=(",", ":")).encode()
+
+
+async def invalid(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """FastAPI's own 422, in its own shape, rendered ASCII-escaped.
+
+    It echoes the input it refused, and one holding a lone surrogate, which
+    a JSON escape carries, is text UTF-8 cannot encode: rendered as FastAPI
+    renders it, the refusal answered 500.
+    """
+    return _Escaped(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+
+
 def install(app: FastAPI) -> None:
     """Teaches an application to answer :class:`ApiError` with its body."""
     app.exception_handler(ApiError)(refused)
+    app.exception_handler(RequestValidationError)(invalid)

@@ -344,12 +344,12 @@ a caller branches on the code rather than on English:
 |---|---|---|
 | `invalid_digest` | 400 | The path segment is not a SHA-256 |
 | `invalid_language` | 400 | The language is not an ISO 639-1 code |
-| `invalid_value` | 400 | A narrowed verb was given a value its column cannot hold, or an upload's filename holds a NUL byte |
+| `invalid_value` | 400 | A narrowed verb was given a value its column cannot hold, or an upload's filename holds a NUL byte or a lone surrogate |
 | `confirm_required` | 400 | `reclaim` over a whole stage without `?confirm=true` |
 | `wrong_service` | 400 | A setting belongs to another service |
 | `fixed_setting` | 400 | A setting is the deployment's: served read-only, never stored |
 | `not_a_choice` | 400 | A value is not one the setting takes |
-| `out_of_range` | 400 | A value is outside the setting's bounds, or holds a NUL byte |
+| `out_of_range` | 400 | A value is outside the setting's bounds, or holds a NUL byte or a lone surrogate |
 | `would_not_load` | 400 | A stage that loads now would not with that value |
 | `unknown_document` | 404 | No document with that digest |
 | `unknown_passage` | 404 | No passage with that id |
