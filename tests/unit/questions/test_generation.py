@@ -948,6 +948,70 @@ def test_a_premise_is_noted_once_and_the_second_draft_kept() -> None:
     assert "table" in written.question_text
 
 
+#: Premises in which the asker speaks, by language: a possessive, which the
+#: German parse marks with no person, and a premise joined by a dash.
+_SPOKEN = [
+    ("de", "Meine Karte wurde im Ausland gestohlen, was muss ich tun?"),
+    (
+        "de",
+        "Mein Paket kam beschädigt an. Wie lange habe ich Zeit für die Reklamation?",
+    ),
+    ("de", "Unser Konto wurde gesperrt: Was können wir tun?"),
+    ("de", "Ich möchte eine Jacke zurückschicken – wie viele Tage habe ich dafür?"),
+    ("en", "My card was stolen abroad, what should I do?"),
+    ("en", "My parcel arrived damaged. How long do I have to complain?"),
+    ("en", "Our account was blocked: what can we do?"),
+    ("en", "I want to return a jacket I bought online - how many days do I have?"),
+]
+
+#: Premises naming a setting or a topic, by language, a dash among them.
+_UNSPOKEN = [
+    ("de", "Beim Girokonto: Wie hoch ist die monatliche Gebühr?"),
+    ("de", "Bei der Rücksendung – wie viele Tage habe ich dafür?"),
+    ("en", "At the checkout: how long does a refund take?"),
+    ("en", "Returns bought online - how many days do I have?"),
+]
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(("language", "question"), _SPOKEN)
+def test_a_premise_in_the_askers_own_words_is_read_as_one(
+    language: str, question: str
+) -> None:
+    """Read off the language's pronouns and possessives, and split at a dash too."""
+    from question_generation.generation import _addressed
+
+    assert _addressed(question, language)
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(("language", "question"), _UNSPOKEN)
+def test_a_premise_naming_a_setting_is_read_as_naming_no_asker(
+    language: str, question: str
+) -> None:
+    """The question after the premise may say `I`; the premise does not."""
+    from question_generation.generation import _addressed
+
+    assert not _addressed(question, language)
+
+
+def test_a_language_with_no_row_is_never_noted() -> None:
+    """No note at all rather than a false one."""
+    from question_generation.generation import _addressed
+
+    assert _addressed("Au guichet : combien coûte une carte ?", "fr")
+
+
+@pytest.mark.nlp
+def test_a_german_possessive_premise_is_written_once() -> None:
+    """A sound first draft is kept, not re-asked with a false note."""
+    model = Drafts(_SPOKEN[0][1])
+
+    premised_by(model, "de")
+
+    assert len(model.asked) == 1
+
+
 def test_a_draft_told_no_premise_is_not_read_for_one() -> None:
     """A direct question, or a premise not told beside a concise one."""
     for categories in ((verbose(),), (concise(), premised())):

@@ -274,9 +274,12 @@ words of its own, so it is not told beside a category capping the question's
 words, such as concise-and-natural, nor beside a search query: on concise
 slots the writer shrank it to a label naming a setting. Such a slot is
 written as no category of the premise's categorization. A first draft whose
-premise holds no first- or second-person word in the language's own parse is
-written once more, with a note asking for the asker's own situation, and the
-second draft is kept; neither is refused for it.
+premise holds none of its language's first- or second-person pronouns and
+possessives (`_SPEAKING` in `question_generation/generation.py`, German and
+English) is written once more, with a note asking for the asker's own
+situation, and the second draft is kept; neither is refused for it. The
+premise ends where a comma, a colon, a full stop or a dash set off by spaces
+opens the question, and a language with no row is never noted.
 
 A value replaces the default whole, so a value holding only this one writes
 no phrasing category: list the default's categorizations beside it to keep

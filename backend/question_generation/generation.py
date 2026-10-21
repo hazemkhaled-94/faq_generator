@@ -19,6 +19,7 @@ from; the fact is what it has to be answered by.
 from __future__ import annotations
 
 import logging
+import re
 
 from pydantic import BaseModel, Field
 
@@ -27,7 +28,6 @@ from llm.client import Client
 from llm.prompt import fill
 from nlp.analysis import asked
 from nlp.models import named
-from nlp.pipelines import pipeline
 from question_generation.kinds import KINDS, _Answered, stored
 from question_generation.models import Candidate, Category, FactGroup
 from question_generation.planning import Plan
@@ -321,18 +321,59 @@ def _held(
     return tuple(one for one in kept if one.form != "premise" or not crowded)
 
 
-def _addressed(question: str, language: str | None) -> bool:
-    """Whether a question's premise holds a first- or second-person word.
+#: The first- and second-person pronouns and possessive determiners, by ISO
+#: 639-1 code, in lower case: the words by which an asker speaks of
+#: themselves. A closed class, and a table because the German parse marks
+#: `Meine` and `Unser` with no person. German's polite `Sie` and `Ihr` are
+#: left out: written in lower case they are the third person.
+_SPEAKING: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            *("ich", "mich", "mir", "wir", "uns", "du", "dich", "dir", "euch"),
+            *("mein", "meine", "meinen", "meinem", "meiner", "meines"),
+            *("unser", "unsere", "unseren", "unserem", "unserer", "unseres"),
+            *("dein", "deine", "deinen", "deinem", "deiner", "deines"),
+            *("euer", "eure", "euren", "eurem", "eurer", "eures"),
+        }
+    ),
+    "en": frozenset(
+        {
+            *("i", "me", "my", "mine", "myself", "we", "us", "our", "ours"),
+            *("ourselves", "you", "your", "yours", "yourself", "yourselves"),
+        }
+    ),
+}
 
-    The premise is what comes before the question itself, as `asked` finds
-    it, and the person is read off the language's own parse, so no word list
-    is kept. A question with nothing before it holds no premise at all.
+#: A dash set off by spaces, which joins a premise to its question as a colon
+#: or a comma does, and which `asked` may read no question word after.
+_DASH = re.compile(r"\s[-\u2013\u2014]\s")
+
+
+def _premise(question: str, language: str | None) -> str:
+    """What a question opens on before the question itself, or nothing.
+
+    Before the question `asked` finds, or, where it finds none after a clause
+    end, before the first dash set off by spaces.
     """
-    premise = question[: len(question) - len(asked(question, language))]
+    behind = asked(question, language)
+    if behind != question:
+        return question[: len(question) - len(behind)]
+    dashed = _DASH.search(question)
+    return question[: dashed.start()] if dashed else ""
+
+
+def _addressed(question: str, language: str | None) -> bool:
+    """Whether a question's premise holds a word by which the asker speaks.
+
+    A language with no row in `_SPEAKING` is never read as not addressed: no
+    note is better than a false one.
+    """
+    speaking = _SPEAKING.get(language or "")
+    if speaking is None:
+        return True
     return any(
-        person in token.morph.get("Person", [])
-        for token in pipeline(language)(premise)
-        for person in ("1", "2")
+        word in speaking
+        for word in re.findall(r"\w+", _premise(question, language).casefold())
     )
 
 
