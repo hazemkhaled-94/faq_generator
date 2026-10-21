@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import pytest
+from docling_core.types.doc.document import DoclingDocument
+from docling_core.types.doc.labels import DocItemLabel
 
-from preprocessing.parsing.pipelines.pdf import _mend
+from preprocessing.parsing.pipelines.pdf import _mend, _repaired
 
 
 @pytest.mark.parametrize(
@@ -60,3 +62,50 @@ def test_a_soft_hyphen_between_caseless_letters_or_after_a_hyphen_is_dropped(
 ) -> None:
     """Only a space, a digit or a capital after it makes it a drawn hyphen."""
     assert kept in _mend(raw)
+
+
+def _repaired_text(*lines: str) -> list[str]:
+    """What `_repaired` leaves of a document of these paragraphs."""
+    document = DoclingDocument(name="t")
+    for line in lines:
+        document.add_text(label=DocItemLabel.TEXT, text=line)
+    return [item.text for item in _repaired(document).texts]
+
+
+@pytest.mark.parametrize(
+    ("raw", "drawn"),
+    [
+        ("Abholung im Markt (pick\xadup) ist kostenlos.", "pick-up"),
+        ("Online check\xadin ab 24 Stunden vorher.", "check-in"),
+        ("Add\xadon services cost 4.95 EUR.", "Add-on"),
+        ("ein 3\xadfacher Schutz für Ihre Karte", "3-facher"),
+    ],
+)
+def test_a_document_drawing_its_hyphen_as_u00ad_keeps_it_before_a_lower_case_letter(
+    raw, drawn
+) -> None:
+    """Mid-line, with no line break at it, a U+00AD in a text layer is a drawn glyph."""
+    assert drawn in _repaired_text(raw)[0]
+
+
+def test_a_document_that_prints_a_hyphen_drops_one_before_a_lower_case_letter() -> None:
+    """Its text layer draws U+002D itself, so a U+00AD in a word was never drawn."""
+    found = _repaired_text(
+        "Online\xadbanking und E-Mail", "Die Rückerstat\xadtung folgt."
+    )
+
+    assert found == ["Onlinebanking und E-Mail", "Die Rückerstattung folgt."]
+
+
+def test_a_document_with_no_hyphen_of_its_own_draws_every_one_as_u00ad() -> None:
+    """With no U+002D anywhere, the compound's hyphen is the U+00AD."""
+    found = _repaired_text("Abholung (pick\xadup) und check\xadin ab 24 Stunden")
+
+    assert found == ["Abholung (pick-up) und check-in ab 24 Stunden"]
+
+
+def test_a_document_with_a_marked_u00ad_draws_every_one_as_u00ad() -> None:
+    """A U+00AD before a digit shows the font draws its hyphen with that code."""
+    found = _repaired_text("Mo\xadFr 8\xad18 Uhr, E-Mail und pick\xadup")
+
+    assert found == ["Mo-Fr 8-18 Uhr, E-Mail und pick-up"]
