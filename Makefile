@@ -282,8 +282,8 @@ setup:
 # moves on without them. An api that is down is a warning and not a
 # failure: on a first run the stack is not up yet.
 #
-# The last check is a real call to the configured model, which is the one
-# thing no amount of reading the files can tell you. An unknown model id, a
+# The last check is a real call to every model a stage calls, which is the
+# one thing no amount of reading the files can tell you. An unknown model id, a
 # wrong address and a rejected credential all fail at the first call, and
 # without this that call is the first passage of a real run.
 doctor:
@@ -326,7 +326,7 @@ doctor:
 	fi; \
 	echo; echo "Comparing the settings the api serves with this checkout's..."; \
 	PYTHONPATH=backend poetry run python -m settings.drift $(COMPOSE_CMD) || fail=1; \
-	echo; echo "Asking $$LLM_MODEL one question, as the host calls it..."; \
+	echo; echo "Asking every model a stage calls one question, as the host calls it..."; \
 	PYTHONPATH=backend poetry run python -m llm.check || fail=1; \
 	echo; \
 	if test $$fail -eq 0; then echo "Ready. Next: make dev"; \

@@ -385,7 +385,7 @@ container value of their own, which compose sets over the host's: `LLM_MODEL`,
 `QUESTIONS_VERIFIER_MODEL` and `ASSESSMENT_JUDGE_MODEL`, in the table above.
 The other five are read from `configs/env/backend.env`, so where one is set
 the host and the containers call the same model for it, a hosted one included,
-and `make doctor` checks none of them. The four language and poll settings
+and `make doctor` asks them only as the host calls them. The four language and poll settings
 (`NLP_MODELS`, `NLP_DEFAULT_LANGUAGE`, `NLP_CAPITALISED_NOUNS`,
 `WORKER_POLL_SECONDS`), the pool sizes, `API_ALLOWED_HOSTS` and the addresses,
 `LLM_BASE_URL` among them, are fixed too. A settings write refuses every one

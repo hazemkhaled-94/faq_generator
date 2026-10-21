@@ -92,7 +92,8 @@ optional and absent for a plain Ollama. Compose hands it to the four
 workers that call a model and to nothing else, and the Makefile sources it
 for a host command.
 
-`make doctor` asks the configured model one question.
+`make doctor` asks every model a stage calls one question, `LLM_MODEL` and
+each stage's own, as the host calls them.
 
 What does **not** move when you change providers are the local encoders:
 `EMBEDDING_MODEL`, `NLI_MODEL`, `QA_MODEL` and the spaCy pipelines
@@ -128,7 +129,7 @@ A stage's own model has no container counterpart. `EXTRACTION_MODEL`,
 `QUESTIONS_PHRASING_MODEL` are read from
 [`configs/env/backend.env`](../../configs/env/backend.env), which the
 containers take unchanged, so a container calls whatever model they name,
-and `make doctor` checks none of them. A line there naming a hosted model
+and `make doctor` asks them only as the host calls them. A line there naming a hosted model
 sends that stage's calls from the containers to it, authenticated only by
 what `provider.env` holds.
 

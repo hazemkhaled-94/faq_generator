@@ -89,9 +89,18 @@ LLM_MODEL=azure/<deployment>           # a key, or Entra ID
 `LLM_CONTAINER_MODEL` is what the containers call and compose refuses to start
 without it. Set both to the same value if one model serves both.
 
+Three judgements ship on a smaller model of their own, named in
+`configs/env/backend.env`: `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL` and
+`QUESTIONS_PHRASING_MODEL` are `ollama_chat/muse-glimmer:30b-mlx`. Pull it
+too, or point those three lines at a model you have. Blank, the digest
+follows the passage reader, the topic names follow `LLM_MODEL`, and the
+phrasing judge follows the verifier. The other three roles,
+`EXTRACTION_MODEL`, `QUESTIONS_MODEL` and `QUESTIONS_VERIFIER_MODEL`, ship
+unset and follow `LLM_MODEL`.
+
 ```bash
 make install    # dependencies, the spaCy pipelines NLP_MODELS names, and Docling's weights
-make doctor     # checks the tools and the config, then asks the model one question
+make doctor     # checks the tools and the config, then asks each model one question
 ```
 
 `install` needs the container engine running. The parse worker has no
@@ -99,9 +108,9 @@ internet access, so `install` downloads Docling's weights into the `models`
 volume from a container that has. After `make down-volumes`, run
 `make docling-weights` again before parsing.
 
-`doctor` ends with a real call to the configured model, so a wrong model id,
-an unreachable address or a stale credential fails there rather than on the
-first passage of a run.
+`doctor` ends with a real call to every model a stage calls, `LLM_MODEL` and
+each of the six roles above, so a wrong model id, an unreachable address or a
+stale credential fails there rather than on the first passage of a run.
 
 ## Run
 
