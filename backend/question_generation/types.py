@@ -31,7 +31,7 @@ from database.qa_generator import (
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "19"
+PROMPT_VERSION = "20"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -705,11 +705,20 @@ Both sides must come from the facts. Name both in the question.
         form=AnswerForm.VALUE,
         passages=2,
         derived=Derivation.ARITHMETIC,
-        asks="a total, a count or a sum that no single fact states on its own",
+        asks=(
+            "a total, a count or a sum of figures or items the facts state, "
+            "that no single fact states on its own"
+        ),
         guidance="""
 The answer must be something the material does not write down anywhere - it
 has to be worked out from two or more facts. If one fact already states it,
 this is the wrong kind of question.
+
+A COUNT IS OF WHAT THE FACTS STATE, NEVER OF THE FACTS. Add up the figures
+they give, or count the items one of them lists. A question asking how many
+things are named or mentioned counts what you were handed, and the material
+may hold more of them: "How many fees does the bank name?" answered "2" is
+thrown away.
 
 THE FIGURES MUST BE THE SAME KIND OF THING, counted in the same unit, and
 their total must be a quantity somebody would want. Two numbers that merely

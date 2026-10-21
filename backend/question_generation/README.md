@@ -299,7 +299,7 @@ domain.
 | `procedure` | how something is done, or in what order | explanation | 1 | apply |
 | `consequence` | what happens when something is or is not done | explanation | 1 | analyse |
 | `comparison` | how two named things differ | list | 2 | analyse |
-| `aggregation` | a total no single fact states on its own | value | 2 | analyse |
+| `aggregation` | a total no single fact states on its own, of figures or items the facts state and never of the facts themselves | value | 2 | analyse |
 | `temporal` | what changed between two periods | list | 2 | analyse |
 | `implication` | what must be true when two stated things both hold | explanation | 2 | analyse |
 | `application` | which stated rule governs a case the material omits | explanation | 1 | apply |

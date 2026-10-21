@@ -772,3 +772,15 @@ def test_a_question_slot_is_told_no_query_line() -> None:
 
     assert "THE QUESTION -" in user
     assert "search box" not in user
+
+
+# ── What a type tells the writer ──────────────────────────────────────────
+
+
+def test_an_aggregation_counts_what_the_facts_state_and_never_the_facts() -> None:
+    """A count of the facts handed over is one the material may hold more of."""
+    aggregation = SPECS["aggregation"]
+    system = " ".join(aggregation.system().split())
+
+    assert "count" not in aggregation.asks or "facts state" in aggregation.asks
+    assert "A COUNT IS OF WHAT THE FACTS STATE, NEVER OF THE FACTS" in system
