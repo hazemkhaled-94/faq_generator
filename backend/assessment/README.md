@@ -322,6 +322,19 @@ wrote, asks no model, and runs whether or not this phase is switched on.
 | word-CR, compression ratio | The joined text's size over its size gzipped at level 9 | lower |
 | PoS-CR | The same ratio over the questions' part-of-speech tags, so it reads the shape of the sentences rather than their words | lower |
 | HS, homogenization | The mean cosine between every two questions' vectors | lower |
+| held | Not a diversity metric: how much of a question its cited evidence already holds, the share of its content lemmas (nouns, proper nouns, adjectives) that the evidence sentences carry too, averaged over the questions that have any | an easier question, when higher |
+
+`held` is an easiness reading after the limits papers. Van Elburg et al.,
+[*Can We Evaluate RAGs with Synthetic Data?*](https://arxiv.org/abs/2508.11758)
+(2025, section 6.2), name surface overlap between a generated question and
+its source as one reason such questions run easy, without measuring it.
+`held` is a proxy for that, not their measure, which needs a chatbot's
+scores on real and generated questions. It reads the facts' evidence
+sentences, which are narrower than the passages, and is reported per
+language, never pooled, because each language's pipeline lemmatises its
+own way. A category meant to vary wording, such as distant-from-document,
+should hold less than its sibling. `AGAINST=` leaves it out: it compares
+the paper's five metrics only.
 
 Words are split at whitespace with case and punctuation kept, so "card?" and
 "card" are two words. Joining the questions with one space and gzipping at

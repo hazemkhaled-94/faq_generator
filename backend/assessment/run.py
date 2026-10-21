@@ -19,7 +19,7 @@ import sys
 import time
 from collections import defaultdict
 from collections.abc import Sequence
-from functools import lru_cache
+from functools import cache, lru_cache
 from math import floor, isnan
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
@@ -224,23 +224,31 @@ def diversity(argv: list[str]) -> int:
     else:
         named = f"{args.by:<36}" if args.by else ""
         print(
-            f"{'language':<9}{named}{'n':>6}" + "".join(f"{one:>9}" for one in METRICS)
+            f"{'language':<9}{named}{'n':>6}"
+            + "".join(f"{one:>9}" for one in (*METRICS, "held"))
         )
+        evidence = _evidence(args.file)
         for (language, label), asked in sorted(groups.items()):
-            texts = [text for _, text in asked]
             shown = f"{label:<36}" if args.by else ""
             if args.size:
-                if len(texts) < args.size:
+                if len(asked) < args.size:
                     print(
-                        f"{language:<9}{shown}{len(texts):>6}  question, fewer "
+                        f"{language:<9}{shown}{len(asked):>6}  question, fewer "
                         f"than {args.size}"
                     )
                     continue
-                texts = [
-                    texts[i] for i in subsamples(len(texts), args.size, draws=1)[0]
+                asked = [
+                    asked[i] for i in subsamples(len(asked), args.size, draws=1)[0]
                 ]
+            texts = [text for _, text in asked]
             tags, tagged_by[language] = _tags(texts, language)
             scores = _metrics(texts, tags, _vectors(texts) if len(texts) > 1 else [])
+            read = [
+                share
+                for id, text in asked
+                if (share := _held(text, evidence.get(id, ""), language)) is not None
+            ]
+            scores["held"] = sum(read) / len(read) if read else float("nan")
             print(
                 f"{language:<9}{shown}{len(texts):>6}"
                 + "".join(
@@ -262,6 +270,51 @@ def diversity(argv: list[str]) -> int:
         if args.labels is not None:
             _corrected(args.file, groups, args.labels, args.by)
     return 0
+
+
+def _evidence(path: Path) -> dict[int, str]:
+    """Each question's cited evidence, one sentence a line, by id; empty without the column."""
+    import pandas as pd
+
+    frame = pd.read_excel(
+        path, sheet_name="Questions", dtype={_EVIDENCE: str}, keep_default_na=False
+    )
+    if _EVIDENCE not in frame:
+        return {}
+    return dict(zip(frame["ID"].astype(int), frame[_EVIDENCE], strict=True))
+
+
+#: The Questions sheet's column of the sentences a question's facts rest on.
+_EVIDENCE = "The evidence they rest on"
+
+
+def _held(text: str, evidence: str, language: str) -> float | None:
+    """How much of a question its cited evidence already holds: an easiness reading.
+
+    The share of the question's content lemmas (nouns, proper nouns and
+    adjectives) that its evidence carries too. A proxy for the surface
+    overlap van Elburg et al. (2025, section 6.2) name as one reason generated
+    questions run easy, which they did not measure; read against the
+    evidence sentences, which are narrower than the passages. None where
+    either side has no content word: nothing to measure is not a zero.
+    """
+    held = _content(evidence, language)
+    asked = _content(text, language) if held else frozenset()
+    if not asked:
+        return None
+    return len(asked & held) / len(asked)
+
+
+@cache
+def _content(text: str, language: str) -> frozenset[str]:
+    """The content lemmas of a text, through the language's spaCy pipeline.
+
+    Cached: a question counts in each of its categories, and one parse a
+    text is enough for all of them.
+    """
+    from nlp.analysis import content
+
+    return content(text, language)
 
 
 #: The report's columns, in the paper's order.

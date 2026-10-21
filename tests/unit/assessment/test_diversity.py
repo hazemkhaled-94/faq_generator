@@ -257,6 +257,14 @@ def exported(tmp_path, monkeypatch):
         "_vectors",
         lambda texts: [directions.get(text, [0.6, 0.8]) for text in texts],
     )
+    # Content words without a parse: the words of four letters or more.
+    monkeypatch.setattr(
+        cli,
+        "_content",
+        lambda text, language: frozenset(
+            word.strip("?.,").lower() for word in text.split() if len(word) > 3
+        ),
+    )
     return path
 
 
@@ -265,7 +273,16 @@ def report(capsys, *argv: str) -> list[list[str]]:
     assert cli.main(["--diversity", *argv]) == 0
     table, _ = capsys.readouterr().out.split("\n\n", 1)
     heading, *rows = table.strip().splitlines()
-    assert heading.split() == ["language", "n", "NGD", "SR", "word-CR", "PoS-CR", "HS"]
+    assert heading.split() == [
+        "language",
+        "n",
+        "NGD",
+        "SR",
+        "word-CR",
+        "PoS-CR",
+        "HS",
+        "held",
+    ]
     return [row.split() for row in rows]
 
 
@@ -274,8 +291,17 @@ def test_the_command_line_measures_a_workbook_per_language(exported, capsys) -> 
     rows = report(capsys, "--file", str(exported))
     tagged = f"{compression_ratio(['NOUN VERB'] * 3):.3f}"
     assert [row[:4] + row[5:] for row in rows] == [
-        ["de", "3", "3.160", "0.667", tagged, "0.333"],
-        ["en", "1", "4.000", "0.000", f"{compression_ratio(['NOUN VERB']):.3f}", "-"],
+        # B's one-letter words hold no content word, so nothing is read.
+        ["de", "3", "3.160", "0.667", tagged, "0.333", "-"],
+        [
+            "en",
+            "1",
+            "4.000",
+            "0.000",
+            f"{compression_ratio(['NOUN VERB']):.3f}",
+            "-",
+            "0.000",
+        ],
     ]
 
 
@@ -642,6 +668,79 @@ def test_the_command_line_draws_the_curve_by_document(
     table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
     assert table[0].split() == ["language", "documents", "n", "PoS-CR", "sd"]
     assert [row.split()[:3] for row in table[1:]] == [["de", "5", "10"]]
+
+
+def test_held_is_the_share_of_content_words_in_the_evidence(monkeypatch) -> None:
+    """Every content word in the evidence is 1, none is 0, nothing to read is None."""
+    monkeypatch.setattr(
+        cli, "_content", lambda text, language: frozenset(text.lower().split())
+    )
+    assert cli._held("monthly fee", "the monthly fee", "en") == 1.0
+    assert cli._held("monthly fee", "cards", "en") == 0.0
+    assert cli._held("", "cards", "en") is None
+
+
+def test_each_text_is_read_once(monkeypatch) -> None:
+    """A question counted in several categories is parsed once, not once per category."""
+    import nlp.analysis
+
+    read: list[str] = []
+    monkeypatch.setattr(
+        nlp.analysis,
+        "content",
+        lambda text, language: read.append(text) or frozenset(text.split()),
+    )
+    cli._content.cache_clear()
+    for _ in range(3):
+        cli._held("monthly fee", "the monthly fee", "en")
+    assert read == ["the monthly fee", "monthly fee"]
+    cli._content.cache_clear()
+
+
+def test_a_workbook_without_evidence_holds_nothing_to_read(tmp_path, capsys) -> None:
+    """No evidence column, no reading: `held` prints a dash, the rest as before."""
+    path = tmp_path / "bare.xlsx"
+    with pd.ExcelWriter(path) as writer:
+        pd.DataFrame(
+            {"ID": [1, 2], "Question": ["a b c", "x y z"], "Language": ["de", "de"]}
+        ).to_excel(writer, sheet_name="Questions", index=False)
+    assert cli._evidence(path) == {}
+
+
+@pytest.mark.nlp
+def test_held_reads_content_lemmas_with_the_languages_pipeline() -> None:
+    """The real reading: the question's nouns and adjectives against the evidence's."""
+    question = "What is the monthly fee for a current account?"
+    assert (
+        cli._held(question, "The monthly fee for a current account is EUR 5.", "en")
+        == 1.0
+    )
+    assert cli._held(question, "Cards are issued within a week.", "en") == 0.0
+    assert cli._held("What is it?", "Cards are issued within a week.", "en") is None
+
+
+def test_the_report_gives_how_much_the_evidence_holds(
+    exported, tmp_path, capsys
+) -> None:
+    """The mean over a group's questions, a question with nothing to read left out."""
+    path = tmp_path / "held.xlsx"
+    path.write_bytes(
+        workbook(
+            [
+                replace(
+                    asked(1, "Monthly fee account?", "en"),
+                    evidence=["Monthly fee account."],
+                ),
+                replace(
+                    asked(2, "Overdraft limit students?", "en"),
+                    evidence=["Cards issued."],
+                ),
+                replace(asked(3, "Is it so?", "en"), evidence=["Cards issued."]),
+            ]
+        )
+    )
+    rows = report(capsys, "--file", str(path))
+    assert rows[0][0] == "en" and rows[0][-1] == "0.500"
 
 
 def labelled_set(
