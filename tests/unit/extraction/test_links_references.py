@@ -158,6 +158,46 @@ def test_a_quoted_heading_with_a_typographic_apostrophe_is_linked(
 
 
 @pytest.mark.parametrize(
+    "language,text,path,target",
+    [
+        (
+            "en",
+            "Fees follow ‘Customers’ fees’ in all cases.",
+            "Fees > Customers’ fees",
+            "A customer pays 2 EUR per order.",
+        ),
+        (
+            "en",
+            "Fees follow 'Customers' fees' in all cases.",
+            "Fees > Customers' fees",
+            "A customer pays 2 EUR per order.",
+        ),
+        (
+            "de",
+            "Die Kosten regelt ‚Hans’ Konten‘ im Einzelnen.",
+            "Konten > Hans’ Konten",
+            "Ein Konto kostet 2 EUR im Monat.",
+        ),
+    ],
+)
+def test_a_single_quoted_heading_ending_in_a_possessive_is_linked(
+    language, text, path, target
+):
+    """A possessive ’ before a space closes no span that a later mark closes as a heading."""
+    rows = [(text, "Shop > Overview", "d"), (target, path, "d")]
+    assert references(language, rows) == [(1, 2)]
+
+
+def test_a_single_quote_still_closes_at_the_first_mark_naming_no_heading() -> None:
+    """'Returns' is the heading; the possessive after it opens nothing longer."""
+    rows = [
+        ("See 'Returns' or the customers' desk.", "Shop > Overview", "d"),
+        ("Items are returned within 30 days.", "Shop > Returns", "d"),
+    ]
+    assert references("en", rows) == [(1, 2)]
+
+
+@pytest.mark.parametrize(
     "language,text,paths",
     [
         (

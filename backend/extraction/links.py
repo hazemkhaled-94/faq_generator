@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 import re
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Container, Mapping, Sequence
 from dataclasses import dataclass, replace
 
 import numpy as np
@@ -42,6 +42,9 @@ _QUOTED = (
         r"[‘’'](?!\w)"
     ),
 )
+
+#: A mark that may close a single-quoted span: one no letter follows.
+_CLOSING = re.compile(r"[‘’'](?!\w)")
 
 #: The share of a language's passages a term may be in and still be rare.
 #: Never below two, so on a small corpus a term in exactly two passages links.
@@ -203,13 +206,10 @@ def _references(
         mine = {_plain(s) for s in _segments(head)}
         quoted = [
             key
-            for m in sorted(
-                (m for rx in _QUOTED for m in rx.finditer(head.text)),
-                key=lambda m: m.start(),
-            )
-            if (key := _plain(m.group("inner"))) in headings
+            for inner in _quoted(head.text, headings)
+            if (key := _plain(inner)) in headings
             and key not in mine
-            and content(m.group("inner"), language)
+            and content(inner, language)
         ]
         quoted = [
             k for k in quoted if not any(k in parents[o] for o in quoted if o != k)
@@ -219,6 +219,24 @@ def _references(
             if reached is not None:
                 label = next(s for s, p in headings[key] if p is reached)
                 edges.add(head, reached, "reference", label)
+
+
+def _quoted(text: str, headings: Container[str]) -> list[str]:
+    """The quoted spans of a text, in the order they open.
+
+    A single-quoted span closes at the first mark no letter follows, unless a
+    later one on its line closes a longer span that is a heading: the
+    possessive in ‘Customers’ fees’ closes nothing.
+    """
+    spans = [(m.start(), m.group("inner")) for m in _QUOTED[0].finditer(text)]
+    for m in _QUOTED[1].finditer(text):
+        inner = m.group("inner")
+        line = text.find("\n", m.end())
+        for mark in _CLOSING.finditer(text, m.end(), line if line >= 0 else len(text)):
+            if _plain(longer := text[m.start("inner") : mark.start()]) in headings:
+                inner = longer
+        spans.append((m.start(), inner))
+    return [inner for _, inner in sorted(spans)]
 
 
 def _siblings(edges: _Edges, partners: Sequence[PassageToExtract]) -> None:
