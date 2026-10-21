@@ -387,6 +387,12 @@ def _count(word: str) -> int | None:
     return int(word) if word.isdecimal() else _COUNTS.get(word)
 
 
+def _leading(answer: str | None) -> str:
+    """An answer's first word, in lower case: where a count key says its count."""
+    leading = re.match(r"\s*(\w+)", answer or "")
+    return leading.group(1).lower() if leading else ""
+
+
 def _stated(count: int, statements: Sequence[str], language: str | None) -> bool:
     """Whether a cited statement states this count, in digits or in words.
 
@@ -656,8 +662,7 @@ def structural(
     # larger written count passes, and so does any count asked in a language
     # with no `_ASKS_HOW_MANY` entry, since `_HOW_MANY` opens in English and
     # German only. Upgrade: read number words off the parse.
-    leading = re.match(r"\s*(\w+)", target_answer or "")
-    word = leading.group(1).lower() if leading else ""
+    word = _leading(target_answer)
     said = _count(word)
     asks = _ASKS_HOW_MANY.get((language or "").lower())
     if asks is None:
@@ -1657,6 +1662,27 @@ def relabelled(
     if numbers == 1:
         return kind
     return QuestionType.ENUMERATION if form == AnswerForm.LIST else QuestionType.FACTOID
+
+
+def counts_a_list(
+    answer: str | None, statements: Sequence[str], language: str | None
+) -> bool:
+    """Whether a count is the number of items one cited fact lists.
+
+    `Wie viele Gebühren ...?` answered `3` from `Die Bank berechnet eine
+    Kontoführungsgebühr, eine Kartengebühr und eine Gebühr für
+    Auslandsüberweisungen` added nothing up: the fact names all three, and
+    the question looks their count up. A list is two items at least,
+    counted as `enumerates` counts a coordination: its first item and every
+    conjunct naming one more.
+    """
+    said = _count(_leading(answer))
+    if said is None or said < _ENUMERATED:
+        return False
+    return any(
+        1 + sum(map(_coordinated_item, pipeline(language)(statement))) == said
+        for statement in statements
+    )
 
 
 #: How the material says WHY, by language: each marker a run of words read

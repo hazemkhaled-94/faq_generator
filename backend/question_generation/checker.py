@@ -91,6 +91,7 @@ from question_generation.gates import (
     asserted,
     cites_source,
     coordinates,
+    counts_a_list,
     counts_something_else,
     covered,
     deciding,
@@ -1484,6 +1485,13 @@ class QuestionChecker:
             candidate.target_answer,
             candidate.group.language,
         )
+        # A count one cited fact lists the items of is looked up, not summed.
+        if spec(kind).derived == Derivation.ARITHMETIC and counts_a_list(
+            candidate.target_answer,
+            candidate.group.statements,
+            candidate.group.language,
+        ):
+            kind = QuestionType.FACTOID
         stored_kind = stored(candidate.kind, len(candidate.group.resting))
         return CheckedQuestion(
             question_text=candidate.question_text,

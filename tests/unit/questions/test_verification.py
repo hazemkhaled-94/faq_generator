@@ -2724,6 +2724,72 @@ def test_the_type_and_the_form_are_stored_on_the_question() -> None:
     assert result.planned_difficulty == "easy"
 
 
+@pytest.mark.parametrize(
+    ("question", "key", "listing", "other", "language"),
+    [
+        (
+            "Wie viele Gebühren berechnet die Bank für ein Girokonto insgesamt?",
+            "3",
+            (
+                "Die Bank berechnet eine Kontoführungsgebühr, eine Kartengebühr und eine "
+                "Gebühr für Auslandsüberweisungen."
+            ),
+            "Für ein Tagesgeldkonto fallen keine Gebühren an.",
+            "de",
+        ),
+        (
+            "How many payment methods does the shop accept in total?",
+            "3",
+            "The shop accepts card payments, invoices and bank transfers.",
+            "Orders are shipped within two working days.",
+            "en",
+        ),
+    ],
+)
+def test_a_count_of_one_facts_own_list_is_stored_as_a_lookup(
+    question, key, listing, other, language
+) -> None:
+    """One fact listing the items states their count; nothing was added up."""
+    result = build(Recording(recovers=key, backs=True)).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            question_type=QuestionType.AGGREGATION,
+            facts=group(
+                source(1, passage_id=1, statement=listing, language=language),
+                source(2, passage_id=2, statement=other, language=language),
+            ),
+        )
+    )
+
+    assert result.accepted, result.rejected_reason
+    assert result.question_type == QuestionType.FACTOID
+
+
+def test_a_count_no_one_fact_lists_stays_a_count() -> None:
+    """Items listed across two facts are counted, which is the aggregation."""
+    result = build(Recording(recovers="3", backs=True)).check(
+        candidate(
+            question_text="How many payment methods do the two shops accept in total?",
+            target_answer="3",
+            question_type=QuestionType.AGGREGATION,
+            facts=group(
+                source(
+                    1, passage_id=1, statement="The first shop accepts card payments."
+                ),
+                source(
+                    2,
+                    passage_id=2,
+                    statement="The second shop accepts invoices and bank transfers.",
+                ),
+            ),
+        )
+    )
+
+    assert result.accepted, result.rejected_reason
+    assert result.question_type == QuestionType.AGGREGATION
+
+
 def test_the_categories_it_was_written_as_are_carried_to_the_row() -> None:
     """What the writer was told, beside what the gates made of it."""
     from dataclasses import replace
