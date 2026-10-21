@@ -166,8 +166,11 @@ _ROUNDING = 0.01
 #: illustrative, every category at even odds because the table gives none.
 #: The two natural phrasings are bounded by the word counts their
 #: descriptions name. The table's `direct` ends on a stray closing
-#: parenthesis, left out here. Here rather than in backend.env, which bash
-#: sources and so cannot hold a JSON value.
+#: parenthesis, left out here. Its with-premise is reworded: "where the user
+#: reveals their needs or some information" made the asker optional, and a
+#: quarter of accepted with-premise rows opened on a label naming a setting.
+#: Here rather than in backend.env, which bash sources and so cannot hold a
+#: JSON value.
 DEFAULT_CATEGORIZATIONS = json.dumps(
     [
         {
@@ -201,9 +204,11 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                 },
                 {
                     "name": "with-premise",
-                    "description": "question starting with a very short premise, "
-                    "where the user reveals their needs or some information "
-                    "about himself.",
+                    "description": "question opening with a short premise in "
+                    "which the asker says, in the first person, who they are, "
+                    "what they are doing or what they need, and then asks. A "
+                    "phrase naming only a topic or a setting is not a premise, "
+                    "and the premise never gives the answer.",
                 },
             ],
         },

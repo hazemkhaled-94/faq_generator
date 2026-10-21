@@ -53,9 +53,11 @@ of what a question of it is like and how often it is wanted. The setting
 holds them as the paper's Figure 2 JSON. Unset, it reads two of the paper's
 Table 5 categorizations, every category at even odds: Phrasing, a concise
 natural question of fewer than 10 words or a verbose one of more than 9; and
-Premise, a direct question or one opening with a very short premise in which
-the asker says what they need or something about themselves. `[]` deals
-none.
+Premise, a direct question or one opening with a short premise in which the
+asker says, in the first person, who they are, what they are doing or what
+they need. That one is reworded from the paper's, which made the asker
+optional: a quarter of accepted with-premise rows opened on a label naming a
+setting, never the asker, and one gave its answer away. `[]` deals none.
 
 Table 5's Linguistic variation and User expertise are not dealt unset, and
 are there to opt into. In calibration the questions written distant from the

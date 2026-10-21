@@ -176,7 +176,12 @@ turns categories off.
 
 The default is two of the paper's Table 5 categorizations, in its
 descriptions without the examples, every category at even odds because the
-table gives no probabilities:
+table gives no probabilities. with-premise alone is reworded: the paper's
+"very short premise, where the user reveals their needs or some information"
+made the asker optional, and a quarter of accepted with-premise questions
+opened on a label naming a setting. It now asks for a premise in which the
+asker says, in the first person, who they are, what they are doing or what
+they need, never a topic or a setting, and never the answer:
 
 | Categorization | Categories |
 |---|---|

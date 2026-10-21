@@ -378,16 +378,26 @@ def test_the_search_queries_are_table_5s_to_opt_into(guide: str) -> None:
     ]
 
 
-def test_the_default_premise_is_table_5s() -> None:
-    """Its descriptions without the examples the caption calls illustrative."""
-    premise = categorizations(DEFAULT_CATEGORIZATIONS)[1]
-    assert [one.description for one in premise.categories] == [
-        "question that does not contain any premise or any information about the user.",
-        (
-            "question starting with a very short premise, where the user reveals "
-            "their needs or some information about himself."
-        ),
-    ]
+def test_the_default_direct_question_is_table_5s() -> None:
+    """Its description without the examples the caption calls illustrative."""
+    direct = categorizations(DEFAULT_CATEGORIZATIONS)[1].categories[0]
+    assert direct.description == (
+        "question that does not contain any premise or any information about the user."
+    )
+
+
+def test_the_default_premise_is_the_askers_own_situation() -> None:
+    """Never a setting and never the answer.
+
+    Table 5's `very short premise, where the user reveals their needs or some
+    information` made the asker optional: a quarter of accepted with-premise
+    rows opened on a label naming a setting, and one gave its answer away.
+    """
+    premise = categorizations(DEFAULT_CATEGORIZATIONS)[1].categories[1]
+    assert premise.name == "with-premise"
+    assert "the asker says, in the first person," in premise.description
+    assert "naming only a topic or a setting is not a premise" in premise.description
+    assert "never gives the answer" in premise.description
 
 
 def test_an_empty_list_draws_no_categories(monkeypatch) -> None:
