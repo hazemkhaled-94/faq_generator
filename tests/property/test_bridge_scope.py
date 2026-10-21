@@ -6,14 +6,16 @@ not needed for the three columns they read, so the tables are built by hand
 in an in-memory SQLite database, `DOMINANT` (a Postgres `DISTINCT ON`) is a
 plain table, and the real statements run against them.
 
-A bridge opens on its position-0 passage; a scoped pass reads the heads of
-the topics that hold a selected passage, so those are the bridges it can
-write back, and any bridge opening elsewhere stays however its partners are
+A bridge is headed by the passage its reading names, or, read before the
+reading named one, by its position-0 passage; a scoped pass reads the heads
+of the topics that hold a selected passage, so those are the bridges it can
+write back, and any bridge headed elsewhere stays however its partners are
 placed.
 """
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 
 import pytest
@@ -35,7 +37,7 @@ from extraction import repository
 
 _DDL = (
     "CREATE TABLE passages (id INTEGER PRIMARY KEY, doc_sha256 TEXT NOT NULL)",
-    "CREATE TABLE facts (id INTEGER PRIMARY KEY, kind TEXT NOT NULL)",
+    "CREATE TABLE facts (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, bridge TEXT)",
     (
         "CREATE TABLE fact_passages (fact_id INTEGER, passage_id INTEGER,"
         " position INTEGER, PRIMARY KEY (fact_id, passage_id))"
@@ -76,12 +78,14 @@ class World:
                     insert(self.dominant).values(passage_id=ident, topic_id=topic)
                 )
 
-    def facts(self, rows: dict[int, tuple[str, tuple[int, ...]]]) -> None:
-        """Each fact id with its kind and the passages it rests on, in position order."""
+    def facts(self, rows: dict[int, tuple]) -> None:
+        """Each fact id with its kind, its passages in position order, and its head if named."""
         with self.engine.begin() as connection:
-            for ident, (kind, rests) in rows.items():
+            for ident, (kind, rests, *head) in rows.items():
+                reading = json.dumps({"head": head[0]}) if head and head[0] else None
                 connection.execute(
-                    text("INSERT INTO facts VALUES (:i, :k)"), {"i": ident, "k": kind}
+                    text("INSERT INTO facts VALUES (:i, :k, :b)"),
+                    {"i": ident, "k": kind, "b": reading},
                 )
                 for position, passage in enumerate(rests):
                     connection.execute(
@@ -159,6 +163,20 @@ def test_a_scoped_clear_takes_the_bridges_of_the_whole_topic_of_the_scope(
     world.facts({10: (BRIDGE, (2, 3)), 11: (BRIDGE, (3, 2))})
 
     assert world.selected(in_document("shop")) == {10}
+
+
+def test_a_scoped_clear_reads_a_bridge_by_the_head_its_reading_names(world) -> None:
+    """A sibling bridge shows its earlier passage first; the later one headed it."""
+    world.passages({1: ("fees", 1), 2: ("cards", 2), 3: ("cards", 2)})
+    world.facts(
+        {
+            10: (BRIDGE, (1, 2), 2),  # shows 1 first, headed by 2
+            11: (BRIDGE, (1, 3)),  # read before heads were recorded: opens on 1
+        }
+    )
+
+    assert world.selected(in_document("fees")) == {11}
+    assert world.selected(in_document("cards")) == {10}
 
 
 def test_an_unscoped_clear_takes_every_bridge_and_only_bridges(world) -> None:
@@ -244,12 +262,18 @@ def corpora(draw):
         rests = draw(
             st.lists(st.sampled_from(ids), min_size=1, max_size=3, unique=True)
         )
-        facts[ident] = (kind, tuple(rests))
+        head = draw(st.sampled_from([None, *rests])) if kind == BRIDGE else None
+        facts[ident] = (kind, tuple(rests), head)
     return placed, facts
 
 
 def _opening(facts):
-    return {i: rests[0] for i, (kind, rests) in facts.items() if kind == BRIDGE}
+    """Each bridge's head: the one its reading names, else its first passage."""
+    return {
+        i: head or rests[0]
+        for i, (kind, rests, head) in facts.items()
+        if kind == BRIDGE
+    }
 
 
 def _within(chosen):
@@ -310,5 +334,5 @@ def test_bridged_pairs_are_exactly_the_leading_pairs_of_the_bridges(corpus) -> N
         got = world.catalog.bridged_pairs()
 
     assert got == frozenset(
-        frozenset(rests[:2]) for kind, rests in facts.values() if kind == BRIDGE
+        frozenset(rests[:2]) for kind, rests, _ in facts.values() if kind == BRIDGE
     )
