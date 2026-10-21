@@ -302,7 +302,12 @@ def stop() -> PipelineAction:
     stopped: list[Run] = []
     stopping: list[str] = []
     refused: list[str] = []
-    for live in [one for one in orchestrator.state().recent if one.live]:
+    try:
+        running = orchestrator.live()
+    except (Unavailable, Refused):
+        # As `state` reads a missing orchestrator: no run to stop.
+        running = []
+    for live in running:
         if live.status == "CANCELING":
             stopping.append(live.id)
             continue

@@ -218,6 +218,18 @@ class Dagster:
         data = self._query(_RUNS, limit=limit, filter={"pipelineName": JOB})
         return [_run(one) for one in _results(data.get("runsOrError"))]
 
+    def live(self) -> list[Run]:
+        """Every run of the corpus job that has not finished, newest first.
+
+        No window, unlike `state`'s five: Stop has to reach the run at work
+        behind however many are queued.
+
+        Raises:
+            Unavailable: If the orchestrator is not configured or not up.
+        """
+        data = self._query(_RUNS, filter={"pipelineName": JOB, "statuses": list(LIVE)})
+        return [_run(one) for one in _results(data.get("runsOrError"))]
+
     # ── Deciding ───────────────────────────────────────────────────────────
 
     def launch(self) -> Run:

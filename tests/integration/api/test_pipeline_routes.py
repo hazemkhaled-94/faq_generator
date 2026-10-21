@@ -62,6 +62,12 @@ class FakeOrchestrator:
             automation=Automation(available=True),
         )
 
+    def live(self) -> list[Run]:
+        """The unfinished runs."""
+        if not self._available:
+            raise Unavailable("DAGSTER_URL is not set")
+        return [one for one in self._recent if one.live]
+
     def launch(self) -> Run:
         """Starts the corpus job."""
         if not self._available:

@@ -127,6 +127,16 @@ def test_the_runs_query_is_accepted() -> None:
     )
 
 
+def test_the_live_runs_query_is_accepted() -> None:
+    """What `POST /pipeline/stop` sends: every status the API calls live is one Dagster has."""
+    data = _accepted(
+        orchestrator._RUNS,
+        filter={"pipelineName": orchestrator.JOB, "statuses": list(orchestrator.LIVE)},
+    )
+
+    assert data["runsOrError"]["__typename"] == "Runs"
+
+
 def test_the_launch_mutation_is_accepted_and_nothing_is_launched() -> None:
     """Sent against a job that does not exist, so no run is created."""
     data = _accepted(

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from api.orchestrator import Orchestration, Refused, Run
+from api.orchestrator import Refused, Run
 
 
 class Runs:
@@ -22,13 +22,9 @@ class Runs:
         self.refuses = refuses or {}
         self.terminated: list[str] = []
 
-    def state(self) -> Orchestration:
-        """The runs, as Dagster lists them."""
-        return Orchestration(
-            available=True,
-            running=next((one for one in self.recent if one.live), None),
-            recent=self.recent,
-        )
+    def live(self) -> list[Run]:
+        """The unfinished runs, as Dagster lists them."""
+        return [one for one in self.recent if one.live]
 
     def terminate(self, run_id: str) -> bool:
         """Stops one run, or refuses to."""
@@ -120,3 +116,76 @@ def test_a_run_dagster_cannot_stop_yet_is_named_and_not_asked(stopping) -> None:
     assert runs.terminated == []
     assert "R1 (STARTING" in answer.detail
     assert "could NOT be stopped" in answer.detail
+
+
+class Reply:
+    """One GraphQL reply."""
+
+    status_code = 200
+
+    def __init__(self, data: dict) -> None:
+        """Holds the `data` the webserver answered."""
+        self.data = data
+
+    def json(self) -> dict:
+        """The body."""
+        return {"data": self.data}
+
+
+class Webserver:
+    """Dagster's GraphQL holding some runs, newest first, honouring `limit` as Dagster does."""
+
+    def __init__(self, *runs: dict) -> None:
+        """Holds the runs, and records which were terminated."""
+        self.runs = list(runs)
+        self.terminated: list[str] = []
+
+    def post(self, url: str, json: dict, timeout: float):
+        """Terminates one run, or lists as many as were asked for."""
+        query, variables = json["query"], json["variables"]
+        if "terminateRuns" in query:
+            self.terminated.append(variables["runId"])
+            results = [{"__typename": "TerminateRunSuccess"}]
+            data = {
+                "terminateRuns": {
+                    "__typename": "TerminateRunsResult",
+                    "terminateRunResults": results,
+                }
+            }
+        else:
+            limit = variables.get("limit")
+            data = {
+                "runsOrError": {
+                    "__typename": "Runs",
+                    "results": self.runs if limit is None else self.runs[:limit],
+                },
+                "repositoryOrError": {
+                    "__typename": "Repository",
+                    "sensors": [],
+                    "schedules": [],
+                },
+            }
+        return Reply(data)
+
+
+def test_the_run_at_work_is_stopped_behind_five_queued(monkeypatch) -> None:
+    """The nightly schedule, `make pipeline` and the button queue behind the one at work.
+
+    The page's poll reads the five newest runs; Stop has to reach all of them.
+    """
+    from api.orchestrator import Dagster
+    from api.routes import pipeline
+
+    queued = [{"runId": f"queued-{n}", "status": "QUEUED"} for n in range(5, 0, -1)]
+    webserver = Webserver(
+        *queued, {"runId": "working", "status": "STARTED", "startTime": 1.0}
+    )
+    monkeypatch.setattr(
+        pipeline, "orchestrator", Dagster("http://dagster:3000", session=webserver)
+    )
+    monkeypatch.setattr(pipeline, "_fan", lambda action, names: ([], 0))
+
+    answer = pipeline.stop()
+
+    assert webserver.terminated == [*(one["runId"] for one in queued), "working"]
+    assert answer.run is not None and answer.run.id == "working"
