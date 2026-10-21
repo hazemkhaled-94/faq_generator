@@ -380,7 +380,6 @@ def test_the_later_topic_decision_wins_a_pull(database, engine, monkeypatch) -> 
         api_key="key",
         workspace="w",
         sample=1,
-        reviewer=None,
     )
     catalogs = Catalogs(
         facts=ReviewRepository(), questions=QuestionCatalog(), topics=TopicCatalog()

@@ -158,7 +158,6 @@ def settings(monkeypatch):
         api_key="key",
         workspace="qa_generator",
         sample=10,
-        reviewer=None,
     )
 
 

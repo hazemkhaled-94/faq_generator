@@ -154,7 +154,6 @@ From [`configs/env/review.env`](../configs/env/review.env), in git:
 | Setting | What it does |
 | --- | --- |
 | `REVIEW_SAMPLE_SIZE` | How many records one push puts in front of a reviewer, split across the groups |
-| `REVIEW_REVIEWER` | Read and not used: no column records who reviewed a row |
 
 From [`configs/env/deployment.env`](../configs/env/deployment.env) and `.env`:
 

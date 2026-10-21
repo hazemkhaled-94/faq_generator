@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from settings import integer, optional, required
+from settings import integer, required
 
 
 @dataclass(frozen=True)
@@ -25,8 +25,6 @@ class Settings:
     #: How many records one push puts in a dataset. A review is a sample,
     #: stratified over the verdicts, so this is split across them.
     sample: int
-    #: Read and not used: no column records who reviewed a row.
-    reviewer: str | None
 
     @classmethod
     def load(cls) -> Settings:
@@ -36,5 +34,4 @@ class Settings:
             api_key=required("ARGILLA_API_KEY"),
             workspace=required("ARGILLA_WORKSPACE"),
             sample=integer("REVIEW_SAMPLE_SIZE"),
-            reviewer=optional("REVIEW_REVIEWER"),
         )
