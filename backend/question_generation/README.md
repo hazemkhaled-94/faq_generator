@@ -487,6 +487,12 @@ re-verify could no longer reject it as `source_changed`. A question citing a
 fact that rests only on such a citation, its own being gone, is left as it
 is, and re-verify rejects it.
 
+A topic refit moves a question's topic scope and with it its difficulty band,
+which `questions-reverify` leaves alone. After a refit that changed the
+topics run `make questions-reverify` and then `make questions-rescore`: the
+re-verify first, so a question that lost a citation is still rejected as
+`source_changed` before the rescore reads the live topics.
+
 ## The gates
 
 Applied cheapest first, in this order. The first five are one structural

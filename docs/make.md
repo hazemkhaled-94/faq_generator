@@ -240,7 +240,7 @@ expensive part:
 | `make extract-revalidate` | Judge every stored fact again. A refusal it validates meets the dedup gate and the cap, as one read in flight does. No model call |
 | `make chunk-revocabulary` | Re-read language and vocabulary. Only `passages.language` and `passages.lemmas` change |
 | `make questions-reverify` | Put every stored question through the gates that need no model |
-| `make questions-rescore` | Rewrite every stored question's scopes and difficulty from what it cites now. For after the `extract-dedup` that takes out an earlier version's fold citations (the v0.2.2 upgrade), before `questions-reverify`. Not after a re-extraction or a deletion, where it would hide a question that lost a fact from the `source_changed` check |
+| `make questions-rescore` | Rewrite every stored question's scopes and difficulty from what it cites now. For after the `extract-dedup` that takes out an earlier version's fold citations (the v0.2.2 upgrade), before `questions-reverify`; and after a topic refit that changed the topics, where it follows `questions-reverify`, which has first caught any `source_changed`. Not straight after a re-extraction or a deletion, where it would hide a question that lost a fact from the `source_changed` check |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own sentences and list items |
 | `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, and take out the citations a refusal added to the fact it repeated. The passages of the refusals given back, and no others, are then re-judged and re-capped. No model call |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
@@ -266,7 +266,7 @@ warn and wait 5 seconds first.
 | `make questions-export` | Write the questions a filter selects to an `.xlsx` |
 | `make questions-reverify` | Re-check stored questions; no model call |
 | `make questions-rejudge` | Ask the verifier whether the passages settle each accepted unanswerable question, and reject those they do. **Calls the verifier model**; takes `TOPIC` |
-| `make questions-rescore` | Rewrite stored scopes and difficulty from current citations, only after the upgrade's `extract-dedup`; no model call |
+| `make questions-rescore` | Rewrite stored scopes and difficulty from current citations: after the upgrade's `extract-dedup`, and after a topic refit that changed the topics, once `questions-reverify` has run; no model call |
 | `make questions-runs` | The 20 newest runs, newest first, and how many questions each wrote |
 | `make questions-diff` | Two runs side by side, on the gate that stopped each |
 | `make questions-reclaim` | Return a topic a dead worker still holds. **Narrow it** |

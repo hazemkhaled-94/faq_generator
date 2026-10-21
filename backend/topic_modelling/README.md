@@ -234,6 +234,13 @@ refit: neither `make corpus` nor the Dagster corpus job asks for one. Bare
 `make topics` drains only a fit already queued. `make topics-status` also
 reports how many passages are in no topic.
 
+A refit that changed the topics leaves stored questions with the topic scope
+(`single` or `multi`) and difficulty band of the old fit: `reverify` skips
+the topic scope, which a refit moves. After it run `make questions-reverify`
+and then `make questions-rescore`, in that order, so a question that lost a
+citation is still caught as `source_changed` before the rescore makes its
+scope current.
+
 ### The database
 
 `topics` carries two queues at once: `status` is this stage's and
