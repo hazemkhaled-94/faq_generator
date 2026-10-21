@@ -7,7 +7,9 @@ import os
 import re
 from time import monotonic
 from typing import Any, ClassVar
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
+
+from sqlalchemy.engine import make_url
 
 from blob_store.s3.client import s3_client
 
@@ -73,7 +75,13 @@ class Bucket:
         store: the buckets are fixed names, and the database is chosen only
         by that URL.
         """
-        return urlparse(os.environ["DATABASE_URL"]).path.strip("/")
+        name = make_url(os.environ["DATABASE_URL"]).database
+        if not name:
+            raise ValueError(
+                "DATABASE_URL names no database, so a topic figure or model has "
+                "no key to be stored under"
+            )
+        return name
 
     @staticmethod
     def fanout_key(sha256: str, extension: str) -> str:

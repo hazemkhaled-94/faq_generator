@@ -64,3 +64,13 @@ def test_a_topic_figure_and_model_are_keyed_by_the_database_and_the_language(
 
     assert ExportBucket.topic_visualisation_key("de") == f"topics/{database}/de.html"
     assert ModelsBucket.topic_model_key("de") == f"topics/{database}/de.npz"
+
+
+def test_a_database_url_with_no_database_is_refused(monkeypatch) -> None:
+    """`topics//de.html` would be a key every database without a name shares."""
+    from blob_store.s3.export import ExportBucket
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@host:5432")
+
+    with pytest.raises(ValueError, match="DATABASE_URL"):
+        ExportBucket.topic_visualisation_key("de")
