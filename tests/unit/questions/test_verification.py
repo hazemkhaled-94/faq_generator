@@ -1502,6 +1502,44 @@ def test_a_title_its_material_never_writes_is_a_source(
 
 
 @pytest.mark.parametrize(
+    ("question", "answer", "title", "passage", "language"),
+    [
+        (
+            "Laut dem Preis- und Leistungsverzeichnis, was kostet eine Ersatzkarte?",
+            "15 Euro",
+            "Preis- und Leistungsverzeichnis",
+            "Gemäß Preis- und Leistungsverzeichnis kostet eine Ersatzkarte 15 Euro.",
+            "de",
+        ),
+        (
+            "According to the Terms and Conditions, can I return sale items?",
+            "within 14 days",
+            "Terms and Conditions",
+            (
+                "These Terms and Conditions apply to all orders. Sale items can be "
+                "returned within 14 days."
+            ),
+            "en",
+        ),
+    ],
+)
+def test_a_title_an_attribution_leads_to_is_a_source_whatever_the_material_writes(
+    question, answer, title, passage, language
+) -> None:
+    """`Laut dem ...` names where the answer is, as base refused it for free."""
+    failed = checked(
+        question_text=question,
+        target_answer=answer,
+        language=language,
+        statements=(passage,),
+        passages=(passage,),
+        titles=(title,),
+    )
+
+    assert code(failed) == QuestionRejection.LEAKS_SOURCE
+
+
+@pytest.mark.parametrize(
     ("question", "answer", "language", "title"),
     [
         ("Wie hoch ist die Kontoführungsgebühr?", "4,90 EUR", "de", "Kontoführung"),

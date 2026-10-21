@@ -760,6 +760,30 @@ def structural(
     return None, form
 
 
+#: Word runs that attribute what follows them to a source, by ISO 639-1 code,
+#: compared casefolded. A title one leads to, an article or two apart, is
+#: named as where the answer is whatever the material writes: `Laut dem Preis-
+#: und Leistungsverzeichnis, was ...?`. Wider than `_ATTRIBUTIONS`, which
+#: needs no title beside it.
+_ATTRIBUTING: dict[str, tuple[tuple[str, ...], ...]] = {
+    "de": (("laut",), ("gemäß",), ("nach", "angaben"), ("entsprechend",)),
+    "en": (("according", "to"), ("as", "stated", "in"), ("under",), ("per",)),
+}
+
+
+def _attributed(before: Sequence[Token], language: str | None) -> bool:
+    """Whether the words before a span end in an attribution, its articles aside."""
+    kept = list(before)
+    while kept and kept[-1].pos_ == "DET":
+        kept.pop()
+    words = tuple(one.text.casefold() for one in kept)
+    return any(
+        len(words) >= len(run)
+        and words[len(words) - len(run) :] == tuple(map(str.casefold, run))
+        for run in _ATTRIBUTING.get((language or "").strip().lower(), ())
+    )
+
+
 def _quotes(
     question: str, title: str, material: Sequence[str], language: str | None
 ) -> bool:
@@ -774,9 +798,10 @@ def _quotes(
     and its material says so: every noun and adjective the question quotes
     the title in is written in a fact or a passage the question cites. A title
     its material never writes, `Risiken im Fokus 2026`, names where the
-    answer is. Whether a title the material writes is still named as a
-    source - `Was sagen die Spielregeln 26/27 über ...` - is `cites_source`'s
-    and the phrasing judge's.
+    answer is. So does any title an attribution leads to (`_ATTRIBUTING`).
+    Whether a title the material writes is otherwise named as a source -
+    `Was sagen die Spielregeln 26/27 über ...` - is `cites_source`'s and the
+    phrasing judge's.
     """
     words = [token for token in pipeline(language)(question) if not token.is_punct]
     named = [
@@ -788,6 +813,8 @@ def _quotes(
     for start in range(len(words) - width + 1 if width else 0):
         span = words[start : start + width]
         if [one.text.casefold() for one in span] == named:
+            if _attributed(words[:start], language):
+                return True
             carried = vocabulary("\n".join(material), language)
             terms = [one for one in span if one.pos_ in ("NOUN", "PROPN", "ADJ")]
             return not terms or not all(
