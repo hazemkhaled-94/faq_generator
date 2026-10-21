@@ -64,7 +64,10 @@ def test_a_follow_up_is_read_in_its_conversation() -> None:
     Verifier(client).read(
         "And an express one?",
         _PASSAGES,
-        (("What does a replacement card cost?", "10 EUR"), ("Can it be sent abroad?", None)),
+        (
+            ("What does a replacement card cost?", "10 EUR"),
+            ("Can it be sent abroad?", None),
+        ),
     )
 
     user = client.asked[-1][1]

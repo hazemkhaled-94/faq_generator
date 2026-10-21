@@ -89,8 +89,10 @@ _DRAW = {
 def _released(pool, types, unanswerable, languages):
     rows, twins = pool
     bands = dict.fromkeys(_BANDS, 1)
-    return rows, twins, largest(
-        rows, bands, types, unanswerable, TOLERANCE, languages, twins
+    return (
+        rows,
+        twins,
+        largest(rows, bands, types, unanswerable, TOLERANCE, languages, twins),
     )
 
 

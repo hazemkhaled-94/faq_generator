@@ -16,7 +16,13 @@ _TYPES = {"factoid": 1}
 
 
 def _row(id: int, follows: int | None = None) -> Row:
-    return Row(id=id, answerable=True, difficulty="easy", question_type="factoid", follows_id=follows)
+    return Row(
+        id=id,
+        answerable=True,
+        difficulty="easy",
+        question_type="factoid",
+        follows_id=follows,
+    )
 
 
 def _drawn(pool: list[Row], twins: dict[int, set[int]]) -> set[int]:

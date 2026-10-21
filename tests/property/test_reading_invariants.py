@@ -43,10 +43,9 @@ def test_a_space_grouped_run_is_one_amount_only_beside_a_currency_word(case) -> 
     language, run, before, after = case
     text = " ".join(one for one in ("Es sind", before, run, after, "fällig.") if one)
     amounts = AMOUNT_WORDS.get(language, frozenset())
-    merged = (
-        before.casefold() not in REFERENCE_LABELS.get(language, frozenset())
-        and bool({before.casefold(), after.casefold()} & amounts)
-    )
+    merged = before.casefold() not in REFERENCE_LABELS.get(
+        language, frozenset()
+    ) and bool({before.casefold(), after.casefold()} & amounts)
 
     read = figures(text, language)
     tokens = [one.text for one in parse(text, language)]
@@ -63,16 +62,62 @@ def test_a_space_grouped_run_is_one_amount_only_beside_a_currency_word(case) -> 
 #: value, inside a sentence, and a count of the same value beside the same noun.
 _ORDINALS = {
     "en": (
-        ["first", "second", "third", "fourth", "fifth", "sixth", "seventh",
-         "eighth", "ninth", "tenth", "eleventh", "twelfth"],
-        ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-         "eleven", "twelve"],
+        [
+            "first",
+            "second",
+            "third",
+            "fourth",
+            "fifth",
+            "sixth",
+            "seventh",
+            "eighth",
+            "ninth",
+            "tenth",
+            "eleventh",
+            "twelfth",
+        ],
+        [
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+        ],
     ),
     "de": (
-        ["ersten", "zweiten", "dritten", "vierten", "fünften", "sechsten",
-         "siebten", "achten", "neunten", "zehnten", "elften", "zwölften"],
-        ["zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun",
-         "zehn", "elf", "zwölf"],
+        [
+            "ersten",
+            "zweiten",
+            "dritten",
+            "vierten",
+            "fünften",
+            "sechsten",
+            "siebten",
+            "achten",
+            "neunten",
+            "zehnten",
+            "elften",
+            "zwölften",
+        ],
+        [
+            "zwei",
+            "drei",
+            "vier",
+            "fünf",
+            "sechs",
+            "sieben",
+            "acht",
+            "neun",
+            "zehn",
+            "elf",
+            "zwölf",
+        ],
     ),
 }
 
@@ -107,8 +152,14 @@ def test_an_ordinal_never_agrees_with_the_count_of_its_digits(
     ordinal = _ordinal(language, value, ordinal_spelled)
     cardinal = _cardinal(language, value, cardinal_spelled)
 
-    assert not agrees(ordinal, cardinal, language, AnswerForm.VALUE), (ordinal, cardinal)
-    assert not agrees(cardinal, ordinal, language, AnswerForm.VALUE), (cardinal, ordinal)
+    assert not agrees(ordinal, cardinal, language, AnswerForm.VALUE), (
+        ordinal,
+        cardinal,
+    )
+    assert not agrees(cardinal, ordinal, language, AnswerForm.VALUE), (
+        cardinal,
+        ordinal,
+    )
 
 
 @given(

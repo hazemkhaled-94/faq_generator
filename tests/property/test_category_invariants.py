@@ -64,8 +64,15 @@ def _categorization(name: str, picked: list[str]) -> Categorization:
     return Categorization(
         name,
         tuple(
-            Category(name, key, _FORMS[key].description, share, _FORMS[key].role,
-                     _FORMS[key].words, _FORMS[key].form)
+            Category(
+                name,
+                key,
+                _FORMS[key].description,
+                share,
+                _FORMS[key].role,
+                _FORMS[key].words,
+                _FORMS[key].form,
+            )
             for key in picked
         ),
     )
@@ -78,9 +85,9 @@ _PHRASINGS = st.lists(
     unique=True,
 )
 _PREMISES = st.lists(st.sampled_from(["premise", "direct"]), min_size=1, unique=True)
-_TYPES = st.dictionaries(st.sampled_from(sorted(SPECS)), st.integers(0, 3), min_size=1).filter(
-    lambda mix: any(mix.values())
-)
+_TYPES = st.dictionaries(
+    st.sampled_from(sorted(SPECS)), st.integers(0, 3), min_size=1
+).filter(lambda mix: any(mix.values()))
 _KINDS = st.sampled_from(
     [
         {QuestionKind.NEEDS_BOTH: 1},
@@ -94,10 +101,20 @@ def _sample(spans: bool):
     if not spans:
         return group(source(1, statement="Die Karte kostet 10 EUR.", language="de"))
     return group(
-        source(1, document="a", passage_id=11, statement="Die Karte kostet 10 EUR.",
-               language="de"),
-        source(2, document="b", passage_id=22, statement="Die Ersatzkarte kostet 15 EUR.",
-               language="de"),
+        source(
+            1,
+            document="a",
+            passage_id=11,
+            statement="Die Karte kostet 10 EUR.",
+            language="de",
+        ),
+        source(
+            2,
+            document="b",
+            passage_id=22,
+            statement="Die Ersatzkarte kostet 15 EUR.",
+            language="de",
+        ),
     )
 
 

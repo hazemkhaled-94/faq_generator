@@ -22,7 +22,11 @@ def test_a_run_opening_the_text_beside_no_currency_is_two_figures() -> None:
 
 def test_a_merged_amount_is_its_own_lemma() -> None:
     """The merge keeps the amount's text as its lemma, for every lemma reader."""
-    merged = [one for one in parse("Bis zu 100 000 Euro sind geschützt.", "de") if " " in one.text]
+    merged = [
+        one
+        for one in parse("Bis zu 100 000 Euro sind geschützt.", "de")
+        if " " in one.text
+    ]
 
     assert [one.lemma_ for one in merged] == ["100 000"]
 
