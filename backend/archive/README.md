@@ -74,8 +74,16 @@ what it held.
   already in its bucket. A second run restores nothing.
 - **A row or an object archived twice comes back as its newest copy.** The
   newest object is the one the store wrote last, whatever `SINCE` says.
-- **A row whose parent is gone restores nothing at all.** The rows go back
-  in one transaction.
+- **A row whose parent is gone is left behind.** It rests on nothing, so it
+  stays in the archive and the run counts it; the other rows go back in one
+  transaction.
+- **A restored question keeps its release only where it still belongs to
+  one.** The release stays where a question live all along holds the same id,
+  and a follow-up also needs a root that is still accepted; otherwise the
+  question comes back accepted but undrawn.
+- **A fact left resting on no passage is dropped.** Its citations were left
+  behind, and the trigger that drops such a fact fires only on `DELETE`, so
+  the restore does it, with the question links that cascade from it.
 - **`SINCE` is required.** The archive also holds every row a rerun
   replaced, and restoring those would put them beside their replacements.
 
@@ -154,6 +162,11 @@ which purges the command line refuses.
 - **A restore after `make delete-derived` leaves the document marked `new`
   for chunking.** That was an update, which nothing archives, so the next
   `chunk-start` re-chunks the restored passages.
+- **A question the deletion rejected comes back rejected.** A partial
+  `make delete SHA=` rejects, as `source_changed`, every question that loses
+  one fact and keeps another. That was an update, which nothing archives, so
+  the restore puts every fact link back and leaves the status as it is;
+  a person decides it again.
 - **A column added `NOT NULL` since a row was archived rolls the whole
   restore back.** The older payload has no value for it, and it is filled
   with NULL rather than the column's default.
