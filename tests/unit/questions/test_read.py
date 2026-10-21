@@ -41,15 +41,22 @@ class Client:
 class Reads(Recording):
     """A verifier whose read also says what it made of the question."""
 
-    def __init__(self, *, asks_one: bool = True, **kwargs) -> None:
+    def __init__(
+        self, *, asks_one: bool = True, reason_given: bool = True, **kwargs
+    ) -> None:
         """Initialises with what the read says beside the answer."""
         super().__init__(**kwargs)
         self.asks_one = asks_one
+        self.reason_given = reason_given
 
     def read(self, question: str, passages, thread=()) -> Reading:
         """Answers with the scripted reading, and counts the ask."""
         self.verified += 1
-        return Reading(recovered=self.recovers, asks_one=self.asks_one)
+        return Reading(
+            recovered=self.recovers,
+            asks_one=self.asks_one,
+            reason_given=self.reason_given,
+        )
 
 
 #: Two things asked under one question word, each with an answer of its own:
@@ -150,3 +157,80 @@ def test_a_compound_question_is_never_refused_for_asking_two_things(
     )
 
     assert result.rejected_reason is None
+
+
+# ── A reason the passages give ─────────────────────────────────────────────
+
+#: A why keyed with its own rule said again with "because": the passage, the
+#: question and the key, by language.
+_CIRCULAR = {
+    "de": (
+        "Die Bank nimmt eine Kündigung des Girokontos nur in Schriftform an.",
+        "Warum muss eine Kündigung des Girokontos schriftlich erfolgen?",
+        "Weil die Bank eine Kündigung nur in Schriftform annimmt.",
+    ),
+    "en": (
+        "The shop only accepts returns that were announced before sending.",
+        "Why must a return be announced before the parcel is sent?",
+        "Because the shop only accepts returns that were announced before sending.",
+    ),
+}
+
+
+def _why(language: str, question_type: str = "reason"):
+    """The circular why, written from its own passage."""
+    passage, question, key = _CIRCULAR[language]
+    return candidate(
+        question_text=question,
+        target_answer=key,
+        question_type=question_type,
+        facts=group(source(statement=passage, language=language)),
+    )
+
+
+def test_the_read_says_whether_the_passages_give_a_reason() -> None:
+    """A field of the read's own shape, carried onto the reading."""
+    client = Client(in_passage=True, answer="because", reason_given=False)
+
+    got = Verifier(client).read(_CIRCULAR["en"][1], [_CIRCULAR["en"][0]])
+
+    assert got.reason_given is False
+    assert "reason_given" in client.asked[-1][0]
+
+
+def test_a_read_that_says_nothing_of_a_reason_reads_as_one_given() -> None:
+    """A reply missing the field refuses nothing."""
+    client = Client(in_passage=True, answer="because")
+
+    assert Verifier(client).read("Why?", ["Because."]).reason_given
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_why_whose_passages_give_no_reason_beyond_the_rule_is_refused(
+    language: str,
+) -> None:
+    """The key restates the rule in the passage's words, which no overlap sees."""
+    verifier = Reads(reason_given=False, recovers=_CIRCULAR[language][2])
+
+    result = build(verifier).check(_why(language))
+
+    assert result.rejected_reason == QuestionRejection.NOT_RECOVERABLE
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_why_whose_passages_give_a_reason_is_kept(language: str) -> None:
+    """The same question and key, where the read finds a reason."""
+    verifier = Reads(reason_given=True, recovers=_CIRCULAR[language][2])
+
+    result = build(verifier).check(_why(language))
+
+    assert result.status == QuestionStatus.ACCEPTED
+
+
+def test_a_question_not_asking_why_is_not_held_to_a_reason() -> None:
+    """The field speaks of a why; another type is read for its answer alone."""
+    verifier = Reads(reason_given=False, recovers=_WELDED["en"][2])
+
+    result = build(verifier).check(_welded("en"))
+
+    assert result.status == QuestionStatus.ACCEPTED

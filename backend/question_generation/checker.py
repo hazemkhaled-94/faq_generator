@@ -1129,6 +1129,17 @@ class QuestionChecker:
                     QuestionRejection.NOT_RECOVERABLE,
                     "the verifier could not find the answer in the cited passages",
                 )
+            # Asked for a reason, the verifier says the passages give none
+            # beyond the rule: a key restating the rule in the passage's own
+            # words adds the lemmas `restates` counts, and passes it.
+            if candidate.spec.name == QuestionType.REASON and not read.reason_given:
+                return (
+                    QuestionRejection.NOT_RECOVERABLE,
+                    (
+                        "asked why, the verifier found no reason in the cited "
+                        "passages beyond the rule itself"
+                    ),
+                )
             # Asked for a reason, the verifier came back with the question's
             # own rule: the passages give no reason, and a key restating the
             # rule in other words is one the entailment pass would accept,
