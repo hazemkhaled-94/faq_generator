@@ -48,7 +48,11 @@ SOURCES := backend frontend telemetry orchestration review evaluation tests
 #
 # Applied twice: before DERIVED, so an address is built from a port given on
 # the command line, and after it, so an address given there is not rebuilt.
-GIVEN = $(foreach given,$(MAKEOVERRIDES),$(firstword $(subst =, ,$(given))))
+#
+# The names are the variables whose origin is the command line, not the
+# words of MAKEOVERRIDES, where make escapes a value's spaces and nothing
+# else: split, `OUT="a - b.xlsx"` named `-` and `b.xlsx` settings too.
+GIVEN = $(strip $(foreach given,$(.VARIABLES),$(if $(filter command line,$(origin $(given))),$(given))))
 OVERRIDE = $(if $(MAKEOVERRIDES),&& export $(MAKEOVERRIDES) QA_COMMAND_LINE="$(GIVEN)",)
 
 # The values that are never written down, because they are built out of ones

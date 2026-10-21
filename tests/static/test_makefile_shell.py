@@ -129,10 +129,6 @@ def test_a_path_with_shell_characters_reaches_the_command_whole() -> None:
     assert parsed.returncode == 0, parsed.stderr
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="GIVEN splits a command-line value at its escaped spaces, so QA_COMMAND_LINE names the words after the first as settings",
-)
 def test_the_command_line_names_only_what_was_given() -> None:
     """QA_COMMAND_LINE is the list of names the stored settings give way to."""
     printed = _printed("questions-export", "OUT=/tmp/Projects - Code/r.xlsx")
