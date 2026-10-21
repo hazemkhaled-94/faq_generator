@@ -353,10 +353,13 @@ read the difference beside it.
 
 `BY=category` measures each category of each language on its own, read
 from the workbook's Categories column, so a question counts once in each of
-its categories. And where the workbook holds the paper's judge (the
-`rubric_*` judgements on its Assessment sheet), the report ends with that
-judge's mean scores for the same groups: the mean stored score, which is
-the paper's normalised mean, from 0 to 1.
+its categories. `BY=kind` measures each kind of each language on its own
+(single, needs_both, compound), read from the Kind column: the paper's judge
+is not told a question's kind, and a compound question asks two things it
+was never shown how to score. And where the workbook holds the paper's judge
+(the `rubric_*` judgements on its Assessment sheet), the report ends with
+that judge's mean scores for the same groups: the mean stored score, which
+is the paper's normalised mean, from 0 to 1.
 
 The export's filter chooses the set. The paper measured answerable
 questions:
@@ -366,6 +369,7 @@ make questions-export OUT=set.xlsx FILTER="--status accepted --answerable --root
 make diversity FILE=set.xlsx SIZE=200
 make diversity FILE=new.xlsx AGAINST=old.xlsx
 make diversity FILE=set.xlsx BY=category
+make diversity FILE=set.xlsx BY=kind
 ```
 
 ## Layout

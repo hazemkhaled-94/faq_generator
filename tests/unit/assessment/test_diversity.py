@@ -154,11 +154,16 @@ def test_homogenization_needs_two_questions() -> None:
 
 
 def asked(
-    id: int, text: str, language: str, categories: tuple[str, ...] = ()
+    id: int,
+    text: str,
+    language: str,
+    categories: tuple[str, ...] = (),
+    kind: str = "single",
 ) -> StoredQuestion:
     """One accepted question, as the exporter is handed it."""
     return StoredQuestion(
         categories=list(categories),
+        kind=kind,
         id=id,
         question_text=text,
         target_answer="48 hours",
@@ -423,6 +428,46 @@ def test_the_report_gives_the_papers_judge_means(categorized, capsys) -> None:
     judge = capsys.readouterr().out.split("The paper's judge", 1)[1].splitlines()
     rows = [row.split() for row in judge if row.startswith(("de", "en"))]
     assert rows == [["de", CONCISE, "2", "0.750"]]
+
+
+@pytest.fixture
+def kinded(tmp_path, exported):
+    """B in German, two single and one compound, one English needs_both, two judged."""
+    path = tmp_path / "kinded.xlsx"
+    path.write_bytes(
+        workbook(
+            [
+                asked(1, B[0], "de"),
+                asked(2, B[1], "de", kind="compound"),
+                asked(3, B[2], "de"),
+                asked(4, "Wie lange dauert eine Antwort?", "en", kind="needs_both"),
+            ],
+            judged={1: judged(1, 1.0), 2: judged(2, 0.5)},
+        )
+    )
+    return path
+
+
+def test_the_report_splits_by_kind(kinded, capsys) -> None:
+    """One row per language and kind, read off the workbook's Kind column."""
+    assert cli.main(["--diversity", "--file", str(kinded), "--by", "kind"]) == 0
+    table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
+    assert table[0].split()[:3] == ["language", "kind", "n"]
+    assert [row.split()[:3] for row in table[1:]] == [
+        ["de", "compound", "1"],
+        ["de", "single", "2"],
+        ["en", "needs_both", "1"],
+    ]
+
+
+def test_the_report_gives_the_papers_judge_means_per_kind(kinded, capsys) -> None:
+    """A compound question reaches the judge untold of its kind; read apart, it shows."""
+    assert cli.main(["--diversity", "--file", str(kinded), "--by", "kind"]) == 0
+    out = capsys.readouterr().out
+    judge = out.split("The paper's judge", 1)[1].splitlines()
+    assert judge[1].split()[:3] == ["language", "kind", "n"]
+    rows = [row.split() for row in judge if row.startswith(("de", "en"))]
+    assert rows == [["de", "compound", "1", "0.500"], ["de", "single", "1", "1.000"]]
 
 
 def test_a_workbook_without_categories_cannot_be_split(exported) -> None:

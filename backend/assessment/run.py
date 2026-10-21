@@ -161,8 +161,8 @@ def diversity(argv: list[str]) -> int:
     the way the paper tests two methods: each language of both drawn fifty
     times to 80% of the smaller, and every metric's two lists of scores put
     to Welch's t-test. `--by category` measures each category of each
-    language on its own. Where the workbook holds the paper's judge, its
-    mean scores follow, over the same groups.
+    language on its own, and `--by kind` each kind. Where the workbook holds
+    the paper's judge, its mean scores follow, over the same groups.
     """
     parser = argparse.ArgumentParser(
         prog="python -m assessment.run --diversity",
@@ -177,7 +177,9 @@ def diversity(argv: list[str]) -> int:
         "--size", type=int, metavar="N", help="draw N questions from each language"
     )
     parser.add_argument(
-        "--by", choices=("category",), help="one row per category of each language"
+        "--by",
+        choices=tuple(_BY),
+        help="one row per category or per kind of each language",
     )
     args = parser.parse_args(argv)
     for named in (args.file, args.against):
@@ -192,14 +194,14 @@ def diversity(argv: list[str]) -> int:
 
     from assessment.diversity import subsamples
 
-    groups = _read(args.file, args.language, by_category=args.by == "category")
+    groups = _read(args.file, args.language, by=args.by)
     if args.by and not groups:
-        parser.error(f"{args.file} holds no categories to split by")
+        parser.error(f"{args.file} holds no {_BY[args.by][1]} to split by")
     tagged_by: dict[str, str] = {}
     if args.against is not None:
         _compare(_texts(groups), _texts(_read(args.against, args.language)), tagged_by)
     else:
-        named = f"{'category':<36}" if args.by else ""
+        named = f"{args.by:<36}" if args.by else ""
         print(
             f"{'language':<9}{named}{'n':>6}" + "".join(f"{one:>9}" for one in METRICS)
         )
@@ -233,23 +235,28 @@ def diversity(argv: list[str]) -> int:
         "paper's MiniLM scale; compare it only between sets embedded alike"
     )
     if args.against is None:
-        _judged(args.file, groups, args.by is not None)
+        _judged(args.file, groups, args.by)
     return 0
 
 
 #: The report's columns, in the paper's order.
 METRICS = ("NGD", "SR", "word-CR", "PoS-CR", "HS")
 
+#: What `--by` splits a language on: the Questions sheet's column, and what
+#: its labels are called where a workbook holds none.
+_BY = {"category": ("Categories", "categories"), "kind": ("Kind", "kinds")}
+
 
 def _read(
-    path: Path, only: str | None, by_category: bool = False
+    path: Path, only: str | None, by: str | None = None
 ) -> dict[tuple[str, str], list[tuple[int, str]]]:
     """A workbook's questions and their ids by language, in the order of their ids.
 
-    Grouped by language under an empty label, or with `by_category` by
-    language and each `categorization=category` label in the Categories
-    cell, so a question counts once in each of its categories and a
-    question told none in no group.
+    Grouped by language under an empty label, or with `by` by language and
+    each label of the column `_BY` names: a question's kind, or each
+    `categorization=category` label in the Categories cell, so a question
+    counts once in each of its categories and a question told none in no
+    group.
     """
     # Here rather than above: the assess-worker imports this module and
     # never reads a workbook.
@@ -263,9 +270,10 @@ def _read(
         dtype={"Question": str, "Language": str},
         keep_default_na=False,
     ).sort_values("ID")
-    if by_category and "Categories" not in frame:
+    column = _BY[by][0] if by else None
+    if column is not None and column not in frame:
         return {}
-    labels = frame["Categories"] if by_category else [""] * len(frame)
+    labels = frame[column] if column else [""] * len(frame)
     asked: dict[tuple[str, str], list[tuple[int, str]]] = defaultdict(list)
     for id, language, text, held in zip(
         frame["ID"], frame["Language"], frame["Question"], labels, strict=True
@@ -273,8 +281,8 @@ def _read(
         if only not in (None, language):
             continue
         # A comma never stands in a name, so it only ever separates labels.
-        for label in str(held).split(", ") if by_category else [""]:
-            if label or not by_category:
+        for label in str(held).split(", ") if column else [""]:
+            if label or not column:
                 asked[(language, label)].append((int(id), str(text)))
     return asked
 
@@ -300,7 +308,7 @@ _PAPER_ORDER = (
 
 
 def _judged(
-    path: Path, groups: dict[tuple[str, str], list[tuple[int, str]]], by: bool
+    path: Path, groups: dict[tuple[str, str], list[tuple[int, str]]], by: str | None
 ) -> None:
     """Prints the paper's judge's mean scores per group, where the workbook holds any.
 
@@ -314,7 +322,7 @@ def _judged(
     if scored.empty:
         return
     metrics = [one for one in _PAPER_ORDER if one in set(scored["Judgement"])]
-    named = f"{'category':<36}" if by else ""
+    named = f"{by:<36}" if by else ""
     print("\nThe paper's judge, mean scores from 0 to 1:")
     print(
         f"{'language':<9}{named}{'n':>6}"
