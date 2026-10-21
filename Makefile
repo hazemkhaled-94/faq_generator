@@ -1572,6 +1572,10 @@ typecheck:
 #
 # --no-deps because both locks already pin every transitive dependency.
 #
+# Against OSV rather than pip-audit's default, PyPI's own feed, which listed
+# 18 of the 21 advisories OSV holds on Pillow 12.3.0 and left out a critical
+# one. pip-audit reads one service a run, and OSV listed every one PyPI did.
+#
 # torch and torchvision are held out: they are pinned to +cpu builds, which
 # is a local version PyPI does not carry and PyTorch's own index publishes
 # only for linux. Resolving them anywhere else fails, so their advisories
@@ -1590,7 +1594,7 @@ audit:
 	  grep -viE "^(torch|torchvision)==" backend/api/requirements.lock > $$d/api.lock; \
 	  $(HOST_PINS) | grep -vE "^(torch|torchvision)==" > $$d/poetry.lock && \
 	  s=0 && for f in $$d/api.lock frontend/requirements.lock $$d/poetry.lock; do \
-	    poetry run pip-audit --no-deps --progress-spinner off -r $$f || s=1; \
+	    poetry run pip-audit --vulnerability-service osv --no-deps --progress-spinner off -r $$f || s=1; \
 	  done; exit $$s
 
 # ruff check and format check over every source directory. Configuration

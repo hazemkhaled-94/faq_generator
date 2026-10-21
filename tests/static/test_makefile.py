@@ -352,6 +352,26 @@ def test_the_audit_reads_the_host_lock_without_the_torch_it_cannot_resolve(
     assert not [pin for pin in pins if pin.startswith(("torch==", "torchvision=="))]
 
 
+def test_the_audit_reads_every_lock_against_osv(tmp_path: Path) -> None:
+    """pip-audit's default, PyPI's own feed, missed three advisories OSV lists.
+
+    On Pillow 12.3.0 it listed 18 of OSV's 21, a critical one left out.
+    """
+    calls = tmp_path / "calls"
+    poetry = tmp_path / "poetry"
+    poetry.write_text(
+        f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
+        f'echo "$*" >> {calls}\n'
+    )
+    poetry.chmod(0o755)
+
+    assert made("audit", path=tmp_path).returncode == 0
+    audited = calls.read_text().splitlines()
+
+    assert len(audited) == 3, audited
+    assert all("--vulnerability-service osv" in call for call in audited), audited
+
+
 @pytest.mark.parametrize("target", ["audit", "lock"])
 def test_the_scratch_files_of_a_target_stay_out_of_the_source_tree(target: str) -> None:
     """An interrupted run would leave them untracked among the sources."""
