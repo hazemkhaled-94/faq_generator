@@ -80,7 +80,7 @@ def test_a_numbered_heading_named_outside_its_section_links_the_two(language) ->
 
     got = run([a, b], {a.id: 1, b.id: 2}, heads=[a])
 
-    assert got == [Link((a, b), "reference", named)]
+    assert got == [Link((a, b), "reference", named, a.id)]
 
 
 def test_a_plural_label_and_its_conjoined_numbers_all_refer() -> None:
@@ -143,7 +143,9 @@ def test_a_quoted_heading_links_the_two(
     """A quoted heading of another section is a reference."""
     a, b = one(text_a, path_a, 1, language), one(text_b, path_b, 2, language)
 
-    assert run([a, b], {1: 1, 2: 2}, heads=[a]) == [Link((a, b), "reference", named)]
+    assert run([a, b], {1: 1, 2: 2}, heads=[a]) == [
+        Link((a, b), "reference", named, a.id)
+    ]
 
 
 def test_the_deepest_of_two_quoted_headings_is_followed() -> None:
@@ -178,7 +180,7 @@ def test_a_reference_outranks_a_sibling() -> None:
 
     got = run([a, b, s], {1: 1, 2: 2, 3: 1}, heads=[a])
 
-    assert got == [Link((a, b), "reference", named)]
+    assert got == [Link((a, b), "reference", named, a.id)]
 
 
 @pytest.mark.parametrize(
@@ -210,7 +212,9 @@ def test_two_sections_under_one_heading_are_siblings(
     """The same parent heading, a different own heading."""
     a, b = one(first[1], first[0], 1, language), one(second[1], second[0], 2, language)
 
-    assert run([a, b], {1: 1, 2: 1}, heads=[a]) == [Link((a, b), "sibling", parent)]
+    assert run([a, b], {1: 1, 2: 1}, heads=[a]) == [
+        Link((a, b), "sibling", parent, a.id)
+    ]
 
 
 def test_two_chunks_of_one_section_are_not_siblings() -> None:
@@ -274,7 +278,7 @@ def test_a_term_almost_no_other_passage_uses_links_the_two(
 
     got = run(passages, topics, heads=passages[:1])
 
-    assert got == [Link((passages[0], passages[1]), "term", term)]
+    assert got == [Link((passages[0], passages[1]), "term", term, passages[0].id)]
 
 
 def test_two_languages_are_never_linked() -> None:

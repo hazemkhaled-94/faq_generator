@@ -17,7 +17,7 @@ import math
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -60,11 +60,15 @@ class Link:
         kind: 'reference', 'sibling' or 'term'.
         named: The heading, the parent heading or the term, as the corpus
             writes it.
+        head: The id of the passage that offered it, once `linked` dealt it.
+            Shown first only on a reference it names: a sibling or a term
+            link shows the earlier passage first, whichever headed it.
     """
 
     passages: tuple[PassageToExtract, ...]
     kind: str
     named: str
+    head: int | None = None
 
 
 def _segments(passage: PassageToExtract) -> list[str]:
@@ -366,7 +370,7 @@ def linked(
                 key = frozenset(p.id for p in link.passages)
                 if key not in seen:
                     seen.add(key)
-                    by_topic[topic].append(link)
+                    by_topic[topic].append(replace(link, head=head.id))
                     break
         for chosen in by_topic.values():
             # Grown before it is strided over: a pair that cannot reach `size`
@@ -387,4 +391,4 @@ def _grown(edges: _Edges, link: Link, size: int) -> Link | None:
         if not options:
             return None
         members.append(next(p for p in options[0][1].passages if p.id not in taken))
-    return Link(tuple(members), link.kind, link.named)
+    return Link(tuple(members), link.kind, link.named, link.head)

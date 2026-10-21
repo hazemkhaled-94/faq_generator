@@ -70,9 +70,18 @@ class Checker:
     """Accepts a candidate as a bridge resting on the offered passages."""
 
     def check_bridge(self, offered, candidate, provenance):
-        """Returns the bridge fact, opening on the first offered passage."""
+        """Returns the bridge fact, opening on the first offered passage.
+
+        With the reading every bridge prompt 6 or later writes, refused ones too.
+        """
         ids = [p.id for p in offered]
-        return checked(ids[0], "Bridge.", kind=FactKind.BRIDGE, passage_ids=ids)
+        return checked(
+            ids[0],
+            "Bridge.",
+            kind=FactKind.BRIDGE,
+            passage_ids=ids,
+            bridge={"relation": "parallel", "question": "Q?", "answer": "A"},
+        )
 
 
 @pytest.mark.parametrize(("domain", "language"), list(CASES))
@@ -99,6 +108,66 @@ def test_a_scoped_pass_keeps_a_bridge_opening_outside_its_scope(
     scoped = _pairs(store)
     assert (first, second) in scoped, f"lost by the narrowed pass: {scoped}"
     assert sorted(scoped) == sorted(set(scoped)), "no bridge is written twice"
+
+
+#: First and second are siblings; the first also names the third's section,
+#: so its own best link is that reference and the second heads the sibling
+#: pair, which shows the earlier passage, the first, at position 0.
+HEADED = {
+    ("bank", "en"): (
+        [
+            "A dormant account is charged a yearly fee of 10 EUR, as Section 9 explains.",
+            "A replacement card costs 5 EUR.",
+            "A transfer abroad costs 1 EUR.",
+        ],
+        ["Fees > Yearly fees", "Fees > Card fees", "Section 9 > Transfers"],
+    ),
+    ("shop", "de"): (
+        [
+            "Der Standardversand kostet 4 EUR im Inland, wie Abschnitt 4 erläutert.",
+            "Der Expressversand kostet 9 EUR.",
+            "Rücksendungen sind innerhalb von 30 Tagen kostenlos.",
+        ],
+        ["Versand > Standard", "Versand > Express", "Abschnitt 4 > Rücksendungen"],
+    ),
+}
+
+
+@pytest.fixture(params=list(HEADED))
+def headed(request, engine, database):
+    """Three passages in three topics, and the full pass already run."""
+    domain, language = request.param
+    texts, paths = HEADED[request.param]
+    store = FactStore(engine, language=language)
+    ids = store.corpus((domain, texts))[domain]
+    topics = []
+    for pid, path, text in zip(ids, paths, texts, strict=True):
+        store._execute(
+            "UPDATE passages SET section_path = :p WHERE id = :i", p=path, i=pid
+        )
+        store.store(pid, checked(pid, text))
+        topics.append(store.topic(f"t{pid}", pid))
+    bridge(store.catalog, Extractor(), Checker(), 12, 2)
+    first, second, third = ids
+    full = set(_pairs(store))
+    assert (first, second) in full
+    assert (first, third) in full
+    return store, ids, topics
+
+
+def test_a_scoped_pass_keeps_a_sibling_bridge_headed_outside_it(headed) -> None:
+    """Narrowing to the first passage keeps the bridge the second headed."""
+    store, (first, second, _), _ = headed
+    bridge(store.catalog, Extractor(), Checker(), 12, 2, Passage.id == first)
+    scoped = _pairs(store)
+    assert (first, second) in scoped, f"lost by the narrowed pass: {scoped}"
+    assert sorted(scoped) == sorted(set(scoped)), "no bridge is written twice"
+
+
+def test_the_topic_of_a_bridges_head_holds_a_bridge(headed) -> None:
+    """A MISSING=1 pass leaves the second's topic: it heads the sibling bridge."""
+    store, _, (first, second, _) = headed
+    assert store.catalog.bridged_topics() == {first, second}
 
 
 def _pairs(store) -> list[tuple[int, ...]]:

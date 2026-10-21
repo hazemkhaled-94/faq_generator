@@ -199,28 +199,37 @@ def _resting(condition) -> ColumnElement[bool]:
     )
 
 
+def _head() -> ColumnElement[int]:
+    """The passage that headed a bridge's link.
+
+    Its reading names it; a bridge read before the reading did is taken to be
+    headed by the passage it opens on, which a reference link always is.
+    """
+    return func.coalesce(
+        Fact.bridge["head"].as_integer(),
+        select(FactPassage.passage_id)
+        .where(FactPassage.fact_id == Fact.id, FactPassage.position == 0)
+        .scalar_subquery(),
+    )
+
+
 def _bridges(within) -> Select:
     """The bridge facts a pass narrowed by `within` replaces.
 
-    Every bridge when `within` is None. Otherwise the bridges opening on a
+    Every bridge when `within` is None. Otherwise the bridges headed by a
     passage of a topic holding a selected passage: those are the heads a
     narrowed pass reads again, so those are the ones it can write back. A
-    bridge opening elsewhere stays, however its partner is placed, because
-    the pass would not offer it again; one gone stale is removed with the
-    passage whose text changed, not by this.
+    bridge headed elsewhere stays, wherever it opens and however its partner
+    is placed, because the pass would not offer it again; one gone stale is
+    removed with the passage whose text changed, not by this.
     """
     chosen = select(Fact.id).where(Fact.kind == FactKind.BRIDGE)
     if within is None:
         return chosen
     return chosen.where(
-        Fact.id.in_(
-            select(FactPassage.fact_id).where(
-                FactPassage.position == 0,
-                FactPassage.passage_id.in_(
-                    select(DOMINANT.c.passage_id).where(
-                        DOMINANT.c.topic_id.in_(_topics(within))
-                    )
-                ),
+        _head().in_(
+            select(DOMINANT.c.passage_id).where(
+                DOMINANT.c.topic_id.in_(_topics(within))
             )
         )
     )
@@ -1154,10 +1163,10 @@ class FactCatalog(Repository):
             ).rowcount
 
     def bridged_topics(self, within=None) -> frozenset[int]:
-        """The topics a bridge already rests in, by the passage it opens with.
+        """The topics a bridge already rests in, by the passage that headed it.
 
-        Only its first passage counts: the others are partners, which may sit
-        in a topic whose own heads the bridge says nothing about.
+        Only its head counts: the others are partners, which may sit in a
+        topic whose own heads the bridge says nothing about.
 
         Args:
             within: A condition on Passage narrowing which topics are read,
@@ -1165,9 +1174,9 @@ class FactCatalog(Repository):
         """
         query = (
             select(DOMINANT.c.topic_id)
-            .join(FactPassage, FactPassage.passage_id == DOMINANT.c.passage_id)
-            .join(Fact, Fact.id == FactPassage.fact_id)
-            .where(Fact.kind == FactKind.BRIDGE, FactPassage.position == 0)
+            .select_from(Fact)
+            .join(DOMINANT, DOMINANT.c.passage_id == _head())
+            .where(Fact.kind == FactKind.BRIDGE)
             .distinct()
         )
         if within is not None:

@@ -542,7 +542,12 @@ def bridge(
             try:
                 written += catalog.add_bridges(
                     [
-                        checker.check_bridge(offered, candidate, extractor.provenance)
+                        _headed(
+                            checker.check_bridge(
+                                offered, candidate, extractor.provenance
+                            ),
+                            link.head,
+                        )
                         for candidate in proposed
                     ]
                 )
@@ -566,6 +571,18 @@ def bridge(
     else:
         log.info("wrote %d bridge fact(s)", written)
     return written
+
+
+def _headed(fact: CheckedFact, head: int | None) -> CheckedFact:
+    """A bridge fact whose reading names the passage that headed its link.
+
+    What a narrowed pass reads to tell the bridges it writes back from the
+    ones it leaves: the passage shown first heads only a reference link. A
+    fact with no reading keeps none, and is read by the passage it opens on.
+    """
+    if fact.bridge is None or head is None:
+        return fact
+    return replace(fact, bridge={**fact.bridge, "head": head})
 
 
 def _is_heading(passage: PassageToExtract) -> bool:

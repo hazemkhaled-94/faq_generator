@@ -34,9 +34,11 @@ those questions are rejected or deleted with them. `MISSING=1` deletes
 nothing and reads only the topics holding no bridge yet: `make corpus` runs it
 that way after the topics are known, so a rebuild writes bridges and a second
 one leaves cited ones alone. A pass narrowed by `TOPIC`, `SHA` or `PASSAGE`
-clears only the bridges that open on a passage of the topics it reads again, so a
-bridge opening outside the scope stays, and no pass offers a pair that already
-holds a stored bridge, whichever side heads it. It asks the model one
+clears only the bridges headed by a passage of the topics it reads again, so a
+bridge headed outside the scope stays whichever passage it shows first, and no
+pass offers a pair that already holds a stored bridge, whichever side heads it.
+`MISSING=1` reads a topic as holding a bridge when one of its passages headed
+one. It asks the model one
 question first, and deletes nothing if the model does not answer.
 
 `make extract-revalidate` re-judges stored facts without calling a model,
@@ -295,8 +297,10 @@ set side by side ("both A and B", "stated separately") are not a bridge unless
 a question about the two needs both. A bridge's fact row also stores its
 reading in `facts.bridge`, the relation the model named and the question and
 short answer the bridge is tested with, refused bridges included, so a
-re-judgement tests the same thing; it is empty on every other fact and on a
-bridge written before prompt 6. Prompt version 6 replaces the list-of-claims
+re-judgement tests the same thing, and the id of the passage that headed the
+link (`head`): a sibling or a term link shows the earlier passage first,
+whichever headed it. It is empty on every other fact and on a bridge written
+before prompt 6, which is read as headed by the passage it shows first. Prompt version 6 replaces the list-of-claims
 prompt 5.
 
 A trigger deletes a bridge once any passage it rests on is gone. Re-running
