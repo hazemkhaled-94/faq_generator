@@ -69,7 +69,9 @@ by chunking and read by the topic model as the document it is fitted over.
 
 `NLP_CAPITALISED_NOUNS` names the languages where capitalisation says nothing
 about whether a noun is proper — German, where every noun is capitalised. In
-those languages a lower-case noun is read as a foreign word and left out.
+those languages a lower-case noun is read as a foreign word and left out, in
+a text that writes some word after its first with a capital: a query typed
+all in lower case keeps its nouns.
 
 ### Language detection
 

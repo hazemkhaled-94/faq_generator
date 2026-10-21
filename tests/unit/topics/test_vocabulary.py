@@ -73,6 +73,12 @@ def test_embedded_foreign_grammar_is_dropped_and_its_content_kept() -> None:
     assert {"economic", "risks", "focus"} <= set(embedded), embedded
 
 
+def test_a_text_written_all_in_lower_case_keeps_its_nouns() -> None:
+    """Case says nothing where a text writes no noun with a capital."""
+    typed = lemmas("girokonto kündigungsfrist gebühr", "de")
+    assert {"girokonto", "kündigungsfrist", "gebühr"} <= set(typed), typed
+
+
 def test_a_german_sentence_keeps_every_noun_it_has() -> None:
     """The rule above takes no German noun with it."""
     german_only = lemmas("Die Lieferung erreicht den Hafen puenktlich.", "de")

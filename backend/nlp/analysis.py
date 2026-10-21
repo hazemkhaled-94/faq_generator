@@ -1667,6 +1667,10 @@ def _foreign(token, language: str) -> bool:
     puts them in the German vocabulary as subjects.
 
     A lower-case German adjective the tagger reads as a noun goes with them.
+
+    Only in a text that writes its words with capitals at all. A keyword
+    query typed all in lower case - `girokonto kündigungsfrist gebühr` -
+    says nothing by its case, and dropping its nouns left it naming nothing.
     """
     return (
         language in _capitalises_nouns()
@@ -1674,6 +1678,18 @@ def _foreign(token, language: str) -> bool:
         and token.text[:1].islower()
         # `eGovernment`, `iOS`: a capital after the first letter is a name.
         and not any(char.isupper() for char in token.text[1:])
+        and _cased(token.doc)
+    )
+
+
+def _cased(document: Doc) -> bool:
+    """Whether a text writes some word after its first with a capital.
+
+    The first word is capitalised as the start of a text, and an acronym
+    (`EU`) as itself, so neither says the text writes nouns with capitals.
+    """
+    return any(
+        token.text[:1].isupper() and not token.text.isupper() for token in document[1:]
     )
 
 

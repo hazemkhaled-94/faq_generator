@@ -2880,6 +2880,30 @@ def test_a_question_naming_something_is_never_called_unanchored(
     assert anchored(question, language)
 
 
+@pytest.mark.parametrize(
+    "query", ["girokonto kündigungsfrist gebühr", "rücksendung frist online bestellung"]
+)
+def test_a_lower_cased_german_query_is_anchored_as_its_capitalised_twin(query) -> None:
+    """Typed all in lower case, a German query's case says nothing about its nouns."""
+    assert anchored(query.title(), "de")
+    assert anchored(query, "de")
+
+
+def test_a_lower_cased_german_query_is_held_to_what_the_passages_are_about() -> None:
+    """`about` measures it, rather than abstaining as for a query naming nothing."""
+    from question_generation.gates import ENTAILMENT_OVERLAP, about
+
+    passage = (
+        "Für Lieferungen ins Ausland berechnet der Shop eine Versandpauschale von 9,95 EUR.",
+    )
+    assert not about(
+        "Girokonto Kündigungsfrist Gebühr", passage, "de", ENTAILMENT_OVERLAP
+    )
+    assert not about(
+        "girokonto kündigungsfrist gebühr", passage, "de", ENTAILMENT_OVERLAP
+    )
+
+
 def test_the_verifier_cannot_reject_a_question_that_names_something() -> None:
     """An opinion needs a measurement behind it, not only a second model."""
     recording = Recording(recovers="4 kg", stands_alone=False)

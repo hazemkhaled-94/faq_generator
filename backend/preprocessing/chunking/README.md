@@ -188,7 +188,8 @@ every path segment as a word; a lemma must hold a letter and be longer than
 one character, because a lemmatiser handed a word from another language
 returns the placeholder `--`; and in a language named in
 `NLP_CAPITALISED_NOUNS`, a lower-case word tagged as a noun is treated as
-foreign and dropped.
+foreign and dropped, unless the text writes no word after its first with a
+capital.
 
 ### Step 5 — Store
 
