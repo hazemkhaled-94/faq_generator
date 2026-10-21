@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from database.qa_generator.passages import headings_of
+from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
 from extraction.validation import HEADING_LABEL, NUMBER, label_word
 from nlp.analysis import content, normalised
@@ -232,7 +232,7 @@ def _siblings(edges: _Edges, partners: Sequence[PassageToExtract]) -> None:
         edges.position[p.id] = at
         trail = _segments(p)
         if len(trail) >= 2:
-            edges.parent[p.id] = " > ".join(trail[:-1])
+            edges.parent[p.id] = trail_of(trail[:-1])
             edges.family[edges.parent[p.id]].append(p)
         if trail:
             edges.last[p.id] = trail[-1]
