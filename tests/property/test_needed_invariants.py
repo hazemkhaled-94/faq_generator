@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -59,7 +58,7 @@ def test_needed_keeps_every_passage_alone_holding_a_part(case) -> None:
 
 @given(_cases())
 def test_with_no_passage_of_its_own_one_holding_the_most_is_kept(case) -> None:
-    """Without a unique part, one passage, the first of the fullest."""
+    """Without a unique part, the first of the fullest; alone where it holds them all."""
     texts, parts = case
     holds = _holds(parts, texts)
     got = needed(parts, texts)
@@ -71,17 +70,12 @@ def test_with_no_passage_of_its_own_one_holding_the_most_is_kept(case) -> None:
     if got is None or own:
         return
     best = max(len(h) for h in holds)
-    assert len(got) == 1
-    assert len(holds[got[0]]) == best
-    assert got[0] == min(at for at, h in enumerate(holds) if len(h) == best)
+    first = min(at for at, h in enumerate(holds) if len(h) == best)
+    assert first in got
+    if holds[first] == set().union(*holds):
+        assert got == (first,)
 
 
-@pytest.mark.xfail(
-    reason="open: with three or more passages the ones holding a part of their own "
-    "can miss a part only the others share, and the question is narrowed to them "
-    "(reachable only with bridge groups of three or more, not the default of two)",
-    strict=False,
-)
 @given(_cases())
 def test_the_passages_needed_hold_every_part_some_passage_holds(case) -> None:
     """No part a passage states is lost by the narrowing."""

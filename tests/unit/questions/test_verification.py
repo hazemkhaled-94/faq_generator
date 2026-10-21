@@ -6382,6 +6382,46 @@ _NEEDED = [
         [[_DORMANT["en"][1]], [_DORMANT["en"][0]]],
         (0, 1),
     ),
+    (
+        "three passages, a part only two others share en",
+        (
+            "The account fee is 4.90 EUR a month.",
+            "Statements are sent free of charge every quarter.",
+            "Statements are sent free of charge every quarter by post.",
+        ),
+        [
+            ["The account fee is 4.90 EUR a month."],
+            ["Statements are sent free of charge every quarter"],
+        ],
+        (0, 1),
+    ),
+    (
+        "three passages, a part only two others share de",
+        (
+            "Rücksendungen sind innerhalb von 14 Tagen kostenlos.",
+            "Der Versand ins Ausland kostet 9,95 EUR.",
+            "Der Versand ins Ausland kostet 9,95 EUR pro Paket.",
+        ),
+        [
+            ["Rücksendungen sind innerhalb von 14 Tagen kostenlos."],
+            ["Der Versand ins Ausland kostet 9,95 EUR"],
+        ],
+        (0, 1),
+    ),
+    (
+        "three passages, none with a part of its own",
+        (
+            "Cards are blocked after three wrong PINs. A new card costs 10 EUR.",
+            "A new card costs 10 EUR. Cards are sent by post.",
+            "Cards are blocked after three wrong PINs. Cards are sent by post.",
+        ),
+        [
+            ["Cards are blocked after three wrong PINs."],
+            ["A new card costs 10 EUR."],
+            ["Cards are sent by post."],
+        ],
+        (0, 1),
+    ),
 ]
 
 

@@ -240,19 +240,27 @@ def needed(parts: Sequence[Part], texts: Sequence[str]) -> tuple[int, ...] | Non
     A passage holds a part when it holds one of the part's quotes whole, so a
     quote two passages hold counts for both. The passages needed are those
     holding a part no other passage holds; when none does, the one holding
-    the most parts, the first on a tie. None where no quote is held anywhere.
+    the most parts, the first on a tie. Then, for each part those leave
+    uncovered, the first passage holding it: with three passages a part two
+    others share is held by no owner. None where no quote is held anywhere.
     """
     holds = _holds(parts, texts)
     if not any(holds):
         return None
-    own = tuple(
+    keep = {
         at
         for at, mine in enumerate(holds)
         if mine - set().union(*(one for i, one in enumerate(holds) if i != at))
-    )
+    } or {max(range(len(texts)), key=lambda at: (len(holds[at]), -at))}
+    covered = set().union(*(holds[at] for at in keep))
+    for part in sorted(set().union(*holds) - covered):
+        if part not in covered:
+            first = next(at for at, mine in enumerate(holds) if part in mine)
+            keep.add(first)
+            covered |= holds[first]
     # With three or more passages a subset of two or more needed keeps every
     # citation, until a three-passage kind narrows to subsets.
-    return own or (max(range(len(texts)), key=lambda at: (len(holds[at]), -at)),)
+    return tuple(sorted(keep))
 
 
 def settle(
