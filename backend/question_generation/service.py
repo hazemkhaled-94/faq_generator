@@ -154,6 +154,18 @@ _QUERY_NOTES: dict[str, str] = {
     ),
 }
 
+#: What a draft the round trip's read refused is told instead, by the same
+#: code. The read refuses `compound` for two asks under one question word or
+#: one ask read two ways, which no `and` need join and a keyword query has
+#: none of.
+_READ_NOTES: dict[str, str] = {
+    QuestionRejection.COMPOUND: (
+        "a second reader found it asks for two things, or can be read as "
+        "asking two, so a chatbot answering one of them would be neither right "
+        "nor wrong. Ask for one of them, in words that can be read one way only."
+    ),
+}
+
 #: The gates that read the answer as well as the question. A retry keeping
 #: the question but changing its answer has changed what these read.
 _READS_KEY = frozenset(
@@ -855,7 +867,7 @@ def again(checked: CheckedQuestion) -> str | None:
     The draft itself is quoted: told what was wrong but not shown what it
     wrote, a writer at a low temperature writes the same draft again. A
     draft written as a search query is told the query's note where the gate
-    has one.
+    has one, and a draft the round trip's read refused is told the read's.
 
     An accepted draft that came out below its band is left alone. Asking it
     to cite every passage it was offered is asking for the weld the span
@@ -864,7 +876,12 @@ def again(checked: CheckedQuestion) -> str | None:
     """
     reason = checked.rejected_reason or ""
     query = any(one.form == "query" for one in checked.categories)
-    note = (_QUERY_NOTES.get(reason) if query else None) or _NOTES.get(reason)
+    read = "round_trip" in checked.gates_ran
+    note = (
+        (_READ_NOTES.get(reason) if read else None)
+        or (_QUERY_NOTES.get(reason) if query else None)
+        or _NOTES.get(reason)
+    )
     if note is None:
         return None
     answer = (
