@@ -1475,6 +1475,8 @@ class QuestionCatalog(Repository):
                 )
                 for name, column in grouped.items()
             }
+            # shortcut: counted here from the stored JSON, a few MB at 10,000
+            # questions; move to jsonb_array_elements in SQL if the page slows.
             spread["categories"] = dict(
                 Counter(
                     f"{one['categorization']}={one['category']}"

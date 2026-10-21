@@ -200,5 +200,9 @@ None of them reaches a network.
   while it was required still asks for one until it is recreated:
   `make review-pull-topics`, then delete the dataset in Argilla and push
   again.
+- **A questions dataset created before v0.4.3 has no `categories` field.** A push
+  to it drops the field (a warning names the pull and delete steps), and its
+  guideline is the old one: `make review-pull-questions`, then delete the
+  dataset in Argilla and push again.
 - **`extract-revalidate` does not touch `reviewed_verdict`.**
 - **This never runs in a container.** No image carries the Argilla client.

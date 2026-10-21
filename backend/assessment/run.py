@@ -359,9 +359,10 @@ def _conformance(
     """Prints, per group, the share in its word bounds, factoid and open-ended.
 
     Word bounds are a category's, so a kind is held to none and prints no
-    bounds column; factoid and open-ended hold for either. The bounds are today's QUESTIONS_CATEGORIZATIONS, read as the question
-    stage reads it, because a question stores the words it was told and not
-    the bounds: a row written under other bounds is counted against these.
+    bounds column; factoid and open-ended hold for either. The bounds are
+    today's QUESTIONS_CATEGORIZATIONS, read as the question stage reads it,
+    because a question stores the words it was told and not the bounds: a
+    row written under other bounds is counted against these.
     A category with no bounds today shows none. Factoid and open-ended are
     read off the Answer form column, so neither counts a question with no
     answer.
