@@ -909,7 +909,8 @@ its language and answerability rather than over the single nearest of each
 kind that re-verify probes, so a twin the gate let past behind a closer
 question is caught here.
 A root whose twin is already in is skipped, a thread ends at a turn that
-twins what is already in, and of a group the question the draw's hash ranks
+twins what is already in or whose band, kind or language has no place left
+(the test a root passes), and of a group the question the draw's hash ranks
 first is the one kept where it fits, so creation order does not decide which
 twin stays.
 

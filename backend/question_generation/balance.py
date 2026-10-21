@@ -206,9 +206,12 @@ def choose(
     Ties go to the cell whose next question ranks first by `_rank`, so the
     draw is reproducible and does not lean on the order rows were written.
 
-    Threads are drawn whole: only a root is chosen, and it brings every turn
-    under it, each counted against its own buckets. A follow-up whose root
-    is not in the pool is never drawn.
+    Threads are drawn whole: only a root is chosen, and it brings the turns
+    under it, each counted against its own buckets as it joins. A thread ends
+    at the first turn whose band, kind or language has no place left, the
+    same `fits` test a root passes, and the turns after it go with it, so a
+    release never holds a kind past its quota for the follow-ups' sake. A
+    follow-up whose root is not in the pool is never drawn.
 
     `twins` names, for a question, the others the release must not hold
     beside it: a set that asks one thing twice weights it twice. A root
@@ -250,6 +253,14 @@ def choose(
             and (not quota.languages or languages.get(row.language, 0) > 0)
         )
 
+    def spend(row: Row) -> None:
+        """Takes one place from each bucket this question fills."""
+        left[row.answerable] -= 1
+        bands[row.difficulty] = bands.get(row.difficulty, 0) - 1
+        types[row.question_type] = types.get(row.question_type, 0) - 1
+        if quota.languages:
+            languages[row.language] = languages.get(row.language, 0) - 1
+
     def taken(row: Row) -> None:
         """Takes a root out of its cell."""
         key, _ = waiting.pop(row.id)
@@ -290,6 +301,7 @@ def choose(
         # ponytail: a cell is rebuilt to take one row out. Upgrade: a deque
         # per cell, and a set of the ids taken out of turn.
         taken(root)
+        spend(root)
         thread = [root]
         within = {root.id}
         for turn in thread:
@@ -299,6 +311,12 @@ def choose(
                     twinned.isdisjoint(within) and twinned.isdisjoint(held_ids)
                 ):
                     continue
+                # The same test a root passes: a turn whose band, kind or
+                # language is full ends the thread there, and the turns
+                # after it go with it.
+                if not fits(follow):
+                    continue
+                spend(follow)
                 thread.append(follow)
                 within.add(follow.id)
         for turn in thread:
@@ -307,11 +325,6 @@ def choose(
                     taken(waiting[twin][1])
             chosen.append(turn.id)
             held_ids.add(turn.id)
-            left[turn.answerable] -= 1
-            bands[turn.difficulty] = bands.get(turn.difficulty, 0) - 1
-            types[turn.question_type] = types.get(turn.question_type, 0) - 1
-            if quota.languages:
-                languages[turn.language] = languages.get(turn.language, 0) - 1
 
     short = {
         name: count for name, count in (bands | types | languages).items() if count > 0

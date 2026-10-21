@@ -6,9 +6,11 @@ delivery times), German and English.
 
 from __future__ import annotations
 
+from collections import Counter
+
 import pytest
 
-from question_generation.balance import Row, largest, quota_of
+from question_generation.balance import Row, choose, largest, quota_of
 
 KINDS = (
     "factoid",
@@ -67,3 +69,38 @@ def test_the_places_an_exhausted_kind_cannot_take_go_to_the_others():
         supply={"fees": 2, "returns": 50, "delivery": 50},
     )
     assert quota.types == {"fees": 2, "returns": 14, "delivery": 14}
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_follow_ups_do_not_draw_a_kind_past_its_quota(language):
+    """R3 P1/P4: three roots in ten bring a `condition` follow-up ("And if the account is joint?").
+
+    A release of 60 over six kinds weighed alike gives condition ten places.
+    Threads are drawn whole and each turn was counted after the fact, so
+    condition ended far past its ten and the other kinds ended short; a thread
+    now ends at the first turn whose kind is full.
+    """
+    kinds = ("factoid", "definition", "procedure", "reason", "application")
+    roots = _roots([(kind, 100) for kind in kinds] + [("condition", 100)], language)
+    follows = [
+        Row(
+            id=1000 + root.id,
+            answerable=True,
+            difficulty="easy",
+            question_type="condition",
+            follows_id=root.id,
+            language=language,
+        )
+        for root in roots
+        if root.question_type != "condition" and (root.id - 1) % 100 < 30
+    ]
+    pool = roots + follows
+    types = dict.fromkeys([*kinds, "condition"], 1)
+    quota = quota_of(60, {"easy": 1}, types, 0.0, {language: 1})
+    release = choose(pool, quota)
+    drawn = Counter(row.question_type for row in pool if row.id in set(release.ids))
+    assert drawn["condition"] <= quota.types["condition"], (
+        f"condition {drawn['condition']} against a quota of {quota.types['condition']}; "
+        f"short {release.short}"
+    )
+    assert release.size == 60 and not release.short

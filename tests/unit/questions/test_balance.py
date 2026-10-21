@@ -350,7 +350,8 @@ def test_a_follow_up_is_never_drawn_without_the_turn_it_follows() -> None:
 
 def test_a_root_drawn_carries_its_thread_with_it() -> None:
     """The follow-ups are the part of the set that tests multi-turn retrieval."""
-    quota = quota_of(3, {Difficulty.EASY: 1}, TYPES, 0.0)
+    types = {QuestionType.FACTOID: 1, QuestionType.REASON: 2}
+    quota = quota_of(3, {Difficulty.EASY: 1}, types, 0.0)
     pool = [
         row(1),
         Row(2, True, Difficulty.EASY, QuestionType.REASON, follows_id=1),
