@@ -180,7 +180,7 @@ table gives no probabilities:
 
 | Categorization | Categories |
 |---|---|
-| Phrasing | concise-and-natural, verbose-and-natural, short-search-query, long-search-query |
+| Phrasing | concise-and-natural, verbose-and-natural |
 | Premise | direct, with-premise |
 
 Table 5's Factuality is not among them: whether a question is factoid or
@@ -262,16 +262,35 @@ A category is a question asked unless it says `"form": "query"`, which
 makes it a search query: keywords typed into a box. The writer is told the
 question-mark rule does not apply to it, and no gate refuses it for ending
 without one, when it is written or when it is re-checked; every other rule
-holds. The default's short and long search queries are of form `query`.
+holds. Table 5's short and long search queries are of form `query`, and
+neither is dealt unset: in calibration the short ones fell below the floors
+for correct and complete keys (0.70 and 0.57 against 0.80 and 0.72), and a
+third of the long ones written were not queries. A Phrasing listing them
+beside the two natural phrasings, set in place of the default's, deals all
+four at even odds:
+
+```json
+[
+  {
+    "categorization_name": "Phrasing",
+    "categories": [
+      {"name": "concise-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a concise, direct question consisting of less than 10 words.", "words": {"max": 9}},
+      {"name": "verbose-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a relatively long question consisting of more than 9 words.", "words": {"min": 10}},
+      {"name": "short-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of less than 7 words.", "words": {"max": 6}},
+      {"name": "long-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of more than 6 words.", "words": {"min": 7}}
+    ]
+  }
+]
+```
 
 A category may also carry word bounds, `"words": {"min": 10}`, `{"max": 9}`
 or both, each a whole number of at least 1. They are a label for reading the
 result, never an instruction and never a refusal: the writer is not sent
 them, no question is refused for missing them, and `make diversity
 BY=category` reports the share of each category's questions inside them.
-The default bounds each phrasing by the count its description names:
-concise-and-natural to at most 9 words, verbose-and-natural to at least 10,
-short-search-query to at most 6 and long-search-query to at least 7. The
+The default bounds concise-and-natural to at most 9 words and
+verbose-and-natural to at least 10, the counts their descriptions name; the
+search queries above are bounded to at most 6 and at least 7 the same way. The
 report reads the bounds configured when it runs, so a question written under
 other bounds is counted against today's.
 

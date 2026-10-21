@@ -164,10 +164,10 @@ _ROUNDING = 0.01
 #: QUESTIONS_CATEGORIZATIONS when it is absent: categorizations of the
 #: paper's Table 5, its descriptions without the examples its caption calls
 #: illustrative, every category at even odds because the table gives none.
-#: The two search queries are typed as keywords. Each phrasing is bounded by
-#: the word count its description names. The table's `direct` ends on a
-#: stray closing parenthesis, left out here. Here rather than in backend.env,
-#: which bash sources and so cannot hold a JSON value.
+#: The two natural phrasings are bounded by the word counts their
+#: descriptions name. The table's `direct` ends on a stray closing
+#: parenthesis, left out here. Here rather than in backend.env, which bash
+#: sources and so cannot hold a JSON value.
 DEFAULT_CATEGORIZATIONS = json.dumps(
     [
         {
@@ -188,24 +188,6 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
                     "artificial structure. It is a relatively long question "
                     "consisting of more than 9 words.",
                     "words": {"min": 10},
-                },
-                {
-                    "name": "short-search-query",
-                    "form": "query",
-                    "description": "phrased as a typed web query for search "
-                    "engines (only keywords, without punctuation and without a "
-                    "natural-sounding structure). It consists of less than 7 "
-                    "words.",
-                    "words": {"max": 6},
-                },
-                {
-                    "name": "long-search-query",
-                    "form": "query",
-                    "description": "phrased as a typed web query for search "
-                    "engines (only keywords, without punctuation and without a "
-                    "natural-sounding structure). It consists of more than 6 "
-                    "words.",
-                    "words": {"min": 7},
                 },
             ],
         },

@@ -52,8 +52,7 @@ each is a set of mutually exclusive categories, each category a description
 of what a question of it is like and how often it is wanted. The setting
 holds them as the paper's Figure 2 JSON. Unset, it reads two of the paper's
 Table 5 categorizations, every category at even odds: Phrasing, a concise
-natural question of fewer than 10 words, a verbose one of more than 9, or a
-short or long search query typed as keywords; and
+natural question of fewer than 10 words or a verbose one of more than 9; and
 Premise, a direct question or one opening with a very short premise in which
 the asker says what they need or something about themselves. `[]` deals
 none.
@@ -226,7 +225,28 @@ first to send the asker block; a slot dealt no user category is sent what
 version 17 sent.
 
 A category of `"form": "query"` is a search query: keywords typed into a
-box, as Table 5's short and long search queries are. The rules ask for a
+box, as Table 5's short and long search queries are. Neither is dealt
+unset, and both are there to opt into: in calibration the short search
+queries fell below the floors for correct and complete keys, and a third of
+the long ones written were not queries. A Phrasing listing them beside the
+two natural phrasings, set in place of the default's, deals all four at even
+odds:
+
+```json
+[
+  {
+    "categorization_name": "Phrasing",
+    "categories": [
+      {"name": "concise-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a concise, direct question consisting of less than 10 words.", "words": {"max": 9}},
+      {"name": "verbose-and-natural", "description": "phrased in the way people typically speak, reflecting everyday language use, without formal or artificial structure. It is a relatively long question consisting of more than 9 words.", "words": {"min": 10}},
+      {"name": "short-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of less than 7 words.", "words": {"max": 6}},
+      {"name": "long-search-query", "form": "query", "description": "phrased as a typed web query for search engines (only keywords, without punctuation and without a natural-sounding structure). It consists of more than 6 words.", "words": {"min": 7}}
+    ]
+  }
+]
+```
+
+ The rules ask for a
 question ending in a question mark, and the rules win, so its question block
 carries one more line, before the rules are said to win:
 
@@ -1008,7 +1028,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
-| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category's `form` is `question`, the default, or `query` for a search query, which no gate holds to a question mark; any other form is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them and no question is refused by them, and `make diversity BY=category` reports how many of the category's questions keep to them. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's natural phrasings and search queries and its two premises from code, each phrasing bounded by the word count its description names, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise, verbose, short and long search query, 0.25 each; Premise: direct and with-premise, 0.5 each** |
+| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as an unanswerable question and a follow-up are. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category's `form` is `question`, the default, or `query` for a search query, which no gate holds to a question mark; any other form is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them and no question is refused by them, and `make diversity BY=category` reports how many of the category's questions keep to them. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings and its two premises from code, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise and verbose; Premise: direct and with-premise; 0.5 each** |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |

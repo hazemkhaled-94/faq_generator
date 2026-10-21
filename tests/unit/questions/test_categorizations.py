@@ -208,12 +208,7 @@ def test_a_role_it_does_not_take_is_refused_by_name(role: object) -> None:
 def test_the_default_bounds_its_phrasings_words() -> None:
     """Table 5's "less than 10" and "more than 9", which a report reads."""
     phrasing = categorizations(DEFAULT_CATEGORIZATIONS)[0]
-    assert [each.words for each in phrasing.categories] == [
-        (None, 9),
-        (10, None),
-        (None, 6),
-        (7, None),
-    ]
+    assert [each.words for each in phrasing.categories] == [(None, 9), (10, None)]
 
 
 def test_a_category_with_no_words_is_unbounded() -> None:
@@ -300,31 +295,10 @@ def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None
         for each in read_
     ] == [
         [
-            ("concise-and-natural", 0.25, "question"),
-            ("verbose-and-natural", 0.25, "question"),
-            ("short-search-query", 0.25, "question"),
-            ("long-search-query", 0.25, "question"),
+            ("concise-and-natural", 0.5, "question"),
+            ("verbose-and-natural", 0.5, "question"),
         ],
         [("direct", 0.5, "question"), ("with-premise", 0.5, "question")],
-    ]
-
-
-def test_the_default_phrases_half_its_questions_as_search_queries() -> None:
-    """Table 5's two queries, typed as keywords, beside its two natural phrasings."""
-    phrasing = categorizations(DEFAULT_CATEGORIZATIONS)[0]
-    assert [(one.name, one.form) for one in phrasing.categories] == [
-        ("concise-and-natural", "question"),
-        ("verbose-and-natural", "question"),
-        ("short-search-query", "query"),
-        ("long-search-query", "query"),
-    ]
-    typed = (
-        "phrased as a typed web query for search engines (only keywords, without "
-        "punctuation and without a natural-sounding structure). It consists of "
-    )
-    assert [one.description for one in phrasing.categories[2:]] == [
-        typed + "less than 7 words.",
-        typed + "more than 6 words.",
     ]
 
 
@@ -370,6 +344,37 @@ def test_the_wording_and_the_asker_are_table_5s_to_opt_into(guide: str) -> None:
             "The user asking the question is a regular user with no understanding "
             "of specialized terms."
         ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "guide", ["docs/configuration.md", "backend/question_generation/README.md"]
+)
+def test_the_search_queries_are_table_5s_to_opt_into(guide: str) -> None:
+    """Not dealt unset, and given in each guide as a Phrasing of four to set instead.
+
+    Calibration found short-search-query below the floors for correct and
+    complete keys, and a third of the long search queries were not queries.
+    """
+    unset = categorizations(DEFAULT_CATEGORIZATIONS)[0]
+    assert {one.form for one in unset.categories} == {"question"}
+    phrasing = opt_in(guide, "Phrasing")
+    assert [(one.name, one.form, one.words) for one in phrasing.categories] == [
+        ("concise-and-natural", "question", (None, 9)),
+        ("verbose-and-natural", "question", (10, None)),
+        ("short-search-query", "query", (None, 6)),
+        ("long-search-query", "query", (7, None)),
+    ]
+    typed = (
+        "phrased as a typed web query for search engines (only keywords, without "
+        "punctuation and without a natural-sounding structure). It consists of "
+    )
+    assert [one.description for one in phrasing.categories[2:]] == [
+        typed + "less than 7 words.",
+        typed + "more than 6 words.",
+    ]
+    assert [one.description for one in phrasing.categories[:2]] == [
+        one.description for one in unset.categories
     ]
 
 
