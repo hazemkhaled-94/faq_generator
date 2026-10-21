@@ -42,4 +42,4 @@ class ModelsBucket(Bucket):
         The same shape as the figure's key in `export`, so the two halves
         of one fit are found the same way.
         """
-        return f"topics/{language}.npz"
+        return f"topics/{cls.database_name()}/{language}.npz"

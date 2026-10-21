@@ -11,9 +11,14 @@ never builds a client or learns a credential.
 |---|---|---|---|
 | `documents` | `{sha[0:2]}/{sha[2:4]}/{sha}.pdf` | The uploaded bytes, exactly as they arrived | never |
 | `parsed` | `{sha[0:2]}/{sha[2:4]}/{sha}.json` | The converter's complete output | never |
-| `models` | `topics/{language}.npz` | The fitted factorisation each language's topics were read off | replaced by the next fit |
-| `export` | `topics/{language}.html` | Each language's pyLDAvis figure, and nothing else | replaced by the next fit |
+| `models` | `topics/{database}/{language}.npz` | The fitted factorisation each language's topics were read off | replaced by the next fit |
+| `export` | `topics/{database}/{language}.html` | Each language's pyLDAvis figure, and nothing else | replaced by the next fit |
 | `archive` | `{origin}/{the key it had}@{UTC time}` | What a deletion took out of the other four, and the model and figure a fit replaced | `make archive-purge` |
+
+`{database}` is the path of `DATABASE_URL`, so a second database on the same
+store (a test copy, a staging fit) neither overwrites nor archives another's
+figure and model. The key `topics/{language}.*` of earlier releases is not
+read: a database upgraded from one runs `make topics-discover` again.
 
 `models` and `export` are one fit's two halves, and which is which matters.
 `models` holds the factorisation; `export` holds a picture drawn from it. The

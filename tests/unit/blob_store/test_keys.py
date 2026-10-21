@@ -44,3 +44,23 @@ def test_a_bucket_that_does_not_name_itself_is_refused() -> None:
 
         class Unnamed(Bucket):
             """A bucket with no name."""
+
+
+@pytest.mark.parametrize(
+    ("url", "database"),
+    [
+        ("postgresql+psycopg://u:p@host:5432/qa_bank", "qa_bank"),
+        ("postgresql+psycopg://u:p@host/qa_shop?sslmode=require", "qa_shop"),
+    ],
+)
+def test_a_topic_figure_and_model_are_keyed_by_the_database_and_the_language(
+    monkeypatch, url, database
+) -> None:
+    """A second database on the same object store must not overwrite the first's."""
+    from blob_store.s3.export import ExportBucket
+    from blob_store.s3.models import ModelsBucket
+
+    monkeypatch.setenv("DATABASE_URL", url)
+
+    assert ExportBucket.topic_visualisation_key("de") == f"topics/{database}/de.html"
+    assert ModelsBucket.topic_model_key("de") == f"topics/{database}/de.npz"

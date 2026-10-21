@@ -50,5 +50,9 @@ class ExportBucket(Bucket):
 
     @classmethod
     def topic_visualisation_key(cls, language: str) -> str:
-        """Builds the key one language's topic visualisation is stored under."""
-        return f"topics/{language}.html"
+        """Builds the key one language's topic visualisation is stored under.
+
+        Under the database's name, so a second database on the same store
+        neither overwrites nor archives this one's.
+        """
+        return f"topics/{cls.database_name()}/{language}.html"

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from time import monotonic
 from typing import Any, ClassVar
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from blob_store.s3.client import s3_client
 
@@ -63,6 +64,16 @@ class Bucket:
             raise TypeError(
                 f"{cls.__name__} is a Bucket but does not declare name: ClassVar[str]."
             )
+
+    @staticmethod
+    def database_name() -> str:
+        """The database this process runs against, read from the path of DATABASE_URL.
+
+        What keys a database's own objects apart from another's on the same
+        store: the buckets are fixed names, and the database is chosen only
+        by that URL.
+        """
+        return urlparse(os.environ["DATABASE_URL"]).path.strip("/")
 
     @staticmethod
     def fanout_key(sha256: str, extension: str) -> str:
