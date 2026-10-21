@@ -952,6 +952,48 @@ Every row rests on its red tests, most of them static tests of the Makefile, the
 | A lead-in the converter labels a heading read as a paragraph (the heading half of FIX-R100) | With flat heading levels nothing says where such a lead-in's scope ends, and read as a paragraph it reached sibling sections it does not introduce. The chunking README lists the loss as a limit: a lead-in set as a heading reaches no passage when sub-headings of its own level follow it |
 | A parser cut before a lower-case word dropped where nothing ends a sentence before it on its line, so *Der Kunde zahlt gem. Preisverzeichnis eine Gebühr.* is one sentence (QA-extraction-4) | In the second facts replay it moved the cuts of 21 of the 820 passages, most of them joining clauses after a semicolon, and validated one fact the base refused, which the blind label found narrowed: it drops the condition that the ball was outside the penalty area. 0 of 1 correct, against a floor of 0.767: the snapshot's share of validated facts stated correctly (0.867) minus 0.10. It was reverted, so such a clause is still stored as two halves, held by a strict expected failure |
 
+### Fixed in v0.4.5: API and settings
+
+v0.4.5 holds the API, frontend and review items kept for it, the stack items the move check could test, and what the whole-project QA pass found in those parts. It changes no question code, no prompt and no stored row, and has no migration. As above, "red tests" are tests that failed before the fix and pass with it.
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| The wiki's API Reference listed `GET /redoc` and `GET /docs/oauth2-redirect` as served and left 409 `assessment_cannot_run` out of its refusals (QA-api-frontend-6) | the page is a copy of the API README it names as its source, and had gone stale | the wiki says what [`main.py`](../backend/api/main.py) serves: `GET /openapi.json` and its own `GET /docs`, with no `/redoc` and no `/docs/oauth2-redirect`; its refusals list the 409 that both rerun routes of `/assessment` answer, before any verdict is cleared, while `ASSESSMENT_ENABLED` is off or `ASSESSMENT_JUDGE_MODEL` names no model. No code changed | read against the code |
+<!-- v0.4.5: v-api -->
+
+### Fixed in v0.4.5: frontend and review
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| **Listings** | | | |
+| A search longer than the 200 characters the listing routes take replaced the whole page below the search with `Failed to load: 422` (QAB-frontend-review-10) | the search box had no bound, and the text stayed in it on every rerun | every listing's search box holds at most `SEARCH_MAX`, 200, and a static test holds it to the API's bound ([`config.py`](../frontend/lib/config.py)) | red tests |
+| The Topics search showed a topic's terms joined by commas and looked in them joined by spaces, so terms copied from the table found nothing, and *Label and terms* matched a phrase running from the label into the first term (QA-api-frontend-4) | the table and the search joined the terms two ways, and the search joined the label to the terms | the search looks in the terms joined as the table shows them, and in the label and the terms each alone ([`topics.py`](../frontend/views/topics.py)) | red tests |
+| A topic name longer than the 120 characters `PATCH /topics` takes was cut to 120 when somebody saved only the coverage choice (QAB-frontend-review-8) | the page drew the name cut to the box's bound and sent it back on Save, and a review pull stored a corrected name of any length | the page sends the name only when it was edited, and a pull leaves a longer corrected name, coverage included, in Argilla and logs the topic ids; a static test holds the pull's bound to the route's ([`service.py`](../review/service.py)) | red tests |
+| **Stored text drawn as written** | | | |
+| A document's filename went into its panel heading as HTML, so `Konditionen <Entwurf> & Preise.pdf` was headed with a name no document has (QAB-frontend-review-12) | `page.panel` and `page.header` put the title into `st.html` unescaped | both escape it ([`page.py`](../frontend/lib/page.py)) | red tests |
+| A filename was read as Markdown in the Delete question, the loading spinner and the upload messages, so `Preisliste_2026_Entwurf.pdf` was named in italics right before an irreversible delete (NEW-api-frontend-export-1) | Streamlit draws those messages as Markdown | `page.plain` puts a backslash before every ASCII punctuation mark, and the filename goes through it in each; an emoji shortcode such as `:smile:` still draws as an emoji, which no filename seen holds | red tests |
+| The *How this was produced* fold drew each artefact's own text as Markdown, so `$4.99 ... $20` read as math and `*Entwurf*` as italics (QAB-frontend-review-11) | `st.table` draws every cell as Markdown, which the fold's Phoenix links rely on | the artefact's text and the stage's reason go through `page.plain`; the links do not ([`lineage.py`](../frontend/lib/lineage.py)) | red tests |
+| **The Questions page** | | | |
+| Accept or Reject pressed for a question that had left the listing was dropped, and the page said only *That row changed meanwhile.* (VAR-press-lost) | the button the press belongs to is not drawn once its row has gone | the caption names the row, *Row 8036 left this list after it was picked, so nothing pressed for it was done.* No verdict is applied to a row that has left, because a colleague, the gates or a release moved it ([`page.py`](../frontend/lib/page.py)) | red tests; the pinned caption changed |
+| A compound slot written single for want of a second passage was shown with the spanning prompt it was not sent (VAR-review-kind-2) | the page reads the prompt off the planned band and the stored kind, and the row does not record which prompt was sent | the prompt fold of a question stored single on a spanning slot says that a compound slot short of its second passage is stored so too, and was sent the plain prompt of its type. Recording the prompt's name needs a column, which v0.4.5 does not add ([`questions.py`](../frontend/views/questions.py)) | red tests |
+| **Review** | | | |
+| A second fact push before a pull offered the facts already answered in Argilla again (QAB-frontend-review-14) | only the question push left out what Argilla holds an answer to | the fact push leaves them out too ([`service.py`](../review/service.py)) | red tests |
+| The facts review dataset carried no language, though the topic and question datasets do (QAB-frontend-review-15) | a fact record had no language field | a fact record carries the language of the passage at its own citation, `unknown` where it has none, as `language` metadata; a push to a facts dataset created before v0.4.5 warns that it is stale and names the pull and delete steps ([`records.py`](../review/records.py)) | red tests, a database test among them |
+
+### Fixed in v0.4.5: the stack and tests
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+<!-- v0.4.5: move-check -->
+<!-- v0.4.5: v-api -->
+
+The whole-project QA pass also lands as commits that change tests alone. They add property tests of the release draw (no kind past its share plus the slack, no follow-up without its root, no twin beside its twin, no more unanswerable questions than the ceiling, the first size that fills scanning down), of the categories a slot is told and of the space-grouped and ordinal readings; unit tests of the round trip's read, the release quota and threads and the edges of those readings; tests of the API's write and digest guards over generated origins, `Sec-Fetch-Site` values and path segments; tests that every page renders from what the real API answers, on an empty database and on a small German bank corpus; and tests that a review pull writes a verdict exactly when every submitted answer agrees. A defect the pass found and v0.4.5 does not fix is pinned as a strict expected failure, so its fix fails the test until the marker is taken off. Two rows stay open so, both waiting for the one reader of space-grouped amounts that the withdrawn fix above needs:
+
+- QA-questions-1, 2 cases (English and German): an explanation stating a space-grouped amount the passages do not (EUR 200 000 against EUR 100 000) still passes `explains`, where the same amount written EUR 200,000 is refused.
+- QA-questions-4, 4 cases: a space-grouped amount beside a marked currency word (`100 000 Euro/Kunde`, `100 000 Euro*`, `5 000,- EUR`) is still read as two figures, so a right total over two such amounts is refused by `adds_up` without a model call.
+
+The expected failure of QA-api-frontend-4 comes off with its fix above, those of QA-security-1 and QA-security-5 with v0.4.4's fixes, and those of QA-security-3 and QA-security-4 with their rows under *API and settings*. The pass's tests of QA-questions-2 and QA-questions-5 were dropped with the title rule they tested, which was withdrawn before v0.4.3 shipped: on the shipped rule QA-questions-5's test passes, and QA-questions-2's inflected title is left to the phrasing judge, at one model call.
+
 ### Deferred, with the reason
 
 | Items | Why they stay open |
