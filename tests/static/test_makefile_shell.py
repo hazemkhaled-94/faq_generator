@@ -112,10 +112,6 @@ def test_a_log_that_cannot_be_read_fails_the_cost_targets(
     assert ran.returncode != 0, ran.stdout
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="OVERRIDE exports $(MAKEOVERRIDES) unquoted, so a command-line path with ( ) or & is re-read by the shell and the target fails",
-)
 def test_a_path_with_shell_characters_reaches_the_command_whole() -> None:
     """questions-export quotes its OUT; the export of it in LOADENV does not.
 

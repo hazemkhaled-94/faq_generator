@@ -52,8 +52,10 @@ SOURCES := backend frontend telemetry orchestration review evaluation tests
 # The names are the variables whose origin is the command line, not the
 # words of MAKEOVERRIDES, where make escapes a value's spaces and nothing
 # else: split, `OUT="a - b.xlsx"` named `-` and `b.xlsx` settings too.
+# Each value is exported single-quoted, its own quotes escaped, for the same
+# reason: re-read by the shell, a `(`, `&` or `'` in a path was a syntax error.
 GIVEN = $(strip $(foreach given,$(.VARIABLES),$(if $(filter command line,$(origin $(given))),$(given))))
-OVERRIDE = $(if $(MAKEOVERRIDES),&& export $(MAKEOVERRIDES) QA_COMMAND_LINE="$(GIVEN)",)
+OVERRIDE = $(if $(GIVEN),&& export $(foreach given,$(GIVEN),$(given)='$(subst ','\'',$($(given)))') QA_COMMAND_LINE="$(GIVEN)",)
 
 # The values that are never written down, because they are built out of ones
 # that are. A copy of a port inside an address is a copy free to disagree
