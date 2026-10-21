@@ -107,3 +107,35 @@ def test_every_compose_worker_is_in_the_catalogue() -> None:
     run = set(re.findall(r"^  ([a-z]+-worker):", compose, re.MULTILINE))
 
     assert run <= {one.name for one in services.CATALOGUE}
+
+
+def _compose_services() -> dict:
+    """The services compose.yaml declares, as written."""
+    from pathlib import Path
+
+    import yaml
+
+    path = Path(__file__).resolve().parents[3] / "compose.yaml"
+    return yaml.safe_load(path.read_text())["services"]
+
+
+def test_the_object_store_proxy_serves_someone() -> None:
+    """A proxy for the object store's own pages is one a person can open.
+
+    seaweedfs-ui proxied the master's and the filer's pages, published no
+    port, and SERVICE_URLS linked nothing to it, so nobody could open them.
+    """
+    declared = _compose_services()
+    proxy = declared.get("seaweedfs-ui")
+    if proxy is None:
+        return
+    linked = declared["api"]["environment"]["SERVICE_URLS"]
+
+    assert proxy.get("ports") or "seaweedfs-ui=" in linked
+
+
+def test_every_catalogued_service_is_one_compose_runs() -> None:
+    """System health lists no container a deployment does not start."""
+    stray = {one.name for one in services.CATALOGUE} - set(_compose_services())
+
+    assert not stray, sorted(stray)

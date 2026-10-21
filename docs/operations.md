@@ -17,7 +17,7 @@ Once `make dev` reports ready:
 | Dagster | <http://localhost:3000> | The asset graph and run history |
 
 Behind them: PostgreSQL, SeaweedFS, Elasticsearch, Redis, Filebeat, the
-Dagster daemon and the six stage workers — twenty-four containers in all.
+Dagster daemon and the six stage workers — twenty-three containers in all.
 
 Every published port binds to 127.0.0.1, so each URL above answers on this
 machine only. PostgreSQL and SeaweedFS's S3 gateway publish a port for the

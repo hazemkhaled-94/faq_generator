@@ -47,7 +47,7 @@ See [docs/measurements.md](docs/measurements.md) for what one run produced.
 |---|---|---|
 | [Python](https://www.python.org/downloads/) | 3.12 or 3.13 | 3.14 is not supported: gensim does not build there |
 | [Poetry](https://python-poetry.org/docs/#installation) | 2.0 or later | Dependency management |
-| [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-started/get-docker/) | with Compose | 24 containers |
+| [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-started/get-docker/) | with Compose | 23 containers |
 | [Ollama](https://ollama.com/download) | any recent | **Required.** See below |
 | Disk | ~15 GB | Images, model weights and volumes |
 | RAM | 16 GB | 6 GB of it for the question worker |

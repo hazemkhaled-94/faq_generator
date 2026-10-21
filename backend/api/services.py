@@ -92,7 +92,6 @@ CATALOGUE: tuple[Service, ...] = (
     Service("redis", "The queue and cache Argilla runs on", 6379),
     Service("elasticsearch", "The log index Grafana reads", 9200),
     Service("filebeat", "Ships each container's log lines into Elasticsearch"),
-    Service("seaweedfs-ui", "The object store's own pages", 9333),
     Service("seaweedfs-master", "Decides which volume an object is written to", 9333),
     Service("seaweedfs-filer", "Names the objects, so a key is a path", 8888),
     Service("seaweedfs-s3", "The S3 API the services write through", 8333),

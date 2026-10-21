@@ -459,32 +459,6 @@ services:
       resources:
         limits: { cpus: "0.5", memory: 256M }
 
-  # Reverse proxy for the master and filer UIs, inside the network only.
-  seaweedfs-ui:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      TZ: UTC
-    volumes:
-      - ./configs/seaweedfs/Caddyfile:/etc/caddy/Caddyfile:ro
-    # The image declares both volumes; a plain-HTTP proxy keeps nothing in
-    # either.
-    tmpfs: [/config, /data]
-    depends_on:
-      seaweedfs-master: { condition: service_healthy }
-      seaweedfs-filer:  { condition: service_healthy }
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:9333/cluster/status || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-    networks: [global]
-    logging: *logging
-    deploy:
-      resources:
-        limits: { cpus: "0.25", memory: 128M }
-
   api:
     image: ${COMPOSE_PROJECT_NAME:-qa_generator}-backend:latest
     build:
