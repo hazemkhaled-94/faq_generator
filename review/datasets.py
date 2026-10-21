@@ -223,6 +223,11 @@ def question_settings() -> rg.Settings:
             "The exception is `kind` compound: a compound question asks two "
             "separate things on purpose, each answered by its own passage. "
             "Judge it one half at a time, and reject it if either half fails.\n\n"
+            "A category whose form is a search query, marked `(query)` in "
+            "`categories`, is judged as a query typed into a search box: "
+            "keywords with no question mark and no verb are what it was "
+            "written to be, not a malformed question. Judge whether somebody "
+            "would search for that, and whether the answer fits it.\n\n"
             "A question with a `thread` is a follow-up: it leans on the turns "
             "listed there on purpose, so judge it after them and do not reject "
             "it for not standing alone.\n\n"
@@ -246,6 +251,11 @@ def question_settings() -> rg.Settings:
             rg.TextField(
                 name="thread",
                 title="The turns it follows, oldest first",
+                required=False,
+            ),
+            rg.TextField(
+                name="categories",
+                title="What its writer was told it should be",
                 required=False,
             ),
             _judge_field(),
@@ -344,6 +354,11 @@ def question_record(row: QuestionRow, judge: Opinion = UNJUDGED) -> rg.Record:
             **(
                 {"thread": "\n".join(f"{n}. {t}" for n, t in enumerate(row.before, 1))}
                 if row.before
+                else {}
+            ),
+            **(
+                {"categories": "\n".join(f"- {one}" for one in row.categories)}
+                if row.categories
                 else {}
             ),
         },

@@ -42,6 +42,7 @@ def stored(language, text, kind, follows_id=None, position=1):
         answer_explanation=None,
         confidence=None,
         kind=kind,
+        categories=None,
         follows_id=follows_id,
         thread_position=position,
         fact_links=[link],

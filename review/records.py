@@ -95,6 +95,10 @@ class QuestionRow:
     confidence: float | None = None
     #: single, needs_both or compound: what the question was written to be.
     kind: str | None = None
+    #: What its writer was told it should be, one `Categorization=category`
+    #: per line of the record, `(query)` after one written as a search query,
+    #: so a reviewer judges a keyword query as a query.
+    categories: list[str] = field(default_factory=list)
     #: Where it sits in its thread (1 is a root) and what was asked before
     #: it, oldest first. A follow-up leans on those turns on purpose, so a
     #: reviewer shown it alone would reject it for the very thing it is for.
@@ -255,6 +259,11 @@ class ReviewRepository(Repository):
             answer_explanation=one.answer_explanation,
             confidence=one.confidence,
             kind=one.kind,
+            categories=[
+                f"{c['categorization']}={c['category']}"
+                + (" (query)" if c.get("form") == "query" else "")
+                for c in one.categories or ()
+            ],
             turn=one.thread_position,
             before=list(before),
         )

@@ -95,6 +95,7 @@ def test_a_stored_question_is_read_field_by_field() -> None:
         answer_explanation="weil",
         confidence=0.25,
         kind="needs_both",
+        categories=None,
         follows_id=4,
         thread_position=3,
         fact_links=[link],
