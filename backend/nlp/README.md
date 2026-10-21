@@ -333,4 +333,9 @@ loads encoder weights, and only when they are already cached.
   `girokonto kündigungsfrist Sparkasse` - makes the text read as written with
   capitals, and in a language named in `NLP_CAPITALISED_NOUNS` its lower-case
   nouns are dropped as foreign again.
+- **A German `dies` after a clause stands for that clause, even where it
+  names a thing.** After a `wenn` clause or a free relative (`Wer ein Konto
+  eröffnet, erhält dies per Post.`) the reference is read as resolved, though
+  what is received is something the passage named before. Telling an event
+  from a thing needs the verb's meaning, which the parse does not give.
 - **Nothing here calls a served model.**

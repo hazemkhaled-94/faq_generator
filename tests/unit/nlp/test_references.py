@@ -440,6 +440,27 @@ def test_a_german_dies_after_a_free_relative_clause_resolves(statement: str) -> 
 
 
 @pytest.mark.nlp
+@pytest.mark.xfail(
+    strict=True,
+    reason="known limit (nlp README): dies after a wenn clause or a free relative "
+    "is read as standing for that clause even where it names a thing received "
+    "or paid, which the parse cannot tell from an event",
+)
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Wer ein Konto eröffnet, erhält dies per Post.",
+        "Wer bestellt, zahlt dies per Rechnung.",
+    ],
+)
+def test_dies_received_after_a_free_relative_stays_a_reference(statement: str) -> None:
+    """What one receives or pays is a thing named elsewhere, not the event."""
+    from nlp.analysis import claim
+
+    assert "dies" in claim(statement, "de").references
+
+
+@pytest.mark.nlp
 @pytest.mark.parametrize(
     "statement",
     [
