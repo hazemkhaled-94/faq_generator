@@ -18,18 +18,24 @@ from; the fact is what it has to be answered by.
 
 from __future__ import annotations
 
+import logging
+
 from pydantic import BaseModel, Field
 
 from database.qa_generator import QuestionKind
 from llm.client import Client
 from llm.prompt import fill
+from nlp.analysis import asked
 from nlp.models import named
+from nlp.pipelines import pipeline
 from question_generation.kinds import KINDS, _Answered, stored
 from question_generation.models import Candidate, Category, FactGroup
 from question_generation.planning import Plan
 from question_generation.types import PROMPT_VERSION, READS, TypeSpec
 
 __all__ = ["PROMPT_VERSION", "QuestionWriter"]
+
+log = logging.getLogger(__name__)
 
 _PERTURB = (
     """ROLE
@@ -223,6 +229,16 @@ _ASKER = (
     "say.\n"
 )
 
+#: The note a draft told a premise is written again with, once, when its
+#: premise says nothing of the asker.
+_UNADDRESSED = (
+    'The previous draft was "{{question}}". A reviewer found that it does not '
+    "open on a premise about the asker: it names a topic or a setting, or "
+    "nothing at all. Open on a short premise in which the asker says, in the "
+    "first person, who they are, what they are doing or what they need, and "
+    "then ask."
+)
+
 #: The user message an unanswerable question is asked with.
 _USER_PERTURB = (
     "FACT - the question moves this one detail out of reach:\n"
@@ -297,6 +313,21 @@ def _held(categories: tuple[Category, ...]) -> tuple[Category, ...]:
         for one in categories
     )
     return tuple(one for one in categories if one.form != "premise" or not crowded)
+
+
+def _addressed(question: str, language: str | None) -> bool:
+    """Whether a question's premise holds a first- or second-person word.
+
+    The premise is what comes before the question itself, as `asked` finds
+    it, and the person is read off the language's own parse, so no word list
+    is kept. A question with nothing before it holds no premise at all.
+    """
+    premise = question[: len(question) - len(asked(question, language))]
+    return any(
+        person in token.morph.get("Person", [])
+        for token in pipeline(language)(premise)
+        for person in ("1", "2")
+    )
 
 
 def _under(position: int, statement: str) -> str:
@@ -381,14 +412,37 @@ class QuestionWriter:
         # it is told none. Keyed on the kind asked for, so a compound slot
         # short of its partner, written single, is told its categories.
         told = () if kind.name == QuestionKind.COMPOUND else _held(plan.categories)
+        system = plan.spec.system(spans=spans, instruction=kind.instruction or None)
         written = self._client.answer(
-            system=plan.spec.system(spans=spans, instruction=kind.instruction or None),
+            system=system,
             user=self._prompt(sample, note, categories=told),
             shape=kind.shape,
             prompt_version=PROMPT_VERSION,
         )
         if written.declined:
             raise Declined(plan.spec.name)
+        # A note and never a refusal: a premise naming nobody is a category
+        # not followed, and the question may be sound all the same. Once, on
+        # the first draft, whose note is this one and not a gate's.
+        question = written.question.strip()
+        if (
+            not note
+            and any(one.form == "premise" for one in told)
+            and not _addressed(question, sample.language)
+        ):
+            log.info("asking again for %r: its premise names no asker", question)
+            again = self._client.answer(
+                system=system,
+                user=self._prompt(
+                    sample,
+                    fill(_UNADDRESSED, {"{{question}}": question}),
+                    categories=told,
+                ),
+                shape=kind.shape,
+                prompt_version=PROMPT_VERSION,
+            )
+            if not again.declined:
+                written = again
         return self._candidate(
             plan,
             question=written.question,

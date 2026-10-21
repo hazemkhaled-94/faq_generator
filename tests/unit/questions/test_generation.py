@@ -855,6 +855,7 @@ def test_a_premise_is_not_told_beside_a_capped_phrasing_or_a_query(beside) -> No
     assert written.categories == (beside(),)
 
 
+@pytest.mark.nlp
 def test_a_premise_beside_a_phrasing_with_room_for_it_is_told() -> None:
     """A verbose question has the words a premise needs."""
     model = StubModel(question="Q?", answer="A")
@@ -865,3 +866,103 @@ def test_a_premise_beside_a_phrasing_with_room_for_it_is_told() -> None:
 
     assert f"- {premised().description}\n" in model.user
     assert written.categories == (verbose(), premised())
+
+
+# ── A premise that says nothing of the asker ──────────────────────────────
+
+
+class Drafts(StubModel):
+    """A served model writing one scripted draft per call."""
+
+    def __init__(self, *questions: str) -> None:
+        """Initialises the model with the drafts it writes, in order."""
+        super().__init__(answer="A")
+        self.questions = list(questions)
+
+    def answer(self, *, system: str, user: str, shape, prompt_version=None):
+        """Records the call and writes the next draft."""
+        self.asked.append((system, user))
+        return shape(
+            question=self.questions[min(len(self.asked), len(self.questions)) - 1],
+            answer="A",
+        )
+
+
+def premised_by(model: Drafts, language: str, note: str = ""):
+    """What a slot dealt a verbose question opening on a premise came back as."""
+    return QuestionWriter(model).write(
+        group(source(language=language)),
+        plan(categories=(verbose(), premised())),
+        note,
+    )
+
+
+#: A draft opening on a label naming a setting, and one opening on the asker,
+#: by language.
+_LABEL = {
+    "de": "Beim Girokonto: Wie hoch ist die monatliche Gebühr für die Kontoführung?",
+    "en": "At the checkout: how long does a refund for a returned sofa take?",
+}
+_ASKER = {
+    "de": "Ich habe ein Gemeinschaftskonto: Wer darf es ohne den anderen kündigen?",
+    "en": "I ordered a sofa last week, when will it be delivered to my flat?",
+}
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_premise_naming_no_asker_is_written_once_more_with_a_note(
+    language: str,
+) -> None:
+    """No first- or second-person word in its parse: one note, never a refusal."""
+    model = Drafts(_LABEL[language], _ASKER[language])
+
+    written = premised_by(model, language)
+
+    assert len(model.asked) == 2
+    assert f'The previous draft was "{_LABEL[language]}".' in model.user
+    assert "premise" in model.user.rsplit("FEEDBACK ON THE PREVIOUS DRAFT", 1)[1]
+    assert written.question_text == _ASKER[language]
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_premise_about_the_asker_is_written_once(language: str) -> None:
+    """The parse finds the asker, so nothing is asked again."""
+    model = Drafts(_ASKER[language])
+
+    written = premised_by(model, language)
+
+    assert len(model.asked) == 1
+    assert written.question_text == _ASKER[language]
+
+
+@pytest.mark.nlp
+def test_a_premise_is_noted_once_and_the_second_draft_kept() -> None:
+    """One note, whatever the second draft opens on."""
+    model = Drafts(_LABEL["en"], _LABEL["en"].replace("sofa", "table"))
+
+    written = premised_by(model, "en")
+
+    assert len(model.asked) == 2
+    assert "table" in written.question_text
+
+
+def test_a_draft_told_no_premise_is_not_read_for_one() -> None:
+    """A direct question, or a premise not told beside a concise one."""
+    for categories in ((verbose(),), (concise(), premised())):
+        model = Drafts(_LABEL["en"])
+
+        QuestionWriter(model).write(group(), plan(categories=categories))
+
+        assert len(model.asked) == 1
+
+
+@pytest.mark.nlp
+def test_a_retry_a_gate_asked_for_is_not_noted_again() -> None:
+    """Its note is the gate's; the premise note is the first draft's only."""
+    model = Drafts(_LABEL["en"])
+
+    premised_by(model, "en", note="a reviewer found two questions.")
+
+    assert len(model.asked) == 1
