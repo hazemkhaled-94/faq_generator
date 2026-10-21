@@ -168,7 +168,8 @@ says to rerun the stage either way.
 Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Track)
 as JSON: one categorization object as the paper's Figure 2 prints it, or a list
 of them. Each answerable question is written as one category of each, and the
-question records which. Its line in `configs/env/backend.env` is a comment,
+question records which; a compound question, an unanswerable one and a
+follow-up are told none, and their Categories cell in the export is blank. Its line in `configs/env/backend.env` is a comment,
 because bash sources that file and would split a JSON value at its spaces and
 strip its quotes. Unset, it reads `DEFAULT_CATEGORIZATIONS` in code; `[]`
 turns categories off.

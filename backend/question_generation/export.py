@@ -83,8 +83,8 @@ _COLUMNS = (
     ("follows_id", "Follows"),
     ("language", "Language"),
     # What its writer was told the question is, as `categorization=category`.
-    # Blank where it was told nothing, which an unanswerable question and a
-    # follow-up always are.
+    # Blank where it was told nothing, which an unanswerable question, a
+    # compound one and a follow-up always are.
     ("categories", "Categories"),
     ("status", "Status"),
     ("released", "Released"),

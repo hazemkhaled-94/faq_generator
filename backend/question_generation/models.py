@@ -468,7 +468,7 @@ class Candidate:
     parts: tuple[tuple[int, str, str], ...] = ()
     #: The categories the writer was told the question is, as it was told
     #: them. Empty where none was rendered: an unanswerable question, a
-    #: follow-up, or a slot dealt none.
+    #: compound one, a follow-up, or a slot dealt none.
     categories: tuple[Category, ...] = ()
 
     @property

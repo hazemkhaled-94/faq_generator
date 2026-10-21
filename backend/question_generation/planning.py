@@ -62,7 +62,8 @@ class Plan:
     kind: str = QuestionKind.SINGLE
     #: The category of each categorization the question is written as. An
     #: unanswerable slot is dealt them too and the writer renders none: the
-    #: paper asks only questions that have an answer.
+    #: paper asks only questions that have an answer. Nor does it for a
+    #: compound slot, whose one reply joins two asks.
     categories: tuple[Category, ...] = ()
 
     @property
