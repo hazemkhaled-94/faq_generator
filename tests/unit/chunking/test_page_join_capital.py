@@ -53,3 +53,20 @@ def test_a_sentence_cut_at_a_page_break_before_a_capital_is_read_whole(
     document.add_text(label=DocItemLabel.TEXT, text=after, prov=on(2, 60))
 
     assert f"{before} {after}" in texts(document, lang)
+
+
+def test_a_list_item_ending_on_an_adjective_does_not_swallow_the_next_page() -> None:
+    """`gratis` can end an item with no full stop; a noun opening page 2 is a new sentence."""
+    document = pages(2)
+    document.add_heading(text="Zahlungsarten", level=1, prov=on(1, 50))
+    group = document.add_list_group()
+    document.add_list_item(
+        text="Kreditkarte für Neukunden gratis", parent=group, prov=on(1, 780)
+    )
+    document.add_text(
+        label=DocItemLabel.TEXT,
+        text="Zahlungen per PayPal sind möglich.",
+        prov=on(2, 60),
+    )
+
+    assert "gratis Zahlungen" not in texts(document, "de")

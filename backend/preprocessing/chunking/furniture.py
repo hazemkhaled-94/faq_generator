@@ -77,7 +77,7 @@ _ENDS = (".", "!", "?", ":", ";")
 LEAD_IN = (":", "：")
 
 #: The tags of a word a sentence cannot end on while a noun follows.
-_WANTS_NOUN = frozenset({"DET", "ADP", "ADJ", "CCONJ", "SCONJ", "AUX"})
+_WANTS_NOUN = frozenset({"DET", "ADP", "CCONJ", "SCONJ", "AUX"})
 
 #: The words either side of a break the tagger reads to decide a join.
 _JOIN_WORDS = 8
@@ -686,7 +686,7 @@ def _continued(
 def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
     """Whether a tagger reads a block's last word as wanting the next block's first.
 
-    An article, preposition, adjective, conjunction or auxiliary before a
+    An article, preposition, conjunction or auxiliary before a
     noun; before a proper noun only, where the language does not write
     every noun with a capital.
     """
