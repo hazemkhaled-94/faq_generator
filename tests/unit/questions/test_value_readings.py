@@ -7,11 +7,13 @@ import pytest
 from database.qa_generator import AnswerForm, QuestionType
 from nlp.analysis import figures
 from question_generation.gates import (
+    BOUNDS,
     OVERLAP,
     _stated,
     adds_up,
     agrees,
     explains,
+    fitting,
     relabelled,
 )
 
@@ -186,3 +188,28 @@ def test_an_ordinal_is_no_stated_count(statements, language):
 def test_an_ordinal_does_not_agree_with_a_cardinal(recovered, key):
     """An ordinal is the same ordinal in another form, never a count."""
     assert not agrees(recovered, key, "en")
+
+
+@pytest.mark.parametrize(
+    "answer", ["3 cards, the one on file included", "3 accounts, no one more"]
+)
+def test_var_number_readings_1_the_pronoun_one_keeps_a_count_a_count(answer):
+    """The pronoun `one` is no second number, so the count stays an aggregation."""
+    kind = relabelled(QuestionType.AGGREGATION, AnswerForm.VALUE, answer, "en")
+    assert kind == QuestionType.AGGREGATION
+
+
+# NEW-qg-writer-gates-6: the frame must not turn an imperative into a value.
+@pytest.mark.parametrize(
+    ("key", "language"),
+    [
+        ("Sign the contract", "en"),
+        ("Open the app and tap Pay", "en"),
+        ("Rufen Sie die Hotline an", "de"),
+        ("Füllen Sie das Formular aus", "de"),
+    ],
+)
+def test_an_imperative_key_is_still_an_action(key, language):
+    """An imperative is an action, not a value."""
+    _, stopped = fitting(key, [AnswerForm.VALUE], BOUNDS, language)
+    assert stopped is not None, f"{key!r} passed as a value"

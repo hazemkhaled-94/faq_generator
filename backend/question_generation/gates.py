@@ -871,7 +871,7 @@ _CITED_YEAR = re.compile(r"^(1[89]|20)\d{2}$")
 
 def _identifier(token) -> bool:
     """Whether a token numbers the division or document before it."""
-    return token.like_num or bool(any(char.isdigit() for char in token.text))
+    return is_number(token) or any(char.isdigit() for char in token.text)
 
 
 #: How far past an attribution to look for the thing being attributed to.
@@ -1530,7 +1530,7 @@ def relabelled(
         1
         for token in parse(answer or "", language)
         if token.pos_ == "NUM"
-        or token.like_num
+        or is_number(token)
         or any(char.isdigit() for char in token.text)
     )
     if numbers == 1:
@@ -2729,7 +2729,7 @@ def agrees(
             for token in pipeline(language)(target)
             if not (
                 token.is_punct
-                or token.like_num
+                or is_number(token)
                 or FIGURE.fullmatch(token.text)
                 or _RANGE.fullmatch(token.text)
             )

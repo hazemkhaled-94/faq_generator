@@ -260,3 +260,77 @@ def test_a_row_of_figures_is_not_one_grouped_number(text, lang, expected):
 def test_a_language_without_amount_words_reads_no_grouped_number():
     """`fr` is read by the English model, and still groups nothing."""
     assert numbers("Codes 100 200 300 EUR", "fr") == ("100", "200", "300")
+
+
+# FIX-R164: a wrong spelled count is excused by any number elsewhere in the passage.
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        pytest.param(
+            "de",
+            "Es gibt vier Kontomodelle. Das Basiskonto kostet 5 Euro im Monat.",
+            "Das Basiskonto kostet vier Euro im Monat.",
+            marks=pytest.mark.xfail(
+                strict=True, reason="FIX-R164 deferred: no German spelled count is read"
+            ),
+        ),
+        (
+            "en",
+            "There are four account models. The basic account costs 5 euros a month.",
+            "The basic account costs four euros a month.",
+        ),
+        (
+            "en",
+            "See Section 3 for details. Delivery takes 5 working days.",
+            "Delivery takes three working days.",
+        ),
+    ],
+)
+def test_a_wrong_spelled_count_is_not_excused_by_an_uncited_sentence(lang, text, fact):
+    """A count in words is checked against the cited sentence, not the passage."""
+    f = Checker(passage(text, language=lang)).atomic(fact, 1)
+    v = f.validated
+    assert not v, f"validated a changed count: {fact!r}"
+
+
+# VAR-one-same-price: a bare 'one' that is a count.
+@pytest.mark.parametrize(
+    ("text", "fact"),
+    [
+        (
+            "Each customer may hold at most two cards.",
+            "Each customer may hold at most one.",
+        ),
+        ("Only two are allowed per household.", "Only one is allowed per household."),
+        ("The limit is three per customer.", "The limit is one per customer."),
+    ],
+)
+def test_a_wrong_bare_one_is_still_refused(text, fact):
+    """A bare `one` that is a count is still checked."""
+    v, _, _ = ok("en", text, fact)
+    assert not v, f"validated a changed count: {fact!r}"
+
+
+# Lead replay ids 11368, 11962 (0defee49): German count words newly read as units.
+def test_a_german_count_restating_a_multiplicative_adverb_validates():
+    """`zwei Mahnungen` restates `zweimal gemahnt` (shape of fact 11368)."""
+    v, code, err = ok(
+        "de",
+        "Ein Kunde, der zweimal gemahnt wird, zahlt eine Gebühr.",
+        "Ein Kunde mit zwei Mahnungen zahlt eine Gebühr.",
+    )
+    assert v, f"refused {code}: {err}"
+
+
+def test_a_german_ordinal_stated_earlier_in_the_passage_validates():
+    """`ersten fünf` is stated in the uncited sentence before (shape of fact 11962)."""
+    f = Checker(
+        passage(
+            "Die ersten fünf Bestellungen sind versandkostenfrei. Danach darf der Kunde die Versandart ändern.",
+            language="de",
+        )
+    ).atomic(
+        "Nach den ersten fünf Bestellungen darf der Kunde die Versandart ändern.", 1
+    )
+    v, code, err = f.validated, f.rejection_code, f.validation_error
+    assert v, f"refused {code}: {err}"
