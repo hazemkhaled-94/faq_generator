@@ -22,14 +22,6 @@ def on(page: int, top: float) -> ProvenanceItem:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A list item with no full stop at a page's foot takes the next page's "
-        "paragraph when that opens with a lower-case name (iPhone, eBay), so a "
-        "shop's own rule is glued into the item before it"
-    ),
-)
 @pytest.mark.parametrize(
     ("lang", "item", "rest"),
     [
@@ -57,3 +49,27 @@ def test_a_paragraph_opening_with_a_lower_case_name_stays_its_own(
     _, chunks = chunks_of(document, word_chunker(200), lang)
 
     assert f"- {item}\n" in "\n".join(chunk.text for chunk in chunks) + "\n"
+
+
+@pytest.mark.parametrize(
+    ("lang", "head", "rest"),
+    [
+        ("de", "Vom Umtausch ist Zubehör für das", "iPhone ausgeschlossen."),
+        ("en", "Orders placed on", "eBay are shipped separately."),
+        ("fr", "Les frais sont fixés par", "l'Union européenne."),
+    ],
+)
+def test_a_sentence_cut_before_a_name_or_an_elision_is_still_joined(
+    lang, head, rest
+) -> None:
+    """The tags read `für das` as wanting the name; `l'` opens in lower case."""
+    document = DoclingDocument(name="t")
+    for page in (1, 2):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    document.add_heading(text="Versand", level=1, prov=on(1, 50))
+    document.add_text(label=DocItemLabel.TEXT, text=head, prov=on(1, 780))
+    document.add_text(label=DocItemLabel.TEXT, text=rest, prov=on(2, 100))
+
+    _, chunks = chunks_of(document, word_chunker(200), lang)
+
+    assert [chunk.text for chunk in chunks] == [f"{head} {rest}"]

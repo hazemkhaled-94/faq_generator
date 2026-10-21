@@ -374,7 +374,12 @@ corpus, which is a property of the model rather than of this code.
   followed on the next page or in the next column by a paragraph opening in
   lower case, takes that paragraph's text and its place on the page, so
   the passage's pages and box reach the page the sentence ends on; the
-  paragraph moves to the furniture layer. A word the page broke at a hyphen
+  paragraph moves to the furniture layer. Lower case means the rest's first
+  run of letters is all lower case: a name with a capital inside, `iPhone`
+  or `eBay`, does not open in lower case and is joined only where the tags
+  below read it as wanted (`für das` over `iPhone`), so a list item with no
+  full stop keeps it out, while an elision, `l'Union`, does open in lower
+  case. A word the page broke at a hyphen
   is whole again once joined (`Kontofüh-` and `rungsgebühr`), while a
   hyphen a joining word completes (`Zoll- und Steuerrecht`) stays, and so
   does one inside a word the document prints whole elsewhere

@@ -54,6 +54,9 @@ _SPACE = re.compile(r"\s+")
 #: Everything but letters and digits, which a repeated heading is compared on.
 _PUNCTUATION = re.compile(r"[\W_]+")
 
+#: A run of letters, which a block opening in lower case opens with.
+_LETTERS = re.compile(r"[^\W\d_]+")
+
 #: A page number as a page prints one: a bare integer of up to four digits,
 #: framed at most by dashes or brackets - `47`, `– 12 –`, `(3)`. A price, a
 #: rate, a phone number, a date or a time carries more than that.
@@ -684,8 +687,18 @@ def _continued(
         and second.label in _PROSE
         and not first.text.rstrip().endswith(_ENDS)
         and _broken(first.prov[-1], second.prov[0])
-        and (second.text.lstrip()[0].islower() or _resumed(first, second, language))
+        and (_opens_lower(second.text) or _resumed(first, second, language))
     ]
+
+
+def _opens_lower(text: str) -> bool:
+    """Whether a block opens with letters in lower case only.
+
+    So a name written with a capital inside, `iPhone` or `eBay`, opens
+    nothing in lower case, while an elision does: `l'Union`.
+    """
+    letters = _LETTERS.match(text.lstrip())
+    return letters is not None and letters.group().islower()
 
 
 def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
