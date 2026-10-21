@@ -153,7 +153,7 @@ Rules, all of them mandatory:
 - It must be answered by the FACTS, like any other. A follow-up whose answer
   is not in the material tests nothing.
 - NEVER SAY WHERE THE ANSWER IS. No naming or quoting a document, a report, a
-  section or a heading as the place the answer is, here as anywhere else.
+  section or a heading, here as anywhere else.
 - DO NOT REPEAT a question already in the conversation, and do not ask one
   the last answer already gave. It has to want something new.
 - ONE THING ASKED. Do not weld two questions together with "and" because two
@@ -188,9 +188,9 @@ _USER = (
     "{{facts}}\n"
     "\n"
     "PASSAGE(S) - context only, so you know what the material is "
-    "about. Phrase the question from these. A heading or a title out of "
-    "them may name the thing you ask about, never where the answer is; and "
-    "never ask about anything here that the facts above do not state:\n"
+    "about. Phrase the question from these; never quote or name a "
+    "heading or a title out of them, and never ask about anything "
+    "here that the facts above do not state:\n"
     "{{passages}}\n"
     "{{profile}}"
     "\n"
@@ -246,8 +246,7 @@ _USER_PERTURB = (
     "\n"
     "PASSAGE(S) - what the chatbot will read: no sentence of it may answer "
     "your question, contradict its premise or cover its case by a rule. "
-    "A heading or a title out of them may name the thing you ask about, "
-    "never where the answer is:\n"
+    "Never quote or name a heading or a title out of them:\n"
     "{{passages}}\n"
     "{{beside}}"
     "\n"

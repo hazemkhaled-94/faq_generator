@@ -220,9 +220,7 @@ first- or second-person pronouns and possessives (`_SPEAKING`) is written
 once more with a note asking for the asker's own situation, and the second
 draft is the one checked; nothing is refused for it, and a language with no
 row is never noted. A slot told none is sent the
-message prompt version 16 sent, byte for byte, but for the line version 22
-changed: a heading or a title may name the thing asked about, never where the
-answer is. A retry is sent the same block
+message prompt version 16 sent, byte for byte. A retry is sent the same block
 as the draft it rewrites. The question records the categories it was told in
 `questions.categories`, as categorization, category, role, form and
 description, so a categorization edited later does not rewrite what an
