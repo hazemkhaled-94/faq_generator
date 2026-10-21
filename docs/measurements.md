@@ -912,7 +912,7 @@ A question naming its page by a title that is also its subject (a page titled *K
 | Admitted by the v0.4.3 code | 4 | 74 | 78 |
 | Still refused | 0 | 1 | 1 |
 
-The bar for the count was that the refusals whose only trigger is a title naming the subject fall to at most 20% of the base's 79: 1 remains (1.3%), so it passes. The loosening bar, that the newly admitted rows are about as usable as the accepted pool, is decided on labelled rows: 60 of the 78 were drawn (41 German shop, 15 English shop, 4 German Laws; 8 unanswerable, 6 follow-ups) and labelled. The labeller found 27 usable and 16 invalid, with 43 of 52 answerable keys correct. These rows stopped at the free rule in the base and never met the later gates (the phrasing judge's own readings, the round trip's read), so the labels describe rows before those gates, not rows newly accepted. The decision is read on the rows that also pass the later gates, and is not yet made.
+The bar for the count was that the refusals whose only trigger is a title naming the subject fall to at most 20% of the base's 79: 1 remains (1.3%), so it passes. The loosening bar, that the newly admitted rows are about as usable as the accepted pool, is decided on labelled rows: 60 of the 78 were drawn (41 German shop, 15 English shop, 4 German Laws; 8 unanswerable, 6 follow-ups) and labelled. The labeller found 27 usable and 16 invalid, with 43 of 52 answerable keys correct. These rows stopped at the free rule in the base and never met the later gates (the phrasing judge's own readings, the round trip's read), so the labels describe rows before those gates, not rows newly accepted. The decision is read on the rows that also pass the later gates. Those gates were replayed on the 60 rows (USD 0.21): 39 pass, 31 of them not compound (the compound rows' halves are not stored, so their per-half check cannot run). Of those 31, 21 are usable (0.68, against 0.50 in Link Q's base arm) and 6 are invalid (11.6 per 60). The loosening bar allows at most 2 invalid per 60, and in the floor rule's own form at most the base arm's 3 plus 2; both fail. None of the 6 is invalid for naming its title: they are welded sums across two passages, a question about a case-study person, two incomplete keys, a key the question gives away and a question word the key does not answer. The change was withdrawn from v0.4.3 with the writer line that went with it.
 
 ### The release draw over 100 salts
 
@@ -931,11 +931,45 @@ Both bars hold. The intervals are 95% bootstrap intervals over the 100 salts. Th
 
 ### Link Q
 
-Figures to come.
+Two arms on copies of the frozen bases, the base code (v0.4.2) against the v0.4.3 code, with the default categorizations (Phrasing, Premise), the same 10 topics (Laws 80 to 82 and 89 to 91 at `QUESTIONS_PER_TOPIC` 16; Your Europe 7, 8, 2 and 3 at 26) and the production model split. One labeller labelled 60 drawn rows per arm, every reason row the fix arm's read refused (28) and the base arm's (6), and every accepted row dealt verbose and with-premise (17 per arm), shuffled with the arm hidden. Cost: USD 3.35 and 3.47.
+
+| Bar | Base | v0.4.3 | Verdict |
+|---|---|---|---|
+| Keys correct (60 drawn) | 59 | 59 | passes (bound 0.88) |
+| Keys complete | 53 | 51 | passes (bound 0.78) |
+| Invalid per 60 | 3 | 4 | passes (bound 5) |
+| Read refusals on reason rows: usable | 0 of 6 | 3 of 28 (0.11); 22 of the 28 circular | passes (at most 0.35) |
+| Acceptance, German / English | 52.2% / 52.6% | 47.7% / 56.3% | passes (within 10 points) |
+| Verbose with-premise rows opening on a scene label | 6 of 17 | 4 of 17 (0.24) | fails (at most 0.10) |
+| With-premise conformance | | 13 of 17 (0.76) | fails (at least 0.80) |
+
+Reported beside them, deciding nothing: meaning drift 4 against 3 of 60, questions about a person or page furniture 7 against 8, welds 5 against 3, usable 30 against 33. The base arm's sanity holds (0.98 correct, 0.88 complete).
+
+The premise rework then had its one iteration (a premise states a fact of the asker's own situation; a premise whose verbs only want, try, check or understand gets the retry note) and a run of its own on the same topics, every slot dealt verbose and with-premise (USD 1.65): of 36 accepted rows told a premise, none opens on a scene label, and 34 of 36 conform to the description. It passes. It holds 36 rows, under the 40-row minimum, with a zero rate. Acceptance there is 43% German and 48% English, within 10 points of the fix arm's.
 
 ### Link C
 
-Figures to come.
+One run of the v0.4.3 code with three categorizations at probabilities set for calibration: Phrasing {concise 0.15, verbose 0.15, short-search-query 0.35, long-search-query 0.35}, Linguistic variation {similar, distant} and User expertise {novice, expert} at 0.5 each, on all 27 topics at `QUESTIONS_PER_TOPIC` 22. Premise was not dealt: the rule that tells no query on a with-premise slot halved the query rows in a first run, which was stopped after 6% (USD 1.23). Cost: USD 10.40. The same labeller as Link Q labelled each comparison's rows and then their conformance.
+
+| Category | Compared with | Rows | Keys correct | Complete | Invalid per 60 | Conformance | Acceptance against sibling | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| distant-from-document | similar, within novice rows | 60 vs 60 | 58 vs 57 | 57 vs 54 | 4 vs 11 | 48 of 60 (0.80) | +6.6 / +15.7 points | passes |
+| expert | novice, within similar rows | 58 vs 60 | 51 vs 57 | 53 vs 54 | 13.4 vs 11 | 34 of 58 (0.59) | +11.6 / +3.8 points | fails (invalid, conformance) |
+| long-search-query | concise and verbose on the same slots | 36 | 32 | | 23.3 | 31 of 36 | -4.1 / -7.5 points | not measured (36 rows) |
+| short-search-query | concise and verbose on the same slots | 19 | 19 | 19 | | 15 of 19 | -52.9 / -54.7 points | fails supply; not measured |
+
+Counted on all its rows, distant's conformance is 61 of 93 (0.66): the rows also told expert conform 12 of 32 times, because the two descriptions pull apart (one avoids the document's wording, the other asks for it). Linguistic variation enters the default with its two categories at even odds. User expertise stays opt-in: told on a slot whose fact is basic, the writer asked a basic question in an expert's voice. The two search queries stay opt-in: the short one is accepted on 29 to 31% of the slots a query may take, against 82 to 86% for natural phrasing there, and the long one has too few rows to measure.
+
+| Cell | Labelled rows | Keys correct / complete | Invalid | Acceptance German / English |
+|---|---|---|---|---|
+| similar x novice | 62 | 0.95 / 0.90 | 12 | 0.43 / 0.42 |
+| similar x expert | 58 | 0.88 / 0.91 | 13 | 0.55 / 0.46 |
+| distant x novice | 61 | 0.97 / 0.95 | 4 | 0.50 / 0.58 |
+| distant x expert | 32 | 1.00 / 0.97 | 6 | 0.54 / 0.55 |
+
+### Spend
+
+The v0.4.3 calibrations cost USD 22.4 of a USD 30 cap: Link Q 6.82, Link C 11.63 (with the stopped first run), the premise run 1.65, the read replays and the later-gates replay 2.25.
 
 ## References
 
