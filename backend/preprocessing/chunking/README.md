@@ -379,11 +379,16 @@ corpus, which is a property of the model rather than of this code.
   hyphen a joining word completes (`Zoll- und Steuerrecht`) stays, and so
   does one inside a word the document prints whole elsewhere
   (`non-refundable`). A rest
-  that opens in capitals joins too when the language's tagger reads the
-  first block as ending on an article, preposition, conjunction or
-  auxiliary and the second as opening with a noun (a proper noun only, in a
-  language not named in `NLP_CAPITALISED_NOUNS`): `Die Gebühr für die` and
-  `Ersatzkarte beträgt 15 EUR.` are one sentence. A script
+  that opens in capitals or with a figure joins too when the language's
+  tagger reads the first block as ending on an article, preposition,
+  conjunction or auxiliary, or on an adjective right after an article or a
+  preposition, and the second as opening with a noun (a proper noun only, in
+  a language not named in `NLP_CAPITALISED_NOUNS`) or a figure, a number or
+  a sign before one: `Die Gebühr für die` and `Ersatzkarte beträgt 15 EUR.`
+  are one sentence, and so are `für die ersten` and `12 Monate kostenlos.`
+  A block ending on a full verb is not joined to a figure (`The card costs`
+  over `€25 a year.` stays two): a verb can close its clause, and the tags
+  do not tell one missing its object. A script
   without case is joined by the tags only, and two blocks in one column of one page
   are the document's own break.
 - **A flattened list is nested again by its indents.** The converter builds

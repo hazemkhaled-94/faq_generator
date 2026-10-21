@@ -41,20 +41,25 @@ def test_a_rest_opening_in_lower_case_is_joined() -> None:
     ) == ["Die Karte ist im ersten Jahr kostenlos und danach günstig."]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A sentence cut at a page or column break whose rest opens with a figure "
-        "('für die ersten' / '12 Monate kostenlos.') is never joined: _continued "
-        "asks for lower case or a noun the tagger reads, and a number is neither"
-    ),
-)
 @pytest.mark.parametrize(
     ("lang", "head", "rest"),
     [
         ("de", "Die Kontoführung ist für die ersten", "12 Monate kostenlos."),
         ("en", "Orders are delivered within", "3 to 5 working days."),
-        ("en", "The card costs", "€25 a year after the first year."),
+        pytest.param(
+            "en",
+            "The card costs",
+            "€25 a year after the first year.",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "A block ending on a full verb is not joined to a figure: a "
+                    "finite verb can close its clause (`Free delivery applies` "
+                    "over `30-day returns.`), and the tags do not tell one "
+                    "missing its object"
+                ),
+            ),
+        ),
     ],
 )
 def test_a_rest_opening_with_a_figure_is_joined(lang, head, rest) -> None:

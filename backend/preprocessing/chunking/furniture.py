@@ -80,6 +80,10 @@ LEAD_IN = (":", "：")
 #: The tags of a word a sentence cannot end on while a noun follows.
 _WANTS_NOUN = frozenset({"DET", "ADP", "CCONJ", "SCONJ", "AUX"})
 
+#: The tags of a word that opens a phrase its adjectives do not close:
+#: `für die ersten` still wants its noun.
+_OPENS_PHRASE = frozenset({"DET", "ADP"})
+
 #: The words either side of a break the tagger reads to decide a join.
 _JOIN_WORDS = 8
 
@@ -384,8 +388,9 @@ def tidied(
     furniture layer. A sentence the converter cut at a page or column break
     is joined back: a paragraph or list item ending in no `_ENDS` mark,
     followed on the next page or in the next column by a paragraph opening
-    in lower case, or in capitals where the tagger reads the first as
-    wanting a noun and the second as opening with one, takes that paragraph's text and its place on the page,
+    in lower case, or in capitals or with a figure where the tagger reads the
+    first as wanting a noun and the second as opening with one or a figure,
+    takes that paragraph's text and its place on the page,
     and the paragraph moves to the furniture layer. A paragraph that is a
     page number read as body text, a bare integer in the top or bottom margin
     of its page, moves there too, and one beside or under its label, or, in a document with no running page numbers, right after a lead-in's colon, does not;
@@ -658,7 +663,8 @@ def _continued(
     and the case, which a page's layout does not set: a block that ends on
     no sentence mark and a next one that opens in lower case are one
     sentence, and so are two where the language's tags say the first ends on
-    a word that wants a noun and the second opens with one. A script
+    a word that wants a noun and the second opens with one or with a figure.
+    A script
     without case opens nothing in lower case, so it is joined by the tags
     only.
     """
@@ -685,9 +691,11 @@ def _continued(
 def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
     """Whether a tagger reads a block's last word as wanting the next block's first.
 
-    An article, preposition, conjunction or auxiliary before a
-    noun; before a proper noun only, where the language does not write
-    every noun with a capital.
+    An article, preposition, conjunction or auxiliary, or an adjective right
+    after an article or a preposition, before a noun or a figure - a
+    number, or a sign before one: `für die ersten` over `12 Monate`. Before a
+    proper noun only, where the language does not write every noun with a
+    capital; a figure has no case.
     """
     head = " ".join(first.text.split()[-_JOIN_WORDS:])
     tail = " ".join(second.text.split()[:_JOIN_WORDS])
@@ -695,11 +703,15 @@ def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
     at = len(head) + 1
     before = [token for token in document if token.idx < at]
     after = [token for token in document if token.idx >= at]
+    if not (before and after):
+        return False
     wanted = {"NOUN", "PROPN"} if document.lang_ in _capitalises_nouns() else {"PROPN"}
-    return (
-        bool(before and after)
-        and before[-1].pos_ in _WANTS_NOUN
-        and after[0].pos_ in wanted
+    last = before[-1]
+    if last.pos_ == "ADJ" and len(before) > 1 and before[-2].pos_ in _OPENS_PHRASE:
+        last = before[-2]
+    opener = after[1] if after[0].pos_ == "SYM" and len(after) > 1 else after[0]
+    return last.pos_ in _WANTS_NOUN and (
+        after[0].pos_ in wanted or opener.pos_ == "NUM"
     )
 
 
