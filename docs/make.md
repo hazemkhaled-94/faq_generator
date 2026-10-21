@@ -552,10 +552,10 @@ calls too, and so is one whose spans Phoenix would not hand over.
 | `make lint` | ruff check and format check |
 | `make format` | Apply every fix ruff can make |
 | `make typecheck` | pyright, at zero |
-| `make audit` | Known advisories against the two locks, torch and torchvision left out. Fails on one, after reading both |
+| `make audit` | Known advisories against both image locks and the host `poetry.lock`, torch and torchvision left out. Fails on one, after reading all three. Its scratch files live in a temporary directory |
 | `make lint-imports` | The two architecture rules, as import-linter contracts |
 | `make deps` | A declared dependency nothing imports, and an import nothing declares |
-| `make lock` | Rewrite `backend/api/requirements.lock` |
+| `make lock` | Rewrite `backend/api/requirements.lock` and `frontend/requirements.lock`, resolved under the pins of `poetry.lock` in a throwaway container |
 
 `lint` and `format` cover `backend`, `frontend`, `telemetry`,
 `orchestration`, `review`, `evaluation` and `tests`; `typecheck` covers the

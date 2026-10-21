@@ -160,7 +160,7 @@ head these carry ([`revision.py`](qa_generator/revision.py)): until
 `make schema` has applied it, `/status` is not green and a queue claims
 nothing.
 
-The twenty-three revisions, oldest first:
+The revisions, oldest first:
 
 | File | Changes |
 |---|---|
