@@ -254,9 +254,9 @@ queries fell below the floors for correct and complete keys, and a third of
 the long ones written were not queries, so the long one is described as
 keywords and nothing else, not yet measured. Neither is told on a slot that spans
 two passages, whose keywords cannot say how the two meet, nor on a type whose
-question word is the ask (`TypeSpec.keywords` false: `reason`, `comparison`,
-`implication` and `temporal`); such a slot is written as no category of the
-query's categorization. A Phrasing listing them beside the
+question word is the ask (`TypeSpec.keywords` false, which only `reason`
+needs: `comparison`, `implication` and `temporal` span anyway); such a slot
+is written as no category of the query's categorization. A Phrasing listing them beside the
 two natural phrasings, set in place of the default's, deals all four at even
 odds:
 

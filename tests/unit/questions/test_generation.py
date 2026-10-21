@@ -1035,14 +1035,16 @@ def test_a_retry_a_gate_asked_for_is_not_noted_again() -> None:
 # ── A search query where its keywords cannot ask ──────────────────────────
 
 
-#: The types whose question word is the ask: a why, a difference, what
-#: follows, what changed. A keyword string has no word to ask them with.
-_WORDED = {"reason", "comparison", "implication", "temporal"}
+def test_only_a_reason_needs_the_flag_that_no_query_can_ask_it() -> None:
+    """A why has nothing but its question word to ask with.
 
-
-def test_the_types_whose_question_word_is_the_ask_cannot_be_keywords() -> None:
-    """A flag on the type, and on exactly those four."""
-    assert {name for name, one in SPECS.items() if not one.keywords} == _WORDED
+    A comparison, a change over time and an implication need it as much, and
+    need no flag: each spans two passages, and no query is told a spanning
+    type whatever its slot.
+    """
+    assert {name for name, one in SPECS.items() if not one.keywords} == {"reason"}
+    worded = (SPECS[name] for name in ("comparison", "temporal", "implication"))
+    assert all(one.spans for one in worded)
 
 
 @pytest.mark.parametrize(

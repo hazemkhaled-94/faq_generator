@@ -358,8 +358,9 @@ class TypeSpec:
     #: still not a lookup has to say so; see `floor`.
     least: str | None = None
     #: Whether a search query can ask it. False where the question word is
-    #: the ask - a why, a difference, what follows, what changed - which a
-    #: keyword string has no word for, so a query category is not told.
+    #: the ask, as a why's is, which a keyword string has no word for, so a
+    #: query category is not told. A comparison, a change over time and an
+    #: implication need no flag: they span, and no spanning type is told one.
     keywords: bool = True
 
     @property
@@ -677,7 +678,6 @@ Only where the material states the consequence. Do not invent one.
         level=CognitiveLevel.ANALYSE,
         form=AnswerForm.LIST,
         passages=2,
-        keywords=False,
         also=(AnswerForm.EXPLANATION,),
         asks="how two named things differ, as the material states each of them",
         guidance="""
@@ -772,7 +772,6 @@ wrong kind of question for them - say so by asking about one of them instead.
         level=CognitiveLevel.ANALYSE,
         form=AnswerForm.LIST,
         passages=2,
-        keywords=False,
         also=(AnswerForm.EXPLANATION,),
         asks="what changed between two periods, or what the order of events was",
         guidance="""
@@ -801,7 +800,6 @@ Both periods, or both events, must be in the facts.
         derived=Derivation.ENTAILMENT,
         form=AnswerForm.EXPLANATION,
         passages=2,
-        keywords=False,
         asks="what must be true when two things the material states both hold",
         guidance="""
 Both premises must be in the facts, and the conclusion must be in NEITHER. If
