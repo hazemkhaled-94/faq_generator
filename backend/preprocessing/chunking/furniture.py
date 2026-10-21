@@ -42,9 +42,10 @@ _RUNNING = frozenset({DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER})
 _PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
 #: What separates the fields of a running head with no bar in it: a tab, a
-#: run of spaces, or a dash, a middle dot or a bullet between spaces, which
-#: a range `3–4` or a Catalan `l·l` is not.
-_GAP = re.compile(r"\s+[-–—·•]\s+|\t+|\s{2,}")
+#: run of spaces, or an en or em dash, a middle dot or a bullet between
+#: spaces, which a range `3–4` or a Catalan `l·l` is not. Not a hyphen: a
+#: chapter is named around one, `IV - Other provisions`.
+_GAP = re.compile(r"\s+[–—·•]\s+|\t+|\s{2,}")
 
 #: A numeral: digits, or a word spelled only in the letters of a Roman one.
 _NUMERAL = re.compile(r"\d+|\b[ivxlcdm]+\b", re.IGNORECASE)

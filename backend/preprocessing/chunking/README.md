@@ -85,9 +85,10 @@ running heads and feet name the chapter, and
 document's own `page_header` and `page_footer` items:
 
 - each is split into fields — on its bars when it has any, otherwise on tabs,
-  runs of spaces and a dash, a middle dot or a bullet between spaces
-  (` - `, ` – `, ` — `, ` · `, ` • `), which a range `3–4` or a Catalan
-  `l·l` is not
+  runs of spaces and an en or em dash, a middle dot or a bullet between
+  spaces (` – `, ` — `, ` · `, ` • `), which a range `3–4` or a Catalan
+  `l·l` is not; not on a hyphen, which a chapter is named around
+  (`IV - Other provisions`)
 - a field that numbers pages is dropped: one with no letter, and every field
   of a shape, its numerals masked, that no two pages print alike ("Page 3 of
   12", "iv")
