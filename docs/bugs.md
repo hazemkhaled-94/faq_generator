@@ -959,7 +959,14 @@ v0.4.5 holds the API, frontend and review items kept for it, the stack items the
 | Defect | Found | Fix | Measured |
 |---|---|---|---|
 | The wiki's API Reference listed `GET /redoc` and `GET /docs/oauth2-redirect` as served and left 409 `assessment_cannot_run` out of its refusals (QA-api-frontend-6) | the page is a copy of the API README it names as its source, and had gone stale | the wiki says what [`main.py`](../backend/api/main.py) serves: `GET /openapi.json` and its own `GET /docs`, with no `/redoc` and no `/docs/oauth2-redirect`; its refusals list the 409 that both rerun routes of `/assessment` answer, before any verdict is cleared, while `ASSESSMENT_ENABLED` is off or `ASSESSMENT_JUDGE_MODEL` names no model. No code changed | read against the code |
-<!-- v0.4.5: v-api -->
+| A setting, a topic label or an upload's filename holding a NUL, or a lone surrogate sent as a JSON escape, answered a 500 from the database (QAB-api-settings-1, -2, -4) | nothing at the edge refused what PostgreSQL cannot store | each is refused at the edge: `out_of_range` for a setting, 422 for a topic label, 400 `invalid_value` for a filename, through one shared check; a 422 body is now written ASCII-escaped, so it can echo such input back | red tests |
+| `EMBEDDING_MAX_TOKENS` took 1, which cuts every passage to nothing (QAB-api-settings-5) | its floor in the settings catalogue was 1 | the floor is 64 | red tests |
+| Stop asked Dagster for one page of runs, so a run past it was never stopped (QAB-api-settings-7) | the query had a limit | Stop asks for every unfinished run | red tests |
+| `GET /pipeline/runs` took no limit, and a Dagster refusal on runs or automation answered a 500 (QAB-api-settings-8) | the route had no bound and no refusal mapping | it takes `limit`, and a refusal answers `orchestrator_refused` | red tests |
+| The arrivals sensor retried a failed run on every tick (QAB-api-settings-9) | it had no memory of the run it asked for | it retries once, then skips and names `make pipeline` and the Run button | red tests |
+| Reviewing questions read their facts one query per row (FIX-R77) | the facts were loaded lazily | they are loaded with the questions, 13 queries down to at most 3 | red tests |
+| `REVIEW_REVIEWER` was a setting nothing read (FIX-R78) | left over from an earlier review flow | deleted from the settings, the env file and the README | read against the code |
+| The orchestrator took `nan`, negative and near-zero drain timeouts and poll intervals, which the backend's own reader refuses (QA-security-4) | its reader parsed any float | its reader takes finite values of at least one second | red tests |
 
 ### Fixed in v0.4.5: frontend and review
 
@@ -985,19 +992,21 @@ v0.4.5 holds the API, frontend and review items kept for it, the stack items the
 | Defect | Found | Fix | Measured |
 |---|---|---|---|
 <!-- v0.4.5: move-check -->
-<!-- v0.4.5: v-api -->
 
 The whole-project QA pass also lands as commits that change tests alone. They add property tests of the release draw (no kind past its share plus the slack, no follow-up without its root, no twin beside its twin, no more unanswerable questions than the ceiling, the first size that fills scanning down), of the categories a slot is told and of the space-grouped and ordinal readings; unit tests of the round trip's read, the release quota and threads and the edges of those readings; tests of the API's write and digest guards over generated origins, `Sec-Fetch-Site` values and path segments; tests that every page renders from what the real API answers, on an empty database and on a small German bank corpus; and tests that a review pull writes a verdict exactly when every submitted answer agrees. A defect the pass found and v0.4.5 does not fix is pinned as a strict expected failure, so its fix fails the test until the marker is taken off. Two rows stay open so, both waiting for the one reader of space-grouped amounts that the withdrawn fix above needs:
 
 - QA-questions-1, 2 cases (English and German): an explanation stating a space-grouped amount the passages do not (EUR 200 000 against EUR 100 000) still passes `explains`, where the same amount written EUR 200,000 is refused.
 - QA-questions-4, 4 cases: a space-grouped amount beside a marked currency word (`100 000 Euro/Kunde`, `100 000 Euro*`, `5 000,- EUR`) is still read as two figures, so a right total over two such amounts is refused by `adds_up` without a model call.
 
-The expected failure of QA-api-frontend-4 comes off with its fix above, those of QA-security-1 and QA-security-5 with v0.4.4's fixes, and those of QA-security-3 and QA-security-4 with their rows under *API and settings*. The pass's tests of QA-questions-2 and QA-questions-5 were dropped with the title rule they tested, which was withdrawn before v0.4.3 shipped: on the shipped rule QA-questions-5's test passes, and QA-questions-2's inflected title is left to the phrasing judge, at one model call.
+The expected failure of QA-api-frontend-4 comes off with its fix above, those of QA-security-1 and QA-security-5 with v0.4.4's fixes, and that of QA-security-4 with its row under *API and settings*. QA-security-3's stays: the models a gate reaches are frozen until v0.5.0 (see *Deferred*). The pass's tests of QA-questions-2 and QA-questions-5 were dropped with the title rule they tested, which was withdrawn before v0.4.3 shipped: on the shipped rule QA-questions-5's test passes, and QA-questions-2's inflected title is left to the phrasing judge, at one model call.
 
 ### Deferred, with the reason
 
 | Items | Why they stay open |
 |---|---|
+| QA-security-3 | Every Hugging Face model is loaded by repository id with no revision. Pinning a revision touches the embedding, entailment and QA models the question gates call, which stay frozen until v0.5.0, and needs a setting of its own; setting HF_HUB_OFFLINE on every worker alone would break a fresh install, which fetches the models on first use |
+| FIX-R93 | `--dist loadscope` was timed on `tests/unit/nlp`, four runs each way: 24.0 s against 23.6 s for the default, so the default stays |
+| FIX-R110 | An internal storage network: the move check showed the storage services on the shared network, but its stack stopped before the model stages, so a stack with the storage on an internal network was not run end to end |
 | FIX-R40, FIX-R10 | Feature-sized parser passes for a two-column page and for a title that re-levels chapters, shown so far only on synthetic fixtures. No real document in hand has either, and the build corpus is single-column, so no bar is possible (the section-path entry of the v0.3.0 section is the same root as R10) |
 | FIX-R15 | A follow-up gate that failed its bar before. The next try, earlier turns' facts through `adds_to`, touches follow-up rows, of which a 60-row arm holds too few (about 10) to measure |
 | FIX-R37 | No stored signal separates usable rows: the confidence's AUC is 0.55 on 298 labelled link rows |
