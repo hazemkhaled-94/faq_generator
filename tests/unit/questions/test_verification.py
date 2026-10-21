@@ -1410,6 +1410,124 @@ def test_a_question_naming_no_title_passes_the_free_half() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "title", "statement"),
+    [
+        (
+            "Welche Gebühr fällt für Kreditkarten im Ausland an?",
+            "1,5 Prozent",
+            "de",
+            "Kreditkarten",
+            "Für Zahlungen mit Kreditkarten im Ausland berechnet die Bank 1,5 Prozent.",
+        ),
+        (
+            "Wie lange gilt das Rückgaberecht für Rücksendungen?",
+            "14 Tage",
+            "de",
+            "Rücksendungen",
+            "Rücksendungen sind innerhalb von 14 Tagen nach der Lieferung möglich.",
+        ),
+        (
+            "What fee applies when mortgage loans are repaid early?",
+            "1 percent",
+            "en",
+            "Mortgage loans",
+            "Mortgage loans repaid early carry a fee of 1 percent of the amount repaid.",
+        ),
+        (
+            "Which items are excluded from the right of withdrawal?",
+            "digital content",
+            "en",
+            "Right of withdrawal",
+            "Digital content is excluded from the right of withdrawal once downloaded.",
+        ),
+    ],
+)
+def test_a_title_that_is_the_subject_is_not_a_source(
+    question, answer, language, title, statement
+) -> None:
+    """A page titled by its subject is asked about by that name, as its facts are."""
+    assert (
+        checked(
+            question_text=question,
+            target_answer=answer,
+            language=language,
+            statements=(statement,),
+            titles=(title,),
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "title"),
+    [
+        (
+            "Was sagt das Preis- und Leistungsverzeichnis zur Auslandsgebühr?",
+            "1,5 Prozent",
+            "de",
+            "Preis- und Leistungsverzeichnis",
+        ),
+        (
+            "Was steht im Jahresbericht 2025 über die Zinsen?",
+            "sinkende Zinsen",
+            "de",
+            "Jahresbericht 2025",
+        ),
+        (
+            "What does the Price and Service Schedule say about card fees abroad?",
+            "1.5 percent",
+            "en",
+            "Price and Service Schedule",
+        ),
+    ],
+)
+def test_a_title_its_material_never_writes_is_a_source(
+    question, answer, language, title
+) -> None:
+    """A name the facts do not use is where the answer is."""
+    statement = {
+        "de": "Für Kartenzahlungen im Ausland berechnet die Bank 1,5 Prozent.",
+        "en": "Card payments abroad cost 1.5 percent of the amount.",
+    }[language]
+    failed = checked(
+        question_text=question,
+        target_answer=answer,
+        language=language,
+        statements=(statement,),
+        titles=(title,),
+    )
+
+    assert code(failed) == QuestionRejection.LEAKS_SOURCE
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "title"),
+    [
+        ("Wie hoch ist die Kontoführungsgebühr?", "4,90 EUR", "de", "Kontoführung"),
+        (
+            "Which reinsurance products are excluded from the rules?",
+            "none",
+            "en",
+            "Insurance products",
+        ),
+    ],
+)
+def test_a_title_inside_a_longer_word_is_not_quoted(
+    question, answer, language, title
+) -> None:
+    """A title is matched as whole words, not as letters inside one."""
+    assert (
+        checked(
+            question_text=question,
+            target_answer=answer,
+            language=language,
+            titles=(title,),
+        )
+        is None
+    )
+
+
 def test_the_verifier_catches_a_source_it_named_without_quoting() -> None:
     """`Laut dem Jahresbericht 2025` is not `Druckversion - Jahresbericht 2025`.
 

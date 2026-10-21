@@ -473,6 +473,7 @@ class QuestionChecker:
             forms=candidate.spec.forms,
             bounds=self._bounds,
             titles=candidate.group.titles,
+            passages=candidate.group.passages,
             kind=candidate.kind,
             query=any(one.form == "query" for one in candidate.categories),
         )
