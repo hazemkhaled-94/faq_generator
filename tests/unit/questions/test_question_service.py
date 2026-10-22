@@ -956,6 +956,42 @@ def test_a_slot_the_writer_declines_is_written_as_another_kind() -> None:
     assert len(stored) == 4, "a declined slot was dropped rather than swapped"
 
 
+def test_an_unanswerable_slot_the_writer_declines_is_skipped_not_swapped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Swapped, it would be written again from the same sample, which has no cases."""
+    from question_generation.generation import Declined
+
+    class Declining(StubWriter):
+        """Declines every unanswerable slot, as a writer told of a caseless passage."""
+
+        def write(self, group, plan, note: str = ""):
+            """Declines an unanswerable slot; counts the asks."""
+            if not plan.answerable:
+                self.calls += 1
+                raise Declined(plan.spec.name)
+            return super().write(group, plan)
+
+    caplog.set_level("INFO")
+    writer = Declining()
+    facts = [source(n, document="a", passage_id=n) for n in range(8)]
+    settings = replace(
+        SETTINGS,
+        type_mix={QuestionType.FACTOID: 1, QuestionType.CONDITION: 1},
+        per_topic=1,
+        unanswerable_share=1.0,
+        followup_share=0.0,
+    )
+    service, queue = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    assert writer.calls == 1, "the declined slot was written again as another kind"
+    assert not queue.stored[0]
+    assert "the writer declined the" in caplog.text
+    assert "which is skipped" in caplog.text
+
+
 def _settling(verdict: str, quote: str):
     """A checker refusing every unanswerable question as settled by `quote`."""
     from question_generation.verifier import Settling

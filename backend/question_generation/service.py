@@ -1222,6 +1222,11 @@ class QuestionGenerationService(StageService):
                 try:
                     drafts = self._attempt(sample, plan, accepted)
                 except Declined:
+                    if not plan.answerable:
+                        # An underspecified writer found no case in the passage:
+                        # swapped, the slot would be written again from the same
+                        # sample, so the outer handler skips it.
+                        raise
                     # The writer read the facts and found they cannot answer
                     # this kind; swapped as a reason slot with no reason is.
                     other = instead(plan, self._settings.type_mix, swapped)
@@ -1240,7 +1245,7 @@ class QuestionGenerationService(StageService):
                     drafts = self._attempt(sample, plan, accepted)
             except Declined:
                 log.info(
-                    "topic %d: the writer declined the %s slot it was swapped to",
+                    "topic %d: the writer declined the %s slot, which is skipped",
                     topic.id,
                     plan.spec.name,
                     extra={"topic.id": topic.id},

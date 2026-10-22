@@ -65,7 +65,7 @@ THE KIND OF QUESTION TO ASK: {{asks}}
 EXAMPLES
 {{examples}}
 FORMAT
-Return `question`, and nothing else.
+{{returns}}
 
 """
     + READS
@@ -88,6 +88,9 @@ _UNTOLD = (
     "Write ONE test question that the material does NOT answer anywhere, and that\n"
     "is still a plausible thing to ask of it."
 )
+
+#: What a slot is told to return, which only a kind that may decline changes.
+_RETURNS = "Return `question`, and nothing else."
 
 #: The worked example's fact and passage, which the out-of-reach and the
 #: refuted kinds share.
@@ -201,7 +204,11 @@ _KINDS: dict[str, dict[str, str]] = {
         "{{check}}": """Name the cases the fact or the passage tells apart (two kinds of account,
    two products, two periods) and the answer each gets. If they give one
    answer whatever the case, or if your question names the case, you have
-   written the wrong question - go back to step 2.""",
+   written the wrong question - go back to step 2.
+   If the "cases" are options listed for one case, or your question says the
+   answer varies, you have written the wrong question - go back to step 2.
+   If no sentence of the fact or the passage gives a value that differs by
+   case, set `declined` and leave `question` empty.""",
         "{{examples}}": """  FACT: An urgent support request is answered within 4 hours.
   PASSAGE: Standard requests are answered within 48 hours on working days,
   urgent ones within 4 hours. Only account holders may raise a request.
@@ -210,6 +217,9 @@ _KINDS: dict[str, dict[str, str]] = {
          (it names the case, and it is answered)
   WRONG  "Who may raise a support request?"
          (one answer whatever the case)
+  WRONG  "Why is a support request answered sometimes within 4 hours and
+          sometimes within 48?"
+         (it says the answer varies, and the passage answers it)
 """
         + _UNRELATED
         + """
@@ -219,7 +229,11 @@ _KINDS: dict[str, dict[str, str]] = {
 """,
         "{{must}}": """- IT MUST LEAVE OUT the detail that decides between cases the fact or the
   passage tells apart, so each case has its own answer.""",
-        "{{fact}}": "the question leaves open a case this or its passage tells apart",
+        "{{returns}}": "Return `question`. Where no sentence of the fact or the passage "
+        "gives a value\nthat differs by case, return `declined` true and an empty "
+        "`question` instead.",
+        "{{fact}}": "ask for a value the passage gives differently by case, in this "
+        "fact or another sentence of its passage",
         "{{reads}}": "it must give a different answer for each case your question "
         "leaves open, and no sentence may say which case is meant.",
         "{{holds}}": _AS_ASKED,
@@ -294,7 +308,8 @@ def _perturbation(told: Category | None) -> tuple[str, str]:
     lines = _KINDS[written_as(told)]
     system = fill(
         _PERTURB,
-        lines
+        {"{{returns}}": _RETURNS}
+        | lines
         | (
             {"{{change}}": OUT_OF_CORPUS, "{{action}}": _UNTOLD}
             if told is None
@@ -674,6 +689,16 @@ class _Unanswered(BaseModel):
     )
 
 
+class _Cased(_Unanswered):
+    """The test question of an underspecified slot, or the writer's refusal."""
+
+    declined: bool = Field(
+        default=False,
+        description="True when no sentence of the fact or its passage gives a value "
+        "that differs by case; the question is then left empty.",
+    )
+
+
 class QuestionWriter:
     """Writes one question per sample of facts with a served model."""
 
@@ -862,9 +887,11 @@ class QuestionWriter:
                 categories=(told,) if told else (),
                 holds=_KINDS[written_as(told)]["{{holds}}"],
             ),
-            shape=_Unanswered,
+            shape=_Cased if written_as(told) == "underspecified" else _Unanswered,
             prompt_version=PROMPT_VERSION,
         )
+        if getattr(written, "declined", False):
+            raise Declined(plan.spec.name)
         return Candidate(
             question_text=written.question.strip(),
             # An unanswerable question is scored on behaviour and not on

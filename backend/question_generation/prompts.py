@@ -28,9 +28,11 @@ from question_generation.generation import (
     _USER,
     _USER_FOLLOW,
     _Answered,
+    _Cased,
     _perturbation,
     _profile,
     _Unanswered,
+    written_as,
 )
 from question_generation.kinds import COMPOUND, _Compound
 from question_generation.types import PROMPT_VERSION, SPECS
@@ -42,10 +44,11 @@ if TYPE_CHECKING:
 #: What the stage records its prompts under.
 SERVICE = "questions"
 
-#: The JSON schemas the three writer shapes and the judge shapes ask their
+#: The JSON schemas the four writer shapes and the judge shapes ask their
 #: answers to come back in.
 _ANSWERED = _Answered.model_json_schema()
 _UNANSWERED = _Unanswered.model_json_schema()
+_CASED = _Cased.model_json_schema()
 _COMPOUND = _Compound.model_json_schema()
 
 
@@ -108,7 +111,7 @@ def _writer(settings: Settings | None) -> Iterator[Composed]:
             PROMPT_VERSION,
             system,
             user,
-            _UNANSWERED,
+            _CASED if written_as(told) == "underspecified" else _UNANSWERED,
             writes,
         )
     yield Composed("follow", PROMPT_VERSION, _FOLLOW, _USER_FOLLOW, _ANSWERED, writes)

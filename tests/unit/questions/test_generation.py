@@ -1312,6 +1312,14 @@ ANSWERS = {
         "   two products, two periods) and the answer each gets. If they give one\n"
         "   answer whatever the case, or if your question names the case, you have\n"
         "   written the wrong question - go back to step 2.\n"
+        '   If the "cases" are options listed for one case, or your question says the\n'
+        "   answer varies, you have written the wrong question - go back to step 2.\n"
+        "   If no sentence of the fact or the passage gives a value that differs by\n"
+        "   case, set `declined` and leave `question` empty.\n"
+    ),
+    "Return `question`, and nothing else.\n": (
+        "Return `question`. Where no sentence of the fact or the passage gives a value\n"
+        "that differs by case, return `declined` true and an empty `question` instead.\n"
     ),
     PERTURB[PERTURB.index("EXAMPLES\n") : PERTURB.index("FORMAT\nReturn")]: (
         "EXAMPLES\n"
@@ -1322,6 +1330,9 @@ ANSWERS = {
         "         (it names the case, and it is answered)\n"
         '  WRONG  "Who may raise a support request?"\n'
         "         (one answer whatever the case)\n"
+        '  WRONG  "Why is a support request answered sometimes within 4 hours and\n'
+        '          sometimes within 48?"\n'
+        "         (it says the answer varies, and the passage answers it)\n"
         '  WRONG  "What is the top speed of a swallow?"\n'
         "         (nothing to do with this material; declining it tests nothing)\n\n"
         '  RIGHT  "How long does it take to answer a support request?"\n'
@@ -1474,6 +1485,33 @@ def test_the_unanswerable_shape_names_a_test_question_and_no_lack_of_answer() ->
     assert "does not answer" not in schema
 
 
+def test_only_an_underspecified_writer_may_decline_and_it_says_so() -> None:
+    """A passage with no value that differs by case is a slot to skip, not to force."""
+    from question_generation.generation import Declined, _Cased, _Unanswered
+
+    cased = kind("underspecified", "answers")
+    model = StubModel(question="", declined=True)
+
+    with pytest.raises(Declined):
+        QuestionWriter(model).write(
+            group(), plan(answerable=False, categories=(cased,))
+        )
+
+    assert model.shapes == [_Cased]
+    assert issubclass(_Cased, _Unanswered)
+    for told in (
+        (),
+        (kind("nonsensical", "silent"),),
+        (kind("out-of-corpus", "silent"),),
+    ):
+        model = StubModel(question="Q?", declined=True)
+        written = QuestionWriter(model).write(
+            group(), plan(answerable=False, categories=told)
+        )
+        assert model.shapes == [_Unanswered]
+        assert written.question_text == "Q?"
+
+
 @pytest.mark.parametrize(
     ("told", "fact"),
     [
@@ -1483,6 +1521,13 @@ def test_the_unanswerable_shape_names_a_test_question_and_no_lack_of_answer() ->
             "the question moves this one detail out of reach",
         ),
         (
+            (kind("underspecified", "answers"),),
+            (
+                "ask for a value the passage gives differently by case, in this "
+                "fact or another sentence of its passage"
+            ),
+        ),
+        (
             (kind("nonsensical", "silent"),),
             (
                 "the question joins things this fact and its passage name in a way "
@@ -1490,7 +1535,7 @@ def test_the_unanswerable_shape_names_a_test_question_and_no_lack_of_answer() ->
             ),
         ),
     ],
-    ids=["none", "out-of-corpus", "nonsensical"],
+    ids=["none", "out-of-corpus", "underspecified", "nonsensical"],
 )
 def test_the_fact_line_follows_the_kind(told, fact: str) -> None:
     """A nonsensical question is never told to move a detail out of reach."""
