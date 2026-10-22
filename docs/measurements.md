@@ -631,6 +631,16 @@ opt-in:
   dealt facts with no cases to choose between, and no check tells such a
   question from an answerable one.
 
+**After link U.** The three opt-in kinds then got writer-prompt fixes, which
+were not re-calibrated, so the figures above describe the prompts before
+them and the kinds stay opt-in. Nonsensical is told to write what cannot be
+so of the thing it names, checks that first, and is shown two sensible
+questions as wrong; its retry note keeps the senseless shape. False
+presupposition also checks that no passage grants what its question takes for
+granted in a case it names. Underspecified aims at the value that varies by
+case and may decline a passage with none, which skips the slot. The default,
+out-of-corpus, is unchanged.
+
 The base arm falls short of its own sanity bar of 0.70 sound. The likely cause
 is a labelling rule shared for consistency: a standard such as "reasonable
 time" was counted as settling a how-long question. The comparisons, labelled

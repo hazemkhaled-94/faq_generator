@@ -735,11 +735,20 @@ carries `settles`, the verdict the passages it cites must give, and
 | `underspecified` | Underspecified | `answers` | leave out the detail the passage needs to choose between its cases, so each case has its own answer |
 | `nonsensical` | Nonsensical, illogical content only | `silent` | join things the passage names in a way that makes no sense |
 
+After link U the three opt-in kinds got writer-prompt fixes that were not
+re-calibrated, so the measured figures describe the prompts before them and
+the kinds stay opt-in. Nonsensical is told to ask of a thing what cannot be
+so of it, checks that first, and its retry note keeps the senseless shape.
+False presupposition also checks that no passage grants what its question
+takes for granted in a case it names. Underspecified asks for the value that
+varies by case and may decline a passage with none, which skips the slot
+instead of swapping its kind. Out-of-corpus is unchanged.
+
 Every slot is dealt it, and only an unanswerable slot is told its category:
 the description in a `WHAT MAKES IT A TEST` block under the passages, and the
 action, the step, the examples and the rule its `settles` verdict names in
-the system prompt; nonsensical is also told its own fact line and worked
-example, since it shares out-of-corpus's verdict, and a kind of another name
+the system prompt; nonsensical is also told its own action, check, fact line
+and worked examples, since it shares out-of-corpus's verdict, and a kind of another name
 is written as the shipped kind of its verdict. The block wins where a rule under FORMAT conflicts with
 it, so a nonsensical question is not held to being plausible, except for two
 rules that still hold: never name a source, and never ask about an unrelated
