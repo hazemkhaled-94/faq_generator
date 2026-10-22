@@ -296,6 +296,49 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.4.5
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+Then, once, remove the old `seaweedfs-ui` container, which compose no longer defines:
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env up -d --remove-orphans
+```
+
+There is no migration: `make schema` has nothing new to apply, and the head stays at v0.4.4's `20e31b1656f7`. `backend/database` gains only a check of the text PostgreSQL can store, which the API's refusals call.
+
+One setting is gone and none is new, and three are held to tighter bounds:
+
+- `REVIEW_REVIEWER` is deleted from `configs/env/review.env` and the review settings. It was read and never used, since no column records who reviewed a row. A value left in an environment file is no longer read.
+- `EMBEDDING_MAX_TOKENS` below 64 is refused when written, where 1 was taken: the chunker cuts to it less the embedder's own tokens, and a window of 1 to 6 left every document failing chunking or cut into sub-word passages. The shipped 512 is unchanged.
+- `ORCHESTRATION_DRAIN_TIMEOUT_SECONDS` and `ORCHESTRATION_POLL_SECONDS` must each be a finite number of seconds, at least 1. The orchestrator's code location refuses to load with `nan`, an infinity, a negative or anything under a second, so a value like that in `configs/env/orchestration.env` or `.env` has to be corrected before `make up`. The shipped 28800 and 15 load as before.
+
+Any setting, topic label or upload filename holding a NUL byte or a lone surrogate is refused at the edge: `out_of_range` for a setting, 422 for a topic label and 400 `invalid_value` for a filename, where it reached the database and answered 500. A refused upload writes no object and no `ingest_events` row. A 422 body is now written ASCII-escaped, so it can echo such input back; a JSON reader gets the same text as before.
+
+The API's orchestration routes: Stop asks Dagster for every unfinished run of the corpus job rather than the five newest. `GET /pipeline/runs` refuses a `limit` outside 1 to 500 with a 422, as every listing does. It and `PUT /pipeline/automation` answer 503 `orchestrator_refused` when Dagster answers with an error, where they answered `no_orchestrator`, so a client that branched on `no_orchestrator` for both should read the code. The `arrivals` sensor asks once more for a corpus run that failed, then skips, naming `make pipeline` and the Run button, until new documents arrive or the queue empties.
+
+Models: a hosted `LLM_MODEL` is no longer sent the `OLLAMA_BASE_URL` address when `LLM_BASE_URL` still holds it, so it reaches its provider's own; a gateway address in `LLM_BASE_URL` is kept. `make doctor` asks every model a stage calls one question, `LLM_MODEL` and each stage's own, the judge only while `ASSESSMENT_ENABLED` is on, where it asked `LLM_MODEL` alone. `configs/env/backend.env` puts three judgements on `ollama_chat/muse-glimmer:30b-mlx` (`EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL` and `QUESTIONS_PHRASING_MODEL`), so a deployment that never pulled it now fails `make doctor` there rather than at its first digest: pull it, or point the three lines at a model you have.
+
+No prompt moves, and no question, extraction or topic code changed, so nothing stored needs a rerun and no stage's model calls change.
+
+Compose: the backend and orchestration images are named for the compose project, `qa_generator-backend` and `qa_generator-orchestration` as before unless `-p` or `COMPOSE_PROJECT_NAME` names another, so the default stack keeps its images. A stack now has 23 containers. A second stack beside the first sets `COMPOSE_PROJECT_NAME` and the ten published ports in its own `.env` (see [A second stack beside the first](#a-second-stack-beside-the-first)); `make test-smoke` reads the project name and `DAGSTER_WEBSERVER_PORT` from the shell, so export both there. A Podman machine smaller than the workers run at once is what [A smaller stack](#a-smaller-stack) is for.
+
+What a person on the pages will notice:
+
+- Every listing's search box holds at most 200 characters, the bound the listing routes hold a search to. A longer paste is cut to its first 200 characters, where it replaced the page below the search with `Failed to load: 422`.
+- The Topics search looks in a topic's terms joined by commas, as the table shows them, and *Label and terms* looks in the label and the terms each alone.
+- Saving only a topic's coverage choice no longer cuts a stored name longer than the 120 characters `PATCH /topics` takes: the page sends the name only when it was edited.
+- A filename, an artefact's text and a stage's reason are drawn as written, never read as HTML or Markdown.
+- A row that leaves a listing after it was picked is named, *Row 8036 is no longer in this list; anything pressed for it was not done.*, and nothing pressed for it is done.
+
+Review: a fact push leaves out the facts answered in Argilla and not yet pulled, as a question push already did. A fact record now carries `language` metadata, the language of the passage at its own citation. A facts dataset created before v0.4.5 has no such term, and a push to it drops the term with a warning naming the steps: `make review-pull-facts`, then delete the dataset in Argilla and push again. A pull leaves a corrected topic name over 120 characters in Argilla, with its coverage answer, and logs the topic ids; shorten it there and pull again. The [review README](../review/README.md) lists both limits.
+
+A build made from scratch needs none of the steps above beyond the build and `make up`.
+
 ## Upgrading to v0.4.4
 
 ```bash
