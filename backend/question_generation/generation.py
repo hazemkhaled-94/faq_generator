@@ -217,21 +217,35 @@ _KINDS: dict[str, dict[str, str]] = {
         "leaves open, and no sentence may say which case is meant.",
         "{{holds}}": _AS_ASKED,
     },
-    # Out-of-corpus's verdict, check and rule, with nothing that tells it to
-    # move a detail out of reach or shows it a plausible question.
+    # Out-of-corpus's verdict and rule, and its check after one that asks
+    # whether the question could be so at all; nothing that tells it to move a
+    # detail out of reach or shows it a plausible question.
     "nonsensical": _MOVED
     | {
-        "{{fact}}": "the question joins things this fact and its passage name",
+        "{{action}}": "Write ONE test question that makes no sense as asked: it asks "
+        "of a thing\nthe material names something that cannot be so of that kind "
+        "of thing.",
+        "{{check}}": """Say what your question asks of what. If it could be so of that thing - a
+   party doing a task, a rule applying to another case, a count of things that
+   come in numbers - it makes sense, and you have written the wrong question -
+   go back to step 2.
+   """
+        + _MOVED["{{check}}"],
+        "{{fact}}": "the question joins things this fact and its passage name in a "
+        "way that cannot be so",
         "{{examples}}": _SUPPORT_DESK
         + """  WRONG  "How long does a standrad support reqest take to answer?"
-         (a typing error: read past it, the question is answered)
+         (a typing or grammar slip: read past it, the question is answered)
+  WRONG  "Why do account holders answer standard requests within 48 hours?"
+         (it swaps who does what: a false premise, and it makes sense)
+  WRONG  "How many working days does a standard request take to answer?"
+         (a count that fits: the material answers it)
 """
         + _UNRELATED
         + _SOURCED
         + """
-  RIGHT  "How many hours is an account holder?"
-         (it joins an account holder and a number of hours in a way that
-          makes no sense, so no answer fits)
+  RIGHT  "Why does a working day hold an account?"
+         (a day cannot hold anything, so no reason fits)
 """,
     },
 }

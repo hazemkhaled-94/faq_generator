@@ -1330,6 +1330,26 @@ ANSWERS = {
 
 
 NONSENSICAL = SILENT | {
+    FALLBACK: (
+        "ACTION\nWrite ONE test question that makes no sense as asked: it asks of a thing\n"
+        "the material names something that cannot be so of that kind of thing.\n"
+    ),
+    PERTURB[PERTURB.index("3. Answer") : PERTURB.index("4. Read")]: (
+        "3. Say what your question asks of what. If it could be so of that thing - a\n"
+        "   party doing a task, a rule applying to another case, a count of things that\n"
+        "   come in numbers - it makes sense, and you have written the wrong question -\n"
+        "   go back to step 2.\n"
+        "   Answer your own question from the fact and the passage. They ANSWER it\n"
+        "   when they state the answer, and ALSO when they:\n"
+        "   - contradict or refute its premise - a question about something the\n"
+        '     material says does not happen is answered "it does not";\n'
+        '   - name a closed list or rule its case falls outside - "only", "every",\n'
+        '     "no other", in whatever language the material is written - which\n'
+        '     answers it "nobody else" or "not there";\n'
+        "   - state a general rule that covers its case.\n"
+        "   If either of them answers it in any of these ways, you have written the\n"
+        "   wrong question - go back to step 2.\n"
+    ),
     PERTURB[PERTURB.index("EXAMPLES\n") : PERTURB.index("FORMAT\nReturn")]: (
         "EXAMPLES\n"
         "  FACT: A standard support request is answered within 48 hours.\n"
@@ -1339,14 +1359,17 @@ NONSENSICAL = SILENT | {
         '  WRONG  "How long does a standard support request take to answer?"\n'
         "         (that is the fact itself, and it is answered)\n"
         '  WRONG  "How long does a standrad support reqest take to answer?"\n'
-        "         (a typing error: read past it, the question is answered)\n"
+        "         (a typing or grammar slip: read past it, the question is answered)\n"
+        '  WRONG  "Why do account holders answer standard requests within 48 hours?"\n'
+        "         (it swaps who does what: a false premise, and it makes sense)\n"
+        '  WRONG  "How many working days does a standard request take to answer?"\n'
+        "         (a count that fits: the material answers it)\n"
         '  WRONG  "What is the top speed of a swallow?"\n'
         "         (nothing to do with this material; declining it tests nothing)\n"
         '  WRONG  "What does the service agreement say about public holidays?"\n'
         "         (names its source, which no asker would know to do)\n\n"
-        '  RIGHT  "How many hours is an account holder?"\n'
-        "         (it joins an account holder and a number of hours in a way that\n"
-        "          makes no sense, so no answer fits)\n\n"
+        '  RIGHT  "Why does a working day hold an account?"\n'
+        "         (a day cannot hold anything, so no reason fits)\n\n"
     ),
 }
 
@@ -1455,7 +1478,10 @@ def test_the_unanswerable_shape_names_a_test_question_and_no_lack_of_answer() ->
         ),
         (
             (kind("nonsensical", "silent"),),
-            "the question joins things this fact and its passage name",
+            (
+                "the question joins things this fact and its passage name in a way "
+                "that cannot be so"
+            ),
         ),
     ],
     ids=["none", "out-of-corpus", "nonsensical"],
