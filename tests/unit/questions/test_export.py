@@ -337,6 +337,26 @@ def test_the_summary_counts_the_kinds_and_the_categories() -> None:
     assert counted["categories: Phrasing=concise-and-natural"] == 2
 
 
+def test_the_summary_names_the_models() -> None:
+    """A tester judging their chatbot reads which models made the questions."""
+    quality = QuestionQuality(
+        *[0] * 9,
+        *[{}] * 9,
+        cognitive_level_checked=0,
+        planned_met=0,
+        writer_model={"azure/gpt-5.4": 2},
+        verifier_model={"azure/gpt-4.1": 2},
+        phrasing_model={"azure/gpt-4.1": 1, "not run or not recorded": 1},
+    )
+    summary = sheets(workbook([stored()], [cited()], quality))["Summary"]
+    counted = dict(zip(summary["Measure"], summary["Count"], strict=True))
+
+    assert counted["writer_model: azure/gpt-5.4"] == 2
+    assert counted["verifier_model: azure/gpt-4.1"] == 2
+    assert counted["phrasing_model: azure/gpt-4.1"] == 1
+    assert counted["phrasing_model: not run or not recorded"] == 1
+
+
 class _Catalog:
     """A catalogue that records how the export asked for its rows."""
 

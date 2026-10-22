@@ -1634,6 +1634,43 @@ def test_the_quality_report_counts_each_kind_and_each_category(corpus) -> None:
     }
 
 
+def test_the_quality_report_counts_the_models_that_wrote_and_checked(corpus) -> None:
+    """A row that stored no model is counted as `not recorded`; no phrasing model also means the gate was off."""
+    from question_generation.catalog import QuestionCatalog
+    from question_generation.models import CheckedQuestion, criteria_of
+
+    written = corpus(topics=1, facts_per_topic=2)
+    topic_id = written["topics"][0]
+    one, two = written["facts"][topic_id]
+
+    def asked(fact_id: int) -> list[CheckedQuestion]:
+        return [
+            CheckedQuestion(
+                question_text=f"Question {fact_id}?",
+                target_answer="4 kg",
+                answerable=True,
+                criteria=criteria_of(passages=1, documents=1, topics=1, answer_chars=4),
+                language="en",
+                status="accepted",
+                rejected_reason=None,
+                fact_ids=(fact_id,),
+            )
+        ]
+
+    QuestionQueue(
+        writer_model="azure/gpt-5.4",
+        verifier_model="azure/gpt-4.1",
+        phrasing_model="azure/gpt-4.1",
+    ).store(topic_id, [asked(one)])
+    QuestionQueue(writer_model="azure/gpt-5.4").store(topic_id, [asked(two)])
+
+    quality = QuestionCatalog().quality()
+
+    assert quality.writer_model == {"azure/gpt-5.4": 2}
+    assert quality.verifier_model == {"azure/gpt-4.1": 1, "not recorded": 1}
+    assert quality.phrasing_model == {"azure/gpt-4.1": 1, "not run or not recorded": 1}
+
+
 # ── Which kinds of fact a question may be written from ────────────────────
 
 

@@ -1487,6 +1487,15 @@ class QuestionCatalog(Repository):
             "passage_scope": Question.passage_scope,
             "document_scope": Question.document_scope,
             "topic_scope": Question.topic_scope,
+            # The models that made the set, so a tester can judge their
+            # chatbot with another family. A row from before they were
+            # stored counts as `not recorded` rather than vanishing; no
+            # phrasing model also means the gate was off for the row.
+            "writer_model": func.coalesce(Question.writer_model, "not recorded"),
+            "verifier_model": func.coalesce(Question.verifier_model, "not recorded"),
+            "phrasing_model": func.coalesce(
+                Question.phrasing_model, "not run or not recorded"
+            ),
         }
         with self._reading(read) as session:
             row = session.execute(totals).one()

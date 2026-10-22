@@ -883,3 +883,9 @@ class QuestionQuality:
     #: category counts it, and a compound one in none.
     kind: dict[str, int] = field(default_factory=dict)
     categories: dict[str, int] = field(default_factory=dict)
+    #: The models that wrote, verified and phrase-judged the questions;
+    #: a question stored without one is counted under `not recorded`, and
+    #: one with no phrasing model under `not run or not recorded`.
+    writer_model: dict[str, int] = field(default_factory=dict)
+    verifier_model: dict[str, int] = field(default_factory=dict)
+    phrasing_model: dict[str, int] = field(default_factory=dict)

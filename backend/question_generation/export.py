@@ -330,6 +330,9 @@ def _summary(
             "question_type",
             "kind",
             "categories",
+            "writer_model",
+            "verifier_model",
+            "phrasing_model",
             "cognitive_level",
             "rejected",
         ):

@@ -74,7 +74,8 @@ generated, curated queries.
   benchmark, as a precaution.** Van Elburg et al. suggest a stylistic bias
   towards the generating model without testing it (§6.1). Rahmani et al.
   tested one collection and found little to no bias, with hedges (§3,
-  Fig. 3).
+  Fig. 3). The workbook's Summary sheet names the models that wrote and checked
+  its questions.
 
 ## Every run at a glance
 
