@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, CheckConstraint, Float, ForeignKey, Index, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.qa_generator.base import Base
@@ -78,6 +79,6 @@ DOMINANT = (
     .order_by(
         PassageTopic.passage_id, PassageTopic.weight.desc(), PassageTopic.topic_id
     )
-    .distinct(PassageTopic.passage_id)
+    .ext(distinct_on(PassageTopic.passage_id))
     .subquery()
 )

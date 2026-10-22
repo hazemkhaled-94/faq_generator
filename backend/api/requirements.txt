@@ -1,7 +1,7 @@
 fastapi>=0.141.1,<1.0.0
 uvicorn[standard]>=0.52.4,<1.0.0
 python-multipart>=0.0.32,<1.0.0
-SQLAlchemy>=2.0.52,<3.0.0
+SQLAlchemy>=2.1.6,<3.0.0
 alembic>=1.16.0,<2.0.0
 psycopg[binary]>=3.3.4,<4.0.0
 pgvector>=0.5.0,<0.6.0
@@ -18,7 +18,7 @@ numpy>=2.0.0,<3.0.0
 # torch, which is most of the image size. Held at the version poetry.lock
 # pins, so the image runs the Docling the tests run. A Docling upgrade changes
 # parse output.
-docling==2.137.0
+docling==2.141.0
 lingua-language-detector>=2.2.0,<3.0.0
 # Extraction: the model client, structured output and retries.
 litellm>=1.98.0,<2.0.0

@@ -77,7 +77,7 @@ data = [
 ]
 
 storage = [
-    "sqlalchemy>=2.0.52,<3.0.0",
+    "sqlalchemy>=2.1.6,<3.0.0",
     "alembic>=1.16.0,<2.0.0",
     "psycopg[binary]>=3.3.4,<4.0.0",
     "pgvector>=0.5.0,<0.6.0",
@@ -376,6 +376,10 @@ filterwarnings = [
     # pytest-benchmark notes a benchmark at collection, before `-m` deselects
     # it, and warns under xdist that it cannot run one.
     "ignore::pytest_benchmark.logger.PytestBenchmarkWarning",
+    # litellm's own ChatCompletionReasoningItem marks `summary` ReadOnly, and
+    # pydantic warns it cannot enforce that each time litellm builds a
+    # response model. Fixed upstream in litellm's time, not ours.
+    "ignore:Item 'summary' on TypedDict class 'ChatCompletionReasoningItem':UserWarning",
 ]
 
 # Measured over every package a deployment runs, not just the backend: the

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import ScalarSelect, delete, func, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from database.qa_generator import (
     Document,
@@ -24,7 +24,7 @@ _FIRST_EVENT = (
         IngestEvent.submitted_at.label("first_seen"),
     )
     .where(IngestEvent.sha256.is_not(None))
-    .distinct(IngestEvent.sha256)
+    .ext(distinct_on(IngestEvent.sha256))
     .order_by(IngestEvent.sha256, IngestEvent.submitted_at)
     .subquery()
 )
