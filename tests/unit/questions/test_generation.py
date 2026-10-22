@@ -1274,6 +1274,11 @@ REFUTES = {
         "   takes for granted is not so. If there is none, if it only fails to mention\n"
         "   it, or if either of them states an answer to the question as asked, you\n"
         "   have written the wrong question - go back to step 2.\n"
+        "   Then look the other way: if any sentence of the fact, the passage or the\n"
+        "   passages beside it says that what your question takes for granted IS so in a\n"
+        "   case it names - an exception, an option, a party or a period it allows,\n"
+        "   however the material words it - you have written the wrong question - go\n"
+        "   back to step 2.\n"
     ),
     PERTURB[
         PERTURB.index('  WRONG  "How long is') : PERTURB.index(
@@ -1292,7 +1297,8 @@ REFUTES = {
     ),
     PERTURB[PERTURB.index("- IT MUST NOT") : PERTURB.index("\n\n- A question about")]: (
         "- IT MUST TAKE FOR GRANTED something a sentence of the fact or the passage\n"
-        "  says is not so, and nothing in them may answer it as asked."
+        "  says is not so in every case they name, and nothing in them may answer it as\n"
+        "  asked or grant it in an exception."
     ),
 }
 
@@ -1498,7 +1504,10 @@ def test_the_fact_line_follows_the_kind(told, fact: str) -> None:
         ((kind("nonsensical", "silent"),), "the same holds for every sentence of them"),
         (
             (kind("false-presupposition", "refutes"),),
-            "none of them may answer your question as asked",
+            (
+                "none of them may answer your question as asked, or say that what it "
+                "takes for granted is so in a case they name"
+            ),
         ),
         (
             (kind("underspecified", "answers"),),

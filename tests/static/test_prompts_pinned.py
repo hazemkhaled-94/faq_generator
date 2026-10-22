@@ -66,7 +66,7 @@ RECORDED = {
     ("questions", "temporal"): ("29", "36afed51ab80ebce"),
     ("questions", "perturb"): ("29", "9c48519ff8433d49"),
     ("questions", "perturb (out-of-corpus)"): ("29", "924331e61107e1ca"),
-    ("questions", "perturb (false-presupposition)"): ("29", "bc0f53c6b6c28ddb"),
+    ("questions", "perturb (false-presupposition)"): ("29", "cbac3f25d6b63e00"),
     ("questions", "perturb (underspecified)"): ("29", "ea9062ac660b716a"),
     ("questions", "perturb (nonsensical)"): ("29", "924086d0d5d3bbc2"),
     ("questions", "follow"): ("29", "b01fef3538ce9a05"),

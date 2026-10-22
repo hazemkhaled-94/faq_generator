@@ -166,7 +166,12 @@ _KINDS: dict[str, dict[str, str]] = {
         "{{check}}": """Find the sentence of the fact or the passage that says what your question
    takes for granted is not so. If there is none, if it only fails to mention
    it, or if either of them states an answer to the question as asked, you
-   have written the wrong question - go back to step 2.""",
+   have written the wrong question - go back to step 2.
+   Then look the other way: if any sentence of the fact, the passage or the
+   passages beside it says that what your question takes for granted IS so in a
+   case it names - an exception, an option, a party or a period it allows,
+   however the material words it - you have written the wrong question - go
+   back to step 2.""",
         "{{examples}}": _SUPPORT_DESK
         + """  WRONG  "Through which channel is the answer to a standard support request
           sent?"
@@ -181,12 +186,14 @@ _KINDS: dict[str, dict[str, str]] = {
           granted is not so)
 """,
         "{{must}}": """- IT MUST TAKE FOR GRANTED something a sentence of the fact or the passage
-  says is not so, and nothing in them may answer it as asked.""",
+  says is not so in every case they name, and nothing in them may answer it as
+  asked or grant it in an exception.""",
         "{{fact}}": "the question takes for granted something this or its "
         "passage says is not so",
         "{{reads}}": "one sentence of it must say that what your question takes "
         "for granted is not so, and none may answer it as asked.",
-        "{{holds}}": _AS_ASKED,
+        "{{holds}}": "none of them may answer your question as asked, or say that "
+        "what it takes for granted is so in a case they name",
     },
     "underspecified": {
         "{{action}}": "Write ONE test question that the material answers "
