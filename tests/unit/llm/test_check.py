@@ -57,3 +57,17 @@ def test_the_doctor_asks_every_model_a_stage_calls(monkeypatch, judging) -> None
     judged = {"azure/judge"} if judging == "true" else set()
     asked = {"azure/shared", *roles.values(), *judged}
     assert sorted(call["model"] for call in served.calls) == sorted(asked)
+
+
+def test_a_stage_that_will_not_load_still_leaves_the_other_models_asked(
+    monkeypatch,
+) -> None:
+    """The evaluation phase on with no judge named fails the doctor, and the rest are asked."""
+    monkeypatch.setenv("LLM_MODEL", "azure/shared")
+    monkeypatch.setenv("ASSESSMENT_ENABLED", "true")
+    monkeypatch.setenv("ASSESSMENT_JUDGE_MODEL", "")
+    monkeypatch.setattr("telemetry.configure", lambda _: None)
+    served = provider(monkeypatch, reply('{"ok": true}'))
+
+    assert main() == 1
+    assert "azure/shared" in {call["model"] for call in served.calls}

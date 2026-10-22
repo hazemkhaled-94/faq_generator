@@ -19,12 +19,13 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def every_model() -> list[Settings]:
-    """Every model a stage run from this environment calls, as it resolves it.
+def every_model() -> tuple[list[Settings], list[str]]:
+    """Every model a stage run from this environment calls, and the stages that will not load.
 
     LLM_MODEL and each stage's own: backend.env names some of those, so
     LLM_MODEL alone is not what a run calls. The judge only while the
-    evaluation phase is on, as its worker asks it.
+    evaluation phase is on, as its worker asks it. A stage whose settings
+    will not load is named rather than raised, so the others are still asked.
     """
     # Inside the function, as every import here: the api process imports
     # none of the stages' working halves, and tests/static/test_api_stays_light.py
@@ -39,13 +40,28 @@ def every_model() -> list[Settings]:
     from topic_modelling.config import Settings as Topics
 
     shared = Shared.load()
-    asked = [shared, *extraction_models(Extraction.load(), shared)]
-    if naming := Topics.load().model:
-        asked.append(naming)
-    asked += question_models(Questions.load(), shared)
-    if (judging := Assessment.load()).enabled:
-        asked.append(judge_model(judging, shared))
-    return list({(m.model, m.base_url): m for m in asked}.values())
+
+    def naming() -> list[Shared]:
+        model = Topics.load().model
+        return [model] if model else []
+
+    def judging() -> list[Shared]:
+        judge = Assessment.load()
+        return [judge_model(judge, shared)] if judge.enabled else []
+
+    stages = {
+        "extraction": lambda: extraction_models(Extraction.load(), shared),
+        "topics": naming,
+        "questions": lambda: question_models(Questions.load(), shared),
+        "assessment": judging,
+    }
+    asked, refused = [shared], []
+    for stage, models in stages.items():
+        try:
+            asked += models()
+        except Exception as error:  # noqa: BLE001 - the doctor reports every stage
+            refused.append(f"{stage}: {error}")
+    return list({(m.model, m.base_url): m for m in asked}.values()), refused
 
 
 def main() -> int:
@@ -59,8 +75,11 @@ def main() -> int:
 
     telemetry.configure("doctor")
 
-    failed = 0
-    for settings in every_model():
+    models, refused = every_model()
+    for stage in refused:
+        log.error("settings will not load: %s", stage)
+    failed = 1 if refused else 0
+    for settings in models:
         log.info("model    %s", settings.model)
         log.info("address  %s", settings.base_url or "(the provider's own)")
         log.info("mode     %s", settings.structured_mode)
