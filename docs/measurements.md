@@ -562,6 +562,97 @@ with the labels; with this one, a floor is read on the labels themselves.
 Script and figures: `ppi_precheck.py` and `ppi-precheck.json` in the papers
 programme's handoff folder. No model was called.
 
+## Unanswerable kinds (v0.5.0)
+
+UAEval4RAG (Peng et al., [*Unanswerability Evaluation for Retrieval
+Augmented Generation*](https://aclanthology.org/2025.acl-long.415/), ACL
+2025) writes unanswerable questions of several kinds. v0.5.0 can deal four
+of them to unanswerable slots: out-of-corpus (today's perturbation), false
+presupposition, underspecified and nonsensical. Link U, run on 2026-10-22,
+measured them against the code before them.
+
+**The run.** Copies of both frozen calibration bases (the Laws of the Game
+and the Your Europe consumer pages, German and English) were used, every slot
+unanswerable, on the production model split (the writer azure/gpt-5.4, every
+other role azure/gpt-4.1), in three arms:
+
+- **base:** v0.4.5's code, 4 slots a topic on all 27 topics;
+- **out-of-corpus and the first try at the others:** 16 slots a topic, the
+  four kinds at even odds;
+- **the other three again:** a review of the first try found that its
+  checks, prompts and retry notes did not yet agree for those kinds, so they
+  ran again on the fixed code, 16 slots a topic, false presupposition at half
+  the slots.
+
+It cost USD 18.00. Sixty kept rows of each kind and of the base were drawn
+evenly over corpus and language, shuffled, and labelled blind by three
+labellers, each given an equal share of every arm. The labels are whether
+the corpus leaves the question unanswered as asked (searched in both
+languages), how it settles it, whether the question is plausible or invalid,
+whether it has readings the material answers differently, and whether its
+premise is false and supported anywhere. A second pass labelled conformance
+on form, with the kind's description shown.
+
+| | Kept of drafts | Sound | Answered after all | Invalid | Conforms | Verdict |
+|---|---|---|---|---|---|---|
+| base (v0.4.5) | 80 of 157 (51%) | 0.667 | 20 | 5 | — | — |
+| out-of-corpus | 88 of 138 (64%) | 0.683 | 19 | 1 | 0.95 | passes |
+| false presupposition | 106 of 338 (31%) | 0.850 | 0 | 0 | 0.97 | misses one bar |
+| nonsensical | 99 of 127 (78%) | 0.833 | 10 | 0 | 0.78 | misses conformance |
+| underspecified | 92 of 123 (75%) | 0.367 | 38 | 2 | 0.35 | fails |
+
+"Sound" is what each kind is for, read off the blind labels:
+- for the base, out-of-corpus and nonsensical: the corpus leaves the question
+  unanswered;
+- for false presupposition: a passage says its premise is false and none says
+  it is true;
+- for underspecified: it has two or more readings the material answers
+  differently.
+
+The bars were written before the run, with the margins of the review's floor
+rule:
+- sound no more than 0.10 below the base;
+- answered after all, and invalid, at most 2 above the base;
+- conformance at least 0.80;
+- for false presupposition, at most 2 rows of 60 whose premise the corpus
+  supports somewhere;
+- for underspecified, at least 0.80 sound.
+
+Out-of-corpus passes every bar, so **the default deals unanswerable slots
+out-of-corpus alone**, in the words the run measured. The other three ship
+opt-in:
+
+- **False presupposition** has the soundest questions and none the corpus
+  answers. But 5 of 60 take for granted something a passage elsewhere allows,
+  often an exception the cited rule leaves to another law, against a bar of 2.
+- **Nonsensical** writes coherent questions in 13 of 60, one row short of the
+  bar.
+- **Underspecified** mostly writes plain answerable questions. The writer is
+  dealt facts with no cases to choose between, and no check tells such a
+  question from an answerable one.
+
+The base arm falls short of its own sanity bar of 0.70 sound. The likely cause
+is a labelling rule shared for consistency: a standard such as "reasonable
+time" was counted as settling a how-long question. The comparisons, labelled
+alike, stand.
+
+Two more readings came out of the run:
+
+- Refusals by kind. False presupposition was refused as the wrong kind 158
+  times, where the cited passage only fails to mention what it assumes, and as
+  answered after all 47 times. Underspecified was refused as the wrong kind 20
+  times. Nonsensical and out-of-corpus were refused mostly as answered after
+  all or elsewhere (16 and 10; 26 and 18).
+- The answerable-elsewhere probe and FIX-R55. Of the 39 labelled rows the
+  corpus answers, case-folding the question the way passages are case-folded
+  brings one more answering passage into the probe's 20 nearest (English 1,
+  German 0). The rule set before the run, at least 2 in a language, does not
+  fire, so the probe is unchanged.
+
+The paper's own difficulty order (underspecified hard; false presupposition
+and out-of-database easy; nonsensical medium) is another measure: how well
+chatbots replied, not how well questions were written.
+
 ## Model latency
 
 Per call, over the run:
