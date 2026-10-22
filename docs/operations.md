@@ -296,6 +296,164 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.5.0
+
+This section gives two paths. The first is for a stack on v0.4.5. The second is for a stack that still runs v0.3.12, as production does. Either way, a build made from scratch on a new database needs only the code, the host environment and the images below, `make up` and `make schema`, and none of the reruns.
+
+### From v0.4.5
+
+```bash
+poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+**Dependencies.** Every dependency moves to the newest release its range allows. That is 139 packages of `poetry.lock` moved, added or removed, with `backend/api/requirements.lock`, `frontend/requirements.lock` and the pins in `orchestration/requirements.txt` beside them. Run the `poetry install` above on a host checkout before anything else; `make install-python` runs the same command and then fetches the spaCy pipelines. Then rebuild the images, so the host and the images run the same versions.
+
+The moves that matter to a stack:
+
+- **SQLAlchemy** goes from 2.0.52 to 2.1.6, and 2.1.6 is now the floor in `pyproject.toml` and `backend/api/requirements.txt`. Two queries ask for DISTINCT ON through `sqlalchemy.dialects.postgresql.distinct_on`, which 2.0 lacks. A virtualenv left at 2.0.52 fails at import with `cannot import name 'distinct_on'`.
+- **pandas** goes from 2.3.3 to 3.0.6 on the host and in both images. The workbook export and `make diversity` read through it.
+- **Docling** goes from 2.137.0 to 2.141.0, and docling-core from 2.101.1 to 2.103.1, on the host and in the API image, where the parse worker runs. A document parsed now can come out differently from one parsed under 2.137.0. Stored parses keep what they were parsed with until `make parse-rerun`.
+- **Dagster** goes from 1.13.24 to 1.13.26, and dagster-postgres from 0.29.24 to 0.29.26, in the orchestration image and on the host. Both use the one `dagster` database, so rebuild the image whenever the host moves.
+- **The rest.** litellm goes from 1.100.1 to 1.106.2, transformers from 5.17.0 to 5.20.2, fastapi from 0.141.1 to 0.159.1 and pydantic from 2.13.5 to 2.14.1. The warning pydantic 2.14 raises over one of litellm's response types is ignored by name in the test configuration.
+- **Pillow** stays at 12.3.0, with its advisories accepted as *Upgrading to v0.4.4* says.
+
+**No migration.** `make schema` has nothing new to apply, and the head stays at `20e31b1656f7`. Nothing in `backend/database` changed but one of those two queries, the one that picks each passage's dominant topic.
+
+**Settings.** No setting is new and none is gone. One default moves: `QUESTIONS_RELEASE_UNANSWERABLE` ships at 0.10, where it was 0, so a release made now holds up to a tenth unanswerable questions. The settles reading still keeps answerable ones: on link U, 19 of 60 kept out-of-corpus rows and 20 of 60 base rows were answered by the corpus after all. Up to about a third of the released unanswerable rows therefore test a chatbot for saying no to a question it should answer. This is a known defect, recorded in `docs/bugs.md`. Set the value to 0 in `configs/env/backend.env` to release none.
+
+A category of `QUESTIONS_CATEGORIZATIONS` takes two new keys:
+
+- `settles`: the verdict the passages its question cites must give, `answers`, `refutes` or `silent`;
+- `behaviour`: what a good reply to its question does.
+
+A categorization whose categories all carry both is the unanswerable one. Its categories are told only to the unanswerable writer, and at most one categorization may carry them. A value is refused in five more cases, listed in the [configuration guide](configuration.md):
+- `settles` is none of the three verdicts;
+- a category has one of the two keys without the other;
+- a behaviour is empty;
+- only some categories of a categorization carry `settles`;
+- two categorizations carry it.
+
+Unset, the default keeps Phrasing × Premise × Linguistic variation and adds a fourth categorization, `Unanswerable`, which deals every unanswerable slot the out-of-corpus kind alone. That kind is the perturbation unanswerable slots were always written as, and the one kind link U passed.
+
+The kinds of UAEval4RAG (Peng et al., [*Unanswerability Evaluation for Retrieval Augmented Generation*](https://aclanthology.org/2025.acl-long.415/), ACL 2025) are `out-of-corpus`, `false-presupposition`, `underspecified` and `nonsensical`, held as `UNANSWERABLE_CATEGORIZATION` in `backend/question_generation/config.py`. The other three are opt-in. To opt in, set `QUESTIONS_CATEGORIZATIONS` to a list holding the default's three answerable categorizations and `UNANSWERABLE_CATEGORIZATION`, in place of the default's own `Unanswerable` entry, because a value replaces the default whole. JSON cannot be written in `configs/env/backend.env`, so set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. The three opt-in kinds got writer-prompt fixes after link U that were not re-calibrated, so link U's figures describe their prompts before those fixes.
+
+**Prompts.** The writer's version moves from 28 to 29. Only the unanswerable writer's text changed. Every other writer prompt is the same text as under 28, as its digest in `tests/static/test_prompts_pinned.py` shows.
+
+Told no kind, the unanswerable writer takes the same steps and checks as before, with its wording rearranged:
+- its opening says the questions test whether a chatbot handles a question it should not simply answer;
+- the rule against an absurd question moves into the step that says what to change;
+- its reply field is described afresh.
+
+Told a kind, it is sent that kind's variant. The catalogue records four writer variants beside `perturb`: `perturb (out-of-corpus)`, `perturb (false-presupposition)`, `perturb (underspecified)` and `perturb (nonsensical)`. An underspecified writer may decline a passage that gives no value differing by case, and the slot is then skipped. The verifier stays at 12, phrasing at 4 and the assessment template at 4, and extraction and topics are untouched. Stored questions keep the version they were written under.
+
+**Model calls.** None is added. A draft written to a kind gets the settles readings every unanswerable draft already gets: one over the passages it cites, and, where those give its kind's verdict, one more beside the passage probe. A draft the reading refused is written again, as before, with a note for its verdict where there is one.
+
+**Stored rows.** Nothing stored needs a rerun. `make questions-rejudge` reads each row's expected verdict off its stored category. A row written before v0.5.0 has none and reads `silent`, as it was written. The verifier's version did not move, so a rejudge asks nothing about a row already judged under verifier 12. `make questions` writes new rows under writer prompt 29, with the out-of-corpus kind by default. The next `make questions-balance` draws unanswerable rows into the release, up to the 0.10 ceiling.
+
+**Commands, the workbook and the API.**
+- `make diversity FILE=<workbook> LABELS=<file>` corrects each share reviewers labelled by the judge's verdict on all the questions, with prediction-powered inference (Angelopoulos et al., [*Prediction-powered inference*](https://doi.org/10.1126/science.adi6000), Science 2023) as ARES (Saad-Falcon et al., [*ARES: An Automated Evaluation Framework for Retrieval-Augmented Generation Systems*](https://aclanthology.org/2024.naacl-long.20/), NAACL 2024) does. The labels file and the report are in the [assessment README](../backend/assessment/README.md#labelled-shares-corrected-by-the-judge). It needs a workbook whose Judge column holds the judge of the DataMorgana paper (Filice et al., [*Generating Q&A Benchmarks for RAG Evaluation in Enterprise Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Track).
+- Every `make diversity` table but `AGAINST=`'s gains `held`, an easiness reading.
+- Export a workbook again to get the new cells:
+  - the Summary sheet counts the questions each model wrote, verified and phrase-judged;
+  - an unanswerable row told a kind names it in its Categories cell (`Unanswerable=false-presupposition`);
+  - its Answer cell reads `Expected behaviour: ` and what a good reply does.
+- `GET /questions/quality` gains the maps `writer_model`, `verifier_model` and `phrasing_model`. A question in `GET /questions` gains `behaviour`, null except on an unanswerable question told a kind.
+- No column, target or route is added.
+
+### From v0.4.0 to v0.4.4
+
+Follow the section of each release after yours first, in order, then *From v0.4.5* above. `make schema` reaches `20e31b1656f7` on the way: three revisions from v0.4.0 or v0.4.1 (v0.4.2's two and v0.4.4's), one from v0.4.2 or v0.4.3.
+
+### From v0.3.12
+
+This is for a stack that runs v0.3.12 and moves straight to v0.5.0. It replaces the sections for v0.3.13 to v0.4.5 and *From v0.4.5* above: follow it once, in the order given, and skip those. Each step names the release that needs it, and that release's section has the detail. Back up PostgreSQL and the `documents` bucket first (the wiki's Operations page describes the backups). One of the migrations below cannot be undone.
+
+#### 1. Code, the host environment and images
+
+```bash
+poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+podman compose --env-file configs/env/deployment.env --env-file .env up -d --remove-orphans
+```
+
+The last line removes, once, the `seaweedfs-ui` container that compose no longer defines (v0.4.5). The `poetry install` brings the host to v0.5.0's lock; a virtualenv left on v0.3.12's SQLAlchemy 2.0 fails at import. The images' locks have followed `poetry.lock`'s pins since v0.4.4. The API image now parses with Docling 2.141.0.
+
+#### 2. Six migrations: `make schema`
+
+Check what it will do with `make schema-status`. `make schema` then applies six revisions, one after the other, on top of v0.3.12's head `8f759a3a3848`:
+
+| Revision | From | What it does |
+|---|---|---|
+| `a41c9e3d7b52` | v0.3.20 | Adds `questions.kind`, `NOT NULL`, backfilled from the passage scope |
+| `c3a9e1470b5d` | v0.3.23 | Adds `facts.bridge`, empty on every stored bridge until `make extract-bridge FORCE=1` rewrites it |
+| `d5b2f8a60c14` | v0.3.36 | A trigger takes a thread's follow-ups out of the release when its root leaves `accepted`, and a one-time repair clears the release of follow-ups already split from their root. **The repair cannot be undone by a downgrade**; *Upgrading to v0.4.0* gives the query that counts the rows it will touch |
+| `733a3eadef7c` | v0.4.2 | Lets `assessment_metrics` hold the DataMorgana paper's six `rubric_*` scores |
+| `626a5b07ae34` | v0.4.2 | Adds `questions.categories`, empty on stored questions |
+| `20e31b1656f7` | v0.4.4 | Column comments only |
+
+#### 3. Settings
+
+None is required. These changed:
+
+- **New defaults that change what a build writes.**
+  - `QUESTIONS_KIND_MIX` defaults to `needs_both:5,compound:1` (v0.3.20 and v0.3.26). About one in six slots that span passages becomes a compound question; `needs_both:1` turns that off.
+  - `QUESTIONS_CATEGORIZATIONS` is new (v0.4.2). Unset, it deals Phrasing × Premise × Linguistic variation (v0.4.3) and, from v0.5.0, the out-of-corpus kind to every unanswerable slot; `[]` turns categories off. The other three unanswerable kinds are opted into through it, as *From v0.4.5* says.
+  - `QUESTIONS_RELEASE_UNANSWERABLE` ships at 0.10 (v0.5.0), where v0.3.12 had 0, so a release holds up to a tenth unanswerable questions, with the known defect *From v0.4.5* gives; 0 releases none.
+- **Gone.** `TOPIC_LABEL_MIN_FACT_SHARE` (v0.4.4) and `REVIEW_REVIEWER` (v0.4.5) are deleted. A value left in an environment file is no longer read.
+- **Held to tighter bounds** (v0.4.5). `EMBEDDING_MAX_TOKENS` must be at least 64. `ORCHESTRATION_DRAIN_TIMEOUT_SECONDS` and `ORCHESTRATION_POLL_SECONDS` must each be a finite number of seconds, at least 1, or the orchestrator's code location refuses to load: correct such a value before `make up`. `DATABASE_URL` must name a database (v0.4.4).
+- **Read differently**, with no change to their values: `QUESTIONS_RELEASE_LANGUAGES` unset, `EXTRACTION_BRIDGES_PER_TOPIC`, `EXTRACTION_MIN_OTHER_SHARE`, and `TOPIC_NO_BELOW` and `TOPIC_NO_ABOVE` for a small language (v0.4.0, step 3 of its section).
+- **Models.** `make doctor` asks every model a stage calls (v0.4.5). `configs/env/backend.env` puts `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL` and `QUESTIONS_PHRASING_MODEL` on `ollama_chat/muse-glimmer:30b-mlx`. Pull that model, or point the three lines at one you have.
+
+#### 4. Prompts and model calls
+
+- **Prompt versions** from v0.3.12 to v0.5.0:
+  - the writer, from 15 to 29;
+  - the verifier, from 6 to 12, and `verifier: stated` 1 is new (v0.3.35);
+  - the assessment template, from 2 to 4 (v0.4.2);
+  - topic naming, from 2 to 3 (v0.4.4);
+  - the bridge prompt, from 5 to 6;
+  - unchanged: atomic extraction 12, repair-1, the digest 5 and phrasing 4.
+
+  Stored rows keep the version they were written under.
+- **Calls added since v0.3.12.**
+  - An accepted answerable `needs_both` question citing two passages gets one more verifier read (v0.3.35).
+  - A compound question costs two verifier reads (v0.3.26).
+  - The DataMorgana paper's judge replaces question relevance in the assessment, one call for another, while `ASSESSMENT_ENABLED` is on (v0.4.2). A root question is judged in six calls.
+  - A with-premise draft that names no asker is written once more (v0.4.3).
+  - A short search query costs one more verifier read, and only while that opt-in category is configured (v0.4.3).
+  - v0.5.0 adds none.
+
+#### 5. Reruns, in order
+
+None of these is needed to start v0.5.0. Each brings stored data up to what the releases since v0.3.12 read differently, and one pass under v0.5.0's code covers every release at once. Run only the steps your corpus needs. Each `make *-rerun` drains on the host and refuses while that stage's container worker runs. To rerun with the container workers, use the stage's page or `POST /{stage}/rerun` instead.
+
+| Step | Command | Needed because of |
+|---|---|---|
+| Parse | `make parse-rerun` | v0.3.31, v0.4.0 and v0.4.4; and v0.5.0's Docling 2.141.0. It refuses while the parse worker runs |
+| Chunk | `make chunk-rerun` | v0.3.31, v0.3.32, v0.4.0 and v0.4.4. A passage the new cut repeats exactly keeps its facts. Every other one is replaced, and the facts, bridges and questions resting on it go into the archive. Without `SHA` it warns and waits 5 seconds |
+| Extract new passages | `make extract-start`, then `make extract` | The passages the re-chunk made have no facts yet. Only those reach the model |
+| Give back repair pieces | `make extract-recap`, then `make extract-dedup` | v0.3.14; no model call for the recap |
+| Judge facts again | `make extract-revalidate` | v0.3.15, v0.3.29, v0.3.33 and v0.4.4. No model call |
+| Rewrite bridges | `make extract-bridge FORCE=1` | v0.3.16, v0.3.23 (fills `facts.bridge`), v0.3.28, v0.4.0 and v0.4.4 (records the passage that headed each link). The one rerun that calls the model for every bridge. `FORCE=1` is needed while an accepted question cites a bridge, and those questions are rejected or deleted with it |
+| Refit topics | `make topics-discover` | v0.4.0 and v0.4.4. Figures and models move to `topics/<database>/<language>`, and until this runs the Topics page shows no figure. A name or coverage choice a person gave goes to the topic holding most of its passages |
+| Questions already stored | `make questions-rescore`, then `make questions-reverify` | The stored kind and citations (v0.3.20, v0.3.25), the number and answer readings (v0.3.18, v0.3.19, v0.3.24 and v0.3.33), and v0.4.3's gates and reads. Reverify can reject a stored question and never gives a rejected one back |
+| Ask unanswerables again | `make questions-rejudge` | v0.4.3 moved the verifier to 12. The first run costs one settles reading for each stored accepted unanswerable question, and a second where its cited passages are silent and the probe is on. Later runs ask nothing new |
+| Redraw the release | `make questions-balance` | v0.3.27, v0.4.0 and v0.4.3 (a scarce kind no longer caps the release), and the thread trigger |
+
+Two more are optional:
+- Stored questions carry no categories, no compound kind and no unanswerable kind. Only a fresh `make questions` writes those.
+- `make assess-rerun ONLY=--only\ kind=question` judges stored questions with the DataMorgana paper's judge (v0.4.2). It clears and replaces every stored question verdict, the old `relevance` rows included. `make diversity LABELS=` and the judge's means need it.
+
+#### 6. What else changes for you
+
+- **The workbook.** On its next export it gains a Kind column after Type (v0.3.34) and a Categories column (v0.4.2). The Summary sheet counts kinds, categories (v0.4.3) and the models that made the set (v0.5.0). An unanswerable row told a kind gives its expected behaviour in the Answer cell (v0.5.0).
+- **Argilla.** Recreate a question dataset made before v0.4.3: it lacks `kind` (v0.3.28), the `thread` field and `turn` (v0.3.34), and the categories (v0.4.3). Recreate a facts dataset made before v0.4.5: it lacks each fact's `language`. The [review README](../review/README.md) says how.
+- **The API.** *Upgrading to v0.4.0* and *Upgrading to v0.4.5* list what moved: assessment reruns answer 409 when the phase cannot run, `GET /pipeline/runs` refuses a `limit` outside 1 to 500, and NUL bytes and lone surrogates are refused at the edge.
+- **Test runs** from a checkout no longer load its `.env` (v0.4.3).
+
 ## Upgrading to v0.4.5
 
 ```bash

@@ -320,6 +320,25 @@ a list item depends on. Validation still does not check scope. The share of
 facts dropping a scope word fell in both languages; see
 [After the fixes](#after-the-fixes).
 
+**Measured again for v0.5.0, still not fixed.** A reader that repairs
+narrowed facts was replayed on the v0.3.0 hand review: 2,861 validated
+atomic facts, 247 of the 2,782 a model wrote labelled as dropping their
+scope. Thirty passages of the shop corpus were labelled before the first
+call as well. The bars were written before it ran. It found 52% of the drops,
+against a bar of 50%, but only 30% of the facts it changed had dropped their
+scope, against 80%. Of its repairs, 63% read correct, against 80%, and it
+broke 2.0% of complete facts, against at most 1%. On the shop passages its
+precision was 0.39. Most false flags added the section heading as a
+situation. The harmful rewrites included a double negation, sibling list
+items merged into one fact, and one exception inverted. A deterministic
+trigger with a model reading behind it did no better (0.29 precision,
+2.0% harm), and a clause-aligned check alone reached 0.18 precision. Nothing
+shipped. The 109 flags measured first were never kept, so the replay used
+the later hand review. One class held up when the results were split after
+the run: a limit stated in a sentence the fact does not cite (0.68
+precision, no harm, about a quarter of the drops). A design asking only for
+those is the next step, with a replay of its own.
+
 ## A two-item key was read as a value
 
 `fitting` tried the "three or more items is a list" hint before the type's
@@ -786,6 +805,23 @@ is sent once, not retried, and costs its one slot or thread; the topic fails
 only after five refusals in a row. The retry notes now read as a reviewer's
 feedback on the quoted draft, and no longer tell the writer what it is
 supposed to produce.
+
+## Found by the papers programme of 2026-10-22
+
+v0.5.0 added three published sources' features and calibrated UAEval4RAG's unanswerable kinds on link U (see `docs/measurements.md`, *Unanswerable kinds (v0.5.0)*). Before release, every open item was listed, 236 of them, and ranked by what it would do to a large build. Nothing below is fixed in v0.5.0. The full build after v0.5.0 re-checks every open item, each against a check and a verdict rule written before the build, and its findings go in a section of their own.
+
+### Deferred, with the reason
+
+| Items | Why they stay open |
+|---|---|
+| A fact may drop its sentence's scope | A repair reader replayed for v0.5.0 found half the drops but was right on 30% of the facts it changed, against 80%, and broke 2.0% of complete facts; see [A fact may drop its sentence's scope](#a-fact-may-drop-its-sentences-scope) |
+| About a third of the kept unanswerable questions are answered by the corpus | Released anyway from v0.5.0, at `QUESTIONS_RELEASE_UNANSWERABLE=0.10`: on link U, 19 of 60 kept out-of-corpus rows and 20 of 60 base rows were answered after all. Quoting, the fused probe, showing the writer the passages and a second model all failed to reach the 0.15 the release was waiting for; see [Unanswerable questions the passages answer](#unanswerable-questions-the-passages-answer) |
+| False presupposition, nonsensical and underspecified missed link U's bars | False presupposition took for granted something another passage allows in 5 of 60 rows, against a bar of 2. Nonsensical wrote coherent questions in 13 of 60, one row short. Underspecified was sound on 0.37, against 0.80. v0.5.0 ships the writer's side of each fix, uncalibrated, and the kinds stay opt-in. The checks are left for a later release: a by-case count in the settles reading for underspecified, a reading that looks for a passage granting the premise, and a probe of the passages nearest each cited one. A support sitting in another Law lies beyond the probe's 20 passages |
+| `QUESTIONS_UNANSWERABLE_SHARE=0.30` writes three times what the release takes | Unanswerable slots are written, settled and probed at 30% of the plan, but the release holds at most 10% of its rows unanswerable. An unanswerable slot cost about USD 0.021 on link U's base arm, against about USD 0.0086 for an average slot. The share is kept so the accepted pool holds unanswerable rows for review or a later release; lower it to save the calls |
+| FIX-R55: questions embedded as written, passages case-folded | Case-folding the question brought one more answering passage into the probe's 20 nearest, of the 39 labelled rows the corpus answers, under a rule of at least 2 in a language set before the replay |
+| BL-B15: the judge approves about 90% of questions reviewers found 62 to 69% usable | The correction by reviewers' labels ships as `make diversity LABELS=`, but with this judge it narrows a floor's intervals by under 3% |
+| More than two parallel question drains per database on the Azure deployment | gpt-4.1's token rate limit failed 3 of 10 topics with six drains on link U, and a rate limit spends one of `LLM_MAX_ATTEMPTS`; run at most two drains per database |
+| QA-security-2, now 28 open Dependabot alerts on Pillow 12.3.0 (3 critical, 16 high, 9 medium) | As in the finalize review's deferred table below: accepted with its exposure, waiting on a docling release that allows Pillow 13 |
 
 ## Found by the finalize review of 2026-10-21
 
