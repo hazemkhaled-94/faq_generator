@@ -1312,8 +1312,11 @@ BY_CASE = (
 )
 #: What a nonsensical draft the material answers is told to write instead.
 NONSENSE = (
-    "so it makes sense after all. Join things the passage names in a way that "
-    "makes no sense, so that no answer fits."
+    "so a reader found a sensible question in it and answered that. Keep it "
+    "senseless: ask of a thing the passage names what cannot be so of it - a "
+    "count of what is not counted, a size of what has no size, a deed of what "
+    "cannot act. Swapping who does what, or moving a rule to another case, "
+    "writes a sensible question with a false premise."
 )
 REFUTED = (
     "the passages answer it as asked; write instead a question that takes for "

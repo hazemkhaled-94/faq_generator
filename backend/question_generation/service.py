@@ -175,8 +175,11 @@ _BY_CASE = (
     "question leaves open."
 )
 _NONSENSE = (
-    "so it makes sense after all. Join things the passage names in a way that "
-    "makes no sense, so that no answer fits."
+    "so a reader found a sensible question in it and answered that. Keep it "
+    "senseless: ask of a thing the passage names what cannot be so of it - a "
+    "count of what is not counted, a size of what has no size, a deed of what "
+    "cannot act. Swapping who does what, or moving a rule to another case, "
+    "writes a sensible question with a false premise."
 )
 
 #: What a draft of an unanswerable kind is told in place of `_NOTES`, by the

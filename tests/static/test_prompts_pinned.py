@@ -102,7 +102,7 @@ RECORDED = {
 #: The notes a refused draft is written again with, a kind's included, by
 #: the writer's version: the writer reads them on every retry, and no
 #: catalogue entry holds them.
-NOTES = ("29", "3513a67f42cb2860")
+NOTES = ("29", "c9c5397c7935ac07")
 
 
 def halves(one: Composed) -> str:
