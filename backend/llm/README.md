@@ -219,7 +219,7 @@ The values are in the file named beside each, once.
 | `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |
 | `LLM_MAX_ATTEMPTS` | `backend.env` | Attempts per call |
 | `LLM_NUM_CTX` | `backend.env` | The context window to ask a self-hosted runtime for. Never sent to a hosted model |
-| `LLM_REASONING_EFFORT` | `backend.env` | For a model that has the knob. Unset sends nothing, so the model keeps its own default. Not sent to a hosted model a stage names while the shared one is self-hosted |
+| `LLM_REASONING_EFFORT` | `backend.env` | For a model that has the knob. Unset sends nothing, so the model keeps its own default. Not sent to a hosted model a stage names while the shared one is self-hosted, nor to a hosted model litellm knows does not reason (gpt-4.1, gpt-4o), which refuses it; so `none` for a reasoning writer serves a split whose other roles do not reason |
 | `OLLAMA_BASE_URL` | `.env` | Where a self-hosted model is served |
 | `LLM_CONTAINER_MODEL` | `.env` | `LLM_MODEL` as the containers see it |
 | `QUESTIONS_VERIFIER_CONTAINER_MODEL` | `.env` | The verifier as the containers see it |

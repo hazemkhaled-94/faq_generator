@@ -41,6 +41,21 @@ def _self_hosted(model: str) -> bool:
     return _provider(model).startswith("ollama")
 
 
+def _cannot_reason(model: str) -> bool:
+    """Whether litellm knows a hosted model and knows it does not reason.
+
+    Such a model refuses `reasoning_effort` outright, as gpt-4.1 and gpt-4o
+    do. A model litellm does not know, a deployment of its own name among
+    them, may reason, so it is not read as one that cannot.
+    """
+    import litellm
+
+    known = litellm.model_cost.get(model) or litellm.model_cost.get(
+        model.split("/", 1)[-1]
+    )
+    return known is not None and not known.get("supports_reasoning")
+
+
 def _same_address(one: str | None, other: str | None) -> bool:
     """Whether two addresses are the same host, trailing slash aside."""
     if not one or not other:
@@ -189,9 +204,14 @@ class Settings:
 
         LLM_REASONING_EFFORT decides it, and nothing overrides that but a
         stage naming a hosted model while the shared one is self-hosted; see
-        `overridden`.
+        `overridden`. A hosted model that does not reason is sent none of it,
+        so one effort serves a split that mixes the two.
         """
-        return self.reasoning_effort or None
+        if not self.reasoning_effort:
+            return None
+        if not _self_hosted(self.model) and _cannot_reason(self.model):
+            return None
+        return self.reasoning_effort
 
     @classmethod
     def load(cls, source: Source = None) -> Settings:

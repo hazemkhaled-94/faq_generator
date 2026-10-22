@@ -172,6 +172,27 @@ def test_a_hosted_effort_crosses_to_another_hosted_provider() -> None:
     assert hosted.overridden("azure/gpt-5.4").thinking == "none"
 
 
+@pytest.mark.parametrize("model", ["azure/gpt-4.1", "azure/gpt-4o"])
+def test_a_hosted_model_that_does_not_reason_is_sent_no_effort(model) -> None:
+    """It refuses the parameter outright, so a split can mix the two.
+
+    One effort serves the whole deployment: a reasoning writer that must be
+    told `none` beside a verifier that does not reason at all failed every
+    call of the verifier with `does not support parameters`.
+    """
+    split = shared(model="azure/gpt-5.6-sol", reasoning_effort="none")
+
+    assert split.thinking == "none"
+    assert split.overridden(model).thinking is None
+
+
+def test_a_hosted_model_litellm_does_not_know_is_sent_the_effort() -> None:
+    """A deployment of its own name may be a reasoning model: it is asked as before."""
+    split = shared(model="azure/gpt-5.6-sol", reasoning_effort="none")
+
+    assert split.overridden("azure/our-own-deployment").thinking == "none"
+
+
 def test_a_self_hosted_effort_does_not_cross_to_a_hosted_provider() -> None:
     """`off` is Ollama's word, and a hosted provider refuses it."""
     local = shared(model="ollama_chat/gemma4:12b", reasoning_effort="off")
