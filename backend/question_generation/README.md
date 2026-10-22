@@ -67,7 +67,7 @@ expert described by what an expert asks, in the material's own terms. Its
 conformance was 0.59 in calibration: told on slots whose fact is basic, it
 asks basic questions in an expert's voice. A categorization left with its one
 other category would rewrite every question. A value listing it beside the
-default's three deals it so:
+default's three answerable ones deals it so:
 
 ```json
 [
@@ -715,12 +715,16 @@ a **general rule** that covers its case. Swapping the party or the period is
 the move that most often lands on one of those, so neither the prompt nor the
 retry note after `answerable_after_all` prescribes it.
 
-**Kinds, opt-in.** UAEval4RAG (Peng et al., [*Unanswerability Evaluation
+**Kinds.** UAEval4RAG (Peng et al., [*Unanswerability Evaluation
 for Retrieval Augmented Generation*](https://aclanthology.org/2025.acl-long.415/),
 ACL 2025) writes unanswerable requests in kinds. Four of its six can be
 dealt as one categorization, `UNANSWERABLE_CATEGORIZATION` in
 [`config.py`](config.py), whose JSON [the configuration
-guide](../../docs/configuration.md#a-json-value) quotes. Each category
+guide](../../docs/configuration.md#a-json-value) quotes. The default deals
+`out-of-corpus` alone, the one kind that passed calibration
+([measurements](../../docs/measurements.md#unanswerable-kinds-v050)); the
+other three are opt-in, in place of the default's own `Unanswerable` entry.
+Each category
 carries `settles`, the verdict the passages it cites must give, and
 `behaviour`, what a good reply does:
 
@@ -770,8 +774,8 @@ safety-concerned are left out: they test a chatbot's abilities and policy,
 not the documents. Typos and language barriers, inside the paper's
 nonsensical, still have answers. `underspecified` has no check of its own:
 under one reading its passage answers it, so only labels tell it from an
-answerable question. The kinds stay out of the default until a calibration
-admits them.
+answerable question. Out-of-corpus alone is the default, as the one kind that
+passed a calibration; the other three stay out until one admits them.
 
 Attempted, not held: they face three gates of their own, and the two that are
 on bite, which is why the default sits above the share a release should hold.
@@ -1206,7 +1210,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_SAMPLES_PER_PASSAGE` | How many times one passage is dealt before the stride moves on |
 | `QUESTIONS_TYPE_MIX` | Which kinds are written and in what proportion |
 | `QUESTIONS_DIFFICULTY_MIX` | Which bands the plan aims for |
-| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as a follow-up is; an unanswerable question is told only its kind, where a categorization carrying `settles` is set, and none otherwise. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category's `form` is `question`, the default, `query` for a search query, which no gate holds to a question mark, or `premise` for a question opening on the asker's own situation; any other form is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them, no question is refused for missing them, and `make diversity BY=category` reports how many of the category's questions keep to them. A `max`, whatever the `min`, also keeps a premise from being told beside the category, and has a search query read once more against the passages it does not cite, which refuses it as not recoverable where one answers it differently. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings, its two premises and its two linguistic variations from code, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise and verbose; Premise: direct and with-premise; Linguistic variation: similar-to-document and distant-from-document; 0.5 each** |
+| `QUESTIONS_CATEGORIZATIONS` | The paper's categorizations as JSON: one Figure 2 object or a list of them, the `{"categorization": ...}` wrapper read too. Each answerable root question is written as one category of each, bar a compound one, which is told none, as a follow-up is; an unanswerable question is told only its kind, where a categorization carrying `settles` is set, and none otherwise. A categorization's `role` is `question`, the default, or `user` for one describing the person asking; any other role is refused. A category's `form` is `question`, the default, `query` for a search query, which no gate holds to a question mark, or `premise` for a question opening on the asker's own situation; any other form is refused. A category may carry `"words": {"min": N, "max": N}`, either or both, whole numbers of at least 1: the writer is never sent them, no question is refused for missing them, and `make diversity BY=category` reports how many of the category's questions keep to them. A `max`, whatever the `min`, also keeps a premise from being told beside the category, and has a search query read once more against the passages it does not cite, which refuses it as not recoverable where one answers it differently. Probabilities are given for every category of a categorization or for none, which is uniform, and must sum to 1 within 0.01. A misspelt key, a duplicate name, an `=`, a comma or a line break in a name, or a blank description is refused by name. Unset reads the paper's two natural phrasings, its two premises and its two linguistic variations from code, and for an unanswerable question UAEval4RAG's out-of-corpus kind alone, concise bounded to at most 9 words and verbose to at least 10, because `backend.env` cannot hold JSON; set it on the settings page, with `PATCH /settings/questions` or with `python -m settings.run`. `[]` writes none. **Phrasing: concise and verbose; Premise: direct and with-premise; Linguistic variation: similar-to-document and distant-from-document; 0.5 each** |
 | `QUESTIONS_ANSWER_CHARS` | Shortest and longest target answer per form |
 | `QUESTIONS_ANSWER_COVERAGE` | How much of what the verifier found the target must account for. Lists only; `0` turns it off |
 | `QUESTIONS_PARTY_DENSITY` | How much of a passage may be people's names before it is read as a credits page. `0` turns it off |

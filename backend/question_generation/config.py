@@ -189,69 +189,67 @@ _ROUNDING = 0.01
 #: terms that carry the meaning and coined words.
 #: Here rather than in backend.env, which bash sources and so cannot hold a
 #: JSON value.
-DEFAULT_CATEGORIZATIONS = json.dumps(
-    [
-        {
-            "categorization_name": "Phrasing",
-            "categories": [
-                {
-                    "name": "concise-and-natural",
-                    "description": "phrased in the way people typically speak, "
-                    "reflecting everyday language use, without formal or "
-                    "artificial structure. It is a concise, direct question "
-                    "consisting of less than 10 words.",
-                    "words": {"max": 9},
-                },
-                {
-                    "name": "verbose-and-natural",
-                    "description": "phrased in the way people typically speak, "
-                    "reflecting everyday language use, without formal or "
-                    "artificial structure. It is a relatively long question "
-                    "consisting of more than 9 words.",
-                    "words": {"min": 10},
-                },
-            ],
-        },
-        {
-            "categorization_name": "Premise",
-            "categories": [
-                {
-                    "name": "direct",
-                    "description": "question that does not contain any premise "
-                    "or any information about the user.",
-                },
-                {
-                    "name": "with-premise",
-                    "form": "premise",
-                    "description": "question opening with a short premise in "
-                    "which the asker states, in the first person, a fact of "
-                    "their own situation: something they have, did, bought or "
-                    "plan, and then asks. The premise never names only the "
-                    "topic, the kind of answer wanted, or that the asker is "
-                    "reading, checking or trying to understand something, and "
-                    "it never gives the answer.",
-                },
-            ],
-        },
-        {
-            "categorization_name": "Linguistic variation",
-            "categories": [
-                {
-                    "name": "similar-to-document",
-                    "description": "phrased using the same terminology and "
-                    "phrases appearing in the document.",
-                },
-                {
-                    "name": "distant-from-document",
-                    "description": "phrased in other words than the document "
-                    "uses, as a reader who has not seen it would put them; every "
-                    "thing, party, period and action it names keeps exactly the "
-                    "meaning it has in the document, and no word is coined.",
-                },
-            ],
-        },
-    ]
-)
+_ASKED: list[dict] = [
+    {
+        "categorization_name": "Phrasing",
+        "categories": [
+            {
+                "name": "concise-and-natural",
+                "description": "phrased in the way people typically speak, "
+                "reflecting everyday language use, without formal or "
+                "artificial structure. It is a concise, direct question "
+                "consisting of less than 10 words.",
+                "words": {"max": 9},
+            },
+            {
+                "name": "verbose-and-natural",
+                "description": "phrased in the way people typically speak, "
+                "reflecting everyday language use, without formal or "
+                "artificial structure. It is a relatively long question "
+                "consisting of more than 9 words.",
+                "words": {"min": 10},
+            },
+        ],
+    },
+    {
+        "categorization_name": "Premise",
+        "categories": [
+            {
+                "name": "direct",
+                "description": "question that does not contain any premise "
+                "or any information about the user.",
+            },
+            {
+                "name": "with-premise",
+                "form": "premise",
+                "description": "question opening with a short premise in "
+                "which the asker states, in the first person, a fact of "
+                "their own situation: something they have, did, bought or "
+                "plan, and then asks. The premise never names only the "
+                "topic, the kind of answer wanted, or that the asker is "
+                "reading, checking or trying to understand something, and "
+                "it never gives the answer.",
+            },
+        ],
+    },
+    {
+        "categorization_name": "Linguistic variation",
+        "categories": [
+            {
+                "name": "similar-to-document",
+                "description": "phrased using the same terminology and "
+                "phrases appearing in the document.",
+            },
+            {
+                "name": "distant-from-document",
+                "description": "phrased in other words than the document "
+                "uses, as a reader who has not seen it would put them; every "
+                "thing, party, period and action it names keeps exactly the "
+                "meaning it has in the document, and no word is coined.",
+            },
+        ],
+    },
+]
 
 
 #: Step 2 of the unanswerable writer's prompt where a slot is told no kind:
@@ -320,6 +318,26 @@ UNANSWERABLE_CATEGORIZATION = json.dumps(
             },
         ],
     }
+)
+
+#: QUESTIONS_CATEGORIZATIONS when it is absent: the categorizations above,
+#: and unanswerable slots dealt out-of-corpus alone, the one kind link U
+#: passed (docs/measurements.md, "Unanswerable kinds (v0.5.0)"). It is the
+#: perturbation every unanswerable slot was written as, so at probability 1
+#: it rewrites no question; the other three kinds stay opt-in.
+DEFAULT_CATEGORIZATIONS = json.dumps(
+    [
+        *_ASKED,
+        {
+            "categorization_name": "Unanswerable",
+            "categories": [
+                dict(
+                    json.loads(UNANSWERABLE_CATEGORIZATION)["categories"][0],
+                    probability=1,
+                )
+            ],
+        },
+    ]
 )
 
 

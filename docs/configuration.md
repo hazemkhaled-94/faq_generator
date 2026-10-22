@@ -209,8 +209,8 @@ expert asks, in the material's own terms, where the paper's "a specialized
 user" invented insider words. Even so worded its conformance was 0.59 in
 calibration: it is told on slots whose fact is basic, and asks basic
 questions in an expert's voice. A categorization left with its one other
-category would rewrite every question. Listed beside the default's three, it
-reads:
+category would rewrite every question. Listed beside the default's three
+answerable ones, it reads:
 
 ```json
 [
@@ -372,9 +372,12 @@ answer to match; the export's Answer cell of an unanswerable question reads
 Evaluation for Retrieval Augmented Generation*](https://aclanthology.org/2025.acl-long.415/),
 ACL 2025), its behaviours its Table 11's acceptable responses, modified, one
 line each (code: [SalesforceAIResearch/Unanswerability_RAGE](https://github.com/SalesforceAIResearch/Unanswerability_RAGE),
-Apache-2.0). They are opt-in until calibrated: `UNANSWERABLE_CATEGORIZATION`
-in [`question_generation/config.py`](../backend/question_generation/config.py)
-holds them, listed beside the default's categorizations:
+Apache-2.0). The default deals unanswerable slots `out-of-corpus` alone, at
+probability 1: it is the perturbation every unanswerable slot was written as,
+and the one kind that passed calibration ([measurements](measurements.md#unanswerable-kinds-v050)).
+The other three are opt-in: `UNANSWERABLE_CATEGORIZATION` in
+[`question_generation/config.py`](../backend/question_generation/config.py)
+holds all four, listed in place of the default's own `Unanswerable` entry:
 
 ```json
 {
@@ -388,8 +391,10 @@ holds them, listed beside the default's categorizations:
 }
 ```
 
-Unset, an unanswerable question is written as before kinds: one detail of
-its fact moved just out of reach, kept only where both readings are silent.
+Unset, an unanswerable question is written as the out-of-corpus kind alone,
+the one kind that passed calibration; list all four to opt into the other
+three. Where a value names no kind, it is written as before kinds: one detail
+of its fact moved just out of reach, kept only where both readings are silent.
 
 A stage's rerun is its `-rerun` target, bar topics, which have none:
 `make topics-discover` fits them again and carries what a person decided

@@ -288,13 +288,14 @@ def test_text_that_is_not_json_is_refused() -> None:
 
 
 def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None:
-    """On by default, three of the paper's Table 5, each uniform."""
+    """On by default, three of the paper's Table 5, each uniform, and out-of-corpus."""
     monkeypatch.delenv("QUESTIONS_CATEGORIZATIONS", raising=False)
     read_ = Settings.load().categorizations
     assert [one.name for one in read_] == [
         "Phrasing",
         "Premise",
         "Linguistic variation",
+        "Unanswerable",
     ]
     assert [
         [(one.name, one.probability, one.role) for one in each.categories]
@@ -309,6 +310,7 @@ def test_the_setting_unset_draws_the_papers_categorizations(monkeypatch) -> None
             ("similar-to-document", 0.5, "question"),
             ("distant-from-document", 0.5, "question"),
         ],
+        [("out-of-corpus", 1.0, "question")],
     ]
 
 
@@ -508,15 +510,34 @@ def test_an_unanswerable_categorization_is_refused_by_name(
         read(value)
 
 
-def test_the_unanswerable_kinds_are_there_to_opt_into() -> None:
-    """Not dealt unset; the four kinds the paper's documents can test, at even odds."""
+def test_the_default_deals_unanswerable_slots_out_of_corpus_alone() -> None:
+    """The one kind link U passed, at probability 1, in the words the opt-in gives it.
+
+    Out-of-corpus is today's perturbation, so one category at probability 1
+    rewrites no question: it is what every unanswerable slot was written as.
+    """
     from question_generation.config import UNANSWERABLE_CATEGORIZATION
 
-    assert all(
-        each.settles is None
+    *_, kinds = categorizations(DEFAULT_CATEGORIZATIONS)
+    (opted,) = categorizations(UNANSWERABLE_CATEGORIZATION)
+    assert kinds.name == "Unanswerable"
+    assert [(one.name, one.settles, one.probability) for one in kinds.categories] == [
+        ("out-of-corpus", "silent", 1.0)
+    ]
+    assert kinds.categories[0].description == opted.categories[0].description
+    assert kinds.categories[0].behaviour == opted.categories[0].behaviour
+
+
+def test_the_unanswerable_kinds_are_there_to_opt_into() -> None:
+    """Out-of-corpus alone dealt unset; the four kinds the paper's documents can test, at even odds."""
+    from question_generation.config import UNANSWERABLE_CATEGORIZATION
+
+    assert [
+        each.name
         for one_ in categorizations(DEFAULT_CATEGORIZATIONS)
         for each in one_.categories
-    )
+        if each.settles
+    ] == ["out-of-corpus"]
     (kinds,) = categorizations(UNANSWERABLE_CATEGORIZATION)
     assert kinds.name == "Unanswerable"
     assert [
@@ -558,12 +579,14 @@ def test_the_configuration_guide_quotes_the_unanswerable_kinds() -> None:
 
 
 def test_the_unanswerable_kinds_read_beside_the_default() -> None:
-    """Listed with the default's three, as the guide tells an operator to."""
+    """In place of the default's out-of-corpus alone, as the guide tells an operator to."""
     from question_generation.config import UNANSWERABLE_CATEGORIZATION
 
-    both = json.loads(DEFAULT_CATEGORIZATIONS) + [
-        json.loads(UNANSWERABLE_CATEGORIZATION)
-    ]
+    both = [
+        one
+        for one in json.loads(DEFAULT_CATEGORIZATIONS)
+        if one["categorization_name"] != "Unanswerable"
+    ] + [json.loads(UNANSWERABLE_CATEGORIZATION)]
 
     assert [each.name for each in categorizations(json.dumps(both))][
         -1
