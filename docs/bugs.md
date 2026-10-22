@@ -1008,6 +1008,8 @@ The expected failure of QA-api-frontend-4 comes off with its fix above, those of
 
 | Items | Why they stay open |
 |---|---|
+| QA-extraction-9 | A bridge pass for the missing, run twice, can add a bridge the first run left out, where a topic's only pair rests on a bridge headed in another topic. No bridge is lost or doubled, and `make extract-bridge FORCE=1` deals the whole pass afresh; the case is held by a strict expected failure in `tests/property/test_bridge_reruns.py`. Found in CI by the QA pass's property test after the link pass was settled for this cycle |
+| NEW-qa-parse-1 | Docling reads the football PDF's bullet glyph as U+221E and flattens one nested item. The reading is Docling's, upstream of any code here, and no bar sample of bank or shop documents shows it |
 | QA-security-3 | Every Hugging Face model is loaded by repository id with no revision. Pinning a revision touches the embedding, entailment and QA models the question gates call, which stay frozen until v0.5.0, and needs a setting of its own; setting HF_HUB_OFFLINE on every worker alone would break a fresh install, which fetches the models on first use |
 | FIX-R93 | `--dist loadscope` was timed on `tests/unit/nlp`, four runs each way: 24.0 s against 23.6 s for the default, so the default stays |
 | FIX-R110 | An internal storage network: the move check showed the storage services on the shared network, but its stack stopped before the model stages, so a stack with the storage on an internal network was not run end to end |
