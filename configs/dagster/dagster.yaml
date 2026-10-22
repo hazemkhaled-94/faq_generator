@@ -22,6 +22,9 @@ storage:
         env: DAGSTER_DB_NAME
       port:
         env: DAGSTER_DB_PORT
+      # The driver dagster-postgres installs. SQLAlchemy 2.1 reads a bare
+      # postgresql:// as psycopg 3, under which Dagster's storage fails.
+      scheme: postgresql+psycopg2
 
 run_launcher:
   module: dagster.core.launcher

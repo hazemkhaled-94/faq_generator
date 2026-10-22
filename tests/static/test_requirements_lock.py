@@ -75,6 +75,22 @@ def test_the_orchestrator_image_pins_the_dagster_the_host_is_locked_to() -> None
     assert not unpinned, unpinned
 
 
+def test_dagsters_database_url_names_psycopg2() -> None:
+    """SQLAlchemy 2.1 reads a bare `postgresql://` as psycopg 3, which Dagster's storage loses.
+
+    dagster-postgres builds its URL from `postgres_db` and installs psycopg2;
+    under psycopg 3 the webserver failed at start with "the connection is
+    closed", and before psycopg 3 was installed with "No module named psycopg".
+    """
+    import yaml
+
+    storage = yaml.safe_load((ROOT / "configs/dagster/dagster.yaml").read_text())[
+        "storage"
+    ]
+
+    assert storage["postgres"]["postgres_db"]["scheme"] == "postgresql+psycopg2"
+
+
 def _locked_versions() -> dict[str, set[str]]:
     """Every version poetry.lock holds per package, folded; a marker can split one."""
     import tomllib
