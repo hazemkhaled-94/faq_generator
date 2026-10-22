@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 from unit.llm.test_client import provider, reply, settings
 
-from llm.check import Unreachable, before_work, main, reachable
+from api.doctor import main
+from llm.check import Unreachable, before_work, reachable
 
 
 def test_the_preflight_asks_once_and_names_the_model(monkeypatch) -> None:
@@ -48,7 +49,7 @@ def test_the_doctor_asks_every_model_a_stage_calls(monkeypatch, judging) -> None
     judge = {"ASSESSMENT_ENABLED": judging, "ASSESSMENT_JUDGE_MODEL": "azure/judge"}
     for name, value in {"LLM_MODEL": "azure/shared", **roles, **judge}.items():
         monkeypatch.setenv(name, value)
-    monkeypatch.setattr("llm.check.telemetry.configure", lambda _: None)
+    monkeypatch.setattr("telemetry.configure", lambda _: None)
     served = provider(monkeypatch, reply('{"ok": true}'))
 
     assert main() == 0

@@ -4,7 +4,7 @@ An unknown model id, an unreachable address, a missing credential and a
 structured mode the provider will not accept all fail the same way: at the
 first call. This is that first call, made once and on purpose.
 
-    python -m llm.check        # which is what `make doctor` runs, for
+    python -m api.doctor       # which is what `make doctor` runs, for
                                # every model a stage calls
 
 A worker asks the same question before it claims anything, through
@@ -27,7 +27,6 @@ from dataclasses import replace
 import litellm
 from pydantic import BaseModel, Field
 
-import telemetry
 from llm.client import Client
 from llm.config import Settings
 
@@ -134,57 +133,3 @@ def before_work(*models: Settings) -> None:
     for settings in {(m.model, m.base_url): m for m in models}.values():
         reachable(settings)
         log.info("%s answered; claiming work", settings.model)
-
-
-def every_model() -> list[Settings]:
-    """Every model a stage run from this environment calls, as it resolves it.
-
-    LLM_MODEL and each stage's own: backend.env names some of those, so
-    LLM_MODEL alone is not what a run calls. The judge only while the
-    evaluation phase is on, as its worker asks it.
-    """
-    # Here rather than at the top: every one of these stages imports this
-    # module for its preflight.
-    from assessment.config import Settings as Assessment
-    from assessment.factory import judge_model
-    from extraction.config import Settings as Extraction
-    from extraction.factory import models as extraction_models
-    from question_generation.config import Settings as Questions
-    from question_generation.factory import models as question_models
-    from topic_modelling.config import Settings as Topics
-
-    shared = Settings.load()
-    asked = [shared, *extraction_models(Extraction.load(), shared)]
-    if naming := Topics.load().model:
-        asked.append(naming)
-    asked += question_models(Questions.load(), shared)
-    if (judging := Assessment.load()).enabled:
-        asked.append(judge_model(judging, shared))
-    return list({(m.model, m.base_url): m for m in asked}.values())
-
-
-def main() -> int:
-    """Asks every configured model one question, and says what happened.
-
-    Returns:
-        The process exit code: 0 if every model answered in shape.
-    """
-    telemetry.configure("doctor")
-
-    failed = 0
-    for settings in every_model():
-        log.info("model    %s", settings.model)
-        log.info("address  %s", settings.base_url or "(the provider's own)")
-        log.info("mode     %s", settings.structured_mode)
-        try:
-            reachable(settings)
-        except Unreachable as refusal:
-            log.error("%s", refusal)
-            failed = 1
-            continue
-        log.info("the model answered in shape")
-    return failed
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

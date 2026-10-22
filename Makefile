@@ -327,7 +327,7 @@ doctor:
 	echo; echo "Comparing the settings the api serves with this checkout's..."; \
 	PYTHONPATH=backend poetry run python -m settings.drift $(COMPOSE_CMD) || fail=1; \
 	echo; echo "Asking every model a stage calls one question, as the host calls it..."; \
-	PYTHONPATH=backend poetry run python -m llm.check || fail=1; \
+	PYTHONPATH=backend poetry run python -m api.doctor || fail=1; \
 	echo; \
 	if test $$fail -eq 0; then echo "Ready. Next: make dev"; \
 	  else echo "Fix the above, then run make doctor again."; exit 1; fi

@@ -154,7 +154,9 @@ a fresh `run_id` and a Phoenix project holding the one call that failed, so a
 pipeline that was down for a day read as one that had run thousands of times.
 
 `before_work` in [`check.py`](check.py) is the preflight
-`stages.cli.queue_main` runs. It asks for one trivial structured answer,
+`stages.cli.queue_main` runs; `make doctor` asks the same question of every
+model a stage calls through [`api/doctor.py`](../api/doctor.py), which sits in
+the one layer allowed to read every stage's settings. It asks for one trivial structured answer,
 before the watch loop — that loop logs an exception and polls again, which is
 right for a drain that failed and wrong for a deployment that can never work.
 
