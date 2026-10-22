@@ -743,6 +743,10 @@ class StoredQuestion:
     #: Empty where none was rendered, and on every question written before
     #: the column existed.
     categories: list[str] = field(default_factory=list)
+    #: What a good reply to it does, off the stored unanswerable kind that
+    #: carries it, as UAEval4RAG's Table 11 accepts one. None on every
+    #: answerable question and on an unanswerable one told no kind.
+    behaviour: str | None = None
     #: What its type asks of whoever answers it. A different axis from
     #: `difficulty`, which says how far the answer is spread.
     cognitive_level: str | None = None

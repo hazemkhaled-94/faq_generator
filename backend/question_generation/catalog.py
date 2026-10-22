@@ -339,6 +339,7 @@ def _stored(row: Any) -> StoredQuestion:
                 f"{one['categorization']}={one['category']}"
                 for one in row.categories or ()
             ],
+            "behaviour": _kind(row.categories, "behaviour"),
         }
     )
 

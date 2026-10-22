@@ -457,3 +457,59 @@ def test_released_narrows_every_read_to_the_release(
     for read, where in catalog.asked.items():
         assert where["released"] is released, read
         assert where["status"] == "accepted", read
+
+
+def test_an_unanswerable_row_shows_its_behaviour() -> None:
+    """What a good reply does for its kind stands in its Answer cell.
+
+    An answerable row keeps its key; an unanswerable one stored with no kind
+    is blank.
+    """
+    read = sheets(
+        workbook(
+            [
+                stored(
+                    1,
+                    answerable=False,
+                    target_answer=None,
+                    categories=["Unanswerable=false-presupposition"],
+                    behaviour="points out ...",
+                ),
+                stored(2),
+                stored(3, answerable=False, target_answer=None),
+            ]
+        )
+    )["Questions"]
+
+    assert read.iloc[0]["Answer"] == "Expected behaviour: points out ..."
+    assert read.iloc[1]["Answer"] == "48 hours"
+    assert pd.isna(read.iloc[2]["Answer"])
+
+
+def test_the_catalog_reads_the_behaviour_off_the_stored_categories() -> None:
+    """From the stored category that carries it, and None where none does."""
+    from collections import namedtuple
+    from dataclasses import asdict
+
+    from question_generation.catalog import _stored
+
+    kind = {
+        "categorization": "Unanswerable",
+        "category": "false-presupposition",
+        "role": "question",
+        "form": "question",
+        "description": "d.",
+        "settles": "refutes",
+        "behaviour": "points out ...",
+    }
+    columns = {
+        key: value for key, value in asdict(stored()).items() if key != "behaviour"
+    }
+    row = namedtuple("Row", list(columns))
+
+    def read(categories):
+        return _stored(row(**columns | {"created_at": None, "categories": categories}))
+
+    assert read([kind]).behaviour == "points out ..."
+    assert read([kind]).categories == ["Unanswerable=false-presupposition"]
+    assert read(None).behaviour is None

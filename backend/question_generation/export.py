@@ -214,6 +214,15 @@ def _judged_frame(
     frame = _frame(questions, _COLUMNS)
     if not len(frame):
         return frame
+    # An unanswerable question has no key: what a good reply does for its
+    # kind stands in, a criterion for a judge or a person, never a string to
+    # match. Blank where none was stored.
+    frame["Answer"] = [
+        _flatten(f"Expected behaviour: {one.behaviour}")
+        if not one.answerable and one.behaviour
+        else answer
+        for one, answer in zip(questions, frame["Answer"], strict=True)
+    ]
     found = [judged.get(one.id) for one in questions]
     frame["Judge"] = [_verdict(one) for one in found]
     frame["Judge refused by"] = [

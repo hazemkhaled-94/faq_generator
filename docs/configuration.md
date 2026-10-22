@@ -367,7 +367,8 @@ the kind wants another refuses it as `wrong_type`. A kind is asked as a
 question: its categorization's role is `question` and every category's form
 is `question`. `behaviour` is what a good
 reply to it does, a criterion for a judge or a person and not a reference
-answer to match. The kinds follow UAEval4RAG (Peng et al., [*Unanswerability
+answer to match; the export's Answer cell of an unanswerable question reads
+`Expected behaviour: ` and it, blank where none was stored. The kinds follow UAEval4RAG (Peng et al., [*Unanswerability
 Evaluation for Retrieval Augmented Generation*](https://aclanthology.org/2025.acl-long.415/),
 ACL 2025), its behaviours its Table 11's acceptable responses, modified, one
 line each (code: [SalesforceAIResearch/Unanswerability_RAGE](https://github.com/SalesforceAIResearch/Unanswerability_RAGE),

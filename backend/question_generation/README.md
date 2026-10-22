@@ -1055,6 +1055,15 @@ question told none: an unanswerable one where no kind is configured, a
 compound one, a follow-up, and every question written before prompt version
 17.
 
+An unanswerable question has no key, so its **Answer** cell gives what a good
+reply does for its kind, as UAEval4RAG (Peng et al., [*Unanswerability
+Evaluation for Retrieval Augmented Generation*](https://aclanthology.org/2025.acl-long.415/),
+ACL 2025) accepts one in its Table 11: `Expected behaviour: asks which case
+is meant, or gives the answer for each case the material distinguishes`. It
+is the `behaviour` its stored kind carries, and blank on one stored with no
+kind. It is a criterion for a judge or a person to score a reply against,
+not a reference answer to match as a string.
+
 The same on `GET /questions/export` and behind **Build a workbook** on the
 Questions page, built when asked for rather than on every render.
 
