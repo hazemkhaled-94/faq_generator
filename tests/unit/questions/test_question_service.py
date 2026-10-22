@@ -1282,6 +1282,162 @@ def test_an_unanswerable_question_answered_after_all_is_not_told_to_swap_parties
     assert "party" not in note
 
 
+def unanswered_refusal(code: str, name: str | None, read: bool = True):
+    """An unanswerable draft refused under `code`, told the shipped kind `name`, or none."""
+    from confidence import Measurement
+    from question_generation.config import UNANSWERABLE_CATEGORIZATION, categorizations
+
+    (shipped,) = categorizations(UNANSWERABLE_CATEGORIZATION)
+    kinds = tuple(one for one in shipped.categories if one.name == name)
+    return replace(
+        accepted_question(),
+        answerable=False,
+        target_answer=None,
+        status="rejected",
+        rejected_reason=code,
+        categories=kinds,
+        readings=(Measurement("settles", 0.0, 0.5, opinion=True),) if read else (),
+    )
+
+
+#: The off-topic note's opening, which every kind is told before its own move.
+OFF = (
+    "it was about something this material never mentions, so any chatbot "
+    "declines it and declining it proves nothing. Stay on the subject of the fact"
+)
+#: What an underspecified draft is told to ask instead.
+BY_CASE = (
+    "ask instead about a value the passage gives differently for cases the "
+    "question leaves open."
+)
+#: What a nonsensical draft the material answers is told to write instead.
+NONSENSE = (
+    "so it makes sense after all. Join things the passage names in a way that "
+    "makes no sense, so that no answer fits."
+)
+REFUTED = (
+    "the passages answer it as asked; write instead a question that takes for "
+    "granted something a sentence of the passage says is not so."
+)
+
+
+@pytest.mark.parametrize(
+    ("name", "code", "says"),
+    [
+        ("false-presupposition", QuestionRejection.ANSWERABLE_AFTER_ALL, REFUTED),
+        ("false-presupposition", QuestionRejection.ANSWERABLE_ELSEWHERE, REFUTED),
+        (
+            "false-presupposition",
+            QuestionRejection.WRONG_TYPE,
+            (
+                "no sentence of the passage says that what it takes for granted is "
+                "not so; take for granted something a sentence rules out."
+            ),
+        ),
+        (
+            "false-presupposition",
+            QuestionRejection.OFF_TOPIC,
+            OFF + " and take for granted something a sentence of its passage says "
+            "is not so.",
+        ),
+        (
+            "underspecified",
+            QuestionRejection.ANSWERABLE_AFTER_ALL,
+            "the passages settle it one way, by its premise or a rule; " + BY_CASE,
+        ),
+        (
+            "underspecified",
+            QuestionRejection.ANSWERABLE_ELSEWHERE,
+            "a passage elsewhere in the material settles it one way; " + BY_CASE,
+        ),
+        (
+            "underspecified",
+            QuestionRejection.WRONG_TYPE,
+            (
+                "the passages say nothing about it; ask about a value the passage "
+                "gives differently for cases the question leaves open."
+            ),
+        ),
+        (
+            "underspecified",
+            QuestionRejection.OFF_TOPIC,
+            OFF + " and ask about a value its passage gives differently for cases "
+            "the question leaves open.",
+        ),
+        (
+            "nonsensical",
+            QuestionRejection.ANSWERABLE_AFTER_ALL,
+            "the passages you were given answer that question, " + NONSENSE,
+        ),
+        (
+            "nonsensical",
+            QuestionRejection.ANSWERABLE_ELSEWHERE,
+            "a passage elsewhere in the material answers that question, " + NONSENSE,
+        ),
+        (
+            "nonsensical",
+            QuestionRejection.OFF_TOPIC,
+            OFF + " and join things its passage names in a way that makes no sense.",
+        ),
+    ],
+)
+def test_an_unanswerable_kind_is_told_what_its_kind_wants(
+    name: str, code: str, says: str
+) -> None:
+    """A refused kind is never told the out-of-corpus move."""
+    from question_generation.service import again
+
+    note = again(unanswered_refusal(code, name))
+
+    assert note is not None
+    assert note.endswith(f"A reviewer found that {says}")
+    assert "out of reach" not in note
+    assert "none of them settles" not in note
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        QuestionRejection.ANSWERABLE_AFTER_ALL,
+        QuestionRejection.ANSWERABLE_ELSEWHERE,
+        QuestionRejection.OFF_TOPIC,
+    ],
+)
+def test_out_of_corpus_is_told_what_a_draft_told_no_kind_is(code: str) -> None:
+    """The fallback's move is out-of-corpus's own, so its notes are today's."""
+    from question_generation.service import again
+
+    assert again(unanswered_refusal(code, "out-of-corpus")) == again(
+        unanswered_refusal(code, None)
+    )
+
+
+def test_a_kind_is_told_its_off_topic_note_before_any_settles_reading() -> None:
+    """Off-topic is a free gate, run before the settles reading."""
+    from question_generation.service import again
+
+    note = again(
+        unanswered_refusal(QuestionRejection.OFF_TOPIC, "nonsensical", read=False)
+    )
+
+    assert note is not None
+    assert note.endswith("makes no sense.")
+
+
+def test_a_question_word_of_another_type_is_not_told_its_kind() -> None:
+    """The type gate's wrong_type, before any settles reading, is not asked again."""
+    from question_generation.service import again
+
+    assert (
+        again(
+            unanswered_refusal(
+                QuestionRejection.WRONG_TYPE, "false-presupposition", read=False
+            )
+        )
+        is None
+    )
+
+
 def test_an_unanswerable_slot_is_dealt_an_atomic_fact() -> None:
     """A summary of a whole passage is the passage, and the passage answers it.
 

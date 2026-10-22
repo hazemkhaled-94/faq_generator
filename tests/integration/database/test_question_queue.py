@@ -408,6 +408,38 @@ def test_the_rejudge_reads_every_accepted_unanswerable_with_what_it_cites(
     assert found.question_text == "What does the device weigh?"
     assert len(found.passage_ids) == 2
     assert found.passages == ("The device weighs 4 kg.", "The device weighs 4 kg.")
+    # Stored with no category, it was written to be silent.
+    assert found.expected == "silent"
+
+
+def test_the_rejudge_reads_the_verdict_a_stored_kind_names(corpus, engine) -> None:
+    """Off the stored category carrying `settles`, as the writer stored it."""
+    written = corpus(topics=1, facts_per_topic=1)
+    (fact,) = written["facts"][written["topics"][0]]
+    with Session(engine) as session:
+        asked = question(
+            status="accepted",
+            answerable=False,
+            categories=[
+                {
+                    "categorization": "Unanswerable",
+                    "category": "false-presupposition",
+                    "role": "question",
+                    "form": "question",
+                    "description": "d.",
+                    "settles": "refutes",
+                    "behaviour": "points out ...",
+                }
+            ],
+        )
+        session.add(asked)
+        session.flush()
+        session.add(QuestionFact(question_id=asked.id, fact_id=fact))
+        session.commit()
+
+    (found,) = QuestionCatalog().unanswered()
+
+    assert found.expected == "refutes"
 
 
 def test_a_rejudged_question_keeps_its_verdict_and_its_confidence(

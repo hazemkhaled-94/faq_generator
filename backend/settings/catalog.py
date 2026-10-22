@@ -431,7 +431,8 @@ SETTINGS: tuple[Setting, ...] = (
         kind="text",
         optional=True,
         help="The paper's categorizations as JSON: each answerable question is "
-        "written as one category of each. Unset writes the paper's two natural "
+        "written as one category of each, and an unanswerable one as its kind "
+        "where a categorization carrying settles is set. Unset writes the paper's two natural "
         "phrasings, its two premises and its two linguistic variations, each "
         "at even odds; [] writes none.",
     ),

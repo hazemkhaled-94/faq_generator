@@ -142,7 +142,15 @@ def _span(name: str, source: Source = None) -> tuple[int, int]:
 #: category's word bounds and form beside them, and nothing else, so a
 #: misspelt `probabilty` is refused rather than read as no probability at all.
 _CATEGORIZATION_KEYS = ("categorization_name", "categories", "description", "role")
-_CATEGORY_KEYS = ("description", "form", "name", "probability", "words")
+_CATEGORY_KEYS = (
+    "behaviour",
+    "description",
+    "form",
+    "name",
+    "probability",
+    "settles",
+    "words",
+)
 
 #: Whom a categorization describes: the question, or the person asking it, as
 #: the paper's Figure 3 does. Its JSON has no key for which; absent reads as
@@ -158,6 +166,12 @@ _FORMS = ("question", "query", "premise")
 #: in a label, a comma one label from the next in a workbook cell, and a line
 #: break would split a prompt's line.
 _UNNAMED = re.compile(r"[=,\n\r]")
+
+#: What the passages an unanswerable category's question cites must give it,
+#: as the settles reading names its verdicts, `rule` aside: a rule covering
+#: the case is an answer for every kind. A categorization whose categories
+#: carry it is the one the unanswerable writer is told.
+_SETTLES = ("answers", "refutes", "silent")
 
 #: How far the probabilities may sum from 1 and still be read as rounding.
 _ROUNDING = 0.01
@@ -240,6 +254,75 @@ DEFAULT_CATEGORIZATIONS = json.dumps(
 )
 
 
+#: Step 2 of the unanswerable writer's prompt where a slot is told no kind:
+#: one detail of the fact moved just out of reach, never to the absurd.
+OUT_OF_CORPUS = """Take the fact and move it just out of reach. Make ONE change:
+   - ask about a neighbouring thing the material does not cover,
+   - ask for a detail of the same subject it does not state, or
+   - ask about a different party, place, period or category - but only one
+     that no list or rule in the material already reaches (step 3).
+   Do not ask something absurd and do not invent a thing that does not
+   exist: both are too easy to decline."""
+
+#: The unanswerable kinds of UAEval4RAG (Peng et al., ACL 2025, Section 3.1
+#: and Table 11), opt-in until calibrated: each told the unanswerable writer
+#: only, kept where the settles reading gives its verdict. Its behaviours
+#: are Table 11's acceptable responses, modified, one line each (Apache-2.0,
+#: SalesforceAIResearch/Unanswerability_RAGE); the underspecified one is not
+#: a bare refusal, as Table 12 and the code have it. Modality-limited and
+#: safety-concerned test a chatbot's abilities and policy, not the documents,
+#: and are left out. `docs/configuration.md` quotes it.
+UNANSWERABLE_CATEGORIZATION = json.dumps(
+    {
+        "categorization_name": "Unanswerable",
+        "categories": [
+            {
+                "name": "out-of-corpus",
+                "settles": "silent",
+                "description": "one that moves the fact just out of reach with "
+                "ONE change: a neighbouring thing the material does not cover, "
+                "a detail of the same subject it does not state, or a different "
+                "party, place or period that no list or rule in it reaches. "
+                "It is still a plausible thing to ask of the material: never "
+                "absurd, never about a thing that does not exist.",
+                "behaviour": "says the material does not cover it, and does not "
+                "invent an answer",
+            },
+            {
+                "name": "false-presupposition",
+                "settles": "refutes",
+                "description": "one that takes for granted something the "
+                "material says is not so - a party, a condition or an option it "
+                "rules out - and asks about it as if it were so. It is still a "
+                "plausible thing to ask of the material.",
+                "behaviour": "points out that what the question takes for granted "
+                "is not so, and may answer the corrected question, or declines "
+                "to answer",
+            },
+            {
+                "name": "underspecified",
+                "settles": "answers",
+                "description": "one that leaves out the detail the material needs "
+                "to choose between its cases (which account, which product, "
+                "which period), so that each case has its own answer. It is still "
+                "a plausible thing to ask of the material.",
+                "behaviour": "asks which case is meant, or gives the answer for "
+                "each case the material distinguishes",
+            },
+            {
+                "name": "nonsensical",
+                "settles": "silent",
+                "description": "one that joins things the material names in a way "
+                "that makes no sense, so that no answer fits; it uses only words "
+                "the material uses, and is not a typing error.",
+                "behaviour": "says the question does not make sense as asked, asks "
+                "what is meant, or declines to answer",
+            },
+        ],
+    }
+)
+
+
 def categorizations(text: str) -> tuple[Categorization, ...]:
     """Reads QUESTIONS_CATEGORIZATIONS: one Figure 2 object, or a list of them.
 
@@ -250,7 +333,9 @@ def categorizations(text: str) -> tuple[Categorization, ...]:
     the person asking, as the paper's Figure 3 does; absent is `question`.
     A category's `form` is `question`, `query` for a search query, or
     `premise` for a question opening on what the asker says about
-    themselves; absent is `question`.
+    themselves; absent is `question`. A categorization whose categories
+    all carry `settles` and `behaviour` is the unanswerable one, told only
+    the unanswerable writer; at most one may.
 
     Raises:
         ValueError: If the text is not JSON, or a categorization is not as
@@ -269,6 +354,12 @@ def categorizations(text: str) -> tuple[Categorization, ...]:
             raise ValueError(
                 f"QUESTIONS_CATEGORIZATIONS names the categorization {name!r} twice"
             )
+    settling = [one.name for one in parsed if one.categories[0].settles]
+    if len(settling) > 1:
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {' and '.join(map(repr, settling))} both "
+            f"carry settles; at most one categorization is the unanswerable one"
+        )
     return tuple(parsed)
 
 
@@ -308,6 +399,26 @@ def _categorization(read: object) -> Categorization:
             raise ValueError(
                 f"QUESTIONS_CATEGORIZATIONS: {name!r} names the category {each!r} twice"
             )
+    settling = [one.settles is not None for one in categories]
+    if any(settling) and not all(settling):
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {name!r} gives some categories settles; "
+            f"give it every category or none"
+        )
+    # A kind is told in a question block of its own, which the asker's block
+    # and a search query's exemption from the question mark would undo.
+    if any(settling) and role != "question":
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {name!r} carries settles and the role "
+            f"{role!r}; an unanswerable kind describes the question"
+        )
+    for one in categories:
+        if one.settles is not None and one.form != "question":
+            raise ValueError(
+                f"QUESTIONS_CATEGORIZATIONS: {name!r}'s category {one.name!r} "
+                f"carries settles and the form {one.form!r}; an unanswerable kind "
+                f"is asked as a question"
+            )
     given = [one.probability for one in categories if one.probability is not None]
     if not given:
         weights = [1.0] * len(categories)
@@ -336,6 +447,8 @@ def _categorization(read: object) -> Categorization:
                 role=role,
                 words=one.words,
                 form=one.form,
+                settles=one.settles,
+                behaviour=one.behaviour,
             )
             for one, weight in zip(categories, weights, strict=True)
         ),
@@ -351,6 +464,8 @@ class _Read:
     probability: float | None
     words: tuple[int | None, int | None]
     form: str
+    settles: str | None = None
+    behaviour: str | None = None
 
 
 def _category(categorization: str, read: object) -> _Read:
@@ -412,8 +527,32 @@ def _category(categorization: str, read: object) -> _Read:
             f"QUESTIONS_CATEGORIZATIONS: {where} has the form {form!r}; it takes "
             f"{', '.join(_FORMS)}"
         )
-    # One line in the prompt, whatever the JSON held.
-    return _Read(name, " ".join(description.split()), probability, (least, most), form)
+    settles = read.get("settles")
+    if settles is not None and settles not in _SETTLES:
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {where} settles {settles!r}; it takes "
+            f"{', '.join(_SETTLES)}"
+        )
+    behaviour = read.get("behaviour")
+    if behaviour is not None and (
+        not isinstance(behaviour, str) or not behaviour.strip()
+    ):
+        raise ValueError(f"QUESTIONS_CATEGORIZATIONS: {where} has an empty behaviour")
+    if (settles is None) != (behaviour is None):
+        raise ValueError(
+            f"QUESTIONS_CATEGORIZATIONS: {where} has one of settles and behaviour; "
+            f"an unanswerable category gives both, an answerable one neither"
+        )
+    # One line in the prompt and in a cell, whatever the JSON held.
+    return _Read(
+        name,
+        " ".join(description.split()),
+        probability,
+        (least, most),
+        form,
+        settles,
+        " ".join(behaviour.split()) if behaviour else None,
+    )
 
 
 def _known(read: dict, keys: tuple[str, ...], where: str) -> None:

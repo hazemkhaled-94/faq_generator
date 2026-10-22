@@ -616,3 +616,191 @@ def test_a_quote_the_cited_passages_hold_is_after_all_not_elsewhere() -> None:
     assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
     assert "cited passages settle it" in failed[1]
     assert [one.gate for one in opinions] == ["settles", "settles_elsewhere"]
+
+
+# ── A question written to be settled one way: its kind's verdict ──────────
+
+
+class _Reads:
+    """A verifier giving one verdict over the cited passages, another beside the probe."""
+
+    def __init__(self, cited: str, probed: str = Settling.SILENT) -> None:
+        """Initialises with the two verdicts, each quoting what it was shown last."""
+        self.cited, self.probed = cited, probed
+
+    def settles(self, question: str, passages):
+        """The cited verdict on one passage, the probed one on more."""
+        from question_generation.verifier import Settled
+
+        verdict = self.cited if len(passages) == 1 else self.probed
+        if verdict == Settling.SILENT:
+            return Settled(verdict=verdict, quote=None)
+        return Settled(verdict=verdict, quote=passages[-1])
+
+
+FALSE = "How long does it take to answer a request a visitor raises?"
+
+
+def expecting(verifier, expected: str):
+    """`settle` over the cited passage and the probe, for a kind settled so."""
+    from question_generation.checker import settle
+
+    return settle(verifier, FALSE, "en", [CITED], lambda: [UNCITED], expected=expected)
+
+
+def test_a_false_presupposition_its_passage_refutes_is_kept() -> None:
+    """Refuted by what it cites, and by the probe beside it."""
+    failed, opinions = expecting(_Reads(Settling.REFUTES, Settling.REFUTES), "refutes")
+
+    assert failed is None
+    assert [one.gate for one in opinions] == ["settles", "settles_elsewhere"]
+
+
+def test_a_false_presupposition_its_passage_says_nothing_of_is_the_wrong_type() -> None:
+    """Silent is another kind of question: out of the corpus, not refuted."""
+    from database.qa_generator import QuestionRejection
+
+    failed, _ = expecting(_Reads(Settling.SILENT), "refutes")
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.WRONG_TYPE
+
+
+def test_a_false_presupposition_the_probe_answers_is_answerable_elsewhere() -> None:
+    """An answer elsewhere is an answer, whatever the kind wanted."""
+    from database.qa_generator import QuestionRejection
+
+    failed, _ = expecting(_Reads(Settling.REFUTES, Settling.ANSWERS), "refutes")
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_ELSEWHERE
+
+
+def test_a_false_presupposition_its_passage_answers_is_answerable_after_all() -> None:
+    """A verdict that answers it, where the kind wants another, refuses it as today."""
+    from database.qa_generator import QuestionRejection
+
+    failed, _ = expecting(_Reads(Settling.ANSWERS), "refutes")
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_AFTER_ALL
+
+
+def test_an_underspecified_question_its_passage_answers_by_case_is_kept() -> None:
+    """Answered once per case, which is the kind."""
+    failed, _ = expecting(_Reads(Settling.ANSWERS, Settling.ANSWERS), "answers")
+
+    assert failed is None
+
+
+def test_the_checker_reads_the_verdict_its_kind_names() -> None:
+    """A candidate told a category that settles `refutes` is kept on `refutes`."""
+    from dataclasses import replace
+
+    from factories import candidate, group, source
+    from unit.questions.test_verification import Recording
+
+    from question_generation.checker import QuestionChecker
+    from question_generation.models import Category
+
+    told = Category(
+        "Unanswerable",
+        "false-presupposition",
+        "d.",
+        1.0,
+        settles="refutes",
+        behaviour="b.",
+    )
+    stand_in = Recording(recovers=None)
+    result = QuestionChecker(
+        embedder=stand_in,
+        verifier=Verifier(Gating(CITED, Settling.REFUTES)),
+        nearest=lambda embedding, **_: None,
+        threshold=0.93,
+        phrasing=stand_in,
+        elsewhere=lambda *a, **k: [UNCITED],
+        elsewhere_passages=0,
+    ).check(
+        replace(
+            candidate(
+                question_text=FALSE,
+                target_answer=None,
+                answerable=False,
+                facts=group(source(1, statement=CITED, passage_text=CITED)),
+            ),
+            categories=(told,),
+        )
+    )
+
+    assert result.accepted, result.rejected_reason
+
+
+class _Quoting:
+    """A verifier giving each reading a verdict and a quote of its own."""
+
+    def __init__(self, cited: tuple, probed: tuple = (Settling.SILENT, None)) -> None:
+        """Initialises with (verdict, quote) over the cited passage, then beside the probe."""
+        self.cited, self.probed = cited, probed
+
+    def settles(self, question: str, passages):
+        """The cited reading on one passage, the probed one on more."""
+        from question_generation.verifier import Settled
+
+        verdict, quote = self.cited if len(passages) == 1 else self.probed
+        return Settled(verdict=verdict, quote=quote)
+
+
+@pytest.mark.parametrize("expected", [Settling.REFUTES, Settling.ANSWERS])
+def test_a_kind_verdict_with_no_words_of_the_cited_passage_is_the_wrong_type(
+    expected: str,
+) -> None:
+    """With no quote the refutation or the answer by case may be the model's memory.
+
+    Read with no probe, so nothing after the cited reading decides it.
+    """
+    from database.qa_generator import QuestionRejection
+    from question_generation.checker import settle
+
+    failed, _ = settle(
+        _Quoting((expected, None)), FALSE, "en", [CITED], None, expected=expected
+    )
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.WRONG_TYPE
+
+
+@pytest.mark.parametrize(
+    "probed",
+    [(Settling.SILENT, None), (Settling.ANSWERS, "Words no passage holds.")],
+    ids=["silent", "quoted-from-nowhere"],
+)
+@pytest.mark.parametrize("expected", [Settling.REFUTES, Settling.ANSWERS])
+def test_a_kind_the_probe_finds_no_answer_for_is_kept(expected: str, probed) -> None:
+    """The probe looks for an answer elsewhere; silent beside it finds none."""
+    failed, _ = expecting(_Quoting((expected, CITED), probed), expected)
+
+    assert failed is None
+
+
+def test_an_underspecified_question_the_probe_refutes_is_answerable_elsewhere() -> None:
+    """A refuted premise answers a question written to be answered by case."""
+    from database.qa_generator import QuestionRejection
+
+    failed, _ = expecting(
+        _Quoting((Settling.ANSWERS, CITED), (Settling.REFUTES, UNCITED)), "answers"
+    )
+
+    assert failed is not None
+    assert failed[0] == QuestionRejection.ANSWERABLE_ELSEWHERE
+
+
+def test_a_kept_kind_reads_one_where_it_gave_the_kinds_verdict() -> None:
+    """A kept refutation is not stored as a reading that refused it."""
+    kept, opinions = expecting(
+        _Quoting((Settling.REFUTES, CITED), (Settling.REFUTES, UNCITED)), "refutes"
+    )
+    _, refused = expecting(_Quoting((Settling.SILENT, None)), "refutes")
+
+    assert kept is None
+    assert [one.value for one in opinions] == [1.0, 1.0]
+    assert [one.value for one in refused] == [0.0]

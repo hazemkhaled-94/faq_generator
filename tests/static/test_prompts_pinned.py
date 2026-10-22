@@ -33,39 +33,43 @@ from tests.static.prompt_catalogues import recorded
 #: Every prompt a stage records, by service and name: its version, and the
 #: digest over its system prompt, user template and response schema.
 RECORDED = {
-    ("questions", "aggregation"): ("28", "159ffa77976313db"),
-    ("questions", "application"): ("28", "24f1091f699aa0a2"),
-    ("questions", "application (spans)"): ("28", "65803430364490c4"),
-    ("questions", "application (compound)"): ("28", "20698b6222742d2d"),
-    ("questions", "comparison"): ("28", "3ad2cb919dd21065"),
-    ("questions", "condition"): ("28", "929efbfd28c07c72"),
-    ("questions", "condition (spans)"): ("28", "6fd8222b93b19740"),
-    ("questions", "condition (compound)"): ("28", "33df212d819d39d7"),
-    ("questions", "consequence"): ("28", "c5c0bcad86bbf4dd"),
-    ("questions", "consequence (spans)"): ("28", "971c5ebcc7fe09fc"),
-    ("questions", "consequence (compound)"): ("28", "96d82a9ef9667db5"),
-    ("questions", "definition"): ("28", "3cffe55fa0d46404"),
-    ("questions", "definition (spans)"): ("28", "d35660d58b289255"),
-    ("questions", "definition (compound)"): ("28", "c541010246886097"),
-    ("questions", "entity"): ("28", "01b2d270a2f26c23"),
-    ("questions", "entity (spans)"): ("28", "939e6ff29446de31"),
-    ("questions", "entity (compound)"): ("28", "eb9fa598258dbdeb"),
-    ("questions", "enumeration"): ("28", "35fe8722078dc38c"),
-    ("questions", "enumeration (spans)"): ("28", "1d9af5dc6f5ec8c7"),
-    ("questions", "enumeration (compound)"): ("28", "7b1ee6bc5f79fb03"),
-    ("questions", "factoid"): ("28", "6b493a0d03d98860"),
-    ("questions", "factoid (spans)"): ("28", "0cdcd8f7c4922988"),
-    ("questions", "factoid (compound)"): ("28", "0fe590ec89fa65b1"),
-    ("questions", "implication"): ("28", "d18dab93ff0f8364"),
-    ("questions", "procedure"): ("28", "124b4eb115b354b2"),
-    ("questions", "procedure (spans)"): ("28", "16fd07789cdc4f19"),
-    ("questions", "procedure (compound)"): ("28", "5989bc5b7c712fd7"),
-    ("questions", "reason"): ("28", "76b1ac67fd3241d8"),
-    ("questions", "reason (spans)"): ("28", "57d9b2447c1a15c2"),
-    ("questions", "reason (compound)"): ("28", "9176e61a9e42efdb"),
-    ("questions", "temporal"): ("28", "36afed51ab80ebce"),
-    ("questions", "perturb"): ("28", "1b56db0841285737"),
-    ("questions", "follow"): ("28", "b01fef3538ce9a05"),
+    ("questions", "aggregation"): ("29", "159ffa77976313db"),
+    ("questions", "application"): ("29", "24f1091f699aa0a2"),
+    ("questions", "application (spans)"): ("29", "65803430364490c4"),
+    ("questions", "application (compound)"): ("29", "20698b6222742d2d"),
+    ("questions", "comparison"): ("29", "3ad2cb919dd21065"),
+    ("questions", "condition"): ("29", "929efbfd28c07c72"),
+    ("questions", "condition (spans)"): ("29", "6fd8222b93b19740"),
+    ("questions", "condition (compound)"): ("29", "33df212d819d39d7"),
+    ("questions", "consequence"): ("29", "c5c0bcad86bbf4dd"),
+    ("questions", "consequence (spans)"): ("29", "971c5ebcc7fe09fc"),
+    ("questions", "consequence (compound)"): ("29", "96d82a9ef9667db5"),
+    ("questions", "definition"): ("29", "3cffe55fa0d46404"),
+    ("questions", "definition (spans)"): ("29", "d35660d58b289255"),
+    ("questions", "definition (compound)"): ("29", "c541010246886097"),
+    ("questions", "entity"): ("29", "01b2d270a2f26c23"),
+    ("questions", "entity (spans)"): ("29", "939e6ff29446de31"),
+    ("questions", "entity (compound)"): ("29", "eb9fa598258dbdeb"),
+    ("questions", "enumeration"): ("29", "35fe8722078dc38c"),
+    ("questions", "enumeration (spans)"): ("29", "1d9af5dc6f5ec8c7"),
+    ("questions", "enumeration (compound)"): ("29", "7b1ee6bc5f79fb03"),
+    ("questions", "factoid"): ("29", "6b493a0d03d98860"),
+    ("questions", "factoid (spans)"): ("29", "0cdcd8f7c4922988"),
+    ("questions", "factoid (compound)"): ("29", "0fe590ec89fa65b1"),
+    ("questions", "implication"): ("29", "d18dab93ff0f8364"),
+    ("questions", "procedure"): ("29", "124b4eb115b354b2"),
+    ("questions", "procedure (spans)"): ("29", "16fd07789cdc4f19"),
+    ("questions", "procedure (compound)"): ("29", "5989bc5b7c712fd7"),
+    ("questions", "reason"): ("29", "76b1ac67fd3241d8"),
+    ("questions", "reason (spans)"): ("29", "57d9b2447c1a15c2"),
+    ("questions", "reason (compound)"): ("29", "9176e61a9e42efdb"),
+    ("questions", "temporal"): ("29", "36afed51ab80ebce"),
+    ("questions", "perturb"): ("29", "9c48519ff8433d49"),
+    ("questions", "perturb (out-of-corpus)"): ("29", "924331e61107e1ca"),
+    ("questions", "perturb (false-presupposition)"): ("29", "bc0f53c6b6c28ddb"),
+    ("questions", "perturb (underspecified)"): ("29", "ea9062ac660b716a"),
+    ("questions", "perturb (nonsensical)"): ("29", "d2e59e71a72a1705"),
+    ("questions", "follow"): ("29", "b01fef3538ce9a05"),
     ("questions", "phrasing: source"): ("4", "6551aead84a26ba0"),
     ("questions", "phrasing: names something"): ("4", "f31be9753115f3c0"),
     ("questions", "phrasing: self-contained"): ("4", "4929cdb590150f41"),
@@ -93,6 +97,12 @@ RECORDED = {
     ("assessment", "question: toxicity"): ("4", "eb392c185d32eb90"),
     ("assessment", "question: rubric"): ("4", "80847438785d36fb"),
 }
+
+
+#: The notes a refused draft is written again with, a kind's included, by
+#: the writer's version: the writer reads them on every retry, and no
+#: catalogue entry holds them.
+NOTES = ("29", "3513a67f42cb2860")
 
 
 def halves(one: Composed) -> str:
@@ -162,3 +172,21 @@ def test_a_single_passage_type_is_told_to_span_only_when_the_sample_does() -> No
 
     assert "MORE THAN ONE PASSAGE" not in factoid.system()
     assert "MORE THAN ONE PASSAGE" in factoid.system(spans=True)
+
+
+def test_the_retry_notes_are_the_ones_pinned_under_the_writers_version() -> None:
+    """A note moving under one writer version is drift, as a prompt moving is."""
+    from question_generation.service import _KIND_NOTES, _NOTES, _QUERY_NOTES
+    from question_generation.types import PROMPT_VERSION
+
+    version, pinned = NOTES
+    notes = json.dumps([_NOTES, _QUERY_NOTES, _KIND_NOTES], sort_keys=True)
+
+    assert PROMPT_VERSION == version, (
+        f"the writer is at version {PROMPT_VERSION} and this file pins its notes "
+        f"under {version}"
+    )
+    assert digest(notes) == pinned, (
+        f"the retry notes moved under version {version}: bump PROMPT_VERSION and "
+        f"pin {digest(notes)}"
+    )

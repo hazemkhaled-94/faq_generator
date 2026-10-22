@@ -16,7 +16,7 @@ from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
 from question_generation.generation import QuestionWriter
 from question_generation.kinds import _Answered
 from question_generation.models import Category
-from question_generation.types import SPECS
+from question_generation.types import READS, SPECS
 
 
 class StubModel:
@@ -1148,3 +1148,346 @@ def test_a_premise_that_only_enquires_is_written_once_more_with_a_note(
     assert len(model.asked) == 2
     assert f'The previous draft was "{enquiring}".' in model.user
     assert written.question_text == _ASKER[language]
+
+
+# ── The unanswerable kinds (UAEval4RAG) ───────────────────────────────────
+
+
+def kind(name: str, settles: str) -> Category:
+    """A category of the opt-in unanswerable categorization."""
+    return Category(
+        "Unanswerable", name, f"a {name} one.", 0.25, settles=settles, behaviour="b."
+    )
+
+
+def unanswered_with(*categories: Category) -> StubModel:
+    """The model an unanswerable factoid slot dealt `categories` was asked through."""
+    model = StubModel(question="Q?")
+    QuestionWriter(model).write(group(), plan(answerable=False, categories=categories))
+    return model
+
+
+#: The system prompt of an unanswerable factoid slot told no kind: version
+#: 28's, but for the rule against the absurd, moved into step 2, and a role
+#: that no longer says every question has no answer.
+PERTURB = (
+    """ROLE
+You are a test-question writer. The questions you write measure whether a
+document-search chatbot handles a question it should not simply answer,
+instead of inventing an answer.
+
+ACTION
+Write ONE test question that the material does NOT answer anywhere, and that
+is still a plausible thing to ask of it.
+
+STEPS
+1. Read the FACT and the PASSAGE it came from.
+2. Take the fact and move it just out of reach. Make ONE change:
+   - ask about a neighbouring thing the material does not cover,
+   - ask for a detail of the same subject it does not state, or
+   - ask about a different party, place, period or category - but only one
+     that no list or rule in the material already reaches (step 3).
+   Do not ask something absurd and do not invent a thing that does not
+   exist: both are too easy to decline.
+3. Answer your own question from the fact and the passage. They ANSWER it
+   when they state the answer, and ALSO when they:
+   - contradict or refute its premise - a question about something the
+     material says does not happen is answered "it does not";
+   - name a closed list or rule its case falls outside - "only", "every",
+     "no other", in whatever language the material is written - which
+     answers it "nobody else" or "not there";
+   - state a general rule that covers its case.
+   If either of them answers it in any of these ways, you have written the
+   wrong question - go back to step 2.
+4. Read the question back against every rule under FORMAT.
+
+CONTEXT
+You are given one FACT and the PASSAGE it came from, and nothing else. The
+person you are writing for has not read the passage. They do not know which
+document answers them - finding that out is the whole reason they are asking.
+
+THE KIND OF QUESTION TO ASK: one checkable value - how many, how much, by when, what limit
+
+EXAMPLES
+  FACT: A standard support request is answered within 48 hours.
+  PASSAGE: Standard requests are answered within 48 hours on working days.
+  Only account holders may raise a request. These times are set out in the
+  service agreement.
+
+  WRONG  "How long does a standard support request take to answer?"
+         (that is the fact itself, and it is answered)
+  WRONG  "How long is allowed for answering a request raised by a visitor?"
+         (only account holders may raise one: the material answers that a
+          visitor cannot, which is an answer)
+  WRONG  "How long is allowed for answering a standard support request raised
+          on a public holiday?"
+         (the 48 hours count working days - a general rule that settles the
+          holiday)
+  WRONG  "What is the top speed of a swallow?"
+         (nothing to do with this material; declining it tests nothing)
+  WRONG  "What does the service agreement say about public holidays?"
+         (names its source, which no asker would know to do)
+
+  RIGHT  "Through which channel is the answer to a standard support request
+          sent?"
+         (same subject, a detail no fact, list or rule in the material
+          settles)
+
+FORMAT
+Return `question`, and nothing else.
+
+"""
+    + READS
+    + """- IT MUST NOT BE ANSWERABLE from the fact or the passage. If reading either
+  answers your question - states the answer, contradicts its premise, or
+  settles it by a closed list or a general rule - you have written the wrong
+  question.
+
+- A question about an unrelated subject tests nothing, because any chatbot
+  declines that one.
+"""
+)
+
+#: What a slot told a kind of each `settles` is told in place of the
+#: fallback's, section by section.
+TOLD = "2. Write a question as the WHAT MAKES IT A TEST block under the passages describes.\n"
+
+#: The fallback's ACTION, which plausibility belongs to; a kind's says only
+#: what to write, its description whether it must be plausible.
+FALLBACK = (
+    "ACTION\nWrite ONE test question that the material does NOT answer anywhere, "
+    "and that\nis still a plausible thing to ask of it.\n"
+)
+
+SILENT = {
+    FALLBACK: "ACTION\nWrite ONE test question that the material does NOT answer "
+    "anywhere.\n",
+}
+
+REFUTES = {
+    FALLBACK: (
+        "ACTION\nWrite ONE test question that takes for granted something the material says\n"
+        "is not so.\n"
+    ),
+    PERTURB[PERTURB.index("3. Answer") : PERTURB.index("4. Read")]: (
+        "3. Find the sentence of the fact or the passage that says what your question\n"
+        "   takes for granted is not so. If there is none, if it only fails to mention\n"
+        "   it, or if either of them states an answer to the question as asked, you\n"
+        "   have written the wrong question - go back to step 2.\n"
+    ),
+    PERTURB[
+        PERTURB.index('  WRONG  "How long is') : PERTURB.index(
+            '  WRONG  "What is the top'
+        )
+    ]: (
+        '  WRONG  "Through which channel is the answer to a standard support request\n'
+        '          sent?"\n'
+        "         (the material says nothing either way: a premise it does not\n"
+        "          mention is not one it says is false)\n"
+    ),
+    PERTURB[PERTURB.index("  RIGHT") : PERTURB.index("FORMAT\nReturn")]: (
+        '  RIGHT  "How long does it take to answer a request a visitor raises?"\n'
+        "         (only account holders may raise one: what the question takes for\n"
+        "          granted is not so)\n\n"
+    ),
+    PERTURB[PERTURB.index("- IT MUST NOT") : PERTURB.index("\n\n- A question about")]: (
+        "- IT MUST TAKE FOR GRANTED something a sentence of the fact or the passage\n"
+        "  says is not so, and nothing in them may answer it as asked."
+    ),
+}
+
+ANSWERS = {
+    FALLBACK: (
+        "ACTION\nWrite ONE test question that the material answers differently depending on\n"
+        "a detail the question leaves out.\n"
+    ),
+    PERTURB[PERTURB.index("3. Answer") : PERTURB.index("4. Read")]: (
+        "3. Name the cases the fact or the passage tells apart (two kinds of account,\n"
+        "   two products, two periods) and the answer each gets. If they give one\n"
+        "   answer whatever the case, or if your question names the case, you have\n"
+        "   written the wrong question - go back to step 2.\n"
+    ),
+    PERTURB[PERTURB.index("EXAMPLES\n") : PERTURB.index("FORMAT\nReturn")]: (
+        "EXAMPLES\n"
+        "  FACT: An urgent support request is answered within 4 hours.\n"
+        "  PASSAGE: Standard requests are answered within 48 hours on working days,\n"
+        "  urgent ones within 4 hours. Only account holders may raise a request.\n\n"
+        '  WRONG  "How long does an urgent support request take to answer?"\n'
+        "         (it names the case, and it is answered)\n"
+        '  WRONG  "Who may raise a support request?"\n'
+        "         (one answer whatever the case)\n"
+        '  WRONG  "What is the top speed of a swallow?"\n'
+        "         (nothing to do with this material; declining it tests nothing)\n\n"
+        '  RIGHT  "How long does it take to answer a support request?"\n'
+        "         (standard and urgent requests get different times, and the\n"
+        "          question does not say which)\n\n"
+    ),
+    PERTURB[PERTURB.index("- IT MUST NOT") : PERTURB.index("\n\n- A question about")]: (
+        "- IT MUST LEAVE OUT the detail that decides between cases the fact or the\n"
+        "  passage tells apart, so each case has its own answer."
+    ),
+}
+
+
+NONSENSICAL = SILENT | {
+    PERTURB[PERTURB.index("EXAMPLES\n") : PERTURB.index("FORMAT\nReturn")]: (
+        "EXAMPLES\n"
+        "  FACT: A standard support request is answered within 48 hours.\n"
+        "  PASSAGE: Standard requests are answered within 48 hours on working days.\n"
+        "  Only account holders may raise a request. These times are set out in the\n"
+        "  service agreement.\n\n"
+        '  WRONG  "How long does a standard support request take to answer?"\n'
+        "         (that is the fact itself, and it is answered)\n"
+        '  WRONG  "How long does a standrad support reqest take to answer?"\n'
+        "         (a typing error: read past it, the question is answered)\n"
+        '  WRONG  "What is the top speed of a swallow?"\n'
+        "         (nothing to do with this material; declining it tests nothing)\n"
+        '  WRONG  "What does the service agreement say about public holidays?"\n'
+        "         (names its source, which no asker would know to do)\n\n"
+        '  RIGHT  "How many hours is an account holder?"\n'
+        "         (it joins an account holder and a number of hours in a way that\n"
+        "          makes no sense, so no answer fits)\n\n"
+    ),
+}
+
+
+def rewritten(sections: dict[str, str]) -> str:
+    """The fallback with a kind's step 2 and these sections in place of its own."""
+    text = PERTURB.replace(
+        PERTURB[PERTURB.index("2. Take") : PERTURB.index("3. Answer")], TOLD
+    )
+    for old, new in sections.items():
+        assert old in text, old
+        text = text.replace(old, new)
+    return text
+
+
+@pytest.mark.parametrize(
+    ("told", "system"),
+    [
+        ((), PERTURB),
+        ((kind("out-of-corpus", "silent"),), rewritten(SILENT)),
+        ((kind("false-presupposition", "refutes"),), rewritten(REFUTES)),
+        ((kind("underspecified", "answers"),), rewritten(ANSWERS)),
+        ((kind("nonsensical", "silent"),), rewritten(NONSENSICAL)),
+        ((kind("another-name", "silent"),), rewritten(SILENT)),
+    ],
+    ids=[
+        "none",
+        "out-of-corpus",
+        "false-presupposition",
+        "underspecified",
+        "nonsensical",
+        "another-silent-kind",
+    ],
+)
+def test_each_kind_is_written_from_its_own_rendering(told, system) -> None:
+    """Pinned whole: no kind is version 28's text but for the role and the moved rule."""
+    assert unanswered_with(*told).system == system
+
+
+def test_a_kind_is_told_in_the_question_block_and_stored() -> None:
+    """Its description under the passages; an answerable category beside it is not told."""
+    false = kind("false-presupposition", "refutes")
+
+    model = unanswered_with(concise(), false)
+
+    assert (
+        "\nWHAT MAKES IT A TEST - it must be:\n"
+        "- a false-presupposition one.\n"
+        "Where it conflicts with a rule under FORMAT, it wins; two rules still hold: "
+        "never name a source, and never ask about an unrelated subject.\n"
+    ) in model.user
+    assert "THE QUESTION -" not in model.user
+    assert "the rule wins" not in model.user
+    assert concise().description not in model.user
+    written = QuestionWriter(StubModel(question="Q?")).write(
+        group(), plan(answerable=False, categories=(concise(), false))
+    )
+    assert written.categories == (false,)
+
+
+def test_a_kind_is_told_what_its_passages_must_say() -> None:
+    """The user message's rule for the passages follows the kind, not the fallback's."""
+    silent = unanswered_with().user
+    refuted = unanswered_with(kind("false-presupposition", "refutes")).user
+    by_case = unanswered_with(kind("underspecified", "answers")).user
+
+    assert (
+        "no sentence of it may answer your question, contradict its premise" in silent
+    )
+    assert "contradict its premise" not in refuted
+    assert "must say that what your question takes for granted is not so" in refuted
+    assert "must give a different answer for each case" in by_case
+
+
+def test_an_answerable_slot_dealt_an_unanswerable_kind_is_not_told_it() -> None:
+    """A kind holds only where the question has no answer."""
+    model = StubModel(question="Q?", answer="A")
+
+    written = QuestionWriter(model).write(
+        group(), plan(categories=(concise(), kind("underspecified", "answers")))
+    )
+
+    assert "an underspecified one." not in model.user
+    assert written.categories == (concise(),)
+
+
+def test_the_unanswerable_shape_names_a_test_question_and_no_lack_of_answer() -> None:
+    """An underspecified question has answers, one per case."""
+    import json
+
+    from question_generation.generation import _Unanswered
+
+    schema = json.dumps(_Unanswered.model_json_schema())
+
+    assert "test question" in schema
+    assert "does not answer" not in schema
+
+
+@pytest.mark.parametrize(
+    ("told", "fact"),
+    [
+        ((), "the question moves this one detail out of reach"),
+        (
+            (kind("out-of-corpus", "silent"),),
+            "the question moves this one detail out of reach",
+        ),
+        (
+            (kind("nonsensical", "silent"),),
+            "the question joins things this fact and its passage name",
+        ),
+    ],
+    ids=["none", "out-of-corpus", "nonsensical"],
+)
+def test_the_fact_line_follows_the_kind(told, fact: str) -> None:
+    """A nonsensical question is never told to move a detail out of reach."""
+    assert unanswered_with(*told).user.startswith(f"FACT - {fact}:\n")
+
+
+@pytest.mark.parametrize(
+    ("told", "tail"),
+    [
+        ((), "the same holds for every sentence of them"),
+        ((kind("nonsensical", "silent"),), "the same holds for every sentence of them"),
+        (
+            (kind("false-presupposition", "refutes"),),
+            "none of them may answer your question as asked",
+        ),
+        (
+            (kind("underspecified", "answers"),),
+            "none of them may answer your question as asked",
+        ),
+    ],
+    ids=["none", "nonsensical", "false-presupposition", "underspecified"],
+)
+def test_the_passages_beside_are_told_what_the_probe_checks(told, tail: str) -> None:
+    """Not that each of them must refute the premise or answer by case."""
+    from dataclasses import replace
+
+    model = StubModel(question="Q?")
+    sample = replace(group(), beside=("The fee is waived for students.",))
+
+    QuestionWriter(model).write(sample, plan(answerable=False, categories=told))
+
+    assert f"the chatbot reads too; {tail}:\n" in model.user

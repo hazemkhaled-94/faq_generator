@@ -18,6 +18,7 @@ from; the fact is what it has to be answered by.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 
@@ -29,8 +30,9 @@ from llm.prompt import fill
 from nlp.analysis import asked
 from nlp.models import named
 from nlp.pipelines import pipeline
+from question_generation.config import OUT_OF_CORPUS, UNANSWERABLE_CATEGORIZATION
 from question_generation.kinds import KINDS, _Answered, stored
-from question_generation.models import Candidate, Category, FactGroup
+from question_generation.models import Candidate, Category, FactGroup, kind
 from question_generation.planning import Plan
 from question_generation.types import PROMPT_VERSION, READS, TypeSpec
 
@@ -41,29 +43,16 @@ log = logging.getLogger(__name__)
 _PERTURB = (
     """ROLE
 You are a test-question writer. The questions you write measure whether a
-document-search chatbot says it does not know, instead of inventing an answer.
+document-search chatbot handles a question it should not simply answer,
+instead of inventing an answer.
 
 ACTION
-Write ONE test question that the material does NOT answer anywhere, and that
-is still a plausible thing to ask of it.
+{{action}}
 
 STEPS
 1. Read the FACT and the PASSAGE it came from.
-2. Take the fact and move it just out of reach. Make ONE change:
-   - ask about a neighbouring thing the material does not cover,
-   - ask for a detail of the same subject it does not state, or
-   - ask about a different party, place, period or category - but only one
-     that no list or rule in the material already reaches (step 3).
-3. Answer your own question from the fact and the passage. They ANSWER it
-   when they state the answer, and ALSO when they:
-   - contradict or refute its premise - a question about something the
-     material says does not happen is answered "it does not";
-   - name a closed list or rule its case falls outside - "only", "every",
-     "no other", in whatever language the material is written - which
-     answers it "nobody else" or "not there";
-   - state a general rule that covers its case.
-   If either of them answers it in any of these ways, you have written the
-   wrong question - go back to step 2.
+2. {{change}}
+3. {{check}}
 4. Read the question back against every rule under FORMAT.
 
 CONTEXT
@@ -74,45 +63,225 @@ document answers them - finding that out is the whole reason they are asking.
 THE KIND OF QUESTION TO ASK: {{asks}}
 
 EXAMPLES
-  FACT: A standard support request is answered within 48 hours.
+{{examples}}
+FORMAT
+Return `question`, and nothing else.
+
+"""
+    + READS
+    + """{{must}}
+
+- A question about an unrelated subject tests nothing, because any chatbot
+  declines that one.
+"""
+)
+
+#: Step 2 for a slot told an unanswerable kind, whose block says what to write.
+_TOLD = (
+    "Write a question as the WHAT MAKES IT A TEST block under the passages describes."
+)
+
+#: The ACTION of a slot told no kind. A kind's ACTION says only what to
+#: write: whether it must be plausible is its description's to say, and a
+#: nonsensical one must not be.
+_UNTOLD = (
+    "Write ONE test question that the material does NOT answer anywhere, and that\n"
+    "is still a plausible thing to ask of it."
+)
+
+#: The worked example's fact and passage, which the out-of-reach and the
+#: refuted kinds share.
+_SUPPORT_DESK = """  FACT: A standard support request is answered within 48 hours.
   PASSAGE: Standard requests are answered within 48 hours on working days.
   Only account holders may raise a request. These times are set out in the
   service agreement.
 
   WRONG  "How long does a standard support request take to answer?"
          (that is the fact itself, and it is answered)
-  WRONG  "How long is allowed for answering a request raised by a visitor?"
+"""
+
+#: The two wrong questions every kind shares: one any chatbot declines, and
+#: one naming its source.
+_UNRELATED = """  WRONG  "What is the top speed of a swallow?"
+         (nothing to do with this material; declining it tests nothing)
+"""
+_SOURCED = """  WRONG  "What does the service agreement say about public holidays?"
+         (names its source, which no asker would know to do)
+"""
+
+#: What the passages beside are told under a kind that must be refuted or
+#: answered by case: only what the probe checks for every kind.
+_AS_ASKED = "none of them may answer your question as asked"
+
+#: Out-of-corpus's lines, version 28's text, which a slot told no kind is
+#: written with too.
+_MOVED = {
+    "{{action}}": "Write ONE test question that the material does NOT answer anywhere.",
+    "{{check}}": """Answer your own question from the fact and the passage. They ANSWER it
+   when they state the answer, and ALSO when they:
+   - contradict or refute its premise - a question about something the
+     material says does not happen is answered "it does not";
+   - name a closed list or rule its case falls outside - "only", "every",
+     "no other", in whatever language the material is written - which
+     answers it "nobody else" or "not there";
+   - state a general rule that covers its case.
+   If either of them answers it in any of these ways, you have written the
+   wrong question - go back to step 2.""",
+    "{{examples}}": _SUPPORT_DESK
+    + """  WRONG  "How long is allowed for answering a request raised by a visitor?"
          (only account holders may raise one: the material answers that a
           visitor cannot, which is an answer)
   WRONG  "How long is allowed for answering a standard support request raised
           on a public holiday?"
          (the 48 hours count working days - a general rule that settles the
           holiday)
-  WRONG  "What is the top speed of a swallow?"
-         (nothing to do with this material; declining it tests nothing)
-  WRONG  "What does the service agreement say about public holidays?"
-         (names its source, which no asker would know to do)
-
+"""
+    + _UNRELATED
+    + _SOURCED
+    + """
   RIGHT  "Through which channel is the answer to a standard support request
           sent?"
          (same subject, a detail no fact, list or rule in the material
           settles)
-
-FORMAT
-Return `question`, and nothing else.
-
-"""
-    + READS
-    + """- IT MUST NOT BE ANSWERABLE from the fact or the passage. If reading either
+""",
+    "{{must}}": """- IT MUST NOT BE ANSWERABLE from the fact or the passage. If reading either
   answers your question - states the answer, contradicts its premise, or
   settles it by a closed list or a general rule - you have written the wrong
-  question.
+  question.""",
+    "{{fact}}": "the question moves this one detail out of reach",
+    "{{reads}}": "no sentence of it may answer your question, contradict its "
+    "premise or cover its case by a rule.",
+    "{{holds}}": "the same holds for every sentence of them",
+}
 
-- DO NOT ask something absurd and do not invent a thing that does not exist.
-  Both are too easy to decline. A question about an unrelated subject tests
-  nothing, because any chatbot declines that one.
+#: What an unanswerable question's kind changes in the writer's two prompts
+#: and in what the passages beside are told, by the kinds of UAEval4RAG
+#: (Peng et al., ACL 2025, Section 3.1) as `UNANSWERABLE_CATEGORIZATION`
+#: names them; `written_as` says which a slot is written with.
+_KINDS: dict[str, dict[str, str]] = {
+    "out-of-corpus": _MOVED,
+    "false-presupposition": {
+        "{{action}}": "Write ONE test question that takes for granted something "
+        "the material says\nis not so.",
+        "{{check}}": """Find the sentence of the fact or the passage that says what your question
+   takes for granted is not so. If there is none, if it only fails to mention
+   it, or if either of them states an answer to the question as asked, you
+   have written the wrong question - go back to step 2.""",
+        "{{examples}}": _SUPPORT_DESK
+        + """  WRONG  "Through which channel is the answer to a standard support request
+          sent?"
+         (the material says nothing either way: a premise it does not
+          mention is not one it says is false)
 """
-)
+        + _UNRELATED
+        + _SOURCED
+        + """
+  RIGHT  "How long does it take to answer a request a visitor raises?"
+         (only account holders may raise one: what the question takes for
+          granted is not so)
+""",
+        "{{must}}": """- IT MUST TAKE FOR GRANTED something a sentence of the fact or the passage
+  says is not so, and nothing in them may answer it as asked.""",
+        "{{fact}}": "the question takes for granted something this or its "
+        "passage says is not so",
+        "{{reads}}": "one sentence of it must say that what your question takes "
+        "for granted is not so, and none may answer it as asked.",
+        "{{holds}}": _AS_ASKED,
+    },
+    "underspecified": {
+        "{{action}}": "Write ONE test question that the material answers "
+        "differently depending on\na detail the question leaves out.",
+        "{{check}}": """Name the cases the fact or the passage tells apart (two kinds of account,
+   two products, two periods) and the answer each gets. If they give one
+   answer whatever the case, or if your question names the case, you have
+   written the wrong question - go back to step 2.""",
+        "{{examples}}": """  FACT: An urgent support request is answered within 4 hours.
+  PASSAGE: Standard requests are answered within 48 hours on working days,
+  urgent ones within 4 hours. Only account holders may raise a request.
+
+  WRONG  "How long does an urgent support request take to answer?"
+         (it names the case, and it is answered)
+  WRONG  "Who may raise a support request?"
+         (one answer whatever the case)
+"""
+        + _UNRELATED
+        + """
+  RIGHT  "How long does it take to answer a support request?"
+         (standard and urgent requests get different times, and the
+          question does not say which)
+""",
+        "{{must}}": """- IT MUST LEAVE OUT the detail that decides between cases the fact or the
+  passage tells apart, so each case has its own answer.""",
+        "{{fact}}": "the question leaves open a case this or its passage tells apart",
+        "{{reads}}": "it must give a different answer for each case your question "
+        "leaves open, and no sentence may say which case is meant.",
+        "{{holds}}": _AS_ASKED,
+    },
+    # Out-of-corpus's verdict, check and rule, with nothing that tells it to
+    # move a detail out of reach or shows it a plausible question.
+    "nonsensical": _MOVED
+    | {
+        "{{fact}}": "the question joins things this fact and its passage name",
+        "{{examples}}": _SUPPORT_DESK
+        + """  WRONG  "How long does a standrad support reqest take to answer?"
+         (a typing error: read past it, the question is answered)
+"""
+        + _UNRELATED
+        + _SOURCED
+        + """
+  RIGHT  "How many hours is an account holder?"
+         (it joins an account holder and a number of hours in a way that
+          makes no sense, so no answer fits)
+""",
+    },
+}
+
+#: The verdict each shipped kind settles by, off the one place that ships
+#: them, and the shipped kind each verdict is written as for a kind of
+#: another name: the first of it, so out-of-corpus for `silent`.
+_SHIPPED: dict[str, str] = {
+    one["name"]: one["settles"]
+    for one in json.loads(UNANSWERABLE_CATEGORIZATION)["categories"]
+}
+_BY_VERDICT: dict[str, str] = {}
+for _name, _verdict in _SHIPPED.items():
+    _BY_VERDICT.setdefault(_verdict, _name)
+
+
+def written_as(told: Category | None) -> str:
+    """The shipped kind whose lines a slot told `told` is written with.
+
+    Its own name, where a shipped kind has it and settles as it does; else
+    the shipped kind of its verdict; out-of-corpus where it is told none.
+    Nonsensical is the one read by name: it shares out-of-corpus's verdict.
+    """
+    if told is None or told.settles is None:
+        return "out-of-corpus"
+    if _SHIPPED.get(told.name) == told.settles:
+        return told.name
+    return _BY_VERDICT[told.settles]
+
+
+def _perturbation(told: Category | None) -> tuple[str, str]:
+    """The unanswerable writer's system prompt and user template for one kind.
+
+    `told` is the kind the slot is told, or None: told none, a slot moves
+    its fact out of reach, as before kinds; told one, it writes what its
+    block describes, checked and shown examples as `written_as` says. The
+    type's `{{asks}}` is left to fill.
+    """
+    lines = _KINDS[written_as(told)]
+    system = fill(
+        _PERTURB,
+        lines
+        | (
+            {"{{change}}": OUT_OF_CORPUS, "{{action}}": _UNTOLD}
+            if told is None
+            else {"{{change}}": _TOLD}
+        ),
+    )
+    return system, fill(_USER_PERTURB, lines)
+
 
 _FOLLOW = """ROLE
 You are a test-question writer. You write the question somebody would ask
@@ -209,6 +378,17 @@ _ASKED = (
     "Where one of these conflicts with a rule you were given, the rule wins.\n"
 )
 
+#: What an unanswerable slot's kind asks of its question, in place of
+#: `_ASKED`: its kind is the point of the question, so it wins where a rule
+#: of FORMAT would undo it, a nonsensical one over the plausible, but for the
+#: two that keep a question testing anything at all.
+_KIND = (
+    "\nWHAT MAKES IT A TEST - it must be:\n"
+    "{{lines}}\n"
+    "Where it conflicts with a rule under FORMAT, it wins; two rules still hold: "
+    "never name a source, and never ask about an unrelated subject.\n"
+)
+
 #: Told a slot dealt a search query, in its question block. Without it the
 #: rules win over a category that asks for no punctuation, and the writer
 #: ends its keywords with the question mark the rules ask of a question.
@@ -242,16 +422,17 @@ _UNADDRESSED = (
     'im Ausland gestohlen, ..." - and then ask.'
 )
 
-#: The user message an unanswerable question is asked with.
+#: The user message an unanswerable question is asked with, its kind's
+#: `{{fact}}` and `{{reads}}` filled by `_perturbation`.
 _USER_PERTURB = (
-    "FACT - the question moves this one detail out of reach:\n"
+    "FACT - {{fact}}:\n"
     "{{facts}}\n"
     "\n"
-    "PASSAGE(S) - what the chatbot will read: no sentence of it may answer "
-    "your question, contradict its premise or cover its case by a rule. "
+    "PASSAGE(S) - what the chatbot will read: {{reads}} "
     "Never quote or name a heading or a title out of them:\n"
     "{{passages}}\n"
     "{{beside}}"
+    "{{profile}}"
     "\n"
     "Write the question in {{language}}.{{note}}"
 )
@@ -260,7 +441,7 @@ _USER_PERTURB = (
 #: the question reaches as well.
 _BESIDE = (
     "\nBESIDE IT - the passages either side in the same document, which the "
-    "chatbot reads too; the same holds for every sentence of them:\n{{texts}}\n"
+    "chatbot reads too; {{holds}}:\n{{texts}}\n"
 )
 
 #: Appended to the conversation for a follow-up, after the facts.
@@ -284,9 +465,11 @@ def _profile(categories: tuple[Category, ...]) -> str:
     the message it was sent before categories existed. The asker comes
     first, as the paper's Figure 4 puts it: who is asking, then what they
     ask. A search query is told that it is exempt from the question mark,
-    which the gates lift for it too.
+    which the gates lift for it too. An unanswerable kind, one carrying
+    `settles`, is told in a block of its own.
     """
     query = _QUERY if any(one.form == "query" for one in categories) else ""
+    asked = _KIND if kind(categories) else _ASKED
     return "".join(
         fill(
             template,
@@ -295,7 +478,7 @@ def _profile(categories: tuple[Category, ...]) -> str:
                 "{{query}}": query,
             },
         )
-        for template, role in ((_ASKER, "user"), (_ASKED, "question"))
+        for template, role in ((_ASKER, "user"), (asked, "question"))
         if (told := [one for one in categories if one.role == role])
     )
 
@@ -312,10 +495,15 @@ def _held(
     A premise needs words of its own: beside a category capping the
     question's words it shrinks to a label naming a setting, as 31 of the 33
     such labels in one calibration did on concise slots, and a search query
-    has no sentence to open on one.
+    has no sentence to open on one. An unanswerable kind, one carrying
+    `settles`, holds only on an unanswerable slot.
     """
     queried = spec.keywords and not (spans or spec.spans)
-    kept = tuple(one for one in categories if one.form != "query" or queried)
+    kept = tuple(
+        one
+        for one in categories
+        if (one.form != "query" or queried) and one.settles is None
+    )
     crowded = any(
         one.form == "query" or (one.form != "premise" and one.words[1] is not None)
         for one in kept
@@ -457,11 +645,11 @@ class Declined(Exception):
 
 
 class _Unanswered(BaseModel):
-    """A question the material does not answer."""
+    """The test question, written to the kind asked for."""
 
     question: str = Field(
-        description="ONE question, ending in a question mark, that reads as if "
-        "it belongs to this material and that it does not answer."
+        description="The test question: ONE question, ending in a question mark, "
+        "that reads as if it belongs to this material."
     )
 
 
@@ -493,9 +681,10 @@ class QuestionWriter:
         attempt. The same sample and the same plan: what is being asked for
         has not changed, only what to avoid this time.
 
-        The plan's categories are rendered for an answerable slot only, and
-        the candidate carries what was rendered. An unanswerable question is
-        dealt them and told none: the paper asks only questions that have an
+        The plan's categories are rendered for an answerable slot, and the
+        candidate carries what was rendered. An unanswerable question is
+        dealt them and told only its kind, the category carrying `settles`,
+        if one was configured: the paper asks only questions that have an
         answer. A compound question is told none either, as the comment at
         the call says, and a category the slot cannot hold is not told, as
         `_held` says.
@@ -634,16 +823,24 @@ class QuestionWriter:
         )
 
     def _unanswerable(self, sample: FactGroup, plan: Plan, note: str = "") -> Candidate:
-        """Moves one fact out of reach and asks about where it went.
+        """Moves one fact out of reach and asks about where it went, or writes its kind.
 
         From one fact and not from the sample: moving a claim just out of
         reach is a change to one claim, and a reader given two would have two
         ways to notice.
         """
         first = FactGroup(sample.facts[:1], beside=sample.beside)
+        told = kind(plan.categories)
+        system, user = _perturbation(told)
         written = self._client.answer(
-            system=_PERTURB.replace("{{asks}}", plan.spec.asks),
-            user=self._prompt(first, note, _USER_PERTURB),
+            system=fill(system, {"{{asks}}": plan.spec.asks}),
+            user=self._prompt(
+                first,
+                note,
+                user,
+                categories=(told,) if told else (),
+                holds=_KINDS[written_as(told)]["{{holds}}"],
+            ),
             shape=_Unanswered,
             prompt_version=PROMPT_VERSION,
         )
@@ -656,6 +853,7 @@ class QuestionWriter:
             group=first,
             spec=plan.spec,
             planned_difficulty=plan.band,
+            categories=(told,) if told else (),
         )
 
     @staticmethod
@@ -721,6 +919,7 @@ class QuestionWriter:
         note: str = "",
         template: str = _USER,
         categories: tuple[Category, ...] = (),
+        holds: str = _MOVED["{{holds}}"],
     ) -> str:
         """Renders one sample: the facts numbered, then their passages.
 
@@ -731,6 +930,8 @@ class QuestionWriter:
         `categories` follow the passages, as who is asking and what the
         question itself must be. Their descriptions are an operator's text,
         and the one-pass fill sends a placeholder written in one as written.
+        `holds` is what the passages beside a perturbed fact are told, which
+        follows an unanswerable slot's kind.
 
         `note` goes last, where a model weighs it most: it is what went
         wrong with the draft before this one, and it is the only thing that
@@ -760,7 +961,10 @@ class QuestionWriter:
                 "{{passages}}": context,
                 "{{beside}}": fill(
                     _BESIDE,
-                    {"{{texts}}": "\n\n".join(f"- {one}" for one in sample.beside)},
+                    {
+                        "{{texts}}": "\n\n".join(f"- {one}" for one in sample.beside),
+                        "{{holds}}": holds,
+                    },
                 )
                 if sample.beside
                 else "",

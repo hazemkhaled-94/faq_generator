@@ -31,6 +31,7 @@ from database.qa_generator import (
 )
 from database.qa_generator.passage_topics import DOMINANT
 from question_generation.models import (
+    Category,
     CheckedQuestion,
     SourceFact,
     SourcePassage,
@@ -217,6 +218,25 @@ _RESTING = (
     .join(DOMINANT, DOMINANT.c.passage_id == Passage.id, isouter=True)
     .order_by(FactPassage.fact_id, FactPassage.position)
 )
+
+
+def _stored_category(one: Category) -> dict:
+    """A category as a row stores it: in the words it was told, kind included.
+
+    `settles` and `behaviour` only where set, on an unanswerable kind, which
+    a re-judge and the export read back.
+    """
+    return {
+        "categorization": one.categorization,
+        "category": one.name,
+        "role": one.role,
+        "form": one.form,
+        "description": one.description,
+    } | {
+        key: value
+        for key, value in (("settles", one.settles), ("behaviour", one.behaviour))
+        if value is not None
+    }
 
 
 def _vector(stored: Any) -> tuple[float, ...] | None:
@@ -559,14 +579,7 @@ class QuestionQueue(RowQueue):
                             # categorization edited later cannot rewrite
                             # what an earlier row was asked to be.
                             categories=[
-                                {
-                                    "categorization": one.categorization,
-                                    "category": one.name,
-                                    "role": one.role,
-                                    "form": one.form,
-                                    "description": one.description,
-                                }
-                                for one in question.categories
+                                _stored_category(one) for one in question.categories
                             ]
                             or None,
                             question_type=question.question_type,

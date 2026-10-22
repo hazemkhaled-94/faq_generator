@@ -582,16 +582,18 @@ class Settled:
     verdict: Settling
     quote: str | None
 
-    def reading(self, gate: str) -> Measurement:
-        """This verdict as the row keeps it: 1 where nothing is settled.
+    def reading(self, gate: str, *kept: str) -> Measurement:
+        """This verdict as the row keeps it: 1 where it keeps the question.
 
-        An opinion and not a measure, so it is stored with no margin and
-        moves no confidence; it is kept so a row says what the verifier made
-        of it, which a code and a log line could not.
+        `kept` are the verdicts that keep it, `silent` unless its kind says
+        otherwise, so a kept refutation reads 1 as a kept silence does. An
+        opinion and not a measure, so it is stored with no margin and moves
+        no confidence; it is kept so a row says what the verifier made of it,
+        which a code and a log line could not.
         """
         return Measurement(
             gate,
-            1.0 if self.verdict == Settling.SILENT else 0.0,
+            1.0 if self.verdict in (kept or (Settling.SILENT,)) else 0.0,
             0.5,
             opinion=True,
             version=PROMPT_VERSION,

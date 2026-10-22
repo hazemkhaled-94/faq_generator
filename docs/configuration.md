@@ -169,8 +169,10 @@ says to rerun the stage either way.
 Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Track)
 as JSON: one categorization object as the paper's Figure 2 prints it, or a list
 of them. Each answerable question is written as one category of each, and the
-question records which; a compound question, an unanswerable one and a
-follow-up are told none, and their Categories cell in the export is blank. A
+question records which; a compound question and a follow-up are told none,
+and their Categories cell in the export is blank. An unanswerable question is
+told only its kind, where the unanswerable categorization below is set, and
+none otherwise. A
 category a question cannot hold beside the others it was dealt is not told
 either, and the question records no category of that categorization: see
 the premise below. Its line in `configs/env/backend.env` is a comment,
@@ -254,6 +256,13 @@ naming the categorization or category at fault, when:
 - a category's `words` is not an object of `min` and `max`, a bound is not a
   whole number of at least 1, or its minimum is above its maximum;
 - a category's form is not `question`, `query` or `premise`.
+- a category's `settles` is not `answers`, `refutes` or `silent`, it has
+  one of `settles` and `behaviour` without the other, or a behaviour that
+  is empty;
+- some categories of a categorization carry `settles` and others do not, or
+  two categorizations carry it;
+- a categorization carrying `settles` has a role other than `question`, or
+  one of its categories a form other than `question`.
 
 `make settings-unset SERVICE=questions UNSET=QUESTIONS_CATEGORIZATIONS` goes
 back to the default in code.
@@ -343,6 +352,43 @@ whatever the `min` beside it: a premise is not told beside a category
 carrying one, and a search query carrying one is read once more against the
 passages it does not cite and is refused as not recoverable where one of
 them answers it differently.
+
+A categorization whose categories all carry `settles` and `behaviour` is
+the **unanswerable** one: its categories are kinds of question with no
+answer, told only the unanswerable writer, and an answerable slot dealt one
+is told nothing of it. At most one categorization may carry them. `settles`
+is the verdict the settles reading must give over the passages the question
+cites for the question to be kept, `silent`, `refutes` or `answers`, a
+`refutes` or an `answers` only with words those passages hold behind it.
+Beside the probe, which looks for an answer elsewhere, that verdict or
+`silent` keeps it. Any other verdict that answers it refuses it as
+`answerable_after_all` or `answerable_elsewhere`, as before; `silent` where
+the kind wants another refuses it as `wrong_type`. A kind is asked as a
+question: its categorization's role is `question` and every category's form
+is `question`. `behaviour` is what a good
+reply to it does, a criterion for a judge or a person and not a reference
+answer to match. The kinds follow UAEval4RAG (Peng et al., [*Unanswerability
+Evaluation for Retrieval Augmented Generation*](https://aclanthology.org/2025.acl-long.415/),
+ACL 2025), its behaviours its Table 11's acceptable responses, modified, one
+line each (code: [SalesforceAIResearch/Unanswerability_RAGE](https://github.com/SalesforceAIResearch/Unanswerability_RAGE),
+Apache-2.0). They are opt-in until calibrated: `UNANSWERABLE_CATEGORIZATION`
+in [`question_generation/config.py`](../backend/question_generation/config.py)
+holds them, listed beside the default's categorizations:
+
+```json
+{
+  "categorization_name": "Unanswerable",
+  "categories": [
+    {"name": "out-of-corpus", "settles": "silent", "description": "one that moves the fact just out of reach with ONE change: a neighbouring thing the material does not cover, a detail of the same subject it does not state, or a different party, place or period that no list or rule in it reaches. It is still a plausible thing to ask of the material: never absurd, never about a thing that does not exist.", "behaviour": "says the material does not cover it, and does not invent an answer"},
+    {"name": "false-presupposition", "settles": "refutes", "description": "one that takes for granted something the material says is not so - a party, a condition or an option it rules out - and asks about it as if it were so. It is still a plausible thing to ask of the material.", "behaviour": "points out that what the question takes for granted is not so, and may answer the corrected question, or declines to answer"},
+    {"name": "underspecified", "settles": "answers", "description": "one that leaves out the detail the material needs to choose between its cases (which account, which product, which period), so that each case has its own answer. It is still a plausible thing to ask of the material.", "behaviour": "asks which case is meant, or gives the answer for each case the material distinguishes"},
+    {"name": "nonsensical", "settles": "silent", "description": "one that joins things the material names in a way that makes no sense, so that no answer fits; it uses only words the material uses, and is not a typing error.", "behaviour": "says the question does not make sense as asked, asks what is meant, or declines to answer"}
+  ]
+}
+```
+
+Unset, an unanswerable question is written as before kinds: one detail of
+its fact moved just out of reach, kept only where both readings are silent.
 
 A stage's rerun is its `-rerun` target, bar topics, which have none:
 `make topics-discover` fits them again and carries what a person decided

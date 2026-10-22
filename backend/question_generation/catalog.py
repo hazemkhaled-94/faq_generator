@@ -317,6 +317,11 @@ def _present(values: Sequence[Any] | None) -> list[str]:
     return sorted({str(value) for value in values or () if value is not None})
 
 
+def _kind(categories: list[dict] | None, key: str) -> str | None:
+    """What a row's unanswerable kind, the stored category carrying `key`, gives it."""
+    return next((one[key] for one in categories or () if one.get(key)), None)
+
+
 def _stored(row: Any) -> StoredQuestion:
     """Reads one row of the listing back as a question."""
     return StoredQuestion(
@@ -1034,6 +1039,7 @@ class QuestionCatalog(Repository):
                     Question.reviewed_verdict,
                     Question.embedding,
                     Question.gate_scores,
+                    Question.categories,
                     func.array_agg(func.distinct(Passage.id)).label("passage_ids"),
                 )
             )
@@ -1073,6 +1079,7 @@ class QuestionCatalog(Repository):
                         and (version is None or one.get("version") == version)
                         for one in row.gate_scores or ()
                     ),
+                    expected=_kind(row.categories, "settles") or "silent",
                 )
             )
         return found

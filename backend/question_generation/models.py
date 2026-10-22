@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 
 from confidence import Measurement
@@ -61,11 +61,22 @@ class Category:
     #: search box as keywords, which no rule holds to a question mark, or
     #: `premise`, asked after what the asker says about themselves.
     form: str = "question"
+    #: Set on the categories of the one unanswerable categorization only:
+    #: the verdict the passages it cites must give its question, one of
+    #: `answers`, `refutes` or `silent`, and what a good reply to it does, as
+    #: UAEval4RAG's Table 11 accepts one. None on every answerable category.
+    settles: str | None = None
+    behaviour: str | None = None
 
     @property
     def label(self) -> str:
         """`categorization=category`, as a filter, an export and a report name it."""
         return f"{self.categorization}={self.name}"
+
+
+def kind(categories: Iterable[Category]) -> Category | None:
+    """A slot's unanswerable kind, the category carrying `settles`, or None."""
+    return next((one for one in categories if one.settles), None)
 
 
 @dataclass(frozen=True)
@@ -627,6 +638,9 @@ class Unanswered:
     passage_ids: tuple[int, ...]
     passages: tuple[str, ...]
     judged: bool = False
+    #: The verdict its kind was written to be settled by, off its stored
+    #: category; `silent` where it stored none, as every row before kinds.
+    expected: str = "silent"
 
 
 @dataclass(frozen=True)

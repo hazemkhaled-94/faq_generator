@@ -417,3 +417,16 @@ def test_a_question_a_person_accepted_mid_run_is_logged_as_kept(caplog) -> None:
     assert not any(one.startswith("rejecting ") for one in caplog.messages)
     (line,) = [one for one in caplog.messages if "question 7" in one]
     assert line.startswith("kept question 7")
+
+
+def test_a_false_presupposition_stays_accepted() -> None:
+    """Written to be refuted, and read `refutes`: its kind, not an answer.
+
+    A row stored with no category was written to be silent, and is read so.
+    """
+    catalog = Catalog(unanswered(expected=Settling.REFUTES), unanswered(id=8))
+
+    rejudge(catalog, SETTINGS, Verifier(Client(CITED)))
+
+    assert unanswered().expected == "silent"
+    assert catalog.rejected == [(8, QuestionRejection.ANSWERABLE_AFTER_ALL)]

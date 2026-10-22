@@ -219,13 +219,14 @@ _READINGS = {
         "written to have no answer: state it, refute its premise, or cover its "
         "case with a list or a rule. An opinion, with no margin.",
         "the passages it cites settle it after all",
-        "1 when they settle nothing, 0 when they do",
+        "1 when they give what its kind wants (nothing, unless its kind is "
+        "refuted or answered by case), 0 when they do not",
     ),
     "settles_elsewhere": explain.Reading(
         "Whether the verifier found that a passage the question does not cite "
         "settles it, read over the corpus probe. An opinion, with no margin.",
         "a passage it does not cite settles it",
-        "1 when they settle nothing, 0 when they do",
+        "1 when they answer it nowhere else, 0 when they do",
     ),
     "needs_both": explain.Reading(
         "Whether each cited passage states a part of the answer no other "

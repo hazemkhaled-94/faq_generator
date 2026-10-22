@@ -119,6 +119,7 @@ from question_generation.models import (
     CheckedQuestion,
     FactGroup,
     Neighbour,
+    kind,
 )
 from question_generation.types import GATES, PASSED, REFUSED, annotation, spec
 from question_generation.verifier import (
@@ -269,6 +270,7 @@ def settle(
     probe: Callable[[], Sequence[str]] | None,
     question_id: int | None = None,
     found: list[Settled] | None = None,
+    expected: str = Settling.SILENT,
 ) -> tuple[tuple[str, str] | None, list[Measurement]]:
     """Whether the material settles a question written to have no answer.
 
@@ -283,6 +285,15 @@ def settle(
     refuses the question under, or None, and beside them the verdicts as the
     row keeps them. `found` collects the verdict that settled it, when one
     did, for a caller that writes from the words it was settled with.
+
+    `expected` is the verdict its kind was written to get, `silent` unless
+    its category says otherwise: a false presupposition is kept when its
+    passages refute it, an underspecified question when they answer it by
+    case, and only with words of the cited passages behind the verdict.
+    Every verdict but `silent` answers a question, so another one refuses
+    it as above; `silent` where the kind wanted another is a question of
+    the wrong kind. The probe looks for an answer elsewhere, so beside it
+    the kind's own verdict and `silent` both keep it.
     """
     settled = heard(
         shown(verifier.settles(question, passages), passages, question_id),
@@ -290,8 +301,21 @@ def settle(
         language,
         question_id,
     )
-    opinions = [settled.reading("settles")]
-    if settled.verdict != Settling.SILENT:
+    # With no words of the cited passages behind it, a refutation or an
+    # answer by case may be the model's memory: `shown` drops a quote they
+    # do not hold, and the reading may give none.
+    if expected != Settling.SILENT and settled.quote is None:
+        settled = Settled(verdict=Settling.SILENT, quote=None)
+    opinions = [settled.reading("settles", expected)]
+    if settled.verdict != expected:
+        if settled.verdict == Settling.SILENT:
+            return (
+                QuestionRejection.WRONG_TYPE,
+                (
+                    f"the cited passages settle nothing, where its kind wants "
+                    f"them to give {expected}"
+                ),
+            ), opinions
         if found is not None:
             found.append(settled)
         return (
@@ -316,8 +340,8 @@ def settle(
         language,
         question_id,
     )
-    opinions.append(settled.reading("settles_elsewhere"))
-    if settled.verdict == Settling.SILENT:
+    opinions.append(settled.reading("settles_elsewhere", expected, Settling.SILENT))
+    if settled.verdict in (expected, Settling.SILENT):
         return None, opinions
     if found is not None:
         found.append(settled)
@@ -1199,6 +1223,7 @@ class QuestionChecker:
                 )
             return self._ambiguous(candidate, target, form, embedding)
 
+        told = kind(candidate.categories)
         failed, opinions = settle(
             self._verifier,
             candidate.question_text,
@@ -1206,6 +1231,7 @@ class QuestionChecker:
             candidate.group.passages,
             self._corpus(candidate, embedding),
             found=settled,
+            expected=(told.settles if told else None) or Settling.SILENT,
         )
         readings.extend(opinions)
         return failed

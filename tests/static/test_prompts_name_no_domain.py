@@ -172,6 +172,20 @@ def test_no_default_category_names_what_a_corpus_is_about() -> None:
             assert not guilty, f"{category.label} names {guilty}"
 
 
+def test_no_unanswerable_kind_names_what_a_corpus_is_about() -> None:
+    """The opt-in kinds reach the writer and the workbook, outside every catalogue."""
+    from question_generation.config import (
+        UNANSWERABLE_CATEGORIZATION,
+        categorizations,
+    )
+
+    for one in categorizations(UNANSWERABLE_CATEGORIZATION):
+        for category in one.categories:
+            told = f"{category.description}\n{category.behaviour}".casefold()
+            guilty = [s for s in SUBJECTS if s in told]
+            assert not guilty, f"{category.label} names {guilty}"
+
+
 #: The lemma lists a new language has to be added to, and the README section
 #: that is supposed to name all of them.
 LEMMA_LISTS = {

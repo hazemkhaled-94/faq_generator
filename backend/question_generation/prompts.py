@@ -20,14 +20,16 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from llm.prompt import fill
 from question_generation import phrasing, verifier
+from question_generation.config import UNANSWERABLE_CATEGORIZATION, categorizations
 from question_generation.generation import (
     _FOLLOW,
-    _PERTURB,
     _USER,
     _USER_FOLLOW,
-    _USER_PERTURB,
     _Answered,
+    _perturbation,
+    _profile,
     _Unanswered,
 )
 from question_generation.kinds import COMPOUND, _Compound
@@ -74,6 +76,9 @@ def _writer(settings: Settings | None) -> Iterator[Composed]:
     And each type that does not span by itself once more for a compound slot,
     which is told to ask two unrelated things instead, and answers with its
     halves first.
+
+    And the unanswerable writer once per kind it can be told, and once told
+    none.
     """
     writes = settings.model if settings else None
     for name, spec in sorted(SPECS.items()):
@@ -91,9 +96,21 @@ def _writer(settings: Settings | None) -> Iterator[Composed]:
                 _COMPOUND,
                 writes,
             )
-    yield Composed(
-        "perturb", PROMPT_VERSION, _PERTURB, _USER_PERTURB, _UNANSWERED, writes
-    )
+    # Once told no kind, and once per shipped kind, its block filled with its
+    # own description so the block is in what the version records.
+    (shipped,) = categorizations(UNANSWERABLE_CATEGORIZATION)
+    for told in (None, *shipped.categories):
+        system, user = _perturbation(told)
+        if told is not None:
+            user = fill(user, {"{{profile}}": _profile((told,))})
+        yield Composed(
+            f"perturb ({told.name})" if told else "perturb",
+            PROMPT_VERSION,
+            system,
+            user,
+            _UNANSWERED,
+            writes,
+        )
     yield Composed("follow", PROMPT_VERSION, _FOLLOW, _USER_FOLLOW, _ANSWERED, writes)
 
 

@@ -442,3 +442,204 @@ def test_the_setting_is_read_into_the_settings(monkeypatch) -> None:
     """The settings carry what the setting holds."""
     monkeypatch.setenv("QUESTIONS_CATEGORIZATIONS", json.dumps(FIGURE_2))
     assert Settings.load().categorizations == read(FIGURE_2)
+
+
+# ── The unanswerable kinds (UAEval4RAG) ───────────────────────────────────
+
+
+def settling(name: str, settles: object = "silent", **more) -> dict:
+    """A category of an unanswerable categorization, with its behaviour."""
+    return {
+        **category(name),
+        "settles": settles,
+        "behaviour": f"handles {name}",
+        **more,
+    }
+
+
+def test_a_categorization_whose_categories_settle_parses() -> None:
+    """Each category keeps what the passage must say of it and the reply it wants."""
+    (kinds,) = read(
+        one(
+            settling("out", "silent"), settling("false", "refutes"), name="Unanswerable"
+        )
+    )
+
+    assert [(each.settles, each.behaviour) for each in kinds.categories] == [
+        ("silent", "handles out"),
+        ("refutes", "handles false"),
+    ]
+    assert {each.role for each in kinds.categories} == {"question"}
+
+
+def test_a_category_that_settles_nothing_carries_neither_key() -> None:
+    """The answerable categories are as they were."""
+    (phrasing,) = read(one(category("x")))
+
+    assert (phrasing.categories[0].settles, phrasing.categories[0].behaviour) == (
+        None,
+        None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "says"),
+    [
+        (
+            one(settling("x"), category("y")),
+            "'phrasing'.*settles.*every category or none",
+        ),
+        (one(settling("x", "rule")), "'x'.*settles 'rule'.*answers, refutes, silent"),
+        (
+            one({**category("x"), "settles": "silent"}),
+            "'x'.*settles.*behaviour",
+        ),
+        (
+            [one(settling("x"), name="a"), one(settling("y"), name="b")],
+            "'a' and 'b'.*settles.*at most one",
+        ),
+    ],
+)
+def test_an_unanswerable_categorization_is_refused_by_name(
+    value: object, says: str
+) -> None:
+    """All or none of its categories settle, by a verdict, with a behaviour; one of it."""
+    with pytest.raises(ValueError, match=f"QUESTIONS_CATEGORIZATIONS.*{says}"):
+        read(value)
+
+
+def test_the_unanswerable_kinds_are_there_to_opt_into() -> None:
+    """Not dealt unset; the four kinds the paper's documents can test, at even odds."""
+    from question_generation.config import UNANSWERABLE_CATEGORIZATION
+
+    assert all(
+        each.settles is None
+        for one_ in categorizations(DEFAULT_CATEGORIZATIONS)
+        for each in one_.categories
+    )
+    (kinds,) = categorizations(UNANSWERABLE_CATEGORIZATION)
+    assert kinds.name == "Unanswerable"
+    assert [
+        (each.name, each.settles, each.probability) for each in kinds.categories
+    ] == [
+        ("out-of-corpus", "silent", 0.25),
+        ("false-presupposition", "refutes", 0.25),
+        ("underspecified", "answers", 0.25),
+        ("nonsensical", "silent", 0.25),
+    ]
+    assert [each.behaviour for each in kinds.categories] == [
+        "says the material does not cover it, and does not invent an answer",
+        (
+            "points out that what the question takes for granted is not so, and "
+            "may answer the corrected question, or declines to answer"
+        ),
+        (
+            "asks which case is meant, or gives the answer for each case the "
+            "material distinguishes"
+        ),
+        (
+            "says the question does not make sense as asked, asks what is meant, "
+            "or declines to answer"
+        ),
+    ]
+
+
+def test_the_configuration_guide_quotes_the_unanswerable_kinds() -> None:
+    """What an operator pastes is what the code holds."""
+    from question_generation.config import UNANSWERABLE_CATEGORIZATION
+
+    assert (
+        opt_in(
+            "docs/configuration.md",
+            "Unanswerable",
+        )
+        == categorizations(UNANSWERABLE_CATEGORIZATION)[0]
+    )
+
+
+def test_the_unanswerable_kinds_read_beside_the_default() -> None:
+    """Listed with the default's three, as the guide tells an operator to."""
+    from question_generation.config import UNANSWERABLE_CATEGORIZATION
+
+    both = json.loads(DEFAULT_CATEGORIZATIONS) + [
+        json.loads(UNANSWERABLE_CATEGORIZATION)
+    ]
+
+    assert [each.name for each in categorizations(json.dumps(both))][
+        -1
+    ] == "Unanswerable"
+
+
+def test_a_stored_category_carries_what_it_settles_and_its_behaviour() -> None:
+    """Where set, so a re-judge and the export read the kind it was written as."""
+    from question_generation.queue import _stored_category
+
+    plain = Category("Phrasing", "short", "short.", 0.5)
+    kind = Category(
+        "Unanswerable",
+        "false-presupposition",
+        "d.",
+        0.25,
+        settles="refutes",
+        behaviour="points out ...",
+    )
+
+    assert _stored_category(plain) == {
+        "categorization": "Phrasing",
+        "category": "short",
+        "role": "question",
+        "form": "question",
+        "description": "short.",
+    }
+    assert _stored_category(kind) == {
+        "categorization": "Unanswerable",
+        "category": "false-presupposition",
+        "role": "question",
+        "form": "question",
+        "description": "d.",
+        "settles": "refutes",
+        "behaviour": "points out ...",
+    }
+
+
+def test_every_kind_but_the_nonsensical_is_told_to_be_plausible() -> None:
+    """Plausibility is in the kinds' descriptions, which the writer obeys over FORMAT."""
+    from question_generation.config import UNANSWERABLE_CATEGORIZATION
+
+    (kinds,) = categorizations(UNANSWERABLE_CATEGORIZATION)
+
+    assert {
+        each.name: "plausible thing to ask" in each.description
+        for each in kinds.categories
+    } == {
+        "out-of-corpus": True,
+        "false-presupposition": True,
+        "underspecified": True,
+        "nonsensical": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("value", "says"),
+    [
+        ({**one(settling("x"), name="u"), "role": "user"}, "'u'.*settles.*role 'user'"),
+        (one(settling("x", form="query")), "'x'.*settles.*form 'query'"),
+        (one(settling("x", form="premise")), "'x'.*settles.*form 'premise'"),
+    ],
+)
+def test_an_unanswerable_kind_is_asked_as_a_question(value: object, says: str) -> None:
+    """A kind is told in a question block of its own, never as the asker or a query."""
+    with pytest.raises(ValueError, match=f"QUESTIONS_CATEGORIZATIONS.*{says}"):
+        read(value)
+
+
+def test_a_slots_kind_is_the_category_that_settles() -> None:
+    """One lookup, wherever a kind is read off a slot's categories."""
+    from question_generation.models import kind
+
+    plain = Category("Phrasing", "short", "short.", 0.5)
+    told = Category("Unanswerable", "k", "d.", 0.25, settles="refutes", behaviour="b.")
+
+    assert kind((plain, told)) is told
+    assert kind((plain,)) is None
+    assert kind(()) is None

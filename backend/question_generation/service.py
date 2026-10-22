@@ -49,7 +49,7 @@ from question_generation.gates import (
     structural,
     typed,
 )
-from question_generation.generation import Declined, QuestionWriter
+from question_generation.generation import Declined, QuestionWriter, written_as
 from question_generation.kinds import stored
 from question_generation.models import (
     Candidate,
@@ -61,6 +61,7 @@ from question_generation.models import (
     TopicToCover,
     Unanswered,
     criteria_of,
+    kind,
 )
 from question_generation.planning import Plan, instead, plans
 from question_generation.queue import QuestionQueue
@@ -158,6 +159,61 @@ _QUERY_NOTES: dict[str, str] = {
         "it was not one well-formed search query. Write exactly one, in "
         "keywords, with the answer in the field for it."
     ),
+}
+
+#: Where it was about nothing the material mentions, before a kind's move.
+_OFF = (
+    "it was about something this material never mentions, so any chatbot "
+    "declines it and declining it proves nothing. Stay on the subject of the fact"
+)
+_REFUTED = (
+    "the passages answer it as asked; write instead a question that takes for "
+    "granted something a sentence of the passage says is not so."
+)
+_BY_CASE = (
+    "ask instead about a value the passage gives differently for cases the "
+    "question leaves open."
+)
+_NONSENSE = (
+    "so it makes sense after all. Join things the passage names in a way that "
+    "makes no sense, so that no answer fits."
+)
+
+#: What a draft of an unanswerable kind is told in place of `_NOTES`, by the
+#: kind `generation.written_as` names: `_NOTES` tell the out-of-corpus move,
+#: which turns any other kind into an out-of-corpus question. Out-of-corpus
+#: has none of its own for that reason.
+_KIND_NOTES: dict[str, dict[str, str]] = {
+    "false-presupposition": {
+        QuestionRejection.ANSWERABLE_AFTER_ALL: _REFUTED,
+        QuestionRejection.ANSWERABLE_ELSEWHERE: _REFUTED,
+        QuestionRejection.WRONG_TYPE: (
+            "no sentence of the passage says that what it takes for granted is "
+            "not so; take for granted something a sentence rules out."
+        ),
+        QuestionRejection.OFF_TOPIC: _OFF + " and take for granted something a "
+        "sentence of its passage says is not so.",
+    },
+    "underspecified": {
+        QuestionRejection.ANSWERABLE_AFTER_ALL: "the passages settle it one way, "
+        "by its premise or a rule; " + _BY_CASE,
+        QuestionRejection.ANSWERABLE_ELSEWHERE: "a passage elsewhere in the "
+        "material settles it one way; " + _BY_CASE,
+        QuestionRejection.WRONG_TYPE: (
+            "the passages say nothing about it; ask about a value the passage "
+            "gives differently for cases the question leaves open."
+        ),
+        QuestionRejection.OFF_TOPIC: _OFF + " and ask about a value its passage "
+        "gives differently for cases the question leaves open.",
+    },
+    "nonsensical": {
+        QuestionRejection.ANSWERABLE_AFTER_ALL: "the passages you were given "
+        "answer that question, " + _NONSENSE,
+        QuestionRejection.ANSWERABLE_ELSEWHERE: "a passage elsewhere in the "
+        "material answers that question, " + _NONSENSE,
+        QuestionRejection.OFF_TOPIC: _OFF + " and join things its passage names "
+        "in a way that makes no sense.",
+    },
 }
 
 #: The gates that read the answer as well as the question. A retry keeping
@@ -893,6 +949,7 @@ def _settled(
         question.passages,
         probe if settings.elsewhere_passages > 0 else None,
         question.id,
+        expected=question.expected,
     )
 
 
@@ -903,7 +960,7 @@ def again(checked: CheckedQuestion) -> str | None:
     The draft itself is quoted: told what was wrong but not shown what it
     wrote, a writer at a low temperature writes the same draft again. A
     draft written as a search query is told the query's note where the gate
-    has one.
+    has one, and an unanswerable kind its own where `_KIND_NOTES` has one.
 
     An accepted draft that came out below its band is left alone. Asking it
     to cite every passage it was offered is asking for the weld the span
@@ -912,7 +969,19 @@ def again(checked: CheckedQuestion) -> str | None:
     """
     reason = checked.rejected_reason or ""
     query = any(one.form == "query" for one in checked.categories)
-    note = (_QUERY_NOTES.get(reason) if query else None) or _NOTES.get(reason)
+    told = kind(checked.categories)
+    # The type gate refuses a question word as `wrong_type` too, before any
+    # settles reading: only the settles reading's is a kind's to answer.
+    read = reason != QuestionRejection.WRONG_TYPE or any(
+        one.gate == "settles" for one in checked.readings
+    )
+    note = (
+        (_QUERY_NOTES.get(reason) if query else None)
+        or (
+            _KIND_NOTES.get(written_as(told), {}).get(reason) if told and read else None
+        )
+        or _NOTES.get(reason)
+    )
     if note is None:
         return None
     answer = (

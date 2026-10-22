@@ -19,6 +19,7 @@ from extraction import prompts as extraction
 from extraction.extractors import bridge, digest, llm
 from question_generation import phrasing, verifier
 from question_generation import prompts as questions
+from question_generation.generation import _PERTURB
 from question_generation.types import _ROLE, PROMPT_VERSION, SPECS
 from topic_modelling import labels
 from topic_modelling import prompts as topics
@@ -65,8 +66,10 @@ def test_the_judges_are_declared_at_their_own_versions(catalogue) -> None:
 def test_every_prompt_a_module_holds_is_declared() -> None:
     """A prompt held at module level and in no catalogue resolves nothing.
 
-    `types._ROLE` is the exception: the role block every type's prompt is
-    composed from, never sent alone.
+    `types._ROLE` is an exception: the role block every type's prompt is
+    composed from, never sent alone. `generation._PERTURB` is the other: the
+    unanswerable writer's template, sent only with a kind's sections filled,
+    and each such rendering is declared.
     """
     declared = {
         one.text
@@ -87,7 +90,9 @@ def test_every_prompt_a_module_holds_is_declared() -> None:
         if isinstance(value, str) and "\nROLE\n" in f"\n{value}"
     }
     missing = sorted(
-        name for name, text in held.items() if text not in declared and text != _ROLE
+        name
+        for name, text in held.items()
+        if text not in declared and text not in (_ROLE, _PERTURB)
     )
 
     assert held, "no module-level prompt was found"
@@ -217,3 +222,15 @@ def test_a_compound_variant_is_its_own_prompt_for_each_type_that_does_not_span(
         assert "MORE THAN ONE PASSAGE" not in one.text, name
         assert one.version == PROMPT_VERSION
         assert next(iter(one.response_schema["properties"])) == "parts", name
+
+
+def test_each_unanswerable_kind_is_declared_with_its_block(catalogue) -> None:
+    """The block a told slot reads is in what the version records, its description in it."""
+    from question_generation.config import UNANSWERABLE_CATEGORIZATION, categorizations
+
+    (shipped,) = categorizations(UNANSWERABLE_CATEGORIZATION)
+    for one in shipped.categories:
+        user = catalogue[f"perturb ({one.name})"].user_text
+        assert "WHAT MAKES IT A TEST - it must be:\n" in user, one.name
+        assert f"- {one.description}\n" in user, one.name
+    assert "WHAT MAKES IT A TEST" not in catalogue["perturb"].user_text
