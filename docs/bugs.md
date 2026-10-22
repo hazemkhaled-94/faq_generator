@@ -810,6 +810,15 @@ supposed to produce.
 
 v0.5.0 added three published sources' features and calibrated UAEval4RAG's unanswerable kinds on link U (see `docs/measurements.md`, *Unanswerable kinds (v0.5.0)*). Before release, every open item was listed, 236 of them, and ranked by what it would do to a large build. Nothing below is fixed in v0.5.0. The full build after v0.5.0 re-checks every open item, each against a check and a verdict rule written before the build, and its findings go in a section of their own.
 
+### Fixed in v0.5.1: the full build's start
+
+Both were found while starting the full build after v0.5.0.
+
+| Defect | Found | Fix | Measured |
+|---|---|---|---|
+| The Dagster webserver and daemon failed at start, and so did `make dagster-wipe` and `make wipe` | v0.5.0's SQLAlchemy 2.1 reads a bare `postgresql://` as psycopg 3, which the orchestration image did not install (`No module named 'psycopg'`); with it installed, Dagster's storage failed with `the connection is closed` | the storage URL names `postgresql+psycopg2`, the driver dagster-postgres installs ([`dagster.yaml`](../configs/dagster/dagster.yaml)) | red test; the rebuilt webserver healthy with no restart, `dagster run wipe` done |
+| A split pairing a reasoning writer with a verifier, judge or phrasing model that does not reason failed every call of the latter | `LLM_REASONING_EFFORT` is one setting for every role: gpt-5.6-sol answers at temperature 0 only when told `none`, and gpt-4.1 and gpt-4o refuse the parameter | the effort is not sent to a hosted model litellm knows does not reason; an unknown one still gets it ([`config.py`](../backend/llm/config.py)) | red tests; `make doctor` answered by all four models of the split |
+
 ### Deferred, with the reason
 
 | Items | Why they stay open |

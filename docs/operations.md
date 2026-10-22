@@ -296,6 +296,19 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Upgrading to v0.5.1
+
+```bash
+podman compose --env-file configs/env/deployment.env --env-file .env build
+make up
+```
+
+No migration and no new setting. Two fixes and one default:
+
+- **Dagster starts again.** v0.5.0 moved the orchestration image to SQLAlchemy 2.1, which reads a bare `postgresql://` URL as psycopg 3. The image installs only the psycopg2 that dagster-postgres brings, so the Dagster webserver and daemon failed at start, and so did `make dagster-wipe` and with it `make wipe`. `configs/dagster/dagster.yaml` now names `postgresql+psycopg2` as the scheme of the storage URL. Rebuild the orchestration image and recreate both containers, which the commands above do.
+- **One reasoning effort serves a mixed model split.** `LLM_REASONING_EFFORT` is no longer sent to a hosted model that litellm knows does not reason, such as gpt-4.1 or gpt-4o, which refuses the parameter. A reasoning writer that must be told `none` to answer at temperature 0, such as gpt-5.6-sol, can now sit beside a verifier, a judge or a phrasing model that does not reason. A model litellm does not know, such as a deployment of your own name, is still sent the effort.
+- **More passages are digested.** `EXTRACTION_DIGEST_MIN_CHARS` ships at 500, where it was 800, so the next extraction gives passages of 500 to 800 characters a summary and an outline. The measurement that set 800 predicts about half of those digest calls refused as `not_condensed`, at one digest call each. Stored facts keep what they were extracted with; set it back to 800 in `configs/env/backend.env` to ask only where most digests pass.
+
 ## Upgrading to v0.5.0
 
 This section gives two paths. The first is for a stack on v0.4.5. The second is for a stack that still runs v0.3.12, as production does. Either way, a build made from scratch on a new database needs only the code, the host environment and the images below, `make up` and `make schema`, and none of the reruns.
