@@ -820,6 +820,10 @@ class View:
         """What one picker is currently set to."""
         return self._widget(key).value
 
+    def max_chars(self, key: str) -> int | None:
+        """How many characters a text box takes."""
+        return self.app.text_input(key).max_chars
+
     def tooltip(self, key: str) -> str:
         """The help behind one picker, which says what choosing does.
 
@@ -883,6 +887,10 @@ class View:
         """Everything drawn as a caption."""
         return [str(one.value) for one in self.app.caption]
 
+    def successes(self) -> list[str]:
+        """Everything drawn as a success message."""
+        return [str(one.value) for one in self.app.success]
+
     def downloads(self) -> list[Any]:
         """Every file the page is offering, of which there is usually none."""
         return list(self.app.get("download_button"))
@@ -902,6 +910,10 @@ class View:
             if column in getattr(frame.value, "columns", ()):
                 return frame.value
         raise AssertionError(f"no table on {self.name} carries a {column!r} column")
+
+    def fixed_tables(self) -> list[Any]:
+        """Every table drawn with `st.table`, which `table_with` does not reach, as DataFrames."""
+        return [one.value for one in self.app.table]
 
     # ── What a reader does ───────────────────────────────────────────────
 

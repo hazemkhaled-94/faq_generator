@@ -158,9 +158,9 @@ def test_an_artefacts_own_text_is_drawn_as_written(open_view, stored) -> None:
     opened = open_view("questions", lineage_api=traced, health_api=health).select()
 
     (row,) = [
-        table.value.iloc[0]
-        for table in opened.app.table
-        if "What it says" in table.value.columns
+        table.iloc[0]
+        for table in opened.fixed_tables()
+        if "What it says" in table.columns
     ]
 
     for said, meant in (

@@ -28,14 +28,10 @@ ACCOUNT = changed(
 
 def listed(drawn) -> list[str]:
     """The topics the table lists, by language and number."""
-    tables = [
-        one.value
-        for one in drawn.app.dataframe
-        if "Top terms" in getattr(one.value, "columns", ())
-    ]
-    if not tables:
+    try:
+        table = drawn.table_with("Top terms")
+    except AssertionError:
         return []
-    (table,) = tables
     return [
         f"{lang} #{index}"
         for lang, index in zip(table["Language"], table["#"], strict=True)

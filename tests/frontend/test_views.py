@@ -308,7 +308,7 @@ def test_a_pasted_sentence_does_not_take_the_page_down(open_view, pasted) -> Non
 @pytest.mark.parametrize("name", LISTING)
 def test_every_search_box_takes_no_more_than_the_api_does(open_view, name) -> None:
     """The one box every listing draws, held to the routes' own bound."""
-    assert open_view(name).app.text_input(f"{name}-search").max_chars == 200
+    assert open_view(name).max_chars(f"{name}-search") == 200
 
 
 def test_the_search_and_filters_wrap_only_once_a_row_is_full() -> None:
@@ -456,7 +456,7 @@ def test_an_upload_names_the_file_as_it_was_chosen(open_view, filename) -> None:
     page = open_view("upload")
     page.uploader()[0].upload(filename, b"%PDF-1.4", "application/pdf")
 
-    (said,) = [str(one.value) for one in page.press("Upload all").app.success]
+    (said,) = page.press("Upload all").successes()
 
     assert literal(said) == f"{filename}: stored."
     assert formatting(said) == []
