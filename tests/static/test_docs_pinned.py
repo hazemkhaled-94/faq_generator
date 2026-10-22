@@ -437,7 +437,7 @@ def test_the_upgrade_rebuild_names_no_host_drain() -> None:
 
 
 def test_readme_says_whether_the_release_holds_unanswerables() -> None:
-    """The opening promises unanswerable questions; it says the release ships none."""
+    """The opening promises unanswerable questions; it says what the release holds."""
     value = re.search(
         r"^QUESTIONS_RELEASE_UNANSWERABLE=(\S*)",
         _read("configs/env/backend.env"),
@@ -448,6 +448,9 @@ def test_readme_says_whether_the_release_holds_unanswerables() -> None:
     if float(value) == 0:
         assert "`QUESTIONS_RELEASE_UNANSWERABLE` is 0" in opening
         assert "the release holds none of them" in opening
+    else:
+        assert f"`QUESTIONS_RELEASE_UNANSWERABLE` is {value}" in opening
+        assert "the release holds none of them" not in opening
 
 
 def test_readme_lists_what_corpus_runs() -> None:

@@ -40,7 +40,7 @@ and [v0.3.0](operations.md#upgrading-to-v030).
 | [The comparison gate split at the wrong seam](#the-comparison-gate-split-at-the-wrong-seam) | 2 | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial; worse in v0.3.0 |
 | [A fact may drop its sentence's scope](#a-fact-may-drop-its-sentences-scope) | 4 | [`validation.py`](../backend/extraction/validation.py), [`extractors/llm.py`](../backend/extraction/extractors/llm.py) | v0.3.0, in part |
 | [A two-item key was read as a value](#a-two-item-key-was-read-as-a-value) | not measured | [`gates.py`](../backend/question_generation/gates.py) | v0.2.2, partial |
-| [Unanswerable questions the passages answer](#unanswerable-questions-the-passages-answer) | 8 | [`verifier.py`](../backend/question_generation/verifier.py), [`checker.py`](../backend/question_generation/checker.py) | v0.2.2, in part; none released in v0.3.0 |
+| [Unanswerable questions the passages answer](#unanswerable-questions-the-passages-answer) | 8 | [`verifier.py`](../backend/question_generation/verifier.py), [`checker.py`](../backend/question_generation/checker.py) | v0.2.2, in part; released again in v0.5.0 at a ceiling of 0.10, a third of kept rows still answered |
 | [Sibling list items refused as duplicates](#sibling-list-items-refused-as-duplicates) | 42 | [`extraction/service.py`](../backend/extraction/service.py), [`extraction/models.py`](../backend/extraction/models.py) | v0.2.2 |
 | [Two passages paired by reading order](#two-passages-paired-by-reading-order) | part of 68 | [`selection.py`](../backend/question_generation/selection.py) | v0.2.2, v0.3.0 |
 | [Application questions always spanned two passages](#application-questions-always-spanned-two-passages) | 11 | [`planning.py`](../backend/question_generation/planning.py) | v0.2.2 |
@@ -376,6 +376,14 @@ twenty passages and showing the writer the passages beside its own did not
 move it, and a second-opinion model only brought it to 0.39 and 0.34. v0.3.0
 therefore releases none of these questions
 (`QUESTIONS_RELEASE_UNANSWERABLE=0`); they stay in the accepted pool.
+
+**Still open in v0.5.0.** v0.5.0 releases unanswerable questions again, at a
+ceiling of 0.10 (`QUESTIONS_RELEASE_UNANSWERABLE`; 0 turns them off). The
+`settles` reading still keeps questions the material answers: on link U's
+calibration 19 of 60 kept out-of-corpus rows and 20 of 60 base rows answered
+after all ([measurements](measurements.md#unanswerable-kinds-v050)). Up to
+about a third of the unanswerable questions a release holds therefore test a
+chatbot for saying no to a question it should answer.
 
 ## Sibling list items refused as duplicates
 

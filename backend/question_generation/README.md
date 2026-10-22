@@ -783,7 +783,11 @@ Over-setting is safe for the release, since `QUESTIONS_RELEASE_UNANSWERABLE`
 is a ceiling, but not for the spend: every attempt
 `QUESTIONS_UNANSWERABLE_SHARE` plans is written and checked, its `settles`
 calls included, whatever the ceiling, so at a ceiling of 0 those calls buy
-nothing the release can take; lower the share to save them.
+nothing the release can take; lower the share to save them. The ceiling is
+0.10 as shipped, and the `settles` reading still keeps about a third of kept
+rows that the material answers (docs/measurements.md, "Unanswerable kinds
+(v0.5.0)"), so up to about a third of the unanswerable questions a release
+holds are a known defect.
 
 | | |
 |---|---|
@@ -936,7 +940,7 @@ So the run overgenerates and the composition is chosen afterwards.
 
 | | |
 |---|---|
-| `QUESTIONS_RELEASE_UNANSWERABLE` | The most of the release that may have no answer. A ceiling |
+| `QUESTIONS_RELEASE_UNANSWERABLE` | The most of the release that may have no answer. A ceiling, 0.10 as shipped; 0 releases none |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands. Unset follows the answerable pool's own band split |
 | `QUESTIONS_RELEASE_TYPES` | How it spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 | `QUESTIONS_RELEASE_LANGUAGES` | How it spreads over the languages. Unset follows the pool's own language split |
@@ -1232,7 +1236,7 @@ stored, so changing one needs a restart.
 | `QUESTIONS_DUPLICATE_SHARED_COSINE` | How alike two questions resting on the same fact must be before the later one is dropped. Unset holds them to `QUESTIONS_DUPLICATE_COSINE` |
 | `QUESTIONS_DUPLICATE_FLOOR` | The cosine two unrelated questions score, which a question's stored confidence is measured from. Moves no verdict |
 | `QUESTIONS_RELEASE_SIZE` | How many to draw. `0` is the largest the pool can fill |
-| `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling |
+| `QUESTIONS_RELEASE_UNANSWERABLE` | The most of a release that may have no answer. A ceiling, 0.10 as shipped; 0 releases none |
 | `QUESTIONS_RELEASE_DIFFICULTY` | How a release spreads over the bands. Unset follows the bands the answerable pool holds, so the draw no longer takes nearly every multi-passage question to fill equal thirds; set it for any other split, equal thirds included |
 | `QUESTIONS_RELEASE_TYPES` | How a release spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 | `QUESTIONS_RELEASE_LANGUAGES` | How a release spreads over the languages, by ISO 639-1 code. Unset follows the pool's own language split, so a corpus mostly in one language releases in proportion; set it for any other split, an equal one included |

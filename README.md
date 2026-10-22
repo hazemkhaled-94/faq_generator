@@ -10,11 +10,13 @@ known answers. Every question carries the facts it was written from, and every
 fact carries the sentence it came from, so any answer in the set can be traced
 back to a page. A deliberate share of the questions written have no answer
 in the corpus at all, which is what measures whether a chatbot recognises the
-limits of its knowledge. As shipped, the release holds none of them:
-`QUESTIONS_RELEASE_UNANSWERABLE` is 0 until the verifier's `settles`
-judgement that keeps them can be trusted, so they stay in the accepted pool,
-where `make questions-export FILTER="--status accepted --unanswerable"`
-exports them and `FILTER="--released"` does not.
+limits of its knowledge. As shipped, the release holds up to a tenth of
+them: `QUESTIONS_RELEASE_UNANSWERABLE` is 0.10. The verifier's `settles`
+judgement that keeps them still keeps about a third that the corpus answers,
+a known defect, so some released ones test a chatbot for saying no to a
+question it should answer. At 0 the release holds none, and they stay in the
+accepted pool, where `make questions-export FILTER="--status accepted
+--unanswerable"` exports them and `FILTER="--released"` does not.
 
 The pipeline is subject-agnostic: no prompt names a domain, and topics are
 discovered from the corpus's own vocabulary rather than supplied. German and
