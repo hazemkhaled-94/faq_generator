@@ -373,10 +373,14 @@ one `Status` enum, one container image. The rules are enforced by
   not modelled.
 - **`EMBEDDING_MODEL` cannot be changed without a migration.**
   `questions.embedding` is `vector(1024)`.
-- **The model is the bottleneck, not the pipeline.** Question generation takes
-  most of the wall clock and the spend ([measurements](docs/measurements.md)),
-  and a locally served model is one to two orders slower per call than a hosted
-  one.
+- **The model is the bottleneck, not the pipeline.** On the reviewed build,
+  30 documents, question generation took most of the spend (USD 55 of 76) and
+  extraction most of the single-drain wall clock (2 h of 5.7 h). Both scale with
+  the corpus, extraction with its passages and the questions with its topics,
+  and at ten times the corpus extraction is 20 hours and the questions 56 hours
+  of one drain each. [Sizing a corpus](docs/operations.md#sizing-a-corpus) says
+  how to estimate yours, and `make estimate` does. A locally served model is one
+  to two orders slower per call than a hosted one.
 
 ## Licence
 

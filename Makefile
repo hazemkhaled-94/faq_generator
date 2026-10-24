@@ -198,7 +198,7 @@ help:
         dev install install-python docling-weights up grafana-grants down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
         logs-wipe \
-        prune spend spend-by-shape \
+        prune spend spend-by-shape estimate \
         schema schema-reset schema-status schema-down schema-stamp migration \
         parse parse-status parse-start parse-stop parse-retry parse-rerun \
         chunk chunk-status chunk-start chunk-stop chunk-retry chunk-rerun \
@@ -1299,6 +1299,18 @@ spend-by-shape:
 	@$(SPENT) \
 	 | awk '{i+=$$3; o+=$$4; c+=$$5; n++} END {if (n==0) {print "\nno priced calls in the log"; exit} \
 	     printf "%-24s %-18s %8d %12d %12d %9.4f\n", "", "TOTAL", n, i, o, c}'
+
+# What the rows still to do will take and cost, before anything is queued: the
+# documents not chunked, the passages not extracted, the topics not written
+# for and the accepted questions, each times what a row of its stage took in
+# the reviewed build. A stage not yet reached is projected from the one
+# before it at that build's ratios. DRAINS says how many drains work a stage
+# at once and divides its time, never its spend.
+#
+#   make estimate
+#   make estimate DRAINS=questions=4,extract=2
+estimate:
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m stages.estimate $(if $(DRAINS),--drains $(DRAINS))
 
 # What the models have cost in total, over the same log.
 spend:

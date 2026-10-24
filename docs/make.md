@@ -571,10 +571,17 @@ same but `tests`.
 ## Cost
 
 ```bash
+make estimate                             # before a run: time, calls and USD of the rows still to do
+make estimate DRAINS=questions=4,extract=2
 make spend LOG=run.log                    # totals from a captured log
 make spend LOG=run.log SINCE=2026-09-19   # one day of it
 make spend-by-shape LOG=run.log           # split by model and judgement
 ```
+
+`make estimate` multiplies the rows still to do by what a row of each stage
+took in the reviewed build, and says so in
+[Sizing a corpus](operations.md#sizing-a-corpus); `DRAINS` divides a stage's
+time, not its spend. `make spend` is for after a run.
 
 `LOG` is **required** and names the text log a drain wrote to a terminal —
 `make questions | tee run.log` — not the shipped JSON. For a run happening

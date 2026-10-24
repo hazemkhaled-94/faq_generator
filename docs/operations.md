@@ -218,6 +218,64 @@ evaluation phase on pays for one idle container. It reads the flag every
 `WORKER_POLL_SECONDS`, so switching it on from the Assessment page needs no
 restart; a change to `.env` reaches it with `make up`.
 
+## Sizing a corpus
+
+`make estimate` prints, for the rows still to do, the time, the model calls and
+the spend of each stage, before anything is queued. It multiplies them by what
+one row of the stage took in the reviewed build: 30 documents, 1,973 passages
+and 41 topics, Azure models, 5 h 41 min and USD 75.53 end to end. Those rates
+are the table below. A corpus on another provider, or with another model split,
+has other rates, and `make spend LOG=run.log` reads yours off a run.
+
+| Stage | Row | Seconds of one drain | USD | Calls | Divided by drains |
+|---|---|---|---|---|---|
+| parse | document | 6.6 | 0 | 0 | yes |
+| chunk | document | 2.6 | 0 | 0 | yes |
+| extract | passage | 3.69 | 0.00664 | 1.29 | yes |
+| topics | passage | 0.033 | 0.00002 | 0.001 | no |
+| bridges | topic | 17.6 | 0.0522 | 12 | no |
+| questions | topic | 489 | 1.35 | 320 | yes |
+| release | accepted question | 0.323 | 0.000676 | 0.54 | no |
+| assess | sample of 441 | 1392 | 3.59 | 1862 | no |
+
+How a row count follows from the corpus: a document is 66 passages, a passage
+carrying a validated fact belongs to a topic at 40 passages a topic
+(`TOPIC_PASSAGES_PER_TOPIC`), up to the ceiling `TOPIC_NUM_TOPICS` a language,
+and a topic leaves 53 accepted questions. A run writes `QUESTIONS_PER_TOPIC`
+slots for each topic, so the questions grow with the topics and the topics with
+the passages: slots are topics times `QUESTIONS_PER_TOPIC`. A stage whose
+workers scale (`DRAINS=questions=4`) divides its time by the drains and keeps
+its spend.
+
+**The go-live corpus, ten times the reviewed one**: 300 PDFs, 20,000 passages,
+410 topics, 21,750 accepted questions. One drain of each stage takes 81 hours
+and costs USD 725:
+
+| Stage | Rows | Time, one drain | Time, extract and questions at 4 drains | USD |
+|---|---|---|---|---|
+| parse and chunk | 300 documents | 46 min | 23 min at 2 | 0 |
+| extract | 19,730 passages | 20.2 h | 5.1 h | 131 |
+| topics | 19,730 passages | 11 min | 11 min | 0.39 |
+| bridges | 410 topics | 2.0 h | 2.0 h | 21 |
+| questions | 410 topics | 55.7 h | 13.9 h | 554 |
+| release | 21,750 accepted | 1.9 h | 1.9 h | 15 |
+| assess | a fixed sample | 23 min | 23 min | 3.59 |
+| **total** | | **81 h** | **24 h** | **725** |
+
+Two things in it are new since the review. The questions are 410 topics because
+`TOPIC_NUM_TOPICS` is 300 a language and no longer 40: the review's go-live
+estimate of USD 264 held the questions to the 9,600 slots two languages of 40
+topics could write, a fifth of the coverage, and it is USD 725 for the whole.
+Spending less is `QUESTIONS_PER_TOPIC`, which scales the questions down and the
+coverage with them. And the release draw is no longer the quadratic that took
+39 minutes a draw at this size: it steps down from the size the pool can place
+and draws with no list rebuilt per question.
+
+What to size besides time: [Postgres](#sizing-postgres) for the vectors, the
+parse worker's memory for the longest document (`PARSING_MAX_PAGES`, 200 pages,
+3.5 GB of the 4 GB it is given), and the topic worker's 3 GB, which holds the
+passages by topics matrix of 10,000 by 300 for one language at a time.
+
 ## What the model costs
 
 Per-call latency and per-stage spend for the last run are in
