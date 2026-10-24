@@ -7,7 +7,9 @@ HNSW index on `facts.embedding` was never used, 311 ms a probe over 7,000
 facts and a query a corpus ten times larger could not afford. `facts.language`
 is that same value, the language of the passage at position 0 of
 `fact_passages` and where that has none the document's, written when the fact
-is stored. Existing facts are backfilled from the same citation.
+is stored. Existing facts are backfilled from the same citation, and the
+table is analysed after it so the first probe plans with the new column's
+statistics.
 
 Revision: 860d56b11032
 Parent:   20e31b1656f7
@@ -52,6 +54,10 @@ def upgrade() -> None:
         WHERE fp.fact_id = facts.id AND fp.position = 0
         """
     )
+    # The planner has no statistics on the new column until autovacuum visits
+    # the table, and the probe planned without them kept a sequential scan:
+    # 142 ms a probe against 31 ms once analysed, on the reviewed build.
+    op.execute("ANALYZE facts")
 
 
 def downgrade() -> None:
