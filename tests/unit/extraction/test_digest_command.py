@@ -24,6 +24,8 @@ def _configured(monkeypatch, kinds: str) -> None:
     """Has the settings store answer with these kinds, and no model behind it."""
     from llm import config
 
+    # Not the process's real logging, which a test must not replace.
+    monkeypatch.setattr(run.telemetry, "configure", lambda *a, **k: None)
     monkeypatch.setattr(
         run,
         "snapshot",
@@ -70,6 +72,23 @@ def test_no_digest_to_give_is_a_run_with_nothing_to_do(
         assert run.main(["--digests"]) == 0
 
     assert "nothing to give" in caplog.text
+
+
+@pytest.mark.parametrize("kinds", ["atomic,bridge", "atomic"])
+def test_the_nothing_to_give_line_is_logged_once_logging_is_configured(
+    monkeypatch, kinds: str
+) -> None:
+    """Before that the line goes to a handler nobody set, and is never printed."""
+    _configured(monkeypatch, kinds)
+    seen: list[str] = []
+    monkeypatch.setattr(run.telemetry, "configure", lambda *a, **k: seen.append("on"))
+    monkeypatch.setattr(
+        run.log, "info", lambda message, *args: seen.append(message % args)
+    )
+
+    assert run.main(["--digests"]) == 0
+
+    assert seen[0] == "on" and "nothing to give" in seen[-1], seen
 
 
 def test_digests_with_other_flags_is_still_refused(monkeypatch) -> None:

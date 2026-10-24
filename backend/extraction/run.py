@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import sys
 
+import telemetry
 from extraction import prompts
 from extraction.config import Settings
 from extraction.factory import build_bridge, build_service, models
@@ -19,6 +20,7 @@ from extraction.service import CitedBridges, bridge, dedup, embed, recap, revali
 from extraction.validation import FactChecker
 from llm.check import Unreachable, before_work
 from llm.config import Settings as ModelSettings
+from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages.cli import queue_main
 from stages.prompts import record
@@ -62,7 +64,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if digests and not configured()[1].digests:
         # A valid configuration: a deployment may write no digest, and make
-        # corpus runs this step after every extract.
+        # corpus runs this step after every extract. Logs first, as
+        # `queue_main` does, or the line goes to no handler and is not printed.
+        telemetry.configure(
+            "extraction", run=run_id(), named=named_run(), tracing=False
+        )
         log.info("nothing to give: EXTRACTION_KINDS names no digest kind")
         return 0
 
