@@ -54,6 +54,7 @@ from database.qa_generator import (
 from database.qa_generator.repository import Repository, matching
 from settings.runs import run_id
 from stages import Columns, RowQueue
+from stages.queue import Lost
 
 #: A topic rather than a request to refit. `topics` carries both queues on
 #: one table, and only the topics are artefacts anybody has an opinion
@@ -445,7 +446,12 @@ class AssessmentQueue(RowQueue):
                 )
             # The artefact went between the claim and this read: a delete
             # landed mid-drain. Nothing to judge, so the next row is taken.
-            self._finish(assessment_id)
+            # The cascade that took the artefact took this row too, so there
+            # may be nothing to finish.
+            try:
+                self._finish(assessment_id)
+            except Lost:
+                continue
 
     def record(self, assessed: Assessed) -> None:
         """Writes one artefact's verdict and every metric behind it.

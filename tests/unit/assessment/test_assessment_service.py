@@ -20,6 +20,7 @@ from assessment.models import ArtifactToJudge, Judgement
 from assessment.service import SUMMARY, AssessmentService
 from assessment.templates import metrics_of
 from database.qa_generator import ArtifactKind, JudgeMetric
+from stages.queue import Lost
 
 
 class _Queue:
@@ -454,3 +455,75 @@ def test_a_rubric_that_abstains_leaves_the_verdict_thin() -> None:
     assert (len(written.judgements), written.metrics_due) == (5, 11)
     assert written.abstained == 6
     assert written.approved is False
+
+
+class _Vanishing(_Queue):
+    """A queue whose rows are deleted while they are judged."""
+
+    def __init__(self, *artifacts: ArtifactToJudge, gone: set[int]) -> None:
+        """Holds the artefacts, and the assessment ids a delete takes."""
+        super().__init__(*artifacts)
+        self._gone = gone
+
+    def record(self, assessed) -> None:
+        """Refuses to write to a row that has been deleted."""
+        if assessed.assessment_id in self._gone:
+            raise Lost(f"{assessed.assessment_id} is gone")
+        super().record(assessed)
+
+    def fail(self, key, error) -> None:
+        """Refuses to fail a row that has been deleted."""
+        if key in self._gone:
+            raise Lost(f"{key} is gone")
+        super().fail(key, error)
+
+
+def _fact_numbered(number: int) -> ArtifactToJudge:
+    """A fact to judge, with its own assessment id."""
+    return ArtifactToJudge(
+        assessment_id=number,
+        kind=ArtifactKind.FACT,
+        artifact_id=number,
+        fields={"statement": "…", "evidence": "…"},
+    )
+
+
+@pytest.mark.parametrize("judge_down", [False, True])
+def test_an_artefact_deleted_while_it_is_judged_is_gone_and_the_drain_goes_on(
+    judge_down: bool,
+) -> None:
+    """Neither a failure nor an outage, and no traceback ending the drain."""
+    queue = _Vanishing(
+        _fact_numbered(1), _fact_numbered(2), _fact_numbered(3), gone={2}
+    )
+    judge = _Judge(*APPROVING)
+    service = AssessmentService(queue, judge, evaluations=_Evaluations())
+    if judge_down:
+        # The failure itself is what finds the row gone.
+        service = AssessmentService(
+            _Vanishing(_fact_numbered(2), gone={2}),
+            _Judge(unavailable=True),
+            evaluations=_Evaluations(),
+        )
+
+    assert service.drain() == (1 if judge_down else 3)
+
+    assert service.failed == 0, "gone is not a failure"
+    assert service.stalled is None
+    if not judge_down:
+        assert [one.assessment_id for one in queue.recorded] == [1, 3]
+        assert queue.failed == []
+
+
+def test_a_run_of_vanished_rows_is_not_counted_as_an_outage() -> None:
+    """Deleted rows are not the model being down, however many come together."""
+    rows = [_fact_numbered(n) for n in range(1, 13)]
+    queue = _Vanishing(*rows, gone={n for n in range(1, 13)})
+    service = AssessmentService(
+        queue, _Judge(unavailable=True), evaluations=_Evaluations()
+    )
+
+    service.drain()
+
+    assert service.stalled is None
+    assert service.failed == 0

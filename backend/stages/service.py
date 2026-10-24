@@ -183,6 +183,14 @@ class StageService(ABC):
         self.stalled = reason
         log.error("%s: %s", self.name, reason)
 
+    def _gone(self, key: Any) -> None:
+        """Takes a row that no longer exists out of the count of failures.
+
+        A delete that lands while a row is worked leaves nothing to record a
+        failure on, and the row is not the model being down.
+        """
+        self._outages = [(one, was) for one, was in self._outages if one != key]
+
     def _missed(self, key: Any, outage: bool, failed: bool = True) -> bool:
         """Counts one row's outcome towards a stall, and says whether it came.
 

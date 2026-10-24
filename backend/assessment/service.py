@@ -31,6 +31,7 @@ from assessment.models import ArtifactToJudge, Assessed
 from assessment.repository import AssessmentQueue
 from assessment.templates import PROMPT_VERSION, direction_of
 from stages import StageService
+from stages.queue import Lost
 from stages.service import is_outage
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
@@ -81,6 +82,28 @@ class AssessmentService(StageService):
             self._evaluations.flush()
             return None
 
+        try:
+            self._judged(artifact)
+        except Lost:
+            self._gone(artifact.assessment_id)
+            # Not a failure and not an outage: a delete landed while the
+            # judge was asking, and the cascade took the row with the
+            # artefact, so there is nothing left to record a verdict on, or
+            # a failure. The next row is what is left to do.
+            log.warning(
+                "%s %d was deleted while it was being judged; nothing to record",
+                artifact.kind,
+                artifact.artifact_id,
+                extra={"artifact.kind": artifact.kind},
+            )
+        return artifact.assessment_id
+
+    def _judged(self, artifact: ArtifactToJudge) -> None:
+        """Judges one claimed artefact and records what became of it.
+
+        Raises:
+            Lost: If the row is gone by the time anything is written to it.
+        """
         with working(
             span,
             "assess",
@@ -113,7 +136,7 @@ class AssessmentService(StageService):
                 # could not be reached has found nothing wrong with the
                 # artefact, and `retry` is what moves this row.
                 self._fail(artifact.assessment_id, str(exc), current, outage=True)
-                return artifact.assessment_id
+                return
             except Exception as exc:
                 self._fail(
                     artifact.assessment_id,
@@ -122,7 +145,7 @@ class AssessmentService(StageService):
                     is_outage(exc),
                 )
                 log.exception("failed assessment %d", artifact.assessment_id)
-                return artifact.assessment_id
+                return
             self._done(current)
 
             current.set_attribute("assessment.approved", assessed.approved)
@@ -171,7 +194,6 @@ class AssessmentService(StageService):
                     "assessment.metrics": len(judgements),
                 },
             )
-        return artifact.assessment_id
 
     def _record(
         self, artifact: ArtifactToJudge, assessed: Assessed, span_id: str
