@@ -200,7 +200,10 @@ class Dagster:
         except (Unavailable, Refused) as missing:
             return Orchestration(detail=str(missing))
 
-        runs = [_run(one) for one in _results(data.get("runsOrError"))]
+        try:
+            runs = [_run(one) for one in _results(data.get("runsOrError"))]
+        except Refused as refused:
+            return Orchestration(detail=str(refused))
         triggers = _triggers(data.get("repositoryOrError") or {})
         return Orchestration(
             available=True,
@@ -338,9 +341,16 @@ def _selector() -> dict[str, str]:
 
 
 def _results(answer: Any) -> list[dict]:
-    """The runs out of a `runsOrError`, or none when it is an error."""
-    if not isinstance(answer, dict) or answer.get("__typename") != "Runs":
+    """The runs out of a `runsOrError`.
+
+    Raises:
+        Refused: If Dagster answered with an error in the place of the runs,
+            which is not the same as having none.
+    """
+    if not isinstance(answer, dict):
         return []
+    if answer.get("__typename") != "Runs":
+        raise Refused(_why(answer, "the orchestrator could not list its runs"))
     return answer.get("results") or []
 
 

@@ -66,7 +66,8 @@ class FakeOrchestrator:
         """The unfinished runs."""
         if not self._available:
             raise Unavailable("DAGSTER_URL is not set")
-        return [one for one in self._recent if one.live]
+        running = [one for one in self._recent if one.live]
+        return running or ([self._running] if self._running else [])
 
     def launch(self) -> Run:
         """Starts the corpus job."""

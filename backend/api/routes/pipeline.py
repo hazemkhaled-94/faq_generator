@@ -225,8 +225,18 @@ def run() -> Run:
         # Held from the check to the launch, so a second request waits and
         # then reads the run the first one started.
         connection.execute(select(func.pg_advisory_xact_lock(_LAUNCHING)))
-        live = orchestrator.state().running
-        if live is not None:
+        # `live`, which raises when Dagster cannot list its runs, and not
+        # `state`, which reads that as an orchestrator with nothing running:
+        # a launch beside a run nobody could see is two runs on one queue.
+        try:
+            running = orchestrator.live()
+        except Unavailable as missing:
+            raise ApiError(_NO_ORCHESTRATOR, "no_orchestrator", str(missing)) from None
+        except Refused as refusal:
+            raise ApiError(
+                _NO_ORCHESTRATOR, "orchestrator_refused", str(refusal)
+            ) from None
+        if running:
             raise ApiError(
                 409,
                 "already_running",
