@@ -178,9 +178,12 @@ COMPOSE_PROJECT_NAME=qa_second DAGSTER_WEBSERVER_PORT=23000 make test-smoke
 
 `parse-worker`, `chunk-worker` and `extract-worker` scale horizontally — each
 claims one row at a time with `FOR UPDATE SKIP LOCKED`. Extract workers running
-side by side do not see each other's uncommitted facts, so two passages read
-at once can both keep one restated claim; see the `duplicate` refusal in
-[the extraction README](../backend/extraction/README.md).
+side by side judge a passage's facts again inside the store, under a lock per
+language and kind, so two passages read at once do not both keep one restated
+claim; see the `duplicate` refusal in
+[the extraction README](../backend/extraction/README.md). Keep the drains
+within the database's connections ([Sizing Postgres](#sizing-postgres)) and the
+provider's rate limit.
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env

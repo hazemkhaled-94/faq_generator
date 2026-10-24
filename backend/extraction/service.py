@@ -1085,9 +1085,21 @@ class ExtractionService(StageService):
                 )
                 if self._replays() and not self._replaced:
                     self._replaced = self._repository.cited(passage.id)
+                settled: list[CheckedFact] = []
+
+                def settle(
+                    kept: list[CheckedFact], passage=passage, settled=settled
+                ) -> list[CheckedFact]:
+                    """The facts again against what is stored now, under the lock."""
+                    settled[:] = self._untwinned(
+                        kept, None, passage.id, passage.language
+                    )
+                    return settled
+
                 stored = self._repository.store(
-                    passage.id, facts, self._embedded(passage), note=note
+                    passage.id, facts, self._embedded(passage), note=note, settle=settle
                 )
+                facts = settled or facts
                 validated = sum(1 for fact in facts if fact.validated)
                 self._done(current)
                 # After store, so what is recorded is the verdict that
@@ -1375,15 +1387,38 @@ class ExtractionService(StageService):
         vectors = self._embedder.embed_all(
             [for_statement(fact.statement) for fact in facts]
         )
+        return self._untwinned(
+            [
+                replace(fact, embedding=vector)
+                for fact, vector in zip(facts, vectors, strict=True)
+            ],
+            current,
+            passage_id,
+            language,
+        )
+
+    def _untwinned(
+        self,
+        facts: list[CheckedFact],
+        current,
+        passage_id: int,
+        language: str | None,
+    ) -> list[CheckedFact]:
+        """Refuses the embedded facts that have a twin among the facts stored.
+
+        Run twice for a passage when drains run side by side: once before the
+        store, and once inside it, under the lock `store` holds, against what
+        another drain committed in between.
+        """
         threshold = self._duplicate_cosine
         written: list[tuple[str, str, list[float]]] = []
         checked: list[CheckedFact] = []
         refused = 0
-        for fact, vector in zip(facts, vectors, strict=True):
-            fact = replace(fact, embedding=vector)
-            if threshold <= 0 or not fact.validated:
+        for fact in facts:
+            if threshold <= 0 or not fact.validated or fact.embedding is None:
                 checked.append(fact)
                 continue
+            vector = fact.embedding
             twin = self._nearest(fact, vector, written, passage_id, language)
             if twin is not None:
                 reading = _measured(twin, threshold, self._duplicate_floor)
@@ -1398,7 +1433,7 @@ class ExtractionService(StageService):
                 continue
             written.append((fact.statement, fact.kind, vector))
             checked.append(fact)
-        if refused:
+        if refused and current is not None:
             current.set_attribute("extract.duplicates", refused)
         return checked
 

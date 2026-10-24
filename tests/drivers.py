@@ -360,6 +360,7 @@ class Queue:
         embedding: list[float] | None = None,
         *,
         note: str | None = None,
+        settle=None,
     ) -> int:
         """Records what one passage yielded, and the passage's own vector."""
         self.stored[passage_id] = facts

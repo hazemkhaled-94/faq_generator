@@ -464,6 +464,7 @@ class PassageQueue(RowQueue):
         embedding: list[float] | None = None,
         *,
         note: str | None = None,
+        settle: Callable[[list[CheckedFact]], list[CheckedFact]] | None = None,
     ) -> int:
         """Replaces one passage's facts, in one transaction, and finishes it.
 
@@ -471,6 +472,15 @@ class PassageQueue(RowQueue):
         document do not delete each other's results. Bridge facts resting
         here are left alone: they are the bridge pass's to write and to
         replace.
+
+        With `settle`, the facts are judged again inside the transaction,
+        after taking a lock for each language and kind among them. The dedup
+        probe before it read what was committed then, and a second drain's
+        probe read the same: two passages restating one claim were each told
+        no twin existed. The lock puts the drains' stores in a line and the
+        second `settle` reads what the first committed, so it refuses the new
+        twin. One lock to a (language, kind), so drains writing different
+        ones do not wait on each other.
 
         Args:
             passage_id: The passage that was read.
@@ -481,11 +491,24 @@ class PassageQueue(RowQueue):
             note: What the finished passage lacks, kept in its error column:
                 `DIGEST_FAILED` and the reason where the digest could not be
                 had, so `DigestQueue` can find it.
+            settle: Judges the facts again against what is stored now, and
+                returns the facts to write. None writes them as given.
 
         Returns:
             How many facts were written.
         """
         with self._session.begin() as session:
+            if settle is not None:
+                language = _languages(session, {passage_id}).get(passage_id) or ""
+                for kind in sorted({fact.kind for fact in facts if fact.validated}):
+                    session.execute(
+                        select(
+                            func.pg_advisory_xact_lock(
+                                func.hashtext(f"{language}:{kind}")
+                            )
+                        )
+                    )
+                facts = settle(facts)
             # The citations, not the facts: the orphan trigger deletes a fact
             # left citing nothing, and keeps one another passage still cites.
             session.execute(

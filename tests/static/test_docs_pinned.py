@@ -528,21 +528,24 @@ def test_min_other_share_names_both_ends_and_its_recap() -> None:
     assert BY_NAME["EXTRACTION_MIN_OTHER_SHARE"].rebuild == "make extract-recap"
 
 
-def test_duplicate_probe_names_its_parallel_gap() -> None:
-    """The duplicate probe reads only stored facts.
+def test_duplicate_probe_is_judged_again_under_a_lock() -> None:
+    """The duplicate probe reads only stored facts, and the store reads again.
 
-    So the extraction README warns that parallel extract workers keep twin
-    pairs, which the operations guide still scales.
+    So the extraction README says two drains side by side are safe because the
+    store judges the facts again under a lock per language and kind, which the
+    operations guide scales on.
     """
     readme = _flat(_read("backend/extraction/README.md"))
 
     assert "every validated passage fact already stored in the corpus" in readme
     assert (
-        "two passages read at the same time by parallel `extract-worker` "
-        "containers cannot refuse each other's facts"
+        "takes a lock for each language and kind among a passage's validated facts"
     ) in readme
     assert "Fact.validated" in _function(
         "backend/extraction/repository.py", "_nearest_fact"
+    )
+    assert "pg_advisory_xact_lock" in _function(
+        "backend/extraction/repository.py", "store"
     )
     assert "--scale extract-worker" in _read("docs/operations.md")
 

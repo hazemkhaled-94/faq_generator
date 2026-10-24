@@ -1772,11 +1772,12 @@ class TestRevalidatingRefusals:
         ) == [(None,), (Rejection.OVER_CAP,)]
 
 
-def _reading(store: FactStore, answer: dict):
+def _reading(store: FactStore, answer: dict, queue=None):
     """The per-passage service over this database, with a scripted model.
 
     The dedup gate on, through vectors that need no weights, so the drain
-    replays it where it ends.
+    replays it where it ends. `queue` is a connection of its own, for a second
+    worker over the same database.
     """
     from drivers import DIGEST_SHARE, Model, Vectors
 
@@ -1785,7 +1786,7 @@ def _reading(store: FactStore, answer: dict):
     from extraction.validation import FactChecker
 
     return ExtractionService(
-        repository=store.queue,
+        repository=queue or store.queue,
         extractors=ExtractorRegistry(
             extractors=(TableExtractor(),),
             default=LlmExtractor(Model(answer)),  # type: ignore[arg-type]

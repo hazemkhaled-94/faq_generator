@@ -216,12 +216,15 @@ Two more refusals are the service refusing what the checks passed:
   `facts.language`, written with the fact from the passage it opens on (its
   document's where that passage is too short to tell), so the narrowing is a
   filter on the vector index and not a join over the citations.
-  The probe sees only facts another passage has already stored, so two
-  passages read at the same time by parallel `extract-worker` containers
-  cannot refuse each other's facts, and `extract-dedup`, which re-decides
-  only stored refusals, does not find the pair: both near-identical facts
-  are kept. A single worker reads one passage at a time and leaves no such
-  pair.
+  The probe sees only what is committed, and two drains run side by side
+  (`extract-worker` containers, or a drain on the host beside one) each probe
+  before either stores. So the store takes a lock for each language and kind
+  among a passage's validated facts, inside its transaction, and judges them
+  again under it against what the other drain committed meanwhile: the second
+  drain's twin is refused as a duplicate of the first's fact, as a single
+  worker would have refused it. Drains writing facts of other languages or
+  kinds do not wait on each other. The second look costs one more probe a
+  fact, which the language column on the facts keeps to a vector-index lookup.
   Nothing ties a stored fact to the passages refused against it, so
   deleting its document leaves each repeat refused against a fact that is
   gone. `make delete` and `make delete-derived` therefore run
