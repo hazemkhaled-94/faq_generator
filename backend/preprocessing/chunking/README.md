@@ -231,7 +231,8 @@ the facts drawn from it and the topic memberships it held.
 
 [`service.py`](service.py) · `revocabulary`. Applies a change to how language
 or vocabulary is read without re-chunking, replacing `passages.language` and
-`passages.lemmas` in place. As in a chunking run, a table passage takes its
+`passages.lemmas` in place, and moving `facts.language` with the passage each
+fact opens on, so the dedup probe, which filters on it, still finds them. As in a chunking run, a table passage takes its
 document's language without detection.
 
 Sentence offsets are deliberately left alone: a fact cites one by index, so

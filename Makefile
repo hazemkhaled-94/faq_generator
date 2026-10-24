@@ -724,7 +724,8 @@ chunk-rerun:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --rerun $(ONLY)
 
 # Read every stored passage's language and vocabulary again, in place. Only
-# those two change; passages, sentence offsets and facts all stay, which is
+# those two change, and facts.language moves with the passage a fact opens
+# on; passages, sentence offsets and facts all stay, which is
 # what chunk-rerun cannot promise - it deletes every passage whose sentences
 # moved, and the facts go with them. Fit the topics afterwards to see the
 # difference.
