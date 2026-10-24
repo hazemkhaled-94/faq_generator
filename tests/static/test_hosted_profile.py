@@ -36,7 +36,9 @@ def test_a_model_worker_sits_under_the_local_models_profile(worker: str) -> None
     assert _compose()[worker]["profiles"] == ["local-models"]
 
 
-@pytest.mark.parametrize("service", ["parse-worker", "chunk-worker", "api", "streamlit"])
+@pytest.mark.parametrize(
+    "service", ["parse-worker", "chunk-worker", "api", "streamlit"]
+)
 def test_what_the_go_live_profile_runs_has_no_profile(service: str) -> None:
     """Parsing and chunking call no model."""
     assert "profiles" not in _compose()[service]
@@ -45,12 +47,16 @@ def test_what_the_go_live_profile_runs_has_no_profile(service: str) -> None:
 def test_the_example_turns_the_host_runner_on_and_backend_env_does_not_set_it() -> None:
     """backend.env's default leaves today's development behaviour."""
     live = dict(
-        re.findall(r"^([A-Z][A-Z0-9_]*)=(.*)$", (ROOT / ".env.example").read_text(), re.M)
+        re.findall(
+            r"^([A-Z][A-Z0-9_]*)=(.*)$",
+            (ROOT / ".env.example").read_text(),
+            re.MULTILINE,
+        )
     )
     backend = (ROOT / "configs/env/backend.env").read_text()
 
     assert live["HOST_RUNNER"] == "1"
-    assert not re.search(r"^HOST_RUNNER=", backend, re.M)
+    assert not re.search(r"^HOST_RUNNER=", backend, re.MULTILINE)
 
 
 # ── make ───────────────────────────────────────────────────────────────────
@@ -188,7 +194,9 @@ def test_a_fresh_corpus_starts_a_fresh_ledger_and_a_resume_keeps_it(
     assert not ledger.read_text().startswith("4.5\n")
 
 
-@pytest.mark.parametrize("failing", ["extraction.run --start", "extraction.run --digests"])
+@pytest.mark.parametrize(
+    "failing", ["extraction.run --start", "extraction.run --digests"]
+)
 def test_a_drain_that_exits_non_zero_stops_the_chain(
     tmp_path: Path, failing: str
 ) -> None:
@@ -236,7 +244,10 @@ def test_corpus_hosted_runs_the_corpus_detached_with_a_pid_file_and_a_log(
 
     assert ran.returncode == 0, ran.stderr
     _waited(project)
-    assert "corpus: database qa_scratch" in (project / "logs/corpus-hosted.log").read_text()
+    assert (
+        "corpus: database qa_scratch"
+        in (project / "logs/corpus-hosted.log").read_text()
+    )
     assert _drained(project)
 
 
@@ -257,7 +268,6 @@ def test_corpus_hosted_resumes_after_a_run_that_was_killed(tmp_path: Path) -> No
     """A pid file nobody holds is a run that died, and the drains resume by lease."""
     project = _project(tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n")
     (project / "logs").mkdir()
-    dead = subprocess.run(["true"]).returncode  # the shell has a dead pid to offer
     (project / "logs/corpus-hosted.pid").write_text("999999\n")
 
     ran = _make(project, "corpus-hosted")

@@ -14,7 +14,6 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-
 REFUSAL = "the go-live profile runs the model stages through make corpus-hosted"
 
 
@@ -63,7 +62,7 @@ def test_stop_and_retry_still_work_on_the_go_live_profile(api, monkeypatch) -> N
     from api.routes import pipeline
 
     monkeypatch.setenv("HOST_RUNNER", "1")
-    monkeypatch.setattr(pipeline.orchestrator, "live", lambda: [])
+    monkeypatch.setattr(pipeline.orchestrator, "live", list)
 
     assert api.post("/pipeline/retry").status_code == 202
     assert api.post("/pipeline/stop").status_code == 202

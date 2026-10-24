@@ -286,7 +286,9 @@ def test_each_model_setting_is_where_the_doc_says() -> None:
     # backend.env documents each stage model, unset; the go-live split that
     # sets them is the deployment's, in .env.example.
     live = set(
-        re.findall(r"^([A-Z][A-Z0-9_]*)=", _read("configs/env/backend.env"), re.M)
+        re.findall(
+            r"^([A-Z][A-Z0-9_]*)=", _read("configs/env/backend.env"), re.MULTILINE
+        )
     )
     for name in _STAGE_MODELS:
         assert name in backend and name not in live and name in example, name
@@ -462,9 +464,7 @@ def test_readme_lists_what_corpus_runs() -> None:
     """README's stage-by-stage block is what `make corpus` runs, in its order."""
     recipe = _read("Makefile").split("\ncorpus:\n", 1)[1].split("\n\n", 1)[0]
     steps = [
-        " ".join(
-            line.replace(" $(CORPUS_PINS)", "").replace("$(MAKE)", "make").split()
-        )
+        " ".join(line.replace(" $(CORPUS_PINS)", "").replace("$(MAKE)", "make").split())
         for line in recipe.splitlines()
         if "$(MAKE)" in line and "$(foreach" not in line
     ]

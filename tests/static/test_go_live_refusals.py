@@ -14,6 +14,7 @@ import pytest
 from test_hosted_profile import REFUSAL, ROOT, _compose, _project
 from test_makefile import printed
 
+
 @pytest.mark.parametrize("service", ["dagster-webserver", "dagster-daemon"])
 def test_dagster_sits_under_the_orchestrated_profile(service: str) -> None:
     """The orchestrated path is the development one."""

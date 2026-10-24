@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+
 @pytest.mark.parametrize("stage", ["extraction", "topics", "questions", "assessment"])
 @pytest.mark.parametrize("verb", ["start", "retry", "rerun", "reclaim"])
 def test_a_verb_for_a_model_stage_names_the_command_that_drains_it(

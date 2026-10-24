@@ -107,6 +107,7 @@ def _not_hosted() -> None:
     if host_runner():
         raise ApiError(409, "host_runner", f"{HOST_RUNNER_REFUSAL}.")
 
+
 #: The advisory lock a launch holds, so two cannot both pass the check.
 _LAUNCHING = 0x5155_4E00
 
@@ -435,7 +436,8 @@ def automation() -> Automation:
 
 
 @router.put(
-    "/automation", responses={409: {"model": ErrorBody}, _NO_ORCHESTRATOR: {"model": ErrorBody}}
+    "/automation",
+    responses={409: {"model": ErrorBody}, _NO_ORCHESTRATOR: {"model": ErrorBody}},
 )
 def automate(change: AutomationChange) -> Automation:
     """Switches the two triggers on or off.

@@ -177,7 +177,9 @@ def test_the_doctor_fails_on_a_stored_row_the_catalogue_now_refuses(
     _stored(monkeypatch)
 
     def refused():
-        raise StoredRefused("TOPIC_MIN_WEIGHT='-1' (written 2026-09-01 10:30) is below 0")
+        raise StoredRefused(
+            "TOPIC_MIN_WEIGHT='-1' (written 2026-09-01 10:30) is below 0"
+        )
 
     monkeypatch.setattr("settings.store.snapshot", refused)
     provider(monkeypatch, reply('{"ok": true}'))

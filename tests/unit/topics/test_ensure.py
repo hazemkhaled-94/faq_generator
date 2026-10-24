@@ -24,7 +24,9 @@ def fit(*languages: LanguageFit) -> TopicFit:
     )
 
 
-def lang(code: str, *, topics: int = 3, live: int = 10, corpus: int = 10, held: int = 9):
+def lang(
+    code: str, *, topics: int = 3, live: int = 10, corpus: int = 10, held: int = 9
+):
     """One language's fit."""
     return LanguageFit(
         language=code,

@@ -195,16 +195,22 @@ def test_the_corpus_fits_the_topics_only_when_they_are_not_live() -> None:
     ), topics
 
 
-def test_the_topics_are_fitted_after_extraction_and_before_a_bridge_needs_them() -> None:
+def test_the_topics_are_fitted_after_extraction_and_before_a_bridge_needs_them() -> (
+    None
+):
     """When a language holds passages and no live fit; `--ensure` is that check."""
     lines = printed("corpus")
-    digests = next(at for at, line in enumerate(lines) if "extraction.run --digests" in line)
+    digests = next(
+        at for at, line in enumerate(lines) if "extraction.run --digests" in line
+    )
     fit = next(
         at
         for at, line in enumerate(lines)
         if line.endswith("topic_modelling.run --discover --ensure")
     )
-    bridge = next(at for at, line in enumerate(lines) if "extraction.run --bridge" in line)
+    bridge = next(
+        at for at, line in enumerate(lines) if "extraction.run --bridge" in line
+    )
 
     assert digests < fit < bridge
 

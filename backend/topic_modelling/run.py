@@ -25,8 +25,8 @@ from stages.cli import FAILED, _ready, drain_once, give_back, parser, reloading
 from stages.prompts import record
 from topic_modelling import prompts
 from topic_modelling.config import Settings
-from topic_modelling.models import TopicFit
 from topic_modelling.factory import build_service
+from topic_modelling.models import TopicFit
 from topic_modelling.repository import TopicCatalog, TopicQueue
 from topic_modelling.space import load
 
