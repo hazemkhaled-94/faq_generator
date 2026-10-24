@@ -8,7 +8,8 @@ from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import normalised
-from nlp.language import detect
+from nlp.language import detect, document_language
+from nlp.pipelines import languages
 from preprocessing.parsing.models import Conversion, ParsedDocument
 
 #: Labels that carry a document's own title, in the order they are searched.
@@ -25,6 +26,10 @@ class AlreadyHeld(Exception):
 
 class EmptyDocument(Exception):
     """Raised when a conversion produced no body text to work with."""
+
+
+class UnconfiguredLanguage(Exception):
+    """Raised when a document is in a language NLP_MODELS does not configure."""
 
 
 class DocumentAnalyser:
@@ -44,11 +49,14 @@ class DocumentAnalyser:
 
         Raises:
             EmptyDocument: If the conversion produced no body text.
+            UnconfiguredLanguage: If the body reads as a language NLP_MODELS
+                does not name, which every later stage would read as another.
         """
         document = conversion.document
         body = self.body(document)
         if not body:
             raise EmptyDocument("the document has no extractable body text")
+        self._configured(body)
 
         return ParsedDocument(
             title=self.title(document),
@@ -58,6 +66,17 @@ class DocumentAnalyser:
             confidence=conversion.confidence,
             confidence_low=conversion.confidence_low,
         )
+
+    @staticmethod
+    def _configured(body: str) -> None:
+        """Refuses a body in a language no pipeline is configured for."""
+        found = document_language(body)
+        if found is not None and found[0] not in languages():
+            raise UnconfiguredLanguage(
+                f"the document is in {found[1]} ({found[0]}), which NLP_MODELS "
+                f"does not configure ({', '.join(languages())}): add its "
+                "pipeline and table rows, or leave it out"
+            )
 
     @staticmethod
     def body(document: DoclingDocument) -> str:

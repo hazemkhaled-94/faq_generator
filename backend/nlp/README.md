@@ -85,6 +85,12 @@ pipeline behind it is a passage nothing can read. `NLP_DEFAULT_LANGUAGE` is
 the pipeline a text is read with when its language is unknown or not one
 `NLP_MODELS` names.
 
+The **document** is read once at parse by a second detector over every
+language lingua knows (`document_language`), so a document in a language
+`NLP_MODELS` does not name is refused at parse, naming its language, rather
+than read silently as one it does. Adding a language to `NLP_MODELS` is what
+lets such a document in.
+
 ### One call, one judgement
 
 [`entailment.py`](entailment.py) answers one question about each premise and

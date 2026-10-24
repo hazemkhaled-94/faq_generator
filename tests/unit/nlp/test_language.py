@@ -61,3 +61,35 @@ def test_a_language_is_named_as_a_prompt_says_it(code: str | None, name: str) ->
     from nlp.models import named
 
     assert named(code) == name
+
+
+FRENCH = (
+    "Le consommateur dispose d'un délai de quatorze jours pour se rétracter "
+    "d'un contrat conclu à distance, sans avoir à justifier sa décision."
+)
+SPANISH = (
+    "El consumidor dispone de un plazo de catorce días para desistir de un "
+    "contrato celebrado a distancia, sin tener que justificar su decisión."
+)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [(GERMAN, "de"), (ENGLISH, "en"), (FRENCH, "fr"), (SPANISH, "es")],
+)
+def test_a_document_is_read_in_any_language_not_only_the_configured(
+    text: str, expected: str
+) -> None:
+    """The document's language is asked of every language, so French is French."""
+    from nlp.language import document_language
+
+    found = document_language(text)
+
+    assert found is not None and found[0] == expected, found
+
+
+def test_a_document_too_short_to_judge_has_no_language() -> None:
+    """A few words are no evidence, as for a passage."""
+    from nlp.language import document_language
+
+    assert document_language("Bonjour") is None

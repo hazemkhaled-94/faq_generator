@@ -14,6 +14,7 @@ from preprocessing.parsing.analysis import (
     AlreadyHeld,
     DocumentAnalyser,
     EmptyDocument,
+    UnconfiguredLanguage,
     Unconvincing,
 )
 from preprocessing.parsing.models import (
@@ -146,6 +147,7 @@ class ParsingService(StageService):
                 UnsupportedFormat,
                 ConversionFailed,
                 EmptyDocument,
+                UnconfiguredLanguage,
                 Unconvincing,
                 AlreadyHeld,
             ) as exc:
@@ -166,6 +168,7 @@ class ParsingService(StageService):
             UnsupportedFormat: If no pipeline handles the media type.
             ConversionFailed: If the pipeline could not convert the file.
             EmptyDocument: If the conversion yielded no body text.
+            UnconfiguredLanguage: If the text is in a language not configured.
             Unconvincing: If the conversion's confidence is below the floor.
             AlreadyHeld: If another document holds the same text.
         """

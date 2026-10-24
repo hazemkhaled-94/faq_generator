@@ -53,6 +53,35 @@ def _detector() -> LanguageDetector:
     ).build()
 
 
+@lru_cache(maxsize=1)
+def _any_detector() -> LanguageDetector:
+    """Builds the detector over every language lingua knows, once per process.
+
+    Low-accuracy mode keeps its memory small, and it is asked once per
+    document, of a long text.
+    """
+    return LanguageDetectorBuilder.from_all_languages().with_low_accuracy_mode().build()
+
+
+def document_language(text: str) -> tuple[str, str] | None:
+    """Names the language of a whole document, whether or not it is configured.
+
+    Unlike `detect` this may answer with a language `NLP_MODELS` does not
+    name, so a document in one is found out instead of read as another.
+
+    Returns:
+        The ISO 639-1 code and the English name, or None when the text is
+        too short to tell.
+    """
+    prose = URL.sub(" ", text).strip()
+    if len(prose) < _MIN_CHARS:
+        return None
+    found = _any_detector().detect_language_of(prose)
+    if found is None:
+        return None
+    return found.iso_code_639_1.name.lower(), found.name.title()
+
+
 def detect(text: str) -> str | None:
     """Names the language of a text, or None when it is too short to tell.
 

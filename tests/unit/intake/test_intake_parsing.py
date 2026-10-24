@@ -23,8 +23,14 @@ from intake_drivers import (
 from preprocessing.parsing.analysis import (
     DocumentAnalyser,
     EmptyDocument,
+    UnconfiguredLanguage,
 )
-from preprocessing.parsing.models import ClaimedDocument, Conversion, SourceDocument
+from preprocessing.parsing.models import (
+    ClaimedDocument,
+    Conversion,
+    ParsedDocument,
+    SourceDocument,
+)
 from preprocessing.parsing.pipelines import (
     ConversionFailed,
     PdfPipeline,
@@ -417,7 +423,7 @@ def test_a_drain_sweeps_the_claims_an_earlier_run_left_behind(caplog) -> None:
 # ── The analyser ───────────────────────────────────────────────────────────
 
 
-def analysed(document) -> object:
+def analysed(document) -> ParsedDocument:
     """Reads one converted document the way the service reads it."""
     return DocumentAnalyser().analyse(
         Conversion(document=document, confidence=None, confidence_low=None)
@@ -459,6 +465,41 @@ def test_a_document_with_no_body_text_is_refused() -> None:
     """A conversion that succeeded and produced nothing is not a document."""
     with pytest.raises(EmptyDocument, match="no extractable body text"):
         analysed(docling_document())
+
+
+_BODIES = {
+    "de": "Der Verbraucher kann einen im Fernabsatz geschlossenen Vertrag "
+    "innerhalb von vierzehn Tagen widerrufen, ohne seine Entscheidung zu begründen.",
+    "en": "The consumer may withdraw from a contract concluded at a distance "
+    "within fourteen days, without having to give any reason for the decision.",
+    "fr": "Le consommateur dispose d'un délai de quatorze jours pour se "
+    "rétracter d'un contrat conclu à distance, sans avoir à justifier sa décision.",
+    "es": "El consumidor dispone de un plazo de catorce días para desistir de "
+    "un contrato celebrado a distancia, sin tener que justificar su decisión.",
+    "nl": "De consument kan binnen veertien dagen zonder opgave van redenen "
+    "afzien van een overeenkomst die op afstand is gesloten.",
+}
+
+
+@pytest.mark.parametrize("code", ["de", "en"])
+def test_a_document_in_a_configured_language_is_read_in_it(code: str) -> None:
+    """German and English bodies pass and carry their own language."""
+    document = docling_document(paragraphs=(_BODIES[code],))
+
+    assert analysed(document).language == code
+
+
+@pytest.mark.parametrize(
+    ("code", "name"), [("fr", "French"), ("es", "Spanish"), ("nl", "Dutch")]
+)
+def test_a_document_in_an_unconfigured_language_is_refused_naming_it(
+    code: str, name: str
+) -> None:
+    """Read silently as German or English, it would corrupt every later stage."""
+    document = docling_document(paragraphs=(_BODIES[code],))
+
+    with pytest.raises(UnconfiguredLanguage, match=rf"{name} \({code}\).*de, en"):
+        analysed(document)
 
 
 def test_the_content_hash_ignores_case_and_spacing() -> None:
