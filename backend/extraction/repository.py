@@ -630,6 +630,24 @@ class DigestQueue(PassageQueue):
         """Back to extracted with its note: pending would read it again."""
         return {self.columns.status: Status.EXTRACTED}
 
+    def fail(self, key: int, error: str) -> None:
+        """Records a digest that could not be given, and leaves the passage extracted.
+
+        Its atomic facts stand, and so do the questions on them: the reason
+        becomes the digest note, which this queue finds by its opening and
+        `make extract-retry`, which reads failed passages again, never sees.
+
+        Raises:
+            Lost: If another worker has claimed the row since this one did.
+        """
+        self._release(
+            key,
+            {
+                self.columns.status: Status.EXTRACTED,
+                self.columns.error: f"{DIGEST_FAILED}{error}"[:2000],
+            },
+        )
+
     def store_digests(
         self, passage_id: int, facts: list[CheckedFact], note: str | None = None
     ) -> int:

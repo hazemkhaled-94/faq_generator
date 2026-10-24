@@ -209,6 +209,35 @@ def test_the_digest_pass_asks_no_model_about_what_the_first_pass_skips(
     assert run.queue.notes == {1: None}
 
 
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_the_digest_pass_never_fails_an_extracted_passage(language: str) -> None:
+    """An unexpected error is the passage's digest note, and its status stays."""
+    run = Extraction(
+        passage(LANGUAGES[language], language=language),
+        digest=RuntimeError("disk full"),
+        kinds=BOTH,
+        digests_only=True,
+    )
+
+    run.run()
+
+    assert run.queue.failed == {}, "make extract-retry would read it again"
+    assert run.queue.notes[1] == "digest failed: RuntimeError: disk full"
+
+
+def test_a_digest_pass_cut_short_releases_its_row() -> None:
+    """An interrupt leaves no claim for the next start to sweep into failed."""
+    run = Extraction(
+        passage(), digest=KeyboardInterrupt(), kinds=BOTH, digests_only=True
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        run.run()
+
+    assert run.queue.released == [1]
+    assert run.queue.failed == {}
+
+
 def test_an_unexpected_failure_is_named_by_its_type() -> None:
     """A row failed by something nobody planned for still says what it was."""
     run = Extraction(passage(), facts=ValueError("nonsense came back"))

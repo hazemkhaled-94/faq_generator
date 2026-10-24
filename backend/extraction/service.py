@@ -1495,6 +1495,12 @@ class DigestPass(ExtractionService):
                     extra={"facts.stored": stored},
                 )
             except Exception as exc:
+                # `DigestQueue.fail` keeps the passage extracted, with the
+                # reason as its digest note: its facts stand.
                 self._fail(passage.id, f"{type(exc).__name__}: {exc}", current)
                 log.exception("failed digest of passage %d", passage.id)
+            except BaseException:
+                # Interrupted: the row goes back as it was, for the next pass.
+                self._repository.release(passage.id)
+                raise
         return passage.id

@@ -261,9 +261,9 @@ class Model:
 
     def __init__(
         self,
-        answer: dict | Exception | Callable[[str], dict] | None = None,
+        answer: dict | BaseException | Callable[[str], dict] | None = None,
         *,
-        under: dict[str, dict | Exception] | None = None,
+        under: dict[str, dict | BaseException] | None = None,
     ) -> None:
         """Initialises the model.
 
@@ -309,7 +309,7 @@ class Model:
         if callable(scripted):
             # Answers by what it was shown, for a test of rows that differ.
             scripted = scripted(user)
-        if isinstance(scripted, Exception):
+        if isinstance(scripted, BaseException):
             raise scripted
         return shape(**scripted)
 
@@ -695,6 +695,14 @@ class Vectors:
         ]
 
 
+class DigestRows(Queue):
+    """The queue of the digest pass, whose failure leaves a passage extracted."""
+
+    def fail(self, passage_id: int, error: str) -> None:
+        """Keeps the passage as it was, with the reason as its digest note."""
+        self.notes[passage_id] = f"digest failed: {error}"
+
+
 class Extraction:
     """The per-passage service, wired around scripted models."""
 
@@ -703,7 +711,7 @@ class Extraction:
         *passages: PassageToExtract,
         facts: dict | Exception | Callable[[str], dict] | None = None,
         repair: dict | Exception | None = None,
-        digest: dict | Exception | None = None,
+        digest: dict | BaseException | None = None,
         kinds: tuple[str, ...] = (),
         digests_only: bool = False,
         duplicate_cosine: float = 0.0,
@@ -741,7 +749,7 @@ class Extraction:
         from extraction.extractors.llm import REPAIR_PROMPT_VERSION
         from extraction.service import DigestPass, ExtractionService
 
-        self.queue = Queue(*passages)
+        self.queue = (DigestRows if digests_only else Queue)(*passages)
         self.model = Model(
             facts if facts is not None else {"facts": []},
             under={REPAIR_PROMPT_VERSION: {"facts": []} if repair is None else repair},

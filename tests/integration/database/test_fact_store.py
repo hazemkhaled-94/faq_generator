@@ -2087,6 +2087,26 @@ class TestTheDigestPass:
             self.NOTE,
         )
 
+    def test_a_digest_that_fails_leaves_the_passage_extracted_with_the_reason(
+        self, store, corpus
+    ) -> None:
+        """Not failed: make extract-retry would read it and replace its facts."""
+        from extraction.repository import DigestQueue
+
+        (first, _) = corpus["a"]
+        self._extracted_without_digest(store, first)
+        before = store.rows("id", "statement", where="kind = 'atomic'")
+        queue = DigestQueue()
+        queue.claim()
+
+        queue.fail(first, "RuntimeError: disk full")
+
+        assert store.statuses()[0] == Status.EXTRACTED
+        assert store._execute("SELECT extract_error FROM passages ORDER BY id")[0] == (
+            "digest failed: RuntimeError: disk full",
+        )
+        assert store.rows("id", "statement", where="kind = 'atomic'") == before
+
     def test_a_long_passage_with_no_digest_is_claimed_without_a_note(
         self, store, corpus
     ) -> None:

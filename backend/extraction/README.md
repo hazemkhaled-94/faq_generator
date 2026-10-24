@@ -130,7 +130,10 @@ no digest, so a floor lowered after a corpus was read reaches it without
 re-reading it. A passage the drain skips (a contents page, a copyright
 notice, a reference list) is finished without a call here too. It calls only the digest model, and replaces only the summary and the outline,
 never an atomic fact or its id. A digest that fails again keeps its note and is
-tried again on the next run, once per run. A deployment whose `EXTRACTION_KINDS`
+tried again on the next run, once per run. An unexpected error in the pass
+does the same, and an interrupt gives the passage back as it was: the pass
+never makes an extracted passage `failed`, which `make extract-retry` would
+read again and replace the atomic facts of. A deployment whose `EXTRACTION_KINDS`
 names no digest kind has nothing to give: the command says so and exits 0, so
 `make corpus` goes on.
 
