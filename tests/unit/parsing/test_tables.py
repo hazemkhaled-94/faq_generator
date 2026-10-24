@@ -352,8 +352,10 @@ def test_a_row_a_spanning_cell_covers_is_never_joined() -> None:
 HEADER, DATA = "hebo", "helv"
 
 
-def typeset(*pages: list[tuple[tuple[str, ...], str]]) -> tuple[bytes, list]:
-    """Prints each page's rows, each in its font, in two columns.
+def typeset(
+    *pages: list[tuple[tuple[str, ...], str | tuple[str, ...]]],
+) -> tuple[bytes, list]:
+    """Prints each page's rows, each in its font (or one font per column).
 
     Returns:
         The PDF, and each page's cell boxes by row and column, with a
@@ -368,9 +370,10 @@ def typeset(*pages: list[tuple[tuple[str, ...], str]]) -> tuple[bytes, list]:
             baseline = 120 + 20 * at
             placed.append([])
             for col, text in enumerate(row):
+                face = font if isinstance(font, str) else font[col]
                 left = 60 + 250 * col
-                page.insert_text((left, baseline), text, fontname=font, fontsize=9)
-                right = left + pymupdf.get_text_length(text, fontname=font, fontsize=9)
+                page.insert_text((left, baseline), text, fontname=face, fontsize=9)
+                right = left + pymupdf.get_text_length(text, fontname=face, fontsize=9)
                 placed[-1].append(
                     BoundingBox(
                         l=left,
@@ -450,5 +453,139 @@ def test_a_second_schedule_headed_in_the_data_font_is_a_table_of_its_own() -> No
     document = paged(2)
     document.add_table(data=boxed(SCHEDULE, one, header=True), prov=on(1))
     document.add_table(data=boxed(second, two, header=True), prov=on(2))
+
+    assert len(rows(_tabled(document, data))) == 2
+
+
+# ── A table whose row labels are set as its header is ──────────────────────
+
+#: A schedule whose first column is bold in its header and in its data, as a
+#: row label is, and whose figures are regular.
+LABELLED = {
+    "de": (
+        ("Vergehen", "Erstverstoß", "Zweitverstoß"),
+        ("Laserpointer", "1 000 EUR", "2 000 EUR"),
+        ("Pyrotechnik", "5 000 EUR", "9 000 EUR"),
+    ),
+    "en": (
+        ("Offence", "First breach", "Second breach"),
+        ("Laser pointers", "1,000 EUR", "2,000 EUR"),
+        ("Fireworks", "5,000 EUR", "9,000 EUR"),
+    ),
+}
+LABELLED_REST = (
+    ("Sachbeschädigung", "3 000 EUR", "6 000 EUR"),
+    ("Verspäteter Anstoß", "500 EUR", "1 000 EUR"),
+)
+
+
+def labelled(
+    language: str, rest: tuple[tuple[str, ...], ...], rest_label: str = HEADER
+) -> tuple[bytes, DoclingDocument]:
+    """A schedule onto page 2, the converter taking its rest's first row for a header."""
+    bold, plain = (HEADER, DATA, DATA), DATA
+    schedule_rows = LABELLED[language]
+    data, (first, second) = typeset(
+        [(schedule_rows[0], HEADER), *((row, bold) for row in schedule_rows[1:])],
+        [(rest[0], (rest_label, plain, plain)), (rest[1], bold)],
+    )
+    document = paged(2)
+    document.add_table(data=boxed(schedule_rows, first, header=True), prov=on(1))
+    document.add_table(data=boxed(rest, second, header=True), prov=on(2))
+    return data, document
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_rest_joins_when_a_column_sets_its_header_and_data_alike(
+    language: str,
+) -> None:
+    """The label column is bold throughout and tells nothing; the figures decide."""
+    rest = LABELLED_REST
+    if language == "en":
+        rest = (
+            ("Damage", "3,000 EUR", "6,000 EUR"),
+            ("Late kick-off", "500 EUR", "1,000 EUR"),
+        )
+    data, document = labelled(language, rest)
+
+    assert rows(_tabled(document, data)) == [
+        [list(row) for row in LABELLED[language] + rest]
+    ]
+
+
+def test_a_rest_whose_every_column_sets_header_and_data_alike_stays_apart() -> None:
+    """No column tells the two apart, so nothing says the row is data."""
+    data, (one, two) = typeset(
+        [(row, HEADER) for row in LABELLED["en"]],
+        [(row, HEADER) for row in LABELLED_REST],
+    )
+    document = paged(2)
+    document.add_table(data=boxed(LABELLED["en"], one, header=True), prov=on(1))
+    document.add_table(data=boxed(LABELLED_REST, two, header=True), prov=on(2))
+
+    assert len(rows(_tabled(document, data))) == 2
+
+
+# ── A caption or a footnote between the pieces of a table ──────────────────
+
+
+def captioned(between: DocItemLabel) -> DoclingDocument:
+    """A fee table, its piece on page 1 followed by `between`, then its rest."""
+    document = paged(2)
+    first = document.add_table(data=grid(*FEES), prov=on(1))
+    note = document.add_text(label=between, text="Fees in EUR.", prov=on(1))
+    if between == DocItemLabel.CAPTION:
+        first.captions.append(note.get_ref())
+    elif between == DocItemLabel.FOOTNOTE:
+        first.footnotes.append(note.get_ref())
+    document.add_table(data=grid(("Cash", "3 EUR"), header=False), prov=on(2))
+    return document
+
+
+@pytest.mark.parametrize("between", [DocItemLabel.CAPTION, DocItemLabel.FOOTNOTE])
+def test_a_caption_or_footnote_of_the_first_piece_does_not_part_the_halves(
+    between: DocItemLabel,
+) -> None:
+    """The table's own caption is no text between the pieces."""
+    assert len(rows(_tabled(captioned(between)))) == 1
+
+
+def test_a_paragraph_between_the_pieces_still_parts_them() -> None:
+    """Only the table's own caption and footnotes are let through."""
+    document = captioned(DocItemLabel.TEXT)
+
+    assert len(rows(_tabled(document))) == 2
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_rest_whose_leading_rows_are_all_flagged_headers_joins_too(
+    language: str,
+) -> None:
+    """The converter may flag several rows of a continuation as headers."""
+    rest = LABELLED_REST
+    if language == "en":
+        rest = (
+            ("Damage", "3,000 EUR", "6,000 EUR"),
+            ("Late kick-off", "500 EUR", "1,000 EUR"),
+        )
+    data, document = labelled(language, rest)
+    for cell in document.tables[1].data.table_cells:
+        cell.column_header = True
+
+    assert rows(_tabled(document, data)) == [
+        [list(row) for row in LABELLED[language] + rest]
+    ]
+    assert not any(
+        cell.column_header
+        for cell in document.tables[0].data.table_cells
+        if cell.start_row_offset_idx > 0
+    )
+
+
+def test_a_rest_with_a_gap_in_its_header_rows_stays_apart() -> None:
+    """Header rows are the first rows; a flagged row after a data row is not."""
+    data, document = labelled("en", LABELLED_REST)
+    for cell in document.tables[1].data.table_cells:
+        cell.column_header = cell.start_row_offset_idx == 1
 
     assert len(rows(_tabled(document, data))) == 2

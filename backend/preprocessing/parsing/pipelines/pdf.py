@@ -512,12 +512,15 @@ def _tabled(document: DoclingDocument, data: bytes | None = None) -> DoclingDocu
     table in any language with case; a script without case joins no row,
     which is the safe side.
 
-    The converter may take the rest's first row for a header. That row is
+    The converter may take the rest's first rows for a header. They are
     data, and the rest joins, when each of its cells is set in the font most
     of the first table's data in its column is set in, and not in the font of
     that column's header: the type the PDF itself sets the two in, so a
     second table whose header is set as the first's stays apart, and so does
-    the rest of a table whose header is set as its data. Nor does a row join
+    the rest of a table whose header is set as its data. A column that sets
+    header and data alike, a row label bold throughout, is left out of the
+    test; the table's other columns decide. The table's own caption and
+    footnotes between the two do not part them. Nor does a row join
     that holds no figure in a column most of the first table's data holds
     one in: a second schedule headed in its data's type names its columns
     where the first's rows priced them.
@@ -540,6 +543,12 @@ def _tabled(document: DoclingDocument, data: bytes | None = None) -> DoclingDocu
         if not isinstance(item, DocItem) or item.content_layer != ContentLayer.BODY:
             continue
         if item.label == DocItemLabel.PICTURE:
+            continue
+        if anchor is not None and (
+            item.self_ref in {ref.cref for ref in anchor.captions + anchor.footnotes}
+            or isinstance(item.parent and item.parent.resolve(document), TableItem)
+        ):
+            # The table's own caption or footnote is no text between its pieces.
             continue
         if not isinstance(item, TableItem):
             anchor = None
@@ -565,7 +574,7 @@ def _continues(
 ) -> bool:
     """Whether a table is the rest of the one before it, broken at a page.
 
-    A rest holding a header is one only where the header is its first row,
+    A rest holding a header is one only where the header is its first rows,
     set and filled as the table's data is: `_set_as_data`.
     """
     if rest.data.num_cols != table.data.num_cols or not table.prov or not rest.prov:
@@ -584,16 +593,22 @@ def _set_as_data(
     heads: list[TableCell],
     font: Callable[[int, BoundingBox], _Font | None],
 ) -> bool:
-    """Whether a rest's header cells are its first row, set as `table`'s data.
+    """Whether a rest's header cells are its first rows, set as `table`'s data.
+
+    The converter may flag several leading rows, never a row after one that
+    is not.
 
     Each is set in the font most of the table's data cells in its column are,
-    and not in the font of the table's header cell there. And the row holds a
+    and not in the font of the table's header cell there. A column whose
+    header and data share a font tells nothing and is passed over, but at
+    least one column must tell. And the row holds a
     figure in each column most of whose data cells hold one, as a fee's does,
     so a second schedule headed in the data's type, its `Frist` over a column
     of prices, stays apart. Only the rows the table printed on its own page
     are read, where `font` looks for them.
     """
-    if any(cell.start_row_offset_idx != 0 or cell.bbox is None for cell in heads):
+    flagged = sorted({cell.start_row_offset_idx for cell in heads})
+    if flagged != list(range(len(flagged))) or any(cell.bbox is None for cell in heads):
         return False
     page = rest.prov[0].page_no
     first = table.prov[0].page_no
@@ -624,10 +639,19 @@ def _set_as_data(
         for cell in rest.data.table_cells
     ):
         return False
+    decided = False
     for cell in heads:
         column = cell.start_col_offset_idx
         set_in = font(page, cast(BoundingBox, cell.bbox))
         commonest = usual[column].most_common(1)
+        if (
+            commonest
+            and column in headed
+            and commonest[0][0] == font(first, headed[column])
+        ):
+            # Header and data alike in this column, as a row label bold
+            # throughout is: the column tells nothing, the others decide.
+            continue
         if (
             set_in is None
             or not commonest
@@ -635,7 +659,8 @@ def _set_as_data(
             or (column in headed and set_in == font(first, headed[column]))
         ):
             return False
-    return True
+        decided = True
+    return decided
 
 
 def _figured(text: str) -> bool:
