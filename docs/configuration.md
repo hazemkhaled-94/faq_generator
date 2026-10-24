@@ -145,6 +145,15 @@ judge left unset while `ASSESSMENT_ENABLED` is true, naming the role and the
 setting that moves it. The containers keep calling Ollama by design: `.env`'s
 role models never reach them, and compose gives them `LLM_CONTAINER_MODEL`.
 
+### Prices follow the installed litellm
+
+`LITELLM_LOCAL_MODEL_COST_MAP=true` is committed in `backend.env`, so litellm
+reads the model list of the installed package and never fetches one at import.
+The prices `make spend` and `SPEND_CAP` count at, and which hosted models are
+known not to reason (and so are sent no `LLM_REASONING_EFFORT`), therefore
+change only when the litellm lock does. A model litellm does not list is
+unpriced: a drain with `SPEND_CAP` set refuses it.
+
 ## Pinning the encoders
 
 `EMBEDDING_MODEL`, `NLI_MODEL` and `QA_MODEL` are Hugging Face repositories, and
