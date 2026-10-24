@@ -941,8 +941,11 @@ def cites_source(question: str, language: str | None) -> bool | None:
         # is load-bearing - `reported to the site manager in 2025` names a
         # party and a period and no source, and the preposition is what
         # says so.
+        # A month is one too where the tagger reads it as a name: `by 2 July
+        # 2026` is a date, which the entity reading marks and a citation is not.
         if (
             token.pos_ == "PROPN"
+            and token.ent_type_ != "DATE"
             and following is not None
             and _CITED_YEAR.match(following.text.strip())
         ):

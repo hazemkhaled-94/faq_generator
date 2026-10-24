@@ -6689,3 +6689,23 @@ def test_a_sentence_key_adding_nothing_still_restates_and_an_unknown_language_is
         ),
         bool,
     )
+
+
+@pytest.mark.parametrize(
+    ("question", "language", "cites"),
+    [
+        ("Why must List A be submitted by 2 July 2026?", "en", None),
+        ("Can I return an order placed by 1 March 2026?", "en", None),
+        ("What changes from January 2026?", "en", None),
+        ("Bis wann muss die Liste am 2. Juli 2026 eingereicht werden?", "de", None),
+        ("Bis wann gilt das Angebot vom 1. März 2026?", "de", None),
+        ("Wie definiert Beck 2003 Refactoring?", "de", True),
+        ("What does Beck 2003 say?", "en", True),
+        ("Quelle est la date limite du 1 mars 2026?", "fr", None),
+    ],
+)
+def test_a_date_is_no_author_and_year(question, language, cites) -> None:
+    """`July 2026` is a proper noun and a year, and a period, not a citation."""
+    from question_generation.gates import cites_source
+
+    assert cites_source(question, language) is cites
