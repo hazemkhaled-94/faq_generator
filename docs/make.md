@@ -21,8 +21,9 @@ is the long form.
 |---|---|
 | `make setup` | Write `.env` and `configs/env/provider.env`, and fill in every placeholder |
 | `make install` | The Python dependencies, the spaCy pipelines and Docling's weights |
-| `make doctor` | Check the tools and the configuration, compare the settings the api serves with the checkout's (a warning when the api is down), then ask the model one question, and print the archive's estimated rows and size (`python -m archive.run --size`) |
+| `make doctor` | Check the tools and the configuration, compare the settings the api serves with the checkout's (a warning when the api is down), the model split, the stored settings against the catalogue, and with `HF_HUB_OFFLINE=1` the pinned models and Docling's weights in the cache, then ask every model one question. Warns when the checkout or `ENV_FILE` sits in a synced folder, and fails on an `APP_DB_PASSWORD` a connection string cannot hold |
 | `make dev` | `make install` first, then certificates, every service, the schema and the Grafana grants |
+| `make upgrade` | Take a deployment to this checkout's code: check the engine has `UPGRADE_FREE_GB` free (20), build, prune the images the build orphaned, stop the workers, `make schema`, `make up`; stops at the first step that fails |
 
 `setup` is safe to run twice: it replaces `change_me_*` placeholders and
 nothing else. It gives one secret per distinct placeholder and substitutes it
@@ -78,6 +79,11 @@ evaluation targets and `dagster-dev` also read `review.env`,
 the six workers take only `backend.env` whole, and `provider.env` where they
 call a model; compose reads `deployment.env` and `.env` only for the values
 `compose.yaml` names.
+
+`.env` is `ENV_FILE`, which is `.env` beside the Makefile unless you name
+another: `make up ENV_FILE=/etc/qa/secrets.env`, or export it. A relative path
+is read from the checkout. See [Go-live host](operations.md#go-live-host) for
+why the secrets leave a synced checkout.
 
 The model is named apart for the containers: a container calls
 `LLM_CONTAINER_MODEL` at `OLLAMA_CONTAINER_URL`, its verifier is
