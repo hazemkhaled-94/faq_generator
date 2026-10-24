@@ -121,6 +121,17 @@ the edge is matched as the converter spells it. An item every page word in
 whose box is hidden goes whole, however the converter spelled it. Text drawn
 invisible is in both reads, so a scan's OCR layer is never hidden.
 
+Text no reader sees goes the same way, read off `page.get_texttrace()`:
+characters in render mode 3, fully transparent, set under 2 points, or white
+with no fill and no picture under them. It is dropped on a page whose other
+text paints ink, so a scan's OCR layer, which is all there is, is left; text
+that lies over a picture is that picture's text layer and is left; and a
+span a fill covers is left, because the drawing order of fill and text is
+not read, so white text on a dark bar is seen. The note counts the characters
+left out (`documents.parse_error`, metadata `hidden-characters`). A 2 point
+floor reaches diagram labels set that small on a small page; it changed two
+documents of the 80 measured, at every floor from 1.6 to 2.4 points.
+
 A page that strikes and hides nothing is never touched. A source pymupdf
 cannot open, or a page the two readers give different sizes, is left as
 converted, with a warning.

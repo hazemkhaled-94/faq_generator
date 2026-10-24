@@ -53,6 +53,8 @@ class Conversion:
         confidence_low: Confidence of its worst page, or None.
         unread_pages: 1-based pages that are a picture and carry no text
             layer, which the conversion could not read.
+        unseen_characters: How many characters no reader sees were left out
+            of the document: invisible, in the paper's colour or too small.
         page_scores: Each page's own lower-bound confidence, by page number
             from 1, where the converter reports one.
         titles: What the document may be called, best first, as the file
@@ -64,6 +66,7 @@ class Conversion:
     confidence: float | None
     confidence_low: float | None
     unread_pages: tuple[int, ...] = ()
+    unseen_characters: int = 0
     page_scores: tuple[tuple[int, float], ...] = ()
     titles: tuple[str, ...] = ()
 

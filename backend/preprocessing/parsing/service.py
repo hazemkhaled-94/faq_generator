@@ -211,6 +211,18 @@ class ParsingService(StageService):
             current.set_attribute("parse.low_confidence_pages", pages)
             log.warning("parsed %s: %s", document.sha256, warning)
 
+        if converted.unseen_characters:
+            hidden = (
+                f"{converted.unseen_characters} characters of text no reader can "
+                "see (invisible, in the colour of the paper or under 2 points) "
+                "were left out"
+            )
+            note = f"{note}; {hidden}" if note else hidden
+            current.set_attribute(
+                "parse.hidden_characters", converted.unseen_characters
+            )
+            log.warning("parsed %s: %s", document.sha256, hidden)
+
         key = self._parsed.key_for(document.sha256)
         store = partial(
             self._parsed.put,
@@ -228,6 +240,11 @@ class ParsingService(StageService):
                     else {}
                 ),
                 **({"low-confidence-pages": ",".join(map(str, weak))} if weak else {}),
+                **(
+                    {"hidden-characters": str(converted.unseen_characters)}
+                    if converted.unseen_characters
+                    else {}
+                ),
             },
         )
         # ponytail: downloads the earlier object only to learn it exists; a

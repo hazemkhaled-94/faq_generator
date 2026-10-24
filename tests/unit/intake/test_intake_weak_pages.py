@@ -82,3 +82,16 @@ def test_both_kinds_of_page_are_in_one_note() -> None:
     note = driver.notes[SHA] or ""
     assert "page(s) 2" in note
     assert "page(s) 5" in note
+
+
+def test_the_characters_nobody_sees_are_counted_in_the_note() -> None:
+    """A document that lost hidden text says how much."""
+    driver = ParseDriver(
+        queued=(claimed(),), pipeline=ScriptedPipeline(unseen_characters=235)
+    )
+
+    driver.run()
+
+    assert "235 characters of text no reader can see" in (driver.notes[SHA] or "")
+    held = driver.parsed.metadata[driver.parsed.key_for(SHA)]
+    assert held["hidden-characters"] == "235"

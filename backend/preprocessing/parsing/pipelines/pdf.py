@@ -272,6 +272,7 @@ class PdfPipeline(Pipeline):
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
             unread_pages=image_only_pages(source.data, self._ocr_characters),
+            unseen_characters=unseen_characters(source.data),
             page_scores=_page_scores(result),
             titles=_titles(document, source.data),
         )
@@ -514,6 +515,19 @@ def _union_area(rects: list[pymupdf.Rect]) -> float:
             total += (right - left) * max(0.0, end - max(start, top))
             top = max(top, end)
     return total
+
+
+def _covered(page: pymupdf.Page) -> float:
+    """The share of a page that pictures cover."""
+    area = abs(page.rect)
+    if not area:
+        return 0.0
+    return (
+        _union_area(
+            [pymupdf.Rect(info["bbox"]) & page.rect for info in page.get_image_info()]
+        )
+        / area
+    )
 
 
 def image_only_pages(data: bytes, characters: int = 0) -> tuple[int, ...]:
@@ -1067,7 +1081,10 @@ def _unstruck(document: DoclingDocument, data: bytes) -> DoclingDocument:
     table cell, whose box holds it. Section headers are text items. An item
     left with no text leaves the body. Invisible text is not hidden: a
     scanned page's OCR layer is drawn invisible and is the only text there
-    is. A page that strikes and hides nothing is never touched.
+    is. Text no reader sees - render mode 3, fully transparent, under two
+    points or the colour of the paper under it - goes the same way on a page
+    whose other text paints ink; a scanned page's text is left. A page that
+    strikes and hides nothing is never touched.
 
     Args:
         document: The converted document, modified in place.
@@ -1157,7 +1174,9 @@ def _marked(
                 for word in _words(page, _UNCLIPPED)
                 if (kept := _on_page(word, page.rect)) is not None
             ]
-            hidden = _hidden(words, _words(page, None))
+            hidden = _unseen_in(
+                words, _unseen(page), _hidden(words, _words(page, None))
+            )
             flagged: list[_Marked] = []
             for word, gone in zip(words, hidden, strict=True):
                 struck = _struck_segments(word, strokes)
@@ -1176,6 +1195,129 @@ def _marked(
                     ),
                 )
     return marked
+
+
+#: How far a channel of the ink may be from the paper's and still be the same
+#: colour, and the smallest type a reader can read, in points.
+_SAME_COLOUR = 0.02
+_LEGIBLE = 2.0
+
+
+def _centre(span: dict) -> pymupdf.Point:
+    """The middle of a span's box."""
+    return pymupdf.Point(
+        (span["bbox"][0] + span["bbox"][2]) / 2, (span["bbox"][1] + span["bbox"][3]) / 2
+    )
+
+
+def _invisible(
+    span: dict, fills: list[pymupdf.Rect], pictures: list[pymupdf.Rect]
+) -> bool:
+    """Whether a reader cannot see a span of text.
+
+    It is drawn in render mode 3, fully transparent, under two points, or in
+    the colour of the paper: white, with nothing drawn under it. Text over a
+    picture is that picture's own text layer, its words as pymupdf reads
+    them, and is left: so is a span a fill covers, whose background cannot be
+    told because the drawing order of fill and text is not known.
+    """
+    point = _centre(span)
+    if any(picture.contains(point) for picture in pictures):
+        return False
+    if (
+        span["type"] == _INVISIBLE_MODE
+        or span["opacity"] == 0
+        or span["size"] < _LEGIBLE
+    ):
+        return True
+    ink = tuple(span["color"])
+    return (
+        span["type"] in (0, 2)
+        and len(ink) == len(_PAPER)
+        and all(abs(a - b) <= _SAME_COLOUR for a, b in zip(_PAPER, ink, strict=True))
+        and not any(fill.contains(point) for fill in fills)
+    )
+
+
+#: The colour of the paper.
+_PAPER = (1.0, 1.0, 1.0)
+
+#: Text render mode 3, which paints nothing.
+_INVISIBLE_MODE = 3
+
+
+def _unseen(page: pymupdf.Page) -> list[tuple[str, float, float]]:
+    """Every character of a page no reader sees, with its origin on the baseline.
+
+    None where the page's other text paints nothing either, or where a picture
+    covers most of the page: a scanned page's OCR layer is drawn invisible and
+    is the only text there is, or the picture's own.
+    """
+    if _covered(page) >= _SCAN_COVER:
+        return []
+    spans = page.get_texttrace()
+    fills = [
+        pymupdf.Rect(shape["rect"])
+        for shape in page.get_drawings()
+        if shape.get("fill") is not None
+        and shape.get("fill_opacity", 1) != 0
+        and shape.get("rect") is not None
+    ]
+    pictures = [pymupdf.Rect(info["bbox"]) for info in page.get_image_info()]
+    gone = [_invisible(span, fills, pictures) for span in spans]
+    if all(gone):
+        return []
+    return [
+        (chr(char[0]), char[2][0], char[2][1])
+        for span, hidden in zip(spans, gone, strict=True)
+        if hidden
+        for char in span["chars"]
+        if not chr(char[0]).isspace()
+    ]
+
+
+def _unseen_in(
+    words: list[_Word],
+    unseen: list[tuple[str, float, float]],
+    hidden: list[tuple[bool, ...] | None],
+) -> list[tuple[bool, ...] | None]:
+    """`hidden`, with every character of `words` the page does not show added."""
+    if not unseen:
+        return hidden
+    placed: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for char, x, y in unseen:
+        placed[char].append((x, y))
+    found: list[tuple[bool, ...] | None] = []
+    for word, flags in zip(words, hidden, strict=True):
+        extra = tuple(
+            any(
+                abs(left - x) <= _SAME_PLACE and abs(word.baseline - y) <= _SAME_PLACE
+                for x, y in placed.get(char, ())
+            )
+            for char, left, _, _, _ in word.chars
+        )
+        merged = (
+            tuple(a or b for a, b in zip(flags, extra, strict=True))
+            if flags is not None
+            else extra
+        )
+        found.append(merged if any(merged) else None)
+    return found
+
+
+def unseen_characters(data: bytes) -> int:
+    """How many characters of a PDF no reader sees, for the parse note.
+
+    Characters in render mode 3, fully transparent, under two points or in the
+    colour of the paper, on pages whose other text paints ink. Zero where the
+    file cannot be read.
+    """
+    try:
+        with pymupdf.open(stream=data, filetype="pdf") as pdf:
+            return sum(len(_unseen(page)) for page in pdf)
+    except Exception as exc:  # noqa: BLE001 - the conversion already succeeded
+        log.warning("hidden text was not counted: %s: %s", type(exc).__name__, exc)
+        return 0
 
 
 def _strokes(page: pymupdf.Page) -> list[tuple[float, float, float, float]]:
