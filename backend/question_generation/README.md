@@ -289,6 +289,15 @@ asked again for one well-formed search query in keywords, where a question
 is told to end in a single question mark. Prompt version 19 is the first to
 send the line; a slot dealt no query is sent what version 18 sent.
 
+Prompt version 31 adds two rules to what the writer reads. Every writer is
+told the reader never sees the passage, so the question names the rule,
+product or procedure in its own words and never "the article" or "the
+regulation". An answerable writer is also told to put the case, party or
+condition that makes its key the only right answer into the question, and,
+where the passage answers differently by case, to ask about one case and say
+which. A slot told to write an unanswerable question has no key and is not
+told the second.
+
 A draft a gate refused for how it was written — two questions welded
 together, its source named, an answer of the wrong shape — is written again
 with a note saying what went wrong, up to `QUESTIONS_RETRIES` times. An

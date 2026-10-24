@@ -1581,3 +1581,43 @@ def test_the_passages_beside_are_told_what_the_probe_checks(told, tail: str) -> 
     QuestionWriter(model).write(sample, plan(answerable=False, categories=told))
 
     assert f"the chatbot reads too; {tail}:\n" in model.user
+
+
+# ── What the writer is told about the reader and about its key ─────────────
+
+
+def test_every_type_is_told_to_name_the_case_that_fixes_its_key() -> None:
+    """A question two readings answer differently is one nobody can be marked on."""
+    for name, spec in SPECS.items():
+        system = spec.system()
+        assert "NAME WHAT MAKES YOUR KEY THE ONLY RIGHT ANSWER" in system, name
+        assert "ask about one of them and say which" in " ".join(system.split()), name
+
+
+def test_the_key_rule_has_a_shop_and_a_bank_example_in_both_languages() -> None:
+    """Two domains, English and German, none of them the corpus at hand."""
+    rule = SPECS["factoid"].system().split("NAME WHAT MAKES YOUR KEY")[1]
+    rule = rule.split("- `facts` is")[0]
+
+    assert "return an item bought online" in rule
+    assert "Überweisung ins Ausland" in rule
+
+
+def test_every_writer_is_told_the_reader_never_sees_the_passage() -> None:
+    """The type prompts and the unanswerable writer share the rule through READS."""
+    from question_generation.generation import _perturbation
+
+    systems = [spec.system() for spec in SPECS.values()] + [_perturbation(None)[0]]
+    for system in systems:
+        flat = " ".join(system.split())
+        assert "THE READER NEVER SEES THE PASSAGE" in system
+        assert "never refer to the document, the article" in flat
+        assert "an online shop refund a returned purchase" in flat
+        assert "Kreditvertrag" in system
+
+
+def test_an_unanswerable_slot_has_no_key_to_name_a_case_for() -> None:
+    """The key rule is the answerable writer's: nothing is keyed here."""
+    from question_generation.generation import _perturbation
+
+    assert "NAME WHAT MAKES YOUR KEY" not in _perturbation(None)[0]

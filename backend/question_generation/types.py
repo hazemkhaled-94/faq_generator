@@ -32,7 +32,7 @@ from llm.prompt import grounded
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "30"
+PROMPT_VERSION = "31"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -144,6 +144,18 @@ READS = """Rules, all of them mandatory:
   the 2022 and 2024 editions" is a question. This applies to every question
   asked cold; only a follow-up in a conversation may lean on what came before.
 
+- THE READER NEVER SEES THE PASSAGE. Name the rule, product or procedure you
+  ask about in the question's own words, and never refer to the document, the
+  article, the section or the regulation: "the article" and "the regulation"
+  mean nothing to somebody who has not read it.
+
+    WRONG  "Within what period does the regulation require the refund?"
+    RIGHT  "Within how many days must an online shop refund a returned
+            purchase?"
+    WRONG  "Welche Frist nennt der Artikel für den Widerruf?"
+    RIGHT  "Binnen welcher Frist kann ein Kunde einen Kreditvertrag
+            widerrufen?"
+
 - NO PADDING WORDS. Nobody typing a question into a search box writes the
   equivalent of "specific", "concrete" or "particular" - in any language they
   are filler that makes a question read like a form. Ask "Which criteria ...",
@@ -226,6 +238,18 @@ to understand the answer. Write it for them:
 #: Everything the answer has to satisfy, under the FORMAT heading: how the
 #: question must read, which facts to cite, and what the two answers are.
 _FORMAT_RULES = f"""{READS}
+- NAME WHAT MAKES YOUR KEY THE ONLY RIGHT ANSWER. Put the case, the party or
+  the condition the passage ties it to into the question. Where the passage
+  gives different answers for different cases, ask about one of them and say
+  which: a question two readings answer differently is thrown away.
+
+    WRONG  "How long may a customer take to return an item?"
+           (the passage gives 14 days online and 30 days in store)
+    RIGHT  "How long may a customer take to return an item bought online?"
+    WRONG  "Wie hoch ist die Gebühr für eine Überweisung?"
+           (Inland und Ausland kosten verschieden)
+    RIGHT  "Wie hoch ist die Gebühr für eine Überweisung ins Ausland?"
+
 - `facts` is the NUMBERS of the facts your question needs. Use several only
   when the question genuinely cannot be answered without all of them.
 - `declined` is true when these facts cannot answer a question of this kind
