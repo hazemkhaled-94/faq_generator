@@ -42,8 +42,10 @@ ROOT = Path(__file__).resolve().parents[2]
 ONE = (2_000, 14_000)
 TEN = (20_000, 137_000)
 
-#: How many facts a passage yields, and so probes it costs.
+#: How many facts a passage yields, and the probes each costs: one before the
+#: store and one in settle, under the store's advisory lock.
 FACTS_PER_PASSAGE = 7
+PROBES_PER_FACT = 2
 
 #: The most database time one passage may take, in seconds: the share of the
 #: whole drain's time budget that leaves the model its calls.
@@ -349,7 +351,8 @@ def _bar(container, url, size, notices, connection) -> None:
     assert ten["probe"] <= 2 * one["probe"], (one, ten)
     assert ten["write"] <= 2 * one["write"], (one, ten)
     per_passage = (
-        FACTS_PER_PASSAGE * ten["probe"] + ten["write"] * FACTS_PER_PASSAGE / BATCH
+        PROBES_PER_FACT * FACTS_PER_PASSAGE * ten["probe"]
+        + ten["write"] * FACTS_PER_PASSAGE / BATCH
     )
     assert per_passage < PER_PASSAGE, per_passage
 
