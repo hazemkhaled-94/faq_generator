@@ -19,7 +19,7 @@ import hashlib
 import json
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
 
@@ -33,6 +33,17 @@ log = logging.getLogger(__name__)
 
 #: How much of the digest is kept.
 _VERSION_CHARS = 12
+
+#: Settings that were renamed or dropped, by their old name, with what replaced
+#: them ("" for nothing). A row stored under one is refused at the build, naming
+#: the replacement, because nothing reads it any more and the value it holds was
+#: somebody's decision. None so far; a release that renames a setting adds it.
+RETIRED: dict[str, str] = {}
+
+
+class StoredRefused(ValueError):
+    """A stored row the catalogue no longer accepts, so a service will not build on it."""
+
 
 #: The names a `make` command line gave, space-separated. Written by the
 #: Makefile's OVERRIDE beside the values themselves.
@@ -87,13 +98,73 @@ def current() -> str:
     return Settings().version()
 
 
+def audit(
+    rows: Iterable[Any],
+    file: Mapping[str, str],
+    given: Iterable[str] | None = None,
+) -> None:
+    """Checks every stored row against the catalogue as it stands now.
+
+    One warning per row that overrides the file, naming the stored value, the
+    file's and when it was written. A row the catalogue would now refuse, or one
+    stored under a retired name, refuses the build, so the worker waits as it
+    does for any setting it cannot build on. A row for a name the deployment
+    owns or nothing configures is warned about and left: `make settings-unset`
+    cannot delete one, so it must not stop a build.
+
+    Args:
+        rows: What the table holds: a name, a value and `updated_at` each.
+        file: What the files and the environment say, by name.
+        given: Names a `make` command line gave, whose rows are not applied.
+
+    Raises:
+        StoredRefused: On a row the catalogue refuses or a retired name.
+    """
+    given = set(given or ())
+    for row in rows:
+        if row.name in given:
+            continue
+        stored = f"{row.name}={row.value!r} (written {row.updated_at:%Y-%m-%d %H:%M})"
+        if row.name in RETIRED:
+            replacement = RETIRED[row.name]
+            raise StoredRefused(
+                f"{stored} is stored under a retired setting"
+                + (f"; {replacement} replaces it" if replacement else "")
+                + f": delete the row (DELETE FROM service_settings WHERE name = '{row.name}')"
+            )
+        setting = catalog.BY_NAME.get(row.name)
+        if setting is None or setting.fixed:
+            log.warning(
+                "%s is ignored: %s",
+                stored,
+                "the deployment owns it" if setting else "nothing configures it",
+            )
+            continue
+        if (found := catalog.refusal(setting, row.value)) is not None:
+            raise StoredRefused(
+                f"{stored} is refused now: {found[1]} Set a value the catalogue "
+                f"accepts, or return it to the file with make settings-unset {row.name}"
+            )
+        if row.value != file.get(row.name, ""):
+            log.warning(
+                "%s overrides the file's %r",
+                stored,
+                file.get(row.name),
+            )
+
+
 def snapshot() -> tuple[dict[str, str], str]:
     """The source to read settings from, and the name of that configuration.
 
     Both from one read of the table, so a row cannot be stamped with a
-    configuration it was not produced under.
+    configuration it was not produced under. The rows are audited first.
+
+    Raises:
+        StoredRefused: If a stored row is one the catalogue now refuses.
     """
-    source = _source(Settings().overrides())
+    rows = Settings().rows()
+    audit(rows, os.environ, os.environ.get(COMMAND_LINE, "").split())
+    source = _source(_applicable(rows))
     return source, version(source)
 
 
@@ -106,17 +177,22 @@ class Stale(Exception):
         self.current = current
 
 
-def _overrides(session: Any) -> dict[str, str]:
-    """Every stored setting the catalogue lets a deployment write, by name.
+def _applicable(rows: Iterable[Any]) -> dict[str, str]:
+    """The rows the catalogue lets a deployment write, by name.
 
     A row stored before its setting was fixed, or for one since retired, is
     one `clear` refuses and so must not apply.
     """
     return {
         row.name: row.value
-        for row in session.scalars(select(ServiceSetting)).all()
+        for row in rows
         if row.name in catalog.BY_NAME and not catalog.BY_NAME[row.name].fixed
     }
+
+
+def _overrides(session: Any) -> dict[str, str]:
+    """Every stored setting the catalogue lets a deployment write, by name."""
+    return _applicable(session.scalars(select(ServiceSetting)).all())
 
 
 def _write(session: Any, name: str, value: str) -> None:
@@ -155,6 +231,11 @@ class Settings:
     def __init__(self) -> None:
         """Binds to the session factory."""
         self._session = sessions()
+
+    def rows(self) -> list[ServiceSetting]:
+        """Every stored row, applicable or not, as `audit` reads them."""
+        with self._session() as session:
+            return list(session.scalars(select(ServiceSetting)).all())
 
     def overrides(self) -> dict[str, str]:
         """Every setting a deployment changed, by name."""

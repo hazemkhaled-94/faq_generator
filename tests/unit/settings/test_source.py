@@ -241,12 +241,20 @@ def test_extraction_still_insists_on_the_atomic_kind_from_a_source() -> None:
 
 def test_a_command_line_value_beats_a_stored_one(monkeypatch) -> None:
     """`make topics-discover TOPIC_PASSES=20` runs with 20, whatever is stored."""
+    from datetime import datetime
+    from types import SimpleNamespace
+
     from settings import store
 
+    held = {"TOPIC_PASSES": "42", "TOPIC_TOP_TERMS": "5"}
+    monkeypatch.setattr(store.Settings, "overrides", lambda self: held)
     monkeypatch.setattr(
         store.Settings,
-        "overrides",
-        lambda self: {"TOPIC_PASSES": "42", "TOPIC_TOP_TERMS": "5"},
+        "rows",
+        lambda self: [
+            SimpleNamespace(name=name, value=value, updated_at=datetime(2026, 9, 1))
+            for name, value in held.items()
+        ],
     )
     monkeypatch.setenv("TOPIC_PASSES", "20")
     monkeypatch.setenv(store.COMMAND_LINE, "TOPIC_PASSES")

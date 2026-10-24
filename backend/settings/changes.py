@@ -24,9 +24,7 @@ import preprocessing.chunking.config
 import preprocessing.parsing.config
 import question_generation.config
 import topic_modelling.config
-from database.qa_generator.repository import storable
 from settings import catalog
-from settings.env import _FALSE, _TRUE
 from settings.store import Settings as Store
 from settings.store import Stale
 
@@ -119,24 +117,6 @@ def owned(service: str, names: list[str]) -> dict[str, catalog.Setting]:
     return found
 
 
-def offered(setting: catalog.Setting, value: str) -> list[str]:
-    """What a value names, which is what `choices` is a list of.
-
-    One value for `text`, every entry for a list, every key for a mix. An
-    empty value names none, which is how an optional one is turned off.
-    Stripped, as the store writes it.
-    """
-    if setting.kind == "csv":
-        return [part.strip() for part in value.split(",") if part.strip()]
-    if setting.kind == "mapping":
-        return [
-            entry.split(":", 1)[0].strip()
-            for entry in value.split(",")
-            if entry.strip()
-        ]
-    return [value.strip()] if value.strip() else []
-
-
 def within_bounds(setting: catalog.Setting, value: str) -> None:
     """Refuses a value the catalogue says is out of range or off the list.
 
@@ -146,48 +126,8 @@ def within_bounds(setting: catalog.Setting, value: str) -> None:
     Raises:
         Refused: `not_a_choice` or `out_of_range`.
     """
-    if not storable(value):
-        raise Refused(
-            "out_of_range",
-            f"{setting.name} may not hold a NUL byte or a lone surrogate.",
-        )
-    # A flag reads anything it does not know as off, so a typo written here
-    # would switch the flag off rather than fail.
-    if setting.kind == "boolean" and value.strip().lower() not in _TRUE | _FALSE:
-        raise Refused(
-            "not_a_choice",
-            f"{setting.name} takes true or false; {value!r} is neither.",
-        )
-    if setting.choices:
-        unknown = [one for one in offered(setting, value) if one not in setting.choices]
-        if unknown:
-            raise Refused(
-                "not_a_choice",
-                f"{setting.name} takes {', '.join(setting.choices)}; "
-                f"{', '.join(unknown)} is not among them.",
-            )
-    if setting.low is None and setting.high is None:
-        return
-    try:
-        number = float(value)
-    except ValueError:
-        # Left to the stage's parser, which names the setting.
-        return
-    at = " at or" if setting.exclusive else ""
-    if setting.low is not None and (
-        number <= setting.low if setting.exclusive else number < setting.low
-    ):
-        raise Refused(
-            "out_of_range",
-            f"{setting.name} may not be{at} below {setting.low:.15g}; {value!r} is.",
-        )
-    if setting.high is not None and (
-        number >= setting.high if setting.exclusive else number > setting.high
-    ):
-        raise Refused(
-            "out_of_range",
-            f"{setting.name} may not be{at} above {setting.high:.15g}; {value!r} is.",
-        )
+    if (found := catalog.refusal(setting, value)) is not None:
+        raise Refused(*found)
 
 
 def failing(source: Mapping[str, str]) -> dict[str, str]:

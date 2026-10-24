@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from settings.env import _FALSE, _TRUE
+
 #: How a value is read. Also the name of its reader in `settings.env` and
 #: the control a page draws for it.
 Kind = Literal["integer", "decimal", "boolean", "text", "csv", "mapping"]
@@ -1168,3 +1170,85 @@ def writable(name: str) -> Setting:
             f"It is set in .env or configs/env and read when a process starts."
         )
     return found
+
+
+def _storable(text: str) -> bool:
+    """Whether a text column can hold `text`: no NUL, no lone surrogate."""
+    try:
+        text.encode()
+    except UnicodeEncodeError:
+        return False
+    return "\x00" not in text
+
+
+def offered(setting: Setting, value: str) -> list[str]:
+    """What a value names, which is what `choices` is a list of.
+
+    One value for `text`, every entry for a list, every key for a mix. An
+    empty value names none, which is how an optional one is turned off.
+    Stripped, as the store writes it.
+    """
+    if setting.kind == "csv":
+        return [part.strip() for part in value.split(",") if part.strip()]
+    if setting.kind == "mapping":
+        return [
+            entry.split(":", 1)[0].strip()
+            for entry in value.split(",")
+            if entry.strip()
+        ]
+    return [value.strip()] if value.strip() else []
+
+
+def refusal(setting: Setting, value: str) -> tuple[str, str] | None:
+    """What the catalogue says is wrong with a value, as (code, sentence), or None.
+
+    Out of range or off the list: what the stage's own parser cannot say, since
+    a share above one parses as a number and is still a gate nothing passes.
+    The codes are `not_a_choice` and `out_of_range`. Read by the write that
+    would store the value and by the build that finds it stored.
+    """
+    if not _storable(value):
+        return (
+            "out_of_range",
+            f"{setting.name} may not hold a NUL byte or a lone surrogate.",
+        )
+    # A flag reads anything it does not know as off, so a typo written here
+    # would switch the flag off rather than fail.
+    if setting.kind == "boolean" and value.strip().lower() not in _TRUE | _FALSE:
+        return (
+            "not_a_choice",
+            f"{setting.name} takes true or false; {value!r} is neither.",
+        )
+    if setting.choices:
+        unknown = [one for one in offered(setting, value) if one not in setting.choices]
+        if unknown:
+            return (
+                "not_a_choice",
+                (
+                    f"{setting.name} takes {', '.join(setting.choices)}; "
+                    f"{', '.join(unknown)} is not among them."
+                ),
+            )
+    if setting.low is None and setting.high is None:
+        return None
+    try:
+        number = float(value)
+    except ValueError:
+        # Left to the stage's parser, which names the setting.
+        return None
+    at = " at or" if setting.exclusive else ""
+    if setting.low is not None and (
+        number <= setting.low if setting.exclusive else number < setting.low
+    ):
+        return (
+            "out_of_range",
+            f"{setting.name} may not be{at} below {setting.low:.15g}; {value!r} is.",
+        )
+    if setting.high is not None and (
+        number >= setting.high if setting.exclusive else number > setting.high
+    ):
+        return (
+            "out_of_range",
+            f"{setting.name} may not be{at} above {setting.high:.15g}; {value!r} is.",
+        )
+    return None
