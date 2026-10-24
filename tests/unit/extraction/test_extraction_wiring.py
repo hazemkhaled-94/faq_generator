@@ -280,7 +280,7 @@ def test_the_preflight_checks_the_models_the_service_calls(
     ]
 
 
-def test_what_a_passage_lacks_is_passed_to_store_by_name() -> None:
+def test_what_a_passage_lacks_and_what_settles_its_facts_go_to_store_by_name() -> None:
     """Another branch adds a positional parameter here: a name cannot be swapped."""
     import inspect
 
@@ -290,4 +290,5 @@ def test_what_a_passage_lacks_is_passed_to_store_by_name() -> None:
 
     for owner in (PassageQueue, Queue):
         kinds = inspect.signature(owner.store).parameters
-        assert kinds["note"].kind is inspect.Parameter.KEYWORD_ONLY, owner
+        for name in ("note", "settle"):
+            assert kinds[name].kind is inspect.Parameter.KEYWORD_ONLY, (owner, name)
