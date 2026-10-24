@@ -32,7 +32,7 @@ def settings() -> dict:
         "passes": 5,
         "random_state": 42,
         "top_terms": 5,
-        "min_weight": 0.1,
+        "relative_weight": 0.5,
         "no_below": 2,
         "no_above": 0.9,
     }

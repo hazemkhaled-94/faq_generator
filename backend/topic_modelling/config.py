@@ -41,7 +41,9 @@ class Settings:
     passes: int
     random_state: int
     top_terms: int
-    min_weight: float
+    #: A passage keeps a topic whose weight is at least this share of its
+    #: strongest one's.
+    relative_weight: float
     no_below: int
     no_above: float
 
@@ -81,7 +83,7 @@ class Settings:
             passes=integer("TOPIC_PASSES", source),
             random_state=integer("TOPIC_RANDOM_STATE", source),
             top_terms=integer("TOPIC_TOP_TERMS", source),
-            min_weight=decimal("TOPIC_MIN_WEIGHT", source),
+            relative_weight=decimal("TOPIC_RELATIVE_WEIGHT", source),
             no_below=integer("TOPIC_NO_BELOW", source),
             no_above=_ceiling(source),
         )

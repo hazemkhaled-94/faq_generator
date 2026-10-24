@@ -40,15 +40,15 @@ def test_an_assessment_value_its_stage_cannot_read_is_refused() -> None:
 
 
 @pytest.mark.parametrize("value", ["0", "1"])
-def test_a_membership_floor_the_fit_would_refuse_is_refused_when_set(
+def test_a_membership_share_the_fit_would_refuse_is_refused_when_set(
     value: str,
 ) -> None:
-    """The fit keeps a membership only above a floor between 0 and 1."""
+    """The fit keeps a membership by a share of the strongest, between 0 and 1."""
     with pytest.raises(changes.Refused) as refused:
-        changes.within_bounds(catalog.writable("TOPIC_MIN_WEIGHT"), value)
+        changes.within_bounds(catalog.writable("TOPIC_RELATIVE_WEIGHT"), value)
 
     assert refused.value.code == "out_of_range"
-    assert "TOPIC_MIN_WEIGHT" in refused.value.detail
+    assert "TOPIC_RELATIVE_WEIGHT" in refused.value.detail
 
 
 def test_a_threshold_that_is_not_a_number_is_refused() -> None:

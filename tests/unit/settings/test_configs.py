@@ -116,7 +116,7 @@ def test_topic_modelling_reads_the_fitter_and_the_language_names() -> None:
         TOPIC_PASSES="13",
         TOPIC_RANDOM_STATE="17",
         TOPIC_TOP_TERMS="19",
-        TOPIC_MIN_WEIGHT="0.23",
+        TOPIC_RELATIVE_WEIGHT="0.23",
         TOPIC_NO_BELOW="29",
         TOPIC_NO_ABOVE="0.31",
     )
@@ -127,7 +127,7 @@ def test_topic_modelling_reads_the_fitter_and_the_language_names() -> None:
     assert loaded.passes == 13
     assert loaded.random_state == 17
     assert loaded.top_terms == 19
-    assert loaded.min_weight == 0.23
+    assert loaded.relative_weight == 0.23
     assert loaded.no_below == 29
     assert loaded.no_above == 0.31
 
@@ -355,3 +355,19 @@ def test_a_fact_kind_this_stage_cannot_use_is_refused_at_start_up() -> None:
             os.environ.pop("QUESTIONS_FACT_KINDS", None)
         else:
             os.environ["QUESTIONS_FACT_KINDS"] = previous
+
+
+def test_a_stored_membership_floor_of_the_retired_name_is_ignored() -> None:
+    """TOPIC_MIN_WEIGHT is gone: an override saved under it moves nothing."""
+    from types import SimpleNamespace
+
+    from settings import catalog, store
+
+    rows = [
+        SimpleNamespace(name="TOPIC_MIN_WEIGHT", value="0.05"),
+        SimpleNamespace(name="TOPIC_RELATIVE_WEIGHT", value="0.4"),
+    ]
+    session = SimpleNamespace(scalars=lambda _: SimpleNamespace(all=lambda: rows))
+
+    assert "TOPIC_MIN_WEIGHT" not in catalog.BY_NAME
+    assert store._overrides(session) == {"TOPIC_RELATIVE_WEIGHT": "0.4"}

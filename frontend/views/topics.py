@@ -86,12 +86,13 @@ _STEPS = (
     ),
     explain.Step(
         "Score every passage",
-        "Each passage is scored against the fitted model, keeping every "
-        "membership above the floor. A passage above none of them joins the "
-        "topic whose centroid is nearest, where it has a vector, and is "
-        "reported as unplaced where it has none.",
+        "Each passage is scored against the fitted model, keeping its strongest "
+        "membership and every weaker one within TOPIC_RELATIVE_WEIGHT of it. A "
+        "passage holding none of the vocabulary joins the topic whose centroid "
+        "is nearest, where it has a vector, and is reported as unplaced where "
+        "it has none.",
         ("service.py",),
-        ("TOPIC_MIN_WEIGHT",),
+        ("TOPIC_RELATIVE_WEIGHT",),
     ),
     explain.Step(
         "Name and carry the labels over",
@@ -291,9 +292,9 @@ def _health(fit: dict, topics: list[dict]) -> list[dict[str, str]]:
                 "Value": f"{unplaced:,} unplaced",
                 "Should be": "0",
                 "State": "OK" if not unplaced else "Attention",
-                "What it means": "Every passage reached a topic above the weight floor."
+                "What it means": "Every passage reached a topic."
                 if not unplaced
-                else "These sit in no topic. Lower TOPIC_NO_BELOW or TOPIC_MIN_WEIGHT.",
+                else "These sit in no topic. Lower TOPIC_NO_BELOW.",
             }
         )
 

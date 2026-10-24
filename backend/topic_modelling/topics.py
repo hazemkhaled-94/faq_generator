@@ -75,7 +75,7 @@ class TopicFitter:
         passes: int,
         random_state: int,
         top_terms: int,
-        min_weight: float,
+        relative_weight: float,
         no_below: int,
         no_above: float,
         passages_per_topic: int = 0,
@@ -88,7 +88,8 @@ class TopicFitter:
             passes: Times the factorisation walks the corpus.
             random_state: Seed for the factorisation.
             top_terms: Terms kept as a topic's signature, at least 1.
-            min_weight: Smallest membership weight kept, in (0, 1).
+            relative_weight: Share of a passage's strongest membership weight a
+                weaker one must reach to be kept, in (0, 1).
             no_below: Fewest passages a term must appear in.
             no_above: Largest share of passages a term may appear in, in
                 (0, 1].
@@ -109,11 +110,12 @@ class TopicFitter:
                 f"TOPIC_TOP_TERMS={top_terms} leaves a topic with no signature; "
                 "it must be at least 1"
             )
-        if not 0 < min_weight < 1:
+        if not 0 < relative_weight < 1:
             raise ValueError(
-                f"TOPIC_MIN_WEIGHT={min_weight} is not a probability floor; it "
-                "must be above 0 and below 1, since a membership is kept only "
-                "above it"
+                f"TOPIC_RELATIVE_WEIGHT={relative_weight} is not a share of a "
+                "passage's strongest membership; it must be above 0 and below 1, "
+                "since a membership is kept only within that share of the "
+                "strongest, which is always kept"
             )
         if not 0 < no_above <= 1:
             raise ValueError(
@@ -124,7 +126,7 @@ class TopicFitter:
         self._passes = passes
         self._random_state = random_state
         self._top_terms = top_terms
-        self._min_weight = min_weight
+        self._relative_weight = relative_weight
         self._no_below = no_below
         self._no_above = no_above
         self._passages_per_topic = passages_per_topic
@@ -143,8 +145,8 @@ class TopicFitter:
             language: The ISO 639-1 code the fit is recorded against.
 
         Returns:
-            The topics, the memberships above the weight floor, and the whole
-            fitted space.
+            The topics, the memberships within the share of each passage's
+            strongest, and the whole fitted space.
 
         Passages that cannot be told apart, one passage or copies of it, are
         not fitted: where the frequency filter leaves no term or tf-idf
@@ -259,12 +261,21 @@ class TopicFitter:
         assert best is not None, "_DRAWS is at least one"
         held, draw, model, (weights, unplaced, space) = best
         log.info(
-            "%s: kept the draw seeded %d of %d, its members %.3f alike",
+            "%s: kept the draw seeded %d of %d, its members %.3f alike, "
+            "%.3f nearest their own topic's centroid",
             language,
             (self._random_state + draw) % 2**32,
             _DRAWS,
             held,
+            _centroid_share(weights, vectors),
         )
+        if unplaced:
+            log.warning(
+                "%s: %d passage(s) came out with no topic; each goes to the topic "
+                "whose centroid is nearest, where it has a vector",
+                language,
+                len(unplaced),
+            )
         return Fitting(
             language=language,
             topics=self._topics(model),
@@ -366,8 +377,8 @@ class TopicFitter:
         """Scores every passage against the fitted model, in one walk.
 
         Returns:
-            The memberships above the weight floor, the passages holding
-            none, and the space the visualisation is drawn from.
+            The memberships within the share of each passage's strongest, the
+            passages holding none, and the space the visualisation is drawn from.
         """
         weights: list[PassageWeight] = []
         doc_topic: list[list[float]] = []
@@ -388,11 +399,9 @@ class TopicFitter:
                 doc_topic.append([value / total for value in row])
                 doc_lengths.append(sum(count for _, count in bow))
 
-            kept = [
-                (index, weight) for index, weight in found if weight > self._min_weight
-            ]
-            # Counts both a passage holding none of the vocabulary and one
-            # whose every weight fell below the floor.
+            kept = memberships(found, self._relative_weight)
+            # A passage holding none of the vocabulary: the strongest
+            # membership of any other is always kept.
             if not kept:
                 without.append(passage.id)
                 continue
@@ -405,12 +414,6 @@ class TopicFitter:
                 )
                 for index, weight in kept
             )
-        if without:
-            log.warning(
-                "%d passage(s) came out with no topic; each goes to the topic "
-                "whose centroid is nearest, where it has a vector",
-                len(without),
-            )
         return (
             weights,
             without,
@@ -422,6 +425,67 @@ class TopicFitter:
                 term_frequency=[dictionary.cfs[i] for i in range(len(dictionary))],
             ),
         )
+
+
+def memberships(
+    found: Iterable[tuple[int, float]], relative_weight: float
+) -> list[tuple[int, float]]:
+    """The topics one passage belongs to: those within a share of its strongest.
+
+    The weights a passage gets spread over the topics, so any absolute floor
+    is a share of one over their count and moves with it; a share of the
+    passage's own strongest does not. The strongest is always kept, a tie for
+    it too, and a weight of zero never is.
+    """
+    found = list(found)
+    top = max((weight for _, weight in found), default=0.0)
+    return [
+        (index, weight)
+        for index, weight in found
+        if weight > 0 and weight >= relative_weight * top
+    ]
+
+
+def _centroid_share(
+    weights: Iterable[PassageWeight], vectors: Mapping[int, Mapping[int, float]]
+) -> float:
+    """The share of a fit's members that sit nearest their own topic's centroid.
+
+    A topic's centroid is its members' tf-idf vectors summed and scaled to length
+    1. The mean over topics of the share of each one's members nearer to it than
+    to any other: it tracks a reviewer's reading of whether a topic is coherent
+    better than `_cohesion` does, and is only logged, so it picks no draw.
+    """
+    members: dict[int, list[int]] = {}
+    for weight in weights:
+        if weight.passage_id in vectors:
+            members.setdefault(weight.topic_index, []).append(weight.passage_id)
+    centroids: dict[int, dict[int, float]] = {}
+    for topic, held in members.items():
+        summed: dict[int, float] = {}
+        for passage in held:
+            for term, value in vectors[passage].items():
+                summed[term] = summed.get(term, 0.0) + value
+        length = sum(value * value for value in summed.values()) ** 0.5 or 1.0
+        centroids[topic] = {term: value / length for term, value in summed.items()}
+    shares = []
+    for topic, held in members.items():
+        own = 0
+        for passage in held:
+            vector = vectors[passage]
+            nearest = max(
+                centroids,
+                key=lambda one: (
+                    sum(
+                        value * centroids[one].get(term, 0.0)
+                        for term, value in vector.items()
+                    ),
+                    -one,
+                ),
+            )
+            own += nearest == topic
+        shares.append(own / len(held))
+    return sum(shares) / len(shares) if shares else 0.0
 
 
 def _cohesion(

@@ -46,7 +46,7 @@ def build_service(
             passes=settings.passes,
             random_state=settings.random_state,
             top_terms=settings.top_terms,
-            min_weight=settings.min_weight,
+            relative_weight=settings.relative_weight,
             no_below=settings.no_below,
             no_above=settings.no_above,
             passages_per_topic=settings.passages_per_topic,

@@ -9,7 +9,7 @@ import synth_topics as st
 from topic_drivers import FitterDriver, corpus
 
 from topic_modelling.models import PassageVocabulary
-from topic_modelling.topics import NoVocabulary
+from topic_modelling.topics import NoVocabulary, memberships
 
 
 def test_every_weight_is_storable(fitter) -> None:
@@ -148,28 +148,99 @@ def test_a_passage_with_no_lemmas_at_all_is_counted(fitter) -> None:
     assert all(abs(sum(row) - 1) < 1e-6 for row in empty.space.doc_topic)
 
 
-def test_a_weight_floor_emptying_a_passage_leaves_it_unplaced(
+@pytest.mark.parametrize(
+    ("share", "kept"),
+    [(0.5, [0]), (0.4, [0, 1]), (0.15, [0, 1, 2]), (0.05, [0, 1, 2, 3])],
+)
+def test_a_membership_is_kept_by_its_share_of_the_strongest(share, kept) -> None:
+    """Weights 0.6, 0.25, 0.1 and 0.05: what a passage keeps follows its own top."""
+    found = [(0, 0.6), (1, 0.25), (2, 0.1), (3, 0.05)]
+
+    assert [index for index, _ in memberships(found, share)] == kept
+
+
+def test_the_strongest_membership_is_kept_however_weak() -> None:
+    """On a passage that splits over many topics every weight is small."""
+    found = [(0, 0.03), (1, 0.02), (2, 0.01)]
+
+    assert memberships(found, 0.5) == [(0, 0.03), (1, 0.02)]
+
+
+def test_a_tie_for_the_strongest_is_kept_whole() -> None:
+    """A tie goes to neither topic."""
+    found = [(0, 0.3), (1, 0.3), (2, 0.1)]
+
+    assert memberships(found, 0.9) == [(0, 0.3), (1, 0.3)]
+
+
+def test_a_passage_scored_zero_everywhere_has_no_membership() -> None:
+    """The column's CHECK needs a weight above zero."""
+    assert memberships([(0, 0.0), (1, 0.0)], 0.5) == []
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_fitted_passage_keeps_only_what_is_near_its_strongest(
+    settings, passages, english, language
+) -> None:
+    """Over a German and an English corpus, every kept weight is within the share."""
+    fitting = FitterDriver(settings, passages if language == "de" else english).fit(
+        language
+    )
+
+    top: dict[int, float] = {}
+    for weight in fitting.fitting.weights:
+        top[weight.passage_id] = max(top.get(weight.passage_id, 0), weight.weight)
+    assert top, "nothing was placed"
+    for weight in fitting.fitting.weights:
+        assert weight.weight >= settings["relative_weight"] * top[weight.passage_id]
+
+
+def test_a_passage_the_model_gives_a_vocabulary_is_never_left_unplaced(
     settings, passages
 ) -> None:
-    """The floor is the other reason a passage can end up unplaced."""
+    """Its strongest membership is always kept, so only a passage with no lemma is not."""
     mixed = PassageVocabulary(
         id=99, lemmas=["lieferung", "versand", "wartung", "reparatur"]
     )
 
-    floored = FitterDriver(settings | {"min_weight": 0.9}, [*passages, mixed]).fit("de")
+    fitted = FitterDriver(settings | {"relative_weight": 0.99}, [*passages, mixed]).fit(
+        "de"
+    )
 
-    assert 99 not in floored.placed_ids, "the passage split over two topics stayed"
-    assert floored.unplaced >= 1, floored.unplaced
+    assert 99 in fitted.placed_ids
+    assert fitted.unplaced == 0
 
 
-def test_the_weight_floor_is_exclusive(settings, passages) -> None:
-    """A weight exactly at the floor is not above it, so it is not stored."""
-    fitting = FitterDriver(settings, passages).fit("de")
-    lowest = min(weight.weight for weight in fitting.fitting.weights)
+def test_the_no_topic_warning_is_logged_once_for_the_kept_draw(
+    settings, passages, caplog
+) -> None:
+    """Not once per draw: seven of the eight are thrown away."""
+    caplog.set_level("INFO", logger="topic_modelling.topics")
 
-    at_the_floor = FitterDriver(settings | {"min_weight": lowest}, passages).fit("de")
+    FitterDriver(settings, passages).holding(PassageVocabulary(id=98)).fit("de")
 
-    assert lowest not in [w.weight for w in at_the_floor.fitting.weights]
+    warned = [r for r in caplog.records if "came out with no topic" in r.getMessage()]
+    assert len(warned) == 1, [r.getMessage() for r in warned]
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_the_fit_logs_how_many_members_sit_nearest_their_own_topic(
+    settings, passages, english, caplog, language
+) -> None:
+    """The proxy that tracks the labels, per language, beside the draw kept."""
+    caplog.set_level("INFO", logger="topic_modelling.topics")
+
+    FitterDriver(settings, passages if language == "de" else english).fit(language)
+
+    said = [
+        r.getMessage()
+        for r in caplog.records
+        if "nearest their own topic's centroid" in r.getMessage()
+    ]
+    assert len(said) == 1, said
+    assert said[0].startswith(f"{language}: "), said[0]
+    share = float(said[0].rsplit("nearest", 1)[0].split()[-1])
+    assert 0.0 <= share <= 1.0
 
 
 def test_a_term_in_every_passage_is_dropped_from_the_vocabulary(
@@ -225,11 +296,11 @@ def test_a_topic_signature_is_drawn_from_the_terms_of_its_own_subject(fitter) ->
         {"num_topics": -1},
         {"top_terms": 0},
         {"top_terms": -1},
-        {"min_weight": 0},
-        {"min_weight": -0.1},
-        # A weight is normalised, so none is above 1 and none would be kept.
-        {"min_weight": 1},
-        {"min_weight": 1.5},
+        {"relative_weight": 0},
+        {"relative_weight": -0.1},
+        # A share of the strongest of 1 keeps only a tie for it, and above 1 nothing.
+        {"relative_weight": 1},
+        {"relative_weight": 1.5},
         {"no_above": 0},
         {"no_above": -0.5},
         {"no_above": 1.01},
@@ -243,7 +314,7 @@ def test_a_fitter_that_cannot_do_its_job_is_refused(settings, bad) -> None:
 
 @pytest.mark.parametrize(
     "allowed",
-    [{"min_weight": 0.999}, {"no_above": 1}, {"num_topics": 2}, {"top_terms": 1}],
+    [{"relative_weight": 0.999}, {"no_above": 1}, {"num_topics": 2}, {"top_terms": 1}],
 )
 def test_the_edge_of_each_range_is_allowed(settings, allowed) -> None:
     """The bounds are inclusive where the message says they are."""

@@ -59,13 +59,22 @@ def _holds_every_invariant(passages: list[PassageVocabulary], fitting: Fitting) 
     assert len(fitting.unplaced) == len(set(fitting.unplaced)) == fitting.without_topics
     assert fitting.passages == len(passages)
 
-    floor = DEFAULTS["min_weight"]
+    share = DEFAULTS["relative_weight"]
     sums: dict[int, float] = {}
+    strongest: dict[int, float] = {}
     for weight in fitting.weights:
-        assert floor < weight.weight <= 1.0
+        assert 0 < weight.weight <= 1.0
         assert 0 <= weight.topic_index < len(fitting.topics)
         sums[weight.passage_id] = sums.get(weight.passage_id, 0.0) + weight.weight
+        strongest[weight.passage_id] = max(
+            strongest.get(weight.passage_id, 0.0), weight.weight
+        )
     assert all(total <= 1.0 + 1e-9 for total in sums.values())
+    # A membership is kept only within a share of the passage's strongest.
+    assert all(
+        weight.weight >= share * strongest[weight.passage_id] - 1e-12
+        for weight in fitting.weights
+    )
     pairs = [(w.passage_id, w.topic_index) for w in fitting.weights]
     assert len(pairs) == len(set(pairs))
 

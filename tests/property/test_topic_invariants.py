@@ -47,7 +47,7 @@ TUNING = {
     "passes": 1,
     "random_state": 42,
     "top_terms": 4,
-    "min_weight": 0.05,
+    "relative_weight": 0.5,
     "no_below": 1,
     "no_above": 1.0,
 }
@@ -261,12 +261,12 @@ def test_too_few_topics_is_never_a_partition(num_topics) -> None:
         TopicFitter(**(TUNING | {"num_topics": num_topics}))
 
 
-@given(min_weight=st.floats(min_value=-5, max_value=0))
+@given(relative_weight=st.floats(min_value=-5, max_value=0))
 @settings(deadline=None)
-def test_a_floor_at_or_below_zero_is_refused(min_weight) -> None:
-    """The column's CHECK requires a weight above zero."""
-    with pytest.raises(ValueError, match="TOPIC_MIN_WEIGHT"):
-        TopicFitter(**(TUNING | {"min_weight": min_weight}))
+def test_a_share_at_or_below_zero_is_refused(relative_weight) -> None:
+    """Zero would keep every membership, the floor this setting replaced."""
+    with pytest.raises(ValueError, match="TOPIC_RELATIVE_WEIGHT"):
+        TopicFitter(**(TUNING | {"relative_weight": relative_weight}))
 
 
 @given(

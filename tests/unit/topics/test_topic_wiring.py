@@ -52,7 +52,7 @@ def test_a_served_model_is_read_when_one_is_configured(monkeypatch) -> None:
     ("name", "value"),
     [
         ("TOPIC_NUM_TOPICS", "twelve"),
-        ("TOPIC_MIN_WEIGHT", "a lot"),
+        ("TOPIC_RELATIVE_WEIGHT", "a lot"),
         ("TOPIC_NO_BELOW", "3.5"),
         ("TOPIC_NO_ABOVE", "half"),
     ],
@@ -74,7 +74,7 @@ def test_a_setting_that_is_not_a_number_stops_the_process(
         "TOPIC_PASSES",
         "TOPIC_RANDOM_STATE",
         "TOPIC_TOP_TERMS",
-        "TOPIC_MIN_WEIGHT",
+        "TOPIC_RELATIVE_WEIGHT",
         "TOPIC_NO_BELOW",
         "TOPIC_NO_ABOVE",
         "TOPIC_LANGUAGE_NAMES",

@@ -80,7 +80,8 @@ is an outstanding request, and a row that has one is a topic.
    over one corpus differ in that by as much as two rebuilds did.
 6. **Read the topics out.** `TOPIC_TOP_TERMS` highest-weighted terms each.
 7. **Score every passage.** One walk produces the memberships (every weight
-   above `TOPIC_MIN_WEIGHT`, clamped to 1.0), the passages placed in no
+   at least `TOPIC_RELATIVE_WEIGHT` times the passage's strongest, which is
+   always kept, clamped to 1.0), the passages placed in no
    topic, and the whole fitted space the figure needs.
 8. **Carry what a person decided.** `carry_labels` takes an old topic and
    a new one for the same topic when each holds more than half of the
@@ -133,8 +134,8 @@ is an outstanding request, and a row that has one is a topic.
     after the insert rather than from `RETURNING`, whose row order for an
     `executemany` is not guaranteed, and are keyed by
     `(language, topic_index)`. A passage the fit placed in no topic — the
-    vocabulary filter dropped its words, or every weight fell below the
-    floor — joins its language's topic whose centroid is nearest, held as
+    vocabulary filter dropped its words, so it holds no
+    term — joins its language's topic whose centroid is nearest, held as
     weakly as the fit holds any passage of that language; one with no
     vector stays out, and only those are counted as in no topic, in the
     stored count and the warning alike. If the request was withdrawn, or
@@ -194,7 +195,7 @@ Properties of the input, not defects here. Figures in
 `facts.validated` for reporting.
 
 **Writes:** `topics`, one row per topic per language; `passage_topics`, one
-row per passage-topic pair above the weight floor;
+row per passage-topic pair kept by the relative weight;
 `topics/<database>/<language>.npz` in the `models` bucket; and
 `topics/<database>/<language>.html` in the `export` bucket, `<database>`
 being the path of `DATABASE_URL`, moving the previous fit's two into the
@@ -290,7 +291,7 @@ partial refit.
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
 | `TOPIC_RANDOM_STATE` | Seed of the first of the fit's eight draws. Fixed, so the same passages read in the same order give the same topics. The fit reads them by id, and another order can give other topics: a document whose passages are deleted and chunked again (`make delete-derived`) comes back under new ids, is read last, and can regroup the passages of other documents. A re-chunk keeps an unchanged passage's id |
 | `TOPIC_TOP_TERMS` | Terms stored as a topic's signature |
-| `TOPIC_MIN_WEIGHT` | Smallest membership weight stored, exclusive. In `(0, 1)` |
+| `TOPIC_RELATIVE_WEIGHT` | The share of a passage's strongest membership weight another must reach to be stored. In `(0, 1)`. It replaces `TOPIC_MIN_WEIGHT`, an absolute floor that was a share of one over the topic count and so moved with it; a stored `TOPIC_MIN_WEIGHT` is ignored, and the topics are refitted (`make topics`) to apply the new setting |
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |
 | `TOPIC_NO_ABOVE` | Drop a term appearing in more than this share. In `(0, 1]` |
 | `TOPIC_LANGUAGE_NAMES` | ISO code to language name, for the naming prompt |

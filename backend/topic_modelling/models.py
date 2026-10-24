@@ -60,7 +60,7 @@ class Fitting:
 
     language: str
     topics: list[FittedTopic]
-    #: Every membership above the weight floor.
+    #: Every membership within the relative weight of its passage's strongest.
     weights: list[PassageWeight]
     #: How many passages were fitted over.
     passages: int

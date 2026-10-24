@@ -367,15 +367,15 @@ SETTINGS: tuple[Setting, ...] = (
         help="How many terms are kept to stand for a topic.",
     ),
     Setting(
-        name="TOPIC_MIN_WEIGHT",
+        name="TOPIC_RELATIVE_WEIGHT",
         service="topics",
         kind="decimal",
         low=0,
         high=1,
         exclusive=True,
         invalidates=("topics",),
-        help="Smallest weight a passage's membership of a topic may carry "
-        "and still be recorded.",
+        help="A passage's weaker memberships are recorded only when their weight "
+        "is at least this share of its strongest one's, which is always kept.",
     ),
     Setting(
         name="TOPIC_NO_BELOW",

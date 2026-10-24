@@ -270,7 +270,7 @@ DEFAULTS = {
     "passes": 10,
     "random_state": 42,
     "top_terms": 12,
-    "min_weight": 0.05,
+    "relative_weight": 0.5,
     "no_below": 3,
     "no_above": 0.5,
     "passages_per_topic": 40,

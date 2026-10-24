@@ -185,14 +185,13 @@ def test_a_corpus_that_has_grown_since_the_fit_is_flagged(page) -> None:
     assert "corpus has changed" in tables
 
 
-def test_unplaced_passages_name_both_settings_that_cause_them(page) -> None:
-    """A reader has to know which knob to turn."""
+def test_unplaced_passages_name_the_setting_that_causes_them(page) -> None:
+    """A reader has to know which knob to turn: a passage with no term is a vocabulary one."""
     tables = page(
         topic_fit=fit(languages=[changed(LANGUAGE_FIT, passages_without_topics=7)])
     ).tables()
 
     assert "TOPIC_NO_BELOW" in tables
-    assert "TOPIC_MIN_WEIGHT" in tables
 
 
 def test_passages_with_no_language_are_flagged(page) -> None:
