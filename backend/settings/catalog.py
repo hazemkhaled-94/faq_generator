@@ -144,7 +144,6 @@ SETTINGS: tuple[Setting, ...] = (
         service="parsing",
         kind="integer",
         low=0,
-        invalidates=("parsing",),
         help="Longest document the parse worker converts, in pages; 0 "
         "converts any. Docling holds every page it converts, and a document "
         "too long for the worker's memory ends the container, so one over "

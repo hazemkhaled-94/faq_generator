@@ -117,3 +117,15 @@ def test_the_limit_is_read_from_the_environment(monkeypatch) -> None:
     monkeypatch.setenv("PARSING_MAX_PAGES", "7")
 
     assert Settings.load().max_pages == 7
+
+
+def test_the_limit_marks_nothing_parsed_stale() -> None:
+    """It refuses a document before conversion and changes none that was parsed.
+
+    As PARSING_TIMEOUT_SECONDS does: pointing an operator at a rerun of every
+    parsed document for it would rebuild what the limit never touched.
+    """
+    from settings.catalog import BY_NAME
+
+    assert BY_NAME["PARSING_MAX_PAGES"].invalidates == ()
+    assert BY_NAME["PARSING_TIMEOUT_SECONDS"].invalidates == ()
