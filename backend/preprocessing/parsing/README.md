@@ -48,7 +48,7 @@ already exist. A document with no counts counts as scanned.
 OCR is not implemented, so a scanned document is refused here, where the
 reason is still known.
 
-A digital PDF that holds a page with at most `PARSING_OCR_CHAR_THRESHOLD` characters of text, a merge tool's `Seite 2 von 3` stamp among them, and a picture over at least half of it is parsed for its text pages, and the page is named in a warning, in the stored parse's `image-only-pages` metadata and in `documents.parse_error`, so the documents page, the API and `make parse-status` show it; a re-parse clears it.
+A digital PDF that holds a page with a picture over at least half of it and no body text (text outside the top and bottom tenth of the page; at most `PARSING_OCR_CHAR_THRESHOLD` characters in those margins, a merge tool's `Seite 2 von 3` stamp among them) is parsed for its text pages, and the page is named in a warning, in the stored parse's `image-only-pages` metadata and in `documents.parse_error`, so the documents page, the API and `make parse-status` show it; a re-parse clears it.
 
 ### Step 3 — Convert
 
@@ -304,7 +304,7 @@ Read from the environment with no defaults in code, and overridable as
 
 | Setting | What it does |
 |---|---|
-| `PARSING_OCR_CHAR_THRESHOLD` | Characters per page below which a document is treated as scanned and refused, and the most a page a picture covers may hold and still be named as image-only |
+| `PARSING_OCR_CHAR_THRESHOLD` | Characters per page below which a document is treated as scanned and refused, and the most a picture page may hold in its margins and still be named as image-only; any body text, a cover's title included, means the page was read |
 | `PARSING_MIN_CONFIDENCE` | Lowest low score a conversion may carry and be kept, in [0, 1]: Docling's, averaged over the pages, as Step 7 says |
 | `PARSING_TABLE_MODE` | TableFormer mode: `fast` or `accurate`. Anything else is refused when the pipeline is constructed |
 | `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. Turning it on also turns on `generate_parsed_pages` |

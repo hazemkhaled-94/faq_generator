@@ -500,6 +500,10 @@ def _softened(text: str) -> str:
 #: The share of a page a picture must cover for the page to count as a scan.
 _SCAN_COVER = 0.5
 
+#: The share of a page's height that is its top and its bottom margin, where
+#: a running head, a foot and a page number are set.
+_MARGIN = 0.1
+
 
 def _union_area(rects: list[pymupdf.Rect]) -> float:
     """Returns the area covered by rectangles, overlaps counted once."""
@@ -531,35 +535,40 @@ def _covered(page: pymupdf.Page) -> float:
 
 
 def image_only_pages(data: bytes, characters: int = 0) -> tuple[int, ...]:
-    """Names the pages that are a picture and carry next to no text layer.
+    """Names the pages that are a picture and carry no body text.
 
     A document's mean characters per page hides one scanned page among
     digital ones, and OCR is not enabled, so such a page converts to nothing
-    but a stamp a merge tool put on it, `Seite 2 von 3`.
+    but a stamp a merge tool put on it, `Seite 2 von 3`. Only text outside the
+    top and bottom margins is body text: a running head or a page number is
+    the stamp, while a cover's title or a divider's line was read, and the page
+    lost nothing.
 
     Args:
         data: The raw PDF bytes.
-        characters: The most characters a page may hold and still be named,
-            PARSING_OCR_CHAR_THRESHOLD: the least a text page has.
+        characters: The most characters the margins may hold and still be a
+            stamp, PARSING_OCR_CHAR_THRESHOLD: the least a text page has.
 
     Returns:
-        The 1-based numbers of the pages with that little text and pictures
+        The 1-based numbers of the pages with no body text and pictures
         covering most of the page.
     """
     pages: list[int] = []
     with pymupdf.open(stream=data, filetype="pdf") as document:
         for number in range(1, document.page_count + 1):
             page = document[number - 1]
-            if len(str(page.get_text()).strip()) > characters:
+            body = 0
+            margin = 0
+            for word in cast(list, page.get_text("words")):
+                if word[1] < page.rect.height * _MARGIN or (
+                    word[3] > page.rect.height * (1 - _MARGIN)
+                ):
+                    margin += len(word[4])
+                else:
+                    body += len(word[4])
+            if body or margin > characters:
                 continue
-            area = abs(page.rect)
-            covered = _union_area(
-                [
-                    pymupdf.Rect(info["bbox"]) & page.rect
-                    for info in page.get_image_info()
-                ]
-            )
-            if area and covered / area >= _SCAN_COVER:
+            if _covered(page) >= _SCAN_COVER:
                 pages.append(number)
     return tuple(pages)
 
