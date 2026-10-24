@@ -11,12 +11,35 @@ so the api process loads none of it.
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from llm.config import Settings
 
 log = logging.getLogger(__name__)
+
+
+#: Folders a sync client copies to a vendor's servers and to every device signed
+#: in, by the name each vendor gives its folder: a component that starts with
+#: one of the first group, or is one of the second. A path check, so it needs no
+#: client installed and asks no vendor.
+_SYNC_PREFIXES = ("onedrive", "icloud", "googledrive", "google drive")
+_SYNC_NAMES = ("dropbox", "cloudstorage", "mobile documents")
+
+
+def synced(path: Path) -> str | None:
+    """The folder of this path a sync client watches, or None.
+
+    A secret in a watched folder leaves the machine, whatever the file is
+    called, so `make doctor` warns about the checkout and the secrets file.
+    """
+    for part in path.parts:
+        folded = part.lower()
+        if folded.startswith(_SYNC_PREFIXES) or folded in _SYNC_NAMES:
+            return part
+    return None
 
 
 def every_model() -> tuple[list[Settings], list[str]]:
@@ -97,6 +120,19 @@ def main() -> int:
 
     telemetry.configure("doctor")
 
+    for what, where in (
+        ("the checkout", Path.cwd().resolve()),
+        ("ENV_FILE", Path(os.environ.get("ENV_FILE") or ".env").resolve()),
+    ):
+        if folder := synced(where):
+            log.warning(
+                "%s is %s, under %s, which a sync client copies off this machine; "
+                "move it out and rotate every key it held "
+                "(docs/operations.md, Go-live host)",
+                what,
+                where,
+                folder,
+            )
     log.info("%s", describe())
     failed = 0
     try:

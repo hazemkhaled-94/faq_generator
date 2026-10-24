@@ -538,6 +538,33 @@ drains them, `make corpus-hosted` or the stage's own target, because no worker
 does on this profile. A release that adds a stage ends its upgrade section with
 `make up`, so the worker or profile it brings is started.
 
+### Keeping the secrets out of the checkout
+
+A checkout inside a synced folder (`~/Library/CloudStorage`, OneDrive, Dropbox,
+iCloud Drive) is copied to a vendor's servers and to every device signed in,
+`.env` and `provider.env` with it. Go-live runs from a clone elsewhere:
+
+1. `git clone` into a folder no sync client watches, such as `~/srv/qa_generator`
+   or `/srv/qa_generator`. `make doctor` warns when the checkout, or the secrets
+   file, sits under one.
+2. Move the secrets out of the checkout and name them: put `.env` where only
+   you read it, for example `/etc/qa/secrets.env` with mode 600, and run every
+   command with `ENV_FILE=/etc/qa/secrets.env`, or export it once. Host commands
+   source that file and compose is handed it, so nothing else changes. Give it a
+   path without spaces. `configs/env/provider.env` holds credentials too and
+   stays out of git; keep it out of any folder you back up.
+3. **Rotate every key after the move.** The old `.env` was in a synced folder, so
+   its passwords, `PHOENIX_ADMIN_SECRET`, `GRAFANA_SECRET_KEY`, the Argilla key
+   and the provider's credentials have been read by the sync service. Set new
+   ones (`make setup` fills placeholders; rotate the provider's in its own
+   console), and delete the old file and the synced folder's copy of the
+   checkout.
+4. A backup of a database or an object store holds none of this: leave `.env`,
+   `ENV_FILE`, `provider.env` and the certificate keys under `certs/` out of
+   it.
+
+Moving a checkout is yours to do; nothing here moves it.
+
 ### Upgrading a deployment
 
 `make upgrade` takes the stack to the code in the checkout, in the order that

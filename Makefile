@@ -4,6 +4,14 @@ SHELL := /bin/bash
 # Override for Docker: make CONTAINER=docker COMPOSE="docker compose" up
 COMPOSE ?= podman compose
 
+# The file the secrets and the model are read from: `.env` beside this Makefile
+# unless ENV_FILE names another, so a go-live host can keep them outside the
+# checkout (docs/operations.md, "Keeping the secrets out of the checkout").
+# A path without a space, because compose is handed it too. A relative one is
+# read from the checkout, and ENV_PATH says so: `. name` would search PATH.
+ENV_FILE ?= .env
+ENV_PATH = $(if $(filter /%,$(ENV_FILE)),$(ENV_FILE),./$(ENV_FILE))
+
 # The two files compose interpolates `${...}` out of, in precedence order:
 # the deployment's ports and addresses, then the secrets over them. Compose
 # reads only one such file on its own - `.env` - so both are named here, and
@@ -18,7 +26,7 @@ COMPOSE ?= podman compose
 # fails on the first missing port; export COMPOSE_ENV_FILES to it, which
 # `make doctor` says how to do. It cannot be set inside .env - compose has
 # to resolve the file list before it reads one.
-COMPOSE_CMD = $(COMPOSE) --env-file configs/env/deployment.env --env-file .env
+COMPOSE_CMD = $(COMPOSE) --env-file configs/env/deployment.env --env-file $(ENV_FILE)
 
 # The engine itself, for the build and run that `lock` needs; compose has no
 # equivalent of --target.
@@ -90,7 +98,7 @@ DERIVED = DATABASE_URL=postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@loca
 PROVIDER = { [ ! -f ./configs/env/provider.env ] || . ./configs/env/provider.env; }
 
 LOADENV = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env \
-          && $(PROVIDER) && . ./.env $(OVERRIDE) && $(DERIVED) $(OVERRIDE) && set +a
+          && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && $(DERIVED) $(OVERRIDE) && set +a
 
 # What `wipe` leaves standing. Comma-separated, and empty by default: the
 # command is called wipe, and a default that quietly kept things would be
@@ -125,7 +133,7 @@ SPARED = case " $(KEPT) " in *" $(1) "*) echo "KEEP=$(1): leaving $(2)";; \
 # `set +a` a sourced file's values are set in the shell and not exported,
 # so the process below saw none of them and stopped naming the first.
 WITH = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env && \
-       . ./configs/env/$(1) && $(PROVIDER) && . ./.env $(OVERRIDE) && \
+       . ./configs/env/$(1) && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && \
        $(DERIVED) $(OVERRIDE) && set +a
 
 # Narrows a stage target to one item instead of the whole queue, mirroring
@@ -199,7 +207,7 @@ CORPUS_RETRIES = parse-retry chunk-retry extract-retry topics-retry questions-re
 # files in the same order. Lazy, so only a target that names it pays for the
 # shell.
 CORPUS_DB = $(shell set -a; . ./configs/env/deployment.env 2>/dev/null; \
-              [ ! -f ./.env ] || . ./.env 2>/dev/null; printf %s "$$APP_DB_NAME")
+              [ ! -f "$(ENV_PATH)" ] || . "$(ENV_PATH)" 2>/dev/null; printf %s "$$APP_DB_NAME")
 
 # What every target of the corpus is given on its command line, which beats the
 # files a host command sources: the database the run announced, the Hub off,
@@ -334,7 +342,7 @@ upgrade:
 
 # The assignments in .env, which is where a placeholder counts. The file's
 # own first line says to replace every change_me_* value and is not one.
-ASSIGNED = grep -E '^[A-Z][A-Z0-9_]*=' .env
+ASSIGNED = grep -E '^[A-Z][A-Z0-9_]*=' "$(ENV_PATH)"
 
 # Write the two configuration files a clone does not come with, and fill in
 # every password. Safe to run twice: it replaces the placeholders and
@@ -353,14 +361,14 @@ ASSIGNED = grep -E '^[A-Z][A-Z0-9_]*=' .env
 # PHOENIX_ADMIN_SECRET requires of the deployment: 32 characters or more,
 # with a digit and a lower-case letter.
 setup:
-	@test -f .env || { cp .env.example .env; echo "wrote .env"; }
+	@test -f "$(ENV_PATH)" || { cp .env.example "$(ENV_PATH)"; echo "wrote $(ENV_FILE)"; }
 	@test -f configs/env/provider.env || { \
 	  cp configs/env/provider.env.example configs/env/provider.env; \
 	  echo "wrote configs/env/provider.env"; }
 	@for token in $$($(ASSIGNED) | grep -oE 'change_me_[a-z0-9_]*' | sort -u \
 	                 | awk '{ print length, $$0 }' | sort -rn | cut -d' ' -f2-); do \
 	  secret="$$(openssl rand -hex 24)1"; \
-	  sed -i.bak "s|$$token|$$secret|g" .env && rm -f .env.bak; \
+	  sed -i.bak "s|$$token|$$secret|g" "$(ENV_PATH)" && rm -f "$(ENV_PATH).bak"; \
 	  echo "generated $$token"; \
 	done
 	@echo
@@ -392,14 +400,14 @@ doctor:
 	  || { say MISSING "poetry - https://python-poetry.org/docs/#installation"; fail=1; }; \
 	if test -f configs/env/provider.env; then say ok "configs/env/provider.env"; \
 	  else say "-" "no configs/env/provider.env, which a plain Ollama does not need"; fi; \
-	if ! test -f .env; then say MISSING ".env - run: make setup"; \
+	if ! test -f "$(ENV_PATH)"; then say MISSING "$(ENV_FILE) - run: make setup"; \
 	  echo; echo "Fix the above, then run make doctor again."; exit 1; fi; \
-	say ok ".env"; \
+	say ok "$(ENV_FILE)"; \
 	if test -f configs/env/deployment.env; then \
 	  say ok "configs/env/deployment.env"; \
 	  else say MISSING "configs/env/deployment.env - it is in git; git checkout it"; fail=1; fi; \
 	say "-" "compose reads both: make passes them, a bare podman compose needs"; \
-	say "" "  export COMPOSE_ENV_FILES=configs/env/deployment.env,.env"; \
+	say "" "  export COMPOSE_ENV_FILES=configs/env/deployment.env,$(ENV_FILE)"; \
 	if $(ASSIGNED) | grep -q change_me; then \
 	  say FAIL "$$($(ASSIGNED) | grep -c change_me) placeholder password(s) left - run: make setup"; fail=1; \
 	  else say ok "no placeholder passwords"; fi; \
