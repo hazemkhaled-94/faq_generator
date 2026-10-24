@@ -456,7 +456,8 @@ corpus, which is a property of the model rather than of this code.
   number only in the top or bottom tenth of its page, and, where the
   document's running page numbers show an offset, only when its value is its
   page's number plus one of them (page 7 printing `7`, or `3` in a chapter
-  that restarts). A value beside or under its label (`30` after `Return
+  that restarts); on a PDF whose pages are two-page spreads, each printing two
+  numbers, the page's number is counted twice (page 5 prints `10` and `11`). A value beside or under its label (`30` after `Return
   period (days):`) stays, and so does an integer whose item has no position.
   In a document whose running page numbers show no offset, an integer right
   after a block ending on a lead-in's colon stays too; where they show one,
