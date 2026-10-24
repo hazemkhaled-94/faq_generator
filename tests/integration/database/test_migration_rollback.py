@@ -43,6 +43,7 @@ JUDGED = "733a3eadef7c"
 CATEGORIZED = "626a5b07ae34"
 COMMENTS_CORRECTED = "20e31b1656f7"
 LANGUAGED = "860d56b11032"
+TWINNED = "7a41c9d2e8b0"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -68,6 +69,7 @@ LATER = (
     CATEGORIZED,
     COMMENTS_CORRECTED,
     LANGUAGED,
+    TWINNED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.

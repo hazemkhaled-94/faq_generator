@@ -12,6 +12,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     Float,
+    ForeignKey,
     Index,
     Integer,
     Text,
@@ -271,6 +272,15 @@ class Fact(Base):
     )
     validation_error: Mapped[str | None] = mapped_column(
         Text, comment="That failure in words."
+    )
+    twin_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("facts.id", ondelete="SET NULL"),
+        comment="For a `duplicate` refusal, the fact in another passage it "
+        "repeats: what it is re-checked against when that fact goes. NULL when "
+        "that fact is deleted, which marks the refusal for the dedup replay; "
+        "NULL too for a refusal whose twin is a fact of its own passage, and "
+        "on every other row.",
     )
     gate_scores: Mapped[list[dict] | None] = mapped_column(
         JSONB,

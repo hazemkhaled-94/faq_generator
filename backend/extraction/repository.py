@@ -805,6 +805,7 @@ def _row(
         "gate_scores": fact.gate_scores or None,
         "confidence": fact.confidence,
         "bridge": fact.bridge,
+        "twin_id": fact.twin_id,
     }
 
 
@@ -1018,8 +1019,12 @@ class FactCatalog(Repository):
                 connection.execute(select(func.pg_advisory_unlock(_REPLAYING)))
                 connection.commit()
 
-    def duplicates(self, within=None) -> list[Refused]:
+    def duplicates(self, within=None, *, orphaned: bool = False) -> list[Refused]:
         """Every stored `duplicate` refusal, as the dedup replay re-decides it.
+
+        With `orphaned` only those pointing at no twin: one whose twin was
+        deleted, one stored before the pointer, and one whose twin is a fact
+        of its own passage. The others still repeat the fact they name.
 
         Read off the passage each was read from, which is its citation at 0,
         and in id order, which is the order they were refused in. Read whole
@@ -1027,6 +1032,7 @@ class FactCatalog(Repository):
 
         Args:
             within: A condition on Passage narrowing which are read, or None.
+            orphaned: Read only the refusals pointing at no twin.
 
         Returns:
             The refusals carrying the vector they were refused on.
@@ -1035,6 +1041,8 @@ class FactCatalog(Repository):
             Fact.rejection_code == Rejection.DUPLICATE,
             Fact.embedding.is_not(None),
         ]
+        if orphaned:
+            conditions.append(Fact.twin_id.is_(None))
         if within is not None:
             conditions.append(_resting(within))
         return self._refusals(*conditions)
@@ -1155,8 +1163,21 @@ class FactCatalog(Repository):
                     settings_version=self._version,
                     gate_scores=gate_scores or None,
                     confidence=confidence,
+                    twin_id=None,
                 )
             ).rowcount
+
+    def point_at(self, fact_id: int, twin_id: int) -> None:
+        """Records the fact a duplicate refusal still repeats.
+
+        So the next replay leaves it be until that fact goes.
+        """
+        with self._session.begin() as session:
+            session.execute(
+                update(Fact)
+                .where(Fact.id == fact_id, Fact.rejection_code == Rejection.DUPLICATE)
+                .values(twin_id=twin_id)
+            )
 
     def unfold(
         self, cited: Callable[[PassageToExtract, list[Sentence]], str], within=None

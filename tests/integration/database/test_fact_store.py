@@ -165,6 +165,79 @@ class TestStoring:
             (survivor, first)
         ]
 
+    def test_a_duplicate_refusal_keeps_the_id_of_its_twin(self, store, corpus) -> None:
+        """The refusal points at what it repeats, to be re-checked when that goes."""
+        first, other = corpus["a"][0], corpus["b"][0]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+
+        store.store(
+            other,
+            checked(
+                other,
+                "Requests are answered in 48 hours.",
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                twin_id=survivor,
+            ),
+        )
+
+        assert store.rows("twin_id", where="NOT validated") == [(survivor,)]
+
+    def test_a_twin_whose_passage_is_read_again_leaves_its_refusal_orphaned(
+        self, store, corpus
+    ) -> None:
+        """The twin is deleted and the refusal's pointer goes with it, to NULL."""
+        first, other, third = corpus["a"][0], corpus["b"][0], corpus["b"][1]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+        for passage in (other, third):
+            store.store(
+                passage,
+                checked(
+                    passage,
+                    "Requests are answered in 48 hours.",
+                    validated=False,
+                    rejection_code=Rejection.DUPLICATE,
+                    twin_id=survivor if passage == other else None,
+                    embedding=[0.1] * 1024,
+                ),
+            )
+
+        store.store(first)
+
+        assert store.rows("twin_id", where="NOT validated") == [(None,), (None,)]
+        assert [one.fact_id for one in store.catalog.duplicates(orphaned=True)] == [
+            row[0] for row in store.rows("id", where="NOT validated")
+        ]
+
+    def test_the_replay_reads_only_the_refusals_whose_twin_is_gone(
+        self, store, corpus
+    ) -> None:
+        """A refusal whose twin survives is not read again."""
+        first, other, third = corpus["a"][0], corpus["b"][0], corpus["b"][1]
+        store.store(first, checked(first, "Requests are answered in 48 hours."))
+        ((survivor,),) = store.rows("id")
+        for passage in (other, third):
+            store.store(
+                passage,
+                checked(
+                    passage,
+                    "Requests are answered in 48 hours.",
+                    validated=False,
+                    rejection_code=Rejection.DUPLICATE,
+                    twin_id=survivor if passage == other else None,
+                    embedding=[0.1] * 1024,
+                ),
+            )
+        kept = store.rows("id", where="twin_id IS NOT NULL")[0][0]
+
+        read = {one.fact_id for one in store.catalog.duplicates(orphaned=True)}
+
+        assert kept not in read
+        assert len(read) == 1
+        assert {one.fact_id for one in store.catalog.duplicates()} >= read | {kept}
+
     def test_a_duplicate_adds_no_evidence_to_the_fact_it_repeats(
         self, store, corpus
     ) -> None:

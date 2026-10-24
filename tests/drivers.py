@@ -450,6 +450,8 @@ class Catalogue:
         #: The passage ids of every `atomic_of` read.
         self.read_facts: list[set[int]] = []
         self.narrowed: list[Any] = []
+        self.orphans: list[bool] = []
+        self.pointing: dict[int, int] = {}
         self.stored: list[tuple[int, list[PassageToExtract], CandidateFact, str]] = []
         self.rejudged: list[list[tuple[int, CheckedFact]]] = []
         #: The validated passage facts a dedup probe reads, and the refusals
@@ -529,10 +531,20 @@ class Catalogue:
         assert not self.given_back, "folds are taken out before any refusal moves"
         return self.folds
 
-    def duplicates(self, within=None) -> list[Refused]:
-        """Every refusal still standing."""
+    def duplicates(self, within=None, *, orphaned: bool = False) -> list[Refused]:
+        """Every refusal still standing, those pointing at a twin left out when orphaned."""
         self.narrowed.append(within)
-        return [one for one in self.refusals if one.fact_id not in self.given_back]
+        self.orphans.append(orphaned)
+        return [
+            one
+            for one in self.refusals
+            if one.fact_id not in self.given_back
+            and not (orphaned and one.fact_id in self.pointing)
+        ]
+
+    def point_at(self, fact_id: int, twin_id: int) -> None:
+        """Records a refusal that now points at its twin."""
+        self.pointing[fact_id] = twin_id
 
     def nearest_fact(
         self,

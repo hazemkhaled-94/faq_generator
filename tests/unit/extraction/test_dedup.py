@@ -295,3 +295,33 @@ def test_facts_whose_own_citation_is_gone_are_warned_about(caplog) -> None:
     dedup(catalog, BAR)  # type: ignore[arg-type]
 
     assert "2 fact(s)" in caplog.text
+
+
+def test_a_replay_of_orphans_reads_no_refusal_that_points_at_its_twin() -> None:
+    """After a drain that replaced facts, only the refusals that lost theirs are read."""
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 3, "The device weighs 4 kg.", at(0.999)))
+        .refusing(
+            refusal("The device weighs 4 kg.", fact_id=10, passage_id=2),
+            refusal("The device weighs 4 kg.", fact_id=11, passage_id=2),
+        )
+    )
+    catalog.pointing[10] = 1
+
+    dedup(catalog, BAR, orphaned=True)  # type: ignore[arg-type]
+
+    assert catalog.orphans == [True]
+    assert catalog.given_back == []
+
+
+def test_a_refusal_still_a_twin_is_made_to_point_at_it() -> None:
+    """So the next replay leaves it be."""
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(5, 3, "The device weighs 4 kg.", at(0.999)))
+        .refusing(refusal("The device weighs 4 kg.", fact_id=10, passage_id=2))
+    )
+
+    assert dedup(catalog, BAR, orphaned=True) == 0  # type: ignore[arg-type]
+    assert catalog.pointing == {10: 5}

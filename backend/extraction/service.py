@@ -283,8 +283,13 @@ def dedup(
     *,
     checker: FactChecker | None = None,
     cap: int | None = None,
+    orphaned: bool = False,
 ) -> int:
     """Re-decides every stored `duplicate` refusal, without calling the model.
+
+    With `orphaned` only those pointing at no twin, which is what a drain that
+    replaced facts leaves of the refusals that repeated them. A refusal this
+    keeps refused is made to point at the twin it found.
 
     The replay for this gate, as `recap` is for the cap: what the model wrote
     is kept and only the verdict moves. Two steps, in this order:
@@ -320,6 +325,7 @@ def dedup(
             None to leave them as given back.
         cap: The cap those passages are re-capped to, as `recap` takes it.
             Read only with a `checker`.
+        orphaned: Read only the refusals pointing at no twin.
 
     Returns:
         How many refusals were given back.
@@ -336,11 +342,13 @@ def dedup(
         )
     given = 0
     moved: set[int] = set()
-    for refused in catalog.duplicates(within):
+    for refused in catalog.duplicates(within, orphaned=orphaned):
         twin = _twin(catalog, refused)
         if threshold <= 0 or twin is None:
             back = catalog.give_back(refused.fact_id)
         elif twin.similarity >= threshold:
+            if twin.fact_id:
+                catalog.point_at(refused.fact_id, twin.fact_id)
             continue
         else:
             reading = _measured(twin, threshold, floor)
@@ -1175,6 +1183,7 @@ class ExtractionService(StageService):
                 floor=self._duplicate_floor,
                 checker=self._checker,
                 cap=self._atomic_cap,
+                orphaned=True,
             )
         self._replaced = False
 
