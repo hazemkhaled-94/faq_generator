@@ -432,7 +432,11 @@ corpus, which is a property of the model rather than of this code.
   item, one line in nearly every list, where the median is a two-line
   item's wherever items wrap. A paragraph spanning both columns puts the
   second column's edge at the page's, and an item at the top of that column
-  keeps the depth the column before ended on. A nested item is rendered
+  keeps the depth the column before ended on. A list of a right-to-left
+  script (most of its letters Unicode bidirectional class `R` or `AL`) is read
+  from the right: an item is nested when its right edge lies set in from the
+  one before it, and a column break is a block wholly left of the one before.
+  A nested item is rendered
   indented four spaces per level, as the converter renders a list it nested
   itself; the chunker renders each item on its own, so the indent is put
   back after the cut.

@@ -37,7 +37,7 @@ from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import _capitalises_nouns
 from nlp.pipelines import pipeline
-from nlp.text import printed, rejoined
+from nlp.text import printed, rejoined, right_to_left
 
 log = logging.getLogger(__name__)
 
@@ -735,7 +735,7 @@ def _continued(
         if first.label in _PROSE | {DocItemLabel.LIST_ITEM}
         and second.label in _PROSE
         and not first.text.rstrip().endswith(_ENDS)
-        and _broken(first.prov[-1], second.prov[0])
+        and _broken(first.prov[-1], second.prov[0], right_to_left(first.text))
         and (_opens_lower(second.text) or _resumed(first, second, language))
     ]
 
@@ -778,10 +778,18 @@ def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
     return opener.pos_ == "NUM" and last.pos_ in _WANTS_FIGURE
 
 
-def _broken(before: ProvenanceItem, after: ProvenanceItem) -> bool:
-    """Whether a page or a column break lies between two blocks."""
+def _broken(
+    before: ProvenanceItem, after: ProvenanceItem, right_to_left: bool = False
+) -> bool:
+    """Whether a page or a column break lies between two blocks.
+
+    The next column lies right of the one before it, and left of it where the
+    script is written from the right.
+    """
     if after.page_no != before.page_no:
         return after.page_no == before.page_no + 1
+    if right_to_left:
+        return after.bbox.r <= before.bbox.l
     return after.bbox.l >= before.bbox.r
 
 

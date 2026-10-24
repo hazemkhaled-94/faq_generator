@@ -36,6 +36,7 @@ from database.qa_generator.passages import trail_of
 from nlp.analysis import read
 from nlp.language import detect, detect_surely
 from nlp.models import Sentence
+from nlp.text import right_to_left
 from nlp.windows import reserved
 from preprocessing.chunking.furniture import LEAD_IN, furniture_of, headed, tidied
 from preprocessing.chunking.models import Chunk, Chunking
@@ -211,7 +212,8 @@ def nested(document: DoclingDocument) -> DoclingDocument:
 
     The converter builds every list flat, and an item printed indented under
     another then reads as a rule of its own. Within one list, an item whose
-    left edge lies more than half a line right of the item before it, in
+    left edge lies more than half a line right of the item before it (right
+    edge, left of it, in a list of a right-to-left script), in
     the same column of the same page and inside that item's width, nests
     under it; a later item back at an outer edge returns to that level.
     Across a column break no level opens: the item there returns to the
@@ -242,24 +244,32 @@ def nested(document: DoclingDocument) -> DoclingDocument:
             lists.append(items)
     if not lists:
         return document
-    blocks = _blocks(document)
+    blocks = {direction: _blocks(document, direction) for direction in (False, True)}
     plans: list[list[tuple[str, str]]] = []
     for items in lists:
         step = min(abs(one.prov[0].bbox.height) for one in items) / 2
-        edge = _column_edge(items[0].prov[0], blocks)
+        # A list in a right-to-left script is set against its right edge: its
+        # items start at their right and a column lies left of the one before.
+        reverse = right_to_left(" ".join(one.text for one in items))
+        edges = blocks[reverse]
+        edge = _column_edge(
+            items[0].prov[0].page_no, _sides(items[0].prov[0], reverse)[0], edges
+        )
         # The open levels: each one's indent and the item it nests under.
         levels: list[tuple[float, str | None]] = [
-            (items[0].prov[0].bbox.l - edge, None)
+            (_sides(items[0].prov[0], reverse)[0] - edge, None)
         ]
         moves: list[tuple[str, str]] = []
         for before, item in pairwise(items):
             here, there = item.prov[0], before.prov[0]
+            start = _sides(here, reverse)[0]
+            before_start, before_end = _sides(there, reverse)
             if here.page_no == there.page_no:
-                if here.bbox.l >= there.bbox.r:
-                    edge = _column_edge(here, blocks)
-                elif there.bbox.l + step < here.bbox.l:
-                    levels.append((here.bbox.l - edge, before.self_ref))
-            indent = here.bbox.l - edge
+                if start >= before_end:
+                    edge = _column_edge(here.page_no, start, edges)
+                elif before_start + step < start:
+                    levels.append((start - edge, before.self_ref))
+            indent = start - edge
             while len(levels) > 1 and indent < levels[-1][0] - step:
                 levels.pop()
             if (parent := levels[-1][1]) is not None:
@@ -292,24 +302,35 @@ _COLUMN_BLOCKS = frozenset(
 )
 
 
-def _blocks(document: DoclingDocument) -> dict[int, list[tuple[float, float]]]:
-    """The left and right edges of every paragraph and list item, by page."""
+def _sides(prov: ProvenanceItem, reverse: bool) -> tuple[float, float]:
+    """Where a block starts and ends across the page, from the right if `reverse`.
+
+    Measured so that a block set in from where its column begins starts
+    further along, whichever way the script runs.
+    """
+    box = prov.bbox
+    return (-box.r, -box.l) if reverse else (box.l, box.r)
+
+
+def _blocks(
+    document: DoclingDocument, reverse: bool = False
+) -> dict[int, list[tuple[float, float]]]:
+    """The start and end of every paragraph and list item, by page."""
     found: dict[int, list[tuple[float, float]]] = {}
     for item, _ in document.iterate_items():
         if isinstance(item, DocItem) and item.label in _COLUMN_BLOCKS:
             for prov in item.prov:
-                found.setdefault(prov.page_no, []).append((prov.bbox.l, prov.bbox.r))
+                found.setdefault(prov.page_no, []).append(_sides(prov, reverse))
     return found
 
 
 def _column_edge(
-    prov: ProvenanceItem, blocks: dict[int, list[tuple[float, float]]]
+    page: int, start: float, edges: dict[int, list[tuple[float, float]]]
 ) -> float:
-    """The left edge of the column a block starts in, read off its page."""
-    left = prov.bbox.l
+    """The start of the column a block starts in, read off its page's blocks."""
     return min(
-        (start for start, end in blocks.get(prov.page_no, ()) if start <= left < end),
-        default=left,
+        (first for first, end in edges.get(page, ()) if first <= start < end),
+        default=start,
     )
 
 

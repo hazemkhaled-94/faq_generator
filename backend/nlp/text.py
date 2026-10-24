@@ -9,6 +9,7 @@ The text checks of what a quote holds are here too, shared by the stages.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterable, Sequence
 from functools import cache
 
@@ -81,6 +82,17 @@ def _broken_word() -> re.Pattern[str]:
         rf"(?<=[A-Za-zÄÖÜäöüß])-\s+{joined}"
         r"(?=[a-zäöüß])"
     )
+
+
+def right_to_left(text: str) -> bool:
+    """Whether most of a text's letters belong to a right-to-left script.
+
+    Read off each letter's Unicode bidirectional class, `R` or `AL` against
+    `L`, so Arabic, Hebrew and every script written the same way count, and
+    digits, punctuation and spaces vote for neither.
+    """
+    classes = [unicodedata.bidirectional(char) for char in text]
+    return classes.count("R") + classes.count("AL") > classes.count("L")
 
 
 def unfinished(label: str) -> bool:
