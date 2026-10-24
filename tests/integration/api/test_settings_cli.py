@@ -150,9 +150,9 @@ def test_a_change_that_stales_something_says_so(cli, store) -> None:
     """The remedy costs a corpus-sized run, so it is said rather than done."""
     from settings.run import change
 
-    said = change("platform", {"EMBEDDING_MODEL": "intfloat/other"}, store)
+    said = change("platform", {"QA_ANSWER_CONFIDENCE": "0.4"}, store)
 
-    assert any("chunking, extraction, questions" in line for line in said)
+    assert any("questions" in line for line in said)
     assert any("rerun" in line for line in said)
 
 

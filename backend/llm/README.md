@@ -137,7 +137,10 @@ A stage's own model has no container counterpart. `EXTRACTION_MODEL`,
 containers take unchanged, so a container calls whatever model they name,
 and `make doctor` asks them only as the host calls them. A line there naming a hosted model
 sends that stage's calls from the containers to it, authenticated only by
-what `provider.env` holds.
+what `provider.env` holds. `EMBEDDING_MODEL`, `NLI_MODEL` and `QA_MODEL` are
+local encoders read from the same file; they run in the worker, never through
+Ollama, and are fixed like the models above: the settings API serves them and
+refuses to change them.
 
 The two halves **never drain one stage's queue at once**: a host drain
 refuses while that stage's worker is running. The container workers build

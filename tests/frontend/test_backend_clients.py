@@ -173,3 +173,14 @@ def test_refusal_survives_a_body_that_is_not_an_object() -> None:
     refused.response = Refused()  # type: ignore[assignment]
 
     assert refusal(refused) == "502 Server Error"
+
+
+def test_the_shared_session_sends_the_deployments_secret(monkeypatch) -> None:
+    """The api refuses every write that lacks it."""
+    from lib import backend
+
+    monkeypatch.setenv("API_TOKEN", "s3cret")
+    backend._session.clear()
+
+    assert backend._session().headers["X-API-Token"] == "s3cret"
+    backend._session.clear()

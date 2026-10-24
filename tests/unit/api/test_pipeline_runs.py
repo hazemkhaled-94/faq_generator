@@ -6,6 +6,8 @@ The routes are imported inside the fixture, never at module scope: see
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -40,7 +42,11 @@ def api(monkeypatch):
 
     def install(orchestrator: Asked) -> TestClient:
         monkeypatch.setattr(pipeline, "orchestrator", orchestrator)
-        return TestClient(app, base_url="http://localhost:8000")
+        return TestClient(
+            app,
+            base_url="http://localhost:8000",
+            headers={"x-api-token": os.environ["API_TOKEN"]},
+        )
 
     return install
 

@@ -36,6 +36,10 @@ for line in TUNING.read_text().splitlines():
 
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost/x")
 
+# The secret .env carries: every write to the api and every read of its
+# settings is refused without it.
+os.environ.setdefault("API_TOKEN", "token-for-the-tests")
+
 # The evaluation phase's switch lives in `.env`, which no test sources -
 # it is a deployment's decision rather than a tuning value, like the judge
 # model beside it. `GET /assessment/plan` is the first api route to read
@@ -595,7 +599,9 @@ def client(application, database, buckets):
     """A client on an empty database and empty buckets."""
     from fastapi.testclient import TestClient
 
-    with TestClient(application) as opened:
+    with TestClient(
+        application, headers={"x-api-token": os.environ["API_TOKEN"]}
+    ) as opened:
         yield opened
 
 

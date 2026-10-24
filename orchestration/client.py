@@ -13,6 +13,7 @@ whether this stays an orchestrator rather than becoming a second backend.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 
@@ -63,7 +64,10 @@ class Backend:
     def __init__(self, base_url: str, session=None) -> None:
         """Initialises the client against the backend at `base_url`."""
         self._base_url = base_url.rstrip("/")
-        self._session = session or requests.Session()
+        if session is None:
+            session = requests.Session()
+            session.headers["X-API-Token"] = os.environ.get("API_TOKEN", "")
+        self._session = session
 
     def status(self, stage: str) -> Queue:
         """Reports how much work one stage has waiting."""

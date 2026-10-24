@@ -166,6 +166,15 @@ def test_a_pinned_encoder_is_not_written_from_the_page(name: str) -> None:
         catalog.writable(name)
 
 
+@pytest.mark.parametrize("name", ["EMBEDDING_MODEL", "NLI_MODEL", "QA_MODEL"])
+def test_a_local_encoder_is_not_changed_at_run_time(name: str) -> None:
+    """A model the workers load is the deployment's, like the ones LLM_MODEL names."""
+    with pytest.raises(changes.Refused) as refused:
+        changes.apply("platform", {name: "other/model"}, store=Untouched())
+
+    assert refused.value.code == "fixed_setting"
+
+
 class Recording(Environment):
     """A store over the test environment that keeps what it is asked to write."""
 
@@ -183,9 +192,9 @@ class Recording(Environment):
     ("service", "name", "value"),
     [
         ("topics", "TOPIC_LANGUAGE_NAMES", "de:Ger\x00man,en:English"),
-        ("parsing", "DOCLING_ARTIFACTS_PATH", "/models/doc\x00ling"),
+        ("platform", "LLM_REASONING_EFFORT", "lo\x00w"),
         ("topics", "TOPIC_LANGUAGE_NAMES", "de:Ger\ud800man,en:English"),
-        ("parsing", "DOCLING_ARTIFACTS_PATH", "/models/doc\udc80ling"),
+        ("platform", "LLM_REASONING_EFFORT", "lo\udc80w"),
     ],
 )
 def test_a_value_text_cannot_hold_is_refused_before_it_is_stored(

@@ -212,3 +212,12 @@ def test_an_error_status_is_raised_rather_than_read(monkeypatch) -> None:
 
     with pytest.raises(requests.exceptions.HTTPError):
         Backend(BASE, Refusing({})).status("parsing")
+
+
+def test_the_backend_it_builds_sends_the_deployments_secret(monkeypatch) -> None:
+    """Every write to the api carries it, and a session handed in is left alone."""
+    monkeypatch.setenv("API_TOKEN", "s3cret")
+
+    built = Backend(BASE)._session
+
+    assert built.headers["X-API-Token"] == "s3cret"

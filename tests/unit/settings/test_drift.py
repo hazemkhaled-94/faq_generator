@@ -32,3 +32,29 @@ def test_an_unset_address_is_a_warning_not_a_failure(monkeypatch) -> None:
     monkeypatch.delenv("BACKEND_URL", raising=False)
 
     assert drift.main([]) == 0
+
+
+def test_the_settings_are_read_with_the_deployments_secret(monkeypatch) -> None:
+    """The api answers a read of its settings only to a caller that carries it."""
+    monkeypatch.setenv("API_TOKEN", "s3cret")
+    sent: list[dict[str, str]] = []
+
+    class Answer:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            """Accepts."""
+
+        def json(self) -> dict[str, list[dict[str, str]]]:
+            """Serves nothing."""
+            return {"settings": []}
+
+    def get(url: str, headers: dict[str, str], timeout: float) -> Answer:
+        sent.append(headers)
+        return Answer()
+
+    monkeypatch.setattr(drift.requests, "get", get)
+
+    drift.served("http://api:8000")
+
+    assert sent and all(one == {"X-API-Token": "s3cret"} for one in sent)

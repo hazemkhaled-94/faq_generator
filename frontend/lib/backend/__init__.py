@@ -8,6 +8,8 @@ and caching those meant an edited client class went on serving an instance
 built from the old one.
 """
 
+import os
+
 import requests
 import streamlit as st
 
@@ -26,8 +28,12 @@ def _session() -> requests.Session:
 
     Cached because Streamlit re-runs the whole script on every interaction,
     which would otherwise rebuild the connection pool on every click.
+
+    Carries the deployment's shared secret, which the API asks of every write.
     """
-    return requests.Session()
+    session = requests.Session()
+    session.headers["X-API-Token"] = os.environ.get("API_TOKEN", "")
+    return session
 
 
 def upload_api() -> UploadApi:

@@ -171,6 +171,7 @@ SETTINGS: tuple[Setting, ...] = (
         service="parsing",
         kind="text",
         optional=True,
+        fixed=True,
         help="Where the converter's model weights are. Absent lets Docling "
         "download them, which fails in a container with no network.",
     ),

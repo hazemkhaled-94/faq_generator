@@ -5,6 +5,8 @@ A caller branches on `code` rather than on English.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -28,7 +30,11 @@ def client() -> TestClient:
         """Answers normally."""
         return {"ok": True}
 
-    return TestClient(app, raise_server_exceptions=False)
+    return TestClient(
+        app,
+        raise_server_exceptions=False,
+        headers={"x-api-token": os.environ["API_TOKEN"]},
+    )
 
 
 def test_a_refusal_carries_its_status_code_and_detail() -> None:

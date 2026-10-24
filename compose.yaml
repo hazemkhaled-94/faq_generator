@@ -242,6 +242,7 @@ x-dagster: &dagster
     APP_DB_NAME: ${APP_DB_NAME}
     # The only thing it talks to. The compose service name, not localhost.
     BACKEND_URL: ${BACKEND_CONTAINER_URL}
+    API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
     LOG_LEVEL: ${LOG_LEVEL}
     LOG_DIR: /var/log/qa
     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
@@ -494,6 +495,9 @@ services:
       # model-env, and no provider.env: the api serves the model settings
       # and calls no model.
       <<: [*service-env, *store-env, *model-env]
+      # The shared secret every write to this api and every read of its
+      # settings must carry as X-API-Token.
+      API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
       # The orchestrator, for `POST /pipeline/run` and nothing else. The
       # compose service name, because this is the container's view.
       #
@@ -718,6 +722,7 @@ services:
       # The database by name, not the URL with its password: the lineage
       # panel names the Argilla dataset this database pushed to.
       APP_DB_NAME: ${APP_DB_NAME}
+      API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
       PAGE_SIZE: ${PAGE_SIZE}
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_DIR: /var/log/qa

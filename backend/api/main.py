@@ -6,6 +6,9 @@ routes/.
 
 from __future__ import annotations
 
+import hmac
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse
@@ -26,6 +29,38 @@ _READS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: under 5, so a release nobody here has seen would run on the api's origin.
 #: A published version never changes.
 _SWAGGER_UI = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.3"
+
+
+class SharedSecret:
+    """Refuses a write, and any read of the settings, that lacks the secret.
+
+    `API_TOKEN` comes from `.env`, where `make setup` generates it, and the
+    frontend, the orchestrator and the make targets send it as `X-API-Token`.
+    Read per request, and closed when unset: an api with no secret is a
+    misconfiguration, not an open one.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        """Wraps the application."""
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Answers 401 `unauthorized`, or hands the request on."""
+        if scope["type"] == "http" and (
+            scope["method"] not in _READS or scope["path"].startswith("/settings")
+        ):
+            secret = os.environ.get("API_TOKEN", "").encode()
+            sent = Headers(scope=scope).get("x-api-token", "").encode("latin-1")
+            if not secret or not hmac.compare_digest(sent, secret):
+                refusal = errors.ApiError(
+                    401,
+                    "unauthorized",
+                    "send the deployment's API_TOKEN as X-API-Token",
+                )
+                answer = await errors.refused(Request(scope), refusal)
+                await answer(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 class SameOriginWrites:
@@ -64,6 +99,7 @@ app = FastAPI(
     middleware=[
         Middleware(TrustedHostMiddleware, allowed_hosts=csv("API_ALLOWED_HOSTS")),
         Middleware(SameOriginWrites),
+        Middleware(SharedSecret),
     ],
 )
 

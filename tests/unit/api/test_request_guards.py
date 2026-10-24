@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 
 import pytest
@@ -15,7 +16,9 @@ def called_as(host: str) -> TestClient:
     """A client on the api that names one host."""
     from api.main import app
 
-    return TestClient(app, base_url=f"http://{host}")
+    return TestClient(
+        app, base_url=f"http://{host}", headers={"x-api-token": os.environ["API_TOKEN"]}
+    )
 
 
 @pytest.fixture
@@ -30,7 +33,11 @@ def guarded() -> TestClient:
         """Answers whatever reaches it."""
         return {"reached": True}
 
-    return TestClient(behind, base_url="http://localhost:8000")
+    return TestClient(
+        behind,
+        base_url="http://localhost:8000",
+        headers={"x-api-token": os.environ["API_TOKEN"]},
+    )
 
 
 @pytest.mark.parametrize("host", ["localhost:8000", "127.0.0.1:8000", "api:8000"])

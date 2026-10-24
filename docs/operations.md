@@ -27,6 +27,15 @@ host commands; SeaweedFS's master, filer and volume servers publish none.
 The api answers only the host names in `API_ALLOWED_HOSTS`, and refuses with
 403 a write a browser sends from another site.
 
+Every write to the api, and every read of `/settings`, must also carry the
+shared secret `API_TOKEN` as the `X-API-Token` header, and is refused with 401
+`unauthorized` without it. `make setup` generates it into `.env`; the
+frontend, the orchestrator and the make targets send it, and an api started
+with none refuses every write. It is not a login: the secret is shared, so
+the api's binding to `127.0.0.1` is a requirement of the deployment, not a
+default to relax. An existing `.env` needs the line added (run `make setup`
+again, which fills only the placeholders), and the stack recreated.
+
 `make services` and the System health page both ask `GET /services`, which
 probes the catalogue in
 [`backend/api/services.py`](../backend/api/services.py) live. Use that for

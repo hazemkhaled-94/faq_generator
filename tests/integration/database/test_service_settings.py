@@ -159,17 +159,17 @@ def test_an_empty_value_is_refused_for_a_setting_that_needs_one(store) -> None:
 def test_an_empty_value_turns_off_a_setting_whose_absence_means_something(
     store,
 ) -> None:
-    """How an encoder named in the file is overridden back to none.
+    """How a bound the file sets is overridden back to none.
 
-    Deleting the row would return it to the file, which names one. Absence
+    Deleting the row would return it to the file, which sets one. Absence
     has to be storable or the file's value could never be turned off.
     """
     from question_generation.config import Settings
 
-    store.change({"NLI_MODEL": ""}, [])
+    store.change({"QUESTIONS_DUPLICATE_SHARED_COSINE": ""}, [])
 
-    assert store.overrides() == {"NLI_MODEL": ""}
-    assert Settings.load(store.resolved()).entailment_model is None
+    assert store.overrides() == {"QUESTIONS_DUPLICATE_SHARED_COSINE": ""}
+    assert Settings.load(store.resolved()).duplicate_shared_cosine is None
 
 
 def test_a_value_is_trimmed_before_it_is_stored(store) -> None:

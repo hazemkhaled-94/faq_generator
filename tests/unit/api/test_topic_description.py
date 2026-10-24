@@ -7,6 +7,7 @@ What the catalogue then writes is tested against a real one in
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -34,7 +35,11 @@ def described(monkeypatch):
 
     catalog = Catalog()
     monkeypatch.setattr(topics, "topic_catalog", catalog)
-    client = TestClient(app, base_url="http://localhost:8000")
+    client = TestClient(
+        app,
+        base_url="http://localhost:8000",
+        headers={"x-api-token": os.environ["API_TOKEN"]},
+    )
 
     def send(body: dict) -> dict:
         client.patch("/topics/1", json=body)
@@ -81,7 +86,11 @@ def test_a_label_text_cannot_hold_is_refused_before_the_catalogue(
 
     catalog = Catalog()
     monkeypatch.setattr(topics, "topic_catalog", catalog)
-    client = TestClient(app, base_url="http://localhost:8000")
+    client = TestClient(
+        app,
+        base_url="http://localhost:8000",
+        headers={"x-api-token": os.environ["API_TOKEN"]},
+    )
 
     answered = client.patch(
         "/topics/1",

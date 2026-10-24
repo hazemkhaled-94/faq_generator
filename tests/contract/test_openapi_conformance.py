@@ -25,6 +25,8 @@ the ones taking a filter, an enum and a page number off the query string.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 import schemathesis
 from hypothesis import HealthCheck, settings
@@ -126,4 +128,6 @@ def test_a_read_route_answers_what_its_schema_promises(case, database, buckets) 
     quality report over no rows are exactly where an unguarded `[0]` or a
     division by a count of zero lives.
     """
-    case.call_and_validate(checks=CONFORMANCE)
+    case.call_and_validate(
+        checks=CONFORMANCE, headers={"x-api-token": os.environ["API_TOKEN"]}
+    )

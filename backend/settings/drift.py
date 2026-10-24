@@ -17,6 +17,7 @@ this reads the host's, and the two differ on purpose.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 import requests
@@ -70,7 +71,11 @@ def served(url: str) -> dict[str, set[str]]:
     """
     found: dict[str, set[str]] = {}
     for service in _services():
-        answer = requests.get(f"{url}/settings/{service}", timeout=TIMEOUT_SECONDS)
+        answer = requests.get(
+            f"{url}/settings/{service}",
+            headers={"X-API-Token": os.environ.get("API_TOKEN", "")},
+            timeout=TIMEOUT_SECONDS,
+        )
         if answer.status_code in _UNKNOWN_SERVICE:
             found[service] = set()
             continue

@@ -288,10 +288,10 @@ def test_nothing_is_written_when_one_value_in_a_request_is_refused(client) -> No
 def test_a_change_names_what_it_staled(client) -> None:
     """The remedy is the stage's own rerun, on the page that already offers it."""
     answered = client.patch(
-        "/settings/platform", json={"values": {"EMBEDDING_MODEL": "intfloat/other"}}
+        "/settings/platform", json={"values": {"QA_ANSWER_CONFIDENCE": "0.4"}}
     ).json()
 
-    assert answered["stale"] == ["chunking", "extraction", "questions"]
+    assert answered["stale"] == ["questions"]
     assert "rerun" in answered["detail"]
 
 
@@ -351,24 +351,26 @@ def test_a_setting_whose_absence_means_something_can_be_turned_off(client) -> No
     """
     client.patch(
         "/settings/platform",
-        json={"values": {"QA_MODEL": "deepset/reader"}},
+        json={"values": {"LLM_REASONING_EFFORT": "low"}},
     )
 
-    answered = client.patch("/settings/platform", json={"values": {"QA_MODEL": ""}})
+    answered = client.patch(
+        "/settings/platform", json={"values": {"LLM_REASONING_EFFORT": ""}}
+    )
 
     assert answered.status_code == 200, answered.text
-    assert answered.json()["changed"] == ["QA_MODEL"]
+    assert answered.json()["changed"] == ["LLM_REASONING_EFFORT"]
 
     found = {
         one["name"]: one for one in client.get("/settings/platform").json()["settings"]
     }
-    assert found["QA_MODEL"]["value"] is None
-    assert found["QA_MODEL"]["stored"] is True
+    assert found["LLM_REASONING_EFFORT"]["value"] is None
+    assert found["LLM_REASONING_EFFORT"]["stored"] is True
 
-    from question_generation.config import Settings
+    from llm.config import Settings
     from settings.store import Settings as Store
 
-    assert Settings.load(Store().resolved()).answer_model is None
+    assert Settings.load(Store().resolved()).reasoning_effort is None
 
 
 def test_writing_empty_over_an_absence_changes_nothing(client, monkeypatch) -> None:
@@ -380,9 +382,11 @@ def test_writing_empty_over_an_absence_changes_nothing(client, monkeypatch) -> N
     half of what `resolved` compares a new value against, which is the
     thing under test here.
     """
-    monkeypatch.delenv("QA_MODEL", raising=False)
+    monkeypatch.delenv("LLM_REASONING_EFFORT", raising=False)
 
-    answered = client.patch("/settings/platform", json={"values": {"QA_MODEL": ""}})
+    answered = client.patch(
+        "/settings/platform", json={"values": {"LLM_REASONING_EFFORT": ""}}
+    )
 
     assert answered.status_code == 200, answered.text
     assert answered.json()["changed"] == []

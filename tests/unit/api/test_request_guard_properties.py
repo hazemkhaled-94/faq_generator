@@ -7,6 +7,7 @@ would become an object key in.
 
 from __future__ import annotations
 
+import os
 import string
 from urllib.parse import quote, unquote
 
@@ -32,7 +33,9 @@ def guarded() -> TestClient:
     def anything() -> dict[str, bool]:
         return {"reached": True}
 
-    return TestClient(behind, base_url=_OWN)
+    return TestClient(
+        behind, base_url=_OWN, headers={"x-api-token": os.environ["API_TOKEN"]}
+    )
 
 
 _HEADER_TEXT = st.text(
@@ -104,7 +107,9 @@ def documents(monkeypatch) -> TestClient:
 
     monkeypatch.setattr(routes, "ingest_service", _Untouched())
     monkeypatch.setattr(routes, "removal_service", _Untouched())
-    return TestClient(app, base_url=_OWN)
+    return TestClient(
+        app, base_url=_OWN, headers={"x-api-token": os.environ["API_TOKEN"]}
+    )
 
 
 _NOT_A_DIGEST = st.text(

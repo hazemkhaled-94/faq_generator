@@ -2379,14 +2379,14 @@ pipeline-status:
 # Both halves: emptying the queues while a run is going means the run fills
 # them again at its next stage.
 pipeline-stop:
-	@$(LOADENV) && curl -sf -X POST $$BACKEND_URL/pipeline/stop \
+	@$(LOADENV) && curl -sf -X POST -H "X-API-Token: $$API_TOKEN" $$BACKEND_URL/pipeline/stop \
 	  | python3 -c 'import sys, json; print(json.load(sys.stdin)["detail"])' \
 	  || echo "The api is not answering. Try: make up"
 
 # Return every stage's failures to the queue. What a model outage leaves
 # behind, cleared in one command instead of five.
 pipeline-retry:
-	@$(LOADENV) && curl -sf -X POST $$BACKEND_URL/pipeline/retry \
+	@$(LOADENV) && curl -sf -X POST -H "X-API-Token: $$API_TOKEN" $$BACKEND_URL/pipeline/retry \
 	  | python3 -c 'import sys, json; print(json.load(sys.stdin)["detail"])' \
 	  || echo "The api is not answering. Try: make up"
 
