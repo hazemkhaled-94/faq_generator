@@ -389,7 +389,8 @@ An accepted `needs_both` question citing two passages is read once more by the v
 A `compound` question asks two separate things joined by "and", each answered
 by one of two passages that share least. The writer returns the two halves,
 each half is recovered from its own passage alone (two verifier reads, and no
-round trip on the merged question), and a question claiming a relation between
+round trip on the merged question; a half recall missed gets the entailment
+rescue a single key gets, against its own passage), and a question claiming a relation between
 its halves (a word such as "differ", "both" or "together", by the per-language
 `_RELATES` table, read only in the words that join the halves) is refused as
 `wrong_type`. The key is held to its answer form one half at a time. The

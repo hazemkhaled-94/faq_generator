@@ -6508,3 +6508,107 @@ def test_a_compound_key_is_held_to_its_form_part_by_part() -> None:
     )
 
     assert result.rejected_reason is None
+
+
+# ── A compound half the passage entails is rescued like a single key ──────
+
+
+class Entails:
+    """An NLI stub scoring every pair one way, recording the hypotheses."""
+
+    def __init__(self, entailment: float) -> None:
+        """Initialises with the one probability it gives."""
+        self.entailment = entailment
+        self.pairs: list[tuple[str, str]] = []
+
+    def judge_all(self, pairs):
+        """Scores each pair the same and remembers it."""
+        from nlp.entailment import Verdict
+
+        self.pairs.extend(pairs)
+        return [Verdict(self.entailment, 1 - self.entailment, 0.0) for _ in pairs]
+
+
+_RESCUED = {
+    "en": (
+        "Returns are accepted within 30 days of delivery.",
+        "A refund is paid back to the original payment method.",
+        "What is the return period, and how is a refund paid?",
+        (
+            (1, "What is the return period?", "within 30 days"),
+            (2, "How is a refund paid?", "to the original payment method"),
+        ),
+        "by bank transfer on Friday",
+    ),
+    "de": (
+        "Rücksendungen werden innerhalb von 30 Tagen nach Lieferung angenommen.",
+        "Eine Rückerstattung erfolgt auf die ursprüngliche Zahlungsart.",
+        "Wie lang ist die Rückgabefrist, und wie wird eine Rückerstattung gezahlt?",
+        (
+            (1, "Wie lang ist die Rückgabefrist?", "innerhalb von 30 Tagen"),
+            (
+                2,
+                "Wie wird eine Rückerstattung gezahlt?",
+                "auf die ursprüngliche Zahlungsart",
+            ),
+        ),
+        "per Überweisung am Freitag",
+    ),
+}
+
+
+def _rescuing(language: str, encoder: Entails):
+    one, two, asked, parts, other = _RESCUED[language]
+    recording = PerHalf({parts[0][1]: parts[0][2], parts[1][1]: other})
+    checker = QuestionChecker(
+        embedder=recording,
+        verifier=recording,
+        nearest=lambda embedding, **_: None,
+        threshold=0.93,
+        phrasing=recording,
+        entailment=encoder,
+    )
+    made = candidate(
+        question_text=asked,
+        target_answer="; ".join(p[2] for p in parts),
+        facts=group(
+            source(1, document="a", passage_id=1, statement=one, language=language),
+            source(2, document="b", passage_id=2, statement=two, language=language),
+        ),
+        kind="compound",
+        parts=parts,
+    )
+    return checker, made
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_half_the_passage_entails_is_rescued(language: str) -> None:
+    """Recall missed half two, the encoder entails it from its own passage."""
+    checker, made = _rescuing(language, Entails(0.9))
+
+    assert checker._parts(made, AnswerForm.VALUE, []) is made
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_half_the_encoder_does_not_entail_stays_refused(
+    language: str,
+) -> None:
+    """The rescue only ever accepts what the encoder supports."""
+    checker, made = _rescuing(language, Entails(0.0))
+
+    refused = checker._parts(made, AnswerForm.VALUE, [])
+
+    assert code(refused) == QuestionRejection.NOT_RECOVERABLE
+    assert "half 2" in refused[1]
+
+
+def test_a_compound_half_is_rescued_against_its_own_passage_only() -> None:
+    """The other half's passage is never the premise of this half."""
+    encoder = Entails(0.9)
+    checker, made = _rescuing("en", encoder)
+
+    checker._parts(made, AnswerForm.VALUE, [])
+
+    assert len(encoder.pairs) == 1
+    assert encoder.pairs[0][0].startswith(_RESCUED["en"][1])
+
