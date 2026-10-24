@@ -748,6 +748,7 @@ class QuestionCatalog(Repository):
                 Question.question_text,
                 Question.answerable,
                 Question.language,
+                Question.target_answer,
                 distance.label("far"),
             )
             .where(
@@ -792,6 +793,7 @@ class QuestionCatalog(Repository):
             passage_ids=frozenset(
                 row.passage_id for row in cited if row.passage_id is not None
             ),
+            answer=found.target_answer,
         )
 
     def closest_among(self, ids: Sequence[int]) -> list[tuple[Posed, Posed]]:

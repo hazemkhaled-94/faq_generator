@@ -123,6 +123,7 @@ from question_generation.models import (
 )
 from question_generation.types import GATES, PASSED, REFUSED, annotation, spec
 from question_generation.verifier import (
+    PROMPT_VERSION,
     STATED_VERSION,
     Part,
     Reading,
@@ -612,6 +613,13 @@ class QuestionChecker:
                 )
             )
         failed = near_verdict(near, **probed)
+        if (
+            failed
+            and failed[0] == QuestionRejection.DUPLICATE
+            and near is not None
+            and self._differs(candidate, near, readings)
+        ):
+            failed = None
         if failed:
             return done(failed, embedding)
 
@@ -634,6 +642,42 @@ class QuestionChecker:
             else:
                 candidate = outcome
         return done(failed, embedding)
+
+    def _differs(
+        self, candidate: Candidate, near: Neighbour, readings: list[Measurement]
+    ) -> bool:
+        """Whether the verifier says a pair the cosine calls twins wants two answers.
+
+        A cosine over the question text alone does not tell a twin from a
+        neighbour, so a pair that rests on no fact in common is put to the
+        verifier's `same_answer` read before it is refused: one reply serving
+        both is a duplicate, and none serving both is two questions. A pair
+        on one fact stays refused on its cosine, the strongest sign there is,
+        and so does one whose neighbour's key nobody read or whose read could
+        not be had: the cosine decides as it did.
+        """
+        if near.answer is None or near.fact_ids & {
+            fact.id for fact in candidate.group.facts
+        }:
+            return False
+        try:
+            same = self._verifier.same_answer(
+                (candidate.question_text, candidate.target_answer),
+                (near.question_text, near.answer),
+            )
+        except ModelUnavailable as exc:
+            log.warning("no twin reading for %r: %s", candidate.question_text, exc)
+            return False
+        readings.append(
+            Measurement(
+                "same_answer",
+                1.0 if not same else 0.0,
+                0.5,
+                opinion=True,
+                version=PROMPT_VERSION,
+            )
+        )
+        return not same
 
     def _parted(
         self, candidate: Candidate, readings: list[Measurement]
@@ -1566,6 +1610,7 @@ class QuestionChecker:
                     fact_ids=frozenset(other.fact_ids),
                     language=other.language,
                     passage_ids=frozenset(other.passage_ids),
+                    answer=other.target_answer,
                 )
                 if near is None or score > near.similarity:
                     if near is not None and near.similarity >= lowest:

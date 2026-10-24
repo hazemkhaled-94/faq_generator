@@ -610,6 +610,9 @@ class Neighbour:
     id: int | None = None
     #: The passages its facts rest on. Empty, like `fact_ids`, shares none.
     passage_ids: frozenset[int] = frozenset()
+    #: Its key, or None where nobody read it: what a pair is put to the
+    #: verifier with, since two questions want one answer only by their keys.
+    answer: str | None = None
 
 
 @dataclass(frozen=True)
