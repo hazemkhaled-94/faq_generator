@@ -522,7 +522,7 @@ From a fresh clone, following only this page:
    detached: `logs/corpus-hosted.log` holds what it does and
    `logs/corpus-hosted.pid` its process. It names the database it acts on,
    gives every drain that name and `HF_HUB_OFFLINE=1`, and counts spend
-   across the drains in `logs/corpus-spend.usd`, so `SPEND_CAP` is the cost of
+   across the drains in `logs/corpus-spend.usd` (`SPEND_LEDGER`), so `SPEND_CAP` is the cost of
    the whole run and not of each drain. Every drain logs the split it resolved
    before its first row, and a role that resolves to an Ollama model stops
    the run before a model is asked.
