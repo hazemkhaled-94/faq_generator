@@ -909,3 +909,49 @@ def test_a_real_heading_outside_a_list_stays_a_heading() -> None:
             ["Terms", "Closing the account"],
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("title", "address", "chapters"),
+    [
+        ("Jahresbericht 2026", "Hauptstrasse 9, 8001 Zürich", ("Konten", "Karten")),
+        ("Annual Report 2026", "Main Street 9, Zurich", ("Accounts", "Cards")),
+    ],
+)
+def test_a_letterhead_printed_on_the_first_page_names_no_chapter(
+    title: str, address: str, chapters: tuple[str, str]
+) -> None:
+    """Page 1 prints its address once, laid out as a chapter foot is; it is no chapter."""
+    document = paged(5)
+    first, second = chapters
+    for page, printed in (
+        (1, address),
+        (2, first),
+        (3, first),
+        (4, second),
+        (5, second),
+    ):
+        foot(document, page, f"{title} | {printed}")
+    say(document, 1, "An account opens once the bank has checked the holder.")
+    document.add_heading(text="1. Opening an account", level=1, prov=on(2, 60))
+    say(document, 2, "A joint account needs both holders to sign.")
+    say(document, 3, "A card is issued on request.")
+
+    for _, headings in trails(document):
+        assert address not in (headings or [])
+
+
+def test_a_chapter_of_one_page_after_the_first_still_names_itself() -> None:
+    """The same foot on page 5 is a chapter of its own."""
+    document = paged(5)
+    for page, printed in (
+        (1, "Accounts"),
+        (2, "Accounts"),
+        (3, "Cards"),
+        (4, "Cards"),
+        (5, "Annex"),
+    ):
+        foot(document, page, f"{GUIDE} | {printed}")
+    say(document, 5, "A fee table follows.")
+
+    assert ("A fee table follows.", ["Annex"]) in trails(document)

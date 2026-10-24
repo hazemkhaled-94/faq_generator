@@ -183,7 +183,8 @@ def furniture_of(document: DoclingDocument) -> Furniture:
     Otherwise a field printed on a single page names a chapter of one page
     when its running item is laid out as one naming a chapter of several -
     the same fields constant and varying, in the same places - and no page
-    beside it prints a single-page field of its own. A short chapter prints
+    beside it prints a single-page field of its own; the document's first
+    page is none, whose letterhead is printed once and names nothing. A short chapter prints
     its foot on one page; guide words, naming each page's first entry, print
     a different one on every page in a row, and a page between them is in
     no chapter. When one of the varying fields comes back after another has
@@ -317,6 +318,8 @@ def furniture_of(document: DoclingDocument) -> Furniture:
         following[page] = upcoming
         upcoming = printing[page] or upcoming
 
+    # What the first page prints once, a letterhead, is no chapter of one page.
+    opening = min(document.pages, default=pages[0] if pages else 0)
     starts: list[int] = []
     labels: list[tuple[str, ...]] = []
     for page in pages:
@@ -330,7 +333,12 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             by_page[page].keys() <= constant or following[page] == before
         ):
             continue
-        if not label and (own := single(page)) and names_a_chapter(page, own):
+        if (
+            not label
+            and page != opening
+            and (own := single(page))
+            and names_a_chapter(page, own)
+        ):
             label = tuple(spelled[key] for key in own)
         # A page printing only part of its chapter's label, its number
         # without its title, is still in it.
