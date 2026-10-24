@@ -7,6 +7,8 @@ its actuals back, and one for a corpus ten times larger multiplies them.
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 import pytest
 
 from stages import estimate
@@ -24,7 +26,9 @@ ACTUALS = {
 }
 
 #: Its corpus: what is still to be done before anything has run.
-BUILD = estimate.Rows(documents=30, passages=1_973, topics=41, accepted=2_175)
+BUILD = estimate.Rows(
+    documents=30, passages=1_973, topics=41, accepted=2_175, corpus=1_973
+)
 
 
 def _by_stage(lines):
@@ -53,7 +57,9 @@ def test_a_corpus_ten_times_the_size_costs_ten_times_in_the_stages_that_follow_i
     None
 ):
     """Extraction is one passage at a time: 20,000 passages are about 20 hours and USD 131."""
-    ten = estimate.Rows(documents=300, passages=19_730, topics=410, accepted=21_750)
+    ten = estimate.Rows(
+        documents=300, passages=19_730, topics=410, accepted=21_750, corpus=19_730
+    )
 
     got = _by_stage(estimate.estimate(ten))
 
@@ -100,3 +106,35 @@ def test_rows_a_stage_has_not_reached_are_projected_from_the_ones_before() -> No
     assert projected.topics == pytest.approx(41, rel=0.1)
     assert projected.accepted == pytest.approx(2_175, rel=0.1)
     assert estimate.projected(30, 1_973, 41, 2_175) == BUILD
+
+
+def _later_stages(rows: estimate.Rows) -> dict[str, estimate.Line]:
+    return _by_stage(estimate.estimate(estimate.projected(**asdict(rows))))
+
+
+@pytest.mark.parametrize("passages", [0, 987])
+def test_the_stages_after_extraction_are_projected_from_the_corpus(passages) -> None:
+    """Extracted or half extracted, but not fitted: the topics are the corpus's, not the remainder's."""
+    got = _later_stages(estimate.Rows(0, passages, 0, 0, corpus=1_973, fitted=False))
+    whole = _by_stage(estimate.estimate(BUILD))
+
+    assert got["extract"].rows == passages
+    assert got["topics"].rows == 1_973
+    for stage in ("bridges", "questions", "release", "assess"):
+        assert got[stage].usd == pytest.approx(whole[stage].usd, rel=0.1), stage
+    assert got["questions"].rows == pytest.approx(41, rel=0.1)
+
+
+def test_a_corpus_that_is_extracted_and_fitted_and_finished_costs_nothing() -> None:
+    """The topics count 0 because they are done, not because none were fitted."""
+    got = _later_stages(estimate.Rows(0, 0, 0, 0, corpus=1_973, fitted=True))
+
+    assert all(line.usd == 0 and line.seconds == 0 for line in got.values())
+
+
+def test_a_fitted_corpus_keeps_the_topics_still_to_question() -> None:
+    """The fit is done: only the topics left are asked about."""
+    got = _later_stages(estimate.Rows(0, 0, 10, 0, corpus=1_973, fitted=True))
+
+    assert got["topics"].rows == 0
+    assert got["questions"].rows == 10

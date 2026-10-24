@@ -66,12 +66,16 @@ class Rows:
 
     #: Documents still to parse and chunk.
     documents: int
-    #: Passages still to extract, and the corpus the topics are fitted over.
+    #: Passages still to extract.
     passages: int
     #: Topics still to write bridges and questions for.
     topics: int
     #: Accepted questions, which the release is drawn from and the sample.
     accepted: int
+    #: Every passage of the corpus, which the topics are fitted over.
+    corpus: int = 0
+    #: Whether a topic fit exists: no topics left to question then means done.
+    fitted: bool = False
 
 
 @dataclass(frozen=True)
@@ -86,17 +90,28 @@ class Line:
     calls: float
 
 
-def projected(documents: int, passages: int, topics: int, accepted: int) -> Rows:
+def projected(
+    documents: int,
+    passages: int,
+    topics: int,
+    accepted: int,
+    corpus: int = 0,
+    fitted: bool = False,
+) -> Rows:
     """The rows, with those a stage has not reached read from the stage before.
 
     A corpus that has not been chunked has no passages yet, and one whose
     topics are not fitted has none, so what is to come is the ratio the
-    reviewed build had. A count that is there is kept.
+    reviewed build had, taken from the whole corpus and not from the passages
+    still to extract. A count that is there is kept, and a fit that exists
+    projects nothing: its topics are the ones counted.
     """
     passages = passages or round(documents * PASSAGES_PER_DOCUMENT)
-    topics = topics or round(passages * TOPICS_PER_PASSAGE)
+    corpus = corpus or passages
+    if not fitted:
+        topics = topics or round(corpus * TOPICS_PER_PASSAGE)
     accepted = accepted or round(topics * ACCEPTED_PER_TOPIC)
-    return Rows(documents, passages, topics, accepted)
+    return Rows(documents, passages, topics, accepted, corpus, fitted)
 
 
 def estimate(rows: Rows, drains: Mapping[str, int] | None = None) -> list[Line]:
@@ -112,7 +127,7 @@ def estimate(rows: Rows, drains: Mapping[str, int] | None = None) -> list[Line]:
         "parse": rows.documents,
         "chunk": rows.documents,
         "extract": rows.passages,
-        "topics": rows.passages,
+        "topics": 0 if rows.fitted else rows.corpus,
         "bridges": rows.topics,
         "questions": rows.topics,
         "release": rows.accepted,
@@ -160,7 +175,7 @@ def report(lines: Sequence[Line]) -> None:
 
 def counted() -> Rows:
     """The rows still to do, counted in the database `DATABASE_URL` names."""
-    from sqlalchemy import func, select
+    from sqlalchemy import exists, func, select
     from sqlalchemy.orm import Session
 
     from database.qa_generator import (
@@ -191,6 +206,10 @@ def counted() -> Rows:
                 .where(Passage.extract_status != Status.EXTRACTED)
             )
             or 0,
+            corpus=session.scalar(select(func.count()).select_from(Passage)) or 0,
+            fitted=bool(
+                session.scalar(select(exists().where(Topic.topic_index.is_not(None))))
+            ),
             topics=session.scalar(
                 select(func.count())
                 .select_from(Topic)

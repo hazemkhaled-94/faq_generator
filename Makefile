@@ -1304,7 +1304,8 @@ spend-by-shape:
 # documents not chunked, the passages not extracted, the topics not written
 # for and the accepted questions, each times what a row of its stage took in
 # the reviewed build. A stage not yet reached is projected from the one
-# before it at that build's ratios. DRAINS says how many drains work a stage
+# before it at that build's ratios, the topics from the whole corpus and not
+# from the passages still to extract. DRAINS says how many drains work a stage
 # at once and divides its time, never its spend.
 #
 #   make estimate
