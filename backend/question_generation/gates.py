@@ -222,6 +222,7 @@ def _misfits(
     form: str,
     bounds: Mapping[str, tuple[int, int]],
     verbs: bool,
+    acts: bool | None = None,
 ) -> tuple[str, str] | None:
     """Why this answer is not of this form, or None when it is.
 
@@ -234,7 +235,9 @@ def _misfits(
     construction and `de_core_news_md` tags `dreihundert` as a verb.
 
     An explanation carrying no verb is the opposite failure: a why or a how
-    answered with a noun phrase has not been answered.
+    answered with a noun phrase has not been answered. A participle inside a
+    noun phrase is a verb for that reading (`verbs`) and no action for the
+    value one (`acts`): see `_acts`.
     """
     low, high = bounds.get(form, BOUNDS[AnswerForm.VALUE])
     if len(answer) < low:
@@ -253,7 +256,11 @@ def _misfits(
                 f"{form} answer is held to at most {high}"
             ),
         )
-    if form == AnswerForm.VALUE and len(answer.split()) > 1 and verbs:
+    if (
+        form == AnswerForm.VALUE
+        and len(answer.split()) > 1
+        and (verbs if acts is None else acts)
+    ):
         return (
             QuestionRejection.WRONG_FORM,
             (
@@ -312,6 +319,28 @@ def _looks_like(answer: str, verbs: bool, listed: int = _LISTED) -> str:
     return AnswerForm.VALUE
 
 
+#: Dependencies that hang a word inside a noun phrase: a participle there
+#: describes the thing (`two missing documents`) and asserts no action.
+_INSIDE_PHRASE = frozenset({"amod", "compound", "nmod"})
+
+
+def _acts(answer: str, language: str | None) -> bool:
+    """Whether an answer describes an action: a verb outside any noun phrase.
+
+    `claim().verbs` counts a participle in a noun phrase too, and the English
+    tagger reads `missing`, `following` and `supporting` as verbs under
+    `amod`, which made `two missing documents` an action and refused it as a
+    value. A verb attached inside a noun phrase - as a modifier, a compound
+    member, or a TIGER `nk` of a noun - is the thing's description.
+    """
+    return any(
+        token.pos_ in ("VERB", "AUX")
+        and token.dep_ not in _INSIDE_PHRASE
+        and not (token.dep_ == "nk" and token.head.pos_ in ("NOUN", "PROPN"))
+        for token in pipeline(language)(answer)
+    )
+
+
 def fitting(
     answer: str,
     forms: Sequence[str],
@@ -337,6 +366,7 @@ def fitting(
     """
     asked = forms[0] if forms else AnswerForm.VALUE
     verbs = bool(claim(answer, language).verbs)
+    acts = verbs and _acts(answer, language)
     looks = _looks_like(
         answer,
         verbs,
@@ -347,12 +377,12 @@ def fitting(
     )
     first: tuple[str, str] | None = None
     for form in tried:
-        failed = _misfits(answer, form, bounds, verbs)
+        failed = _misfits(answer, form, bounds, verbs, acts)
         if failed is None:
             return form, None
         if form == asked:
             first = failed
-    return asked, first or _misfits(answer, asked, bounds, verbs)
+    return asked, first or _misfits(answer, asked, bounds, verbs, acts)
 
 
 #: The opening of a question asking for a count.

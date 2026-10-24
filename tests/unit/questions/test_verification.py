@@ -6780,3 +6780,31 @@ def test_a_title_in_a_language_no_configuration_names_never_raises() -> None:
         QuestionRejection.LEAKS_SOURCE,
         QuestionRejection.MALFORMED,
     }
+
+
+@pytest.mark.parametrize(
+    ("answer", "language", "refused"),
+    [
+        ("two missing documents", "en", False),
+        ("the following steps", "en", False),
+        ("three supporting documents", "en", False),
+        ("the shipping costs", "en", False),
+        ("zwei fehlende Unterlagen", "de", False),
+        ("Verwarnungen aussprechen", "de", True),
+        ("returning the item", "en", True),
+        ("to cancel the order", "en", True),
+    ],
+)
+def test_a_participle_inside_a_noun_phrase_is_not_an_action(
+    answer: str, language: str, refused: bool
+) -> None:
+    """`two missing documents` names things; `returning the item` describes an act."""
+    failed = checked(
+        question_text="Welche Unterlagen fehlen?"
+        if language == "de"
+        else "Which items are needed?",
+        target_answer=answer,
+        language=language,
+    )
+
+    assert (code(failed) == QuestionRejection.WRONG_FORM) is refused
