@@ -5,9 +5,25 @@ from __future__ import annotations
 import requests
 import streamlit as st
 
-from lib import backend, configure, page
+from lib import backend, config, configure, page
 from lib.backend.base import refusal
 from lib.backend.upload import UploadApi
+
+#: Where the last upload's outcomes are kept, so a redraw does not lose them.
+_LAST = "upload-last"
+
+
+def _over_the_cap(files: list) -> str | None:
+    """Says why a selection is too large to send from this page, if it is."""
+    size = sum(one.size for one in files)
+    if len(files) <= config.UPLOAD_MAX_FILES and size <= config.UPLOAD_MAX_BYTES:
+        return None
+    return (
+        f"{len(files)} files, {size / 1048576:,.0f} MB: this page sends at most "
+        f"{config.UPLOAD_MAX_FILES} files and {config.UPLOAD_MAX_BYTES / 1048576:,.0f} "
+        f"MB at once, and nothing was uploaded. Load a larger set from the "
+        f"host with `make ingest DIR=<directory>`."
+    )
 
 
 def view() -> None:
@@ -31,12 +47,20 @@ def view() -> None:
         # Outside the upload form, inside the panel: a form holds no form.
         configure.panel("ingestion")
 
-    if submitted and files:
+    if submitted and files and (too_much := _over_the_cap(files)):
+        st.error(too_much)
+    elif submitted and files:
         with st.spinner(f"Uploading {len(files)} file(s)…"):
-            for uploaded in files:
+            st.session_state[_LAST] = [
                 _report(uploaded.name, client, uploaded.getvalue())
+                for uploaded in files
+            ]
     elif submitted:
         st.warning("Select at least one PDF.")
+
+    if last := st.session_state.get(_LAST):
+        with page.panel("Last upload"):
+            st.dataframe(last, hide_index=True, width="stretch")
 
     held = client.counts()
     with overview, page.panel("Overview"):
@@ -54,8 +78,8 @@ def view() -> None:
         )
 
 
-def _report(filename: str, client: UploadApi, data: bytes) -> None:
-    """Uploads one file and shows what became of it."""
+def _report(filename: str, client: UploadApi, data: bytes) -> dict[str, str]:
+    """Uploads one file, shows what became of it, and returns the table row."""
     named = page.plain(filename)
     try:
         outcome = client.add_document(filename, data)["outcome"]
@@ -65,16 +89,18 @@ def _report(filename: str, client: UploadApi, data: bytes) -> None:
             f"{named}: unknown, no answer in time. Check the Documents list "
             f"before uploading it again."
         )
-        return
+        return {"File": filename, "Outcome": "unknown, no answer in time"}
     except requests.exceptions.RequestException as exc:
         # The reason for a 413 or 415 is in the response body.
-        st.error(f"{named}: {refusal(exc)}")
-        return
+        reason = refusal(exc)
+        st.error(f"{named}: {reason}")
+        return {"File": filename, "Outcome": f"refused: {reason}"}
 
     if outcome == "stored":
         st.success(f"{named}: stored.")
     else:
         st.info(f"{named}: {outcome.replace('_', ' ')} — already held.")
+    return {"File": filename, "Outcome": outcome.replace("_", " ")}
 
 
 page.render(view)

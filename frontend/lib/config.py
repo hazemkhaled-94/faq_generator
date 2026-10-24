@@ -41,6 +41,14 @@ SEARCH_MAX = 200
 #: whole save; copied and held the same way.
 LABEL_MAX = 120
 
+#: The most files, and the most bytes in all, one selection on the Upload
+#: page may hold. The browser session keeps every file whole and the page
+#: sends them one request at a time; past this, `make ingest DIR=` loads a
+#: directory from the host. Plain numbers, not settings: the API's own limit
+#: is per file, and this is a limit of the page.
+UPLOAD_MAX_FILES = 20
+UPLOAD_MAX_BYTES = 200 * 1024 * 1024
+
 #: Rows per page in the listings.
 PAGE_SIZE = _integer("PAGE_SIZE")
 if not 1 <= PAGE_SIZE <= PAGE_MAX:

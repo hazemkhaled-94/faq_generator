@@ -99,7 +99,12 @@ arrival.
 
 The same sequence of panels, on the six stage pages that list something
 (Upload draws its figures and the upload form, with `Configuration` under
-it):
+it, and after an upload a table of what became of each file. It refuses a
+selection above 20 files or 200 MB in all, `UPLOAD_MAX_FILES` and
+`UPLOAD_MAX_BYTES` in [`lib/config.py`](lib/config.py), and names
+`make ingest DIR=<directory>`, which loads a host directory through the same
+ingest service; a timeout is shown as unknown, with the Documents list as the
+place to check):
 
 ```
 the few figures worth seeing on arrival

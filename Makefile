@@ -317,7 +317,7 @@ help:
         assess-retry assess-reclaim assess-rerun diversity \
         questions-balance questions-export questions-rejudge \
         questions-runs questions-diff \
-        documents delete delete-derived wipe-all wipe-preflight dagster-wipe \
+        documents ingest delete delete-derived wipe-all wipe-preflight dagster-wipe \
         archive archive-purge restore-documents s3-prefix backup restore-backup restore-backup-stack \
         test test-fast test-unit test-integration test-e2e test-smoke \
         test-eval test-coverage test-perf mutation \
@@ -1527,6 +1527,15 @@ settings-unset:
 # List up to 1000 stored documents, each with its digest and parse state.
 documents:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --list
+
+# Load every PDF in a directory of the host through the service the Upload
+# page uses, so a set too large for the page goes in at once. One line per
+# file, then a summary: a file the corpus holds already is reported as a
+# duplicate and stores nothing, and a file the service refuses fails the run.
+#   make ingest DIR=~/documents/prices
+ingest:
+	@[ -n "$(DIR)" ] || { echo 'usage: make ingest DIR=<directory of PDFs>'; exit 2; }
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --add "$(DIR)"
 
 # Delete a document, its file, its converted form and everything derived from
 # it. The rows are archived and the objects are moved to the `archive` bucket,

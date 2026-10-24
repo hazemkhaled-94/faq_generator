@@ -296,3 +296,91 @@ def test_chunking_declares_the_re_read_as_its_own_operation(monkeypatch) -> None
     assert "vocabulary" in help_text
     assert verb == "read again"
     assert callable(run)
+
+
+# ── Bulk load ──────────────────────────────────────────────────────────────
+
+
+def _pdf(text: str) -> bytes:
+    """A real one-page PDF holding one line of text."""
+    import pymupdf
+
+    document = pymupdf.open()
+    document.new_page().insert_text((72, 72), text)
+    try:
+        return document.tobytes()
+    finally:
+        document.close()
+
+
+@pytest.fixture
+def folder(tmp_path):
+    """Two German and two English price lists, one of them a copy, and a note."""
+    fees = _pdf("Account maintenance: 4.90 EUR a month.")
+    held = {
+        "Gebührenübersicht Girokonto.pdf": _pdf("Kontoführung: 4,90 EUR im Monat."),
+        "Preisliste Wertpapiere.pdf": _pdf("Depotgebühr: 0,15 Prozent im Jahr."),
+        "account-fees.pdf": fees,
+        "account-fees (copy).pdf": fees,
+        "notes.txt": b"not a document",
+    }
+    for name, data in held.items():
+        (tmp_path / name).write_bytes(data)
+    return tmp_path
+
+
+def test_a_directory_is_ingested_through_the_service_and_the_copy_is_reported(
+    folder, monkeypatch, caplog
+) -> None:
+    """Three stored, the copy named as a duplicate, the note left alone."""
+    from intake_drivers import IngestDriver
+
+    driver = IngestDriver()
+    monkeypatch.setattr(ingestion_run, "build_service", lambda settings: driver.service)
+    caplog.set_level("INFO")
+
+    assert ingestion_run.main(["--add", str(folder)]) == 0
+
+    assert len(driver.stored) == 3
+    lines = caplog.text
+    assert "account-fees (copy).pdf" in lines
+    assert lines.count(".pdf: duplicate_bytes") == 1
+    assert "3 stored, 1 duplicate, 0 refused" in lines
+    assert "notes.txt" not in lines
+
+
+def test_a_file_the_service_refuses_makes_the_command_fail(
+    folder, monkeypatch, caplog
+) -> None:
+    """A PDF by name and not by bytes is refused, and the exit code says so."""
+    from intake_drivers import IngestDriver
+
+    (folder / "scan.pdf").write_bytes(b"not a pdf at all")
+    driver = IngestDriver()
+    monkeypatch.setattr(ingestion_run, "build_service", lambda settings: driver.service)
+    caplog.set_level("INFO")
+
+    assert ingestion_run.main(["--add", str(folder)]) == 1
+
+    assert "1 refused" in caplog.text
+
+
+def test_a_directory_that_does_not_exist_fails_before_anything_is_stored(
+    tmp_path, monkeypatch
+) -> None:
+    """Named, not a traceback."""
+    from intake_drivers import IngestDriver
+
+    driver = IngestDriver()
+    monkeypatch.setattr(ingestion_run, "build_service", lambda settings: driver.service)
+
+    assert ingestion_run.main(["--add", str(tmp_path / "missing")]) == 1
+    assert driver.stored == []
+
+
+def test_adding_cannot_be_combined_with_a_deletion() -> None:
+    """One operation to a command."""
+    with pytest.raises(SystemExit) as refused:
+        ingestion_run.main(["--add", ".", "--delete", SHA])
+
+    assert refused.value.code == 2

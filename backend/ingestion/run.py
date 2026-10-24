@@ -9,11 +9,14 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from collections import Counter
+from pathlib import Path
 
 import telemetry
 from database.qa_generator import engine
 from ingestion.config import Settings
 from ingestion.factory import build_removal, build_service
+from ingestion.models import UploadedFile
 from settings.runs import run_id
 
 log = logging.getLogger(__name__)
@@ -24,6 +27,13 @@ def _parser() -> argparse.ArgumentParser:
     built = argparse.ArgumentParser(prog="python -m ingestion.run")
     group = built.add_mutually_exclusive_group(required=True)
     group.add_argument("--list", action="store_true", help="list every document")
+    group.add_argument(
+        "--add",
+        metavar="DIR",
+        type=Path,
+        help="ingest every PDF in a directory, through the service the upload "
+        "route uses: one line per file, duplicates by digest reported",
+    )
     group.add_argument(
         "--delete",
         metavar="SHA256",
@@ -41,6 +51,43 @@ def _parser() -> argparse.ArgumentParser:
         "are not a document's and go separately; `make wipe` runs both",
     )
     return built
+
+
+def _add(folder: Path, service) -> int:
+    """Ingests every PDF directly in a folder, and says what became of each.
+
+    Args:
+        folder: Where the PDFs are. Not searched below, and a file whose name
+            does not end in `.pdf` is left alone.
+        service: The ingest service.
+
+    Returns:
+        0, or 1 when the folder is missing or the service refused a file.
+        A duplicate is not a refusal: the document is held already.
+    """
+    if not folder.is_dir():
+        log.error("%s is not a directory", folder)
+        return 1
+    outcomes: Counter[str] = Counter()
+    for path in sorted(folder.iterdir()):
+        if not (path.is_file() and path.suffix.lower() == ".pdf"):
+            continue
+        result = service.ingest(UploadedFile(path.name, path.read_bytes()))
+        outcomes[result.outcome] += 1
+        log.info(
+            "%s: %s%s",
+            path.name,
+            result.outcome,
+            f" ({result.detail})" if result.detail else "",
+        )
+    refused = outcomes["too_large"] + outcomes["unsupported_type"]
+    log.info(
+        "%d stored, %d duplicate, %d refused",
+        outcomes["stored"],
+        outcomes["duplicate_bytes"],
+        refused,
+    )
+    return 1 if refused else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -74,6 +121,9 @@ def main(argv: list[str] | None = None) -> int:
                 "listed %d of %d documents, the newest first", len(documents), total
             )
         return 0
+
+    if args.add:
+        return _add(args.add, build_service(settings))
 
     removal = build_removal()
     if args.delete_all:

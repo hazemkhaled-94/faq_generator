@@ -672,6 +672,76 @@ def test_the_upload_page_counts_what_it_just_uploaded(open_view) -> None:
     assert done.stats()["Documents"] == "4"
 
 
+def _many(page, names: list[str], size: int = 8):
+    """A picker holding one small file under each name."""
+    picker = page.uploader()[0]
+    for name in names:
+        picker.upload(name, b"%PDF-1.4" + b"x" * size, "application/pdf")
+    return page
+
+
+def test_the_upload_page_refuses_a_selection_above_the_file_cap(open_view) -> None:
+    """Held whole in the browser session and sent one request at a time."""
+    from lib import config
+
+    sent: list[str] = []
+
+    def added(filename: str, data: bytes) -> dict:
+        """Would store it."""
+        sent.append(filename)
+        return {"outcome": "stored"}
+
+    names = [f"Bericht {n}.pdf" for n in range(config.UPLOAD_MAX_FILES // 2 + 1)]
+    names += [f"report-{n}.pdf" for n in range(config.UPLOAD_MAX_FILES // 2 + 1)]
+    page = open_view("upload", upload_api=Answers(counts=dict, add_document=added))
+
+    done = _many(page, names).press("Upload all")
+
+    assert sent == []
+    assert done.raised == []
+    refusal = " ".join(done.errors() + done.warnings())
+    assert "make ingest DIR=" in refusal
+    assert str(config.UPLOAD_MAX_FILES) in refusal
+
+
+def test_the_upload_page_refuses_a_selection_above_the_byte_cap(
+    open_view, monkeypatch
+) -> None:
+    """The total, because three files under the per-file limit can still be a lot."""
+    from lib import config
+
+    monkeypatch.setattr(config, "UPLOAD_MAX_BYTES", 40)
+    sent: list[str] = []
+
+    def added(filename: str, data: bytes) -> dict:
+        """Would store it."""
+        sent.append(filename)
+        return {"outcome": "stored"}
+
+    page = open_view("upload", upload_api=Answers(counts=dict, add_document=added))
+
+    done = _many(page, ["a.pdf", "b.pdf", "c.pdf"], size=20).press("Upload all")
+
+    assert sent == []
+    assert "make ingest DIR=" in " ".join(done.errors() + done.warnings())
+
+
+def test_the_upload_page_keeps_each_files_outcome_in_a_table(open_view) -> None:
+    """Where it can still be read after the page redraws."""
+
+    def added(filename: str, data: bytes) -> dict:
+        """The second file is a copy."""
+        return {"outcome": "duplicate_bytes" if "Kopie" in filename else "stored"}
+
+    page = open_view("upload", upload_api=Answers(counts=dict, add_document=added))
+
+    done = _many(page, ["Gebühren.pdf", "Gebühren Kopie.pdf"]).press("Upload all")
+
+    table = done.table("Outcome")
+    assert list(table["File"]) == ["Gebühren.pdf", "Gebühren Kopie.pdf"]
+    assert list(table["Outcome"]) == ["stored", "duplicate bytes"]
+
+
 def test_the_upload_page_calls_a_timeout_unknown_and_points_at_the_list(
     open_view,
 ) -> None:
