@@ -21,7 +21,7 @@ from api import errors
 from api.routes import ROUTERS
 from settings.env import csv
 
-#: The methods a browser may send from another site.
+#: The methods whose `Origin` is not judged: they change nothing.
 _READS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 #: The Swagger UI the docs page loads, by exact version. FastAPI's own page
@@ -64,9 +64,14 @@ class SharedSecret:
 
 
 class SameOriginWrites:
-    """Refuses a write a browser sent from another site or another port.
+    """Refuses a request a browser sent from another site or another port.
 
-    A caller that is not a browser sends neither header and passes.
+    Any method: a read is what an `<img>` or a `fetch` on a page the operator
+    opened can send, and the export and the quality report cost the api its
+    memory. A write is also judged by its `Origin`. The one page left open is
+    `/docs`, which the System health page links to and a browser sends from
+    that page's port. A caller that is not a browser sends neither header and
+    passes.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -75,11 +80,12 @@ class SameOriginWrites:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Answers 403 `cross_site_write`, or hands the request on."""
-        if scope["type"] == "http" and scope["method"] not in _READS:
+        if scope["type"] == "http" and scope["path"] != "/docs":
             headers = Headers(scope=scope)
             origin = headers.get("origin")
             if headers.get("sec-fetch-site") in ("cross-site", "same-site") or (
-                origin is not None
+                scope["method"] not in _READS
+                and origin is not None
                 and origin != f"{scope['scheme']}://{headers.get('host')}"
             ):
                 refusal = errors.ApiError(

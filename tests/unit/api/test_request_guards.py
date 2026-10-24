@@ -99,13 +99,39 @@ def test_a_write_from_this_origin_or_no_browser_is_answered(
     assert guarded.request(method, "/anything", headers=headers).status_code == 200
 
 
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+@pytest.mark.parametrize("site", ["cross-site", "same-site"])
+def test_a_read_a_browser_sent_from_another_site_is_refused(
+    guarded, method: str, site: str
+) -> None:
+    """The expensive reads too: a page the operator opens must not trigger them."""
+    answered = guarded.request(method, "/anything", headers={"sec-fetch-site": site})
+
+    assert answered.status_code == 403
+
+
 @pytest.mark.parametrize("method", ["GET", "HEAD", "OPTIONS"])
-def test_a_read_from_another_site_is_answered(guarded, method: str) -> None:
-    """Only a write is refused."""
-    answered = guarded.request(
-        method,
-        "/anything",
-        headers={"sec-fetch-site": "cross-site", "origin": "https://evil.example"},
+@pytest.mark.parametrize(
+    "headers", [{}, {"sec-fetch-site": "same-origin"}, {"sec-fetch-site": "none"}]
+)
+def test_a_read_from_this_origin_or_no_browser_is_answered(
+    guarded, method: str, headers: dict[str, str]
+) -> None:
+    """curl, the frontend's server, and the api's own pages."""
+    assert guarded.request(method, "/anything", headers=headers).status_code == 200
+
+
+def test_a_read_is_not_judged_by_its_origin_header(guarded) -> None:
+    """Only a write is: a read carries Origin when a script fetched it, and says nothing more."""
+    answered = guarded.get("/anything", headers={"origin": "https://evil.example"})
+
+    assert answered.status_code == 200
+
+
+def test_the_docs_page_may_be_opened_from_a_link_on_another_port() -> None:
+    """The System health page links to it, which a browser sends as same-site."""
+    answered = called_as("localhost:8000").get(
+        "/docs", headers={"sec-fetch-site": "same-site"}
     )
 
     assert answered.status_code == 200

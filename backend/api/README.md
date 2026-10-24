@@ -367,7 +367,7 @@ a caller branches on the code rather than on English:
 | `no_visualisation` | 404 | No fit or render has drawn that language's figure |
 | `unauthorized` | 401 | A write, or any request under `/settings`, without the deployment's `API_TOKEN` as `X-API-Token` |
 | `internal_error` | 500 | Anything no route handled: a fixed sentence naming a trace id, with the error itself in the log under that id |
-| `cross_site_write` | 403 | A request other than GET, HEAD or OPTIONS carries `Sec-Fetch-Site: cross-site` or `same-site`, or an `Origin` that is not the API's own |
+| `cross_site_write` | 403 | A request of any method carries `Sec-Fetch-Site: cross-site` or `same-site`, or a write carries an `Origin` that is not the API's own; `/docs` alone is exempt, so the health page's link opens |
 | `already_running` | 409 | `POST /pipeline/run` while a run is going |
 | `assessment_cannot_run` | 409 | `POST /assessment/rerun` (or the kind-narrowed one) while `ASSESSMENT_ENABLED` is off or `ASSESSMENT_JUDGE_MODEL` names no model; no verdict is cleared |
 | `questions_running` | 409 | `POST /topics/discover` or `DELETE /topics` while a worker is writing questions from a topic, which the fit or the delete would take from under it |
@@ -392,8 +392,9 @@ cannot change what the workers load.
 `cross_site_write` is answered by the middleware in [`main.py`](main.py),
 also before any route. The frontend's server, the orchestrator, `curl` and
 the tests send neither header and pass; so does the `/docs` page, whose
-calls are same-origin. A read from another site is answered with no CORS
-header, so a page elsewhere cannot read what it fetched.
+calls are same-origin. A read a browser sends from another site is refused
+too, because the export and the quality report are expensive; the same page
+could not read its answer, but it could make the api build it.
 
 FastAPI's 422 for a malformed query is left alone, and **a stage's own
 failures are not answered here at all** — they are recorded against the row

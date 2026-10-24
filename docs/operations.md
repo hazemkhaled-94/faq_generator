@@ -25,7 +25,7 @@ Every published port binds to 127.0.0.1, so each URL above answers on this
 machine only. PostgreSQL and SeaweedFS's S3 gateway publish a port for the
 host commands; SeaweedFS's master, filer and volume servers publish none.
 The api answers only the host names in `API_ALLOWED_HOSTS`, and refuses with
-403 a write a browser sends from another site.
+403 any request a browser sends from another site, and a write from another origin.
 
 Every write to the api, and every read of `/settings`, must also carry the
 shared secret `API_TOKEN` as the `X-API-Token` header, and is refused with 401
