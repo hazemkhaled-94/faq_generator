@@ -72,7 +72,7 @@ from question_generation.verifier import PROMPT_VERSION as VERIFIER_VERSION
 from question_generation.verifier import Settling, Verifier
 from settings.runs import run_id
 from stages import StageService
-from stages.service import is_outage
+from stages.service import SpendCapReached, is_outage, spend_stop, stop_at_cap
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -493,6 +493,10 @@ def balance(
 
     Returns:
         How many questions were drawn into the release.
+
+    Raises:
+        SpendCapReached: If SPEND_CAP was reached while the judge was asked
+            about twins. The release as last drawn is written first.
     """
     with span.start_as_current_span("questions.balance") as current:
         reverify(catalog, settings, within)
@@ -580,13 +584,21 @@ def balance(
             )
 
         release = draw()
+        capped: SpendCapReached | None = None
         if verifier is not None:
-            release = _judged(catalog, verifier, twins, release, draw, pool)
+            try:
+                release = _judged(catalog, verifier, twins, release, draw, pool)
+            except SpendCapReached as stop:
+                # The release as last drawn, written as it is where the judge
+                # cannot be reached, and the stop raised once it is.
+                capped, release = stop, stop.kept
 
         drawn, written = catalog.release(release.ids)
         current.set_attribute("release.quota", release.quota.size)
         current.set_attribute("release.size", written)
         _report(pool, release, drawn, written)
+        if capped is not None:
+            raise capped
         return written
 
 
@@ -611,7 +623,8 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw, 
     back is always one the judge was asked about: the round after the last
     redraw reads that draw's pairs and, for each it finds, drops the member the
     draw's hash ranks later, with the turns that follow it from `pool`, instead
-    of drawing again.
+    of drawing again. At SPEND_CAP it raises `SpendCapReached` carrying the
+    release as last drawn.
     """
     asked: set[tuple[int, int]] = set()
     ranked = {row.id: _rank(row) for row in pool}
@@ -624,6 +637,9 @@ def _judged(catalog: QuestionCatalog, verifier: Verifier, twins, release, draw, 
             for first, second in catalog.closest_among(list(release.ids)):
                 if (first.id, second.id) in asked:
                     continue
+                if (reason := spend_stop()) is not None:
+                    log.error("%s", reason)
+                    raise SpendCapReached(reason, release)
                 asked.add((first.id, second.id))
                 try:
                     same = verifier.same_answer(
@@ -880,6 +896,8 @@ def rejudge(
     Raises:
         ModelUnavailable: If the verifier refused `_GIVE_UP` questions in a
             row.
+        SpendCapReached: If SPEND_CAP was reached. The verdicts written so
+            far are kept, and the next run asks only what none has judged.
     """
     written = 0
     unanswered = 0
@@ -887,6 +905,9 @@ def rejudge(
     for question in catalog.unanswered(within, version=VERIFIER_VERSION):
         if question.reviewed_verdict == ReviewVerdict.ACCEPTED or question.judged:
             continue
+        # Before the question is asked: each verdict is written as it is
+        # reached, so what was judged stays.
+        stop_at_cap(written)
         try:
             failed, opinions = _settled(catalog, settings, verifier, question)
         except ModelUnavailable as exc:

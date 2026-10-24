@@ -17,7 +17,9 @@ from extraction.extractors.bridge import BridgeExtractor
 from extraction.links import linked
 from extraction.service import bridge
 from extraction.validation import FactChecker
+from llm import tally
 from llm.client import ModelUnavailable
+from stages.service import SpendCapReached
 
 pytestmark = pytest.mark.nlp
 
@@ -299,3 +301,39 @@ def test_a_partner_without_a_validated_fact_costs_no_head_its_link(
     run(catalog, model)
 
     assert model.calls == len(expected) > 0
+
+
+def test_the_bridge_pass_stops_between_groups_at_the_spend_cap(monkeypatch) -> None:
+    """What it wrote stays, and the group after the cap is not asked."""
+    monkeypatch.setenv("SPEND_CAP", "1.0")
+    monkeypatch.setitem(tally._spent, "usd", 0.0)
+
+    class Costly(Model):
+        """Every call costs sixty cents."""
+
+        def answer(self, **kwargs):
+            """Answers and pays."""
+            tally._spent["usd"] += 0.6
+            return super().answer(**kwargs)
+
+    catalog, model = (
+        Catalogue(
+            support=pair(),
+            delivery=pair(100, "Delivery", OTHER),
+            seats=pair(
+                200,
+                "Seats",
+                (
+                    "A seat is held for 15 minutes after booking.",
+                    "A ticket is refunded up to 3 weeks before the show.",
+                ),
+            ),
+        ),
+        Costly(ANSWER),
+    )
+
+    with pytest.raises(SpendCapReached, match="SPEND_CAP"):
+        run(catalog, model)
+
+    assert model.calls == 2, "the second group took it past the cap"
+    assert len(catalog.written) == 2, "what was written is kept"

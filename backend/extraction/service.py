@@ -37,7 +37,7 @@ from nlp.analysis import AMOUNT_WORDS, claim, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
-from stages.service import is_outage
+from stages.service import is_outage, stop_at_cap
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -489,6 +489,8 @@ def bridge(
     Raises:
         CitedBridges: If an accepted question cites a bridge in scope and
             `force` is not set. Nothing is deleted.
+        SpendCapReached: If SPEND_CAP was reached between two groups. The
+            facts written so far are kept, and the number is `kept`.
     """
     # ponytail: counted and deleted in two transactions, so a question
     # accepted between them is not counted. Upgrade: count and delete in one
@@ -553,6 +555,8 @@ def bridge(
             kinds["term"],
         )
         for link in links:
+            # Between groups, so what is written is kept and nothing is held.
+            stop_at_cap(written)
             offered = list(link.passages)
             try:
                 proposed = extractor.extract(offered, link, facts)

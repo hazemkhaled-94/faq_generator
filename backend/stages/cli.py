@@ -21,7 +21,7 @@ from llm.config import spend_cap
 from settings import decimal
 from settings.runs import named_run, run_id
 from stages.queue import StageQueue, Unnarrowable
-from stages.service import StageService
+from stages.service import SpendCapReached, StageService
 from stages.worker import DEFAULT_GRACE_SECONDS, GRACE_SECONDS, watch
 
 log = logging.getLogger(__name__)
@@ -267,7 +267,13 @@ def queue_main(
 
     for flag, (_, verb, run) in extra.items():
         if getattr(args, flag):
-            log.info("%s: %d row(s) %s", name, act(lambda q, w, do=run: do(w)), verb)
+            try:
+                done = act(lambda q, w, do=run: do(w))
+            except SpendCapReached as stop:
+                # What the pass wrote is kept; it stopped itself, as a drain does.
+                log.error("%s: --%s stopped itself: %s", name, flag, stop)
+                return STOPPED
+            log.info("%s: %d row(s) %s", name, done, verb)
             return 0
 
     # ponytail: a drain takes the whole queue, so `--only` narrows the verb

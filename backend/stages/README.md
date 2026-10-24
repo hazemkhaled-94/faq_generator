@@ -177,7 +177,12 @@ The drain stops itself, and exits 75, in three cases:
 - **`SPEND_CAP` is reached.** The drain adds up what litellm priced each call
   at, in its own process, and stops before claiming the row that would pass
   it. Nothing is held then. With it set, a model litellm cannot price is
-  refused at the start, since its calls would not count.
+  refused at the start, since its calls would not count. The passes that
+  call a model outside the drain loop are bound by it as well: `--bridge`
+  between groups, `--balance` between the pairs the judge is asked about (the
+  release as last drawn is written first) and `--rejudge` between questions.
+  Each keeps what it wrote and exits 75; the next run asks only for what no
+  run has done.
 
 Before it starts, a drain prints how many rows are queued and what that is
 about to cost at the rate measured on the 2026-10 build, which moves with the

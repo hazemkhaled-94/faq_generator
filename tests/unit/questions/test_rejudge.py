@@ -430,3 +430,29 @@ def test_a_false_presupposition_stays_accepted() -> None:
 
     assert unanswered().expected == "silent"
     assert catalog.rejected == [(8, QuestionRejection.ANSWERABLE_AFTER_ALL)]
+
+
+def test_a_rejudge_stops_at_the_spend_cap_with_what_it_wrote_kept(monkeypatch) -> None:
+    """The question after the cap is neither asked nor written."""
+    from llm import tally
+    from stages.service import SpendCapReached
+
+    monkeypatch.setenv("SPEND_CAP", "1.0")
+    monkeypatch.setitem(tally._spent, "usd", 0.0)
+
+    class Costly(Client):
+        """Every call costs sixty cents."""
+
+        def answer(self, **kwargs):
+            """Answers and pays."""
+            tally._spent["usd"] += 0.6
+            return super().answer(**kwargs)
+
+    catalog = Catalog(unanswered(), unanswered(id=8), unanswered(id=9))
+    client = Costly(CITED)
+
+    with pytest.raises(SpendCapReached, match="SPEND_CAP"):
+        rejudge(catalog, SETTINGS, Verifier(client))
+
+    assert sorted(catalog.opined) == [7, 8], "the third is left for the next run"
+    assert [one for one, _ in catalog.rejected] == [7, 8], "what was written is kept"

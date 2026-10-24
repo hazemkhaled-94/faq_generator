@@ -653,3 +653,47 @@ def test_a_new_value_that_fails_backs_off_from_the_start(monkeypatch) -> None:
     worker.failing = False
 
     assert worker() == 1
+
+
+# ── A pass that stopped itself at the spend cap ────────────────────────────
+
+
+def test_an_extra_pass_that_reached_the_spend_cap_exits_75(monkeypatch) -> None:
+    """What it wrote is kept, and the code says to start it again, as a drain's."""
+    from stages import cli
+    from stages.service import SpendCapReached
+
+    monkeypatch.setattr(cli.telemetry, "configure", lambda name, **kwargs: None)
+
+    def pass_over(within) -> int:
+        """Writes some, then meets the cap."""
+        raise SpendCapReached("SPEND_CAP is USD 1.00", kept=2)
+
+    code = cli.queue_main(
+        name="extraction",
+        module="extraction.run",
+        repository=_Empty,
+        build_service=lambda: None,
+        argv=["--bridge"],
+        extra={"bridge": ("read the groups", "bridged", pass_over)},
+    )
+
+    assert code == cli.STOPPED == 75
+
+
+def test_an_extra_pass_that_finishes_exits_0(monkeypatch) -> None:
+    """No cap, no stop."""
+    from stages import cli
+
+    monkeypatch.setattr(cli.telemetry, "configure", lambda name, **kwargs: None)
+
+    code = cli.queue_main(
+        name="extraction",
+        module="extraction.run",
+        repository=_Empty,
+        build_service=lambda: None,
+        argv=["--bridge"],
+        extra={"bridge": ("read the groups", "bridged", lambda within: 3)},
+    )
+
+    assert code == 0

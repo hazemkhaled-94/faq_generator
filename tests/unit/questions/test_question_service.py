@@ -2926,3 +2926,32 @@ def test_a_skipped_unanswerable_slot_leaves_the_bridge_to_the_next_slot(
         "nothing left in the topic rests on one passage"
     )
     assert skipped == [expected]
+
+
+def test_a_release_draw_stops_asking_the_judge_at_the_spend_cap(monkeypatch) -> None:
+    """The release as last drawn is written, and the stop is raised after it."""
+    from llm import tally
+    from question_generation.service import balance
+    from stages.service import SpendCapReached
+
+    monkeypatch.setenv("SPEND_CAP", "0.5")
+    monkeypatch.setitem(tally._spent, "usd", 0.0)
+
+    class Costly(_Judge):
+        """The first pair costs sixty cents."""
+
+        def same_answer(self, first, second) -> bool:
+            """Asks and pays."""
+            tally._spent["usd"] += 0.6
+            return super().same_answer(first, second)
+
+    catalog = _Nearby(_spoken({"en": 6}))
+    judge = Costly((1, 2))
+
+    with pytest.raises(SpendCapReached, match="SPEND_CAP"):
+        balance(
+            catalog, replace(SETTINGS, release_size=0, **_ONE_BUCKET), verifier=judge
+        )
+
+    assert len(judge.asked) == 1, "the second pair is not asked"
+    assert catalog.drawn, "the release as drawn is kept"

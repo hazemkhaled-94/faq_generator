@@ -55,6 +55,42 @@ def is_outage(failure: BaseException) -> bool:
     return False
 
 
+class SpendCapReached(Exception):
+    """A pass that calls a model stopped itself at SPEND_CAP.
+
+    What it had written is kept. Its command line exits 75, as a drain does.
+    """
+
+    def __init__(self, reason: str, kept: Any = None) -> None:
+        """Initialises the stop with why, and what the pass had made so far."""
+        super().__init__(reason)
+        self.kept = kept
+
+
+def spend_stop(then: str = "nothing more is asked of a model") -> str | None:
+    """Why no more model calls may be made, or None where the cap allows them.
+
+    `then` says what the stop means for the caller.
+
+    The tally counts this process, whichever of its passes made the calls:
+    the drain loop, the bridge pass, the release draw, the rejudge.
+    """
+    cap = spend_cap()
+    if cap is None or spent_usd() < cap:
+        return None
+    return (
+        f"SPEND_CAP is USD {cap:.2f} and this process has spent "
+        f"USD {spent_usd():.2f}; {then}"
+    )
+
+
+def stop_at_cap(kept: Any = None) -> None:
+    """Raises `SpendCapReached`, logging it, where the cap has been reached."""
+    if (reason := spend_stop()) is not None:
+        log.error("%s", reason)
+        raise SpendCapReached(reason, kept)
+
+
 def _never() -> bool:
     """Reports that no stop has been asked for."""
     return False
@@ -146,15 +182,11 @@ class StageService(ABC):
         self.failed = 0
         self._outages = []
         self.stalled = None
-        cap = spend_cap()
         with self._beating():
             while not stopping() and self.stalled is None:
                 # Before the claim, so nothing is held when it stops.
-                if cap is not None and spent_usd() >= cap:
-                    self._stop(
-                        f"SPEND_CAP is USD {cap:.2f} and this process has spent "
-                        f"USD {spent_usd():.2f}; nothing more is claimed"
-                    )
+                if (reason := spend_stop("nothing more is claimed")) is not None:
+                    self._stop(reason)
                     break
                 if self.process_next() is None:
                     break
