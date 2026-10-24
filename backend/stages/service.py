@@ -26,6 +26,32 @@ log = logging.getLogger(__name__)
 HEARTBEAT_SECONDS = 30.0
 
 
+#: How many rows in a row a model may fail before the drain stops claiming.
+#: A count of an outage and not a quality threshold: a model that is down
+#: fails every row, and one bad row is never four in a row, so any value from
+#: three to ten tells the two apart.
+STOP_AFTER = 5
+
+
+def is_outage(failure: BaseException) -> bool:
+    """Whether a row failed because the model could not be reached.
+
+    The model unavailable, found behind whatever wrapped it. A refusal is not
+    one: the provider answered, about this row, and will answer the same
+    about the next.
+    """
+    # Here, not at the top: the client loads litellm, which the api, whose
+    # routes import this package, must not.
+    from llm.client import ModelRefused, ModelUnavailable
+
+    seen: BaseException | None = failure
+    while seen is not None:
+        if isinstance(seen, ModelUnavailable):
+            return not isinstance(seen, ModelRefused)
+        seen = seen.__cause__
+    return False
+
+
 def _never() -> bool:
     """Reports that no stop has been asked for."""
     return False
@@ -56,6 +82,12 @@ class StageService(ABC):
     def __init__(self, repository: StageQueue) -> None:
         """Initialises the service with its queue."""
         self._repository = repository
+        #: What the last drain left: how many rows failed, the keys of the
+        #: rows in a row the model could not be reached for, and why the
+        #: drain stopped itself, if it did.
+        self.failed = 0
+        self._outages: list[tuple[Any, bool]] = []
+        self.stalled: str | None = None
 
     @abstractmethod
     def process_next(self) -> Any | None:
@@ -102,23 +134,78 @@ class StageService(ABC):
                 self.unit,
             )
         processed = 0
+        self.failed = 0
+        self._outages = []
+        self.stalled = None
         with self._beating():
-            while not stopping():
+            while not stopping() and self.stalled is None:
                 if self.process_next() is None:
                     break
                 processed += 1
-        if processed:
-            log.info("%s: %d %s(s)", self.name, processed, self.unit)
+        # What a stalled drain gave back was not worked.
+        processed -= len(self._outages) if self.stalled else 0
+        if processed or self.failed:
+            log.info(
+                "%s: %d %s(s), %d failed",
+                self.name,
+                processed,
+                self.unit,
+                self.failed,
+            )
         return processed
 
-    def _fail(self, key: Any, error: str, current: Span) -> None:
-        """Marks a row failed and annotates the span."""
+    def _stop(self, reason: str, *keys: Any) -> None:
+        """Stops the drain, giving back the rows it will not finish.
+
+        They go back to the queue, the held one included: they were not
+        worked on their own account, and rows left failed, or finished with
+        nothing, would be passed over by the next run without anybody having
+        said so.
+        """
+        self._repository.release(*keys)
+        self.stalled = reason
+        log.error("%s: %s", self.name, reason)
+
+    def _missed(self, key: Any, outage: bool, failed: bool = True) -> bool:
+        """Counts one row's outcome towards a stall, and says whether it came.
+
+        `STOP_AFTER` rows in a row the model could not be reached for stop
+        the drain. They go back to the queue, the held one included: they did
+        not fail on their own account, and rows left failed would be skipped
+        by the next run without anybody having said so. `failed` says whether
+        this row was failed, as against kept as it was.
+        """
+        if not outage:
+            self._outages.clear()
+            return False
+        self._outages.append((key, failed))
+        if len(self._outages) < STOP_AFTER:
+            return False
+        # The held one was never counted; the rest were.
+        self.failed -= sum(1 for _, was in self._outages[:-1] if was)
+        self._stop(
+            f"the model could not be reached for {STOP_AFTER} {self.unit}(s) in a "
+            "row; they are back in the queue and nothing more is claimed",
+            *(one for one, _ in self._outages),
+        )
+        return True
+
+    def _fail(self, key: Any, error: str, current: Span, outage: bool = False) -> None:
+        """Marks a row failed and annotates the span.
+
+        `outage` says the model could not be reached for it, which is what a
+        run of rows failing together is counted on.
+        """
         current.set_attribute("stage.name", self.name)
         current.set_attribute("stage.outcome", "failed")
-        self._repository.fail(key, error)
         log.warning("%s: failed %s %s: %s", self.name, self.unit, key, error)
+        if self._missed(key, outage):
+            return
+        self._repository.fail(key, error)
+        self.failed += 1
 
     def _done(self, current: Span) -> None:
         """Annotates the span of a row this stage finished."""
+        self._outages.clear()
         current.set_attribute("stage.name", self.name)
         current.set_attribute("stage.outcome", self._repository.done)

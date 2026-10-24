@@ -19,7 +19,7 @@ from settings import decimal
 from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages import watch
-from stages.cli import _ready, parser, reloading
+from stages.cli import _ready, exit_code, parser, reloading
 from stages.prompts import record
 from topic_modelling import prompts
 from topic_modelling.config import Settings
@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.watch:
         service.drain()
-        return 0
+        return exit_code(service)
 
     watch(reloading("topic_modelling", build), decimal("WORKER_POLL_SECONDS"))
     return 0

@@ -205,7 +205,7 @@ help:
         chunk-revocabulary \
         extract extract-status extract-start extract-stop extract-retry \
         extract-rerun extract-revalidate extract-bridge extract-recap \
-        extract-dedup extract-embed \
+        extract-dedup extract-embed extract-digests \
         topics topics-status topics-discover topics-stop topics-delete \
         topics-retry topics-visualise topics-render \
         settings settings-set settings-unset \
@@ -828,6 +828,15 @@ extract-dedup:
 # measured under; re-extract to have it judged.
 extract-embed:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --embed $(ONLY)
+
+# Give a digest to the passages that finished extraction without one: the
+# model could not give it, or the provider's filter refused the passage. Their
+# atomic facts were kept and are not read again; only the summary and the
+# outline are written, and a passage whose digest fails again keeps its note
+# and is tried on the next run. Calls the digest model once per such passage.
+extract-digests:
+	@$(call IDLE,extract-worker)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --digests
 
 # ── Topic modelling ────────────────────────────────────────────────────────
 #
@@ -1952,6 +1961,7 @@ corpus:
 	$(MAKE) parse-start     && $(MAKE) parse
 	$(MAKE) chunk-start     && $(MAKE) chunk
 	$(MAKE) extract-start   && $(MAKE) extract
+	$(MAKE) extract-digests
 	$(MAKE) topics-status
 	$(MAKE) extract-bridge MISSING=1
 	$(MAKE) questions-start && $(MAKE) questions

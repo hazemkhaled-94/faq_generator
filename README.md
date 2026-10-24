@@ -214,6 +214,7 @@ asks for:
 make parse-start     && make parse       # a stored file becomes a structured document
 make chunk-start     && make chunk       # that document becomes passages
 make extract-start   && make extract     # those passages become facts citing a sentence
+make extract-digests                     # a digest for the passages that finished without one
 make topics-status                       # how many passages are in no topic
 make topics-discover                     # not in corpus: fit the topics, replacing the last fit
 make extract-bridge MISSING=1            # facts joining a topic's passages, for topics holding none yet

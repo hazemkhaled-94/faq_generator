@@ -72,6 +72,7 @@ from question_generation.verifier import PROMPT_VERSION as VERIFIER_VERSION
 from question_generation.verifier import Settling, Verifier
 from settings.runs import run_id
 from stages import StageService
+from stages.service import is_outage
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -1077,7 +1078,9 @@ class QuestionGenerationService(StageService):
                     },
                 )
             except Exception as exc:
-                self._fail(topic.id, f"{type(exc).__name__}: {exc}", current)
+                self._fail(
+                    topic.id, f"{type(exc).__name__}: {exc}", current, is_outage(exc)
+                )
                 log.exception("failed topic %d", topic.id)
         return topic.id
 

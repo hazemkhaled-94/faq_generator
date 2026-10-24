@@ -8,7 +8,7 @@ service with no pages.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Any
@@ -261,7 +261,7 @@ class Model:
 
     def __init__(
         self,
-        answer: dict | Exception | None = None,
+        answer: dict | Exception | Callable[[str], dict] | None = None,
         *,
         under: dict[str, dict | Exception] | None = None,
     ) -> None:
@@ -306,6 +306,9 @@ class Model:
             }
         )
         scripted = self._under.get(prompt_version or "", self._answer)
+        if callable(scripted):
+            # Answers by what it was shown, for a test of rows that differ.
+            scripted = scripted(user)
         if isinstance(scripted, Exception):
             raise scripted
         return shape(**scripted)
@@ -322,6 +325,12 @@ class Queue:
         self.stored: dict[int, list[CheckedFact]] = {}
         self.embeddings: dict[int, list[float] | None] = {}
         self.failed: dict[int, str] = {}
+        #: The passages a drain gave back unread.
+        self.released: list[int] = []
+        #: What each passage's last finish said it lacks, None for nothing.
+        self.notes: dict[int, str | None] = {}
+        #: The digest facts a digest-only pass wrote, by passage.
+        self.digests: dict[int, list[CheckedFact]] = {}
         self.swept = 0
         #: How many times the worker said it was still on its row.
         self.beats = 0
@@ -349,10 +358,20 @@ class Queue:
         passage_id: int,
         facts: list[CheckedFact],
         embedding: list[float] | None = None,
+        note: str | None = None,
     ) -> int:
         """Records what one passage yielded, and the passage's own vector."""
         self.stored[passage_id] = facts
         self.embeddings[passage_id] = embedding
+        self.notes[passage_id] = note
+        return len(facts)
+
+    def store_digests(
+        self, passage_id: int, facts: list[CheckedFact], note: str | None = None
+    ) -> int:
+        """Records the digest facts a passage gained, and what it still lacks."""
+        self.digests[passage_id] = facts
+        self.notes[passage_id] = note
         return len(facts)
 
     def nearest_fact(
@@ -374,6 +393,13 @@ class Queue:
     def fail(self, passage_id: int, error: str) -> None:
         """Records a passage the service could not read."""
         self.failed[passage_id] = error
+
+    def release(self, *keys: int) -> None:
+        """Puts passages back in the queue, unread, whatever was stored."""
+        for key in keys:
+            self.stored.pop(key, None)
+            self.notes.pop(key, None)
+            self.released.append(key)
 
     def abandon(self) -> int:
         """Reports how many claims a previous run left behind."""
@@ -675,10 +701,11 @@ class Extraction:
     def __init__(
         self,
         *passages: PassageToExtract,
-        facts: dict | Exception | None = None,
+        facts: dict | Exception | Callable[[str], dict] | None = None,
         repair: dict | Exception | None = None,
         digest: dict | Exception | None = None,
         kinds: tuple[str, ...] = (),
+        digests_only: bool = False,
         duplicate_cosine: float = 0.0,
         embed: bool = False,
         atomic_cap: int | None = None,
@@ -694,6 +721,8 @@ class Extraction:
             digest: What the digest model answers with.
             kinds: Which digest kinds to keep. No digest reader at all when
                 empty.
+            digests_only: Whether to wire the pass that writes only the digest
+                of passages already extracted.
             duplicate_cosine: What the dedup gate refuses at.
             embed: Whether to wire an embedder at all. Implied by a threshold
                 above 0, and asked for on its own to write vectors with no
@@ -710,7 +739,7 @@ class Extraction:
             TableExtractor,
         )
         from extraction.extractors.llm import REPAIR_PROMPT_VERSION
-        from extraction.service import ExtractionService
+        from extraction.service import DigestPass, ExtractionService
 
         self.queue = Queue(*passages)
         self.model = Model(
@@ -719,7 +748,7 @@ class Extraction:
         )
         self.digest_model = Model(digest)
         self.vectors = Vectors() if embed or duplicate_cosine > 0 else None
-        self.service = ExtractionService(
+        self.service = (DigestPass if digests_only else ExtractionService)(
             repository=self.queue,  # type: ignore[arg-type]
             extractors=ExtractorRegistry(
                 extractors=(TableExtractor(),),

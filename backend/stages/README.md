@@ -148,6 +148,28 @@ python -m topic_modelling.run --status
 python -m question_generation.run --rerun --only topic=7
 ```
 
+### What a drain exits with
+
+A one-off drain tells whoever ran it how it went, which is what `make corpus`
+and a host runner act on:
+
+| Exit | Means |
+|---|---|
+| 0 | Every row was worked |
+| 3 | A row failed. The drain went on past it; `--retry` returns it |
+| 75 | The drain stopped itself, with what it held back in the queue, and wants starting again |
+
+The drain stops itself, and exits 75, when the model could not be reached:
+
+- **For five rows in a row** (`STOP_AFTER`).
+  The five go back to the queue, not to `failed`: the outage failed them, not
+  anything about them, and a row left failed is one the next run passes over.
+  A provider's refusal of a row is not an outage: it answered, and the row
+  fails. One good row ends the run of five.
+
+A watching worker does not exit: after a stop it waits the poll
+interval and tries again.
+
 A stage with an operation nobody else has declares it as one `Extra` and the
 parser grows a flag for it — `--revocabulary` on chunking, `--revalidate`,
 `--bridge`, `--recap`, `--dedup` and `--embed` on extraction, `--reverify`,

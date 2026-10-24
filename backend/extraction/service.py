@@ -7,7 +7,7 @@ import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import replace
-from typing import ClassVar
+from typing import ClassVar, NamedTuple
 
 from sqlalchemy import ARRAY, BigInteger, any_, bindparam
 from sqlalchemy.exc import IntegrityError
@@ -31,12 +31,13 @@ from extraction.models import (
     Twin,
     from_repair,
 )
-from extraction.repository import FactCatalog, PassageQueue
+from extraction.repository import DIGEST_FAILED, DigestQueue, FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
 from nlp.analysis import AMOUNT_WORDS, claim, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
+from stages.service import is_outage
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -51,6 +52,19 @@ _REJUDGE_BATCH = 500
 
 #: How many claims a passage must carry before a digest is asked for.
 _DIGESTIBLE = 2
+
+#: How much of a reason the note keeps.
+_NOTE_CHARS = 500
+
+class _Read(NamedTuple):
+    """What reading one passage produced."""
+
+    facts: list[CheckedFact]
+    #: What the passage lacks: the note a digest that could not be had leaves.
+    note: str | None
+    #: True when a model read it and proposed nothing, False when one read it
+    #: and proposed something, None when no model was asked.
+    silent: bool | None
 
 
 def revalidate(
@@ -1028,7 +1042,8 @@ class ExtractionService(StageService):
             },
         ) as current:
             try:
-                facts = self._passage(passage, current)
+                read = self._passage(passage, current)
+                facts, note = read.facts, read.note
                 facts = self._capped(
                     passage,
                     self._deduplicated(facts, current, passage.id, passage.language),
@@ -1037,7 +1052,7 @@ class ExtractionService(StageService):
                 if self._replays() and not self._replaced:
                     self._replaced = self._repository.cited(passage.id)
                 stored = self._repository.store(
-                    passage.id, facts, self._embedded(passage)
+                    passage.id, facts, self._embedded(passage), note
                 )
                 validated = sum(1 for fact in facts if fact.validated)
                 self._done(current)
@@ -1060,7 +1075,7 @@ class ExtractionService(StageService):
                     },
                 )
             except ExtractionFailed as exc:
-                self._fail(passage.id, str(exc), current)
+                self._fail(passage.id, str(exc), current, is_outage(exc))
             except Exception as exc:
                 self._fail(passage.id, f"{type(exc).__name__}: {exc}", current)
                 log.exception("failed passage %d", passage.id)
@@ -1156,14 +1171,14 @@ class ExtractionService(StageService):
                 self._evaluations.record(*verdicts)
         self._evaluations.flush()
 
-    def _passage(self, passage: PassageToExtract, current) -> list[CheckedFact]:
+    def _passage(self, passage: PassageToExtract, current) -> _Read:
         """Reads one passage and checks everything it produced."""
         reason = skipped(passage)
         if reason is not None:
             # Marked read with nothing found, not failed: there was nothing
             # here to read, which is an answer and not an error.
             current.set_attribute("extract.skipped", reason)
-            return []
+            return _Read([], None, None)
 
         readers = self._readers(passage, current)
         facts: list[CheckedFact] = []
@@ -1177,9 +1192,14 @@ class ExtractionService(StageService):
             facts += read + self._repaired(passage, reader, shown, read, current)
         # Only a model can answer empty: a cell reader finding no row to
         # compose is the grid's answer, not a silent model.
-        if not facts and any(reader.method == WRITTEN for reader, _ in readers):
+        asked = any(reader.method == WRITTEN for reader, _ in readers)
+        if not facts and asked:
             _nothing_found(passage, current)
-        return facts + self._digested(passage)
+        silent = (not facts) if asked else None
+        try:
+            return _Read(facts + self._digested(passage), None, silent)
+        except ExtractionFailed as failure:
+            return _Read(facts, self._missing(passage, failure), silent)
 
     def _repaired(
         self,
@@ -1349,6 +1369,9 @@ class ExtractionService(StageService):
         a FIXED size - the prompt asks for two or three sentences, or two to
         six points - so how much it condenses is decided by the passage
         rather than by the model.
+
+        Raises:
+            ExtractionFailed: If the model could not give the digest.
         """
         if self._digest is None or passage.claims < _DIGESTIBLE:
             return []
@@ -1360,3 +1383,67 @@ class ExtractionService(StageService):
             )
             for candidate in self._digest.extract(passage)
         ]
+
+    @staticmethod
+    def _missing(passage: PassageToExtract, failure: ExtractionFailed) -> str:
+        """Logs a digest that could not be had, and words the note it leaves.
+
+        A digest is optional. One the model cannot give - it is down, or the
+        provider's filter refuses the passage every time - costs the passage
+        the digest and nothing else: the atomic facts were paid for and are
+        what questions rest on. The note, which `DigestQueue` finds by its
+        opening, is what `DigestPass` gives the digest from later.
+        """
+        log.warning(
+            "passage %d: no digest, so its facts stand without one: %s",
+            passage.id,
+            failure,
+            extra={"passage.id": passage.id},
+        )
+        return f"{DIGEST_FAILED}{failure}"[:_NOTE_CHARS]
+
+
+class DigestPass(ExtractionService):
+    """Gives the digest to passages that finished without one.
+
+    The passages are the ones `ExtractionService` left a note on, and only the
+    summary and the outline are written: the atomic facts, their ids and what
+    questions rest on them are not touched. A digest that fails again leaves
+    the note where it was, so this can be run whenever the model is back.
+    """
+
+    _repository: DigestQueue  # pyright: ignore[reportIncompatibleVariableOverride]
+
+    def process_next(self) -> int | None:
+        """Digests one passage, returning its id, or None when none is left."""
+        passage = self._repository.claim()
+        if passage is None:
+            return None
+        with working(
+            span, "extract_digest", {"stage": self.name, "passage.id": passage.id}
+        ) as current:
+            try:
+                try:
+                    digests, note = self._digested(passage), None
+                except ExtractionFailed as failure:
+                    digests, note = [], self._missing(passage, failure)
+                    # Counted, not failed: the row stays as it was.
+                    if self._missed(passage.id, is_outage(failure), failed=False):
+                        return passage.id
+                facts = self._deduplicated(
+                    digests, current, passage.id, passage.language
+                )
+                stored = self._repository.store_digests(passage.id, facts, note)
+                if note is None:
+                    self._done(current)
+                current.set_attribute("extract.facts", stored)
+                log.info(
+                    "passage %d: %d digest fact(s)",
+                    passage.id,
+                    stored,
+                    extra={"facts.stored": stored},
+                )
+            except Exception as exc:
+                self._fail(passage.id, f"{type(exc).__name__}: {exc}", current)
+                log.exception("failed digest of passage %d", passage.id)
+        return passage.id

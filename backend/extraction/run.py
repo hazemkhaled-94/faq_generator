@@ -2,7 +2,8 @@
 
 Every queue flag is the same operation as the route beside it under
 /extraction. `--revalidate` and `--bridge` are this stage's own, and
-`--force` and `--missing` are `--bridge`'s. Run with --help for the list.
+`--force` and `--missing` are `--bridge`'s. `--digests` drains the passages
+that finished without a digest. Run with --help for the list.
 """
 
 from __future__ import annotations
@@ -42,6 +43,12 @@ def main(argv: list[str] | None = None) -> int:
     # arguments beside its own actions.
     force = "--force" in argv
     missing = "--missing" in argv
+    # And the pass that digests what the drain could not, a drain of its own.
+    digests = "--digests" in argv
+    if digests and any(
+        one.startswith("--") and one != "--watch" for one in argv if one != "--digests"
+    ):
+        raise SystemExit("--digests is a drain of its own and takes only --watch")
 
     def configured() -> tuple[ModelSettings, Settings, str]:
         """Reads the settings as they stand, and what that configuration is.
@@ -59,7 +66,11 @@ def main(argv: list[str] | None = None) -> int:
         # The effective model, which EXTRACTION_MODEL may have replaced.
         calling = model.overridden(settings.model)
         log.info("extracting with %s at %s", calling.model, calling.base_url)
-        return build_service(model, settings, version)
+        if digests and not settings.digests:
+            raise SystemExit(
+                "no digest is configured to give: EXTRACTION_KINDS names neither"
+            )
+        return build_service(model, settings, version, digests)
 
     def preflight() -> None:
         """Proves the passage reader and the digest reader answer.
@@ -190,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         module="extraction.run",
         repository=PassageQueue,
         build_service=build,
-        argv=[one for one in argv if one not in ("--force", "--missing")],
+        argv=[one for one in argv if one not in ("--force", "--missing", "--digests")],
         extra=extra,
         preflight=preflight,
         prompts=record_prompts,

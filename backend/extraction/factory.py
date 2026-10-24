@@ -10,8 +10,8 @@ from extraction.extractors import (
     LlmExtractor,
     TableExtractor,
 )
-from extraction.repository import FactCatalog, PassageQueue
-from extraction.service import ExtractionService
+from extraction.repository import DigestQueue, FactCatalog, PassageQueue
+from extraction.service import DigestPass, ExtractionService
 from extraction.validation import FactChecker
 from llm.client import Client
 from llm.config import Settings as ModelSettings
@@ -46,6 +46,7 @@ def build_service(
     model: ModelSettings,
     settings: Settings | None = None,
     version: str | None = None,
+    digests_only: bool = False,
 ) -> ExtractionService:
     """Wires the per-passage service and its collaborators.
 
@@ -55,6 +56,9 @@ def build_service(
             given.
         version: The configuration these settings came from, recorded on
             every fact written. None records nothing.
+        digests_only: Whether to build the pass that digests the passages
+            which finished without a digest, instead of the one that reads
+            the queue's pending ones.
 
     Returns:
         The service a worker drains the passage queue with.
@@ -69,8 +73,8 @@ def build_service(
     # here and the one a small model is trained for, so it is the first call
     # worth moving; what produced a fact is recorded on the fact either way.
     condensing = Client(condensed) if settings.digest_model else client
-    return ExtractionService(
-        repository=PassageQueue(version=version),
+    return (DigestPass if digests_only else ExtractionService)(
+        repository=(DigestQueue if digests_only else PassageQueue)(version=version),
         extractors=ExtractorRegistry(
             extractors=(TableExtractor(),), default=LlmExtractor(client, cap)
         ),

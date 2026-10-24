@@ -163,12 +163,14 @@ class StageQueue(Repository):
             condition for condition in (self.base, *conditions) if condition is not None
         )
 
-    def _claim(self, *returning: InstrumentedAttribute):
+    def _claim(self, *returning: InstrumentedAttribute, pending: Any = None):
         """Takes the next pending row and marks it in progress.
 
         Also adopts whatever run queued the row, so everything this worker
         writes while it holds it is stamped with the run that asked rather
         than with the worker's own process. See `settings.runs`.
+
+        `pending` selects the row to take where it is not `next_pending`.
         """
         trigger = self.columns.trigger
         asked = () if trigger is None else (trigger,)
@@ -179,7 +181,10 @@ class StageQueue(Repository):
             claimed = (
                 session.execute(
                     update(self.columns.entity)
-                    .where(self.columns.key == self.next_pending)
+                    .where(
+                        self.columns.key
+                        == (self.next_pending if pending is None else pending)
+                    )
                     .values(
                         {
                             self.columns.status: Status.IN_PROGRESS,
@@ -300,6 +305,25 @@ class StageQueue(Repository):
         self._release(
             key, {self.columns.status: Status.FAILED, self.columns.error: error[:2000]}
         )
+
+    def _unclaimed(self) -> dict[Any, Any]:
+        """What a row becomes when it is given back unworked."""
+        return {self.columns.status: Status.PENDING, self.columns.error: None}
+
+    def release(self, *keys: Any) -> None:
+        """Returns rows to the queue unworked, releasing the claim.
+
+        What a drain does with the rows an outage failed, and with the one it
+        held: they did not fail on their own account, and a row left failed
+        is one a person must remember to retry. Written by key, so it also
+        returns a row an earlier `fail` of this instance gave up.
+
+        Raises:
+            Lost: If this instance claimed a row and another worker has
+                claimed it since.
+        """
+        for key in keys:
+            self._release(key, self._unclaimed())
 
     def touch(self) -> bool:
         """Refreshes the claim on the row this instance is working.

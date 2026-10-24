@@ -120,6 +120,15 @@ than two claims is not digested.
 `EXTRACTION_DIGEST_MODEL` names a model of its own; unset it uses whichever
 model reads the passage.
 
+A digest is optional. When the model cannot give one, because it is down or
+the provider's filter refuses the passage, the passage still finishes
+`extracted` with its atomic facts, and `extract_error` says
+`digest failed: <reason>`. `make extract-digests` (`python -m extraction.run
+--digests`, and `make corpus` runs it after `extract`) claims those passages,
+calls only the digest model, and replaces only the summary and the outline,
+never an atomic fact or its id. A digest that fails again keeps its note and is
+tried again on the next run, once per run.
+
 ### Step 5 — Check everything
 
 Every check is structural rather than lexical. A citation is an index, so it
@@ -412,6 +421,7 @@ make extract-bridge MISSING=1       # only the topics holding no bridge yet
 make extract-recap                  # re-apply the atomic cap; no model call
 make extract-dedup                  # re-decide the duplicate refusals, then re-judge and re-cap what moved; no model call
 make extract-embed                  # write vectors onto rows already stored
+make extract-digests                # digest the passages that finished without one
 
 make extract-retry PASSAGE=<id>     # any of them but extract, narrowed to one passage
 make extract-rerun SHA=<sha256>     # or to one document

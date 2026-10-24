@@ -531,6 +531,12 @@ class CommandDriver:
         class Service:
             """The worker."""
 
+            name = "stub"
+            unit = "row"
+            estimate = None
+            failed = 0
+            stalled = None
+
             def request(self, trigger: str | None = None) -> int:
                 """Queues a fit."""
                 driver.queued.append(1)

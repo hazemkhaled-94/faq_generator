@@ -1976,3 +1976,107 @@ def test_a_passage_deleted_during_the_bridge_pass_drops_only_its_link(
     written = service.bridge(store.catalog, Reader(), Judge(), 1, 2, force=True)
 
     assert written == 1
+
+
+class TestTheDigestPass:
+    """Giving a digest to passages that finished extraction without one."""
+
+    NOTE = "digest failed: the provider filtered the answer"
+
+    def _extracted_without_digest(self, store, *passage_ids: int) -> None:
+        """Extracts each passage with one atomic fact and a note."""
+        store.queued(*passage_ids)
+        for one in passage_ids:
+            store.queue.claim()
+            store.queue.store(
+                one, [checked(one, f"Fact of passage {one}.")], note=self.NOTE
+            )
+
+    def test_only_the_digest_is_written_and_the_atomic_ids_stay(
+        self, store, corpus
+    ) -> None:
+        """The facts questions rest on are untouched."""
+        from extraction.repository import DigestQueue
+
+        first, second = corpus["a"]
+        self._extracted_without_digest(store, first, second)
+        before = store.rows("id", "statement", where="kind = 'atomic'")
+        queue = DigestQueue()
+
+        claimed = queue.claim()
+        assert claimed is not None and claimed.id == first
+        queue.store_digests(
+            first,
+            [
+                checked(first, "A summary.", kind=FactKind.SUMMARY),
+                checked(first, "- a point", kind=FactKind.OUTLINE),
+            ],
+        )
+
+        assert store.rows("id", "statement", where="kind = 'atomic'") == before
+        assert [row[0] for row in store.rows("kind", where="kind <> 'atomic'")] == [
+            FactKind.SUMMARY,
+            FactKind.OUTLINE,
+        ]
+        errors = store._execute("SELECT extract_error FROM passages ORDER BY id")
+        assert errors == [(None,), (self.NOTE,), (None,), (None,)]
+        assert store.statuses()[:2] == [Status.EXTRACTED, Status.EXTRACTED]
+
+    def test_a_digest_given_again_replaces_the_one_before(self, store, corpus) -> None:
+        """A second digest does not sit beside the first."""
+        from extraction.repository import DigestQueue
+
+        (first, _) = corpus["a"]
+        self._extracted_without_digest(store, first)
+        queue = DigestQueue()
+        queue.claim()
+        queue.store_digests(first, [checked(first, "One.", kind=FactKind.SUMMARY)])
+        queue.store_digests(first, [checked(first, "Two.", kind=FactKind.SUMMARY)])
+
+        assert [
+            row[0] for row in store.rows("statement", where="kind = 'summary'")
+        ] == ["Two."]
+
+    def test_each_passage_is_claimed_once_whether_or_not_it_is_digested(
+        self, store, corpus
+    ) -> None:
+        """A digest that fails again keeps its note and is not the next claim."""
+        from extraction.repository import DigestQueue
+
+        first, second = corpus["a"]
+        self._extracted_without_digest(store, first, second)
+        queue = DigestQueue()
+
+        seen = []
+        while (claimed := queue.claim()) is not None:
+            seen.append(claimed.id)
+            queue.store_digests(claimed.id, [], note=self.NOTE)
+
+        assert seen == [first, second]
+        assert store.statuses()[:2] == [Status.EXTRACTED, Status.EXTRACTED]
+
+    def test_a_passage_with_no_note_is_never_claimed(self, store, corpus) -> None:
+        """Nor is one still pending, which the passage reader owns."""
+        from extraction.repository import DigestQueue
+
+        first, second = corpus["a"]
+        store.queued(first, second)
+        store.queue.claim()
+        store.queue.store(first, [checked(first)])
+
+        assert DigestQueue().claim() is None
+
+    def test_a_released_passage_goes_back_extracted_not_pending(
+        self, store, corpus
+    ) -> None:
+        """Pending would read it again and replace its atomic facts."""
+        from extraction.repository import DigestQueue
+
+        (first, _) = corpus["a"]
+        self._extracted_without_digest(store, first)
+        queue = DigestQueue()
+        queue.claim()
+        queue.release(first)
+
+        assert store.statuses()[0] == Status.EXTRACTED
+        assert store._execute("SELECT extract_error FROM passages")[0] == (self.NOTE,)

@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Callable, Collection, Iterator
 from contextlib import contextmanager
 from itertools import groupby
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from sqlalchemy import (
     ARRAY,
@@ -71,6 +71,11 @@ _NEXT_PENDING = (
     .limit(1)
     .scalar_subquery()
 )
+
+#: What `extract_error` opens with on a passage that finished without its
+#: digest, followed by the reason. The service writes it and `DigestQueue`
+#: finds the passages by it.
+DIGEST_FAILED = "digest failed: "
 
 #: Which columns the search box looks in, by the name the API accepts.
 SEARCH_FIELDS = {
@@ -439,7 +444,7 @@ class PassageQueue(RowQueue):
         Returns:
             The passage, or None when nothing is queued.
         """
-        claimed = self._claim(*_PASSAGE_COLUMNS)
+        claimed = self._claim(*_PASSAGE_COLUMNS, pending=self._next())
         if claimed is None:
             return None
         # Asked here rather than joined into the claim, which is an UPDATE.
@@ -454,11 +459,16 @@ class PassageQueue(RowQueue):
         language, title = document if document else (None, None)
         return _passage(claimed, language, title)
 
+    def _next(self) -> Any:
+        """The selection of the passage to take, which `claim` reads."""
+        return self.next_pending
+
     def store(
         self,
         passage_id: int,
         facts: list[CheckedFact],
         embedding: list[float] | None = None,
+        note: str | None = None,
     ) -> int:
         """Replaces one passage's facts, in one transaction, and finishes it.
 
@@ -473,6 +483,9 @@ class PassageQueue(RowQueue):
             embedding: The passage's own vector, or None to leave the column
                 as it is. Written here rather than by chunking because this
                 is the worker that has the model loaded.
+            note: What the finished passage lacks, kept in its error column:
+                `DIGEST_FAILED` and the reason where the digest could not be
+                had, so `DigestQueue` can find it.
 
         Returns:
             How many facts were written.
@@ -495,7 +508,7 @@ class PassageQueue(RowQueue):
                     .where(Passage.id == passage_id)
                     .values(embedding=embedding)
                 )
-            self._finish(passage_id, session=session)
+            self._finish(passage_id, session=session, note=note)
         return len(facts)
 
     def cited(self, passage_id: int) -> bool:
@@ -542,6 +555,84 @@ class PassageQueue(RowQueue):
                 select(func.count()).select_from(Fact).where(Fact.validated)
             )
         return {**self.counts_by_status(), "facts": total, "validated": valid}
+
+
+def _next_undigested(after: int):
+    """The next extracted passage that lacks its digest, past `after`."""
+    return (
+        select(Passage.id)
+        .where(
+            Passage.extract_status == Status.EXTRACTED,
+            Passage.extract_error.startswith(DIGEST_FAILED),
+            Passage.id > after,
+        )
+        .order_by(Passage.id)
+        .with_for_update(skip_locked=True)
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
+class DigestQueue(PassageQueue):
+    """The passages that finished extraction without their digest.
+
+    Claims an extracted passage rather than a pending one, so the atomic
+    facts are never read again, and each passage once per drain: one whose
+    digest fails again keeps its note and is not the next claim.
+    """
+
+    def __init__(self, version: str | None = None) -> None:
+        """Binds to the session factory, with a settings version."""
+        super().__init__(version)
+        self._after = 0
+
+    def _next(self) -> Any:
+        """The next passage without a digest, past the last one claimed."""
+        return _next_undigested(self._after)
+
+    def claim(self) -> PassageToExtract | None:
+        """Takes the next passage without a digest, in id order."""
+        claimed = super().claim()
+        if claimed is not None:
+            self._after = claimed.id
+        return claimed
+
+    def _unclaimed(self) -> dict[Any, Any]:
+        """Back to extracted with its note: pending would read it again."""
+        return {self.columns.status: Status.EXTRACTED}
+
+    def store_digests(
+        self, passage_id: int, facts: list[CheckedFact], note: str | None = None
+    ) -> int:
+        """Replaces one passage's digest, and nothing else, and finishes it.
+
+        The summary and the outline only: the citations of the atomic facts
+        stay, so their ids and the questions resting on them do not move.
+
+        Args:
+            passage_id: The passage that was digested.
+            facts: The digest facts, refused ones included. None when the
+                digest could not be had.
+            note: What the passage still lacks, as `store` keeps it. None
+                when the digest came.
+
+        Returns:
+            How many facts were written.
+        """
+        with self._session.begin() as session:
+            session.execute(
+                delete(FactPassage).where(
+                    FactPassage.passage_id == passage_id,
+                    FactPassage.fact_id.in_(
+                        select(Fact.id).where(
+                            Fact.kind.in_((FactKind.SUMMARY, FactKind.OUTLINE))
+                        )
+                    ),
+                )
+            )
+            _write(session, facts, self._version)
+            self._finish(passage_id, session=session, note=note)
+        return len(facts)
 
 
 def _write(session, facts: list[CheckedFact], version: str | None = None) -> int:

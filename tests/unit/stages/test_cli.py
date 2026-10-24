@@ -87,6 +87,12 @@ def _queue_main(monkeypatch, *, refuse: Exception | None):
     class _Service:
         """A service whose drain does nothing."""
 
+        name = "stub"
+        unit = "row"
+        estimate = None
+        failed = 0
+        stalled = None
+
         def drain(self, stopping=None):
             """Drains nothing."""
             return 0
@@ -352,6 +358,12 @@ def test_a_rebuilt_worker_claims_nothing_until_its_new_models_answer(
     class _Service:
         """A service that records each drain."""
 
+        name = "stub"
+        unit = "row"
+        estimate = None
+        failed = 0
+        stalled = None
+
         def drain(self, stopping=None) -> int:
             """Records one drain."""
             happened.append("drained")
@@ -455,6 +467,12 @@ def test_a_rebuilt_worker_records_its_prompts_again(monkeypatch) -> None:
 
     class _Service:
         """A service that drains nothing."""
+
+        name = "stub"
+        unit = "row"
+        estimate = None
+        failed = 0
+        stalled = None
 
         def drain(self, stopping=None) -> int:
             """Drains nothing."""

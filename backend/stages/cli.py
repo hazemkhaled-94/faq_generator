@@ -318,14 +318,37 @@ def queue_main(
 
     if not args.watch:
         # Built once: one drain cannot outlive a change to the settings.
-        build_service().drain()
-        return 0
+        service = build_service()
+        service.drain()
+        return exit_code(service)
 
     watch(
         reloading(name, build_service, preflight, prompts),
         decimal("WORKER_POLL_SECONDS"),
     )
     return 0
+
+
+#: What a drain exits with when it stopped itself: EX_TEMPFAIL, the code for
+#: try again later. Its claimed row is back in the queue.
+STOPPED = 75
+
+#: What a drain exits with when a row failed.
+FAILED = 3
+
+
+def exit_code(service: StageService) -> int:
+    """What a drain that has finished tells whoever ran it.
+
+    0 when every row was worked, 3 when a row failed, and 75 when the drain
+    stopped itself - the model could not be reached, or it answered nothing
+    for too many passages, or the spend cap was reached - with what it held
+    back in the queue. 75 outranks 3: it is the one that wants the run
+    started again.
+    """
+    if service.stalled:
+        return STOPPED
+    return FAILED if service.failed else 0
 
 
 def _ready(name: str, preflight: Callable[[], None], watching: bool) -> bool:

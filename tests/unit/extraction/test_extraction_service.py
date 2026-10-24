@@ -14,7 +14,7 @@ from drivers import Extraction, Vectors, passage, table_passage
 
 from database.qa_generator import FactKind, Rejection
 from extraction.models import Twin
-from llm.client import ModelUnavailable
+from llm.client import ModelRefused, ModelUnavailable
 
 pytestmark = pytest.mark.nlp
 
@@ -101,18 +101,77 @@ def test_a_model_that_will_not_answer_fails_the_passage() -> None:
     assert "took too long" in run.queue.failed[1]
 
 
-def test_a_digest_the_model_will_not_answer_fails_the_passage() -> None:
-    """Both readings are one unit of work: half of one is not stored."""
+# A digest is optional: the atomic facts were paid for and are what questions
+# rest on, so a digest that cannot be had must not take them with it.
+LANGUAGES = {
+    "en": "The device weighs 4 kg. It runs for 12 hours.",
+    "de": "Das Gerät wiegt 4 kg. Es läuft 12 Stunden lang.",
+}
+DIGEST_FAILURES = {
+    "unreachable": ModelUnavailable("Timeout: took too long"),
+    "content filter": ModelRefused("the provider filtered the answer"),
+}
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+@pytest.mark.parametrize("failure", DIGEST_FAILURES)
+def test_a_digest_the_model_will_not_give_keeps_the_atomic_facts(
+    language: str, failure: str
+) -> None:
+    """The passage finishes with its facts, and says what it lacks."""
     run = Extraction(
-        passage(),
+        passage(LANGUAGES[language], language=language),
         facts=ATOMIC,
-        digest=ModelUnavailable("Timeout: took too long"),
+        digest=DIGEST_FAILURES[failure],
         kinds=BOTH,
     )
+
+    assert run.run() == 1
+    assert run.queue.kinds() == [FactKind.ATOMIC]
+    assert run.queue.failed == {}
+    assert run.queue.notes[1].startswith("digest failed: ")
+
+
+def test_a_digest_that_came_leaves_no_note() -> None:
+    """A passage with both readings has nothing outstanding."""
+    run = Extraction(passage(), facts=ATOMIC, digest=DIGEST, kinds=BOTH)
     run.next()
 
-    assert run.queue.stored == {}
-    assert "took too long" in run.queue.failed[1]
+    assert run.queue.notes == {1: None}
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_the_digest_pass_digests_what_the_first_pass_could_not(
+    language: str,
+) -> None:
+    """Only the digest kinds are written, and the note is cleared."""
+    run = Extraction(
+        passage(LANGUAGES[language], language=language),
+        digest=DIGEST,
+        kinds=BOTH,
+        digests_only=True,
+    )
+
+    assert run.run() == 1
+    assert run.queue.stored == {}, "no atomic fact is written or replaced"
+    assert [fact.kind for fact in run.queue.digests[1]] == list(BOTH)
+    assert run.queue.notes == {1: None}
+    assert run.model.calls == 0, "the passage reader is not asked"
+
+
+def test_the_digest_pass_keeps_the_note_when_the_digest_fails_again() -> None:
+    """The row stays as it was, and is not failed."""
+    run = Extraction(
+        passage(),
+        digest=ModelRefused("the provider filtered the answer"),
+        kinds=BOTH,
+        digests_only=True,
+    )
+
+    assert run.run() == 1
+    assert run.queue.digests == {1: []}
+    assert run.queue.notes[1].startswith("digest failed: ")
+    assert run.queue.failed == {}
 
 
 def test_an_unexpected_failure_is_named_by_its_type() -> None:

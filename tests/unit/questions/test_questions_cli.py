@@ -60,6 +60,12 @@ class Queue:
 class Service:
     """A service that records each drain."""
 
+    name = "stub"
+    unit = "row"
+    estimate = None
+    failed = 0
+    stalled = None
+
     def __init__(self) -> None:
         """Initialises with nothing drained."""
         self.drains = 0

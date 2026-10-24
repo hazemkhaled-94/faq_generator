@@ -244,6 +244,7 @@ expensive part:
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own sentences and list items |
 | `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, and take out the citations a refusal added to the fact it repeated. The passages of the refusals given back, and no others, are then re-judged and re-capped. No model call |
 | `make extract-embed` | Write vectors onto passages and facts already stored. Does not apply the dedup gate |
+| `make extract-digests` | Give a summary and an outline to the passages that finished without them because the digest model failed or its provider refused them. Calls the digest model once per such passage and writes nothing else; a passage that fails again keeps its note. `make corpus` runs it after `extract` |
 | `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first and deletes nothing if it does not answer. Refuses while an accepted question cites a bridge it would replace; `FORCE=1` replaces them anyway; `MISSING=1` deletes nothing and reads only the topics holding no bridge yet, which is how `make corpus` runs it |
 | `make confidence-recalibrate` | Take every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR` or `EXTRACTION_DUPLICATE_FLOOR`. No model call, and no verdict moves |
 

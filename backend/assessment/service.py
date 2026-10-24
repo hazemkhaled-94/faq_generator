@@ -31,6 +31,7 @@ from assessment.models import ArtifactToJudge, Assessed
 from assessment.repository import AssessmentQueue
 from assessment.templates import PROMPT_VERSION, direction_of
 from stages import StageService
+from stages.service import is_outage
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -109,11 +110,14 @@ class AssessmentService(StageService):
                 # Failed rather than recorded as disapproval. A judge that
                 # could not be reached has found nothing wrong with the
                 # artefact, and `retry` is what moves this row.
-                self._fail(artifact.assessment_id, str(exc), current)
+                self._fail(artifact.assessment_id, str(exc), current, outage=True)
                 return artifact.assessment_id
             except Exception as exc:
                 self._fail(
-                    artifact.assessment_id, f"{type(exc).__name__}: {exc}", current
+                    artifact.assessment_id,
+                    f"{type(exc).__name__}: {exc}",
+                    current,
+                    is_outage(exc),
                 )
                 log.exception("failed assessment %d", artifact.assessment_id)
                 return artifact.assessment_id
