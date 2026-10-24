@@ -314,7 +314,9 @@ keeps the eight partners it shares the most such terms with, the nearest first
 among those. A
 reference outranks a
 sibling, and a sibling a term; inside a kind the vectors rank the partners
-and a tie goes to the lower id. Each passage heads at most one pair, a pair
+and a tie goes to the lower id. Under a parent heading a passage keeps its
+eight nearest sections, picked out of the family with one partition rather
+than by building and sorting a link to each. Each passage heads at most one pair, a pair
 is offered once, and a topic is worth `EXTRACTION_BRIDGES_PER_TOPIC` pairs on
 the passages that head them, strided over the topic's heads in reading
 order. The partner may sit in any topic of its language. The pass logs how

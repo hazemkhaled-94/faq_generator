@@ -1,20 +1,24 @@
-"""What the term links cost at ten times this corpus.
+"""What the link pass costs at ten times this corpus.
 
 A term in a share of a language's passages linked every pair of them, so a
-corpus ten times larger had terms in 50 passages and 1,225 links each. The
-share is capped at six passages now, and a passage keeps its best partners,
-so the links grow with the corpus.
+corpus ten times larger had terms in 50 passages and 1,225 links each; and a
+parent heading over N sections built and sorted N links per head. Both are
+bounded by constants now, and the links offered stay the same where the
+corpus is the size the shares were chosen on.
 """
 
 from __future__ import annotations
 
+import random
 import time
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 from drivers import passage
 
-from extraction.links import _Edges, _terms, linked
+from extraction import links
+from extraction.links import _best, _Edges, _siblings, _terms, linked
 
 pytestmark = pytest.mark.nlp
 
@@ -119,3 +123,57 @@ def test_a_term_in_three_product_sheets_links_them(
     got = linked(passages[:3], passages, {p.id: p.id for p in passages}, 9, 2)
 
     assert term in {link.named for link in got if link.kind == "term"}
+
+
+def test_siblings_are_ranked_without_building_every_link() -> None:
+    """2,000 sections under one parent: every head's best links in under a second."""
+    rng = random.Random(7)
+    partners = [
+        SimpleNamespace(
+            id=i,
+            language="en",
+            section_path=f"Parent > Child {i}",
+            embedding=tuple(rng.random() for _ in range(16)),
+        )
+        for i in range(2_000)
+    ]
+    edges = _Edges()
+    _siblings(edges, partners)  # type: ignore[arg-type]
+
+    started = time.perf_counter()
+    for head in partners:
+        _best(edges, head, set())  # type: ignore[arg-type]
+
+    assert time.perf_counter() - started < 1.0
+
+
+def test_the_siblings_kept_are_the_nearest_with_ties_to_the_lower_id() -> None:
+    """What a full sort would put first, in the same order."""
+    rng = random.Random(3)
+    vectors = [tuple(rng.random() for _ in range(8)) for _ in range(60)]
+    vectors[10] = vectors[11] = vectors[12] = vectors[5]
+    partners = [
+        SimpleNamespace(
+            id=i,
+            language="en",
+            section_path=f"Parent > Child {i}",
+            embedding=vectors[i],
+        )
+        for i in range(60)
+    ]
+    edges = _Edges()
+    _siblings(edges, partners)  # type: ignore[arg-type]
+    head = partners[5]
+    matrix = np.array(vectors)
+    scores = matrix @ matrix[5]
+    expected = sorted(
+        (i for i in range(60) if i != 5), key=lambda i: (-float(scores[i]), i)
+    )
+
+    got = [
+        next(p.id for p in link.passages if p.id != 5)
+        for _, link in _best(edges, head, set())  # type: ignore[arg-type]
+    ]
+
+    assert got == expected[: len(got)]
+    assert 1 <= len(got) <= links._SIBLINGS_KEPT

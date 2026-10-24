@@ -58,6 +58,10 @@ _RARE_MAX = 6
 #: rare terms with and then lies nearest to.
 _TERM_PARTNERS = 8
 
+#: The most siblings one passage keeps under a parent heading, the nearest.
+#: A parent over N sections is N links per passage if all are built.
+_SIBLINGS_KEPT = 8
+
 _TIER = {"reference": 0, "sibling": 1, "term": 2}
 
 
@@ -154,9 +158,15 @@ class _Edges:
         self.position: dict[int, int] = {}
         #: Each passage's own heading, and per family one matrix of its
         #: vectors (a zero row where a passage has none), so a head scores
-        #: its whole family in one product.
+        #: its whole family in one product. Beside it, per family, the ids in
+        #: the matrix's row order and a code for each row's own heading, so
+        #: the nearest few are picked out of the product without a link
+        #: being built for the rest.
         self.last: dict[int, str] = {}
         self.matrix: dict[str, np.ndarray] = {}
+        self.ids: dict[str, np.ndarray] = {}
+        self.codes: dict[str, np.ndarray] = {}
+        self.row: dict[int, int] = {}
 
     def add(
         self, first: PassageToExtract, second: PassageToExtract, kind: str, named: str
@@ -317,6 +327,12 @@ def _siblings(edges: _Edges, partners: Sequence[PassageToExtract]) -> None:
         if trail:
             edges.last[p.id] = trail[-1]
     for parent, family in edges.family.items():
+        edges.ids[parent] = np.array([p.id for p in family])
+        edges.row.update({p.id: at for at, p in enumerate(family)})
+        headings: dict[str, int] = {}
+        edges.codes[parent] = np.array(
+            [headings.setdefault(edges.last[p.id], len(headings)) for p in family]
+        )
         width = next((len(p.embedding) for p in family if p.embedding is not None), 0)
         if width:
             edges.matrix[parent] = np.array(
@@ -369,6 +385,23 @@ def _terms(
         edges.add(first, second, "term", shared[first.id][second.id][0])
 
 
+def _nearest_siblings(scores: np.ndarray, ids: np.ndarray, kept: int) -> np.ndarray:
+    """The positions of the `kept` highest scores, ties to the lower id, in that order.
+
+    Selected with a partition, so a family of thousands costs one pass and a
+    sort of the few kept, and not a sort of all of it.
+    """
+    if len(scores) > kept:
+        cut = np.partition(scores, len(scores) - kept)[len(scores) - kept]
+        above = np.flatnonzero(scores > cut)
+        tied = np.flatnonzero(scores == cut)
+        tied = tied[np.argsort(ids[tied], kind="stable")][: kept - len(above)]
+        chosen = np.concatenate((above, tied))
+    else:
+        chosen = np.arange(len(scores))
+    return chosen[np.lexsort((ids[chosen], -scores[chosen]))]
+
+
 def _best(
     edges: _Edges, partner: PassageToExtract, taken: frozenset[int] | set[int]
 ) -> list[tuple[tuple[int, float, int], Link]]:
@@ -379,29 +412,36 @@ def _best(
         other = next(p for p in link.passages if p.id != partner.id)
         if other.id not in taken:
             found[other.id] = (tier, link)
+    siblings: list[tuple[PassageToExtract, float]] = []
     parent = edges.parent.get(partner.id)
-    family = edges.family.get(parent, ()) if parent else ()
-    near: dict[int, float] = {}
-    if partner.embedding is not None and parent in edges.matrix:
-        scores = edges.matrix[parent] @ np.asarray(partner.embedding, np.float32)
-        near = {
-            p.id: float(score) if p.embedding is not None else 0.0
-            for p, score in zip(family, scores, strict=True)
-        }
-    mine = edges.last.get(partner.id)
-    for other in family:
-        if (
-            other.id == partner.id
-            or other.id in taken
-            or edges.last.get(other.id) == mine
-            or found.get(other.id, (_TIER["sibling"] + 1, None))[0] <= _TIER["sibling"]
-        ):
-            continue
+    if parent is not None:
+        family = edges.family[parent]
+        ids = edges.ids[parent]
+        scores = np.zeros(len(family))
+        if partner.embedding is not None and parent in edges.matrix:
+            scores = (
+                edges.matrix[parent] @ np.asarray(partner.embedding, np.float32)
+            ).astype(np.float64)
+        # Not itself, not a section of its own heading, and not one it already
+        # reaches by a reference or is not allowed to be given.
+        reached = [i for i, (tier, _) in found.items() if tier <= _TIER["sibling"]]
+        allowed = (
+            (ids != partner.id)
+            & (edges.codes[parent] != edges.codes[parent][edges.row[partner.id]])
+            & ~np.isin(ids, [*taken, *reached])
+        )
+        candidates = np.flatnonzero(allowed)
+        for at in candidates[
+            _nearest_siblings(scores[candidates], ids[candidates], _SIBLINGS_KEPT)
+        ]:
+            siblings.append((family[at], float(scores[at])))
+    for other, _ in siblings:
         pair = sorted((partner, other), key=lambda one: edges.position[one.id])
         found[other.id] = (
             _TIER["sibling"],
             Link((pair[0], pair[1]), "sibling", _segments(pair[0])[-2]),
         )
+    near = {other.id: score for other, score in siblings}
     ranked = [
         (
             (
