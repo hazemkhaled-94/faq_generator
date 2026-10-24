@@ -1000,3 +1000,91 @@ class TestNotAtomicRepair:
         assert all(one.validated for one in pieces), [
             (one.statement, one.rejection_code) for one in pieces
         ]
+
+
+def _digest_down(cause: Exception) -> ModelUnavailable:
+    """What the digest client raises for a failure of this kind."""
+    failure = ModelUnavailable(type(cause).__name__)
+    failure.__cause__ = cause
+    return failure
+
+
+def _litellm_timeout() -> Exception:
+    """A provider that does not answer in time."""
+    import litellm
+
+    return litellm.exceptions.Timeout(
+        "timed out", model="azure/x", llm_provider="azure"
+    )
+
+
+def _litellm_rejected() -> Exception:
+    """A provider that rejects this passage's request."""
+    import litellm
+
+    return litellm.exceptions.BadRequestError(
+        "context_length_exceeded", model="azure/x", llm_provider="azure"
+    )
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_a_digest_model_that_is_down_is_asked_no_more_after_five_passages(
+    language: str,
+) -> None:
+    """The atomic extraction goes on, and each passage is noted."""
+    from dataclasses import replace
+
+    from stages.service import STOP_AFTER
+
+    first = passage(LANGUAGES[language], language=language)
+    rows = [replace(first, id=n) for n in range(1, 13)]
+    run = Extraction(
+        *rows,
+        facts=ATOMIC,
+        digest=_digest_down(_litellm_timeout()),
+        kinds=BOTH,
+    )
+
+    assert run.run() == 12
+    assert run.digest_model.calls == STOP_AFTER, "no sixth call to a model that is down"
+    assert run.model.calls == 12, "every passage is still read for its facts"
+    assert sorted(run.queue.stored) == list(range(1, 13))
+    assert all(run.queue.notes[n].startswith("digest failed: ") for n in range(1, 13))
+    assert run.service.stalled is None, "the drain itself goes on"
+    assert run.queue.failed == {}
+
+
+def test_a_digest_the_provider_rejects_for_one_passage_is_not_an_outage() -> None:
+    """The next passage is asked as before."""
+    from dataclasses import replace
+
+    first = passage()
+    run = Extraction(
+        *[replace(first, id=n) for n in range(1, 13)],
+        facts=ATOMIC,
+        digest=_digest_down(_litellm_rejected()),
+        kinds=BOTH,
+    )
+
+    run.run()
+
+    assert run.digest_model.calls == 12
+
+
+def test_a_new_drain_asks_the_digest_model_again() -> None:
+    """The stop is for the rest of one run."""
+    from dataclasses import replace
+
+    first = passage()
+    run = Extraction(
+        *[replace(first, id=n) for n in range(1, 8)],
+        facts=ATOMIC,
+        digest=_digest_down(_litellm_timeout()),
+        kinds=BOTH,
+    )
+    run.run()
+    run.queue._pending.append(replace(first, id=20))
+
+    run.run()
+
+    assert run.digest_model.calls == 6

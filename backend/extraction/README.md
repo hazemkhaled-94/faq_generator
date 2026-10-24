@@ -133,7 +133,11 @@ never an atomic fact or its id. A digest that fails again keeps its note and is
 tried again on the next run, once per run. An unexpected error in the pass
 does the same, and an interrupt gives the passage back as it was: the pass
 never makes an extracted passage `failed`, which `make extract-retry` would
-read again and replace the atomic facts of. A deployment whose `EXTRACTION_KINDS`
+read again and replace the atomic facts of. A digest model that cannot be reached
+for five passages in a row (`STOP_AFTER`) is asked no more for the rest of that
+drain, since each passage would pay its whole retry budget: the drain goes on
+reading atomic facts, each passage is noted, and `make extract-digests` gives
+them theirs once the model answers. A deployment whose `EXTRACTION_KINDS`
 names no digest kind has nothing to give: the command says so and exits 0, so
 `make corpus` goes on.
 

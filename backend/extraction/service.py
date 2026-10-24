@@ -37,7 +37,7 @@ from nlp.analysis import AMOUNT_WORDS, claim, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
-from stages.service import is_outage, stop_at_cap
+from stages.service import STOP_AFTER, is_outage, stop_at_cap
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -1037,6 +1037,16 @@ class ExtractionService(StageService):
         # Whether each of the last readable passages came back with nothing:
         # (passage id, nothing found).
         self._answers: deque[tuple[int, bool]] = deque(maxlen=_WINDOW)
+        # How many passages in a row the digest model could not be reached
+        # for, and whether it is asked no more for the rest of this drain.
+        self._digest_outages = 0
+        self._digest_off = False
+
+    def drain(self, stopping: Callable[[], bool] | None = None) -> int:
+        """Works the queue, asking the digest model afresh."""
+        self._digest_outages = 0
+        self._digest_off = False
+        return super().drain(stopping) if stopping else super().drain()
 
     def process_next(self) -> int | None:
         """Reads one queued passage and stores what it yielded.
@@ -1241,9 +1251,35 @@ class ExtractionService(StageService):
             _nothing_found(passage, current)
         silent = (not facts) if asked else None
         try:
-            return _Read(facts + self._digested(passage), None, silent)
+            digests = self._digested(passage)
         except ExtractionFailed as failure:
+            self._counted(failure)
             return _Read(facts, self._missing(passage, failure), silent)
+        if digests:
+            self._digest_outages = 0
+        return _Read(facts + digests, None, silent)
+
+    def _counted(self, failure: ExtractionFailed) -> None:
+        """Counts a digest the model could not give, and stops asking at a run.
+
+        `STOP_AFTER` passages in a row it could not be reached for: its retry
+        budget is paid in full for each, and the atomic facts, which a
+        drain is for, wait on it. The passages are noted as any digest
+        failure is, and `make extract-digests` gives them once it is back.
+        """
+        if not is_outage(failure):
+            self._digest_outages = 0
+            return
+        self._digest_outages += 1
+        if self._digest_outages == STOP_AFTER and not self._digest_off:
+            self._digest_off = True
+            log.error(
+                "the digest model could not be reached for %d passage(s) in a "
+                "row, so it is asked no more in this drain; they and the "
+                "passages after are noted, and make extract-digests gives "
+                "them a digest once it answers",
+                STOP_AFTER,
+            )
 
     def _repaired(
         self,
@@ -1421,6 +1457,8 @@ class ExtractionService(StageService):
             return []
         if len(normalised(passage.text)) < self._digest_min_chars:
             return []
+        if self._digest_off:
+            raise ExtractionFailed("not asked: the digest model is out of reach")
         return [
             self._checker.check(
                 passage, candidate, self._digest.method, self._digest.provenance
