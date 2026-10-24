@@ -489,7 +489,7 @@ def bridge(
     Raises:
         CitedBridges: If an accepted question cites a bridge in scope and
             `force` is not set. Nothing is deleted.
-        SpendCapReached: If SPEND_CAP was reached between two groups. The
+        SpendCapReached: If SPEND_CAP was reached between two topics. The
             facts written so far are kept, and the number is `kept`.
     """
     # ponytail: counted and deleted in two transactions, so a question
@@ -535,6 +535,7 @@ def bridge(
     # Read after the clear: what is left is what this pass must not repeat,
     # whichever side of a cross-topic pair heads it.
     held = catalog.bridged_pairs()
+    topic: object = object()  # none yet, so the first link reads the cap too
     for language in sorted({one.language or "" for one in partners}):
         links = linked(
             [one for one in heads if (one.language or "") == language],
@@ -555,8 +556,11 @@ def bridge(
             kinds["term"],
         )
         for link in links:
-            # Between groups, so what is written is kept and nothing is held.
-            stop_at_cap(written)
+            # Between topics, so what is written is kept, nothing is held, and
+            # no topic is left half bridged: `missing` skips any that has one.
+            if (at := topic_of.get(link.head or 0)) != topic:
+                stop_at_cap(written)
+                topic = at
             offered = list(link.passages)
             try:
                 proposed = extractor.extract(offered, link, facts)

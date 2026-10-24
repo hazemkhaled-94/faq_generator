@@ -337,3 +337,44 @@ def test_the_bridge_pass_stops_between_groups_at_the_spend_cap(monkeypatch) -> N
 
     assert model.calls == 2, "the second group took it past the cap"
     assert len(catalog.written) == 2, "what was written is kept"
+
+
+def test_a_stop_at_the_spend_cap_leaves_no_topic_half_bridged(monkeypatch) -> None:
+    """The cap is read where the topic changes, so `MISSING=1` resumes whole topics.
+
+    A topic holding a bridge is skipped by a resume, so a stop inside one
+    would leave it short of its groups for good.
+    """
+    monkeypatch.setenv("SPEND_CAP", "1.0")
+    monkeypatch.setitem(tally._spent, "usd", 0.0)
+
+    class Costly(Model):
+        """Every call costs sixty cents."""
+
+        def answer(self, **kwargs):
+            """Answers and pays."""
+            tally._spent["usd"] += 0.6
+            return super().answer(**kwargs)
+
+    first = pair()
+    second = pair(
+        10,
+        "Support",
+        (
+            "A seat is held for 15 minutes after booking.",
+            "A ticket is refunded up to 3 weeks before the show.",
+        ),
+    )
+    catalog, model = (
+        Catalogue(support=first + second, delivery=pair(100, "Delivery", OTHER)),
+        Costly(ANSWER),
+    )
+    in_topic = len(
+        linked(first + second, first + second, {p.id: 1 for p in first + second}, 5, 2)
+    )
+    assert in_topic >= 2, "the topic needs more than one group to be cut"
+
+    with pytest.raises(SpendCapReached, match="SPEND_CAP"):
+        run(catalog, model)
+
+    assert model.calls == in_topic, "the topic was finished, the next was not begun"

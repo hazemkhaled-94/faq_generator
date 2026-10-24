@@ -182,10 +182,14 @@ The drain stops itself, and exits 75, in three cases:
   it. Nothing is held then. With it set, a model litellm cannot price is
   refused at the start, since its calls would not count. The passes that
   call a model outside the drain loop are bound by it as well: `--bridge`
-  between groups, `--balance` between the pairs the judge is asked about (the
-  release as last drawn is written first) and `--rejudge` between questions.
-  Each keeps what it wrote and exits 75; the next run asks only for what no
-  run has done.
+  where its link's topic changes, so a stop never leaves a topic half bridged
+  and `make extract-bridge MISSING=1` resumes after it, `--balance` between the
+  pairs the judge is asked about (the release as last drawn is written first)
+  and `--rejudge` between questions. Each keeps what it wrote and exits 75. A
+  rerun of `--rejudge` asks only for what no run has done. A rerun of
+  `--balance` keeps no verdicts between runs: it draws again and pays the twin
+  pairs again, so under the same cap it stops at the same place, and the cap
+  must be above what one balance costs.
 
 A one-off drain installs the same handler a worker does, with its stage's
 grace: SIGTERM or SIGINT lets the row in hand finish and claims no more, and
