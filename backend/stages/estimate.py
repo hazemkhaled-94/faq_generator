@@ -220,7 +220,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--drains",
         default="",
         metavar="STAGE=N,...",
-        help="how many drains work a stage at once, as questions=4,extract=2",
+        help="how many drains work a stage at once, as questions=2,extract=2",
     )
     args = built.parse_args(sys.argv[1:] if argv is None else argv)
     drains = {

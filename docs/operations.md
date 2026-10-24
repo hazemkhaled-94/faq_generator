@@ -244,23 +244,24 @@ carrying a validated fact belongs to a topic at 40 passages a topic
 and a topic leaves 53 accepted questions. A run writes `QUESTIONS_PER_TOPIC`
 slots for each topic, so the questions grow with the topics and the topics with
 the passages: slots are topics times `QUESTIONS_PER_TOPIC`. A stage whose
-workers scale (`DRAINS=questions=4`) divides its time by the drains and keeps
-its spend.
+workers scale (`DRAINS=questions=2`) divides its time by the drains and keeps
+its spend. Two is the most drains one database takes on the current Azure
+quota; more need a larger quota, measured first (see below).
 
 **The go-live corpus, ten times the reviewed one**: 300 PDFs, 20,000 passages,
 410 topics, 21,750 accepted questions. One drain of each stage takes 81 hours
 and costs USD 725:
 
-| Stage | Rows | Time, one drain | Time, extract and questions at 4 drains | USD |
+| Stage | Rows | Time, one drain | Time, extract and questions at 2 drains | USD |
 |---|---|---|---|---|
 | parse and chunk | 300 documents | 46 min | 23 min at 2 | 0 |
-| extract | 19,730 passages | 20.2 h | 5.1 h | 131 |
+| extract | 19,730 passages | 20.2 h | 10.1 h | 131 |
 | topics | 19,730 passages | 11 min | 11 min | 0.39 |
 | bridges | 410 topics | 2.0 h | 2.0 h | 21 |
-| questions | 410 topics | 55.7 h | 13.9 h | 554 |
+| questions | 410 topics | 55.7 h | 27.9 h | 554 |
 | release | 21,750 accepted | 1.9 h | 1.9 h | 15 |
 | assess | a fixed sample | 23 min | 23 min | 3.59 |
-| **total** | | **81 h** | **24 h** | **725** |
+| **total** | | **81 h** | **43 h** | **725** |
 
 Two things in it are new since the review. The questions are 410 topics because
 `TOPIC_NUM_TOPICS` is 300 a language and no longer 40: the review's go-live
@@ -270,6 +271,12 @@ Spending less is `QUESTIONS_PER_TOPIC`, which scales the questions down and the
 coverage with them. And the release draw is no longer the quadratic that took
 39 minutes a draw at this size: it steps down from the size the pool can place
 and draws with no list rebuilt per question.
+
+The example is worked at two drains because that is what the current Azure
+quota carries: two drains of the model stages ran side by side without a
+failed row, and six lost 3 of 10 topics to rate limits. A third drain, or a
+fourth, shortens the time only on a larger quota, and the quota is to be
+measured before the drains are raised, not assumed.
 
 What to size besides time: [Postgres](#sizing-postgres) for the vectors, the
 parse worker's memory for the longest document (`PARSING_MAX_PAGES`, 180 pages,

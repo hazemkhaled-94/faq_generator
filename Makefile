@@ -1308,7 +1308,7 @@ spend-by-shape:
 # at once and divides its time, never its spend.
 #
 #   make estimate
-#   make estimate DRAINS=questions=4,extract=2
+#   make estimate DRAINS=questions=2,extract=2
 estimate:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m stages.estimate $(if $(DRAINS),--drains $(DRAINS))
 
