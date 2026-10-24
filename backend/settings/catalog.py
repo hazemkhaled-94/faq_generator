@@ -140,6 +140,20 @@ SETTINGS: tuple[Setting, ...] = (
         "every section header comes back at level one.",
     ),
     Setting(
+        name="PARSING_MAX_PAGES",
+        service="parsing",
+        kind="integer",
+        low=0,
+        invalidates=("parsing",),
+        help="Longest document the parse worker converts, in pages; 0 "
+        "converts any. Docling holds every page it converts, and a document "
+        "too long for the worker's memory ends the container, so one over "
+        "this is refused before conversion, with the count. Measured: 139 "
+        "pages took 2.4 GB and 278 pages 4.9 GB, against the worker's 4 GB. "
+        "Raised with the worker's memory limit; `make parse-retry` returns "
+        "what it refused to the queue.",
+    ),
+    Setting(
         name="PARSING_TIMEOUT_SECONDS",
         service="parsing",
         kind="decimal",

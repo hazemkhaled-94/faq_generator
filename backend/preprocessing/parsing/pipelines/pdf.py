@@ -184,6 +184,7 @@ class PdfPipeline(Pipeline):
         document_timeout_seconds: float | None,
         artifacts_path: str | None,
         ocr_char_threshold: int = 0,
+        max_pages: int = 0,
     ) -> None:
         """Initialises the pipeline. Every value comes from the environment.
 
@@ -196,7 +197,10 @@ class PdfPipeline(Pipeline):
             ocr_char_threshold: The characters a page may hold and still be
                 named image-only when a picture covers it; 0 names only a
                 page with no text.
+            max_pages: The longest document converted, in pages; 0 converts
+                any. PARSING_MAX_PAGES is where it comes from.
         """
+        self._max_pages = max_pages
         self._ocr_characters = ocr_char_threshold
         self._table_mode = TableFormerMode(table_mode)
         self._heading_hierarchy = heading_hierarchy
@@ -216,8 +220,8 @@ class PdfPipeline(Pipeline):
             joined, and its confidences.
 
         Raises:
-            ConversionFailed: If the document needs OCR, or if Docling cannot
-                convert all of it.
+            ConversionFailed: If the document needs OCR, if it is longer than
+                PARSING_MAX_PAGES, or if Docling cannot convert all of it.
         """
         # OCR extension point. See this package's README for what enabling
         # it takes.
@@ -226,6 +230,20 @@ class PdfPipeline(Pipeline):
                 "the document carries too little text to read without OCR, "
                 "which is not enabled"
             )
+        # Before the converter, which holds every page it converts: the
+        # worker's memory limit is what ends a document too long for it, and
+        # it ends the container with the claim still held.
+        if self._max_pages:
+            with pymupdf.open(stream=source.data, filetype="pdf") as opened:
+                pages = opened.page_count
+            if pages > self._max_pages:
+                raise ConversionFailed(
+                    f"the document has {pages} pages, over the {self._max_pages} "
+                    "PARSING_MAX_PAGES allows: converting it would take more "
+                    "memory than the parse worker has. Split the document, or "
+                    "raise PARSING_MAX_PAGES together with the worker's memory "
+                    "limit"
+                )
 
         try:
             result = self._converter().convert(

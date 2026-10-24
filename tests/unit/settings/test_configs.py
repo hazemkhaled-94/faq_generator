@@ -84,6 +84,7 @@ def test_parsing_reads_its_thresholds_and_its_timeout() -> None:
         PARSING_TABLE_MODE="sentinel-mode",
         PARSING_HEADING_HIERARCHY="false",
         PARSING_TIMEOUT_SECONDS="19.5",
+        PARSING_MAX_PAGES="23",
         DOCLING_ARTIFACTS_PATH="/sentinel/artifacts",
     )
 
@@ -92,6 +93,7 @@ def test_parsing_reads_its_thresholds_and_its_timeout() -> None:
     assert loaded.table_mode == "sentinel-mode"
     assert loaded.heading_hierarchy is False
     assert loaded.document_timeout_seconds == 19.5
+    assert loaded.max_pages == 23
     assert loaded.artifacts_path == "/sentinel/artifacts"
 
 

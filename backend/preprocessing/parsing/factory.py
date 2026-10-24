@@ -45,4 +45,5 @@ def pdf_pipeline(settings: Settings) -> PdfPipeline:
         document_timeout_seconds=settings.document_timeout_seconds,
         artifacts_path=settings.artifacts_path,
         ocr_char_threshold=settings.ocr_char_threshold,
+        max_pages=settings.max_pages,
     )

@@ -52,6 +52,17 @@ A digital PDF that holds a page with at most `PARSING_OCR_CHAR_THRESHOLD` charac
 
 ### Step 3 — Convert
 
+A document longer than `PARSING_MAX_PAGES` is refused first, before the
+converter is touched: the pipeline counts its pages with pymupdf and fails the
+row naming the count and the setting. Docling holds every page it converts, so
+the worker's memory grows with the document, and a document too long for it
+ends the container with the claim held. Measured offline, the resident memory
+of a conversion is 1.5 GB at 35 pages, 2.0 GB at 70, 2.4 GB at 139 (the Laws
+of the Game, the longest document of the reviewed corpus) and 4.9 GB at 278,
+against the 4 GB the worker is given; the shipped 200 is about 3.5 GB by that
+curve. Raise it together with the worker's memory limit in `compose.yaml`.
+`make parse-retry` returns what it refused to the queue.
+
 Docling, built to accept PDF and no other input format, with heading
 hierarchy and table structure on and OCR off. Any failure becomes a
 `ConversionFailed` carrying the exception's type and message.
@@ -266,6 +277,7 @@ Read from the environment with no defaults in code, and overridable as
 | `PARSING_TABLE_MODE` | TableFormer mode: `fast` or `accurate`. Anything else is refused when the pipeline is constructed |
 | `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. Turning it on also turns on `generate_parsed_pages` |
 | `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run |
+| `PARSING_MAX_PAGES` | Longest document converted, in pages; 0 for any. A longer one is refused before conversion, naming this setting |
 | `DOCLING_ARTIFACTS_PATH` | Where Docling's weights are. Must be a real path or absent — an empty value resolves to the working directory |
 
 The language settings are shared with chunking and described there.

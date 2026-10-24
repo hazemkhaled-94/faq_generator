@@ -19,6 +19,7 @@ class Settings:
         table_mode: TableFormer mode, `fast` or `accurate`.
         heading_hierarchy: Whether the converter rebuilds the heading tree.
         document_timeout_seconds: Longest one conversion may run.
+        max_pages: Longest document the worker converts, in pages; 0 for any.
         artifacts_path: Where the converter's model weights are, or None to
             let it download them.
     """
@@ -28,6 +29,7 @@ class Settings:
     table_mode: str
     heading_hierarchy: bool
     document_timeout_seconds: float | None
+    max_pages: int
     artifacts_path: str | None
 
     @classmethod
@@ -50,5 +52,6 @@ class Settings:
             table_mode=required("PARSING_TABLE_MODE", source),
             heading_hierarchy=boolean("PARSING_HEADING_HIERARCHY", source),
             document_timeout_seconds=decimal("PARSING_TIMEOUT_SECONDS", source),
+            max_pages=integer("PARSING_MAX_PAGES", source),
             artifacts_path=optional("DOCLING_ARTIFACTS_PATH", source),
         )
