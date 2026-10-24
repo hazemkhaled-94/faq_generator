@@ -6709,3 +6709,74 @@ def test_a_date_is_no_author_and_year(question, language, cites) -> None:
     from question_generation.gates import cites_source
 
     assert cites_source(question, language) is cites
+
+
+# ── A title the question is about is not a title the question cites ───────
+
+_TITLED = [
+    # question, title, language, refused
+    ("Wann sind Beruhigungspausen vorgesehen?", "Beruhigungspausen", "de", False),
+    ("When are cooling-off periods allowed?", "Cooling-off periods", "en", False),
+    ("Was regelt das Widerrufsrecht für Online-Käufe?", "Widerrufsrecht", "de", False),
+    (
+        "What does the right of withdrawal cover for online orders?",
+        "Right of withdrawal",
+        "en",
+        False,
+    ),
+    (
+        "Laut „Beruhigungspausen“: Wann sind sie vorgesehen?",
+        "Beruhigungspausen",
+        "de",
+        True,
+    ),
+    (
+        'As stated in "Cooling-off periods", when are they allowed?',
+        "Cooling-off periods",
+        "en",
+        True,
+    ),
+    ("Was steht im Beruhigungspausen über die Dauer?", "Beruhigungspausen", "de", True),
+    (
+        "According to the Cooling-off periods circular, how long may they last?",
+        "Cooling-off periods",
+        "en",
+        True,
+    ),
+    (
+        "Was regelt laut dem Rundschreiben Widerrufsrecht die Frist?",
+        "Widerrufsrecht",
+        "de",
+        True,
+    ),
+]
+
+
+@pytest.mark.parametrize(("question", "title", "language", "refused"), _TITLED)
+def test_a_title_refuses_a_question_only_where_it_is_cited_as_a_source(
+    question, title, language, refused
+) -> None:
+    """The subject of a question may share its name with a document; a source may not be named."""
+    failed = checked(
+        question_text=question,
+        language=language,
+        titles=(title,),
+        target_answer="x y z",
+    )
+
+    assert (code(failed) == QuestionRejection.LEAKS_SOURCE) is refused
+
+
+def test_a_title_in_a_language_no_configuration_names_never_raises() -> None:
+    """Inert or refused, never a misfire: the parse of an unknown language is the fallback's."""
+    failed = checked(
+        question_text="Quelle est la durée selon Pauses de refroidissement du règlement?",
+        language="fr",
+        titles=("Pauses de refroidissement",),
+        target_answer="x y z",
+    )
+
+    assert failed is None or code(failed) in {
+        QuestionRejection.LEAKS_SOURCE,
+        QuestionRejection.MALFORMED,
+    }
