@@ -232,6 +232,13 @@ OUTAGES = [
     _litellm(litellm.exceptions.RateLimitError, "rate limited"),
     _litellm(litellm.exceptions.InternalServerError, "Interner Serverfehler"),
     _litellm(litellm.exceptions.ServiceUnavailableError, "unavailable"),
+    _litellm(litellm.exceptions.BadGatewayError, "Bad Gateway"),
+    litellm.exceptions.APIError(
+        status_code=520,
+        message="Unbekannter Fehler",
+        model="azure/x",
+        llm_provider="azure",
+    ),
     _litellm(litellm.exceptions.AuthenticationError, "bad key"),
     _litellm(litellm.exceptions.NotFoundError, "deployment not found"),
     _litellm(litellm.exceptions.PermissionDeniedError, "Zugriff verweigert"),
@@ -260,6 +267,29 @@ def _row_fault(cause: Exception | None) -> ModelUnavailable:
 def test_a_failure_of_the_deployment_is_an_outage(cause: Exception) -> None:
     """Transient, or a fault of the whole deployment: the next row meets it too."""
     assert is_outage(unavailable(cause))
+
+
+def test_a_failure_with_a_client_status_is_not_an_outage() -> None:
+    """A status below 500 names the request, not the provider."""
+    cause = litellm.exceptions.APIError(
+        status_code=418, message="teapot", model="azure/x", llm_provider="azure"
+    )
+
+    assert not is_outage(unavailable(cause))
+
+
+def test_five_gateway_faults_in_a_row_stop_the_drain() -> None:
+    """A 502 storm is given back as an outage, and the exit is 75."""
+    gateway = litellm.exceptions.BadGatewayError(
+        message="Bad Gateway", model="azure/x", llm_provider="azure"
+    )
+    stage = Stage(Rows(20), {key: unavailable(gateway) for key in range(3, 21)})
+
+    stage.drain()
+
+    assert stage.rows.failed == {}
+    assert stage.rows.released == list(range(3, 3 + STOP_AFTER))
+    assert exit_code(stage) == STOPPED
 
 
 @pytest.mark.parametrize("cause", ROW_FAULTS, ids=lambda one: type(one).__name__)

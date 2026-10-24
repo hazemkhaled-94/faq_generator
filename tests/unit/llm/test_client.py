@@ -213,6 +213,62 @@ def test_a_transient_failure_that_never_clears_gives_up(monkeypatch) -> None:
     assert len(attempts) == 3, attempts
 
 
+def _gateway() -> Exception:
+    """An Azure 502, which litellm raises as its own type."""
+    return litellm.exceptions.BadGatewayError(
+        message="Bad Gateway", model="test-model", llm_provider="azure"
+    )
+
+
+def _server_fault() -> Exception:
+    """A provider's 5xx that litellm has no type of its own for."""
+    return litellm.exceptions.APIError(
+        status_code=520,
+        message="Unbekannter Fehler",
+        model="test-model",
+        llm_provider="azure",
+    )
+
+
+@pytest.mark.parametrize("failure", [_gateway, _server_fault], ids=["502", "5xx"])
+def test_a_gateway_or_server_fault_is_retried_and_can_succeed(
+    monkeypatch, failure
+) -> None:
+    """The provider's own trouble clears, as a 500 or a 503 does."""
+    attempts = []
+
+    def flaky(self, system, user, shape):
+        """Fails once, then answers."""
+        attempts.append(user)
+        if len(attempts) == 1:
+            raise failure()
+        return answered(shape)
+
+    monkeypatch.setattr(Client, "_ask", flaky)
+    answer = Client(settings()).answer(system="s", user="u", shape=Shape)
+
+    assert answer.value == "answered"
+    assert len(attempts) == 2, attempts
+
+
+def test_a_client_error_status_is_not_retried_as_a_server_fault(monkeypatch) -> None:
+    """An APIError below 500 is the request's trouble: one attempt."""
+    attempts = []
+
+    def refuses(self, system, user, shape):
+        """Fails with a 4xx the SDK has no type for."""
+        attempts.append(user)
+        raise litellm.exceptions.APIError(
+            status_code=418, message="teapot", model="test-model", llm_provider="azure"
+        )
+
+    monkeypatch.setattr(Client, "_ask", refuses)
+    with pytest.raises(ModelUnavailable):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert len(attempts) == 1, attempts
+
+
 @pytest.mark.parametrize("failure", [permanent, lambda: ValueError("bad schema")])
 def test_a_failure_this_module_does_not_retry_is_raised_at_once(
     monkeypatch, failure

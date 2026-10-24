@@ -45,6 +45,7 @@ _TRANSIENT = (
     litellm.exceptions.APIConnectionError,
     litellm.exceptions.Timeout,
     litellm.exceptions.InternalServerError,
+    litellm.exceptions.BadGatewayError,
     litellm.exceptions.ServiceUnavailableError,
     litellm.exceptions.RateLimitError,
     InstructorRetryException,
@@ -85,12 +86,22 @@ _DEPLOYMENT = (
     litellm.exceptions.APIConnectionError,
     litellm.exceptions.Timeout,
     litellm.exceptions.InternalServerError,
+    litellm.exceptions.BadGatewayError,
     litellm.exceptions.ServiceUnavailableError,
     litellm.exceptions.RateLimitError,
     litellm.exceptions.AuthenticationError,
     litellm.exceptions.NotFoundError,
     litellm.exceptions.PermissionDeniedError,
 )
+
+
+def _server_fault(cause: BaseException) -> bool:
+    """Whether a provider's 5xx has no litellm type of its own: a bare `APIError`."""
+    return (
+        isinstance(cause, litellm.exceptions.APIError)
+        and isinstance(cause.status_code, int)
+        and cause.status_code >= 500
+    )
 
 
 def deployment_down(failure: BaseException) -> bool:
@@ -101,7 +112,7 @@ def deployment_down(failure: BaseException) -> bool:
     could not fill name neither, and the next row is not bound to meet them.
     """
     for cause in _causes(failure):
-        if isinstance(cause, _DEPLOYMENT):
+        if isinstance(cause, _DEPLOYMENT) or _server_fault(cause):
             return True
         if isinstance(cause, litellm.exceptions.BadRequestError):
             return False
@@ -115,7 +126,7 @@ def _retryable(failure: BaseException) -> bool:
     behind it: instructor wraps whatever its last attempt raised, so a
     refused prompt arrives looking like a schema the model could not fill.
     """
-    if not isinstance(failure, _TRANSIENT):
+    if not (isinstance(failure, _TRANSIENT) or _server_fault(failure)):
         return False
     return not any(isinstance(cause, _REJECTED) for cause in _causes(failure))
 
