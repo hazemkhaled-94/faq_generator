@@ -59,6 +59,13 @@ def _report(filename: str, client: UploadApi, data: bytes) -> None:
     named = page.plain(filename)
     try:
         outcome = client.add_document(filename, data)["outcome"]
+    except requests.exceptions.Timeout:
+        # The api may have stored it: the answer is what never came.
+        st.error(
+            f"{named}: unknown, no answer in time. Check the Documents list "
+            f"before uploading it again."
+        )
+        return
     except requests.exceptions.RequestException as exc:
         # The reason for a 413 or 415 is in the response body.
         st.error(f"{named}: {refusal(exc)}")

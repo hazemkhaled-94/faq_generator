@@ -48,7 +48,7 @@ Nothing is written until every check passes.
 | 1 | `size_bytes > MAX_FILE_SIZE_MB` | `too_large`, carrying both figures |
 | 2 | leading bytes are in `ALLOWED_MIME_TYPES` | `unsupported_type`, naming what was detected |
 | 3 | the digest is not already in `documents` | `duplicate_bytes` |
-| 4 | the PDF opens and is not password protected | `unsupported_type`, carrying the reader's reason |
+| 4 | the PDF opens, is not password protected, has at most `PARSING_MAX_PAGES` pages and is read within `PARSING_TIMEOUT_SECONDS` | `unsupported_type`, carrying the reader's reason, or the count and the setting |
 
 Hashing bytes already in memory is cheaper than walking every page, so a
 re-upload of something the corpus holds never reads the document.
@@ -138,7 +138,8 @@ override, on every upload. Tuning is in
 
 | Setting | What it does |
 |---|---|
-| `MAX_FILE_SIZE_MB` | Largest upload accepted, by the measured size and, with the framing added, by the `Content-Length` check. Keep in step with `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
+| `MAX_FILE_SIZE_MB` | Largest upload accepted, by the measured size and, with the framing added, by the `Content-Length` check, and at most 150, which the 512 MB api can hold. Keep in step with `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
+| `PARSING_MAX_PAGES`, `PARSING_TIMEOUT_SECONDS` | The parse stage's settings, read here too: the most pages a PDF may have (absent: no cap) and the longest the upload may spend reading its text |
 | `ALLOWED_MIME_TYPES` | Comma-separated. May only name types this build can detect from leading bytes. Anything else stops the service at start-up |
 
 The `pipeline-version` written into every stored object's metadata is not a

@@ -470,15 +470,17 @@ class ReaderSpy:
         self.facts = facts or PdfFacts(page_count=1, char_count=500)
         self.raises = raises
         self.reads: list[bytes] = []
+        self.limits: dict[str, Any] = {}
 
     @property
     def calls(self) -> int:
         """How many times the PDF was read."""
         return len(self.reads)
 
-    def __call__(self, data: bytes) -> PdfFacts:
+    def __call__(self, data: bytes, **limits: Any) -> PdfFacts:
         """Answers, recording what it was handed."""
         self.reads.append(data)
+        self.limits = limits
         if self.raises is not None:
             raise self.raises
         return self.facts
@@ -495,6 +497,8 @@ class IngestDriver:
         pipeline_version: str = "0.0.1",
         reader: ReaderSpy | None = None,
         monkeypatch: Any = None,
+        max_pages: int | None = None,
+        read_seconds: float | None = None,
     ) -> None:
         """Wires the service over the doubles.
 
@@ -504,6 +508,8 @@ class IngestDriver:
             pipeline_version: Recorded in the object's metadata.
             reader: A stand-in for `read_pdf`, if a test wants one.
             monkeypatch: Required when `reader` is given.
+            max_pages: The page cap handed to the reader.
+            read_seconds: The time cap handed to the reader.
         """
         self.rows = DocumentRows()
         self.store = MemoryDocuments()
@@ -516,6 +522,8 @@ class IngestDriver:
             max_file_size_bytes=max_file_size_bytes,
             allowed_media_types=allowed,
             pipeline_version=pipeline_version,
+            max_pages=max_pages,
+            read_seconds=read_seconds,
         )
 
     def upload(self, filename: str = "report.pdf", data: bytes = PDF):

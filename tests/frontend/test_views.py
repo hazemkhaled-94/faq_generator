@@ -666,6 +666,27 @@ def test_the_upload_page_counts_what_it_just_uploaded(open_view) -> None:
     assert done.stats()["Documents"] == "4"
 
 
+def test_the_upload_page_calls_a_timeout_unknown_and_points_at_the_list(
+    open_view,
+) -> None:
+    """The api may have stored the file whose answer never came."""
+
+    def added(filename: str, data: bytes) -> dict:
+        """Waits past the client's timeout."""
+        raise requests.exceptions.ReadTimeout("read timed out")
+
+    page = open_view(
+        "upload",
+        upload_api=Answers(counts=dict, add_document=added),
+    )
+    page.uploader()[0].upload("rapport.pdf", b"%PDF-1.4", "application/pdf")
+
+    done = page.press("Upload all")
+
+    assert done.raised == []
+    assert any("unknown" in one and "Documents" in one for one in done.errors())
+
+
 def test_the_health_page_lists_every_component_the_backend_reports(open_view) -> None:
     """A component appears without a change here."""
     page = open_view("health")

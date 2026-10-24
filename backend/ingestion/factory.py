@@ -24,6 +24,8 @@ def build_service(settings: Settings) -> IngestService:
         max_file_size_bytes=settings.max_file_size_bytes,
         allowed_media_types=settings.allowed_mime_types,
         pipeline_version=settings.pipeline_version,
+        max_pages=settings.max_pages,
+        read_seconds=settings.read_seconds,
     )
 
 

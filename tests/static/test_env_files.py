@@ -596,3 +596,16 @@ def test_max_connections_covers_every_pool_with_a_margin() -> None:
         int(_env_value("configs/env/deployment.env", "POSTGRES_MAX_CONNECTIONS"))
         >= wanted
     )
+
+
+def test_the_upload_ceiling_is_not_below_the_frontends_limit() -> None:
+    """Streamlit's own limit may not exceed what the api may be set to hold."""
+    from settings.catalog import BY_NAME
+
+    config = (ROOT / "frontend/.streamlit/config.toml").read_text()
+    found = re.search(r"^maxUploadSize\s*=\s*(\d+)", config, re.MULTILINE)
+
+    high = BY_NAME["MAX_FILE_SIZE_MB"].high
+    assert found
+    assert high is not None
+    assert int(found.group(1)) <= high

@@ -540,3 +540,60 @@ def test_a_failed_move_while_emptying_the_corpus_leaves_every_document() -> None
     assert all(
         driver.holds_file(one) and driver.holds_parsed(one) for one in (SHA, OTHER)
     )
+
+
+def test_a_pdf_over_the_page_cap_is_refused_naming_the_count_and_the_setting() -> None:
+    """Opened and counted, never read: the api holds the whole file in memory."""
+    from ingestion.pdf import UnreadablePdf, read_pdf
+
+    with pytest.raises(UnreadablePdf, match=r"5 pages.*PARSING_MAX_PAGES=3"):
+        read_pdf(built_pdf(pages=5), max_pages=3)
+
+
+def test_a_pdf_at_the_page_cap_is_read() -> None:
+    """The cap is a ceiling, not a rounding."""
+    from ingestion.pdf import read_pdf
+
+    assert read_pdf(built_pdf(pages=3), max_pages=3).page_count == 3
+
+
+def test_a_pdf_read_past_the_time_cap_is_refused_naming_the_setting() -> None:
+    """Checked between pages, so a pathological one is stopped part-way."""
+    from ingestion.pdf import UnreadablePdf, read_pdf
+
+    with pytest.raises(UnreadablePdf, match="PARSING_TIMEOUT_SECONDS"):
+        read_pdf(built_pdf(pages=3), seconds=0)
+
+
+def test_no_cap_reads_every_page() -> None:
+    """The defaults are what every caller had before."""
+    from ingestion.pdf import read_pdf
+
+    assert read_pdf(built_pdf(pages=4)).page_count == 4
+
+
+def test_the_service_hands_its_caps_to_the_reader(monkeypatch) -> None:
+    """The limits are the deployment's, read once into the service."""
+    spy = ReaderSpy()
+    driver = IngestDriver(
+        reader=spy, monkeypatch=monkeypatch, max_pages=7, read_seconds=30.0
+    )
+
+    driver.upload()
+
+    assert spy.limits == {"max_pages": 7, "seconds": 30.0}
+
+
+def test_the_caps_are_read_from_the_settings_the_stages_share() -> None:
+    """PARSING_MAX_PAGES is optional: absent is no page cap."""
+    from ingestion.config import Settings
+
+    base = {
+        "MAX_FILE_SIZE_MB": "5",
+        "ALLOWED_MIME_TYPES": "application/pdf",
+        "PARSING_TIMEOUT_SECONDS": "90",
+    }
+
+    assert Settings.load(base).max_pages is None
+    assert Settings.load(base).read_seconds == 90.0
+    assert Settings.load(base | {"PARSING_MAX_PAGES": "40"}).max_pages == 40

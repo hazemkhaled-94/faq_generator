@@ -86,9 +86,11 @@ SETTINGS: tuple[Setting, ...] = (
         service="ingestion",
         kind="integer",
         low=1,
-        help="Largest upload accepted. Streamlit enforces its own ceiling "
-        "first, from server.maxUploadSize, and rejects a larger file before "
-        "the API sees it.",
+        high=150,
+        help="Largest upload accepted, at most 150: the API holds a file "
+        "whole, in a process limited to 512 MB. Streamlit enforces its own "
+        "ceiling first, from server.maxUploadSize, and rejects a larger file "
+        "before the API sees it.",
     ),
     Setting(
         name="ALLOWED_MIME_TYPES",
@@ -150,10 +152,11 @@ SETTINGS: tuple[Setting, ...] = (
         help="Longest document the parse worker converts, in pages; 0 "
         "converts any. Docling holds every page it converts, and a document "
         "too long for the worker's memory ends the container, so one over "
-        "this is refused before conversion, with the count. Measured: 139 "
-        "pages took 2.4 GB and 278 pages 4.9 GB, against the worker's 4 GB, "
-        "which puts 4 GB at about 229 pages; 180 leaves a fifth to spare, "
-        "and the curve is to be measured again in the worker's image. "
+        "this is refused before conversion, and at upload, with the count. "
+        "Measured: 139 pages took 2.4 GB and 278 pages 4.9 GB, against the "
+        "worker's 4 GB, which puts 4 GB at about 229 pages; 180 leaves a "
+        "fifth to spare, and the curve is to be measured again in the "
+        "worker's image. "
         "Raised with the worker's memory limit; `make parse-retry` returns "
         "what it refused to the queue.",
     ),

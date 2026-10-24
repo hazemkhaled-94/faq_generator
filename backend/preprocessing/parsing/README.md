@@ -319,8 +319,8 @@ Read from the environment with no defaults in code, and overridable as
 | `PARSING_MIN_CONFIDENCE` | Lowest low score a conversion may carry and be kept, in [0, 1]: Docling's, averaged over the pages, as Step 7 says |
 | `PARSING_TABLE_MODE` | TableFormer mode: `fast` or `accurate`. Anything else is refused when the pipeline is constructed |
 | `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. Turning it on also turns on `generate_parsed_pages` |
-| `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run |
-| `PARSING_MAX_PAGES` | Longest document converted, in pages; 0 for any. A longer one is refused before conversion, naming this setting |
+| `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run; also the longest an upload may spend reading a PDF's text |
+| `PARSING_MAX_PAGES` | Longest document converted, in pages; 0 for any. A longer one is refused before conversion, and at upload, naming this setting |
 | `DOCLING_ARTIFACTS_PATH` | Where Docling's weights are. Must be a real path or absent — an empty value resolves to the working directory |
 
 The language settings are shared with chunking and described there.

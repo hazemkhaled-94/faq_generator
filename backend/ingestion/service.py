@@ -38,6 +38,8 @@ class IngestService:
         max_file_size_bytes: int,
         allowed_media_types: tuple[str, ...],
         pipeline_version: str,
+        max_pages: int | None = None,
+        read_seconds: float | None = None,
     ) -> None:
         """Initialises the service with its collaborators.
 
@@ -47,6 +49,8 @@ class IngestService:
             max_file_size_bytes: Largest upload accepted.
             allowed_media_types: Media types to store, each of DETECTABLE.
             pipeline_version: Recorded in the stored object's metadata.
+            max_pages: Most pages a PDF may have, or None for no cap.
+            read_seconds: Longest to spend reading a PDF, or None for no cap.
 
         Raises:
             ValueError: If the allowlist names a type this build cannot
@@ -64,6 +68,8 @@ class IngestService:
         self._max_file_size_bytes = max_file_size_bytes
         self._allowed_media_types = allowed_media_types
         self._pipeline_version = pipeline_version
+        self._max_pages = max_pages
+        self._read_seconds = read_seconds
 
     @property
     def max_file_size_bytes(self) -> int:
@@ -177,7 +183,9 @@ class IngestService:
             )
 
         try:
-            facts = read_pdf(upload.data)
+            facts = read_pdf(
+                upload.data, max_pages=self._max_pages, seconds=self._read_seconds
+            )
         except UnreadablePdf as exc:
             return self._attempted(upload, Outcome.UNSUPPORTED_TYPE, str(exc))
 

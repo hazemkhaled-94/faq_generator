@@ -310,3 +310,16 @@ def test_every_writable_setting_is_read_from_the_source_its_parser_is_given() ->
         if not one.fixed and one.name not in source.read
     ]
     assert not unread, unread
+
+
+def test_the_upload_limit_cannot_be_raised_past_what_the_api_can_hold() -> None:
+    """A file is held whole in a 512 MB process: the bound names the setting."""
+    setting = catalog.BY_NAME["MAX_FILE_SIZE_MB"]
+
+    assert setting.high == 150
+    with pytest.raises(changes.Refused) as refused:
+        changes.within_bounds(setting, "151")
+
+    assert refused.value.code == "out_of_range"
+    assert "MAX_FILE_SIZE_MB" in refused.value.detail
+    changes.within_bounds(setting, "150")
