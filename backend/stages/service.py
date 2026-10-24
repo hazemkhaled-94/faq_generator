@@ -36,20 +36,21 @@ STOP_AFTER = 5
 
 
 def is_outage(failure: BaseException) -> bool:
-    """Whether a row failed because the model could not be reached.
+    """Whether a row failed because the deployment could not be reached.
 
-    The model unavailable, found behind whatever wrapped it. A refusal is not
-    one: the provider answered, about this row, and will answer the same
-    about the next.
+    The model unavailable, found behind whatever wrapped it, for a cause
+    that is transient or a fault of the whole deployment. A refusal is not
+    one, nor is a request the provider rejects or a shape the model could
+    not fill: it answered, about this row, and the next may be fine.
     """
     # Here, not at the top: the client loads litellm, which the api, whose
     # routes import this package, must not.
-    from llm.client import ModelRefused, ModelUnavailable
+    from llm.client import ModelRefused, ModelUnavailable, deployment_down
 
     seen: BaseException | None = failure
     while seen is not None:
         if isinstance(seen, ModelUnavailable):
-            return not isinstance(seen, ModelRefused)
+            return not isinstance(seen, ModelRefused) and deployment_down(seen)
         seen = seen.__cause__
     return False
 

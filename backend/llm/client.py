@@ -78,6 +78,36 @@ def _refused(failure: BaseException) -> bool:
     )
 
 
+#: What says the whole deployment is out of reach, as against one request
+#: refused: the connection, the clock, the provider's own trouble, a quota,
+#: and the credentials or the deployment's name, which every row meets alike.
+_DEPLOYMENT = (
+    litellm.exceptions.APIConnectionError,
+    litellm.exceptions.Timeout,
+    litellm.exceptions.InternalServerError,
+    litellm.exceptions.ServiceUnavailableError,
+    litellm.exceptions.RateLimitError,
+    litellm.exceptions.AuthenticationError,
+    litellm.exceptions.NotFoundError,
+    litellm.exceptions.PermissionDeniedError,
+)
+
+
+def deployment_down(failure: BaseException) -> bool:
+    """Whether a failure says the deployment, not the request, is the trouble.
+
+    The nearest cause that names either decides: a request the provider
+    rejects for itself (too long, malformed, filtered) and a shape the model
+    could not fill name neither, and the next row is not bound to meet them.
+    """
+    for cause in _causes(failure):
+        if isinstance(cause, _DEPLOYMENT):
+            return True
+        if isinstance(cause, litellm.exceptions.BadRequestError):
+            return False
+    return False
+
+
 def _retryable(failure: BaseException) -> bool:
     """Whether asking again could end differently.
 

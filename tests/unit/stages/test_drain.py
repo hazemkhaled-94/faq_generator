@@ -6,9 +6,13 @@ them: the queue emptied into `failed` and the exit code said 0.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
+import httpx
+import litellm
+import pytest
+from instructor.core import InstructorRetryException
 from opentelemetry import trace
 
 from llm.client import ModelRefused, ModelUnavailable
@@ -79,9 +83,18 @@ class Stage(StageService):
         return key
 
 
+def unavailable(cause: BaseException | None = None) -> ModelUnavailable:
+    """What the client raises, with what it failed on behind it."""
+    wrapped = ModelUnavailable(f"{type(cause).__name__}")
+    wrapped.__cause__ = cause or litellm.exceptions.Timeout(
+        "timed out", model="azure/x", llm_provider="azure"
+    )
+    return wrapped
+
+
 def down_from(first: int, last: int = 1000) -> dict[int, Exception]:
     """The failures of a model that is unreachable for rows `first` to `last`."""
-    return {key: ModelUnavailable("Timeout") for key in range(first, last + 1)}
+    return {key: unavailable() for key in range(first, last + 1)}
 
 
 def test_a_drain_that_works_every_row_exits_0() -> None:
@@ -142,7 +155,7 @@ def test_a_good_row_ends_a_run_of_failures() -> None:
 def test_an_outage_found_behind_the_error_that_wraps_it_counts() -> None:
     """Readers raise their own failure from the model's."""
     wrapped = ValueError("could not read")
-    wrapped.__cause__ = ModelUnavailable("down")
+    wrapped.__cause__ = unavailable()
 
     assert is_outage(wrapped)
     assert not is_outage(ValueError("nonsense"))
@@ -196,3 +209,77 @@ def test_without_a_cap_the_drain_runs_to_the_end(monkeypatch) -> None:
     stage = Stage(Rows(4), {})
 
     assert stage.drain() == 4
+
+
+def _litellm(kind: Callable[..., Exception], message: str) -> Exception:
+    """One litellm failure as the provider's SDK raises it."""
+    try:
+        return kind(message, model="azure/x", llm_provider="azure")
+    except TypeError:
+        # The ones that carry the HTTP response they were raised for.
+        response = httpx.Response(
+            403, request=httpx.Request("POST", "https://example.invalid")
+        )
+        return kind(message, model="azure/x", llm_provider="azure", response=response)
+
+
+#: A failure of the whole deployment, or one that passes: asking again later,
+#: or of another deployment, is what ends it. The messages are the provider's
+#: and come in the languages its users write in.
+OUTAGES = [
+    _litellm(litellm.exceptions.Timeout, "timed out"),
+    _litellm(litellm.exceptions.APIConnectionError, "Verbindung abgelehnt"),
+    _litellm(litellm.exceptions.RateLimitError, "rate limited"),
+    _litellm(litellm.exceptions.InternalServerError, "Interner Serverfehler"),
+    _litellm(litellm.exceptions.ServiceUnavailableError, "unavailable"),
+    _litellm(litellm.exceptions.AuthenticationError, "bad key"),
+    _litellm(litellm.exceptions.NotFoundError, "deployment not found"),
+    _litellm(litellm.exceptions.PermissionDeniedError, "Zugriff verweigert"),
+]
+
+#: A failure about one row: the provider answered, and will answer the same
+#: about it again, and differently about the next.
+ROW_FAULTS = [
+    _litellm(litellm.exceptions.BadRequestError, "context_length_exceeded"),
+    _litellm(litellm.exceptions.ContextWindowExceededError, "Kontext zu lang"),
+    _litellm(litellm.exceptions.ContentPolicyViolationError, "filtered"),
+    None,  # the shape the model could not fill: instructor's own failure
+]
+
+
+def _row_fault(cause: Exception | None) -> ModelUnavailable:
+    """The client's failure for one of `ROW_FAULTS`."""
+    if cause is None:
+        return unavailable(
+            InstructorRetryException("no valid shape", n_attempts=3, total_usage=0)
+        )
+    return unavailable(cause)
+
+
+@pytest.mark.parametrize("cause", OUTAGES, ids=lambda one: type(one).__name__)
+def test_a_failure_of_the_deployment_is_an_outage(cause: Exception) -> None:
+    """Transient, or a fault of the whole deployment: the next row meets it too."""
+    assert is_outage(unavailable(cause))
+
+
+@pytest.mark.parametrize("cause", ROW_FAULTS, ids=lambda one: type(one).__name__)
+def test_a_failure_about_one_row_is_not_an_outage(cause: Exception | None) -> None:
+    """The provider answered about this row; the next may be fine."""
+    assert not is_outage(_row_fault(cause))
+
+
+@pytest.mark.parametrize("cause", ROW_FAULTS, ids=lambda one: type(one).__name__)
+def test_rows_the_provider_rejects_fail_and_the_drain_goes_on(
+    cause: Exception | None,
+) -> None:
+    """Five in a row fail, the sixth is claimed, and the exit is 3 and not 75."""
+    failures = {key: _row_fault(cause) for key in range(3, 3 + STOP_AFTER)}
+    stage = Stage(Rows(20), failures)
+
+    stage.drain()
+
+    assert stage.stalled is None
+    assert sorted(stage.rows.failed) == list(range(3, 3 + STOP_AFTER))
+    assert stage.rows.released == []
+    assert stage.rows.finished == [1, 2, *range(3 + STOP_AFTER, 21)]
+    assert exit_code(stage) == FAILED

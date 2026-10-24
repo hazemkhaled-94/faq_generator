@@ -60,15 +60,21 @@ class _Judge:
 
     model = "test/judge"
 
-    def __init__(self, *judgements: Judgement, unavailable: bool = False) -> None:
-        """Answers with these, or refuses."""
+    def __init__(
+        self,
+        *judgements: Judgement,
+        unavailable: bool = False,
+        outage: bool = True,
+    ) -> None:
+        """Answers with these, or refuses, as an outage or as a fault of the row."""
         self._judgements = judgements
         self._unavailable = unavailable
+        self._outage = outage
 
     def judge(self, artifact):
         """Answers, or says the model could not be reached."""
         if self._unavailable:
-            raise JudgeUnavailable("nothing answered")
+            raise JudgeUnavailable("nothing answered", outage=self._outage)
         return self._judgements
 
     def due(self, artifact) -> int:
@@ -196,6 +202,18 @@ def test_a_judge_that_cannot_be_reached_fails_the_row() -> None:
 
     assert not queue.recorded
     assert queue.failed == [(11, "nothing answered")]
+
+
+def test_rows_the_judge_was_refused_for_fail_and_do_not_stall_the_drain() -> None:
+    """A filter that withholds each artefact is not the judge being down."""
+    rows = [_fact_numbered(n) for n in range(1, 13)]
+    queue = _Queue(*rows)
+
+    service = _service(queue, _Judge(unavailable=True, outage=False))
+    service.drain()
+
+    assert service.stalled is None
+    assert len(queue.failed) == 12
 
 
 def test_any_other_error_fails_the_row_and_the_drain_goes_on() -> None:

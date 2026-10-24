@@ -8,6 +8,7 @@ whose only fault was that the runtime was restarting.
 
 from __future__ import annotations
 
+import litellm
 import pytest
 
 from assessment.judge import Judge, JudgeUnavailable
@@ -39,14 +40,20 @@ class _Answering:
     model = "test/judge"
 
     def __init__(
-        self, *labels: str, fails: int = 0, scores: dict[str, int] | None = None
+        self,
+        *labels: str,
+        fails: int = 0,
+        scores: dict[str, int] | None = None,
+        cause: BaseException | None = None,
     ) -> None:
         """Answers with each label in turn, after `fails` refusals.
 
-        The rubric is answered with `scores`, or full marks.
+        The rubric is answered with `scores`, or full marks. `cause` is what
+        each refusal failed on.
         """
         self._labels = list(labels)
         self._fails = fails
+        self._cause = cause
         self._scores = scores or _FULL_MARKS
         self.asked: list[tuple[str, str]] = []
 
@@ -55,7 +62,7 @@ class _Answering:
         self.asked.append((shape.__name__, user))
         if self._fails:
             self._fails -= 1
-            raise ModelUnavailable("the runtime is restarting")
+            raise ModelUnavailable("the runtime is restarting") from self._cause
         if shape.__name__ == "_Rubric":
             return shape(**self._scores)
         # Left to itself, each metric's own approving label. A fixed
@@ -155,6 +162,32 @@ def test_no_metric_answering_is_a_failed_row_and_not_a_refusal() -> None:
 
     with pytest.raises(JudgeUnavailable, match="answered none"):
         Judge(client).judge(_fact())
+
+
+@pytest.mark.parametrize(
+    ("cause", "outage"),
+    [
+        (litellm.exceptions.Timeout("timed out", "azure/x", "azure"), True),
+        (litellm.exceptions.APIConnectionError("Verbindung", "azure", "azure/x"), True),
+        (litellm.exceptions.BadRequestError("zu lang", "azure/x", "azure"), False),
+        (
+            litellm.exceptions.ContentPolicyViolationError(
+                "filtered", "azure/x", "azure"
+            ),
+            False,
+        ),
+        (None, False),
+    ],
+    ids=["timeout", "connection", "rejected", "filtered", "no-cause"],
+)
+def test_the_judge_says_whether_the_model_was_out_of_reach(cause, outage) -> None:
+    """Every metric failing for the artefact is no outage of the judge."""
+    client = _Answering(fails=len(TEMPLATES[ArtifactKind.FACT]), cause=cause)
+
+    with pytest.raises(JudgeUnavailable) as raised:
+        Judge(client).judge(_fact())
+
+    assert raised.value.outage is outage
 
 
 def _question(answer: str = "Five days.", root: str = "True") -> ArtifactToJudge:

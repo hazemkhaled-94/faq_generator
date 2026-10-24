@@ -135,7 +135,7 @@ class AssessmentService(StageService):
                 # Failed rather than recorded as disapproval. A judge that
                 # could not be reached has found nothing wrong with the
                 # artefact, and `retry` is what moves this row.
-                self._fail(artifact.assessment_id, str(exc), current, outage=True)
+                self._fail(artifact.assessment_id, str(exc), current, outage=exc.outage)
                 return
             except Exception as exc:
                 self._fail(

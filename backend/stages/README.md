@@ -164,8 +164,13 @@ The drain stops itself, and exits 75, in three cases:
 - **The model could not be reached for five rows in a row** (`STOP_AFTER`).
   The five go back to the queue, not to `failed`: the outage failed them, not
   anything about them, and a row left failed is one the next run passes over.
-  A provider's refusal of a row is not an outage: it answered, and the row
-  fails. One good row ends the run of five.
+  An outage is a failure whose cause is transient or a fault of the whole
+  deployment: a timeout, a refused connection, a 429 past its patience, a 5xx,
+  or the credentials, the deployment's name or its permission. A request the
+  provider rejects for that row (a bad request, a context too long, a content
+  filter) and a shape the model could not fill are not: it answered, about
+  that row, and the row fails while the drain takes the next. One good row
+  ends the run of five.
 - **Extraction's model answered nothing for half of the last 50 readable
   passages.** Every such row succeeds, so no count of failures sees it. The
   passages it counted, and the one in hand, go back to the queue.

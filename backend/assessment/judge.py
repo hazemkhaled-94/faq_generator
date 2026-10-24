@@ -26,6 +26,7 @@ import logging
 from assessment.models import ArtifactToJudge, Judgement
 from assessment.templates import PROMPT_VERSION, TEMPLATES, Template
 from llm.client import Client, ModelUnavailable
+from stages.service import is_outage
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +39,16 @@ class JudgeUnavailable(Exception):
     of them answering is a row that was never judged, and the queue must be
     able to tell those apart - the first is `assessed`, the second `failed`
     and retryable.
+
+    `outage` says whether the model was out of reach, as against refusing
+    this artefact (a content filter, a request it rejected): the first is
+    every row's trouble, and the second is this row's.
     """
+
+    def __init__(self, message: str, outage: bool = True) -> None:
+        """Initialises the error with what was lost and why."""
+        super().__init__(message)
+        self.outage = outage
 
 
 class Judge:
@@ -94,13 +104,17 @@ class Judge:
                 is down rather than that the artefact is bad.
         """
         asked = self.asked(artifact)
+        failures: list[ModelUnavailable] = []
         answered = [
-            judged for template in asked for judged in self._one(template, artifact)
+            judged
+            for template in asked
+            for judged in self._one(template, artifact, failures)
         ]
         if not answered:
             raise JudgeUnavailable(
                 f"{self.model} answered none of the {len(asked)} judgement(s) "
-                f"about {artifact.kind} {artifact.artifact_id}"
+                f"about {artifact.kind} {artifact.artifact_id}",
+                outage=any(is_outage(failure) for failure in failures),
             )
         due = self.due(artifact)
         if len(answered) < due:
@@ -114,9 +128,15 @@ class Judge:
         return tuple(answered)
 
     def _one(
-        self, template: Template, artifact: ArtifactToJudge
+        self,
+        template: Template,
+        artifact: ArtifactToJudge,
+        failures: list[ModelUnavailable],
     ) -> tuple[Judgement, ...]:
-        """One call's metrics, or none where the model could not be reached."""
+        """One call's metrics, or none where the model could not be reached.
+
+        What it could not be reached for is added to `failures`.
+        """
         try:
             said = self._client.answer(
                 system=template.system,
@@ -134,5 +154,6 @@ class Judge:
                 artifact.artifact_id,
                 exc,
             )
+            failures.append(exc)
             return ()
         return template.judged(said)
