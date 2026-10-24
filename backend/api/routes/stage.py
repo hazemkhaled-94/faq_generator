@@ -26,6 +26,7 @@ from fastapi import APIRouter
 
 from api.errors import ApiError, ErrorBody
 from api.params import RunName
+from llm.config import host_runner
 from stages import QueueState, Unnarrowable
 
 log = logging.getLogger(__name__)
@@ -75,6 +76,20 @@ _DONE = {
     #: wherever it is answered. See `routes/assessment.py`.
     "enrol": ("enrolled, and queued for nobody", "every artefact is enrolled"),
 }
+
+
+#: The stages that call a model, with the make target that drains each on the
+#: host. On the go-live profile no worker does, so a verb that queues rows for
+#: one says what will.
+MODEL_STAGES = {
+    "extraction": "extract",
+    "topics": "topics",
+    "questions": "questions",
+    "assessment": "assess",
+}
+
+#: The verbs that make rows claimable.
+_QUEUES = frozenset({"start", "retry", "rerun", "reclaim"})
 
 
 class StageQueueState(Protocol):
@@ -247,15 +262,24 @@ def answered(
             **({"run.id": run} if run else {}),
         },
     )
+    detail = (
+        f"{rows} row(s) {done}."
+        if rows
+        else f"{nothing}{f' for that {scope}' if scope else ''}."
+    )
+    if rows and name in MODEL_STAGES and action in _QUEUES and host_runner():
+        # The workers are stopped by design on this profile; `done` would
+        # promise one.
+        detail = (
+            f"{rows} row(s) queued; no worker drains {name} on the go-live "
+            f"profile. Run make corpus-hosted, which drains every model stage, "
+            f"or make {MODEL_STAGES[name]} for this one."
+        )
     return StageAction(
         stage=name,
         action=action,
         rows=rows,
-        detail=(
-            f"{rows} row(s) {done}."
-            if rows
-            else f"{nothing}{f' for that {scope}' if scope else ''}."
-        ),
+        detail=detail,
         scope=scope,
         value=value,
         run=run,

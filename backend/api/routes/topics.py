@@ -23,6 +23,7 @@ from api.dependencies import (
 from api.errors import ApiError, ErrorBody
 from api.params import NO_NUL, RowId, RunName
 from api.routes.stage import StageAction, StageStatus, answered, status_of
+from llm.config import host_runner
 from topic_modelling.models import StoredTopic, TopicFit, TopicRemoval
 from topic_modelling.repository import KEEP
 
@@ -139,8 +140,11 @@ def discover(run: RunName = None) -> TopicDiscovery:
         fit=fit_id,
         run=trigger,
         detail=(
-            f"fit {fit_id} queued; the worker will pick it up and replace the "
-            "topics of every language it fits."
+            f"fit {fit_id} queued; no worker drains topics on the go-live "
+            "profile. Run make corpus-hosted, or make topics."
+            if host_runner()
+            else f"fit {fit_id} queued; the worker will pick it up and replace "
+            "the topics of every language it fits."
         ),
     )
 

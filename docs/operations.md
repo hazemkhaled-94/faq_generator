@@ -529,6 +529,15 @@ From a fresh clone, following only this page:
 7. When it ends, the two workbooks: `make questions-export OUT=release.xlsx
    FILTER="--released"` and `make questions-export OUT=all.xlsx`.
 
+### What a queue verb says on this profile
+
+The Start button and `POST /{stage}/start` still queue rows, and `retry`,
+`rerun` and `reclaim` return them. For a model stage (extraction, topics,
+questions, assessment) the answer is 202 and its detail names the command that
+drains them, `make corpus-hosted` or the stage's own target, because no worker
+does on this profile. A release that adds a stage ends its upgrade section with
+`make up`, so the worker or profile it brings is started.
+
 ### After a stop
 
 A drain that stopped itself, because the model could not be reached or the cap
