@@ -1737,3 +1737,52 @@ def test_a_label_word_is_matched_through_an_inflection_of_its_language(
 
     tokens = [T(text=w, lemma_=w) for w in text.split()]
     assert (label_word(tokens, 0, (word,), language) == word) is named
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement", "line"),
+    [
+        (
+            "en",
+            "Accepted payments:\n- Cards are accepted\n- Cash is accepted\n- Vouchers are accepted",
+            "Cash is accepted.",
+            2,
+        ),
+        (
+            "de",
+            "Zahlungsarten:\n- Karten werden akzeptiert\n- Bargeld wird akzeptiert\n- Gutscheine werden akzeptiert",
+            "Bargeld wird akzeptiert.",
+            2,
+        ),
+        (
+            "en",
+            "Delivery options:\n- Standard delivery is free\n- Express delivery costs 5 EUR\n- Pickup is free",
+            "Express delivery costs 5 EUR.",
+            2,
+        ),
+    ],
+)
+def test_a_list_line_the_model_numbered_past_the_last_sentence_names_that_line(
+    language, text, statement, line
+) -> None:
+    """A passage read as one sentence of several lines is cited by its lines."""
+    read = passage(text, language=language)
+    assert len(read.sentences) == 1, [one.text for one in read.sentences]
+
+    judged = Checker(read).atomic(statement, line)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+    (cite,) = judged.citations
+    assert cite.sentence_ids == [0]
+    assert read.text[cite.start : cite.end] == judged.evidence_text
+    assert statement.rstrip(".") in judged.evidence_text
+    assert "Cards are" not in judged.evidence_text
+
+
+def test_an_index_beyond_the_lines_of_the_last_sentence_stays_refused() -> None:
+    """Three lines are indices 0 to 2 at most; 9 names nothing."""
+    read = passage("Options:\n- Cards are accepted\n- Cash is accepted", language="en")
+
+    judged = Checker(read).atomic("Cash is accepted.", 9)
+
+    assert judged.rejection_code == Rejection.EVIDENCE_ABSENT

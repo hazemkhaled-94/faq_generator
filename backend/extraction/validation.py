@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Collection, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import partial
 
 from database.qa_generator import FactKind, Rejection
@@ -44,6 +44,29 @@ from settings import decimal
 #: do two sentences of one passage with a sentence between them that the
 #: claim did not cite.
 _JOIN = "\n"
+
+
+def _lines_of(sentence: Sentence) -> list[Sentence]:
+    """The non-empty lines of a sentence, each located in the passage.
+
+    A line keeps the index of the sentence it is in, so a citation of it
+    resolves again as that sentence does.
+    """
+    lines = []
+    at = sentence.start
+    for line in sentence.text.split("\n"):
+        if line.strip():
+            start = at + len(line) - len(line.lstrip())
+            lines.append(
+                replace(
+                    sentence,
+                    start=start,
+                    end=start + len(line.strip()),
+                    text=line.strip(),
+                )
+            )
+        at += len(line) + 1
+    return lines
 
 
 def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
@@ -597,11 +620,21 @@ class FactChecker:
         of several the bridge names, `_bridging` already requires two
         passages to resolve, and refusing the lot for one bad number in one
         of them would throw away a claim that does rest on the others.
+
+        One exception: a passage whose last sentence holds list lines is read
+        by the model line by line, so an index past the end, by at most the
+        lines of that sentence less one, names that line of it. It resolves
+        to the last sentence, cut to the line.
         """
         ids = sorted(set(candidate.sentences))
-        if not ids or any(i < 0 or i >= len(passage.sentences) for i in ids):
+        sentences = passage.sentences
+        if not ids or not sentences:
             return None
-        return [passage.sentences[i] for i in ids]
+        lines = _lines_of(sentences[-1])
+        past = len(sentences) - 1
+        if any(i < 0 or (i >= len(sentences) and i - past >= len(lines)) for i in ids):
+            return None
+        return [sentences[i] if i < len(sentences) else lines[i - past] for i in ids]
 
     @staticmethod
     def _judge(
