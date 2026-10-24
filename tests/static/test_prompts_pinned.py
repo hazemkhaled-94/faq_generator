@@ -80,7 +80,7 @@ RECORDED = {
     ("questions", "verifier: settles"): ("12", "eb2adab3fb5e9c8e"),
     ("questions", "verifier: same answer"): ("12", "054fa0307cf7bcd9"),
     ("questions", "verifier: stated"): ("1", "c3592b0d05a6e8e7"),
-    ("extraction", "atomic"): ("12+cap4", "e2d56e73653bbf58"),
+    ("extraction", "atomic"): ("15+cap4", "657c050c8019fead"),
     ("extraction", "repair"): ("repair-1", "38641498eb9852d0"),
     ("extraction", "digest"): ("5", "d5d5657642500b66"),
     ("extraction", "bridge"): ("6", "1759d28349a16528"),
