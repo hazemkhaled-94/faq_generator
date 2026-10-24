@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -20,6 +21,8 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+from telemetry.evaluations import current_ids
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +89,34 @@ async def invalid(request: Request, exc: RequestValidationError) -> JSONResponse
     return _Escaped(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
 
 
+async def failed(request: Request, exc: Exception) -> JSONResponse:
+    """Answers any error no route handled with one fixed sentence.
+
+    A driver's own text names the database's host, address and role, and an
+    object store's names its endpoint. They go to the log, with the trace id
+    this answer names, so whoever reads the log can find them and the caller
+    cannot. Without a recording span the id is made up here, which still
+    pairs the answer with its log line.
+    """
+    trace = current_ids()[0] or uuid.uuid4().hex
+    log.error(
+        "%s %s failed (trace %s)",
+        request.method,
+        request.url.path,
+        trace,
+        exc_info=exc,
+        extra={"error.code": "internal_error"},
+    )
+    return JSONResponse(
+        status_code=500,
+        content=asdict(
+            ErrorBody("internal_error", f"The server failed; quote trace {trace}")
+        ),
+    )
+
+
 def install(app: FastAPI) -> None:
     """Teaches an application to answer :class:`ApiError` with its body."""
+    app.exception_handler(Exception)(failed)
     app.exception_handler(ApiError)(refused)
     app.exception_handler(RequestValidationError)(invalid)

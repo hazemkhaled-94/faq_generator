@@ -116,7 +116,7 @@ def test_a_counter_that_raises_is_reported_rather_than_thrown(
     ).snapshot()
 
     assert snapshot["ingestion"].ok is False
-    assert "relation does not exist" in snapshot["ingestion"].detail
+    assert snapshot["ingestion"].detail == "Unreachable; see the api log."
     assert snapshot["database"].ok is True, "the rest of the panel still reports"
 
 

@@ -366,6 +366,7 @@ a caller branches on the code rather than on English:
 | `unknown_setting` | 404 | A service has no setting by that name |
 | `no_visualisation` | 404 | No fit or render has drawn that language's figure |
 | `unauthorized` | 401 | A write, or any request under `/settings`, without the deployment's `API_TOKEN` as `X-API-Token` |
+| `internal_error` | 500 | Anything no route handled: a fixed sentence naming a trace id, with the error itself in the log under that id |
 | `cross_site_write` | 403 | A request other than GET, HEAD or OPTIONS carries `Sec-Fetch-Site: cross-site` or `same-site`, or an `Origin` that is not the API's own |
 | `already_running` | 409 | `POST /pipeline/run` while a run is going |
 | `assessment_cannot_run` | 409 | `POST /assessment/rerun` (or the kind-narrowed one) while `ASSESSMENT_ENABLED` is off or `ASSESSMENT_JUDGE_MODEL` names no model; no verdict is cleared |
@@ -397,6 +398,11 @@ header, so a page elsewhere cannot read what it fetched.
 FastAPI's 422 for a malformed query is left alone, and **a stage's own
 failures are not answered here at all** — they are recorded against the row
 and read back through `/{stage}/status`.
+
+Anything no route handled is answered 500 `internal_error` by one handler: a
+fixed sentence naming a trace id, with the error, which may hold the
+database's host, address and role, in the log under that id. `/status` reports
+an unreachable component as such and nothing the driver said.
 
 Each refusal is logged once, in the handler rather than at each `raise`, at
 **warning**.

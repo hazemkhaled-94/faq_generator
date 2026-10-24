@@ -88,7 +88,7 @@ class StatusService:
                 live = applied(session.connection())
         except Exception as exc:  # noqa: BLE001
             log.error("database unreachable: %s: %s", type(exc).__name__, exc)
-            return Component(False, f"Unreachable: {type(exc).__name__}: {exc}")
+            return Component(False, "Unreachable; see the api log.")
 
         if live != self._heads:
             return Component(
@@ -106,7 +106,7 @@ class StatusService:
             return Component(True, counter.detail, counter.counts())
         except Exception as exc:  # noqa: BLE001
             log.error("cannot count %s: %s: %s", name, type(exc).__name__, exc)
-            return Component(False, f"{type(exc).__name__}: {exc}")
+            return Component(False, "Unreachable; see the api log.")
 
     @staticmethod
     def _object_store() -> Component:
@@ -115,7 +115,7 @@ class StatusService:
             present = set(bucket_names())
         except Exception as exc:  # noqa: BLE001
             log.error("object store unreachable: %s: %s", type(exc).__name__, exc)
-            return Component(False, f"Unreachable: {type(exc).__name__}: {exc}")
+            return Component(False, "Unreachable; see the api log.")
 
         missing = {bucket.name for bucket in _REQUIRED_BUCKETS} - present
         if missing:
