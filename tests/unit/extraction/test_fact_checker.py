@@ -1865,3 +1865,24 @@ def test_a_time_the_evidence_writes_with_a_dot_is_no_addition(
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "named"),
+    [
+        ("de", "Ziffer 4 und 5 AGB", ["4", "5"]),
+        ("en", "Section 7 and 9 GTC", ["7", "9"]),
+        ("en", "Section 7, 3 transfers a month", ["7"]),
+        ("de", "Ziffer 4 und 5 Überweisungen", ["4"]),
+    ],
+)
+def test_a_number_before_a_document_name_in_capitals_is_a_section_it_does_not_count(
+    language, text, named
+) -> None:
+    """`Ziffer 4 und 5 AGB` names 5 as well as 4: AGB is a document, not what 5 counts."""
+    from extraction.validation import numbered
+    from nlp.analysis import parse
+
+    tokens = parse(text, language)
+
+    assert numbered(tokens, 0) == named

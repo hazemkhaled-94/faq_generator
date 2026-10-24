@@ -400,10 +400,21 @@ def numbered(tokens: Sequence, at: int) -> list[str]:
     return found
 
 
+def _is_name(text: str) -> bool:
+    """Whether a word is a name in capitals: two letters or more, none lower case."""
+    return text.isupper() and sum(one.isalpha() for one in text) >= 2
+
+
 def _counts(tokens: Sequence, at: int) -> bool:
-    """Whether the number at `at` counts something after it: "3 other rules"."""
+    """Whether the number at `at` counts something after it: "3 other rules".
+
+    Not a document's name in capitals after it, "Ziffer 4 und 5 AGB": two
+    letters or more, all upper case, name what the number sits in.
+    """
     number = tokens[at]
     after = tokens[at + 1] if at + 1 < len(tokens) else None
+    if after is not None and after.pos_ == "PROPN" and _is_name(after.text):
+        return False
     return (after is not None and after.pos_ in _COUNTED) or (
         number.head.i > number.i and number.head.pos_ in _COUNTED
     )
