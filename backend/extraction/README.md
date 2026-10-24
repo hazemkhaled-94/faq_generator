@@ -307,7 +307,12 @@ the only route from a fact to a passage, and so to a document and a topic.
 Passages are paired by the documents' own links (`extraction/links.py`), per
 language and across topics: a passage that names another section's numbered
 or quoted heading ("Section 7", "Returns"), two sections under one parent
-heading, or a term almost no other passage uses. A reference outranks a
+heading, or a term almost no other passage uses: one in 0.5% of the
+language's passages, never fewer than two and never more than six, so the
+term links grow with the corpus and not with its square, and each passage
+keeps the eight partners it shares the most such terms with, the nearest first
+among those. A
+reference outranks a
 sibling, and a sibling a term; inside a kind the vectors rank the partners
 and a tie goes to the lower id. Each passage heads at most one pair, a pair
 is offered once, and a topic is worth `EXTRACTION_BRIDGES_PER_TOPIC` pairs on

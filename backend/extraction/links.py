@@ -50,6 +50,16 @@ _CLOSING = re.compile(r"[‘’'](?!\w)")
 #: Never below two, so on a small corpus a term in exactly two passages links.
 _RARE_SHARE = 0.005
 
+#: The most passages a term may be in and still be rare, whatever the share
+#: comes to: the share alone grew the links with the square of the corpus, a
+#: term in 50 of 10,000 passages making 1,225 of them. Six is what the share
+#: gave the larger language of the reviewed build.
+_RARE_MAX = 6
+
+#: The most term partners one passage keeps, the ones it shares the most
+#: rare terms with and then lies nearest to.
+_TERM_PARTNERS = 8
+
 _TIER = {"reference": 0, "sibling": 1, "term": 2}
 
 
@@ -82,6 +92,21 @@ def _segments(passage: PassageToExtract) -> list[str]:
 def _plain(text: str) -> str:
     """A heading or a quoted span as it is compared."""
     return normalised(text).strip(" .:;,*")
+
+
+def _dot(left: PassageToExtract, right: PassageToExtract) -> float:
+    """Dot product of two passages' vectors, 0 where either has none.
+
+    Their cosine, the vectors being unit length.
+    """
+    if left.embedding is None or right.embedding is None:
+        return 0.0
+    return float(
+        np.dot(
+            np.asarray(left.embedding, dtype=np.float64),
+            np.asarray(right.embedding, dtype=np.float64),
+        )
+    )
 
 
 def _near(left: PassageToExtract, right: PassageToExtract) -> float:
@@ -258,20 +283,44 @@ def _siblings(edges: _Edges, partners: Sequence[PassageToExtract]) -> None:
 
 
 def _terms(
-    edges: _Edges, partners: Sequence[PassageToExtract], language: str | None
+    edges: _Edges,
+    partners: Sequence[PassageToExtract],
+    lemmas: Mapping[int, frozenset[str]],
 ) -> None:
-    """Adds the links of a term almost no other passage uses."""
-    lemmas = {p.id: content(p.text, language) for p in partners}
+    """Adds the links of a term almost no other passage uses.
+
+    A term is rare in `_RARE_SHARE` of the language's passages, at least two
+    and at most `_RARE_MAX`, and a passage keeps the `_TERM_PARTNERS` it
+    shares the most rare terms with, the nearest first among those. A pair is
+    kept if either of the two keeps it.
+    """
     carriers: dict[str, list[PassageToExtract]] = defaultdict(list)
     for p in partners:
         for lemma in lemmas[p.id]:
             carriers[lemma].append(p)
-    rare = max(2, math.ceil(_RARE_SHARE * len(partners)))
+    rare = max(2, min(math.ceil(_RARE_SHARE * len(partners)), _RARE_MAX))
+    #: Each passage's partners and the rare terms they share, rarest first.
+    shared: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
     for lemma, held in sorted(carriers.items(), key=lambda kv: (len(kv[1]), kv[0])):
         if 2 <= len(held) <= rare:
             for at, first in enumerate(held):
                 for second in held[at + 1 :]:
-                    edges.add(first, second, "term", lemma)
+                    shared[first.id][second.id].append(lemma)
+                    shared[second.id][first.id].append(lemma)
+    by_id = {p.id: p for p in partners}
+    kept: set[frozenset[int]] = set()
+    for ident, others in shared.items():
+        head = by_id[ident]
+        best = sorted(
+            others,
+            key=lambda other: (-len(others[other]), -_dot(head, by_id[other]), other),
+        )[:_TERM_PARTNERS]
+        kept.update(frozenset((ident, other)) for other in best)
+    for pair in sorted(kept, key=sorted):
+        first, second = sorted(
+            (by_id[i] for i in pair), key=lambda p: edges.position[p.id]
+        )
+        edges.add(first, second, "term", shared[first.id][second.id][0])
 
 
 def _best(
@@ -370,7 +419,7 @@ def linked(
         edges = _Edges()
         _references(edges, mine, language or None)
         _siblings(edges, mine)
-        _terms(edges, mine, language or None)
+        _terms(edges, mine, {p.id: content(p.text, language or None) for p in mine})
         seen: set[frozenset[int]] = set()
         by_topic: dict[int, list[tuple[PassageToExtract, Link]]] = defaultdict(list)
         for head in (h for h in heads if (h.language or "") == language):
