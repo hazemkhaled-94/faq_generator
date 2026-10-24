@@ -761,8 +761,7 @@ class QuestionChecker:
 
         The verifier is shown one half and one passage at a time, so a half
         that needed the other passage, or that the passage does not hold, is
-        refused; the merged question is never read as one. A half recall did
-        not find gets the rescue a single key gets, against its own passage.
+        refused; the merged question is never read as one.
         """
         by_id = {passage.id: passage for passage in candidate.group.resting}
         for number, (passage_id, question, answer) in enumerate(candidate.parts, 1):
@@ -771,26 +770,15 @@ class QuestionChecker:
             half, _ = fitting(
                 answer, candidate.spec.forms, self._bounds, candidate.group.language
             )
-            if got is None or not (
-                agrees(
-                    got,
-                    answer,
-                    candidate.group.language,
-                    half,
-                    self._overlap,
-                    question,
-                    passage.section_path or "",
-                    (passage.text,),
-                )
-                or self._backed(
-                    replace(
-                        candidate,
-                        question_text=question,
-                        group=_narrowed(candidate.group, passage_id),
-                    ),
-                    answer,
-                    readings,
-                )
+            if got is None or not agrees(
+                got,
+                answer,
+                candidate.group.language,
+                half,
+                self._overlap,
+                question,
+                passage.section_path or "",
+                (passage.text,),
             ):
                 return (
                     QuestionRejection.NOT_RECOVERABLE,
