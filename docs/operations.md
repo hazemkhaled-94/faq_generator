@@ -1441,7 +1441,8 @@ bucket:
 
 ```bash
 make archive                      # what is held, by table, with its age
-make restore-documents SINCE=<time>  # put back what was archived from then on
+make restore-documents SINCE=<time>  # list the deletions from then on
+make restore-documents AT=<archived_at>  # put those deletions back
 make archive-purge DAYS=30        # the second deletion. This one is final
 ```
 

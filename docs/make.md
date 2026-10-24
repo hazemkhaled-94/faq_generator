@@ -465,7 +465,7 @@ Every deletion of a row or an object above is the first of two.
 | Target | Does |
 |---|---|
 | `make archive` | What is held, by table, with its age |
-| `make restore-documents` | Without `SINCE`, the 20 newest minutes that hold a deletion, and it exits 2, so make reports an error; an older start is read off `archived_rows`. With `SINCE=<time>`, put back every row and object archived from then on. Run it before `archive-purge` |
+| `make restore-documents` | Without `SINCE`, the 20 newest minutes that hold a deletion, and it exits 2, so make reports an error; an older start is read off `archived_rows`. With `SINCE=<time>`, list the deleting transactions from then on (exact `archived_at` each, tables and rows). With `AT=<archived_at>[,...]`, put back those deletions only; `service_settings` and `prompts` stay out unless `TABLES` names them. Run it before `archive-purge` |
 | `make archive-purge` | The second deletion. **This one is final** |
 
 ```bash

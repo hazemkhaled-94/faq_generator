@@ -142,6 +142,21 @@ def now(engine) -> str:
         return connection.execute(text("SELECT now()")).scalar_one().isoformat()
 
 
+def chosen(engine, since: str) -> str:
+    """Every deleting transaction since `since`, as AT names them."""
+    with engine.connect() as connection:
+        return ",".join(
+            moment.isoformat()
+            for moment in connection.execute(
+                text(
+                    "SELECT DISTINCT archived_at FROM archived_rows "
+                    "WHERE archived_at >= CAST(:since AS timestamptz)"
+                ),
+                {"since": since},
+            ).scalars()
+        )
+
+
 def wipe() -> None:
     """The two deletions `make wipe` starts with."""
     from ingestion.run import main as ingestion
@@ -163,7 +178,7 @@ def test_a_wipe_comes_back_as_it_was_and_only_once(corpus, engine, monkeypatch) 
     assert not any(gone.values()), {t: len(r) for t, r in gone.items() if r}
     kept, held = archived(engine), objects()["archive"]
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     assert restore.main() == 0
 
     after = rows(engine)
@@ -194,7 +209,7 @@ def test_an_object_written_since_is_left_alone(corpus, engine, monkeypatch) -> N
         key, b"<html>refit</html>", content_type=ExportBucket.TOPIC_VISUALISATION_TYPE
     )
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     assert restore.main() == 0
 
     assert ExportBucket().find(key) == b"<html>refit</html>"
@@ -214,7 +229,7 @@ def test_the_newest_copy_of_a_row_is_the_one_restored(
         session.commit()
     build_removal().delete(corpus)
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     assert restore.main() == 0
 
     with engine.connect() as connection:
@@ -237,7 +252,7 @@ def test_a_row_whose_parent_was_replaced_is_left_behind(
         session.commit()
     rebuilt = rows(engine)
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     assert restore.main() == 0
 
     after = rows(engine)
@@ -293,7 +308,7 @@ def test_a_question_resting_on_two_documents_comes_back_accepted(
     since = now(engine)
 
     wipe()
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     assert restore.main() == 0
 
     with engine.connect() as connection:
@@ -350,7 +365,7 @@ def test_a_restored_question_does_not_rejoin_a_superseded_release(
 
     DocumentRepository().delete(one)
     QuestionCatalog().release([kept_id])
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()  # 1: the seeded document has no upload in the bucket
 
     with engine.connect() as connection:
@@ -438,7 +453,7 @@ def test_a_restored_question_keeps_its_release_only_where_a_live_one_holds_it(
     since = now(engine)
 
     DocumentRepository().delete(one)
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()  # 1: the seeded document has no upload in the bucket
 
     with engine.connect() as connection:
@@ -484,7 +499,7 @@ def test_a_refit_after_a_deletion_does_not_make_it_unrestorable(
         session.add(membership(other_id, again.id))
         session.commit()
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()  # 1: the seeded document has no upload in the bucket
 
     with engine.connect() as connection:
@@ -525,7 +540,7 @@ def test_a_re_chunk_after_delete_derived_does_not_make_it_unrestorable(
         session.add(passage(sha, language=language, text="Returns need a receipt."))
         session.commit()
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()  # 1: the seeded document has no upload in the bucket
 
     with engine.connect() as connection:
@@ -574,7 +589,7 @@ def test_a_fact_left_resting_on_no_passage_is_dropped_and_its_question_rejected(
         session.add(passage(sha, language=language, text="Returns need a receipt."))
         session.commit()
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()  # 1: the seeded document has no upload in the bucket
 
     with engine.connect() as connection:
@@ -617,7 +632,7 @@ def test_a_bridge_left_with_one_passage_is_dropped(
         session.add(passage(one, language=language, text="Fees are listed online."))
         session.commit()
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()  # 1: the seeded documents have no upload in the bucket
 
     with engine.connect() as connection:
@@ -711,7 +726,7 @@ def test_a_restored_follow_up_does_not_rejoin_a_release_its_root_left(
 
     DocumentRepository().delete(gone_doc)  # the follow-up goes, archived released
     QuestionCatalog().decide(root_id, "rejected")  # then a person rejects the root
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()  # 1: the seeded document has no upload in the bucket
 
     live = _rows(engine)
@@ -790,7 +805,7 @@ def test_a_follow_up_restored_under_a_re_accepted_root_is_not_released_alone(
     DocumentRepository().delete(gone_doc)
     QuestionCatalog().decide(root_id, "rejected")
     QuestionCatalog().decide(root_id, "accepted")
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()
 
     live = _rows(engine)
@@ -814,7 +829,7 @@ def test_a_three_turn_thread_restored_under_a_rejected_root_leaves_the_release(
     since = _now(engine)
     DocumentRepository().delete(gone_doc)
     QuestionCatalog().decide(root_id, "rejected")
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()
 
     live = _rows(engine)
@@ -833,7 +848,7 @@ def test_a_follow_up_under_a_root_still_released_keeps_its_release(
     gone_doc, root_id, _, follows, drawn = _thread_across_two_documents(engine, "de", 3)
     since = _now(engine)
     DocumentRepository().delete(gone_doc)
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     restore.main()
 
     live = _rows(engine)

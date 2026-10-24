@@ -62,11 +62,15 @@ archive is a table nothing joins to.
 The cost is that there is no undo, only a restore:
 
 ```bash
-make restore-documents                         # the deletions held, by minute
-make restore-documents SINCE=2026-10-07T09:14  # everything archived from then on
+make restore-documents                         # the newest deleting transactions
+make restore-documents SINCE=2026-10-07T09:14  # every one from then on (only lists)
+make restore-documents AT=<archived_at>[,...]  # put those deletions back
 ```
 
-It puts every row archived at or after `SINCE` back with
+The listing names each deleting transaction by its exact `archived_at` with
+the rows it took per table. `AT` puts back those transactions and nothing
+archived beside them: the facts a re-extraction replaced and a setting
+somebody cleared stay as they are. It puts the rows back with
 `jsonb_populate_record`, in foreign-key order, primary keys included, and
 copies the files, parsed forms, figures and models of the documents and
 topics among them back out of the bucket. It is a copy: the archive keeps
@@ -86,8 +90,18 @@ what it held.
 - **A fact left resting on no passage is dropped.** Its citations were left
   behind, and the trigger that drops such a fact fires only on `DELETE`, so
   the restore does it, with the question links that cascade from it.
-- **`SINCE` is required.** The archive also holds every row a rerun
-  replaced, and restoring those would put them beside their replacements.
+- **`AT` is required, and `SINCE` only lists.** The archive also holds every
+  row a rerun replaced, and restoring those would put them beside their
+  replacements.
+- **`service_settings` and `prompts` are skipped** unless `TABLES` names them;
+  `TABLES=a,b` restricts the restore to those tables.
+- **A refit's transaction is listed as not restorable.** Its topics and
+  memberships were deleted and a later fit holds the same topics under their
+  unique key; it is skipped, and the run fails if nothing else was chosen.
+- **A restored document with passages is marked `chunked`**, in the restore's
+  transaction.
+- **Rejected questions whose facts are all back are listed** with their ids and
+  `make questions-reverify`, which decides them again.
 
 The `embedding` comes back NULL. It is the one column not kept — a vector
 renders as about 13 kB of text a row, ten times everything else a fact holds
@@ -161,17 +175,14 @@ which purges the command line refuses.
   `make schema-reset` and the test fixtures empty tables without a copy.
 - **The embedding does not come back.** Restored passages and facts carry
   NULL until `make extract-embed`; a restored question keeps NULL.
-- **A restore after `make delete-derived` leaves the document marked `new`
-  for chunking.** That was an update, which nothing archives, so the next
-  `chunk-start` re-chunks the restored passages.
 - **A question the deletion rejected comes back rejected.** A partial
   `make delete SHA=` rejects, as `source_changed`, every question that loses
   one fact and keeps another. That was an update, which nothing archives, so
   the restore puts every fact link back and leaves the status as it is;
   a person decides it again.
-- **A column added `NOT NULL` since a row was archived rolls the whole
-  restore back.** The older payload has no value for it, and it is filled
-  with NULL rather than the column's default.
+- **A column added `NOT NULL` since a row was archived** takes its server
+  default; with no default the restore stops, naming the column, and puts
+  nothing back.
 - **A purge is not archived.** Otherwise it would write one row for every row
   it took.
 - **`make delete` twice is not a way to purge.** `make archive-purge` is the

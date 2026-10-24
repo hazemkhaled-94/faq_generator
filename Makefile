@@ -1552,12 +1552,14 @@ s3-prefix:
 
 # Put back what a deletion archived, after an accidental wipe.
 #
-#   make restore-documents                         when each deletion happened
-#   make restore-documents SINCE=2026-10-07T09:14  everything archived from then on
+#   make restore-documents                         the newest deleting transactions
+#   make restore-documents SINCE=2026-10-07T09:14  every one from then on (lists)
+#   make restore-documents AT=<time>[,<time>]      put those deletions back
 #
 # Run it before `archive-purge`, which is what makes the archive unreadable.
-# Only what was archived at or after SINCE comes back: the archive also holds
-# every row a rerun replaced.
+# Only the transactions AT names come back: the archive also holds every row a
+# rerun replaced, and a setting somebody cleared. service_settings and prompts
+# stay out unless TABLES names them, and a refit's topics are not offered.
 restore-documents:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.restore
 
