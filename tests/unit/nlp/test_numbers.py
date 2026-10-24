@@ -165,3 +165,22 @@ def test_a_decimal_whose_second_part_is_no_minute_gains_no_time(text, language) 
     from nlp.analysis import numerals
 
     assert not {"75"} & numerals(text, language)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("Limit PLN 100 000 per year", "en", [100000.0]),
+        ("Limit 100 000 SEK pro Jahr", "de", [100000.0]),
+        ("Limite 100 000 JPY", "it", [100000.0]),
+        ("Limit 100 000 ALL per year", "en", [100000.0]),
+        ("Call 100 000 for help", "en", [100.0, 0.0]),
+    ],
+)
+def test_a_space_grouped_amount_beside_an_iso_currency_is_one_figure(
+    text, language, value
+) -> None:
+    """The ISO code is the currency in any language; without one the groups stay apart."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value

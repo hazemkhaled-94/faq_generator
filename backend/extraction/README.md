@@ -81,8 +81,9 @@ A table is exempt from the last four, because it is read from its cell grid.
 It is not exempt from one more: a grid whose filled cells are more than half
 identifiers — `TA-BO1`, `K2`, `TM-2.2.1`, a tick — states nothing a reader
 would look up. A bare figure, `5` or `12.50`, is a value and no identifier,
-and so is one after a currency code its language's `AMOUNT_WORDS` names,
-`EUR 5` or `GBP 12.00`, so a fee table is read. The share is `_CODE_CELLS` in
+and so is one after a currency: an ISO 4217 code (a static standard, the same
+in every language), a currency sign, or a word its language's `AMOUNT_WORDS`
+names, `SEK 25` or `GBP 12.00`, so a fee table is read. The share is `_CODE_CELLS` in
 [`service.py`](service.py).
 
 ### Step 3 — Read the claims

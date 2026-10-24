@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -784,6 +785,36 @@ AMOUNT_WORDS: dict[str, frozenset[str]] = {
     ),
 }
 
+#: The currency codes of ISO 4217: a static international standard, the same
+#: in every language, so it is no list of one corpus's words. A code beside a
+#: number is an amount whatever the language of the text around it.
+ISO_4217 = frozenset(
+    """AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB
+    BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP CRC CUP CVE CZK DJF DKK DOP
+    DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF
+    IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK
+    LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MYR MZN
+    NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF
+    SAR SBD SCR SDG SEK SGD SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND
+    TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VES VND VUV WST XAF XCD XOF XPF YER
+    ZAR ZMW ZWL""".split()  # noqa: SIM905  (a list literal of 160 codes is no clearer)
+)
+
+
+def is_currency(word: str, language: str | None) -> bool:
+    """Whether a word marks an amount of money: an ISO 4217 code, a currency sign, or the language's own word.
+
+    A sign is a character of Unicode category Sc, in any script. Case matters
+    for a code, which is written in capitals: `ALL` is a code and `all` is not.
+    """
+    bare = word.strip(".,;:()")
+    return (
+        bare in ISO_4217
+        or (len(bare) == 1 and unicodedata.category(bare) == "Sc")
+        or bare.casefold() in AMOUNT_WORDS.get((language or "").strip().lower(), ())
+    )
+
+
 #: The words that label a reference by a number, by ISO 639-1 code, as lower
 #: case: `Section 3 100 customers` is a section and a count, whatever stands
 #: after it.
@@ -824,9 +855,12 @@ REFERENCE_LABELS: dict[str, frozenset[str]] = {
 _SPACED = re.compile(r"(?<![\w.,])(?<!\d )\d{1,3} \d{3}(?:[.,]\d+)?(?![\w])(?! \d)")
 
 
-def _beside(found: re.Match[str] | None) -> str:
-    """The word a match holds, lower case and bare of punctuation."""
-    return found[1].strip(".,;:()").casefold() if found else ""
+def _beside(found: re.Match[str] | None, keep_case: bool = False) -> str:
+    """The word a match holds, bare of punctuation, lower case unless its case is kept."""
+    if not found:
+        return ""
+    word = found[1].strip(".,;:()")
+    return word if keep_case else word.casefold()
 
 
 def _amount(text: str, start: int, end: int, language: str | None) -> bool:
@@ -838,9 +872,12 @@ def _amount(text: str, start: int, end: int, language: str | None) -> bool:
         return True
     code = (language or "").strip().lower()
     before = _beside(re.search(r"(\S+)\s?$", text[:start]))
-    after = _beside(re.match(r"\s?(\S+)", text[end:]))
-    return before not in REFERENCE_LABELS.get(code, ()) and bool(
-        {before, after} & AMOUNT_WORDS.get(code, frozenset())
+    return before not in REFERENCE_LABELS.get(code, ()) and any(
+        is_currency(word, language)
+        for word in (
+            _beside(re.search(r"(\S+)\s?$", text[:start]), keep_case=True),
+            _beside(re.match(r"\s?(\S+)", text[end:]), keep_case=True),
+        )
     )
 
 

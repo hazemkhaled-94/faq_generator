@@ -33,7 +33,7 @@ from extraction.models import (
 )
 from extraction.repository import DIGEST_FAILED, DigestQueue, FactCatalog, PassageQueue
 from extraction.validation import WRITTEN, FactChecker, _cited_text
-from nlp.analysis import AMOUNT_WORDS, claim, normalised, numbers
+from nlp.analysis import claim, is_currency, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
@@ -706,12 +706,11 @@ def _code_grid(passage: PassageToExtract) -> bool:
     ]
     if not cells:
         return False
-    amounts = AMOUNT_WORDS.get(passage.language or "", frozenset())
     codes = sum(
         1
         for one in cells
         if (code := _CODE_CELL.match(one))
-        and (code["letters"] or "").casefold() not in amounts
+        and not is_currency(code["letters"] or "", passage.language)
     )
     return codes / len(cells) > _CODE_CELLS
 

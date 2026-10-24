@@ -318,3 +318,35 @@ def test_a_table_with_no_cells_is_not_judged_on_them() -> None:
     empty = passage("| a | b |", block_type="table", table_cells=[])
 
     assert skipped(empty) is None
+
+
+@pytest.mark.parametrize(
+    ("language", "cells"),
+    [
+        ("en", ("Fee", "SEK 25", "PLN 10", "JPY 500", "CZK 7")),
+        ("de", ("Gebühr", "SEK 25", "PLN 10", "JPY 500", "CZK 7")),
+        ("it", ("Costo", "SEK 25", "PLN 10", "JPY 500", "CZK 7")),
+        ("en", ("Fee", "CZK 25", "HUF 900", "NOK 12", "DKK 8")),
+    ],
+)
+def test_a_fee_table_in_any_iso_currency_is_read(language, cells) -> None:
+    """A currency code of the ISO 4217 standard is no identifier, in any language."""
+    fees = passage(
+        "| Item | Fee |",
+        block_type="table",
+        language=language,
+        table_cells=_grid(*cells),
+    )
+
+    assert skipped(fees) is None
+
+
+def test_a_grid_of_codes_that_are_no_currency_is_still_skipped() -> None:
+    """`TM-2.2.1` and a bare `ALL` are identifiers, not amounts."""
+    matrix = passage(
+        "| TA-BO1 | TM-2.2.1 |",
+        block_type="table",
+        table_cells=_grid("TM-2.2.1", "TA 3", "ALL", "K2", "TB 4", "TM 5"),
+    )
+
+    assert skipped(matrix) == "a grid of identifiers rather than of statements"
