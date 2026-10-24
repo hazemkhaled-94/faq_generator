@@ -163,6 +163,82 @@ def test_the_scan_agrees_with_the_old_scan_on_small_pools() -> None:
         assert new.ids == old.ids, (seed, new.size, old.size)
 
 
+#: One pool of 33 rows with a ceiling of 0.10 that the strict start missed:
+#: (id, answerable, band, kind, follows). A quota of eight cannot absorb a
+#: proportional tolerance, and `close_enough` forgives the one place the start
+#: had not, so size 8 fills here and the scan began below it.
+_ONE_PLACE_POOL = [
+    (1, False, "medium", "aggregation", None),
+    (2, True, "medium", "aggregation", None),
+    (3, True, "medium", "aggregation", None),
+    (4, True, "medium", "enumeration", None),
+    (5, True, "medium", "enumeration", None),
+    (6, True, "medium", "aggregation", None),
+    (7, True, "medium", "procedure", None),
+    (8, True, "easy", "procedure", None),
+    (9, True, "easy", "procedure", 8),
+    (10, True, "medium", "entity", None),
+    (11, True, "medium", "entity", 10),
+    (12, True, "medium", "enumeration", None),
+    (13, False, "medium", "procedure", None),
+    (14, True, "easy", "condition", None),
+    (15, True, "hard", "entity", None),
+    (16, False, "medium", "procedure", None),
+    (17, True, "medium", "aggregation", None),
+    (18, True, "medium", "implication", None),
+    (19, False, "medium", "aggregation", None),
+    (20, False, "medium", "procedure", None),
+    (21, False, "medium", "procedure", None),
+    (22, False, "medium", "entity", None),
+    (23, True, "hard", "application", None),
+    (24, True, "medium", "temporal", None),
+    (25, False, "medium", "aggregation", None),
+    (26, True, "medium", "procedure", None),
+    (27, True, "easy", "entity", None),
+    (28, True, "medium", "entity", None),
+    (29, True, "medium", "entity", 28),
+    (30, True, "medium", "procedure", None),
+    (31, True, "medium", "enumeration", None),
+    (32, False, "medium", "procedure", None),
+    (33, True, "medium", "entity", None),
+]
+_ONE_PLACE_TYPES = {
+    "factoid": 4,
+    "entity": 1,
+    "reason": 1,
+    "procedure": 4,
+    "consequence": 4,
+    "implication": 1,
+    "application": 1,
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de", "xx"])
+def test_a_pool_where_one_place_is_forgiven_is_drawn_as_the_old_scan_drew_it(
+    language: str,
+) -> None:
+    """The start is an upper bound: it never begins below a size that fills."""
+    pool = [
+        Row(
+            id=at,
+            answerable=answerable,
+            difficulty=band,
+            question_type=kind,
+            follows_id=follows,
+            language=language,
+        )
+        for at, answerable, band, kind, follows in _ONE_PLACE_POOL
+    ]
+    bands = {Difficulty.EASY: 1, Difficulty.MEDIUM: 1, Difficulty.HARD: 1}
+    types = {QuestionType(kind): weight for kind, weight in _ONE_PLACE_TYPES.items()}
+
+    old = _old_largest(pool, bands, types, 0.10, {language: 1})
+    new = largest(pool, bands, types, 0.10, languages={language: 1})
+
+    assert old.size == 7
+    assert new.ids == old.ids, (new.size, old.size)
+
+
 def _drawn_with_log(pool, caplog, **setting):
     class Catalog:
         drawn: tuple[int, ...] = ()

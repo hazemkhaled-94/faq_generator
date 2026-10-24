@@ -585,7 +585,9 @@ def _fillable(
         # Places the capped kinds leave unplaced: the draw cannot spend them,
         # and only unanswerable places are not reported when unspent.
         unplaced = size - sum(quota.types.values())
-        room = 0 if placeable else _slack(answerable, tolerance)
+        # One place where placeable, the one `close_enough` always forgives:
+        # a start any lower would begin under a size that fills.
+        room = 1 if placeable else _slack(answerable, tolerance)
         if unplaced > quota.unanswerable + room:
             continue
         if all(
