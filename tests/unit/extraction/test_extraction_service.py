@@ -174,6 +174,41 @@ def test_the_digest_pass_keeps_the_note_when_the_digest_fails_again() -> None:
     assert run.queue.failed == {}
 
 
+#: Navigation the first pass never sends to a model: a contents page of any
+#: document, in each language the corpus configures, over 500 characters with
+#: more than two claims, which is what the digest pass would otherwise digest.
+CONTENTS = {
+    "en": "\n".join(
+        f"| Section {n} The member pays the fee within the period. ______ {n + 3} |"
+        for n in range(1, 14)
+    ),
+    "de": "\n".join(
+        f"| Abschnitt {n} Das Mitglied zahlt die Gebühr innerhalb der Frist. ______ {n + 3} |"
+        for n in range(1, 14)
+    ),
+}
+
+
+@pytest.mark.parametrize("language", CONTENTS)
+def test_the_digest_pass_asks_no_model_about_what_the_first_pass_skips(
+    language: str,
+) -> None:
+    """A contents page is finished with no call, as the passage reader does."""
+    from extraction.service import skipped
+
+    contents = passage(
+        CONTENTS[language], language=language, block_type="document_index"
+    )
+    assert skipped(contents) is not None and len(CONTENTS[language]) >= 500
+    assert contents.claims >= 2, "enough to be digested, were it not skipped"
+    run = Extraction(contents, digest=DIGEST, kinds=BOTH, digests_only=True)
+
+    assert run.run() == 1
+    assert run.digest_model.calls == 0, "no digest is asked for a contents page"
+    assert run.queue.digests == {1: []}
+    assert run.queue.notes == {1: None}
+
+
 def test_an_unexpected_failure_is_named_by_its_type() -> None:
     """A row failed by something nobody planned for still says what it was."""
     run = Extraction(passage(), facts=ValueError("nonsense came back"))

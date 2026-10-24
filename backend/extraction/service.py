@@ -1467,13 +1467,20 @@ class DigestPass(ExtractionService):
             span, "extract_digest", {"stage": self.name, "passage.id": passage.id}
         ) as current:
             try:
-                try:
-                    digests, note = self._digested(passage), None
-                except ExtractionFailed as failure:
-                    digests, note = [], self._missing(passage, failure)
-                    # Counted, not failed: the row stays as it was.
-                    if self._missed(passage.id, is_outage(failure), failed=False):
-                        return passage.id
+                digests: list[CheckedFact] = []
+                note: str | None = None
+                if (reason := skipped(passage)) is not None:
+                    # What the first pass never sends to a model, finished
+                    # with no call: a contents page, a notice, a reference list.
+                    current.set_attribute("extract.skipped", reason)
+                else:
+                    try:
+                        digests = self._digested(passage)
+                    except ExtractionFailed as failure:
+                        note = self._missing(passage, failure)
+                        # Counted, not failed: the row stays as it was.
+                        if self._missed(passage.id, is_outage(failure), failed=False):
+                            return passage.id
                 facts = self._deduplicated(
                     digests, current, passage.id, passage.language
                 )

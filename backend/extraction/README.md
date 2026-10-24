@@ -127,7 +127,8 @@ the provider's filter refuses the passage, the passage still finishes
 --digests`, and `make corpus` runs it after `extract`) claims those passages,
 and every extracted passage of `EXTRACTION_DIGEST_MIN_CHARS` or more that holds
 no digest, so a floor lowered after a corpus was read reaches it without
-re-reading it. It calls only the digest model, and replaces only the summary and the outline,
+re-reading it. A passage the drain skips (a contents page, a copyright
+notice, a reference list) is finished without a call here too. It calls only the digest model, and replaces only the summary and the outline,
 never an atomic fact or its id. A digest that fails again keeps its note and is
 tried again on the next run, once per run. A deployment whose `EXTRACTION_KINDS`
 names no digest kind has nothing to give: the command says so and exits 0, so
