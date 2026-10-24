@@ -538,6 +538,28 @@ drains them, `make corpus-hosted` or the stage's own target, because no worker
 does on this profile. A release that adds a stage ends its upgrade section with
 `make up`, so the worker or profile it brings is started.
 
+### Profiles
+
+With no profile named compose starts eleven services: the database, the object
+store (master, two volumes, filer, S3 gateway), the api, the parse and chunk
+workers, the page and Phoenix. The rest sit under a profile:
+
+| Profile | Services | Started by |
+|---|---|---|
+| `local-models` | the extract, topic, question and assess workers | development `make up`; never on the go-live profile, where the host runner drains them |
+| `orchestrated` | Dagster's webserver and daemon | development `make up`; never on the go-live profile |
+| `review` | Argilla, Redis and Elasticsearch | `COMPOSE_PROFILES=review` in `.env` |
+| `logs` | Filebeat and Grafana, which need `review` for the Elasticsearch they use | `COMPOSE_PROFILES=review,logs` |
+| `tools` | Adminer | `COMPOSE_PROFILES=tools` |
+
+`make up` enables every profile unless `HOST_RUNNER` is set; on the go-live
+profile it enables what `COMPOSE_PROFILES` in `.env` names, bar the first two.
+Every other `make` target sees all of them, so `make down` stops a service
+whichever profile started it. `make wipe` skips the Argilla, Elasticsearch and
+Dagster steps of a service that is not running and says so, and still empties
+the log files; `make doctor` does not check the containers' model where the
+workers are stopped.
+
 ### After a stop
 
 A drain that stopped itself, because the model could not be reached or the cap

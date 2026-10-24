@@ -385,7 +385,9 @@ doctor:
 	   && printf '%s' "$$PHOENIX_ADMIN_SECRET" | grep -q '[a-z]'; then \
 	  say ok "PHOENIX_ADMIN_SECRET"; \
 	  else say FAIL "PHOENIX_ADMIN_SECRET needs 32+ characters, a digit and a lower-case letter"; fail=1; fi; \
-	if test -z "$$OLLAMA_CONTAINER_URL"; then \
+	if $(GO_LIVE); then \
+	  say "-" "the model workers are stopped (HOST_RUNNER): the containers' model is not checked"; \
+	elif test -z "$$OLLAMA_CONTAINER_URL"; then \
 	  say FAIL "OLLAMA_CONTAINER_URL is unset, and it is the only address a container may call"; fail=1; \
 	elif test -z "$$LLM_CONTAINER_MODEL"; then \
 	  say FAIL "LLM_CONTAINER_MODEL is unset: containers run Ollama and never inherit the host's model"; fail=1; \
@@ -609,6 +611,12 @@ logs-prune: logs-dir
 	  'find /var/log/qa -type f -mtime +$(LOGS_KEEP_DAYS) -print -delete' \
 	  | wc -l | xargs printf '%s file(s) deleted on the volume.\n'
 
+# Empties the log files, on the volume the services write to and in ./logs. The
+# half of `logs-wipe` that needs no Elasticsearch, which `wipe` runs alone where
+# the stack has none.
+LOG_FILES = { $(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec truncate -s 0 {} +' || true; \
+              find logs -type f -exec truncate -s 0 {} + 2>/dev/null || true; }
+
 # This database's log lines: the `db` field every line carries is what
 # Elasticsearch deletes by, so another database's lines stay. The JSON files
 # Filebeat ships from are shared by every database and are left.
@@ -639,8 +647,7 @@ logs-wipe:
 	  echo "$$answer"; \
 	  case "$$answer" in *'"acknowledged":true'*|*'"deleted":'*|*index_not_found_exception*) ;; *) exit 1;; esac
 	@if [ "$(ALL_DATABASES)" = 1 ]; then \
-	  $(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec truncate -s 0 {} +' || true; \
-	  find logs -type f -exec truncate -s 0 {} + 2>/dev/null || true; \
+	  $(LOG_FILES); \
 	  echo "log stream deleted and files emptied."; \
 	else echo "this database's log lines deleted; the shared files are left (ALL_DATABASES=1 empties them)."; fi
 
@@ -1540,6 +1547,7 @@ wipe:
 	@$(call WIPE_STEP,phoenix,phoenix-purge)
 	@$(call WIPE_STEP,argilla,review-delete)
 	@$(call WIPE_STEP,elasticsearch,logs-wipe)
+	@$(call RUNNING,elasticsearch) || [ "$(ALL_DATABASES)" != 1 ] || $(LOG_FILES)
 	@$(call WIPE_STEP,dagster-webserver,dagster-wipe)
 
 # What `wipe` asks first: that each store it is about to empty answers to

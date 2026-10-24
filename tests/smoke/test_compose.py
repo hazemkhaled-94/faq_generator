@@ -137,37 +137,39 @@ def test_every_service_the_pipeline_needs_is_declared(resolved) -> None:
     assert EXPECTED <= declared, sorted(EXPECTED - declared)
 
 
-#: The profiles the go-live profile leaves off, which `make up` enables in
-#: development: the host runner drains the model stages, and there is no
-#: orchestrator.
-GO_LIVE_OFF = {"local-models", "orchestrated"}
+#: Every profile compose.yaml uses, and what each holds. With none named compose
+#: starts the eleven services of the go-live set; `make up` enables them all in
+#: development.
+PROFILES = {"review", "logs", "tools", "local-models", "orchestrated"}
 
 
-def test_no_service_is_behind_a_profile_but_the_two_go_live_leaves_off(resolved) -> None:
-    """`make up` starts the whole stack in development, and that is the point.
+def test_every_profile_is_one_that_is_documented(resolved) -> None:
+    """`make up` enables them all, so a service behind another is never started.
 
-    A profile is invisible in exactly the wrong way. `compose config`
-    omits the service, `compose up` does not create it, and nothing
-    anywhere reports a service that was never asked for - which is how
-    the log shipper sat unstarted while Grafana showed an empty
-    dashboard, and how the orchestrator was unreachable at a port the
-    README advertised.
+    A profile is invisible in exactly the wrong way. `compose config` omits
+    the service, `compose up` does not create it, and nothing anywhere
+    reports a service that was never asked for - which is how the log
+    shipper sat unstarted while Grafana showed an empty dashboard.
 
-    So if a service is not worth starting it should not be declared, and
-    if it is declared it comes up with the rest. The two profiles named
-    here are the exception, by design: `make up` enables every profile
-    unless HOST_RUNNER is set, and then only those two are left off.
+    So a service sits under one of these five, which tests/static/
+    test_compose_profiles.py pins by name and `make up` turns on, or under none.
     """
     gated = {
         name: service["profiles"]
         for name, service in resolved["services"].items()
-        if set(service.get("profiles") or ()) - GO_LIVE_OFF
+        if set(service.get("profiles") or ()) - PROFILES
     }
 
-    assert not gated, (
-        f"{', '.join(sorted(gated))} would not be started by `compose up`. "
-        f"Drop the profile, or drop the service."
-    )
+    assert not gated, f"{', '.join(sorted(gated))} sit under a profile nothing enables"
+
+
+def test_with_no_profile_only_the_go_live_services_are_listed() -> None:
+    """Eleven, as the stack a deployment starts without naming one."""
+    answered = compose("config", "--format", "json")
+    if answered.returncode != 0:
+        pytest.skip(f"compose could not resolve the file: {answered.stderr[-600:]}")
+
+    assert len(json.loads(answered.stdout)["services"]) == 11
 
 
 def test_the_log_shipper_and_the_orchestrator_are_part_of_the_stack(resolved) -> None:
