@@ -37,8 +37,12 @@ waits for that drain to empty the queue and is never applied halfway through
 an item. A one-off `make` drain reads the settings once, when it starts.
 
 Nothing is requeued, and `make settings SERVICE=<name>` and `make doctor` say how
-many stored rows of extraction, topics and questions were made under another
-configuration than the current one, with the command that brings them in line.
+many stored rows of extraction, topics and questions were made before a
+setting that stales that stage was changed, with the least destructive command
+that brings them in line: the cheaper rebuild the catalogue names, and the
+stage's rerun only where one of the changed settings names none. The change
+must have gone through the store, which dates it. A file's change is dated by
+nothing, and shows only as another version.
 If the change means what a stage already produced was
 made under the old value, whichever surface you used **says so and names the
 stage**, and how to rebuild it: the cheaper command the catalogue names,
@@ -151,7 +155,9 @@ because sourcing would otherwise overwrite them, and names them in
 ## A version is not a run
 
 `settings_version` names a **configuration**: a digest of every catalogued
-setting as resolved, the files overlaid with the stored rows and a `make`
+setting as resolved, bar the fixed platform settings no stage's output depends
+on (`SPEND_CAP`, the poll interval, the pool sizes, the addresses and
+`LLM_MODEL`), the files overlaid with the stored rows and a `make`
 command line over both. It changes when any of them does. It answers "what
 was this row produced under".
 

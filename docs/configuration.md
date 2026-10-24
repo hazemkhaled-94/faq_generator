@@ -157,9 +157,13 @@ A worker picks a change up once its queue next runs dry: it reads its
 settings again between drains, not per row, so a drain under way works the
 rest of its queue under the old values. A change reaches no stored row:
 nothing is requeued, and `make settings SERVICE=<name>` and `make doctor` list,
-for extraction, topics and questions, how many stored rows were made under
-another configuration than the current one, with the command that brings them
-in line. If the change stales what a stage already produced, the surface you used says so
+for extraction, topics and questions, how many stored rows were made before a
+setting that stales that stage was changed, with the least destructive command
+that brings them in line (the cheaper rebuild its catalogue entry names, and
+the stage's rerun only where one of the changed settings names none). A
+change made in a file is not dated, so it shows only after a restart as
+another version; a setting the deployment owns and no stage's output depends
+on, such as `SPEND_CAP`, is no part of the configuration and lists nothing. If the change stales what a stage already produced, the surface you used says so
 and names the stage. Where every setting changed that stales something has a
 cheaper rebuild in its catalogue entry, such as `make extract-revalidate` or
 `make questions-balance`, the page and the API name that command; otherwise

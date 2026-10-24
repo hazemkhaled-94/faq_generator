@@ -113,8 +113,14 @@ _RECORDED = {
 }
 
 
-def stored_behind(service: str, version: str) -> int:
-    """How many rows a service produced under a configuration other than `version`.
+def stored_behind(service: str, version: str) -> dict[str, int]:
+    """How many rows predate a change of each setting that stales the service.
+
+    For each setting that stales this service's output and was changed
+    through the store, the rows of another configuration than `version` that
+    were made before that change. A rowwise setting history is not kept, so
+    this is what says which setting a row was made without: a change made in
+    a file is not seen here, and the rows then show only as another version.
 
     Rows written before the version was recorded are not counted: nothing
     says what they were made under.
@@ -124,52 +130,62 @@ def stored_behind(service: str, version: str) -> int:
     from database.qa_generator import Fact, Question, Topic
     from database.qa_generator.engine import sessions
 
-    table = {"extraction": Fact, "topics": Topic, "questions": Question}[service]
+    table, made = {
+        "extraction": (Fact, Fact.created_at),
+        "topics": (Topic, Topic.fitted_at),
+        "questions": (Question, Question.created_at),
+    }[service]
+    changed = Settings().changed_at()
+    staling = sorted(one.name for one in catalog.SETTINGS if service in one.invalidates)
+    behind: dict[str, int] = {}
     with sessions()() as session:
-        return (
-            session.scalar(
+        for name in staling:
+            if name not in changed:
+                continue
+            rows = session.scalar(
                 select(func.count())
                 .select_from(table)
                 .where(
                     table.settings_version.is_not(None),
                     table.settings_version != version,
+                    made < changed[name],
                 )
             )
-            or 0
-        )
+            if rows:
+                behind[name] = rows
+    return behind
 
 
 def behind(
     service: str,
     version: str,
-    count: Callable[[str, str], int] = stored_behind,
+    count: Callable[[str, str], dict[str, int]] = stored_behind,
 ) -> list[str]:
-    """Says how much of what a service stored predates the configuration now.
+    """Says how much of what a service stored predates a change of its settings.
 
     A change to a setting reaches no stored row: nothing requeues them, and
     a drain under way keeps its settings until its queue is empty. So after a
     change, this is where a person sees what is still made under the old one,
-    and which command brings it in line: the cheaper ones the catalogue names
-    for the settings of this service that stale its output, and the stage's
-    rerun for those that name none.
+    and which command brings it in line: the cheapest the catalogue names for
+    the settings that moved, and the stage's rerun, which redoes what every
+    cheaper one does, where one of them names none.
 
-    The version is a digest of every setting, so it cannot say which setting
-    moved; the count is of rows made under any other configuration.
+    A stage is listed only for a setting that stales it and moved after its
+    rows were made. The version alone cannot say that, and a setting that
+    stales nothing (the spend cap, a pool size) lists nothing.
     """
     if service not in _RECORDED:
         return []
-    noun, rerun = _RECORDED[service]
-    rows = count(service, version)
-    if not rows:
+    moved = {name: rows for name, rows in count(service, version).items() if rows}
+    if not moved:
         return []
-    staling = [one for one in catalog.of(service) if service in one.invalidates]
-    commands = sorted({one.rebuild for one in staling if one.rebuild})
-    if any(not one.rebuild for one in staling):
-        commands.append(rerun)
+    noun, rerun = _RECORDED[service]
+    rebuilds = {catalog.BY_NAME[name].rebuild for name in moved}
+    commands = [rerun] if "" in rebuilds else sorted(rebuilds)
     said = (
-        f"{rows} stored {noun}(s) were made under another configuration than "
-        f"{version}. Whichever of this service's settings moved since, what "
-        f"brings them in line is {' and '.join(commands)}."
+        f"{max(moved.values())} stored {noun}(s) were made before "
+        f"{', '.join(sorted(moved))} was changed (the current configuration is "
+        f"{version}). What brings them in line is {' and '.join(commands)}."
     )
     return [said]
 

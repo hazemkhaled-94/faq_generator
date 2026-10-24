@@ -43,24 +43,55 @@ def test_a_lowered_digest_floor_is_met_by_the_digest_pass_and_not_a_rerun() -> N
     assert any("make extract-digests" in line for line in said), said
 
 
-def test_a_stage_holding_rows_of_another_configuration_is_listed_with_the_fix() -> None:
+def test_a_stage_holding_rows_made_before_a_setting_moved_is_listed_with_the_fix() -> (
+    None
+):
     """After a change, `make settings` says what is still made under the old one."""
-    said = behind("extraction", "ab12", count=lambda stage, version: 252)
+    said = behind(
+        "extraction",
+        "ab12",
+        count=lambda stage, version: {"EXTRACTION_DIGEST_MIN_CHARS": 252},
+    )
 
     (line,) = said
-    assert "252 stored fact(s)" in line and "ab12" in line
-    assert "make extract-digests" in line and "make extract-revalidate" in line
+    assert "252 stored fact(s)" in line and "EXTRACTION_DIGEST_MIN_CHARS" in line
+    assert "make extract-digests" in line
+    assert "make extract-rerun" not in line, "a digest-only change is no rerun"
+    assert "make extract-revalidate" not in line
 
 
-def test_nothing_is_listed_where_every_row_is_current() -> None:
-    """No rows behind, no line."""
-    assert behind("extraction", "ab12", count=lambda stage, version: 0) == []
+def test_a_setting_with_no_cheaper_rebuild_names_the_rerun_alone() -> None:
+    """The rerun redoes what every cheaper command would."""
+    said = behind(
+        "extraction",
+        "ab12",
+        count=lambda stage, version: {
+            "EXTRACTION_DIGEST_MIN_CHARS": 10,
+            "EXTRACTION_KINDS": 12,
+        },
+    )
+
+    (line,) = said
+    assert "make extract-rerun" in line
+    assert "make extract-digests" not in line
+
+
+def test_the_topics_stage_names_its_refit_for_a_topic_setting() -> None:
+    """A setting of a stage with no cheaper rebuild."""
+    (line,) = behind("topics", "ab12", count=lambda stage, version: {"TOPIC_PASSES": 3})
+
+    assert "make topics-discover" in line and "3 stored topic(s)" in line
+
+
+def test_nothing_is_listed_where_no_staling_setting_moved_after_the_rows() -> None:
+    """No setting that stales the stage has a change newer than a row: no line."""
+    assert behind("extraction", "ab12", count=lambda stage, version: {}) == []
 
 
 def test_a_stage_that_records_no_configuration_is_not_asked() -> None:
     """Parsing and chunking keep no version on what they write."""
 
-    def refused(stage: str, version: str) -> int:
+    def refused(stage: str, version: str) -> dict[str, int]:
         """Fails the test if it is asked."""
         raise AssertionError(f"{stage} was asked")
 

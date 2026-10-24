@@ -6,8 +6,9 @@ the service column: names are unique across the table, and a stage reads
 its own settings and the platform's.
 
 `version` names a configuration by its content, as a digest of every
-catalogued setting's resolved value. It changes when anything changes: an
-env file, a command line, a stored row, deletions included.
+catalogued setting's resolved value bar the fixed platform ones no stage's
+output depends on. It changes when one of the rest changes: an env file, a
+command line, a stored row, deletions included.
 
 Importing this reaches the database.
 """
@@ -38,12 +39,27 @@ _VERSION_CHARS = 12
 COMMAND_LINE = "QA_COMMAND_LINE"
 
 
+#: What the deployment owns and no stage's output depends on: the cap, the
+#: poll interval, the pool sizes, the addresses. Moving one changes no row a
+#: stage wrote, so it is no new configuration.
+_OUTSIDE = frozenset(
+    one.name
+    for one in catalog.SETTINGS
+    if one.fixed and one.service == "platform" and not one.invalidates
+)
+
+
 def version(source: Mapping[str, str]) -> str:
     """Names one configuration by its content: each catalogued setting in it.
 
-    Sorted before hashing, so the name does not depend on row order.
+    Sorted before hashing, so the name does not depend on row order. The
+    fixed platform settings no stage's output depends on are left out.
     """
-    named = {name: source[name] for name in sorted(catalog.BY_NAME) if name in source}
+    named = {
+        name: source[name]
+        for name in sorted(catalog.BY_NAME)
+        if name in source and name not in _OUTSIDE
+    }
     written = json.dumps(named, separators=(",", ":"))
     return hashlib.sha256(written.encode()).hexdigest()[:_VERSION_CHARS]
 

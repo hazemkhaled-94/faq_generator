@@ -1204,6 +1204,40 @@ def test_a_recap_records_the_settings_that_moved_each_verdict(store, corpus) -> 
     ]
 
 
+def test_the_facts_behind_a_setting_are_those_made_before_it_was_changed(
+    store, corpus
+) -> None:
+    """Against a real table: a stored change dates what it left behind."""
+    from settings.run import behind, stored_behind
+    from settings.store import Settings
+
+    first = corpus["a"][0]
+    store.store(first, checked(first, "One claim."), checked(first, "Two claims."))
+    store._execute("UPDATE facts SET settings_version = 'old'")
+    assert stored_behind("extraction", "new") == {}, "nothing moved yet"
+
+    Settings().change({"EXTRACTION_DIGEST_MIN_CHARS": "400"}, [])
+
+    assert stored_behind("extraction", "new") == {"EXTRACTION_DIGEST_MIN_CHARS": 2}
+    assert stored_behind("extraction", "old") == {}, "made under the current one"
+    (line,) = behind("extraction", "new")
+    assert "make extract-digests" in line and "make extract-rerun" not in line
+    assert stored_behind("topics", "new") == {}, "no topic was made"
+
+
+def test_a_fact_made_after_the_change_is_not_behind_it(store, corpus) -> None:
+    """The setting is what it was made under."""
+    from settings.run import stored_behind
+    from settings.store import Settings
+
+    Settings().change({"EXTRACTION_DIGEST_MIN_CHARS": "400"}, [])
+    first = corpus["a"][0]
+    store.store(first, checked(first, "One claim."))
+    store._execute("UPDATE facts SET settings_version = 'old'")
+
+    assert stored_behind("extraction", "new") == {}
+
+
 class TestTheEmbeddingBackfill:
     """`make extract-embed`, against the database it writes to.
 
