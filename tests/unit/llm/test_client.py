@@ -516,6 +516,7 @@ def test_a_response_the_pricing_cannot_read_costs_nothing(monkeypatch, raised) -
     assert spend(Response(Usage(prompt_tokens=10, completion_tokens=2))) == {
         "llm.tokens.input": 10,
         "llm.tokens.output": 2,
+        "llm.unpriced": True,
     }
 
 
@@ -1006,6 +1007,19 @@ def test_the_spend_parser_reads_the_line_a_failed_call_logs(
     assert re.search(pattern.replace("$$", "$"), logged(caplog, "ERROR").getMessage())
 
 
+def unpriceable(monkeypatch) -> None:
+    """Makes litellm fail to price, as it does for a model it has not heard of."""
+    from llm import tally
+
+    monkeypatch.setattr(tally, "_unpriced", set())
+
+    def unmapped(**_):
+        """Fails as litellm does for a model missing from its list."""
+        raise ValueError("This model isn't mapped yet")
+
+    monkeypatch.setattr(litellm, "completion_cost", unmapped)
+
+
 class Named(Response):
     """A response that says which model answered."""
 
@@ -1013,6 +1027,38 @@ class Named(Response):
         """Initialises the response with the model it names."""
         super().__init__(Usage(prompt_tokens=1, completion_tokens=1))
         self.model = model
+
+
+def test_a_call_litellm_cannot_price_is_logged_unpriced_and_warned_once_per_model(
+    monkeypatch, caplog
+) -> None:
+    """Absent from the cost field, and said so, so a cap is not blind to it."""
+    from llm.tally import unpriced_models
+
+    unpriceable(monkeypatch)
+
+    with caplog.at_level("WARNING"):
+        first = spend(Named("azure/my-deployment"))
+        spend(Named("azure/my-deployment"))
+        spend(Named("azure/other"))
+
+    assert first["llm.unpriced"] is True and "llm.cost_usd" not in first
+    warned = [r.getMessage() for r in caplog.records if "no price" in r.getMessage()]
+    assert len(warned) == 2
+    assert unpriced_models() == {"azure/my-deployment", "azure/other"}
+
+
+def test_a_priced_call_is_not_unpriced_and_a_self_hosted_one_is_free(
+    monkeypatch,
+) -> None:
+    """Zero is an answer: litellm prices a model of your own at nothing."""
+    from llm import tally
+
+    monkeypatch.setattr(tally, "_unpriced", set())
+    monkeypatch.setattr(litellm, "completion_cost", lambda **_: 0.0)
+
+    assert "llm.unpriced" not in spend(Named("ollama_chat/anything"))
+    assert tally.unpriced_models() == frozenset()
 
 
 def test_the_cost_of_every_answer_is_tallied_in_process(monkeypatch) -> None:

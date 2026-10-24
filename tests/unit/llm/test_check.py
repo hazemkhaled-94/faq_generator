@@ -73,6 +73,25 @@ def test_a_stage_that_will_not_load_still_leaves_the_other_models_asked(
     assert "azure/shared" in {call["model"] for call in served.calls}
 
 
+def test_a_capped_drain_refuses_a_model_litellm_cannot_price(monkeypatch) -> None:
+    """Its calls would add nothing to the tally the cap is read from."""
+    monkeypatch.setenv("SPEND_CAP", "5")
+    monkeypatch.setattr("llm.check.reachable", lambda _: None)
+    monkeypatch.setattr("llm.check.unpriced_models", lambda: frozenset({"azure/mine"}))
+
+    with pytest.raises(Unreachable, match="azure/mine"):
+        before_work(settings(model="azure/mine"))
+
+
+def test_without_a_cap_an_unpriced_model_is_asked_as_before(monkeypatch) -> None:
+    """Nothing is counted, so nothing is blind."""
+    monkeypatch.delenv("SPEND_CAP", raising=False)
+    monkeypatch.setattr("llm.check.reachable", lambda _: None)
+    monkeypatch.setattr("llm.check.unpriced_models", lambda: frozenset({"azure/mine"}))
+
+    before_work(settings(model="azure/mine"))
+
+
 @pytest.mark.parametrize("value", ["0", "-3", "lots"])
 def test_a_cap_that_is_not_a_positive_number_is_refused(monkeypatch, value) -> None:
     """A typo must not read as no cap."""

@@ -28,7 +28,8 @@ import litellm
 from pydantic import BaseModel, Field
 
 from llm.client import Client
-from llm.config import Settings
+from llm.config import Settings, spend_cap
+from llm.tally import unpriced_models
 
 log = logging.getLogger(__name__)
 
@@ -127,9 +128,23 @@ def before_work(*models: Settings) -> None:
         *models: Every model this stage calls, writer and verifier alike.
             Repeats are asked once.
 
+    A drain with SPEND_CAP set also refuses a model litellm cannot price: its
+    calls would add nothing to the tally the cap is read from, so the cap
+    would hold for the other roles and say nothing about this one. The
+    answer to the question above is priced as any other, so this is read off
+    it and not guessed from the name.
+
     Raises:
-        Unreachable: If any of them did not answer.
+        Unreachable: If any of them did not answer, or one has no price while
+            a spend cap is set.
     """
     for settings in {(m.model, m.base_url): m for m in models}.values():
         reachable(settings)
         log.info("%s answered; claiming work", settings.model)
+    if spend_cap() is not None and (unpriced := unpriced_models()):
+        raise Unreachable(
+            f"SPEND_CAP is set and litellm has no price for "
+            f"{', '.join(sorted(unpriced))} (asked as "
+            f"{', '.join(sorted({m.model for m in models}))}), so its calls "
+            "would not count towards the cap; unset SPEND_CAP or use a priced model"
+        )

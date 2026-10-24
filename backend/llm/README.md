@@ -218,7 +218,7 @@ The values are in the file named beside each, once.
 | `LLM_TEMPERATURE` | `backend.env` | How far a re-run's answers may move from the last one's |
 | `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |
 | `LLM_MAX_ATTEMPTS` | `backend.env` | Attempts per call |
-| `SPEND_CAP` | `backend.env` | The most, in USD, one drain spends, counted in process from what litellm prices each call at; see [stages](../stages/README.md#what-a-drain-exits-with) |
+| `SPEND_CAP` | `backend.env` | The most, in USD, one drain spends, counted in process from what litellm prices each call at; see [stages](../stages/README.md#what-a-drain-exits-with). A call litellm cannot price is logged `llm.unpriced`, warned once per model, and refused at a capped drain's start |
 | `LLM_NUM_CTX` | `backend.env` | The context window to ask a self-hosted runtime for. Never sent to a hosted model |
 | `LLM_REASONING_EFFORT` | `backend.env` | For a model that has the knob. Unset sends nothing, so the model keeps its own default. Not sent to a hosted model a stage names while the shared one is self-hosted, nor to a hosted model litellm knows does not reason (gpt-4.1, gpt-4o), which refuses it; so `none` for a reasoning writer serves a split whose other roles do not reason |
 | `OLLAMA_BASE_URL` | `.env` | Where a self-hosted model is served |

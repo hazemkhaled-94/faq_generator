@@ -216,6 +216,18 @@ class ModelRefused(ModelUnavailable):
     """Raised when the provider refused the prompt, or its answer, for what it says."""
 
 
+def _warn_unpriced(completion: Any) -> None:
+    """Says once per model that its calls cannot be counted towards a cap."""
+    model = str(getattr(completion, "model", None) or "an unknown model")
+    if tally.note_unpriced(model):
+        log.warning(
+            "%s has no price in litellm, so its calls add nothing to the spend "
+            "tally, and a SPEND_CAP cannot bound them",
+            model,
+            extra={"llm.model": model, "llm.unpriced": True},
+        )
+
+
 def spend(completion: Any) -> dict[str, Any]:
     """What one answer consumed, as the fields it is logged under.
 
@@ -229,6 +241,9 @@ def spend(completion: Any) -> dict[str, Any]:
     field set to it. Zero is a number a dashboard sums and reports as free;
     absent is a field it has nothing to sum, which is the truth about a model
     somebody is running on their own hardware.
+
+    A model litellm cannot price at all is not that: the call is logged with
+    `llm.unpriced`, and the model is warned about once per process.
 
     Never raises. A call that has already been paid for and answered must not
     be lost because the arithmetic about what it cost went wrong.
@@ -245,6 +260,8 @@ def spend(completion: Any) -> dict[str, Any]:
         # price list. An unpriced self-hosted model is neither: that comes
         # back as zero.
         cost = 0.0
+        fields["llm.unpriced"] = True
+        _warn_unpriced(completion)
     if cost:
         fields["llm.cost_usd"] = float(cost)
     return {name: value for name, value in fields.items() if value is not None}
@@ -255,7 +272,9 @@ def _summed(responses: list[Any]) -> dict[str, Any]:
     total: dict[str, Any] = {}
     for response in responses:
         for name, value in spend(response).items():
-            total[name] = total.get(name, 0) + value
+            total[name] = (
+                value if name == "llm.unpriced" else total.get(name, 0) + value
+            )
     tally.add(total.get("llm.cost_usd", 0.0))
     return total
 

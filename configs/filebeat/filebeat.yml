@@ -178,6 +178,8 @@ setup.template.append_fields:
     type: long
   - name: llm.cost_usd
     type: double
+  - name: llm.unpriced
+    type: boolean
   # What a stage produced, for the throughput panels.
   - name: facts.stored
     type: long
