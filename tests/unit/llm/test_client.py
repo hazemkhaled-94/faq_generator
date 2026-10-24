@@ -1004,3 +1004,24 @@ def test_the_spend_parser_reads_the_line_a_failed_call_logs(
         Client(settings(max_attempts=3)).answer(system="s", user="u", shape=_Facts)
 
     assert re.search(pattern.replace("$$", "$"), logged(caplog, "ERROR").getMessage())
+
+
+class Named(Response):
+    """A response that says which model answered."""
+
+    def __init__(self, model: str) -> None:
+        """Initialises the response with the model it names."""
+        super().__init__(Usage(prompt_tokens=1, completion_tokens=1))
+        self.model = model
+
+
+def test_the_cost_of_every_answer_is_tallied_in_process(monkeypatch) -> None:
+    """The figure a drain's cap reads, not a parse of the logs."""
+    from llm import client, tally
+
+    monkeypatch.setitem(tally._spent, "usd", 0.0)
+    monkeypatch.setattr(litellm, "completion_cost", lambda **_: 0.25)
+
+    client._summed([Named("azure/x"), Named("azure/x")])
+
+    assert tally.spent_usd() == pytest.approx(0.5)

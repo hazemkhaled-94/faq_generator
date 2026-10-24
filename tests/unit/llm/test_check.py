@@ -71,3 +71,14 @@ def test_a_stage_that_will_not_load_still_leaves_the_other_models_asked(
 
     assert main() == 1
     assert "azure/shared" in {call["model"] for call in served.calls}
+
+
+@pytest.mark.parametrize("value", ["0", "-3", "lots"])
+def test_a_cap_that_is_not_a_positive_number_is_refused(monkeypatch, value) -> None:
+    """A typo must not read as no cap."""
+    from llm.config import spend_cap
+
+    monkeypatch.setenv("SPEND_CAP", value)
+
+    with pytest.raises(ValueError, match="SPEND_CAP"):
+        spend_cap()

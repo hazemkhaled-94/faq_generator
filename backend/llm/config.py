@@ -27,6 +27,24 @@ from settings import Source, decimal, integer, optional, required
 WINDOW = 16384
 
 
+def spend_cap(source: Source = None) -> float | None:
+    """The most one process may spend on model calls, in USD, or None for no cap.
+
+    SPEND_CAP is the host runner's guarantee that a corpus run cannot cost
+    more than somebody agreed to: a drain stops before the call that would
+    pass it. Unset means no cap.
+
+    Raises:
+        ValueError: If it is set to anything but a positive number.
+    """
+    if optional("SPEND_CAP", source) is None:
+        return None
+    cap = decimal("SPEND_CAP", source)
+    if cap <= 0:
+        raise ValueError(f"SPEND_CAP={cap!r} must be above 0, or unset for no cap")
+    return cap
+
+
 def _provider(model: str) -> str:
     """The provider a litellm model id names, which is its prefix."""
     return model.split("/", 1)[0] if "/" in model else ""

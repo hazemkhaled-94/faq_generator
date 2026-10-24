@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from typing import ClassVar, NamedTuple
@@ -55,6 +55,15 @@ _DIGESTIBLE = 2
 
 #: How much of a reason the note keeps.
 _NOTE_CHARS = 500
+
+#: How many readable passages the drain looks back over for a model that
+#: answers nothing, and how many of them it takes to stop. A model that
+#: works finds claims in almost every passage it is shown, and one that
+#: answers empty finds none, so any window from 30 to 70 and any share from a
+#: third to two thirds tells them apart.
+_WINDOW = 50
+_EMPTY_STOP = _WINDOW // 2
+
 
 class _Read(NamedTuple):
     """What reading one passage produced."""
@@ -963,6 +972,8 @@ class ExtractionService(StageService):
 
     name: ClassVar[str] = "extraction"
     unit: ClassVar[str] = "passage"
+    #: Measured on the 2026-10 build: 13.11 USD and 2 h 01 min over 1,973 passages.
+    estimate: ClassVar[tuple[float, float] | None] = (0.0066, 3.7)
 
     def __init__(
         self,
@@ -1019,6 +1030,9 @@ class ExtractionService(StageService):
         # its own: the client is one connection and the batch spans
         # passages, so a passage yielding four facts costs no call.
         self._evaluations = Evaluations()
+        # Whether each of the last readable passages came back with nothing:
+        # (passage id, nothing found).
+        self._answers: deque[tuple[int, bool]] = deque(maxlen=_WINDOW)
 
     def process_next(self) -> int | None:
         """Reads one queued passage and stores what it yielded.
@@ -1043,6 +1057,8 @@ class ExtractionService(StageService):
         ) as current:
             try:
                 read = self._passage(passage, current)
+                if read.silent is not None and self._silenced(passage.id, read.silent):
+                    return passage.id
                 facts, note = read.facts, read.note
                 facts = self._capped(
                     passage,
@@ -1170,6 +1186,29 @@ class ExtractionService(StageService):
                     )
                 self._evaluations.record(*verdicts)
         self._evaluations.flush()
+
+    def _silenced(self, passage_id: int, nothing: bool) -> bool:
+        """Counts one readable passage, and stops the drain on a silent model.
+
+        One passage with nothing found is ordinary; `_EMPTY_STOP` of the last
+        `_WINDOW` is a model answering empty, which every row would call a
+        success. The drain stops, and the passages it counted as empty go
+        back to the queue with the one in hand, so none stays marked read
+        with nothing under it.
+        """
+        self._answers.append((passage_id, nothing))
+        silent = [one for one, empty in self._answers if empty]
+        if len(silent) < _EMPTY_STOP:
+            return False
+        self._answers.clear()
+        self._stop(
+            f"the model proposed nothing for {len(silent)} of the last {_WINDOW} "
+            "readable passages, so it is answering empty; they are back in the "
+            "queue. Check LLM_REASONING_EFFORT and the context window",
+            *silent,
+            passage_id,
+        )
+        return True
 
     def _passage(self, passage: PassageToExtract, current) -> _Read:
         """Reads one passage and checks everything it produced."""

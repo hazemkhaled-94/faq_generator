@@ -69,6 +69,14 @@ def test_the_shared_flags_are_always_there() -> None:
 # ── Tracing starts when the work does ──────────────────────────────────────
 
 
+class _Empty:
+    """A queue with nothing pending, for a drain that counts it before it starts."""
+
+    def counts_by_status(self, within=None) -> dict:
+        """Counts nothing."""
+        return {}
+
+
 def _queue_main(monkeypatch, *, refuse: Exception | None):
     """Runs one stage's command line, recording how telemetry was set up."""
     from stages import cli
@@ -105,7 +113,7 @@ def _queue_main(monkeypatch, *, refuse: Exception | None):
     cli.queue_main(
         name="extraction",
         module="extraction.run",
-        repository=PassageQueue,
+        repository=_Empty,
         build_service=_Service,
         argv=[],
         preflight=preflight,

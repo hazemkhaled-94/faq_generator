@@ -25,6 +25,7 @@ from tenacity import (
 )
 
 import telemetry
+from llm import tally
 from llm.config import Settings
 
 log = logging.getLogger(__name__)
@@ -255,6 +256,7 @@ def _summed(responses: list[Any]) -> dict[str, Any]:
     for response in responses:
         for name, value in spend(response).items():
             total[name] = total.get(name, 0) + value
+    tally.add(total.get("llm.cost_usd", 0.0))
     return total
 
 

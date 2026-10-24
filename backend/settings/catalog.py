@@ -1035,6 +1035,20 @@ SETTINGS: tuple[Setting, ...] = (
         "again. Read once when a worker starts.",
     ),
     Setting(
+        name="SPEND_CAP",
+        service="platform",
+        kind="decimal",
+        low=0,
+        exclusive=True,
+        optional=True,
+        fixed=True,
+        help="The most, in USD, that one drain may spend on model calls: it "
+        "stops before claiming the next row once the calls it has made, "
+        "priced by litellm, reach this. Unset means no cap. A model litellm "
+        "cannot price is refused at the start while this is set. Read when a "
+        "drain starts, and counted per process.",
+    ),
+    Setting(
         name="DATABASE_POOL_SIZE",
         service="platform",
         kind="integer",

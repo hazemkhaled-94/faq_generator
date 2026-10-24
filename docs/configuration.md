@@ -439,7 +439,7 @@ The other five are read from `configs/env/backend.env`, so where one is set
 the host and the containers call the same model for it, a hosted one included,
 and `make doctor` asks them only as the host calls them. The four language and poll settings
 (`NLP_MODELS`, `NLP_DEFAULT_LANGUAGE`, `NLP_CAPITALISED_NOUNS`,
-`WORKER_POLL_SECONDS`), the pool sizes, `API_ALLOWED_HOSTS` and the addresses,
+`WORKER_POLL_SECONDS`), `SPEND_CAP`, the pool sizes, `API_ALLOWED_HOSTS` and the addresses,
 `LLM_BASE_URL` among them, are fixed too. A settings write refuses every one
 of them.
 

@@ -16,6 +16,8 @@ from typing import Any, ClassVar
 
 from opentelemetry.trace import Span
 
+from llm.config import spend_cap
+from llm.tally import spent_usd
 from stages.queue import StageQueue
 
 log = logging.getLogger(__name__)
@@ -64,6 +66,12 @@ class StageService(ABC):
     name: ClassVar[str]
     #: What this stage counts, singular: document, passage or fit.
     unit: ClassVar[str]
+
+    #: What one row cost on the build this was measured on, in USD and in
+    #: seconds, for the estimate a drain prints before it starts. Only an
+    #: order of magnitude: it moves with the model split and the corpus. A
+    #: stage that calls no model says nothing.
+    estimate: ClassVar[tuple[float, float] | None] = None
 
     _REQUIRED = ("name", "unit")
 
@@ -137,8 +145,16 @@ class StageService(ABC):
         self.failed = 0
         self._outages = []
         self.stalled = None
+        cap = spend_cap()
         with self._beating():
             while not stopping() and self.stalled is None:
+                # Before the claim, so nothing is held when it stops.
+                if cap is not None and spent_usd() >= cap:
+                    self._stop(
+                        f"SPEND_CAP is USD {cap:.2f} and this process has spent "
+                        f"USD {spent_usd():.2f}; nothing more is claimed"
+                    )
+                    break
                 if self.process_next() is None:
                     break
                 processed += 1
@@ -146,11 +162,12 @@ class StageService(ABC):
         processed -= len(self._outages) if self.stalled else 0
         if processed or self.failed:
             log.info(
-                "%s: %d %s(s), %d failed",
+                "%s: %d %s(s), %d failed, USD %.2f spent",
                 self.name,
                 processed,
                 self.unit,
                 self.failed,
+                spent_usd(),
             )
         return processed
 

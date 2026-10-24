@@ -204,7 +204,7 @@ def test_no_flag_at_all_drains_what_is_already_queued(cli) -> None:
 def test_rerun_queues_everything_again_and_then_drains(cli) -> None:
     """Both, in that order."""
     assert cli.run("--rerun") == 0
-    assert cli.queue.calls == ["rerun"]
+    assert cli.queue.calls == ["rerun", "counts"], "then counted for the estimate"
     assert cli.service.drains == 1
 
 

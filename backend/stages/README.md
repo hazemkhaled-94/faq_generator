@@ -159,15 +159,24 @@ and a host runner act on:
 | 3 | A row failed. The drain went on past it; `--retry` returns it |
 | 75 | The drain stopped itself, with what it held back in the queue, and wants starting again |
 
-The drain stops itself, and exits 75, when the model could not be reached:
+The drain stops itself, and exits 75, in three cases:
 
-- **For five rows in a row** (`STOP_AFTER`).
+- **The model could not be reached for five rows in a row** (`STOP_AFTER`).
   The five go back to the queue, not to `failed`: the outage failed them, not
   anything about them, and a row left failed is one the next run passes over.
   A provider's refusal of a row is not an outage: it answered, and the row
   fails. One good row ends the run of five.
+- **Extraction's model answered nothing for half of the last 50 readable
+  passages.** Every such row succeeds, so no count of failures sees it. The
+  passages it counted, and the one in hand, go back to the queue.
+- **`SPEND_CAP` is reached.** The drain adds up what litellm priced each call
+  at, in its own process, and stops before claiming the row that would pass
+  it. Nothing is held then. With it set, a model litellm cannot price is
+  refused at the start, since its calls would not count.
 
-A watching worker does not exit: after a stop it waits the poll
+Before it starts, a drain prints how many rows are queued and what that is
+about to cost at the rate measured on the 2026-10 build, which moves with the
+model split. A watching worker does not exit: after a stop it waits the poll
 interval and tries again.
 
 A stage with an operation nobody else has declares it as one `Extra` and the
@@ -315,6 +324,7 @@ than having its entry written over.
 | Setting | What it does |
 |---|---|
 | `WORKER_POLL_SECONDS` | How long a watching worker sleeps between drains. Fixed: served read-only, never stored |
+| `SPEND_CAP` | The most, in USD, one drain spends on model calls. Unset: no cap. Fixed. See [What a drain exits with](#what-a-drain-exits-with) |
 
 Everything else a stage needs is the stage's own. The lease is neither
 configured nor derived: it counts missed heartbeats, and a worker that is

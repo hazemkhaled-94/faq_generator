@@ -160,3 +160,39 @@ def test_a_second_drain_starts_its_count_again() -> None:
 
     assert stage.stalled is None
     assert exit_code(stage) == 0
+
+
+def test_a_drain_stops_before_the_row_past_its_spend_cap(monkeypatch) -> None:
+    """Nothing is claimed once the tally reaches the cap, so nothing is held."""
+    from llm import tally
+
+    monkeypatch.setenv("SPEND_CAP", "1.0")
+    monkeypatch.setitem(tally._spent, "usd", 0.0)
+
+    class Costly(Stage):
+        """Every row costs forty cents."""
+
+        def process_next(self) -> Any | None:
+            """Works a row and pays for it."""
+            tally._spent["usd"] += 0.4
+            return super().process_next()
+
+    stage = Costly(Rows(10), {})
+    stage.drain()
+
+    assert stage.rows.finished == [1, 2, 3], "the third took it past 1.0"
+    assert stage.rows.released == [] and len(stage.rows.pending) == 7
+    assert "SPEND_CAP" in (stage.stalled or "")
+    assert exit_code(stage) == STOPPED
+
+
+def test_without_a_cap_the_drain_runs_to_the_end(monkeypatch) -> None:
+    """Unset means no cap."""
+    from llm import tally
+
+    monkeypatch.delenv("SPEND_CAP", raising=False)
+    monkeypatch.setitem(tally._spent, "usd", 10_000.0)
+
+    stage = Stage(Rows(4), {})
+
+    assert stage.drain() == 4

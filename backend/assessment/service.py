@@ -49,6 +49,8 @@ class AssessmentService(StageService):
 
     name: ClassVar[str] = "assessment"
     unit: ClassVar[str] = "artifact"
+    #: Measured on the 2026-10 build: 3.59 USD and 23 min over 1,862 artefacts.
+    estimate: ClassVar[tuple[float, float] | None] = (0.0019, 0.76)
 
     def __init__(
         self,

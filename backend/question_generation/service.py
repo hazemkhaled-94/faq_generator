@@ -1008,6 +1008,8 @@ class QuestionGenerationService(StageService):
 
     name: ClassVar[str] = "question_generation"
     unit: ClassVar[str] = "topic"
+    #: Measured on the 2026-10 build: 55.17 USD and 2 h 47 min (two drains) over 41 topics.
+    estimate: ClassVar[tuple[float, float] | None] = (1.35, 244.0)
 
     def __init__(
         self,

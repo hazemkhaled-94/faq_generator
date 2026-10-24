@@ -17,6 +17,7 @@ from typing import Any
 
 import telemetry
 from database.qa_generator import Status, engine
+from llm.config import spend_cap
 from settings import decimal
 from settings.runs import named_run, run_id
 from stages.queue import StageQueue, Unnarrowable
@@ -319,6 +320,7 @@ def queue_main(
     if not args.watch:
         # Built once: one drain cannot outlive a change to the settings.
         service = build_service()
+        announce(service, repository())
         service.drain()
         return exit_code(service)
 
@@ -335,6 +337,38 @@ STOPPED = 75
 
 #: What a drain exits with when a row failed.
 FAILED = 3
+
+
+def announce(service: StageService, queue: StageQueue) -> None:
+    """Says what a drain is about to take, and what that may cost.
+
+    The estimate is the stage's own, measured on one build and so only an
+    order of magnitude; with SPEND_CAP set, the line says where the drain
+    stops.
+    """
+    try:
+        queued = queue.counts_by_status().get(Status.PENDING, 0)
+    except Exception:
+        log.warning("%s: could not count the queue", service.name, exc_info=True)
+        return
+    if not queued:
+        return
+    cost = ""
+    if service.estimate is not None:
+        usd, seconds = service.estimate
+        cost = (
+            f", about USD {queued * usd:.0f} and {_for(queued * seconds)} at the "
+            f"measured USD {usd:.4f} and {seconds:.1f}s each"
+        )
+    cap = spend_cap()
+    log.info(
+        "%s: %d %s(s) queued%s%s",
+        service.name,
+        queued,
+        service.unit,
+        cost,
+        "" if cap is None else f"; stops at USD {cap:.2f}",
+    )
 
 
 def exit_code(service: StageService) -> int:
