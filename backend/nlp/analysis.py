@@ -2178,7 +2178,8 @@ def _counted(token):
     list: one noun carrying BOTH a definite determiner and a quantifier.
     `die drei Wege` is caught too and is a perfectly good question - which is
     allowed, because this measurement may only ever offer a pointer for the
-    verdict to rule on.
+    verdict to rule on. A figure with a slash in it is a period, not a count:
+    `the 2026/27 season` names its own.
     """
     definite = False
     quantified = None
@@ -2189,8 +2190,11 @@ def _counted(token):
             "Art" in morph.get("PronType", []) and "Ind" not in definiteness
         ):
             definite = True
-        if "Card" in morph.get("NumType", []) or (
-            child.pos_ == "DET" and "Ind" in morph.get("PronType", [])
+        # A figure with a slash in it, `2026/27` or `3/4`, names a period or a
+        # fraction and is not the size of a set.
+        if "/" not in child.text and (
+            "Card" in morph.get("NumType", [])
+            or (child.pos_ == "DET" and "Ind" in morph.get("PronType", []))
         ):
             quantified = child
     return quantified if definite else None

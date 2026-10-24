@@ -161,3 +161,61 @@ def test_the_subject_is_copied_off_the_parse(
 def test_a_question_naming_nothing_has_no_subject(question: str, language: str) -> None:
     """Every noun a bare word, with nothing saying whose or which."""
     assert subject(question, language) == ""
+
+
+class _Judge:
+    """A served model that answers every judgement true and records the asks."""
+
+    model = "fake/phrasing"
+
+    def __init__(self) -> None:
+        """Initialises the model with no asks."""
+        self.asked: list[tuple[str, str]] = []
+
+    def answer(self, *, system: str, user: str, shape, prompt_version=None):
+        """Records the call and answers true in the shape asked for."""
+        self.asked.append((system, user))
+        return shape(**dict.fromkeys(shape.model_fields, True))
+
+
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        (
+            "Müssen die beiden Vertragsparteien eines Kreditvertrags unterschreiben?",
+            "de",
+        ),
+        ("When are the two instalments of a payment plan due?", "en"),
+    ],
+)
+def test_a_definite_set_the_question_names_still_reaches_the_judge(
+    question: str, language: str
+) -> None:
+    """The measure over-fires by design: the judge, not the parse, rules on it."""
+    from nlp.analysis import pointing
+    from question_generation.phrasing import PhrasingJudge
+
+    pointers = pointing(question, language)
+    judge = _Judge()
+
+    PhrasingJudge(judge).self_contained(question, pointers)
+
+    assert pointers, "the parse stopped offering a counted set to the judge"
+    assert f"POINTING WORDS found in it: {', '.join(pointers)}" in judge.asked[0][1]
+
+
+def test_the_self_contained_prompt_teaches_a_set_the_question_fixes() -> None:
+    """Shop and bank, English and German; the false case stays false."""
+    from question_generation.phrasing import _CONTAINED
+
+    teaching = " ".join(_CONTAINED.split("EXAMPLES")[1].split())
+
+    for taught in (
+        "the two instalments of a payment plan",
+        "Vertragsparteien eines Kreditvertrags",
+        "the same fee for a standing order",
+        "Rückgaben im Onlineshop",
+    ):
+        assert taught in teaching, taught
+    assert teaching.count("TRUE:") >= 6
+    assert "WHICH two?" in teaching

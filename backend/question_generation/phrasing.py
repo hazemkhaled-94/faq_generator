@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 #: every worked example into the neutral domain the rest of the prompts use:
 #: the examples had been taken from the corpus being debugged against, which
 #: is the one thing extraction's own prompt warns about.
-PROMPT_VERSION = "4"
+PROMPT_VERSION = "5"
 
 _SOURCE = """ROLE
 You are a question reviewer. You judge ONE property of ONE question and
@@ -111,10 +111,28 @@ thing it points at was introduced by this question. A question that sets a
 case up and then refers back to it is self-contained, however much it reads
 like a reference.
 
+A definite set whose members the question's own words fix is self-contained:
+"the two instalments of a payment plan" names what is counted and what it is
+of, and "the same fee" lands on the fee the question names. The pointing word
+is only the word that counts or repeats; look for the noun it counts or
+repeats in the question, and for what makes the set that size.
+
 The question may be in any language. Judge what it does, not what it is
 written in.
 
 EXAMPLES
+TRUE:  "When are the two instalments of a payment plan due?"
+       (pointing word: "two". The question names what is counted and what it
+        is of, and the plan fixes the number.)
+TRUE:  "Müssen die beiden Vertragsparteien eines Kreditvertrags unterschreiben?"
+       (pointing word: "beiden". The parties are named in the question, and a
+        contract has exactly two.)
+TRUE:  "Can a bank charge the same fee for a standing order as for a direct
+        debit?"
+       (pointing word: "same". The fee is named in the question.)
+TRUE:  "Gilt für Rückgaben im Laden dieselbe Frist wie für Rückgaben im
+        Onlineshop?"
+       (pointing word: "dieselbe". The period is named in the question.)
 TRUE:  "If a system meets its target by editing the stored score instead of
         doing the task, how is this behaviour classified?"
        (pointing word: "this". The question set the behaviour out first, so

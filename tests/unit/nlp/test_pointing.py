@@ -56,7 +56,7 @@ def test_an_indefinite_article_does_not_make_a_count_definite() -> None:
 
     def child(pos: str, **features: str) -> SimpleNamespace:
         morph = {name: [value] for name, value in features.items()}
-        return SimpleNamespace(pos_=pos, morph=SimpleNamespace(get=morph.get))
+        return SimpleNamespace(text="", pos_=pos, morph=SimpleNamespace(get=morph.get))
 
     noun = SimpleNamespace(
         children=[
@@ -141,3 +141,27 @@ def test_a_participle_specified_in_the_question_points_nowhere(
 def test_an_unambiguous_compound_still_points() -> None:
     """`vorgenannt` carries the pointing in the word, where `genannt` does not."""
     assert pointing("Wie unterscheiden sich die vorgenannten Verfahren?", "de")
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("What is the fee for the 2026/27 season?", "en"),
+        ("When does the 2026/27 term start?", "en"),
+        ("Welche Gebühr gilt für die 2026/27 Saison?", "de"),
+        ("Wann beginnt das Semester 2026/27?", "de"),
+    ],
+)
+def test_a_slashed_figure_is_not_a_count(text: str, language: str) -> None:
+    """`2026/27` is a period the question names, not a set of a known size."""
+    assert pointing(text, language) == ()
+
+
+def test_a_slashed_figure_does_not_hide_a_count_beside_it() -> None:
+    """The figure is skipped, the other quantifier still counts."""
+    assert pointing("What are the two instalments of the 2026/27 plan?", "en")
+
+
+def test_a_language_no_configuration_names_points_at_nothing() -> None:
+    """Inert, not wrong: nothing is read for a language without a model."""
+    assert pointing("ステータス 2026/27 の期間は？", "ja") == ()
