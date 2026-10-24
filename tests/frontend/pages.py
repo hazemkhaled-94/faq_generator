@@ -457,6 +457,7 @@ PIPELINE: dict[str, Any] = {
     },
     "working": False,
     "failed": 1,
+    "host_runner": False,
 }
 
 

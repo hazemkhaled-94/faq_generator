@@ -56,6 +56,7 @@ from api.orchestrator import (
 from api.params import Limit
 from api.routes.stage import StageStatus, answered, status_of
 from database.qa_generator import engine
+from llm.config import host_runner
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +90,22 @@ Fanned = Literal["start", "stop", "retry"]
 
 #: Answered when `run` is asked of a deployment that has no orchestrator.
 _NO_ORCHESTRATOR = 503
+
+#: What the go-live profile says to anything that would start the orchestrated
+#: path, in the words `make all`, `make pipeline` and `make auto` use too.
+HOST_RUNNER_REFUSAL = (
+    "the go-live profile runs the model stages through make corpus-hosted"
+)
+
+
+def _not_hosted() -> None:
+    """Refuses a call that would start the orchestrated path on the go-live profile.
+
+    Raises:
+        ApiError: 409 `host_runner`, naming the command that runs the stages.
+    """
+    if host_runner():
+        raise ApiError(409, "host_runner", f"{HOST_RUNNER_REFUSAL}.")
 
 #: The advisory lock a launch holds, so two cannot both pass the check.
 _LAUNCHING = 0x5155_4E00
@@ -139,6 +156,9 @@ class Pipeline:
     #: going": `make extract` and the Start button move rows without one.
     working: bool
     failed: int
+    #: Whether this is the go-live profile, where the host runner drains the
+    #: model stages and no orchestrator runs.
+    host_runner: bool = False
 
 
 @dataclass(frozen=True)
@@ -193,6 +213,7 @@ def state() -> Pipeline:
             for one in stages
         ),
         failed=sum(one.rows.get("failed", 0) for one in stages),
+        host_runner=host_runner(),
     )
 
 
@@ -221,6 +242,7 @@ def run() -> Run:
             `no_orchestrator` if this deployment has none, or its webserver
             is not answering.
     """
+    _not_hosted()
     with engine().begin() as connection:
         # Held from the check to the launch, so a second request waits and
         # then reads the run the first one started.
@@ -240,7 +262,7 @@ def run() -> Run:
             raise ApiError(
                 409,
                 "already_running",
-                f"run {live.id} is already taking this corpus through. Stop it "
+                f"run {running[0].id} is already taking this corpus through. Stop it "
                 f"first, or wait for it.",
             )
         return _launched()
@@ -261,7 +283,7 @@ def _launched() -> Run:
         raise ApiError(_NO_ORCHESTRATOR, "orchestrator_refused", str(refusal)) from None
 
 
-@router.post("/start", status_code=202)
+@router.post("/start", status_code=202, responses={409: {"model": ErrorBody}})
 def start() -> PipelineAction:
     """Queues every row that is ready to be worked, in every stage.
 
@@ -273,7 +295,12 @@ def start() -> PipelineAction:
     Topic modelling and the assessment phase are left alone - a fit replaces
     every topic and the judge costs model calls a deployment opts into, so
     both are asked for rather than swept into a fan-out.
+
+    Raises:
+        ApiError: 409 `host_runner` on the go-live profile, where the host
+            runner starts and drains the stages together.
     """
+    _not_hosted()
     queued_as = uuid4().hex
     moved, rows = _fan("start", STARTABLE, queued_as)
     return PipelineAction(
@@ -407,7 +434,9 @@ def automation() -> Automation:
     return orchestrator.state().automation
 
 
-@router.put("/automation", responses={_NO_ORCHESTRATOR: {"model": ErrorBody}})
+@router.put(
+    "/automation", responses={409: {"model": ErrorBody}, _NO_ORCHESTRATOR: {"model": ErrorBody}}
+)
 def automate(change: AutomationChange) -> Automation:
     """Switches the two triggers on or off.
 
@@ -419,9 +448,11 @@ def automate(change: AutomationChange) -> Automation:
     Omitting either, or sending null, leaves it as it is.
 
     Raises:
-        ApiError: 503 `no_orchestrator` if there is none to switch, or
-            `orchestrator_refused` if it answered with an error.
+        ApiError: 409 `host_runner` on the go-live profile, where nothing
+            runs unattended; 503 `no_orchestrator` if there is none to
+            switch, or `orchestrator_refused` if it answered with an error.
     """
+    _not_hosted()
     try:
         return orchestrator.automate(
             on_arrival=change.on_arrival, nightly=change.nightly

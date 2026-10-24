@@ -269,3 +269,27 @@ def test_a_refused_switch_is_not_sent_again(page) -> None:
 
     assert polled.toggles()["pipeline-on-arrival"].value is False
     assert len(scripted.calls("automate")) == 1
+
+
+def test_the_go_live_profile_says_the_host_runner_is_how_to_run(page) -> None:
+    """No orchestrator runs there, and the button names what does."""
+    opened = page(
+        pipeline_api=client(
+            host_runner=True, orchestration=orchestration(available=False, running=None)
+        )
+    )
+
+    run = opened.button("Run the pipeline")
+
+    assert run.disabled is True
+    assert "make corpus-hosted" in run.help
+    assert "no orchestrator" not in run.help
+
+
+def test_without_the_host_runner_the_help_is_unchanged(page) -> None:
+    """The development profile's wording."""
+    opened = page(
+        pipeline_api=client(orchestration=orchestration(available=False, running=None))
+    )
+
+    assert "corpus-hosted" not in opened.button("Run the pipeline").help

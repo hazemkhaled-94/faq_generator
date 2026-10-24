@@ -159,7 +159,10 @@ terminal, because it starts each stage **and waits for it to drain** before
 the next, which is the whole difficulty. It and the Run button ask Dagster to
 hold that wait while the container workers drain; `make corpus` holds it in
 the shell and drains on the host, so it refuses at its first drain until
-those workers are stopped.
+those workers are stopped. On the go-live profile (`HOST_RUNNER=1`) there is no
+orchestrator: `make all`, `make pipeline` and `make auto` refuse, naming
+`make corpus-hosted`, and so do `POST /pipeline/run`, `POST /pipeline/start`
+and `PUT /pipeline/automation`, with a 409.
 
 ## The six verbs every stage answers
 

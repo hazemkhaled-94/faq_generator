@@ -208,8 +208,8 @@ x-worker: &worker
 # URL and no object store credentials - a process that cannot reach the app
 # tables cannot quietly grow a second way of moving a row.
 #
-# No profile: `compose up` starts these two like everything else. Starting
-# them starts no run on its own - the schedule and the arrivals sensor ship
+# The `orchestrated` profile, which `make up` enables except on the go-live
+# profile (HOST_RUNNER=1). Starting them starts no run on its own - the schedule and the arrivals sensor ship
 # STOPPED, so the webserver serves an asset graph and the daemon ticks only
 # the progress sensor until somebody switches one on in the UI.
 x-dagster: &dagster
@@ -221,6 +221,9 @@ x-dagster: &dagster
     context: .
     dockerfile: orchestration/Dockerfile
   restart: unless-stopped
+  # Not started by the go-live profile, which has no orchestrator: the host
+  # runner holds the wait between stages.
+  profiles: [orchestrated]
   security_opt: ["no-new-privileges:true"]
   cap_drop: [ALL]
   # backend.env for INGESTION_OPEN.
@@ -504,6 +507,10 @@ services:
       # webserver did - and the webserver already depends on the api, so
       # requiring it both ways would be a cycle compose refuses to start.
       DAGSTER_URL: ${DAGSTER_URL:-http://dagster-webserver:3000}
+      # The go-live profile, which the pipeline routes read: no orchestrator,
+      # and a queue verb for a model stage names the host runner. The api
+      # alone is told; a worker never reads it.
+      HOST_RUNNER: ${HOST_RUNNER:-0}
       # Where a person opens each service, for the System health page. Built
       # here rather than in .env because it is the PUBLISHED port that a
       # browser needs and the ports below are the only place both halves are
@@ -589,6 +596,8 @@ services:
   # Draws facts out of passages. Scalable.
   extract-worker:
     <<: *worker
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
     command: ["python", "-m", "extraction.run", "--watch"]
     # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
     stop_grace_period: 5m
@@ -596,8 +605,6 @@ services:
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
     deploy:
-    # The go-live profile leaves it stopped: the host runner drains this stage.
-    profiles: [local-models]
       resources:
         # This one DOES load EMBEDDING_MODEL, and the note above
         # question-worker saying the other workers load no weights was
@@ -612,6 +619,8 @@ services:
   # request row, and SKIP LOCKED gives it to exactly one worker.
   topic-worker:
     <<: *worker
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
     command: ["python", "-m", "topic_modelling.run", "--watch"]
     # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
     stop_grace_period: 5m
@@ -619,8 +628,6 @@ services:
     environment:
       # The model names each topic once the fit is done. The store holds the
       # figure each fit draws of itself.
-    # The go-live profile leaves it stopped: the host runner drains this stage.
-    profiles: [local-models]
       <<: [*service-env, *phoenix-env, *model-env, *store-env]
     deploy:
       resources:
@@ -657,6 +664,8 @@ services:
   # deciding between another worker and more lanes inside this one.
   question-worker:
     <<: *worker
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
     command: ["python", "-m", "question_generation.run", "--watch"]
     # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
     stop_grace_period: 5m
@@ -664,8 +673,6 @@ services:
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
     deploy:
-    # The go-live profile leaves it stopped: the host runner drains this stage.
-    profiles: [local-models]
       resources:
         limits: { cpus: "2.0", memory: 6G }
 
@@ -686,6 +693,8 @@ services:
   # stage to scale horizontally if a corpus makes it the bottleneck.
   assess-worker:
     <<: *worker
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
     command: ["python", "-m", "assessment.run", "--watch"]
     # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
     stop_grace_period: 5m
@@ -693,8 +702,6 @@ services:
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
     deploy:
-    # The go-live profile leaves it stopped: the host runner drains this stage.
-    profiles: [local-models]
       resources:
         limits: { cpus: "1.0", memory: 1G }
 

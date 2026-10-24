@@ -88,7 +88,7 @@ def _controls(client) -> None:
         type="primary",
         width="content",
         disabled=not available or running is not None,
-        help=_run_help(available, running),
+        help=_run_help(available, running, bool(state.get("host_runner"))),
     ):
         _report(client.run())
 
@@ -135,8 +135,14 @@ def _controls(client) -> None:
         _automation(client, orchestration.get("automation") or {})
 
 
-def _run_help(available: bool, running: dict | None) -> str:
+def _run_help(available: bool, running: dict | None, hosted: bool = False) -> str:
     """Why Run is offered, or why it is not."""
+    if hosted:
+        return (
+            "The go-live profile runs the model stages through `make "
+            "corpus-hosted` on the host; no orchestrator runs here. Use "
+            "Start to queue rows."
+        )
     if not available:
         return (
             "This deployment has no orchestrator, so nothing can wait for "

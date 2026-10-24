@@ -180,6 +180,11 @@ CONFIRMED = $(LOADENV) && { [ "$$CONFIRM" = "$$APP_DB_NAME" ] || \
 # workers and Dagster stay stopped, and Ollama is not called.
 GO_LIVE = case "$$(printf %s "$${HOST_RUNNER:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|yes|on) true;; *) false;; esac
 
+# Refuses, naming the host runner, on the go-live profile. The same sentence
+# the pipeline routes answer 409 with, which tests/static pins.
+NOT_GO_LIVE = $(LOADENV) && { ! $(GO_LIVE) || \
+              { echo "the go-live profile runs the model stages through make corpus-hosted" >&2; exit 1; }; }
+
 # Where a corpus run keeps what its drains spent, and where the hosted run
 # keeps its pid and its log.
 CORPUS_LEDGER = logs/corpus-spend.usd
@@ -2149,7 +2154,9 @@ dagster-dev:
 # The whole of it: bring the stack up, wait until Dagster lists the corpus
 # job, giving up after 30 tries, then run `pipeline`. The container workers
 # drain each stage; `corpus` is the host drain.
-all: up
+all:
+	@$(NOT_GO_LIVE)
+	$(MAKE) up
 	@for attempt in $$(seq 30); do \
 	  $(call DAGSTER,job list) | grep -q "Job: corpus" && break; \
 	  if [ $$attempt -eq 30 ]; then echo "Dagster did not list the corpus job" >&2; exit 1; fi; \
@@ -2341,6 +2348,7 @@ runs:
 # containers' model; it is recorded as a run, with a materialisation and a
 # check per stage, and it survives this terminal closing.
 pipeline:
+	@$(NOT_GO_LIVE)
 	@out=$$($(call DAGSTER,job launch -j corpus)) || { printf '%s\n' "$$out" >&2; exit 1; }
 	@$(LOADENV) && echo "Launched. Follow it at http://localhost:$$DAGSTER_WEBSERVER_PORT or with make runs and make pipeline-status; make questions-balance draws the release once it ends."
 
@@ -2351,6 +2359,7 @@ pipeline:
 # because a pipeline that starts the moment the stack comes up is one
 # nobody chose.
 auto:
+	@$(NOT_GO_LIVE)
 	@out=$$($(call DAGSTER,sensor start arrivals)); \
 	  printf '%s\n' "$$out" | grep -E "sensor arrivals|Error"; \
 	  case "$$out" in *Error*) exit 1;; *"sensor arrivals"*) ;; *) exit 1;; esac
