@@ -75,14 +75,6 @@ def test_qa_qg_1_the_same_wrong_amount_with_a_thousands_mark_is_refused() -> Non
 # ── QA-qg-4: a currency word carrying a suffix ─────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "QA-questions-4, its fix withdrawn after three reviews (see docs/bugs.md): "
-        "a space-grouped run beside a marked currency word ('Euro/Kunde', "
-        "'Euro*', '5 000,- EUR') is still read as two figures"
-    ),
-)
 @pytest.mark.parametrize(
     "text",
     [
@@ -98,14 +90,6 @@ def test_qa_qg_4_a_space_grouped_amount_beside_a_marked_currency_is_one_figure(
     assert len(figures(text, "de")) == 1, figures(text, "de")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "QA-questions-4, its fix withdrawn after three reviews (see docs/bugs.md): "
-        "a right total over amounts written '100 000 Euro/Kunde' is still refused "
-        "by adds_up as a wrong sum, without a model call"
-    ),
-)
 def test_qa_qg_4_a_right_total_over_marked_amounts_is_not_refused() -> None:
     """The same passages with `je Kunde` add up; with `/Kunde` they must too."""
     assert (
@@ -119,3 +103,25 @@ def test_qa_qg_4_a_right_total_over_marked_amounts_is_not_refused() -> None:
         )
         is not False
     )
+
+
+# ── C-052: the cases that defeated the earlier fixes, and a shop price list ──
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "expected"),
+    [
+        ("Der Kredit beträgt 5.000,-EUR.", "de", [5000.0]),
+        ("Der Kredit beträgt 5 000,-EUR.", "de", [5000.0]),
+        ("Es gibt 3 500-Euro-Scheine.", "de", [3.0, 500.0]),
+        ("Deposits are protected up to EUR 100 000 per customer.", "en", [100000.0]),
+        ("Das Konto kostet 12 500 € im Jahr.", "de", [12500.0]),
+        ("The cart totals 12 500 USD before tax.", "en", [12500.0]),
+        ("Call 030 123 456 for the shop.", "en", [30.0, 123.0, 456.0]),
+    ],
+)
+def test_c052_one_amount_reader_folds_marks_and_keeps_counts_apart(
+    text, language, expected
+) -> None:
+    """An amount beside a currency is one figure whatever mark follows; a count of notes or a phone number is not."""
+    assert figures(text, language) == expected

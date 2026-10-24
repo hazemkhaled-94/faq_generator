@@ -894,7 +894,9 @@ REFERENCE_LABELS: dict[str, frozenset[str]] = {
 
 #: A head of one to three digits and one group of exactly three, alone: not
 #: part of a longer run of groups, as a table row is.
-_SPACED = re.compile(r"(?<![\w.,])(?<!\d )\d{1,3} \d{3}(?:[.,]\d+)?(?![\w])(?! \d)")
+_SPACED = re.compile(
+    r"(?<![\w.,])(?<!\d[ \u00a0\u202f])\d{1,3}[ \u00a0\u202f]\d{3}(?:[.,]\d+)?(?![\w])(?![ \u00a0\u202f]\d)"
+)
 
 
 def _beside(found: re.Match[str] | None, keep_case: bool = False) -> str:
@@ -903,6 +905,13 @@ def _beside(found: re.Match[str] | None, keep_case: bool = False) -> str:
         return ""
     word = found[1].strip(".,;:()")
     return word if keep_case else word.casefold()
+
+
+#: The word that follows an amount: its letters only, so `Euro/Kunde` and
+#: `Euro*` are `Euro`, after an optional price dash (`5 000,- EUR`) which only
+#: a decimal mark may open: `500-Euro-Scheine` is a hyphen-joined noun, not an
+#: amount.
+_CURRENCY_AFTER = re.compile(r"\s?(?:[.,][-–—]+\s?)?([^\W\d_]+|[€$£])")
 
 
 def _amount(text: str, start: int, end: int, language: str | None) -> bool:
@@ -918,7 +927,7 @@ def _amount(text: str, start: int, end: int, language: str | None) -> bool:
         is_currency(word, language)
         for word in (
             _beside(re.search(r"(\S+)\s?$", text[:start]), keep_case=True),
-            _beside(re.match(r"\s?(\S+)", text[end:]), keep_case=True),
+            _beside(_CURRENCY_AFTER.match(text[end:]), keep_case=True),
         )
     )
 
@@ -952,9 +961,9 @@ def figures(text: str, language: str | None = None) -> list[float]:
     found: list[float] = []
     for match in FIGURE.finditer(text):
         raw = match.group()
-        if " " in raw:
+        if any(char.isspace() for char in raw):
             if _amount(text, match.start(), match.end(), language):
-                raw = raw.replace(" ", "")
+                raw = "".join(raw.split())
             else:
                 found += [
                     one for part in raw.split() for one in figures(part, language)
