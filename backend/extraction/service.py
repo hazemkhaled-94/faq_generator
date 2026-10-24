@@ -50,7 +50,9 @@ _VALIDATED = "validated"
 #: How many re-judged facts to write at once.
 _REJUDGE_BATCH = 500
 
-#: How many claims a passage must carry before a digest is asked for.
+#: How many claims, counting each list item as one, a passage must carry
+#: before a digest is asked for. A list is read as one sentence, so counting
+#: its sentences alone leaves a long list with no digest.
 _DIGESTIBLE = 2
 
 #: How much of a reason the note keeps.
@@ -1519,7 +1521,7 @@ class ExtractionService(StageService):
         Raises:
             ExtractionFailed: If the model could not give the digest.
         """
-        if self._digest is None or passage.claims < _DIGESTIBLE:
+        if self._digest is None or passage.claims + passage.items < _DIGESTIBLE:
             return []
         if len(normalised(passage.text)) < self._digest_min_chars:
             return []

@@ -116,7 +116,8 @@ that carry a finite verb.
 
 One call produces both the `summary` and the `outline`, so naming both in
 `EXTRACTION_KINDS` costs no more than naming one. A passage carrying fewer
-than two claims is not digested.
+than two claims, each list item counting as one, is not digested: a list is read
+as one sentence, so its items are what it states.
 
 `EXTRACTION_DIGEST_MODEL` names a model of its own; unset it uses whichever
 model reads the passage.

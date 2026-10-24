@@ -92,6 +92,59 @@ def test_a_passage_carrying_one_claim_is_not_digested() -> None:
     assert run.digest_model.calls == 0, "the passage carries one claim"
 
 
+@pytest.mark.parametrize(
+    ("language", "text"),
+    [
+        (
+            "en",
+            "The shop offers these delivery options for parcels:\n"
+            + "\n".join(
+                f"- Service {n}, delivery within {n} working days" for n in range(1, 9)
+            ),
+        ),
+        (
+            "de",
+            "Der Shop bietet folgende Lieferoptionen für Pakete an:\n"
+            + "\n".join(
+                f"- Dienst {n}, Lieferung innerhalb von {n} Werktagen"
+                for n in range(1, 9)
+            ),
+        ),
+        (
+            "en",
+            "Delivery options at the bank counter are listed here:\n"
+            + "\n".join(
+                f"- Branch {n}, collection after {n} days" for n in range(1, 9)
+            ),
+        ),
+    ],
+)
+def test_a_list_passage_with_one_claim_and_many_items_is_digested(
+    language, text
+) -> None:
+    """The floor counts the claims and the list items: a list is one sentence."""
+    read = passage(text, language=language)
+    assert read.claims <= 1 < read.items, (read.claims, read.items)
+
+    run = Extraction(read, facts=ATOMIC, digest=DIGEST, kinds=BOTH)
+    run.next()
+
+    assert run.digest_model.calls == 1
+
+
+def test_a_long_single_sentence_with_no_items_is_not_digested() -> None:
+    """One claim and no list items is as short as its own summary."""
+    run = Extraction(
+        passage("The device weighs 4 kg " + "and is built of aluminium " * 40 + "."),
+        facts=ATOMIC,
+        digest=DIGEST,
+        kinds=BOTH,
+    )
+    run.next()
+
+    assert run.digest_model.calls == 0
+
+
 def test_a_model_that_will_not_answer_fails_the_passage() -> None:
     """The row carries the reason rather than being left in progress."""
     run = Extraction(passage(), facts=ModelUnavailable("Timeout: took too long"))
