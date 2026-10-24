@@ -541,6 +541,8 @@ services:
   parse-worker:
     <<: *worker
     command: ["python", "-m", "preprocessing.parsing.run", "--watch"]
+    # One row is a document's parse: minutes. stages.worker.GRACE_SECONDS + 30s.
+    stop_grace_period: 2m
     environment:
       <<: [*service-env, *phoenix-env, *store-env]
       # Docling's weights are read from the `models` volume, never fetched.
@@ -557,6 +559,8 @@ services:
   chunk-worker:
     <<: *worker
     command: ["python", "-m", "preprocessing.chunking.run", "--watch"]
+    # One row is a document's chunking. stages.worker.GRACE_SECONDS + 30s.
+    stop_grace_period: 2m
     environment:
       <<: [*service-env, *phoenix-env, *store-env]
     deploy:
@@ -569,6 +573,8 @@ services:
   extract-worker:
     <<: *worker
     command: ["python", "-m", "extraction.run", "--watch"]
+    # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
+    stop_grace_period: 5m
     env_file: *model-env-files
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
@@ -588,6 +594,8 @@ services:
   topic-worker:
     <<: *worker
     command: ["python", "-m", "topic_modelling.run", "--watch"]
+    # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
+    stop_grace_period: 5m
     env_file: *model-env-files
     environment:
       # The model names each topic once the fit is done. The store holds the
@@ -629,6 +637,8 @@ services:
   question-worker:
     <<: *worker
     command: ["python", "-m", "question_generation.run", "--watch"]
+    # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
+    stop_grace_period: 5m
     env_file: *model-env-files
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
@@ -654,6 +664,8 @@ services:
   assess-worker:
     <<: *worker
     command: ["python", "-m", "assessment.run", "--watch"]
+    # A row calls a model many times, so it is given back, not waited for: stages.worker.DEFAULT_GRACE_SECONDS + 30s.
+    stop_grace_period: 5m
     env_file: *model-env-files
     environment:
       <<: [*service-env, *phoenix-env, *model-env]

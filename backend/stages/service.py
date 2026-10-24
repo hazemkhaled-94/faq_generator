@@ -183,6 +183,14 @@ class StageService(ABC):
         self.stalled = reason
         log.error("%s: %s", self.name, reason)
 
+    def give_back(self) -> bool:
+        """Returns the row this stage holds to the queue, unworked.
+
+        What a worker does when it is told to stop and cannot wait for the
+        row to finish. Whether it held one.
+        """
+        return self._repository.release_held()
+
     def _gone(self, key: Any) -> None:
         """Takes a row that no longer exists out of the count of failures.
 

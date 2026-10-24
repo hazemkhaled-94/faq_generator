@@ -272,9 +272,19 @@ for a Phoenix wiped while the rows stayed.
 `WORKER_POLL_SECONDS`, drain again. A poll rather than `LISTEN`/`NOTIFY` — at
 this interval an idle worker costs one cheap query every few seconds.
 
-`SIGTERM` and `SIGINT` are caught: the worker **finishes the item it holds**
-and then stops. The wait between polls is an `Event`, so a worker asleep
-wakes at once instead of serving out its interval.
+`SIGTERM` and `SIGINT` are caught: the worker **stops claiming and finishes
+the item it holds**, and then stops. The wait between polls is an `Event`, so
+a worker asleep wakes at once instead of serving out its interval.
+
+It does not wait for ever. A **second signal**, or the stage's grace after the
+first (`GRACE_SECONDS`: 90 s for parsing and chunking, 270 s for the stages
+that call a model), makes it return the row it holds to the queue as pending,
+through the same `release` a stalled drain uses, and exit 75. A row a model
+worker holds can take many calls and minutes, which a supervisor will not
+wait for; killed holding it, the row sat `in_progress` until the next start
+failed it, and nothing retried a failed row. `compose.yaml` gives each worker
+a `stop_grace_period` above its grace by `RELEASE_MARGIN` (30 s), and a test
+holds the two together. A worker killed regardless is still swept by the lease.
 
 A watching worker rebuilds its service when the settings change. The check
 sits between drains, where nothing is claimed. Before it builds again it runs

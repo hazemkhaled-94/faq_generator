@@ -116,3 +116,150 @@ def test_a_draining_worker_claims_once_before_an_empty_queue_ends_it() -> None:
 
     assert running.drain() == 0
     assert running._repository.claims == 1, "a draining worker never claimed"
+
+
+# ── A worker told to stop before its row is done ───────────────────────────
+
+
+class _Leaving:
+    """A shutdown whose exit and give-back are recorded rather than done."""
+
+    def __init__(self, grace: float = 60.0) -> None:
+        """Initialises it, with a held row to give back."""
+        self.events: list[object] = []
+        self.shutdown = Shutdown(
+            grace,
+            give_back=lambda: self.events.append("given back"),
+            leave=lambda code: self.events.append(("left", code)),
+        )
+
+    def wait(self) -> None:
+        """Waits for the thread that gives the row back to finish."""
+        import time
+
+        for _ in range(200):
+            if ("left", 75) in self.events:
+                return
+            time.sleep(0.01)
+
+
+def test_one_signal_lets_the_row_finish_and_gives_nothing_back() -> None:
+    """The first signal stops the claiming and leaves the row alone."""
+    leaving = _Leaving()
+
+    leaving.shutdown._request(signal.SIGTERM, None)
+
+    assert leaving.shutdown.requested()
+    assert leaving.events == []
+    leaving.shutdown.done()
+
+
+def test_a_second_signal_gives_the_held_row_back_and_leaves() -> None:
+    """Nobody is waiting any longer: the row goes back to pending."""
+    leaving = _Leaving()
+
+    leaving.shutdown._request(signal.SIGTERM, None)
+    leaving.shutdown._request(signal.SIGTERM, None)
+    leaving.wait()
+
+    assert leaving.events == ["given back", ("left", 75)]
+    leaving.shutdown.done()
+
+
+def test_the_grace_running_out_gives_the_row_back_and_leaves() -> None:
+    """The supervisor stops waiting at its deadline; the worker is before it."""
+    leaving = _Leaving(grace=0.05)
+
+    leaving.shutdown._request(signal.SIGTERM, None)
+    leaving.wait()
+
+    assert leaving.events == ["given back", ("left", 75)]
+
+
+def test_a_worker_that_finishes_in_time_never_gives_anything_back() -> None:
+    """The clock stops with the loop."""
+    leaving = _Leaving(grace=0.05)
+
+    leaving.shutdown._request(signal.SIGTERM, None)
+    leaving.shutdown.done()
+    import time
+
+    time.sleep(0.2)
+
+    assert leaving.events == []
+
+
+def test_a_row_that_cannot_be_given_back_is_left_to_its_lease() -> None:
+    """The worker still leaves, and says so."""
+    events: list[object] = []
+
+    def refuse() -> None:
+        """Fails as a release does when another worker has the row."""
+        raise RuntimeError("claimed by another worker")
+
+    shutdown = Shutdown(60.0, refuse, lambda code: events.append(code))
+    shutdown._request(signal.SIGTERM, None)
+    shutdown._request(signal.SIGTERM, None)
+    import time
+
+    for _ in range(200):
+        if events:
+            break
+        time.sleep(0.01)
+
+    assert events == [75]
+    shutdown.done()
+
+
+def test_the_service_gives_back_the_row_its_queue_holds() -> None:
+    """Through the queue's own release, the one a stalled drain uses."""
+
+    class Holding(_Repository):
+        """A queue holding one row."""
+
+        def release_held(self) -> bool:
+            """Gives the row back."""
+            self.released = True
+            return True
+
+    queue = Holding()
+    service = _Service(queue)
+
+    assert service.give_back() is True
+    assert queue.released is True
+
+
+def test_a_worker_stage_gets_a_grace_its_container_outlasts() -> None:
+    """compose.yaml's stop_grace_period is above the grace plus the release margin."""
+    import re
+    from pathlib import Path
+
+    import yaml
+
+    from stages.worker import DEFAULT_GRACE_SECONDS, GRACE_SECONDS, RELEASE_MARGIN
+
+    stages = {
+        "parse-worker": "parsing",
+        "chunk-worker": "chunking",
+        "extract-worker": "extraction",
+        "topic-worker": "topic_modelling",
+        "question-worker": "questions",
+        "assess-worker": "assessment",
+    }
+    compose = yaml.safe_load(
+        (Path(__file__).resolve().parents[3] / "compose.yaml").read_text()
+    )
+    workers = {
+        name
+        for name, service in compose["services"].items()
+        if "--watch" in service.get("command", [])
+    }
+    assert workers == set(stages), "a worker with no stage to size it from"
+    for name, stage in stages.items():
+        given = compose["services"][name]["stop_grace_period"]
+        seconds = sum(
+            int(number) * {"s": 1, "m": 60, "h": 3600}[unit]
+            for number, unit in re.findall(r"(\d+)([smh])", given)
+        )
+        need = GRACE_SECONDS.get(stage, DEFAULT_GRACE_SECONDS) + RELEASE_MARGIN
+        assert seconds >= need, f"{name}: {given} is under {need:.0f}s"

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import telemetry
 from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
@@ -19,7 +20,7 @@ from settings import decimal
 from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages import watch
-from stages.cli import _ready, exit_code, parser, reloading
+from stages.cli import _ready, exit_code, give_back, parser, reloading
 from stages.prompts import record
 from topic_modelling import prompts
 from topic_modelling.config import Settings
@@ -156,7 +157,12 @@ def main(argv: list[str] | None = None) -> int:
         service.drain()
         return exit_code(service)
 
-    watch(reloading("topic_modelling", build), decimal("WORKER_POLL_SECONDS"))
+    serving: dict[str, Any] = {}
+    watch(
+        reloading("topic_modelling", build, held=serving),
+        decimal("WORKER_POLL_SECONDS"),
+        give_back(serving),
+    )
     return 0
 
 

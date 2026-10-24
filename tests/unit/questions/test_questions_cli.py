@@ -149,7 +149,7 @@ class Driver:
         monkeypatch.setattr(cli, "engine", lambda: None)
         monkeypatch.setattr(module, "engine", lambda: None)
         monkeypatch.setattr(
-            cli, "watch", lambda _, seconds: self.watched.append(seconds)
+            cli, "watch", lambda _, seconds, *__: self.watched.append(seconds)
         )
         self._main = module.main
 

@@ -582,7 +582,7 @@ class CommandDriver:
         monkeypatch.setattr(module.telemetry, "trace_engine", lambda *_: None)
         monkeypatch.setattr(module, "engine", lambda: None)
         monkeypatch.setattr(
-            module, "watch", lambda _, seconds: driver.watched.append(seconds)
+            module, "watch", lambda _, seconds, *__: driver.watched.append(seconds)
         )
         self._main = module.main
 

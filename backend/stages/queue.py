@@ -325,6 +325,26 @@ class StageQueue(Repository):
         for key in keys:
             self._release(key, self._unclaimed())
 
+    def release_held(self) -> bool:
+        """Returns the row this instance holds to the queue, if it holds one.
+
+        For a worker told to stop before its row was done. Not the failure
+        `abandon` would make of it at the next start: nothing was wrong with
+        the row.
+
+        Returns:
+            Whether a row was held.
+
+        Raises:
+            Lost: If another worker has claimed the row since this one did.
+        """
+        with self._lock:
+            held = self._held
+        if held is None:
+            return False
+        self.release(held[0])
+        return True
+
     def touch(self) -> bool:
         """Refreshes the claim on the row this instance is working.
 

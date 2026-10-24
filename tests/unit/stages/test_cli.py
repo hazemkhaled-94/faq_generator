@@ -350,7 +350,7 @@ def test_a_rebuilt_worker_claims_nothing_until_its_new_models_answer(
     monkeypatch.setattr(cli.telemetry, "trace_engine", lambda engine: None)
     monkeypatch.setattr(cli, "engine", lambda: None)
     watched: list = []
-    monkeypatch.setattr(cli, "watch", lambda drain, seconds: watched.append(drain))
+    monkeypatch.setattr(cli, "watch", lambda drain, seconds, *_: watched.append(drain))
 
     happened: list[str] = []
     refusals = {"left": 0}
@@ -470,7 +470,7 @@ def test_a_rebuilt_worker_records_its_prompts_again(monkeypatch) -> None:
     monkeypatch.setattr(cli.telemetry, "trace_engine", lambda engine: None)
     monkeypatch.setattr(cli, "engine", lambda: None)
     watched: list = []
-    monkeypatch.setattr(cli, "watch", lambda drain, seconds: watched.append(drain))
+    monkeypatch.setattr(cli, "watch", lambda drain, seconds, *_: watched.append(drain))
     recorded: list[str] = []
 
     class _Service:

@@ -22,7 +22,7 @@ from settings import decimal
 from settings.runs import named_run, run_id
 from stages.queue import StageQueue, Unnarrowable
 from stages.service import StageService
-from stages.worker import watch
+from stages.worker import DEFAULT_GRACE_SECONDS, GRACE_SECONDS, watch
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +98,7 @@ def reloading(
     build_service: Callable[[], StageService],
     preflight: Callable[[], None] | None = None,
     prompts: Callable[[], int] | None = None,
+    held: dict[str, Any] | None = None,
 ) -> Callable[[Callable[[], bool]], int]:
     """Wraps a drain so it rebuilds the service when the settings change.
 
@@ -125,7 +126,8 @@ def reloading(
     """
     from settings.store import current
 
-    held: dict[str, Any] = {}
+    # The caller's, when it wants to reach the service that holds a row.
+    held = {} if held is None else held
 
     def drain(stopping: Callable[[], bool]) -> int:
         """Drains the queue, on a service built from the current settings."""
@@ -324,9 +326,12 @@ def queue_main(
         service.drain()
         return exit_code(service)
 
+    serving: dict[str, Any] = {}
     watch(
-        reloading(name, build_service, preflight, prompts),
+        reloading(name, build_service, preflight, prompts, serving),
         decimal("WORKER_POLL_SECONDS"),
+        give_back(serving),
+        GRACE_SECONDS.get(name, DEFAULT_GRACE_SECONDS),
     )
     return 0
 
@@ -369,6 +374,17 @@ def announce(service: StageService, queue: StageQueue) -> None:
         cost,
         "" if cap is None else f"; stops at USD {cap:.2f}",
     )
+
+
+def give_back(serving: dict[str, Any]) -> Callable[[], object]:
+    """What a worker cut short calls to return the row its service holds."""
+
+    def called() -> object:
+        """Returns the held row, if there is a service and it holds one."""
+        service = serving.get("service")
+        return service.give_back() if service is not None else False
+
+    return called
 
 
 def exit_code(service: StageService) -> int:
