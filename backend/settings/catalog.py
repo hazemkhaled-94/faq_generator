@@ -894,9 +894,10 @@ SETTINGS: tuple[Setting, ...] = (
         low=1,
         help="How many times one call is tried before the row fails, and so "
         "the most calls one answer is billed for. A connection failure, a "
-        "timeout, a server error, a rate limit or an answer that does not fit "
-        "the shape asked for is retried; a rate limit waits as long as the "
-        "provider asks, two minutes at most.",
+        "timeout, a server error or an answer that does not fit the shape asked "
+        "for is retried. A rate limit is not an attempt: it waits as long as "
+        "the provider asks, two minutes at most, for ten minutes in all per "
+        "call.",
     ),
     Setting(
         name="LLM_NUM_CTX",

@@ -20,7 +20,6 @@ from tenacity import (
     RetryCallState,
     retry,
     retry_if_exception,
-    stop_after_attempt,
     wait_exponential,
 )
 
@@ -97,6 +96,43 @@ _BACKOFF = wait_exponential(multiplier=1, min=1, max=10)
 #: The longest a Retry-After is waited, in seconds. A provider may ask for
 #: an hour, and a worker waiting it holds its row that long every attempt.
 _LONGEST_WAIT = 120.0
+
+
+#: The most one call waits out rate limits in all, in seconds, however many
+#: it meets. A 429 is the provider saying when to come back, not the call
+#: failing, so it does not use up `LLM_MAX_ATTEMPTS`; what bounds it is this,
+#: after which the call fails as any other that ran out of attempts. Ten
+#: minutes is five of the longest wait `_LONGEST_WAIT` allows.
+_RATE_LIMIT_PATIENCE = 600.0
+
+
+def _rate_limited(failure: BaseException) -> bool:
+    """Whether the provider said to slow down, wherever it is behind the failure."""
+    return any(
+        isinstance(cause, litellm.exceptions.RateLimitError)
+        for cause in _causes(failure)
+    )
+
+
+def _patience(attempts: int) -> Callable[[RetryCallState], bool]:
+    """When to stop retrying: `attempts` real failures, or too long rate-limited.
+
+    A rate limit is waited out and not counted, so drains sharing one quota
+    that meet it together do not fail rows three rounds in: they wait their
+    Retry-After and ask again, up to `_RATE_LIMIT_PATIENCE`.
+    """
+
+    def stop(state: RetryCallState) -> bool:
+        """Whether the failure just seen was the last this call may have."""
+        failure = state.outcome.exception() if state.outcome else None
+        if failure is not None and _rate_limited(failure):
+            return state.idle_for >= _RATE_LIMIT_PATIENCE
+        # Per call: tenacity resets the statistics as each call begins.
+        statistics = state.retry_object.statistics
+        statistics["failures"] = statistics.get("failures", 0) + 1
+        return statistics["failures"] >= attempts
+
+    return stop
 
 
 def _waited(state: RetryCallState) -> float:
@@ -350,7 +386,7 @@ class Client:
         # schema costs the backoff on every call and buries the real error.
         self._attempt = retry(
             retry=retry_if_exception(_retryable),
-            stop=stop_after_attempt(settings.max_attempts),
+            stop=_patience(settings.max_attempts),
             wait=_waited,
             reraise=True,
         )(self._ask)

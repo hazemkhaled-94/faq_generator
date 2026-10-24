@@ -143,6 +143,16 @@ export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 podman compose up -d --scale extract-worker=4
 ```
 
+**How many drains one database takes is bounded by the provider's quota, not
+by the database.** On the Azure quota this build ran on, two drains of the
+model stages ran side by side without a failed row, and six lost 3 of 10 topics
+to rate limits. A drain waits out a rate limit (`Retry-After`, two minutes at
+most, ten minutes in all per call) without using up `LLM_MAX_ATTEMPTS`, and
+five rows in a row that the model could not be reached for stop it with exit
+75 and the rows back in the queue, so too many drains cost time and not rows.
+Run at most two model drains against one database on that quota, and measure
+before raising it.
+
 `question-worker` scales the same way but has less to divide: its queue is
 one row per topic. `topic-worker` can be scaled and there is no point — a fit
 is one request row.

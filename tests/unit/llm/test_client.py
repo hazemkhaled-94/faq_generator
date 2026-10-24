@@ -799,6 +799,65 @@ def reply(
 #: An answer in the shape asked for.
 FINE = '{"value": "answered"}'
 
+
+def timed_out() -> Exception:
+    """A failure that does use up an attempt."""
+    return transient()
+
+
+def test_a_rate_limit_does_not_use_up_an_attempt(monkeypatch) -> None:
+    """Four 429s and an answer, with three attempts allowed: the answer comes."""
+    limited = rate_limited(after="5")
+    served = provider(monkeypatch, limited, limited, limited, limited, reply(FINE))
+
+    answer = Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert answer.value == "answered"
+    assert len(served.calls) == 5
+    assert served.waits == [5.0] * 4
+
+
+def test_the_attempts_other_failures_use_are_still_counted_beside_a_rate_limit(
+    monkeypatch,
+) -> None:
+    """Three real failures end the call, whatever number of 429s came between."""
+    limited = rate_limited(after="1")
+    bad = timed_out()
+    served = provider(
+        monkeypatch, limited, bad, limited, bad, limited, bad, reply(FINE)
+    )
+
+    with pytest.raises(ModelUnavailable):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert len(served.calls) == 6, "3 timeouts and the 429s between them"
+
+
+def test_rate_limits_beyond_the_patience_fail_the_call(monkeypatch) -> None:
+    """A quota that stays exhausted ends the call, as running out of attempts does."""
+    from llm.client import _RATE_LIMIT_PATIENCE
+
+    served = provider(monkeypatch, rate_limited(after="120"))
+
+    with pytest.raises(ModelUnavailable, match="RateLimitError"):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert sum(served.waits) == _RATE_LIMIT_PATIENCE
+    assert len(served.calls) == int(_RATE_LIMIT_PATIENCE / 120) + 1
+
+
+def test_a_failure_that_is_not_a_rate_limit_still_ends_the_call_at_the_attempts(
+    monkeypatch,
+) -> None:
+    """The rule for everything else is as it was."""
+    served = provider(monkeypatch, timed_out())
+
+    with pytest.raises(ModelUnavailable):
+        Client(settings(max_attempts=3)).answer(system="s", user="u", shape=Shape)
+
+    assert len(served.calls) == 3
+
+
 #: What litellm is made to price every response at.
 PRICE = 0.0028
 

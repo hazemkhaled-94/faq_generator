@@ -27,10 +27,11 @@ answer in is an error at the first call.
 
 Retried here and nowhere else, up to `LLM_MAX_ATTEMPTS` attempts: a
 connection error, a timeout, an internal server error, a
-service-unavailable, a rate limit, and an answer that would not validate.
+service-unavailable and an answer that would not validate. A rate limit is
+retried too, but is not an attempt: see below.
 litellm, the provider's SDK and instructor are asked for no retries of their
 own, so an attempt is one billed call and `LLM_MAX_ATTEMPTS` is every call an
-answer may cost. An authentication failure, an unknown model or a malformed
+answer may cost, a rate limit aside. An authentication failure, an unknown model or a malformed
 schema is raised at once.
 
 **A filtered answer is a refusal.** A prompt the provider's content policy
@@ -39,9 +40,14 @@ are asked once and raised as `ModelRefused`: the same prompt is filtered
 again.
 
 **A rate limit waits as long as its `Retry-After` asks, two minutes at
-most.** A hosted provider answers 429 with a `Retry-After` of twenty to sixty
-seconds, and it is read off the 429 inside instructor's wrapping; every other
-failure, and a 429 that names no seconds, backs off exponentially.
+most, and does not use up an attempt.** A hosted provider answers 429 with a
+`Retry-After` of twenty to sixty seconds, and it is read off the 429 inside
+instructor's wrapping; every other failure, and a 429 that names no seconds,
+backs off exponentially. A 429 is the provider saying when to come back, so
+drains that share one quota and meet it together wait it out instead of
+failing their rows three rounds in. What bounds it is `_RATE_LIMIT_PATIENCE`,
+ten minutes of waiting in all for one call, after which the call fails as one
+out of attempts does.
 
 ### What a stage may override
 
@@ -245,9 +251,10 @@ model is asked anything — see [`evaluation/`](../../evaluation/README.md).
 
 ## Limits
 
-- **A rate limit spends an attempt.** It waits as long as its `Retry-After`
-  asks, two minutes at most, and counts against `LLM_MAX_ATTEMPTS` like any
-  other failure.
+- **A quota that stays exhausted holds a row for ten minutes.** A rate limit
+  is waited out up to `_RATE_LIMIT_PATIENCE` per call and counts against no
+  attempt, so a drain on a quota that is gone sits in its call that long
+  before the row fails, and five such rows in a row stop the drain.
 - **The lowest `LLM_TEMPERATURE` is not a guarantee of determinism.** A model's
   answers still move between versions and quantisations, which is why
   `tests/eval/` never gates.
