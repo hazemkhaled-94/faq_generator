@@ -221,6 +221,7 @@ def queue_main(
     extra: dict[str, Extra] | None = None,
     preflight: Callable[[], None] | None = None,
     prompts: Callable[[], int] | None = None,
+    report: Callable[[], str] | None = None,
 ) -> int:
     """Runs one stage's command line.
 
@@ -231,6 +232,8 @@ def queue_main(
     `preflight` is what a stage proves before it claims anything - for the
     three that call a model, that the model answers. It raises, and the
     process stops with nothing taken.
+
+    `report` is a line only this stage can add to `--status`.
 
     `prompts` records what this stage sends, so the version on each row it
     writes can be resolved to the text that produced it. Beside preflight
@@ -271,6 +274,8 @@ def queue_main(
 
     if args.status:
         log.info("%s queue: %s", name, act(lambda q, w: q.counts_by_status(w)))
+        if report is not None:
+            log.info("%s: %s", name, report())
         return 0
 
     if args.wait:

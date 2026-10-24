@@ -108,8 +108,12 @@ band decides the shape of the sample:
 | `medium` | `cross` | a passage in another document, ranked by likeness | 2 |
 | `hard` | `bridge` | a bridging passage in another document — another file *and* another subject | 3 |
 
-Passages are dealt strided over the whole topic, each offered
-`QUESTIONS_SAMPLES_PER_PASSAGE` times. A topic sitting in one document falls
+Passages are dealt strided over each document of the topic first, for the
+document's share of the slots, and the documents are then taken in turn: every
+document the topic holds is dealt before any is dealt twice, however short, and
+each is still spread over the whole of it. Each passage is offered
+`QUESTIONS_SAMPLES_PER_PASSAGE` times. An unanswerable slot spends the one fact
+it shows the writer, not `QUESTIONS_FACT_SAMPLE`. A topic sitting in one document falls
 back to the passage of the same document most like the first, by the same
 likeness, rather than writing nothing; the nearest in reading order breaks a
 tie.
@@ -1241,7 +1245,7 @@ five queue verbs under `/questions`. See the [API README](../api/README.md).
 ```bash
 make questions-start            # queue every topic not yet asked about
 make questions                  # drain the queue here, in the foreground
-make questions-status
+make questions-status           # also: documents and passages no accepted question reaches
 make questions-stop
 make questions-retry
 make questions-rerun

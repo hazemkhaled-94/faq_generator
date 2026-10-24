@@ -3089,3 +3089,73 @@ def test_a_follow_up_is_dealt_the_kind_its_root_was_stored_as(language: str) -> 
     assert root.kind == QuestionKind.SINGLE
     assert writer.plans, "no follow-up was written"
     assert {one.kind for one in writer.plans} == {QuestionKind.SINGLE}
+
+
+@pytest.mark.parametrize(
+    ("language", "statements"),
+    [
+        (
+            "en",
+            [f"A return of item {n} is refunded within 14 days." for n in range(6)],
+        ),
+        (
+            "de",
+            [
+                f"Eine Überweisung Nummer {n} wird am Folgetag ausgeführt."
+                for n in range(6)
+            ],
+        ),
+    ],
+)
+def test_an_unanswerable_slot_spends_the_one_fact_it_shows_the_writer(
+    language: str, statements: list[str]
+) -> None:
+    """The writer sees the first fact only, so the others stay for the next slot.
+
+    Six facts of one passage and a sample of three: an unanswerable slot used to
+    spend three of them and write about one, so two slots used the passage up.
+    """
+    facts = [
+        source(n + 1, passage_id=1, statement=text, language=language)
+        for n, text in enumerate(statements)
+    ]
+    writer = Handed()
+    settings = replace(
+        SETTINGS,
+        per_topic=6,
+        sample_size=3,
+        samples_per_passage=6,
+        type_mix={QuestionType.REASON: 1},
+        unanswerable_share=1.0,
+        followup_share=0.0,
+    )
+    service, _ = build(
+        topic(language=language), facts, writer=writer, settings=settings
+    )
+
+    service.process_next()
+
+    assert len(writer.handed) == 6, "an unanswerable slot spent facts it never showed"
+
+
+def test_an_answerable_slot_still_spends_the_whole_sample() -> None:
+    """QUESTIONS_FACT_SAMPLE is how many facts a question is written from."""
+    facts = [
+        source(n + 1, passage_id=1, statement=f"A return of item {n} is refunded.")
+        for n in range(6)
+    ]
+    writer = Handed()
+    settings = replace(
+        SETTINGS,
+        per_topic=6,
+        sample_size=3,
+        samples_per_passage=6,
+        type_mix={QuestionType.FACTOID: 1},
+        unanswerable_share=0.0,
+        followup_share=0.0,
+    )
+    service, _ = build(topic(), facts, writer=writer, settings=settings)
+
+    service.process_next()
+
+    assert [len(group.facts) for group, _ in writer.handed] == [3, 3]

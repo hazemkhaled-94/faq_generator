@@ -28,6 +28,13 @@ class Queue:
         self.calls.append("counts")
         return {"new": 2}
 
+    def never_asked(self):
+        """What no accepted question reaches."""
+        from question_generation.queue import NeverAsked
+
+        self.calls.append("never_asked")
+        return NeverAsked((("Terms of sale", 3),), 5)
+
     def start(self, within=None, *, trigger: str | None = None) -> int:
         """Queues what was never asked for."""
         self.calls.append("start")
@@ -184,11 +191,18 @@ def cli(monkeypatch) -> Driver:
     return Driver(monkeypatch)
 
 
-def test_status_reports_the_queue_and_builds_no_service(cli) -> None:
-    """The cheap flag: one query, and no model named."""
+def test_status_reports_the_queue_and_builds_no_service(cli, caplog) -> None:
+    """The cheap flag: a read of the queue, and no model named."""
+    caplog.set_level("INFO")
+
     assert cli.run("--status") == 0
-    assert cli.queue.calls == ["counts"]
+
+    assert cli.queue.calls == ["counts", "never_asked"]
     assert cli.built == 0, "a status read loaded the writer"
+    assert "1 document(s) with facts and no accepted question: Terms of sale (3)" in (
+        caplog.text
+    )
+    assert "5 passage(s) with facts never asked" in caplog.text
 
 
 @pytest.mark.parametrize("flag", ["start", "stop", "retry"])

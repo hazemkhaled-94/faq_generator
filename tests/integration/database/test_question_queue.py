@@ -2784,3 +2784,59 @@ def test_rescore_moves_the_kind_with_the_citations(corpus, engine) -> None:
         [(question_id, criteria_of(passages=1, documents=1, topics=1, answer_chars=4))]
     )
     assert _kind(engine, question_id) == "single"
+
+
+def test_never_asked_counts_the_documents_and_passages_no_accepted_question_reaches(
+    corpus, engine
+) -> None:
+    """Two documents, four passages: one question reaches one passage of the first."""
+    written = corpus(topics=1, facts_per_topic=4, documents=2)
+    first_fact = written["facts"][written["topics"][0]][0]
+    with Session(engine) as session:
+        asked = question(status="accepted")
+        session.add(asked)
+        session.flush()
+        session.execute(
+            text("INSERT INTO question_facts (question_id, fact_id) VALUES (:q, :f)"),
+            {"q": asked.id, "f": first_fact},
+        )
+        session.commit()
+
+    never = QuestionQueue().never_asked()
+
+    assert never.passages == 3
+    assert never.documents == ((digest("b")[:12], 2),)
+
+
+def test_a_rejected_question_reaches_nothing_so_nothing_is_asked(
+    corpus, engine
+) -> None:
+    """Rejected covers nothing: both documents are never asked."""
+    written = corpus(topics=1, facts_per_topic=2, documents=2)
+    fact_id = written["facts"][written["topics"][0]][0]
+    with Session(engine) as session:
+        refused = question(status="rejected", rejected_reason="duplicate")
+        session.add(refused)
+        session.flush()
+        session.execute(
+            text("INSERT INTO question_facts (question_id, fact_id) VALUES (:q, :f)"),
+            {"q": refused.id, "f": fact_id},
+        )
+        session.commit()
+
+    never = QuestionQueue().never_asked()
+
+    assert never.passages == 2
+    assert len(never.documents) == 2
+
+
+def test_a_passage_with_no_validated_fact_is_not_counted_as_never_asked(
+    corpus,
+) -> None:
+    """Nothing in it could be asked about."""
+    corpus(topics=1, facts_per_topic=2, documents=1, validated=False)
+
+    never = QuestionQueue().never_asked()
+
+    assert never.passages == 0
+    assert never.documents == ()

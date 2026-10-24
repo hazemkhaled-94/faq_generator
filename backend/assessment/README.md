@@ -392,6 +392,11 @@ its Assessment sheet), the report ends with that judge's mean scores for the
 same groups: the mean stored score, which is the paper's normalised mean,
 from 0 to 1.
 
+`BY=document` ends with the documents and passages no accepted question
+reaches, read from the workbook's Summary sheet (the export writes them from
+the corpus, so a curve over the documents that have questions is read beside
+the ones that have none; an older workbook prints nothing).
+
 `BY=document` draws the paper's Figure 1, which asks whether a set stays
 varied when it comes from few documents. For k = 5, 10, 15 ... up to the
 language's documents, it draws fifty times k documents and SIZE questions

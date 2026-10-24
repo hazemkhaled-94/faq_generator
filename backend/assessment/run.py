@@ -427,7 +427,39 @@ def _curve(path: Path, only: str | None, n: int) -> int:
     print()
     for line in notes:
         print(line)
+    _never_asked(path)
     return 0
+
+
+#: The Summary rows `question_generation.export` writes for what no accepted
+#: question reaches: the words are its `NEVER_DOCUMENTS` and `NEVER_PASSAGES`.
+_NEVER = (
+    "Documents with facts and no accepted question",
+    "Passages with facts never asked",
+)
+
+
+def _never_asked(path: Path) -> None:
+    """Prints the documents and passages the workbook says no question reaches.
+
+    Beside the curve because a curve over the documents that have questions
+    cannot show the ones that have none. Nothing is printed for a workbook
+    that carries no such rows, which is one written before they existed.
+    """
+    import pandas as pd
+
+    summary = pd.read_excel(path, sheet_name="Summary")
+    if "Measure" not in summary:
+        return
+    held = dict(zip(summary["Measure"].astype(str), summary["Count"], strict=True))
+    if not all(label in held for label in _NEVER):
+        return
+    print()
+    for label in _NEVER:
+        print(f"{label}: {held[label]}")
+    for measure, count in held.items():
+        if measure.startswith(f"{_NEVER[0]}: "):
+            print(f"  {measure.removeprefix(f'{_NEVER[0]}: ')} ({count} passage(s))")
 
 
 def _texts(

@@ -58,8 +58,15 @@ from openpyxl.utils import get_column_letter
 
 from database.qa_generator.outcomes import AnswerForm, QuestionType
 from question_generation.models import Citation, QuestionQuality, StoredQuestion
+from question_generation.queue import NeverAsked, QuestionQueue
 
 log = logging.getLogger(__name__)
+
+#: The Summary rows that say what no accepted question reaches. `assessment`
+#: reads them back by these words (no service imports another), and a test
+#: holds the two together.
+NEVER_DOCUMENTS = "Documents with facts and no accepted question"
+NEVER_PASSAGES = "Passages with facts never asked"
 
 #: The Questions sheet, as (column in the frame, heading in the workbook).
 #: Named rather than dumped, because a dataclass field order is not a thing
@@ -312,6 +319,7 @@ def _summary(
     count: int,
     cited: int,
     judged: Mapping[int, Any] | None = None,
+    never: NeverAsked | None = None,
 ) -> pd.DataFrame:
     """The Summary sheet: what this workbook holds, as counts.
 
@@ -337,6 +345,13 @@ def _summary(
                 "Kept by the pipeline, refused by the judge",
                 sum(1 for one in answered if one.disagrees),
             ),
+        ]
+    if never is not None:
+        # The corpus, not the filter: what no accepted question reaches.
+        rows += [
+            (NEVER_DOCUMENTS, len(never.documents)),
+            (NEVER_PASSAGES, never.passages),
+            *((f"{NEVER_DOCUMENTS}: {name}", held) for name, held in never.documents),
         ]
     if quality is not None:
         measured = asdict(quality)
@@ -402,6 +417,7 @@ def workbook(
     citations: Sequence[Citation] = (),
     quality: QuestionQuality | None = None,
     judged: Mapping[int, Any] | None = None,
+    never: NeverAsked | None = None,
 ) -> bytes:
     """Builds the workbook, and returns it as the bytes of an .xlsx file.
 
@@ -423,7 +439,7 @@ def workbook(
         "Questions": _judged_frame(questions, held),
         "Citations": _cited_frame(citations),
         "Assessment": _assessment_frame(questions, held),
-        "Summary": _summary(quality, len(questions), len(citations), judged),
+        "Summary": _summary(quality, len(questions), len(citations), judged, never),
     }
     buffer = io.BytesIO()
     # `WriteExcelBuffer` is a protocol a BytesIO satisfies at runtime and
@@ -589,7 +605,11 @@ def main(argv: list[str] | None = None) -> int:
     judged = AssessmentCatalog().verdicts_for("question", [one.id for one in questions])
 
     with open(args.out, "wb") as handle:
-        handle.write(workbook(questions, citations, quality, judged))
+        handle.write(
+            workbook(
+                questions, citations, quality, judged, QuestionQueue().never_asked()
+            )
+        )
     log.info("wrote %s", args.out)
     return 0
 

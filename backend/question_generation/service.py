@@ -1290,6 +1290,9 @@ class QuestionGenerationService(StageService):
                 plan.shape,
                 condensed=plan.answerable and plan.spec.form != AnswerForm.VALUE,
                 prefer=prefer,
+                # The writer is shown one fact of an unanswerable slot: spend
+                # that one, and leave the rest to the slots that write from them.
+                size=None if plan.answerable else 1,
             )
             if sample is None:
                 # The topic ran out of passages before the plan ran out of

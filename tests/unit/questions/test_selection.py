@@ -1358,3 +1358,94 @@ def test_a_compound_partner_is_never_a_passage_holding_only_bridges(
 
     assert sample is not None
     assert sorted(one.id for one in sample.resting) == [1, 4]
+
+
+# ── Every document is dealt before any is dealt twice ─────────────────────
+
+
+def docs_of(sample: FactGroup) -> list[str]:
+    """The documents a sample's facts come from, in order."""
+    return [one.doc_sha256 for one in sample.facts]
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_topic_of_one_big_document_and_two_small_ones_deals_all_three_first(
+    language: str,
+) -> None:
+    """A shop's long terms and two short product sheets, six slots.
+
+    The stride over the whole topic hopped past the sheets: six samples over
+    forty-four passages land on every seventh, and a passage of a short
+    document is not one of them.
+    """
+    terms = [
+        one
+        for n in range(1, 41)
+        for one in facts_of(n, "terms", count=1, language=language)
+    ]
+    sheets = facts_of(101, "sheet-a", count=1, language=language) + facts_of(
+        102, "sheet-a", count=1, language=language
+    )
+    sheets += facts_of(201, "sheet-b", count=1, language=language) + facts_of(
+        202, "sheet-b", count=1, language=language
+    )
+    deal = Deal(terms + sheets, wanted=6, size=1)
+
+    dealt = [deal.sample() for _ in range(6)]
+
+    firsts = [docs_of(one)[0] for one in dealt if one]
+    assert {"sheet-a", "sheet-b"} <= set(firsts), firsts
+    assert set(firsts[:3]) == {"terms", "sheet-a", "sheet-b"}, firsts
+
+
+@pytest.mark.parametrize("rounds", [1, 3])
+def test_a_passage_offered_in_rounds_does_not_take_the_slots_of_the_documents_behind_it(
+    rounds: int,
+) -> None:
+    """Three rounds a passage dealt in a row meant three slots, then the next document.
+
+    So a topic of thirty documents spent ninety slots reaching each once, and a
+    topic of forty reached some of them never within its own slots.
+    """
+    documents = {
+        name: [one for n in range(1, 6) for one in facts_of(m * 10 + n, name, count=3)]
+        for m, name in enumerate(["terms", "sheet-a", "sheet-b", "sheet-c"], start=1)
+    }
+    every = [one for held in documents.values() for one in held]
+    deal = Deal(every, wanted=8, size=1, rounds=rounds)
+
+    dealt = [deal.sample() for _ in range(8)]
+
+    firsts = [docs_of(one)[0] for one in dealt if one]
+    assert set(firsts[:4]) == set(documents), firsts
+    assert sorted(firsts.count(name) for name in documents) == [2, 2, 2, 2], firsts
+
+
+def test_the_big_document_is_still_spread_over_the_whole_of_it() -> None:
+    """Dealt first does not mean dealt from its start."""
+    terms = [one for n in range(1, 41) for one in facts_of(n, "terms", count=1)]
+    sheet = facts_of(101, "sheet", count=1) + facts_of(102, "sheet", count=1)
+    deal = Deal(terms + sheet, wanted=4, size=1)
+
+    dealt = [deal.sample() for _ in range(4)]
+
+    held = sorted(
+        one.ordinal
+        for sample in dealt
+        if sample
+        for one in sample.facts
+        if one.doc_sha256 == "terms"
+    )
+    assert len(held) == 2
+    assert held[1] - held[0] >= 10, held
+
+
+def test_a_topic_of_one_document_is_dealt_as_before() -> None:
+    """One document: the stride over it, and nothing else moves."""
+    one_document = [one for n in range(1, 21) for one in facts_of(n, "terms", count=1)]
+
+    deal = Deal(one_document, wanted=4, size=1)
+    firsts = [deal.sample() for _ in range(4)]
+
+    spread_ids = [s.facts[0].passage_id for s in firsts if s]
+    assert spread_ids == [1, 6, 11, 16]

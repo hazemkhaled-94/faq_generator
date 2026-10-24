@@ -16,13 +16,20 @@ from contextlib import contextmanager
 import pandas as pd
 import pytest
 
-from question_generation.export import _CELL_LIMIT, _flatten, workbook
+from question_generation.export import (
+    _CELL_LIMIT,
+    NEVER_DOCUMENTS,
+    NEVER_PASSAGES,
+    _flatten,
+    workbook,
+)
 from question_generation.models import (
     Citation,
     QuestionQuality,
     StoredQuestion,
     pages,
 )
+from question_generation.queue import NeverAsked
 
 
 def stored(id: int = 1, **overrides) -> StoredQuestion:
@@ -388,6 +395,15 @@ class _Catalog:
         self.asked["quality"] = where
 
 
+class _Nothing:
+    """A question queue that reaches no database for what no question reaches."""
+
+    @staticmethod
+    def never_asked() -> NeverAsked:
+        """Every document has been asked."""
+        return NeverAsked((), 0)
+
+
 class _NoJudgements:
     """An assessment catalogue for a corpus nobody has judged.
 
@@ -418,6 +434,7 @@ def test_the_export_asks_for_every_row_in_one_window(tmp_path, monkeypatch) -> N
     monkeypatch.setattr("question_generation.catalog.QuestionCatalog", lambda: catalog)
     monkeypatch.setattr("database.qa_generator.engine", lambda: None)
     monkeypatch.setattr("telemetry.trace_engine", lambda engine: None)
+    monkeypatch.setattr("question_generation.export.QuestionQueue", _Nothing)
     # The judge's verdicts are looked up the same way the questions are,
     # and are the same kind of import inside `main`. Patched here so this
     # stays a test about the window and not about a database.
@@ -445,6 +462,7 @@ def test_released_narrows_every_read_to_the_release(
     monkeypatch.setattr("question_generation.catalog.QuestionCatalog", lambda: catalog)
     monkeypatch.setattr("database.qa_generator.engine", lambda: None)
     monkeypatch.setattr("telemetry.trace_engine", lambda engine: None)
+    monkeypatch.setattr("question_generation.export.QuestionQueue", _Nothing)
     monkeypatch.setattr(
         "assessment.repository.AssessmentCatalog", lambda: _NoJudgements()
     )
@@ -533,3 +551,81 @@ def test_two_documents_sharing_a_title_are_told_apart_by_their_id() -> None:
 
     assert list(read["Questions"]["Document IDs"]) == [first[:12], second[:12]]
     assert list(read["Citations"]["Document ID"]) == [first[:12], second[:12]]
+
+
+# ── What no accepted question reaches ─────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "never",
+    [
+        NeverAsked((("Terms of sale", 12), ("Allgemeine Geschäftsbedingungen", 4)), 31),
+        NeverAsked((), 0),
+    ],
+    ids=["documents named", "none"],
+)
+def test_the_summary_counts_the_documents_and_passages_no_question_reaches(
+    never,
+) -> None:
+    """The corpus, beside what the filter selected: a reader sees what is missing."""
+    summary = sheets(workbook([stored()], [cited()], None, None, never))["Summary"]
+    counted = dict(zip(summary["Measure"], summary["Count"], strict=True))
+
+    assert counted[NEVER_DOCUMENTS] == len(never.documents)
+    assert counted[NEVER_PASSAGES] == never.passages
+    for name, held in never.documents:
+        assert counted[f"{NEVER_DOCUMENTS}: {name}"] == held
+
+
+def test_a_workbook_with_no_coverage_says_nothing_of_it() -> None:
+    """The api and the command line hand it over; a caller that has none leaves it out."""
+    summary = sheets(workbook([stored()], [cited()]))["Summary"]
+
+    assert NEVER_DOCUMENTS not in set(summary["Measure"])
+
+
+def test_the_status_line_names_the_documents_with_their_passages() -> None:
+    """Counts and names, in whichever language the titles are in."""
+    never = NeverAsked((("Terms of sale", 12), ("Kreditbedingungen", 4)), 31)
+
+    assert str(never) == (
+        "2 document(s) with facts and no accepted question: Terms of sale (12), "
+        "Kreditbedingungen (4); 31 passage(s) with facts never asked"
+    )
+    assert str(NeverAsked((), 3)) == (
+        "every document with facts has an accepted question; "
+        "3 passage(s) with facts never asked"
+    )
+
+
+def test_the_status_line_stops_naming_after_twenty() -> None:
+    """A corpus ten times the size does not print its whole contents."""
+    never = NeverAsked(tuple((f"doc-{n}", 1) for n in range(25)), 25)
+
+    assert "doc-19 (1) and 5 more;" in str(never)
+    assert "doc-20" not in str(never)
+
+
+def test_diversity_by_document_prints_what_the_summary_says_no_question_reaches(
+    tmp_path, capsys
+) -> None:
+    """The curve covers the documents that have questions; this is the other half."""
+    from assessment import run as assessment_run
+
+    never = NeverAsked((("Terms of sale", 12),), 14)
+    path = tmp_path / "set.xlsx"
+    path.write_bytes(workbook([stored()], [cited()], None, None, never))
+
+    assessment_run._never_asked(path)
+
+    said = capsys.readouterr().out
+    assert f"{NEVER_DOCUMENTS}: 1" in said
+    assert f"{NEVER_PASSAGES}: 14" in said
+    assert "Terms of sale (12 passage(s))" in said
+
+
+def test_the_two_modules_read_the_same_summary_words() -> None:
+    """No service imports another, so the words are written twice and held here."""
+    from assessment import run as assessment_run
+
+    assert assessment_run._NEVER == (NEVER_DOCUMENTS, NEVER_PASSAGES)

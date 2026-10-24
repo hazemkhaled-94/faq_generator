@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from question_generation.models import QuestionQuality
+from question_generation.queue import NeverAsked
 
 #: The reads that take the listing's filter.
 READS = ("/questions", "/questions/quality", "/questions/export")
@@ -48,6 +49,15 @@ class _Catalog:
         )
 
 
+class _Queue:
+    """A question queue that has no database to ask what no question reaches."""
+
+    @staticmethod
+    def never_asked() -> NeverAsked:
+        """Every document has been asked."""
+        return NeverAsked((), 0)
+
+
 class _NoJudgements:
     """An assessment catalogue nobody has judged anything in."""
 
@@ -65,6 +75,7 @@ def held(monkeypatch) -> tuple[TestClient, _Catalog]:
     catalog = _Catalog()
     monkeypatch.setattr(questions, "question_catalog", catalog)
     monkeypatch.setattr(questions, "assessment_catalog", _NoJudgements())
+    monkeypatch.setattr(questions, "questions_queue", _Queue())
     app = FastAPI()
     app.include_router(questions.router)
     return TestClient(app), catalog

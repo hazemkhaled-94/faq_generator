@@ -279,6 +279,7 @@ def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
         cited,
         quality,
         assessment_catalog.verdicts_for("question", [one.id for one in rows]),
+        questions_queue.never_asked(),
     )
     return Response(
         content=drawn,

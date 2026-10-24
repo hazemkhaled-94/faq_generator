@@ -8,6 +8,7 @@ claims a row.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from sqlalchemy import false as sa_false
@@ -304,6 +305,34 @@ ASSERTS = (
 #: one passage, and the answer to a question moved just out of reach of one
 #: sits beside it however the question's vector ranks it.
 AROUND = 2
+
+
+@dataclass(frozen=True)
+class NeverAsked:
+    """What no accepted question reaches: documents by name, and passages.
+
+    Attributes:
+        documents: Each document none of whose passages is asked, named by its
+            title or the start of its hash, with how many passages bear facts.
+        passages: How many passages bearing a fact no accepted question reaches,
+            in the documents named and in the others.
+    """
+
+    documents: tuple[tuple[str, int], ...]
+    passages: int
+
+    def __str__(self) -> str:
+        """The two counts and the names, as the status line reads them."""
+        if self.documents:
+            shown = ", ".join(f"{name} ({held})" for name, held in self.documents[:20])
+            more = len(self.documents) - 20
+            head = (
+                f"{len(self.documents)} document(s) with facts and no accepted "
+                f"question: {shown}" + (f" and {more} more" if more > 0 else "")
+            )
+        else:
+            head = "every document with facts has an accepted question"
+        return f"{head}; {self.passages} passage(s) with facts never asked"
 
 
 class QuestionQueue(RowQueue):
@@ -632,6 +661,47 @@ class QuestionQueue(RowQueue):
                     written += 1
             self._finish(topic_id, session=session)
         return written
+
+    def never_asked(self) -> NeverAsked:
+        """The documents and passages no accepted question rests on.
+
+        Over the passages a fact a question may rest on is drawn from, which is
+        what a run is dealt: a passage some accepted question reaches through
+        one of its facts is asked, and a document is never asked when none of
+        its passages is. What a run left out cannot be seen in the questions,
+        which are what it wrote, so this reads the corpus instead.
+        """
+        reached = (
+            select(FactPassage.passage_id)
+            .join(QuestionFact, QuestionFact.fact_id == FactPassage.fact_id)
+            .join(Question, Question.id == QuestionFact.question_id)
+            .where(Question.status == QuestionStatus.ACCEPTED)
+        )
+        with self._session() as session:
+            rows = session.execute(
+                select(
+                    Passage.doc_sha256,
+                    Document.title,
+                    func.count(Passage.id.distinct()),
+                    func.count(Passage.id.distinct()).filter(
+                        Passage.id.not_in(reached)
+                    ),
+                )
+                .join(Document, Document.sha256 == Passage.doc_sha256)
+                .join(FactPassage, FactPassage.passage_id == Passage.id)
+                .join(Fact, Fact.id == FactPassage.fact_id)
+                .where(HOLDS, Fact.kind != FactKind.BRIDGE)
+                .group_by(Passage.doc_sha256, Document.title)
+                .order_by(Passage.doc_sha256)
+            ).all()
+        return NeverAsked(
+            documents=tuple(
+                (title or sha[:12], held)
+                for sha, title, held, never in rows
+                if never == held
+            ),
+            passages=sum(never for *_, never in rows),
+        )
 
     def counts(self) -> dict[str, int]:
         """Reports what this service owns, for the status panel."""

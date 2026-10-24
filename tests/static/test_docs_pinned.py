@@ -686,8 +686,9 @@ def test_fact_sample_floor_is_one_per_passage() -> None:
     """The deal offers at least one fact from each passage of a sample."""
     readme = _flat(_read("backend/question_generation/README.md"))
 
-    assert "max(1, self._size // len(passages))" in _function(
-        "backend/question_generation/selection.py", "_group"
+    assert (
+        "max(1, (self._size if size is None else size) // len(passages))"
+        in _function("backend/question_generation/selection.py", "_group")
     )
     assert "never fewer than one from each" in readme
 

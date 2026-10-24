@@ -436,18 +436,25 @@ def by_passage(facts: Iterable[SourceFact]) -> list[list[SourceFact]]:
     ]
 
 
-def interleaved(passages: list[list[SourceFact]]) -> list[list[SourceFact]]:
+def interleaved(
+    passages: list[list[SourceFact]], wanted: int = 0
+) -> list[list[SourceFact]]:
     """The passages, taken one document at a time in turn.
 
     So a run over a topic reaches every document the topic sits in before it
-    reaches any document twice.
+    reaches any document twice. With `wanted`, each document's own passages
+    are strided first, for its share of the slots, so that what a document is
+    dealt is spread over the whole of it too: a stride over the interleaved
+    whole hops past a short document's passages, and the document is never
+    dealt at all.
     """
     by_document: dict[str, list[list[SourceFact]]] = {}
     for passage in passages:
         by_document.setdefault(passage[0].doc_sha256, []).append(passage)
+    share = -(-wanted // len(by_document)) if wanted > 0 and by_document else 0
     return [
         passage
-        for row in zip_longest(*by_document.values())
+        for row in zip_longest(*(strided(one, share) for one in by_document.values()))
         for passage in row
         if passage is not None
     ]
@@ -505,7 +512,7 @@ class Deal:
         """
         facts = list(facts)
         bridges = list(bridges)
-        order = strided(interleaved(by_passage(facts)), wanted)
+        order = interleaved(by_passage(facts), wanted)
         # A passage quoting another with parts elided is the worse source of
         # the two, so it is dealt only once the rest have been.
         self._order = [one for one in order if not derivative(one[0])] + [
@@ -521,6 +528,8 @@ class Deal:
         self._size = max(size, 1)
         self._rounds = max(rounds, 1)
         self._offered: dict[int, int] = {}
+        #: How many samples each document has been dealt, whichever passage.
+        self._dealt: dict[str, int] = {}
         self._spent: set[int] = set()
         self._floor = max(floor, _relative_floor([*facts, *bridges], share))
         #: Whether the floor reads cosines: only where every fact has a vector.
@@ -533,8 +542,12 @@ class Deal:
         shape: str = Shape.SINGLE,
         condensed: bool = False,
         prefer: Callable[[SourceFact], bool] | None = None,
+        size: int | None = None,
     ) -> FactGroup | None:
         """The next sample of the shape asked for, or None when none is left.
+
+        `size` is how many facts this sample spends, where the slot needs
+        fewer than the deal's own: an unanswerable one shows the writer one.
 
         A shape the topic cannot supply falls back to a narrower one rather
         than yielding nothing: a topic sitting in one document has no
@@ -566,7 +579,7 @@ class Deal:
             # alone: it satisfies a wide shape by itself, and pairing it with
             # a second passage would put the sample over the budget and make
             # what the question is about impossible to read off.
-            return self._group([head], condensed=condensed, prefer=prefer)
+            return self._group([head], condensed=condensed, prefer=prefer, size=size)
 
         if shape == Shape.BRIDGE:
             partner = self._bridge(head)
@@ -589,6 +602,7 @@ class Deal:
             condensed=condensed,
             prefer=prefer,
             apart=shape == Shape.APART,
+            size=size,
         )
 
     @property
@@ -718,14 +732,24 @@ class Deal:
     ) -> list[SourceFact] | None:
         """The next passage with something still to be written from.
 
-        With `prefer`, the next one holding an unspent fact it accepts.
+        With `prefer`, the next one holding an unspent fact it accepts. Of the
+        documents with such a passage, the one dealt the fewest samples so far
+        gives it, the earliest in the order on a tie: a passage offered
+        `rounds` times in a row would otherwise take the first slots of every
+        document behind it, and a short document is then never dealt.
         """
+        best: tuple[int, list[SourceFact]] | None = None
         for passage in self._order:
-            if not self._taken(passage) and (
+            if self._taken(passage) or not (
                 prefer is None or any(prefer(one) for one in self._left(passage))
             ):
-                return passage
-        return None
+                continue
+            seen = self._dealt.get(passage[0].doc_sha256, 0)
+            if best is None or seen < best[0]:
+                best = (seen, passage)
+                if not seen:
+                    break
+        return best[1] if best else None
 
     def _cross(self, head: list[SourceFact]) -> list[SourceFact] | None:
         """A passage in another document, or the likeliest one in this document.
@@ -852,6 +876,7 @@ class Deal:
         condensed: bool = False,
         prefer: Callable[[SourceFact], bool] | None = None,
         apart: bool = False,
+        size: int | None = None,
     ) -> FactGroup:
         """Counts a round against these passages and offers unspent facts.
 
@@ -880,7 +905,7 @@ class Deal:
         offers a copy of what the first did, nor takes the room the cap
         leaves the passages after it.
         """
-        each = max(1, self._size // len(passages))
+        each = max(1, (self._size if size is None else size) // len(passages))
         facts: list[SourceFact] = []
         for at, passage in enumerate(passages):
             left = _ordered(self._left(passage), condensed, prefer)
@@ -916,6 +941,8 @@ class Deal:
                 facts = [alone]
         for pid in counted:
             self._offered[pid] = self._offered.get(pid, 0) + 1
+            document = self._by_passage[pid][0].doc_sha256
+            self._dealt[document] = self._dealt.get(document, 0) + 1
         for fact in facts:
             self._spent.add(fact.id)
             for one in fact.passages:
