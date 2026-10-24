@@ -921,6 +921,10 @@ def _naming(statement: str, language: str | None) -> Callable[[Twin], bool]:
     return lambda twin: _counted_alike(statement, twin.statement, language)
 
 
+#: A passage's two digests: readings of the whole, not claims one repeats.
+_DIGESTS = {FactKind.SUMMARY, FactKind.OUTLINE}
+
+
 def _closest(
     statement: str,
     kind: str,
@@ -943,7 +947,9 @@ def _closest(
 
     And inside one passage only a fact of another kind - a summary or an
     outline repeating one of the passage's claims - or one of its kind
-    saying the statement word for word. Two atomic facts of one passage are
+    saying the statement word for word. A passage's summary and its outline
+    are two readings of it, which embed alike and repeat nothing of each
+    other. Two atomic facts of one passage are
     otherwise two of its claims - two items of a list, two conditions, a
     least and a most - which differ by a word and score as near as a
     restatement. The question dedup refuses a second question on a near
@@ -954,8 +960,13 @@ def _closest(
         twin = None
     for other_statement, other_kind, other in kept:
         if (
-            other_kind == kind and normalised(other_statement) != normalised(statement)
-        ) or not _counted_alike(statement, other_statement, language):
+            (
+                other_kind == kind
+                and normalised(other_statement) != normalised(statement)
+            )
+            or ({kind, other_kind} == _DIGESTS)
+            or not _counted_alike(statement, other_statement, language)
+        ):
             continue
         score = cosine(list(vector), list(other))
         if twin is None or score > twin.similarity:

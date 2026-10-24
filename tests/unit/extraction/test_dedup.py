@@ -135,6 +135,51 @@ def test_a_word_for_word_repeat_of_its_own_passage_stays_refused() -> None:
     assert dedup(catalog, BAR) == 0  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    ("language", "summary", "outline"),
+    [
+        (
+            "en",
+            "The device weighs 4 kg and runs 12 hours.",
+            "- Weighs 4 kg\n- Runs 12 hours",
+        ),
+        (
+            "de",
+            "Das Gerät wiegt 4 kg und läuft 12 Stunden.",
+            "- Wiegt 4 kg\n- Läuft 12 Stunden",
+        ),
+        ("en", "Returns are free within 30 days.", "- Returns are free\n- 30 days"),
+    ],
+)
+def test_a_passages_outline_is_no_twin_of_its_own_summary(
+    language, summary, outline
+) -> None:
+    """Two readings of one passage embed alike: neither repeats the other."""
+    catalog = (
+        Catalogue()
+        .holding_kept(
+            Kept(1, 2, summary, at(0.99), kind=FactKind.SUMMARY),
+        )
+        .refusing(
+            refusal(outline, passage_id=2, language=language, kind=FactKind.OUTLINE)
+        )
+    )
+
+    assert dedup(catalog, BAR) == 1  # type: ignore[arg-type]
+
+
+def test_an_outline_written_twice_under_one_passage_stays_refused() -> None:
+    """The exemption is between the two digest kinds, not within one."""
+    outline = "- Weighs 4 kg\n- Runs 12 hours"
+    catalog = (
+        Catalogue()
+        .holding_kept(Kept(1, 2, outline, at(0.99), kind=FactKind.OUTLINE))
+        .refusing(refusal(outline, passage_id=2, kind=FactKind.OUTLINE))
+    )
+
+    assert dedup(catalog, BAR) == 0  # type: ignore[arg-type]
+
+
 def test_a_refusal_given_back_carries_the_reading_against_today_s_bar() -> None:
     """As a fact read in flight would: its nearest twin, against this bar."""
     catalog = (
