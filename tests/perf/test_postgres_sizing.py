@@ -222,7 +222,14 @@ def _measured(url: str, passages: int) -> dict[str, float]:
                 for _ in range(PASSES):
                     started = time.perf_counter()
                     _nearest_fact(
-                        session, vector, None, ("de", "en")[at % 2], "atomic", None
+                        session,
+                        vector,
+                        # Every drain probe excludes the passage it is reading,
+                        # which adds the NOT IN subplan this must time too.
+                        1 + at % passages,
+                        ("de", "en")[at % 2],
+                        "atomic",
+                        None,
                     )
                     session.commit()
                     times.append(time.perf_counter() - started)
@@ -278,7 +285,7 @@ def _plan(url: str, vector: list[float]) -> str:
     _event.listen(engine, "before_cursor_execute", watch)
     try:
         with Session(engine) as session:
-            _nearest_fact(session, vector, None, "de", "atomic", None)
+            _nearest_fact(session, vector, 1, "de", "atomic", None)
             session.commit()
         statement, parameters = sent[-1]
         out = []
@@ -332,6 +339,11 @@ def _bar(container, url, size, notices, connection) -> None:
     print(f"index builds: 1x {built_one:.1f}s, 10x {built_ten:.1f}s")
     print(f"p95 at 1x: {one}")
     print(f"p95 at 10x: {ten}")
+    print(
+        f"ratio 10x/1x: single-pass probe {ten['probe'] / one['probe']:.2f}x "
+        f"(bar 2x), warm probe {ten['warm'] / one['warm']:.2f}x, "
+        f"write {ten['write'] / one['write']:.2f}x (bar 2x)"
+    )
     assert connection.execute("SELECT count(*) FROM facts").fetchone()[0] >= TEN[1]  # type: ignore[index]
     assert not [one for one in notices if "maintenance_work_mem" in one], notices
     assert ten["probe"] <= 2 * one["probe"], (one, ten)
