@@ -462,6 +462,13 @@ corpus, which is a property of the model rather than of this code.
   In a document whose running page numbers show no offset, an integer right
   after a block ending on a lead-in's colon stays too; where they show one,
   the offset alone decides.
+- **A paragraph set where the running items sit is one.** A running head or
+  foot the converter read as body text and printed in another language than
+  the document's matches none of the running strings, and the language split
+  then cuts it out of the paragraph it interrupts. A body paragraph in the top
+  or bottom tenth of its page whose left edge and top are within a point of
+  the running items of three or more other pages is furniture, whatever its
+  words; the same words elsewhere on the page stay text.
 - **A chapter is only as good as its running heads.** One whose opening
   pages print none is in the chapter before until its first page that does.
   Heads that come back out of order name no chapter at all. A field printed

@@ -455,16 +455,20 @@ def tidied(
     junk = _junk(language)
     given, document = document, _demoted(document, junk)
     after_lead_in = _after_lead_in(document)
-    debris = _dividers(document) | {
-        item.self_ref
-        for item in document.texts
-        if item.content_layer == ContentLayer.BODY
-        and item.label in _PROSE
-        and (
-            _repeats(item.text, furniture)
-            or _page_number(item, document, furniture, after_lead_in)
-        )
-    }
+    debris = (
+        _dividers(document)
+        | {
+            item.self_ref
+            for item in document.texts
+            if item.content_layer == ContentLayer.BODY
+            and item.label in _PROSE
+            and (
+                _repeats(item.text, furniture)
+                or _page_number(item, document, furniture, after_lead_in)
+            )
+        }
+        | _where_running(document)
+    )
     restated = _restated(document, debris, junk)
     debris |= {reference for reference, level in restated if level is None}
     promoted = [(reference, level) for reference, level in restated if level]
@@ -510,6 +514,59 @@ def tidied(
         # Appended to the texts, so no reference the passages store moves.
         tidy.insert_title(sibling=_resolved(reference, tidy), text=text, after=False)
     return tidy, titles
+
+
+#: How many other pages must print their running items where a paragraph sits
+#: for it to be one, and how near, in points, its left edge and top must be.
+_RUNNING_PAGES = 3
+_RUNNING_PLACE = 1.0
+
+
+def _where_running(document: DoclingDocument) -> set[str]:
+    """The paragraphs set where the running items of other pages sit.
+
+    A running head or foot the converter read as body text, in another
+    language than the document's or otherwise unlike the others, matches no
+    running string; where it sits does: in the top or bottom margin, with the
+    left edge and top within a point of the running items of three or more
+    other pages.
+
+    Returns:
+        The references of those paragraphs.
+    """
+    placed: list[tuple[float, float, int]] = []
+    for item in document.texts:
+        if item.label in _RUNNING and item.prov:
+            page = item.prov[0].page_no
+            size = document.pages.get(page)
+            if size is not None:
+                box = item.prov[0].bbox.to_top_left_origin(size.size.height)
+                placed.append((box.l, box.t, page))
+    found = set()
+    for item in document.texts:
+        page = item.prov[0].page_no if item.prov else None
+        size = document.pages.get(page) if page is not None else None
+        if (
+            item.content_layer != ContentLayer.BODY
+            or item.label not in _PROSE
+            or size is None
+            or size.size.height <= 0
+        ):
+            continue
+        height = size.size.height
+        box = item.prov[0].bbox.to_top_left_origin(height)
+        if not (box.b <= height * _MARGIN or box.t >= height * (1 - _MARGIN)):
+            continue
+        near = {
+            other
+            for left, top, other in placed
+            if abs(left - box.l) <= _RUNNING_PLACE
+            and abs(top - box.t) <= _RUNNING_PLACE
+            and other != page
+        }
+        if len(near) >= _RUNNING_PAGES:
+            found.add(item.self_ref)
+    return found
 
 
 def _resolved(reference: str, document: DoclingDocument) -> NodeItem:
