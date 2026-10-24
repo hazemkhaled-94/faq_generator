@@ -20,6 +20,7 @@ from preprocessing.chunking.models import (
 )
 from settings.runs import run_id
 from stages import Columns, RowQueue
+from stages.resting import Resting, resting_on
 from telemetry.evaluations import current_ids
 
 #: The next document to chunk. This stage's own column and nothing else: what
@@ -85,6 +86,14 @@ class ChunkQueue(RowQueue):
     #: corpus half way through parsing used to queue the other half and fail
     #: every row of it on the missing object.
     ready = Document.parse_status == Status.PARSED
+
+    def resting(self, within=None) -> Resting:
+        """The questions resting on the passages of the documents a rerun would cut."""
+        documents = select(Document.sha256).where(*self._where(within))
+        with self._session() as session:
+            return resting_on(
+                session, select(Passage.id).where(Passage.doc_sha256.in_(documents))
+            )
 
     def claim(self) -> ClaimedDocument | None:
         """Takes the next unchunked document off the queue.

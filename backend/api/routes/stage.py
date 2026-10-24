@@ -296,6 +296,21 @@ def acted(
     return answered(name, action, rows, scope=scope, value=value, run=trigger)
 
 
+def _guard(repository: Any, within: Any, force: bool) -> None:
+    """Refuses a rerun over questions somebody accepted, reviewed or released.
+
+    Raises:
+        ApiError: 409 `questions_rest_on_it` unless forced, before any row is
+            touched. A stage that cannot say what rests on it is not guarded.
+    """
+    resting = getattr(repository, "resting", None)
+    if force or resting is None:
+        return
+    at_risk = resting(within)
+    if at_risk:
+        raise ApiError(409, "questions_rest_on_it", at_risk.refusal("force=true"))
+
+
 def stage_router(
     *,
     name: str,
@@ -311,7 +326,11 @@ def stage_router(
     router = APIRouter(prefix=f"/{name}", tags=[name])
     refusals: dict[int | str, dict[str, Any]] = {
         code: {"model": ErrorBody}
-        for code in (400, 404, *((409,) if before_rerun else ()))
+        for code in (
+            400,
+            404,
+            *((409,) if before_rerun or hasattr(repository, "resting") else ()),
+        )
     }
 
     @router.get("/status")
@@ -321,7 +340,10 @@ def stage_router(
 
     @router.post("/{action}", status_code=202, responses=refusals)
     def whole_queue(
-        action: Action, confirm: bool = False, run: RunName = None
+        action: Action,
+        confirm: bool = False,
+        run: RunName = None,
+        force: bool = False,
     ) -> StageAction:
         """Runs one queue verb over everything this stage owns.
 
@@ -329,6 +351,9 @@ def stage_router(
         claimable, `stop` makes them `new` again, `retry` clears a failure
         and `rerun` queues finished rows too, skipping whatever a worker
         holds right now. The worker picks them up on its next poll.
+
+        A `rerun` over questions somebody accepted, reviewed or released is
+        refused unless `force` is true.
 
         `run` names the run the queued rows belong to, for a caller that
         already has an id worth joining on - a Dagster run, or a corpus-wide
@@ -354,6 +379,8 @@ def stage_router(
             )
         if action == "rerun" and before_rerun:
             before_rerun()
+        if action == "rerun":
+            _guard(repository, None, force)
         return acted(name, repository, action, run=run)
 
     @router.get("/{scope}/{value}/status", responses=refusals)
@@ -367,7 +394,11 @@ def stage_router(
 
     @router.post("/{scope}/{value}/{action}", status_code=202, responses=refusals)
     def scoped_action(
-        scope: str, value: str, action: Action, run: RunName = None
+        scope: str,
+        value: str,
+        action: Action,
+        run: RunName = None,
+        force: bool = False,
     ) -> StageAction:
         """Runs one queue verb against a single item.
 
@@ -379,11 +410,14 @@ def stage_router(
         """
         if action == "rerun" and before_rerun:
             before_rerun()
+        within = _narrowed(repository, scope, value)
+        if action == "rerun":
+            _guard(repository, within, force)
         return acted(
             name,
             repository,
             action,
-            within=_narrowed(repository, scope, value),
+            within=within,
             scope=scope,
             value=value,
             run=run,

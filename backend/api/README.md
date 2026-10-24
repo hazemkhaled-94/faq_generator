@@ -88,6 +88,11 @@ Nothing here can tell a dead claim from a live one, so the unnarrowed form
 asks to be confirmed rather than being refused outright. See
 [`backend/stages/`](../stages/README.md).
 
+`rerun` on `chunking` and `extraction`, whole or narrowed, answers 409
+`questions_rest_on_it` while released, accepted or reviewed questions rest on
+what it would replace, naming how many; `?force=true` goes on. The rows it
+replaces reject those questions as `source_changed`; none is deleted.
+
 | Stage | Narrows to | Example |
 |---|---|---|
 | `parsing` | `document` | `POST /parsing/document/{sha256}/start` |
@@ -346,6 +351,7 @@ a caller branches on the code rather than on English:
 | `invalid_language` | 400 | The language is not an ISO 639-1 code |
 | `invalid_value` | 400 | A narrowed verb was given a value its column cannot hold, or an upload's filename holds a NUL byte or a lone surrogate |
 | `confirm_required` | 400 | `reclaim` over a whole stage without `?confirm=true` |
+| `questions_rest_on_it` | 409 | `rerun` on `chunking` or `extraction` while released, accepted or reviewed questions rest on what it replaces, without `?force=true` |
 | `wrong_service` | 400 | A setting belongs to another service |
 | `fixed_setting` | 400 | A setting is the deployment's: served read-only, never stored |
 | `not_a_choice` | 400 | A value is not one the setting takes |

@@ -255,10 +255,16 @@ expensive part:
 `TOPIC`.
 
 The alternative is destructive: `extract-rerun` calls the model again over
-the whole corpus, and `chunk-rerun` deletes every passage of a document the
+the whole corpus, and `chunk-rerun` replaces every passage of a document the
 new cut changes, along with the facts drawn from them, keeping the passages
-it cuts again unchanged. Without `SHA`, or `PASSAGE` for extraction, both
-warn and wait 5 seconds first.
+it cuts again unchanged. A fact `extract-rerun` reads again word for word
+keeps its id, its embedding and its questions. A question resting on what a
+rerun replaces is rejected as `source_changed` and kept, never deleted, and
+its follow-ups leave the release. Both therefore refuse, naming how many
+released, accepted and reviewed questions rest on what they would replace,
+unless `FORCE=1` is given (the routes take `force=true`; they answer 409
+`questions_rest_on_it` without it). Without `SHA`, or `PASSAGE` for
+extraction, both also warn and wait 5 seconds first.
 
 ## Questions
 

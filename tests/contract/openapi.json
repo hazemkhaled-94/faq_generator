@@ -57,6 +57,7 @@
       "parameters": [
         "action",
         "confirm",
+        "force",
         "run"
       ],
       "responses": [
@@ -87,6 +88,7 @@
     "post": {
       "parameters": [
         "action",
+        "force",
         "run",
         "scope",
         "value"
@@ -113,12 +115,14 @@
       "parameters": [
         "action",
         "confirm",
+        "force",
         "run"
       ],
       "responses": [
         "202",
         "400",
         "404",
+        "409",
         "422"
       ]
     }
@@ -133,6 +137,7 @@
         "200",
         "400",
         "404",
+        "409",
         "422"
       ]
     }
@@ -141,6 +146,7 @@
     "post": {
       "parameters": [
         "action",
+        "force",
         "run",
         "scope",
         "value"
@@ -149,6 +155,7 @@
         "202",
         "400",
         "404",
+        "409",
         "422"
       ]
     }
@@ -238,12 +245,14 @@
       "parameters": [
         "action",
         "confirm",
+        "force",
         "run"
       ],
       "responses": [
         "202",
         "400",
         "404",
+        "409",
         "422"
       ]
     }
@@ -258,6 +267,7 @@
         "200",
         "400",
         "404",
+        "409",
         "422"
       ]
     }
@@ -266,6 +276,7 @@
     "post": {
       "parameters": [
         "action",
+        "force",
         "run",
         "scope",
         "value"
@@ -274,6 +285,7 @@
         "202",
         "400",
         "404",
+        "409",
         "422"
       ]
     }
@@ -355,6 +367,7 @@
       "parameters": [
         "action",
         "confirm",
+        "force",
         "run"
       ],
       "responses": [
@@ -383,6 +396,7 @@
     "post": {
       "parameters": [
         "action",
+        "force",
         "run",
         "scope",
         "value"
@@ -616,6 +630,7 @@
       "parameters": [
         "action",
         "confirm",
+        "force",
         "run"
       ],
       "responses": [
@@ -666,6 +681,7 @@
     "post": {
       "parameters": [
         "action",
+        "force",
         "run",
         "scope",
         "value"

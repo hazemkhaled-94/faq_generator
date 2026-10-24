@@ -62,6 +62,7 @@ from extraction.models import (
 from nlp.models import Sentence
 from settings.runs import run_id
 from stages import Columns, RowQueue
+from stages.resting import Resting, resting_on
 from telemetry.evaluations import current_ids
 
 #: The next passage to read. This stage's own column and nothing else: it
@@ -432,6 +433,11 @@ class PassageQueue(RowQueue):
     }
     done = Status.EXTRACTED
     next_pending = _NEXT_PENDING
+
+    def resting(self, within=None) -> Resting:
+        """The questions resting on the facts of the passages a rerun would read."""
+        with self._session() as session:
+            return resting_on(session, select(Passage.id).where(*self._where(within)))
 
     def __init__(self, version: str | None = None) -> None:
         """Binds to the session factory, with a settings version."""

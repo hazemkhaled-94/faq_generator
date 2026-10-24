@@ -715,13 +715,17 @@ chunk-retry:
 # cut repeats exactly - text, heading trail, sentences and cells - is kept with
 # its facts and takes its new ordinal and pages in place. Every other passage
 # is replaced, and with it go its topic memberships, any fact left citing no
-# passage, any bridge that cited it, and every question left resting on no
-# fact, with its follow-ups and the assessments of each. Without SHA that is
-# the whole corpus, so it warns and waits first.
+# passage and any bridge that cited it; a question resting on one is rejected
+# as source_changed and kept, and its follow-ups leave the release. Without
+# SHA that is
+# the whole corpus, so it warns and waits first. It refuses, naming the
+# counts, while released, accepted or reviewed questions rest on what it
+# would replace; FORCE=1 goes on, and those questions are rejected as
+# source_changed, never deleted.
 chunk-rerun:
 	@$(call IDLE,chunk-worker)
 	@[ -n "$(SHA)" ] || { echo "WARNING: this replaces every passage the new cut changes, and the facts and questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --rerun $(ONLY)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --rerun $(if $(filter 1,$(FORCE)),--force) $(ONLY)
 
 # Read every stored passage's language and vocabulary again, in place. Only
 # those two change, and facts.language moves with the passage a fact opens
@@ -758,13 +762,15 @@ extract-retry:
 # Run this stage again over every passage, finished ones included. For when
 # the code behind it changed and its output needs rebuilding. Each passage's
 # citations, bridges' aside, are replaced, and with them go any fact left
-# citing no passage and every question left resting on no fact, with its
-# follow-ups and the assessments of each. Without SHA or PASSAGE that is the
-# whole corpus, so it warns and waits first.
+# citing no passage; a question resting on one is rejected as source_changed
+# and kept, and its follow-ups leave the release. Without SHA or PASSAGE that is the
+# whole corpus, so it warns and waits first. A fact read again word for word
+# is kept. It refuses, naming the counts, while released, accepted or
+# reviewed questions rest on what it would replace; FORCE=1 goes on.
 extract-rerun:
 	@$(call IDLE,extract-worker)
 	@[ -n "$(SHA)$(PASSAGE)" ] || { echo "WARNING: this replaces every passage's facts, and the questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --rerun $(ONLY)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --rerun $(if $(filter 1,$(FORCE)),--force) $(ONLY)
 
 # Judge every stored fact again with today's checks. The model is not called
 # and no statement changes: only what the checks read off one. This is what

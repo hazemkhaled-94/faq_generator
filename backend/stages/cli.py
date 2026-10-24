@@ -90,6 +90,13 @@ def parser(module: str, actions: dict[str, str]) -> argparse.ArgumentParser:
         "stage that takes none is ignored.",
     )
     built.add_argument("--watch", action="store_true", help="drain and keep draining")
+    built.add_argument(
+        "--force",
+        action="store_true",
+        help="rerun a stage whose output released, accepted or reviewed "
+        "questions rest on, which --rerun otherwise refuses. Extraction's "
+        "--bridge reads it too.",
+    )
     return built
 
 
@@ -296,6 +303,15 @@ def queue_main(
                 f"the drain after the rerun would take them too. Take them back "
                 f"first: python -m {module} --stop"
             )
+
+    # A rerun over questions somebody accepted, reviewed or released is
+    # refused, before the model is asked for anything, until it is forced.
+    if args.rerun and not args.force:
+        queue = repository()
+        resting = getattr(queue, "resting", None)
+        at_risk = resting(narrowing(queue, args.only)) if resting else None
+        if at_risk:
+            raise SystemExit(f"{name}: {at_risk.refusal('FORCE=1 (--force)')}")
 
     # Here rather than inside the loop below, which logs an exception and
     # polls again: that is right for a drain that failed and wrong for a
