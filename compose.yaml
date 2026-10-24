@@ -297,9 +297,24 @@ services:
       start_period: 20s
     networks: [global, parsing]
     logging: *logging
+    # Sized from the corpus: docs/operations.md "Sizing Postgres" is the
+    # table, and configs/env/deployment.env holds the values it names. A
+    # parallel HNSW build takes its memory from /dev/shm, which the runtime
+    # gives a container 64 MB of unless told otherwise.
+    shm_size: ${POSTGRES_SHM_SIZE}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS}
+      - -c
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE}
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS}
     deploy:
       resources:
-        limits: { cpus: "1.0", memory: 512M }
+        limits: { cpus: "${POSTGRES_CPUS}", memory: "${POSTGRES_MEMORY}" }
 
   seaweedfs-master:
     image: chrislusf/seaweedfs:4.44

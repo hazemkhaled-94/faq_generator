@@ -516,3 +516,73 @@ def test_grafana_encrypts_its_secrets_with_a_key_of_this_deployment() -> None:
 
     assert "GRAFANA_SECRET_KEY" in str(grafana["environment"]["GF_SECURITY_SECRET_KEY"])
     assert "\nGRAFANA_SECRET_KEY=change_me" in example
+
+
+def _env_value(path: str, name: str) -> str:
+    """What one env file assigns a name, unexpanded."""
+    found = re.search(rf"^{name}=(.*)$", (ROOT / path).read_text(), re.MULTILINE)
+    assert found, f"{path} does not set {name}"
+    return found.group(1).strip()
+
+
+def test_postgres_is_sized_from_deployment_env() -> None:
+    """One server holds five databases and three vector indexes.
+
+    Its limits, its buffers, the memory a parallel index build may take and
+    its shared memory are the deployment's to set, in one place, because a
+    corpus ten times larger than the first build needs every one of them
+    larger: a container left at 1 CPU and 512 MB cannot hold an HNSW index
+    over 137,000 vectors in memory, and a /dev/shm of 64 MB fails a parallel
+    build outright.
+    """
+    service = yaml.safe_load("\n".join(_compose().splitlines()))["services"]["postgres"]
+
+    limits = service["deploy"]["resources"]["limits"]
+    assert limits["cpus"] == "${POSTGRES_CPUS}"
+    assert limits["memory"] == "${POSTGRES_MEMORY}"
+    assert service["shm_size"] == "${POSTGRES_SHM_SIZE}"
+    given = {
+        part.split("=")[0]: part.split("=")[1]
+        for part in service["command"]
+        if "=" in part
+    }
+    for setting, name in {
+        "shared_buffers": "POSTGRES_SHARED_BUFFERS",
+        "maintenance_work_mem": "POSTGRES_MAINTENANCE_WORK_MEM",
+        "effective_cache_size": "POSTGRES_EFFECTIVE_CACHE_SIZE",
+        "max_connections": "POSTGRES_MAX_CONNECTIONS",
+    }.items():
+        assert given.get(setting) == f"${{{name}}}", setting
+        assert _env_value("configs/env/deployment.env", name)
+
+
+def test_max_connections_covers_every_pool_with_a_margin() -> None:
+    """The pools' sum, the object store's filer, and room for the rest.
+
+    Each backend process holds a pool and its overflow; the api and the six
+    workers are the ones that read DATABASE_URL. The filer keeps its own
+    connections open. The margin is for Phoenix, Dagster, Argilla, Grafana,
+    Adminer and an operator's psql.
+    """
+    margin = 100
+    pool = int(_env_value("configs/env/backend.env", "DATABASE_POOL_SIZE"))
+    overflow = int(_env_value("configs/env/backend.env", "DATABASE_POOL_OVERFLOW"))
+    filer = int(
+        _env_value(
+            "configs/env/seaweedfs-filer.env", "WEED_POSTGRES_CONNECTION_MAX_OPEN"
+        )
+    )
+    services = yaml.safe_load(_compose())["services"]
+    processes = sum(
+        1
+        for body in services.values()
+        if "DATABASE_URL" in str(body.get("environment") or {})
+    )
+
+    wanted = processes * (pool + overflow) + filer + margin
+
+    assert processes >= 7
+    assert (
+        int(_env_value("configs/env/deployment.env", "POSTGRES_MAX_CONNECTIONS"))
+        >= wanted
+    )

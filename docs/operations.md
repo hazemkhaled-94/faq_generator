@@ -39,7 +39,8 @@ as `admin@localhost`), `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`, and
 ## Memory
 
 The memory limits in [`compose.yaml`](../compose.yaml) add up to about
-30 GiB: the question worker may take 6, the parse and extract workers 4
+33 GiB at the shipped sizes: PostgreSQL may take 4 ([sized below](#sizing-postgres)),
+the question worker 6, the parse and extract workers 4
 each, the chunk and topic workers 3 each, Elasticsearch 2, and every other
 service 1 or less. They are ceilings rather than reservations, and a
 container that reaches its own is killed.
@@ -58,6 +59,49 @@ podman machine start
 A machine smaller than the workers you run at once is what the smaller
 stack below is for: its services with the parse or the chunk worker have run
 in a machine of 8 GiB. The question worker's limit alone is 6 GiB.
+
+### Sizing Postgres
+
+One server holds five databases and three vector indexes (passages, facts and
+questions, 1024 dimensions each). Its size follows the corpus, and
+[`configs/env/deployment.env`](../configs/env/deployment.env) holds the values:
+`POSTGRES_CPUS` and `POSTGRES_MEMORY` are the container's limits,
+`POSTGRES_SHM_SIZE` its `/dev/shm`, and `POSTGRES_SHARED_BUFFERS`,
+`POSTGRES_MAINTENANCE_WORK_MEM`, `POSTGRES_EFFECTIVE_CACHE_SIZE` and
+`POSTGRES_MAX_CONNECTIONS` reach the server as `-c` options.
+
+A vector is 4 KB, and an HNSW index over it is about the same size again. The
+facts are the largest of the three: 137,000 vectors are about 0.55 GB of
+vectors and 1.1 GB with the index, and the passages and the questions add a
+fifth. The working set is that, and the memory is three times it, so the index
+stays cached while a second one is built. The defaults are the go-live corpus
+(about 300 documents, 20,000 passages, 137,000 fact vectors), ten times the
+build the review measured.
+
+| Corpus | Passages | Fact vectors | `POSTGRES_CPUS` | `POSTGRES_MEMORY` | `POSTGRES_SHM_SIZE` | `POSTGRES_SHARED_BUFFERS` | `POSTGRES_MAINTENANCE_WORK_MEM` | `POSTGRES_EFFECTIVE_CACHE_SIZE` |
+|---|---|---|---|---|---|---|---|---|
+| The reviewed build | 2,000 | 14,000 | 1.0 | 1G | 256m | 256MB | 256MB | 640MB |
+| Five times | 10,000 | 70,000 | 2.0 | 2G | 512m | 512MB | 512MB | 1280MB |
+| **Go-live (shipped)** | 20,000 | 137,000 | 4.0 | 4G | 1g | 1GB | 1GB | 2560MB |
+| Twenty times | 40,000 | 274,000 | 4.0 | 8G | 2g | 2GB | 2GB | 5GB |
+
+- **`POSTGRES_SHM_SIZE`** at least `POSTGRES_MAINTENANCE_WORK_MEM`. A parallel
+  index build takes its memory from `/dev/shm`, which a container gets 64 MB of
+  by default. A restore of the review's dump failed there with `could not
+  resize shared memory segment` while an HNSW index was built in parallel.
+- **`POSTGRES_MAINTENANCE_WORK_MEM`** is what one index build holds before it
+  spills to disk, where pgvector warns that the graph no longer fits. The
+  biggest index is the facts', so it is the size of that index.
+- **`POSTGRES_MAX_CONNECTIONS`** does not follow the corpus, it follows the
+  processes. The api and the six workers each hold `DATABASE_POOL_SIZE` plus
+  `DATABASE_POOL_OVERFLOW` connections (70), the object store's filer holds up
+  to `WEED_POSTGRES_CONNECTION_MAX_OPEN` (50), and Phoenix, Dagster, Argilla,
+  Grafana, Adminer and a person with `psql` need the rest of the 250. A worker
+  scaled to more replicas, or a larger pool, adds its own share: keep the
+  total under 80% of this. `tests/static/test_env_files.py` refuses a pool
+  that no longer fits.
+- A changed value needs `podman compose up -d postgres`, which recreates the
+  container on its volume, and no migration.
 
 ### A smaller stack
 
