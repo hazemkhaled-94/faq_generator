@@ -773,6 +773,63 @@ def _languages(session, passage_ids: set[int]) -> dict[int, str | None]:
     }
 
 
+def _changed(
+    session, verdicts: list[tuple[int, CheckedFact]]
+) -> list[tuple[int, CheckedFact]]:
+    """The verdicts that differ from the rows they are for, in the order given.
+
+    A verdict differs when anything `rejudge` would write does: the evidence
+    text, the verdict and its words, the counts, the units and references,
+    the pointer to a twin and the spans it cites.
+    """
+    ids = [fact_id for fact_id, _ in verdicts]
+    stored = {
+        row.id: row
+        for row in session.execute(
+            select(_FACTS).where(_FACTS.c.id.in_(ids))
+        ).mappings()
+    }
+    spans = {
+        (row.fact_id, row.passage_id): (
+            list(row.sentence_ids or []),
+            row.evidence_start,
+            row.evidence_end,
+        )
+        for row in session.execute(
+            select(_LINKS).where(_LINKS.c.fact_id.in_(ids))
+        ).mappings()
+    }
+    moved = []
+    for fact_id, checked in verdicts:
+        row = stored.get(fact_id)
+        same = row is not None and all(
+            row[column] == value
+            for column, value in (
+                ("evidence_text", checked.evidence_text),
+                ("validated", checked.validated),
+                ("rejection_code", checked.rejection_code),
+                ("validation_error", checked.validation_error),
+                ("statement_predicates", checked.statement_predicates),
+                ("evidence_predicates", checked.evidence_predicates),
+                ("units_statement", list(checked.units_statement)),
+                ("units_added", list(checked.units_added)),
+                ("unresolved_references", list(checked.unresolved_references)),
+                ("spacy_model", checked.spacy_model),
+                ("spacy_version", checked.spacy_version),
+                ("twin_id", checked.twin_id),
+            )
+        )
+        if same:
+            same = all(
+                spans.get((fact_id, cited.passage_id))
+                == (list(cited.sentence_ids or []), cited.start, cited.end)
+                for cited in checked.citations
+            )
+        if not same:
+            moved.append((fact_id, checked))
+    return moved
+
+
 def _row(
     fact: CheckedFact, version: str | None = None, language: str | None = None
 ) -> dict:
@@ -1556,12 +1613,19 @@ class FactCatalog(Repository):
         Args:
             verdicts: Each fact's id beside its new verdict.
 
+        Only the facts whose verdict or spans differ from what is stored are
+        written and stamped with this settings version: a second pass under
+        unchanged code rewrites nothing.
+
         Returns:
             How many rows were written.
         """
         if not verdicts:
             return 0
         with self._session.begin() as session:
+            verdicts = _changed(session, verdicts)
+            if not verdicts:
+                return 0
             # The table rather than the entity: an executemany against the
             # mapped class is read as an ORM bulk update by primary key, which
             # wants the key among the values being set.
@@ -1581,6 +1645,7 @@ class FactCatalog(Repository):
                         "unresolved_references": checked.unresolved_references,
                         "spacy_model": checked.spacy_model,
                         "spacy_version": checked.spacy_version,
+                        "twin_id": checked.twin_id,
                         # Rewritten with the verdict it was reached under.
                         "settings_version": self._version,
                     }

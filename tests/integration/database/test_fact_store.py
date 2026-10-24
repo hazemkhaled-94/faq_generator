@@ -1056,6 +1056,46 @@ class TestRejudging:
         assert statement == "A claim.", "the statement is never rewritten"
         assert (validated, code) == (False, Rejection.COPIED)
 
+    def test_a_verdict_nothing_changed_writes_no_row(self, store, corpus) -> None:
+        """A second revalidation with the same code stamps and writes nothing."""
+        first = corpus["a"][0]
+        store.store(first, checked(first, "A claim."))
+        ((fact_id, _, _, _),) = store.catalog.judged()
+        same = checked(first, "A claim.")
+
+        assert store.catalog.rejudge([(fact_id, same)]) == 0
+        assert store.rows("settings_version") == [(None,)]
+
+    def test_only_the_verdict_that_changed_is_written(self, store, corpus) -> None:
+        """Of two facts, the one whose verdict moved is written and stamped."""
+        first = corpus["a"][0]
+        store.queue = store.queue.__class__(version="v2")
+        store.catalog = store.catalog.__class__(version="v2")
+        store.store(first, checked(first, "One."), checked(first, "Two."))
+        ids = [row[0] for row in store.rows("id")]
+
+        written = store.catalog.rejudge(
+            [
+                (ids[0], checked(first, "One.")),
+                (
+                    ids[1],
+                    checked(
+                        first,
+                        "Two.",
+                        validated=False,
+                        rejection_code=Rejection.COPIED,
+                        validation_error="restated",
+                    ),
+                ),
+            ]
+        )
+
+        assert written == 1
+        assert store.rows("validated", "rejection_code") == [
+            (True, None),
+            (False, Rejection.COPIED),
+        ]
+
     def test_a_citation_the_verdict_does_not_name_keeps_its_span(
         self, store, corpus
     ) -> None:
