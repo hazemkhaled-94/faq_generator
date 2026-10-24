@@ -10,7 +10,8 @@ write of a passage's facts through `_write`, on the real schema with its real
 indexes. Vectors are random, which is the hardest case for an HNSW graph.
 
 The bar: the 95th percentile of each is within twice what it was at the
-reviewed size, the index builds finish with no memory notice and the
+reviewed size (the probe's of a single pass over a fresh vector, which is what
+a drain pays; the best of three is printed beside it), the index builds finish with no memory notice and the
 parallel build gets the `/dev/shm` it needs, a database time per passage
 stays under 0.37 s, and the pools at their peak stay under 80% of
 `max_connections`. No model is called.
@@ -30,7 +31,7 @@ from pathlib import Path
 import psycopg
 import pytest
 from facts import checked
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 pytestmark = [pytest.mark.perf, pytest.mark.integration]
@@ -202,27 +203,21 @@ def _percentile(samples: list[float], share: float = 0.95) -> float:
 
 
 def _measured(url: str, passages: int) -> dict[str, float]:
-    """The p95 of one dedup probe and of writing one passage's facts, in seconds."""
+    """The p95 of one dedup probe, single-pass and warm, and of a write, in seconds."""
     from extraction.repository import _nearest_fact, _write
 
     engine = create_engine(url)
     rng = random.Random(11)
     try:
         with Session(engine) as session:
-            stored = [
-                list(one)
-                for one in session.execute(
-                    text(
-                        "SELECT embedding::real[] FROM facts ORDER BY random() LIMIT :n"
-                    ),
-                    {"n": PROBES},
-                ).scalars()
-            ]
+            # Fresh vectors, which no row holds: a drain probes each new fact
+            # once, and a stored vector would find itself where it sits.
+            fresh = [_vector(rng) for _ in range(PROBES)]
             probes, first = [], []
-            for at, vector in enumerate(stored):
-                # The best of three: the machine this runs on is shared, and a
-                # neighbour's burst is not what the index costs. The first of
-                # the three is kept, to say what a cold probe took.
+            for at, vector in enumerate(fresh):
+                # A single pass is what a drain pays and is what the bar is
+                # held to. The best of three is the same probe warm, kept and
+                # printed to say how much of the first is the cache.
                 times = []
                 for _ in range(PASSES):
                     started = time.perf_counter()
@@ -250,14 +245,19 @@ def _measured(url: str, passages: int) -> dict[str, float]:
             writes.append(time.perf_counter() - started)
     finally:
         engine.dispose()
-    print(_plan(url, stored[0]))
+    print(_plan(url, fresh[0]))
     print(
-        f"probe p50 {statistics.median(probes) * 1000:.1f} ms, "
-        f"p95 {_percentile(probes) * 1000:.1f} ms (cold p95 "
-        f"{_percentile(first) * 1000:.1f} ms); write p50 "
+        f"probe single-pass p50 {statistics.median(first) * 1000:.1f} ms, "
+        f"p95 {_percentile(first) * 1000:.1f} ms (warm best of {PASSES}: p50 "
+        f"{statistics.median(probes) * 1000:.1f} ms, p95 "
+        f"{_percentile(probes) * 1000:.1f} ms); write p50 "
         f"{statistics.median(writes) * 1000:.0f} ms, p95 {_percentile(writes) * 1000:.0f} ms"
     )
-    return {"probe": _percentile(probes), "write": _percentile(writes)}
+    return {
+        "probe": _percentile(first),
+        "warm": _percentile(probes),
+        "write": _percentile(writes),
+    }
 
 
 def _plan(url: str, vector: list[float]) -> str:
