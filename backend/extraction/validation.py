@@ -105,6 +105,8 @@ class Judged:
         labels: On a bridge, the numbered headings ("Section 7") of the
             passages it rests on.
         language: The language the statement is read in.
+        claims: The most claims the statement may carry: one, or two on a
+            bridge that states a contrast or an exception.
     """
 
     statement: str
@@ -116,6 +118,7 @@ class Judged:
     citations: tuple[Citation, ...] = field(default=())
     labels: tuple[str, ...] = ()
     language: str | None = None
+    claims: int = 1
 
     @property
     def added(self) -> tuple[str, ...]:
@@ -177,16 +180,22 @@ def _asserts(judged: Judged) -> Failure | None:
     )
 
 
+#: The relations of a bridge that state a rule and its other side - a contrast,
+#: an exception - so it may carry two claims. Names of `llm.spans.RELATIONS`.
+_TWO_SIDED = frozenset({"contrast", "limits"})
+
+
 def _atomic(judged: Judged) -> Failure | None:
     """Refuses a statement carrying more than one claim."""
     found = judged.claim.predicates
-    if found <= 1:
+    if found <= judged.claims:
         return None
     return (
         Rejection.NOT_ATOMIC,
         (
-            f"the statement carries {found} claims; a fact carries one, and "
-            "the rest belong to facts of their own"
+            f"the statement carries {found} claims; a fact carries "
+            f"{'one' if judged.claims == 1 else judged.claims}, and the rest "
+            "belong to facts of their own"
         ),
     )
 
@@ -531,6 +540,7 @@ class FactChecker:
                 if HEADING_LABEL.match(segment.strip())
             ),
             language=anchor.language,
+            claims=2 if candidate.relation in _TWO_SIDED else 1,
         )
         return self._verdict(anchor, candidate, judged, WRITTEN, provenance)
 

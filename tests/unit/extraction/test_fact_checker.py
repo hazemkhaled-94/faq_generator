@@ -860,6 +860,68 @@ class TestBridge:
         assert bridged.kind == FactKind.BRIDGE
         assert [one.passage_id for one in bridged.citations] == [11, 22]
 
+    @pytest.mark.parametrize(
+        ("language", "first", "second", "statement", "relation"),
+        [
+            (
+                "de",
+                "Rücksendungen sind innerhalb von 14 Tagen erlaubt.",
+                "Geöffnete Software ist von der Rücksendung ausgeschlossen.",
+                (
+                    "Rücksendungen sind innerhalb von 14 Tagen erlaubt, aber geöffnete "
+                    "Software ist von der Rücksendung ausgeschlossen."
+                ),
+                "contrast",
+            ),
+            (
+                "en",
+                "Returns are accepted within 14 days.",
+                "Opened software cannot be returned.",
+                (
+                    "Returns are accepted within 14 days, but opened software cannot be "
+                    "returned."
+                ),
+                "limits",
+            ),
+            (
+                "en",
+                "Clothing may be returned within 30 days.",
+                "Opened software may not be returned.",
+                (
+                    "Clothing may be returned within 30 days, but opened software may not "
+                    "be returned."
+                ),
+                "contrast",
+            ),
+        ],
+    )
+    def test_a_contrast_or_an_exception_may_state_both_sides(
+        self, checker, language, first, second, statement, relation
+    ) -> None:
+        """A bridge whose relation is a contrast or a limit says a rule and its other side."""
+        bridged = checker.bridge(
+            statement, group(first, second, language=language), relation=relation
+        )
+
+        assert bridged.validated, (bridged.rejection_code, bridged.validation_error)
+
+    def test_a_bridge_of_another_relation_is_still_held_to_one_claim(
+        self, checker
+    ) -> None:
+        """Two independent rules joined by "and" are two facts, whichever the passages."""
+        both = group(
+            "Returns are accepted within 14 days.",
+            "Refunds are paid within 5 days.",
+        )
+        statement = (
+            "Returns are accepted within 14 days and refunds are paid within 5 days."
+        )
+
+        for relation in ("applies", "parallel", None):
+            bridged = checker.bridge(statement, both, relation=relation)
+
+            assert bridged.rejection_code == Rejection.NOT_ATOMIC, relation
+
     def test_the_evidence_is_every_span_it_cited(self, checker, offered) -> None:
         """One line per passage, in the order the model was shown them."""
         bridged = checker.bridge("Two request kinds are named.", offered)
@@ -933,7 +995,10 @@ class TestBridge:
         self, checker, offered
     ) -> None:
         """The vocabulary checked against is the union of every passage."""
-        across = checker.bridge("An urgent request waits 4 hours.", offered)
+        across = checker.bridge(
+            "An urgent request waits 4 hours.",
+            offered,
+        )
 
         assert not across.units_added, across.units_added
         assert across.validated, across.rejection_code
