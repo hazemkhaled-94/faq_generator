@@ -462,6 +462,11 @@ corpus, which is a property of the model rather than of this code.
   In a document whose running page numbers show no offset, an integer right
   after a block ending on a lead-in's colon stays too; where they show one,
   the offset alone decides.
+- **A lone list item that repeats a heading is that heading.** The converter
+  reads one numbered sub-heading as a heading in one column and as a one-item
+  list in the other. A list item alone in its list whose marker and text
+  together are a heading of the document leaves the body; one among others, or
+  with text the headings do not hold, stays.
 - **A paragraph set where the running items sit is one.** A running head or
   foot the converter read as body text and printed in another language than
   the document's matches none of the running strings, and the language split

@@ -622,7 +622,9 @@ def _restated(
     repeats a name it flags: a lone `oder` between two alternatives is text
     wherever else the layout took one for a heading. A name and a paragraph
     both hold a letter: a page number is no name, and a price whose digits
-    equal one, `5 €`, is no repeat of it.
+    equal one, `5 €`, is no repeat of it. A list item alone in its list, whose
+    marker and text together repeat a heading, is the same label set as a
+    list in the other column, and leaves the body the same way.
     """
     names = {
         _plain(name)
@@ -636,6 +638,11 @@ def _restated(
         if item.label in _HEADINGS and not junk(item.text)
     }
     names.discard("")
+    headings = {
+        _plain(item.text)
+        for item in document.texts
+        if item.label in _HEADINGS and not junk(item.text)
+    }
     found: list[tuple[str, int | None]] = []
     level, last = 0, ""
     for item, _ in document.iterate_items():
@@ -643,6 +650,17 @@ def _restated(
             level, last = item.level, _plain(item.text)
         elif isinstance(item, TitleItem):
             level, last = 0, _plain(item.text)
+        elif (
+            isinstance(item, ListItem)
+            and item.content_layer == ContentLayer.BODY
+            and item.self_ref not in skipped
+            and not item.children
+            and _alone(item, document)
+            and _plain(f"{item.marker} {item.text}") in headings
+            and not junk(item.text)
+        ):
+            # Heading and item are one label read twice: it heads nothing new.
+            found.append((item.self_ref, None))
         elif (
             isinstance(item, TextItem)
             and item.label in _PROSE
@@ -656,6 +674,12 @@ def _restated(
                 (item.self_ref, None if plain == last else min(level + 1, 100))
             )
     return found
+
+
+def _alone(item: ListItem, document: DoclingDocument) -> bool:
+    """Whether a list item is the only item of its list."""
+    parent = item.parent.resolve(document) if item.parent else None
+    return isinstance(parent, ListGroup) and len(parent.children) == 1
 
 
 def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingDocument:
