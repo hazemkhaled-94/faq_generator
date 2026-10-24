@@ -207,16 +207,12 @@ def shown(
 
 
 def _narrowed(group: FactGroup, passage_id: int) -> FactGroup:
-    """The facts resting on that passage, a bridge cut down to it.
-
-    A bridge one of whose passages states the question's answer rests on that
-    passage for this question: it stays a source, anchored where it was.
-    """
+    """The facts resting on that passage alone: none, for a bridge cited alone."""
     return FactGroup(
         tuple(
-            replace(fact, passages=kept)
+            fact
             for fact in group.facts
-            if (kept := tuple(one for one in fact.passages if one.id == passage_id))
+            if all(one.id == passage_id for one in fact.passages)
         )
     )
 
@@ -750,10 +746,10 @@ class QuestionChecker:
 
         Last, and only for a question about to be accepted, so a refused one
         never pays for the call. It never refuses: a question one passage
-        answers is relabelled, not refused. A follow-up whose narrowed
-        citation would ask nothing its root did not (`_thread` is read again
-        on the narrowed group) keeps both passages, with the reading on the
-        row; a bridge is cut down to the passage like any other fact. Where no quote is found in any passage
+        answers is relabelled, not refused. A bridge cited alone, or a
+        follow-up whose narrowed citation would ask nothing its root did not
+        (`_thread` is read again on the narrowed group), keeps both passages,
+        with the reading on the row. Where no quote is found in any passage
         nothing is decided and nothing is recorded. Where every passage states
         every part and the question joins cases with a conjunction, each may
         give the same answer for its own case, so both are kept.
@@ -809,7 +805,14 @@ class QuestionChecker:
             return candidate
         assert len(keep) == 1
         keep_id = resting[keep[0]].id
-        alone = replace(candidate, group=_narrowed(candidate.group, keep_id))
+        narrowed = _narrowed(candidate.group, keep_id)
+        if not narrowed.facts:
+            log.info(
+                "%r is stated by one passage but cites a bridge: kept two-passage",
+                candidate.question_text,
+            )
+            return candidate
+        alone = replace(candidate, group=narrowed)
         if self._thread(alone) is not None:
             log.info(
                 "%r is stated by one passage but its thread needs both: kept "

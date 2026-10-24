@@ -832,7 +832,7 @@ BRIDGES: tuple[tuple[str, str, tuple[int, ...], str | None], ...] = (
     ),
     (
         "a value carried by the second passage",
-        "Standard requests are answered within 48 hours, urgent requests within 4 hours.",
+        "An urgent request waits 4 hours.",
         (0, 1),
         None,
     ),

@@ -5986,8 +5986,8 @@ def test_no_part_quoted_from_any_passage_keeps_both_and_reads_nothing() -> None:
     assert _needs_both(result) == []
 
 
-def test_a_bridge_one_passage_states_whole_is_narrowed_to_it_with_the_reading() -> None:
-    """A bridge question one passage answers is cited from that passage, as any is."""
+def test_a_bridge_one_passage_states_whole_keeps_both_with_the_reading() -> None:
+    """A bridge cited alone has no fact resting on one passage to cite."""
     from factories import bridge, resting
 
     one = "Gift cards bought in a store can be redeemed in the online shop."
@@ -6014,7 +6014,7 @@ def test_a_bridge_one_passage_states_whole_is_narrowed_to_it_with_the_reading() 
     )
 
     assert result.accepted
-    assert result.passage_ids == (1,)
+    assert result.passage_ids == (1, 2)
     assert _needs_both(result) == [(0.0, True)]
 
 

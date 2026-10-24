@@ -29,7 +29,6 @@ from nlp.analysis import (
     claim,
     normalised,
     numerals,
-    owned,
     vocabulary,
     written_in,
 )
@@ -133,7 +132,6 @@ class Judged:
         language: The language the statement is read in.
         claims: The most claims the statement may carry: one, or two on a
             bridge that states a contrast or an exception.
-        pieces: On a bridge, the cited text of each passage it rests on.
     """
 
     statement: str
@@ -146,7 +144,6 @@ class Judged:
     labels: tuple[str, ...] = ()
     language: str | None = None
     claims: int = 1
-    pieces: tuple[str, ...] = ()
 
     @property
     def added(self) -> tuple[str, ...]:
@@ -314,26 +311,6 @@ def _bridging(judged: Judged) -> Failure | None:
     )
 
 
-def _owned_by_each(judged: Judged) -> Failure | None:
-    """Refuses a bridge one of whose passages gives it nothing the other does not.
-
-    A word or a figure of the statement that only one passage carries is that
-    passage's. A passage owning none, the other passage's rule repeated or
-    explained, makes the claim the other one states alone, which is no bridge.
-    """
-    if len(judged.pieces) < 2:
-        return None
-    if all(owned(judged.statement, judged.pieces, judged.language)):
-        return None
-    return (
-        Rejection.NOT_BRIDGING,
-        (
-            "one cited passage gives the statement nothing the other does not, "
-            "so the other alone states the claim"
-        ),
-    )
-
-
 #: The endings a label word takes to inflect (plural, case), by ISO 639-1
 #: code. A word that merely begins with a label word is not one of its forms.
 _INFLECTIONS: dict[str, tuple[str, ...]] = {
@@ -487,7 +464,6 @@ class FactChecker:
                 _self_contained,
                 _bridging,
                 _located,
-                _owned_by_each,
             ),
         }
 
@@ -601,7 +577,6 @@ class FactChecker:
             ),
             language=anchor.language,
             claims=2 if candidate.relation in _TWO_SIDED else 1,
-            pieces=tuple(texts),
         )
         return self._verdict(anchor, candidate, judged, WRITTEN, provenance)
 

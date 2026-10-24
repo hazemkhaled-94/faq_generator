@@ -190,10 +190,8 @@ def test_needs_both_helpers_agree_on_the_cases_fixture() -> None:
     assert _needs_both(result) == [(1.0, True)]
 
 
-def test_a_bridge_one_passage_answers_logs_the_passage_it_is_cited_from(
-    caplog,
-) -> None:
-    """The line names the question and the one passage that states it."""
+def test_a_bridge_cited_alone_logs_that_both_were_kept(caplog) -> None:
+    """The line names the question and why the narrowing did not happen."""
     from factories import bridge, group, resting
 
     one = "Gift cards bought in a store can be redeemed in the online shop."
@@ -220,7 +218,7 @@ def test_a_bridge_one_passage_answers_logs_the_passage_it_is_cited_from(
 
     assert (
         logging.INFO,
-        f"{question!r} is cited from passage 1 alone",
+        f"{question!r} is stated by one passage but cites a bridge: kept two-passage",
     ) in [(r.levelno, r.getMessage()) for r in caplog.records]
 
 
