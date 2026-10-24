@@ -89,8 +89,10 @@ def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
 
 
 #: One ' > ' segment of a heading trail that is a word and a number
-#: ('Section 7', 'Regel 5.1', '§ 3'): the document's own way to number a part.
-HEADING_LABEL = re.compile(r"^([^\W\d_]+|§)\s?(\d+(?:\.\d+)*)$")
+#: ('Section 7', 'Regel 5.1', '§ 3'): the document's own way to number a part,
+#: with or without a title after the number ('Article 17 Ethical provisions',
+#: '§ 5 Kündigung', 'Section 7: Fees').
+HEADING_LABEL = re.compile(r"^([^\W\d_]+|§)\s?(\d+(?:\.\d+)*)(?:\s*[:.\-–—]?\s+\S.*)?$")
 
 #: A heading number as the documents write it ('7', '5.1').
 NUMBER = re.compile(r"\d+(?:\.\d+)*")

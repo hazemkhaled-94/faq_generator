@@ -289,3 +289,72 @@ def test_a_numbered_reference_names_another_document_by_its_title(language, rows
     got = linked([made[0]], made, {m.id: m.id for m in made}, 5, 2)
     refs = [tuple(p.id for p in k.passages) for k in got if k.kind == "reference"]
     assert refs == [(1, 2)]
+
+
+@pytest.mark.parametrize(
+    "language,rows",
+    [
+        (
+            "en",
+            [
+                (
+                    "Fees for dormant accounts are set out in Article 17.",
+                    "Card Terms > Article 2 Dormant accounts",
+                    "bank",
+                ),
+                (
+                    "A dormant card account is charged 10 EUR a year.",
+                    "Card Terms > Article 17 Ethical provisions",
+                    "bank",
+                ),
+            ],
+        ),
+        (
+            "de",
+            [
+                (
+                    "Die Kündigung regelt gemäß § 5 der Vertrag.",
+                    "Bedingungen > § 2 Laufzeit",
+                    "shop",
+                ),
+                (
+                    "Der Kunde kann jederzeit mit einer Frist von 14 Tagen kündigen.",
+                    "Bedingungen > § 5 Kündigung",
+                    "shop",
+                ),
+            ],
+        ),
+        (
+            "en",
+            [
+                (
+                    "Fees are set out in Section 7.",
+                    "Terms > Section 2: Scope",
+                    "bank",
+                ),
+                (
+                    "A dormant card account is charged 10 EUR a year.",
+                    "Terms > Section 7: Fees",
+                    "bank",
+                ),
+            ],
+        ),
+    ],
+)
+def test_a_heading_with_a_title_after_its_number_is_a_reference_target(language, rows):
+    """`Article 17 Ethical provisions` teaches `article` and is what `Article 17` names."""
+    assert references(language, rows) == [(1, 2)]
+
+
+def test_a_heading_with_no_number_teaches_no_label() -> None:
+    """`Overview` is a heading, not a numbered part."""
+    rows = [
+        ("See Overview 7 for details.", "Terms > Section 2 Scope", "bank"),
+        (
+            "A dormant card account is charged 10 EUR a year.",
+            "Terms > Overview",
+            "bank",
+        ),
+    ]
+
+    assert references("en", rows) == []
