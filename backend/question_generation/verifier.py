@@ -38,7 +38,7 @@ PROMPT_VERSION = "12"
 
 #: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
 #: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
-STATED_VERSION = "2"
+STATED_VERSION = "1"
 
 _VERIFY = """ROLE
 You are an independent verifier for a document-search chatbot's test set. You
@@ -369,11 +369,6 @@ STEPS
    table row is still stated.
 5. A part no passage states gets no quote. Quote only words a passage holds:
    never the key, the question or your own words.
-6. Say whether the question asks ONE question: every part answers the same
-   question, about one subject, one case or one comparison of cases, so one
-   reply serves the question as a whole. Two asks about unrelated subjects
-   joined by "and", where a reply could answer one and not the other, are two
-   questions: set `one_question` false.
 
 CONTEXT
 A question citing two passages is stored as one that needs both. When one
@@ -424,33 +419,12 @@ EXAMPLES
   question "From what order value is shipping free?"
   key      "over 50 EUR"
   -> "the order value": ["Orders over 50 EUR are shipped free of charge."]
-     one_question true
-
-  [1] "A standing order can be cancelled online until the day before it runs."
-  [2] "Replacing a lost card costs 10 EUR."
-  question "Until when can a standing order be cancelled, and what does a
-            replacement card cost?"
-  key      "until the day before; 10 EUR"
-  -> "cancelling a standing order": ["A standing order can be cancelled online
-     until the day before it runs."]
-     "the replacement fee": ["Replacing a lost card costs 10 EUR."]
-     one_question false (two unrelated asks: a reply can answer one alone)
-
-  [1] "Standard delivery takes 3 to 5 days."
-  [2] "Express delivery takes 1 day."
-  question "How long do standard and express delivery take?"
-  key      "3 to 5 days and 1 day"
-  -> "standard delivery": ["Standard delivery takes 3 to 5 days."]
-     "express delivery": ["Express delivery takes 1 day."]
-     one_question true (one comparison of two cases on one subject)
 
 FORMAT
 Return `parts`, one entry per part, in the order the key gives them.
 - `part` names the part in a few words.
 - `quotes` holds the words of each passage that states the part, as they
   stand, one entry per passage; empty when no passage states it.
-- `one_question` is true when every part answers the one question asked,
-  false when the question welds unrelated asks together.
 """
 
 #: The user messages, as the catalogue records them and the two calls below
@@ -567,12 +541,6 @@ class _Stated(BaseModel):
         description="One entry per part a complete answer to the question "
         "gives, in the order the key gives them.",
     )
-    one_question: bool = Field(
-        default=True,
-        description="Whether every part answers the one question asked, about "
-        "one subject, case or comparison; false when the question welds "
-        "unrelated asks together.",
-    )
 
 
 class Settling(StrEnum):
@@ -653,16 +621,6 @@ class Part:
 
     name: str
     quotes: tuple[str, ...]
-
-
-class Parts(tuple[Part, ...]):
-    """The parts a reading listed, beside whether the question asks one question.
-
-    A tuple, so every reader of the parts reads them as before; `one_question`
-    is the same call's other answer, True where nobody read it.
-    """
-
-    one_question: bool = True
 
 
 class Verifier:
@@ -877,7 +835,7 @@ class Verifier:
         key: str,
         passages: Sequence[str],
         thread: Sequence[tuple[str, str | None]] = (),
-    ) -> Parts:
+    ) -> tuple[Part, ...]:
         """The parts a complete answer gives, each with the quotes stating it.
 
         Raises:
@@ -904,12 +862,10 @@ class Verifier:
             shape=_Stated,
             prompt_version=STATED_VERSION,
         )
-        parts = Parts(
+        return tuple(
             Part(
                 one.part.strip(),
                 tuple(quote.strip() for quote in one.quotes if quote.strip()),
             )
             for one in got.parts
         )
-        parts.one_question = got.one_question
-        return parts
