@@ -1836,3 +1836,32 @@ def test_a_statement_naming_something_is_still_refused_whatever_its_evidence_say
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.ASSERTS_NOTHING
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "de",
+            "Die Frist ist eingehalten, wenn die Handlung bis 24.00 Uhr MEZ erfolgt.",
+            "Die Frist endet um 24:00 Uhr MEZ.",
+        ),
+        (
+            "en",
+            "The shop closes at 18.00 CET on weekdays.",
+            "The shop closes at 18:00 CET on weekdays.",
+        ),
+        (
+            "de",
+            "Das Konto ist bis 18.00 Uhr geöffnet.",
+            "Das Konto ist bis 18:00 Uhr geöffnet.",
+        ),
+    ],
+)
+def test_a_time_the_evidence_writes_with_a_dot_is_no_addition(
+    language, evidence, statement
+) -> None:
+    """`24.00 Uhr` in the evidence supports `24:00 Uhr` in the statement."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)

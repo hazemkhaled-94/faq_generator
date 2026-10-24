@@ -123,3 +123,45 @@ def test_a_cardinal_joins_only_the_cardinal_it_continues(language, text, wanted)
     from nlp.analysis import numbers
 
     assert tuple(sorted(numbers(text, language))) == tuple(sorted(wanted))
+
+
+@pytest.mark.parametrize(
+    ("dotted", "colon", "language"),
+    [
+        ("Die Frist endet bis 24.00 Uhr.", "Die Frist endet um 24:00 Uhr.", "de"),
+        (
+            "Das Konto ist bis 18.00 Uhr geöffnet.",
+            "Das Konto ist bis 18:00 geöffnet.",
+            "de",
+        ),
+        ("The cut-off is 23.59 CET.", "The cut-off is 23:59 CET.", "en"),
+        ("Orders close at 8.30 sharp.", "Orders close at 08:30 sharp.", "en"),
+        (
+            "Il negozio chiude entro le 18.00.",
+            "Il negozio chiude entro le 18:00.",
+            "it",
+        ),
+    ],
+)
+def test_a_time_written_with_a_dot_carries_the_hour_and_minute_of_its_colon_form(
+    dotted, colon, language
+) -> None:
+    """`24.00` and `24:00` are one time, in any language."""
+    from nlp.analysis import numerals
+
+    assert numerals(colon, language) <= numerals(dotted, language)
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("The fee is 8.75 EUR.", "en"),
+        ("Die Gebühr beträgt 8.75 EUR.", "de"),
+        ("The rate is 24.75 percent.", "en"),
+    ],
+)
+def test_a_decimal_whose_second_part_is_no_minute_gains_no_time(text, language) -> None:
+    """Minutes stop at 59: `8.75` is a value, not eight hours and 75 minutes."""
+    from nlp.analysis import numerals
+
+    assert not {"75"} & numerals(text, language)
