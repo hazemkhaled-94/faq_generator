@@ -139,6 +139,20 @@ WHERE f.id IN (
       < CASE WHEN f.kind = 'bridge' THEN 2 ELSE 1 END
 """
 
+#: A fact archived before facts carried a language comes back with none, and
+#: the dedup probe filters on it. Read again from the citation at position 0,
+#: as the revision that added the column filled the rest.
+_LANGUAGED = """
+UPDATE facts SET language = coalesce(p.language, d.language)
+FROM fact_passages fp
+JOIN passages p ON p.id = fp.passage_id
+JOIN documents d ON d.sha256 = p.doc_sha256
+WHERE fp.fact_id = facts.id AND fp.position = 0 AND facts.language IS NULL
+  AND facts.id IN (
+    SELECT (a.payload->>'id')::bigint FROM archived_rows a
+    WHERE a.table_name = 'facts' AND a.archived_at >= :since)
+"""
+
 
 def _deletions(connection: Connection) -> None:
     """Lists the archived rows by the minute they were deleted, newest first."""
@@ -238,6 +252,7 @@ def main() -> int:
                     connection.execute(text(_SUPERSEDED), {"since": since})
                     connection.execute(text(_ROOTLESS), {"since": since})
             dropped = connection.execute(text(_UNSOURCED), {"since": since}).rowcount
+            connection.execute(text(_LANGUAGED), {"since": since})
         except IntegrityError as exc:
             connection.rollback()
             print(f"\nNothing restored: {exc.orig}")

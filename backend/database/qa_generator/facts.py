@@ -162,6 +162,15 @@ class Fact(Base):
         "fact or a bridge, a short paragraph for a summary, and newline-separated "
         "`- ` bullets for an outline.",
     )
+    language: Mapped[str | None] = mapped_column(
+        Text,
+        comment="The language the fact was read in: that of the passage at "
+        "position 0 of fact_passages, and where that passage is too short "
+        "to tell, its document's. Written when the fact is stored, so the "
+        "dedup probe filters on it beside the vector index rather than "
+        "through the citations. NULL on a fact whose passage and document "
+        "name none.",
+    )
     evidence_text: Mapped[str] = mapped_column(
         Text,
         comment="Every span in fact_passages, resolved and joined in position "

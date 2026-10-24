@@ -833,3 +833,29 @@ def test_a_follow_up_under_a_root_still_released_keeps_its_release(
     live = _rows(engine)
     assert live[root_id][1] == drawn
     assert [live[one][1] for one in follows] == [drawn, drawn]
+
+
+def test_a_fact_archived_before_it_carried_a_language_comes_back_with_one(
+    corpus, engine, monkeypatch
+) -> None:
+    """Read again from its citation, as the revision that added the column did."""
+    from archive import restore
+
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE documents SET language = 'en'"))
+        connection.execute(text("UPDATE facts SET language = 'en'"))
+    before, since = rows(engine), now(engine)
+    wipe()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE archived_rows SET payload = payload - 'language' "
+                "WHERE table_name = 'facts'"
+            )
+        )
+
+    monkeypatch.setenv("SINCE", since)
+    assert restore.main() == 0
+
+    assert rows(engine)["facts"] == before["facts"]
+    assert all('"language": "en"' in one for one in before["facts"])

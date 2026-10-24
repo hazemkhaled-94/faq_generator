@@ -212,6 +212,10 @@ Two more refusals are the service refusing what the checks passed:
   taken against today's bar, or none, and takes out the
   citations an earlier version's refusal added to its twin, rebuilding that
   fact's evidence from the citation it keeps. No model is called.
+  The probe narrows to the candidate's language and kind. The language is
+  `facts.language`, written with the fact from the passage it opens on (its
+  document's where that passage is too short to tell), so the narrowing is a
+  filter on the vector index and not a join over the citations.
   The probe sees only facts another passage has already stored, so two
   passages read at the same time by parallel `extract-worker` containers
   cannot refuse each other's facts, and `extract-dedup`, which re-decides

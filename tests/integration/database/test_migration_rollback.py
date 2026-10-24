@@ -42,6 +42,7 @@ THREADED = "d5b2f8a60c14"
 JUDGED = "733a3eadef7c"
 CATEGORIZED = "626a5b07ae34"
 COMMENTS_CORRECTED = "20e31b1656f7"
+LANGUAGED = "860d56b11032"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -66,6 +67,7 @@ LATER = (
     JUDGED,
     CATEGORIZED,
     COMMENTS_CORRECTED,
+    LANGUAGED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.
@@ -779,3 +781,55 @@ def test_the_papers_scores_are_kept_and_taken_back_out(spare: str) -> None:
         "approved) VALUES (1, 'rubric_clarity', '3', 1.0, true)",
     )
     assert sql(spare, held) == [("relevance",), ("rubric_clarity",)]
+
+
+def test_a_fact_takes_the_language_of_its_first_citation(spare: str) -> None:
+    """The passage's own, the document's where it has none, and NULL where neither.
+
+    A German bank passage, an English shop passage of a document that names
+    its language, a passage too short to tell in a French document, and a
+    fact whose citation names no language at all.
+    """
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, COMMENTS_CORRECTED)
+    sql(
+        spare,
+        "INSERT INTO documents (sha256, mime_type, language) VALUES "
+        "(repeat('a', 64), 'application/pdf', 'en'), "
+        "(repeat('b', 64), 'application/pdf', 'fr'), "
+        "(repeat('c', 64), 'application/pdf', NULL)",
+        "INSERT INTO passages (id, doc_sha256, ordinal, text, doc_item_refs, "
+        "language) VALUES "
+        "(1, repeat('a', 64), 1, 'Die Karte kostet 25 Euro.', '{}', 'de'), "
+        "(2, repeat('a', 64), 2, 'Orders can be returned.', '{}', 'en'), "
+        "(3, repeat('b', 64), 1, 'Ok.', '{}', NULL), "
+        "(4, repeat('c', 64), 1, 'Ok.', '{}', NULL)",
+        "INSERT INTO facts (id, statement, evidence_text, extraction_method, "
+        "units_statement, units_added, unresolved_references, validated) "
+        "SELECT n, 'Claim.', 'Claim.', 'llm', '{}', '{}', '{}', true "
+        "FROM generate_series(1, 5) n",
+        "INSERT INTO fact_passages (fact_id, passage_id, position) VALUES "
+        "(1, 1, 0), (2, 2, 0), (3, 3, 0), (4, 4, 0), (5, 1, 0), (5, 2, 1)",
+    )
+
+    command.upgrade(config, LANGUAGED)
+
+    assert sql(spare, "SELECT id, language FROM facts ORDER BY id") == [
+        (1, "de"),
+        (2, "en"),
+        (3, "fr"),
+        (4, None),
+        (5, "de"),
+    ]
+
+    command.downgrade(config, COMMENTS_CORRECTED)
+    assert "language" not in {
+        row[0]
+        for row in sql(
+            spare,
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'facts'",
+        )
+    }

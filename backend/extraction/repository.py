@@ -311,7 +311,9 @@ def _nearest_fact(
     other passage is one its `store` replaces, so it is no twin.
 
     `language` and `kind` narrow it to the candidate's own, None to any.
-    A fact's language is the one the passage it opens on was read in. A
+    A fact's language is the one the passage it opens on was read in, kept
+    on the fact itself so the narrowing is a filter on the index scan rather
+    than a join the planner runs first. A
     translation is its own language's fact, and a summary or an outline
     that repeats an atomic fact is caught beside it in its own passage:
     across passages a digest and a claim are two kinds of thing.
@@ -333,17 +335,7 @@ def _nearest_fact(
         .limit(_PROBED)
     )
     if language is not None:
-        query = query.where(
-            Fact.id.in_(
-                select(FactPassage.fact_id)
-                .join(Passage, Passage.id == FactPassage.passage_id)
-                .join(Document, Document.sha256 == Passage.doc_sha256)
-                .where(
-                    FactPassage.position == 0,
-                    func.coalesce(Passage.language, Document.language) == language,
-                )
-            )
-        )
+        query = query.where(Fact.language == language)
     if kind is not None:
         query = query.where(Fact.kind == kind)
     if excluding is not None:
@@ -700,9 +692,19 @@ def _write(session, facts: list[CheckedFact], version: str | None = None) -> int
     # sort_by_parameter_order: the links below are matched to the facts by
     # position, so the ids have to come back in the order they went in rather
     # than in whatever order the insert chose.
+    languages = _languages(
+        session, {fact.citations[0].passage_id for fact in facts if fact.citations}
+    )
     ids = session.scalars(
         insert(Fact).returning(Fact.id, sort_by_parameter_order=True),
-        [_row(fact, version) for fact in facts],
+        [
+            _row(
+                fact,
+                version,
+                languages.get(fact.citations[0].passage_id) if fact.citations else None,
+            )
+            for fact in facts
+        ],
     ).all()
     links = [
         {
@@ -721,10 +723,35 @@ def _write(session, facts: list[CheckedFact], version: str | None = None) -> int
     return len(facts)
 
 
-def _row(fact: CheckedFact, version: str | None = None) -> dict:
+def _languages(session, passage_ids: set[int]) -> dict[int, str | None]:
+    """The language each of these passages was read in.
+
+    Its own where chunking could tell, and where the passage was too short to
+    its document's: the one `claim` hands the extractor, and so the one a
+    candidate is probed under.
+    """
+    if not passage_ids:
+        return {}
+    return {
+        row.id: row.language
+        for row in session.execute(
+            select(
+                Passage.id,
+                func.coalesce(Passage.language, Document.language).label("language"),
+            )
+            .join(Document, Document.sha256 == Passage.doc_sha256)
+            .where(Passage.id.in_(passage_ids))
+        )
+    }
+
+
+def _row(
+    fact: CheckedFact, version: str | None = None, language: str | None = None
+) -> dict:
     """Turns one checked fact into the columns the facts table holds."""
     trace_id, span_id = current_ids()
     return {
+        "language": language,
         "settings_version": version,
         "run_id": run_id(),
         "trace_id": trace_id or None,
