@@ -59,8 +59,11 @@ the worker's memory grows with the document, and a document too long for it
 ends the container with the claim held. Measured offline, the resident memory
 of a conversion is 1.5 GB at 35 pages, 2.0 GB at 70, 2.4 GB at 139 (the Laws
 of the Game, the longest document of the reviewed corpus) and 4.9 GB at 278,
-against the 4 GB the worker is given; the shipped 200 is about 3.5 GB by that
-curve. Raise it together with the worker's memory limit in `compose.yaml`.
+against the 4 GB the worker is given; that curve crosses 4 GB at about 229
+pages, and the shipped 180 is about 3.1 GB by it, so 20% more pages still
+fits. It did not reproduce on a second host, so it is to be measured in the
+worker's Linux image at the next build. Raise the limit together with the
+worker's memory limit in `compose.yaml`.
 `make parse-retry` returns what it refused to the queue.
 
 Docling, built to accept PDF and no other input format, with heading

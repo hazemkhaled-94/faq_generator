@@ -2,9 +2,9 @@
 
 Docling holds every page it converts, and the worker's memory limit is what
 ends a conversion that does not fit: the container is killed and the claim
-sits until a sweep. Measured offline, converting the 139-page Laws of the
-Game took 2.4 GB of resident memory, and a document twice as long 4.9 GB, the
-parse worker's limit being 4 GB. `PARSING_MAX_PAGES` is the longest document
+sits until a sweep. Measured offline, converting the longest reviewed
+document, 139 pages, took 2.4 GB of resident memory, and a document twice as
+long 4.9 GB, the parse worker's limit being 4 GB. `PARSING_MAX_PAGES` is the longest document
 the worker takes, and the refusal names it.
 """
 
@@ -98,13 +98,18 @@ def test_a_limit_of_zero_takes_every_document(monkeypatch) -> None:
 
 
 def test_the_shipped_limit_takes_the_longest_document_of_the_corpus() -> None:
-    """139 pages are the Laws of the Game, 2.4 GB converted; the shipped limit is above them."""
+    """139 pages are the longest reviewed document, 2.4 GB converted; the limit is above them."""
     assert Settings.load().max_pages >= 139
 
 
-def test_the_shipped_limit_sits_under_the_worker_s_memory() -> None:
-    """Measured: 139 pages 2.4 GB, 278 pages 4.9 GB, against the worker's 4 GB."""
-    assert Settings.load().max_pages < 250
+def test_the_shipped_limit_holds_under_the_worker_s_memory_within_a_fifth() -> None:
+    """The stated curve crosses the worker's 4 GB at about 229 pages.
+
+    A limit passes if 20% more is still under that: 190 or fewer. The curve
+    did not reproduce on the host (2.5 GB at 139 pages, 2.8 GB at 278), so it
+    is to be measured in the Linux image at the next build.
+    """
+    assert Settings.load().max_pages * 1.2 < 229
 
 
 def test_the_limit_is_read_from_the_environment(monkeypatch) -> None:

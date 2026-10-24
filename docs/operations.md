@@ -272,8 +272,9 @@ coverage with them. And the release draw is no longer the quadratic that took
 and draws with no list rebuilt per question.
 
 What to size besides time: [Postgres](#sizing-postgres) for the vectors, the
-parse worker's memory for the longest document (`PARSING_MAX_PAGES`, 200 pages,
-3.5 GB of the 4 GB it is given), and the topic worker's 3 GB, which holds the
+parse worker's memory for the longest document (`PARSING_MAX_PAGES`, 180 pages,
+about 3.1 GB of the 4 GB it is given by the measured curve, to be measured
+again in the worker's Linux image at the next build), and the topic worker's 3 GB, which holds the
 passages by topics matrix of 10,000 by 300 for one language at a time.
 
 ## What the model costs
