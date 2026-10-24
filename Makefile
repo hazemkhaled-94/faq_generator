@@ -965,7 +965,7 @@ topics-status:
 topics-discover:
 	@$(call IDLE,topic-worker)
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --discover
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --discover $(if $(ENSURE),--ensure)
 
 # Write each language's pyLDAvis page to ./topics/<language>.html. Reads the
 # stored page; topics-render is what draws one.
@@ -2157,8 +2157,8 @@ all: up
 	done
 	$(MAKE) pipeline
 
-# Every stage but the topic fit, in the order a document moves through them,
-# stopping at the first drain that exits non-zero: 3 is a failed row and 75 a drain that
+# Every stage, in the order a document moves through them, stopping at the
+# first drain that exits non-zero: 3 is a failed row and 75 a drain that
 # stopped itself (the model could not be reached, it answered nothing, or
 # SPEND_CAP was reached), and neither lets the next stage run on what it left.
 #
@@ -2172,8 +2172,11 @@ all: up
 # neighbour, in up to three rounds, because the twin verdicts it gets are
 # not stored.
 #
-# It never fits the topics; `make topics-discover` does. In that step's place
-# it reports how many passages are in no topic.
+# The topics are fitted when they have to be: a language that holds passages
+# and no topic, or whose topics no longer fit its passages, is fitted between
+# extraction and the bridges, and the run stops if a language still has no
+# topic afterwards. A corpus whose topics are live is not refitted, because a
+# fit replaces them; `make topics-discover` is the refit asked for on its own.
 #
 # It names the database it acts on before it touches it, and every drain gets
 # that name, the Hub switched off (HF_HUB_OFFLINE=1: the weights are in the
@@ -2197,6 +2200,7 @@ corpus:
 	$(MAKE) chunk-start $(CORPUS_PINS)     && $(MAKE) chunk $(CORPUS_PINS)
 	$(MAKE) extract-start $(CORPUS_PINS)   && $(MAKE) extract $(CORPUS_PINS)
 	$(MAKE) extract-digests $(CORPUS_PINS)
+	$(MAKE) topics-discover ENSURE=1 $(CORPUS_PINS)
 	$(MAKE) topics-status $(CORPUS_PINS)
 	$(MAKE) extract-bridge MISSING=1 $(CORPUS_PINS)
 	$(MAKE) questions-start $(CORPUS_PINS) && $(MAKE) questions $(CORPUS_PINS)

@@ -180,12 +180,33 @@ def test_a_whole_queue_reclaim_asks_whether_its_worker_runs(
         assert guards[0] < reclaims[0], lines
 
 
-def test_the_corpus_reports_the_topics_and_never_fits_them() -> None:
-    """`topics-discover` is the refit, asked for on its own."""
+def test_the_corpus_fits_the_topics_only_when_they_are_not_live() -> None:
+    """`topics-discover` is the refit, asked for on its own.
+
+    The corpus passes --ensure, which fits only a language with passages and
+    no topic, or whose topics are stale, and fails if one still has none.
+    """
     topics = [line for line in printed("corpus") if "topic_modelling.run" in line]
 
     assert topics, "the corpus says nothing about the topics"
-    assert all(line.endswith("topic_modelling.run --status") for line in topics), topics
+    assert all(
+        line.endswith(("topic_modelling.run --status", "run --discover --ensure"))
+        for line in topics
+    ), topics
+
+
+def test_the_topics_are_fitted_after_extraction_and_before_a_bridge_needs_them() -> None:
+    """When a language holds passages and no live fit; `--ensure` is that check."""
+    lines = printed("corpus")
+    digests = next(at for at, line in enumerate(lines) if "extraction.run --digests" in line)
+    fit = next(
+        at
+        for at, line in enumerate(lines)
+        if line.endswith("topic_modelling.run --discover --ensure")
+    )
+    bridge = next(at for at, line in enumerate(lines) if "extraction.run --bridge" in line)
+
+    assert digests < fit < bridge
 
 
 def test_the_corpus_writes_the_bridges_its_topics_are_missing() -> None:

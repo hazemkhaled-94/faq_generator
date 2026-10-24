@@ -207,16 +207,15 @@ the topics of every language it fits, so it is asked for on its own, and
 
 `make corpus` runs the same stages on the host, for developing a stage. It
 stops at the first stage whose worker is running and prints the command that
-stops it. Stage by stage, which is what it runs, plus the topic fit it never
-asks for:
+stops it. Stage by stage, which is what it runs:
 
 ```bash
 make parse-start     && make parse       # a stored file becomes a structured document
 make chunk-start     && make chunk       # that document becomes passages
 make extract-start   && make extract     # those passages become facts citing a sentence
 make extract-digests                     # a digest for the passages that finished without one
+make topics-discover ENSURE=1            # fit the topics only when a language has none or they are stale
 make topics-status                       # how many passages are in no topic
-make topics-discover                     # not in corpus: fit the topics, replacing the last fit
 make extract-bridge MISSING=1            # facts joining a topic's passages, for topics holding none yet
 make questions-start && make questions   # each topic's facts become questions
 make questions-balance                   # draw the release again

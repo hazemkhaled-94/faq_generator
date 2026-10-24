@@ -21,10 +21,11 @@ from settings import decimal, optional
 from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages import watch
-from stages.cli import _ready, drain_once, give_back, parser, reloading
+from stages.cli import FAILED, _ready, drain_once, give_back, parser, reloading
 from stages.prompts import record
 from topic_modelling import prompts
 from topic_modelling.config import Settings
+from topic_modelling.models import TopicFit
 from topic_modelling.factory import build_service
 from topic_modelling.repository import TopicCatalog, TopicQueue
 from topic_modelling.space import load
@@ -48,6 +49,25 @@ _ACTIONS = {
 _DRAWN = Path("topics")
 
 
+def unfitted(fit: TopicFit, languages: list[str]) -> list[str]:
+    """The languages with passages that hold no topic."""
+    fitted = {one.language for one in fit.languages if one.topics}
+    return [language for language in languages if language not in fitted]
+
+
+def fit_needed(fit: TopicFit, languages: list[str]) -> str | None:
+    """Why the corpus needs a fit before a bridge or a question, or None.
+
+    A language that holds passages and no topic, or whose topics no longer
+    fit its passages. The languages are the corpus's own.
+    """
+    if missing := unfitted(fit, languages):
+        return f"no topics yet for {', '.join(missing)}"
+    if stale := [one.language for one in fit.languages if one.stale]:
+        return f"the topics of {', '.join(stale)} no longer fit its passages"
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     """Runs the topic modelling command line.
 
@@ -59,6 +79,13 @@ def main(argv: list[str] | None = None) -> int:
     """
     built = parser("topic_modelling.run", _ACTIONS)
     built.add_argument(
+        "--ensure",
+        action="store_true",
+        help="with --discover, fit only when a language holds passages and no "
+        "topic or its topics are stale, and fail if a language still has no "
+        "topic afterwards. What make corpus asks for.",
+    )
+    built.add_argument(
         "--language",
         metavar="CODE",
         help="with --render, redraw only this language. One model is kept "
@@ -66,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
         "LANGUAGE to redraw and not which fit to redraw from.",
     )
     args = built.parse_args(sys.argv[1:] if argv is None else argv)
+    if args.ensure and not args.discover:
+        raise SystemExit("--ensure goes with --discover")
     carry(optional("SPEND_LEDGER"))
 
     def build():
@@ -136,6 +165,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    if args.ensure:
+        catalog = TopicCatalog()
+        reason = fit_needed(catalog.fit_state(), catalog.languages())
+        if reason is None:
+            log.info("every language holds topics that fit its passages")
+            return 0
+        log.info("fitting the topics: %s", reason)
+
     service = build()
 
     if args.discover:
@@ -161,7 +198,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.watch:
-        return drain_once(service)
+        code = drain_once(service)
+        if args.ensure:
+            catalog = TopicCatalog()
+            if missing := unfitted(catalog.fit_state(), catalog.languages()):
+                log.error("no topic for %s after the fit", ", ".join(missing))
+                return code or FAILED
+        return code
 
     serving: dict[str, Any] = {}
     watch(
