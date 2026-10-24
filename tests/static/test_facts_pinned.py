@@ -52,6 +52,7 @@ CHECKS = {
         "_self_contained",
         "_bridging",
         "_located",
+        "_owned_by_each",
     ),
 }
 

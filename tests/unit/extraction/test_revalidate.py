@@ -71,7 +71,7 @@ def test_a_bridge_is_judged_against_its_whole_group() -> None:
             7,
             offered,
             CandidateFact(
-                "Support response times are stated separately for both kinds.",
+                "Standard requests are answered within 48 hours, urgent requests within 4 hours.",
                 (),
                 kind=FactKind.BRIDGE,
                 passages=(

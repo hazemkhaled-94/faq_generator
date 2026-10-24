@@ -922,6 +922,74 @@ class TestBridge:
 
             assert bridged.rejection_code == Rejection.NOT_ATOMIC, relation
 
+    @pytest.mark.parametrize(
+        ("language", "first", "second", "statement"),
+        [
+            (
+                "de",
+                "Rücksendungen sind innerhalb von 14 Tagen erlaubt.",
+                "Rücksendungen sind innerhalb von 14 Tagen erlaubt.",
+                "Rücksendungen sind innerhalb von 14 Tagen erlaubt.",
+            ),
+            (
+                "en",
+                "Orders over 50 EUR are shipped free of charge.",
+                "Orders over 50 EUR are shipped free.",
+                "Orders over 50 EUR are shipped free of charge.",
+            ),
+            (
+                "en",
+                "Summary: gift cards expire after 24 months.",
+                "Gift cards expire after 24 months, counted from the purchase.",
+                "Gift cards expire after 24 months.",
+            ),
+        ],
+    )
+    def test_a_bridge_one_passage_gives_whole_is_refused(
+        self, checker, language, first, second, statement
+    ) -> None:
+        """A passage that gives the statement no word or figure the other lacks adds nothing."""
+        bridged = checker.bridge(
+            statement, group(first, second, language=language), relation="applies"
+        )
+
+        assert bridged.rejection_code == Rejection.NOT_BRIDGING, (
+            bridged.validation_error
+        )
+
+    @pytest.mark.parametrize(
+        ("language", "first", "second", "statement"),
+        [
+            (
+                "en",
+                "Standard orders ship within 5 days.",
+                "Express orders ship within 1 day.",
+                (
+                    "Express orders are shipped within 1 day, while standard orders are shipped "
+                    "within 5 days."
+                ),
+            ),
+            (
+                "de",
+                "Standardbestellungen werden innerhalb von 5 Tagen versandt.",
+                "Expressbestellungen werden innerhalb von 1 Tag versandt.",
+                (
+                    "Expressbestellungen werden innerhalb von 1 Tag versandt, "
+                    "Standardbestellungen werden innerhalb von 5 Tagen versandt."
+                ),
+            ),
+        ],
+    )
+    def test_a_bridge_each_passage_gives_a_part_of_is_accepted(
+        self, checker, language, first, second, statement
+    ) -> None:
+        """Each passage owns a figure or a word the other lacks."""
+        bridged = checker.bridge(
+            statement, group(first, second, language=language), relation="contrast"
+        )
+
+        assert bridged.validated, (bridged.rejection_code, bridged.validation_error)
+
     def test_the_evidence_is_every_span_it_cited(self, checker, offered) -> None:
         """One line per passage, in the order the model was shown them."""
         bridged = checker.bridge("Two request kinds are named.", offered)
@@ -996,7 +1064,8 @@ class TestBridge:
     ) -> None:
         """The vocabulary checked against is the union of every passage."""
         across = checker.bridge(
-            "An urgent request waits 4 hours.",
+            "Standard requests are answered within 48 hours, urgent requests within "
+            "4 hours.",
             offered,
         )
 
@@ -1073,22 +1142,22 @@ class TestBridgeReadsItsHeadings:
             (
                 "en",
                 (
-                    ("Aurora Card > Fees", "The card costs 5 EUR a month."),
+                    ("Aurora Card > Fees", "A replacement costs 5 EUR."),
                     ("Cards > Replacement", "A lost card is replaced within 3 days."),
                 ),
-                "A lost Aurora card is replaced within 3 days.",
+                "A lost Aurora card is replaced within 3 days for 5 EUR.",
                 "aurora",
             ),
             (
                 "de",
                 (
-                    ("Aurora-Karte > Gebühren", "Die Karte kostet 5 EUR im Monat."),
+                    ("Aurora-Karte > Gebühren", "Der Ersatz kostet 5 EUR."),
                     (
                         "Karten > Ersatz",
                         "Eine verlorene Karte wird innerhalb von 3 Tagen ersetzt.",
                     ),
                 ),
-                "Eine verlorene Aurora-Karte wird innerhalb von 3 Tagen ersetzt.",
+                "Eine verlorene Aurora-Karte wird innerhalb von 3 Tagen für 5 EUR ersetzt.",
                 "aurora",
             ),
         ],
