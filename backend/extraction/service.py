@@ -1086,7 +1086,7 @@ class ExtractionService(StageService):
                 if self._replays() and not self._replaced:
                     self._replaced = self._repository.cited(passage.id)
                 stored = self._repository.store(
-                    passage.id, facts, self._embedded(passage), note
+                    passage.id, facts, self._embedded(passage), note=note
                 )
                 validated = sum(1 for fact in facts if fact.validated)
                 self._done(current)

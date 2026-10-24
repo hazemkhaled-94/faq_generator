@@ -278,3 +278,16 @@ def test_the_preflight_checks_the_models_the_service_calls(
         built._extractors.for_block_type("text").provenance.model,
         built._digest.provenance.model,
     ]
+
+
+def test_what_a_passage_lacks_is_passed_to_store_by_name() -> None:
+    """Another branch adds a positional parameter here: a name cannot be swapped."""
+    import inspect
+
+    from drivers import Queue
+
+    from extraction.repository import PassageQueue
+
+    for owner in (PassageQueue, Queue):
+        kinds = inspect.signature(owner.store).parameters
+        assert kinds["note"].kind is inspect.Parameter.KEYWORD_ONLY, owner

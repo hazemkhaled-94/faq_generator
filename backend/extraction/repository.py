@@ -470,6 +470,7 @@ class PassageQueue(RowQueue):
         passage_id: int,
         facts: list[CheckedFact],
         embedding: list[float] | None = None,
+        *,
         note: str | None = None,
     ) -> int:
         """Replaces one passage's facts, in one transaction, and finishes it.

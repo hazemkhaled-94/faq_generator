@@ -358,6 +358,7 @@ class Queue:
         passage_id: int,
         facts: list[CheckedFact],
         embedding: list[float] | None = None,
+        *,
         note: str | None = None,
     ) -> int:
         """Records what one passage yielded, and the passage's own vector."""
