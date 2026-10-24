@@ -394,7 +394,10 @@ its halves (a word such as "differ", "both" or "together", by the per-language
 `_RELATES` table, read only in the words that join the halves) is refused as
 `wrong_type`. The key is held to its answer form one half at a time. The
 partner is the passage of the slot's topic and its bridges that shares least
-with the head; a slot that is dealt one passage is written as `single`.
+with the head; a slot that is dealt one passage is written as `single`. A
+compound slot is dealt from claims of the passages' own, so a topic left with
+bridges alone has none to deal it: the slot is passed over, with a line saying
+so, and the slots after it are written, one of which may rest on a bridge.
 Compound is dealt by default, in about one of every six spanning slots
 (`QUESTIONS_KIND_MIX=needs_both:5,compound:1`); `QUESTIONS_KIND_MIX=needs_both:1`
 turns it off. It was calibrated on pairs built by its calibration script, not

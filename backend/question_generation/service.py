@@ -1275,6 +1275,17 @@ class QuestionGenerationService(StageService):
                     )
                     continue
                 prefer = _one_passage
+            if plan.shape == Shape.APART and not deal.holds(_one_passage):
+                # Two passages nobody relates are dealt from claims of their
+                # own, so a topic left with bridges alone has none to deal
+                # this slot. The slots after it may rest on a bridge.
+                log.info(
+                    "topic %d: a compound slot was not written: nothing left in "
+                    "the topic rests on one passage",
+                    topic.id,
+                    extra={"topic.id": topic.id},
+                )
+                continue
             sample = deal.sample(
                 plan.shape,
                 condensed=plan.answerable and plan.spec.form != AnswerForm.VALUE,

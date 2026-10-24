@@ -2957,7 +2957,71 @@ def test_a_release_draw_stops_asking_the_judge_at_the_spend_cap(monkeypatch) -> 
     assert catalog.drawn, "the release as drawn is kept"
 
 
-# ── What a topic reports ──────
+# ── A compound slot with only bridges left, and what a topic reports ──────
+
+
+@pytest.mark.parametrize(
+    "language,plain,spanning_text",
+    [
+        (
+            "en",
+            "Standard delivery takes 3 to 5 working days.",
+            "The return period starts on the day the delivery arrives.",
+        ),
+        (
+            "de",
+            "Die Standardlieferung dauert 3 bis 5 Werktage.",
+            "Die Rückgabefrist beginnt am Tag der Lieferung.",
+        ),
+        (
+            "en",
+            "A current account costs 5 euros a month.",
+            "The fee is charged on the day the card is activated.",
+        ),
+    ],
+)
+def test_a_compound_slot_with_only_bridges_left_does_not_end_the_plan(
+    language, plain, spanning_text, caplog
+) -> None:
+    """The slot is passed over and the next one is written from the bridge."""
+    from factories import bridge, resting
+
+    facts = [
+        source(2, passage_id=1, statement=plain, language=language),
+        bridge(
+            resting(3, document="doc-b", language=language),
+            fact_id=1,
+            passage_id=2,
+            document="doc-a",
+            statement=spanning_text,
+            language=language,
+        ),
+    ]
+    writer = Handed()
+    # Three slots: a claim, a compound one, a claim. The first takes the only
+    # claim, so the compound slot finds bridges alone.
+    settings = replace(
+        SETTINGS,
+        per_topic=3,
+        sample_size=2,
+        type_mix={QuestionType.FACTOID: 1, QuestionType.CONDITION: 1},
+        kind_mix={"compound": 1},
+        unanswerable_share=0.0,
+        followup_share=0.0,
+    )
+    service, _ = build(topic(), facts, writer=writer, settings=settings)
+
+    with caplog.at_level("INFO"):
+        service.process_next()
+
+    assert [[one.id for one in dealt.facts] for dealt, _ in writer.handed] == [
+        [2],
+        [1],
+    ]
+    assert any(
+        "compound slot was not written" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_a_topic_that_runs_out_of_facts_says_so(caplog) -> None:
