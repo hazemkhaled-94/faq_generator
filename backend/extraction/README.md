@@ -129,7 +129,9 @@ and every extracted passage of `EXTRACTION_DIGEST_MIN_CHARS` or more that holds
 no digest, so a floor lowered after a corpus was read reaches it without
 re-reading it. It calls only the digest model, and replaces only the summary and the outline,
 never an atomic fact or its id. A digest that fails again keeps its note and is
-tried again on the next run, once per run.
+tried again on the next run, once per run. A deployment whose `EXTRACTION_KINDS`
+names no digest kind has nothing to give: the command says so and exits 0, so
+`make corpus` goes on.
 
 ### Step 5 — Check everything
 

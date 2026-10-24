@@ -60,16 +60,18 @@ def main(argv: list[str] | None = None) -> int:
         source, version = snapshot()
         return ModelSettings.load(source), Settings.load(source), version
 
+    if digests and not configured()[1].digests:
+        # A valid configuration: a deployment may write no digest, and make
+        # corpus runs this step after every extract.
+        log.info("nothing to give: EXTRACTION_KINDS names no digest kind")
+        return 0
+
     def build():
         """Builds the service, naming the model it will call."""
         model, settings, version = configured()
         # The effective model, which EXTRACTION_MODEL may have replaced.
         calling = model.overridden(settings.model)
         log.info("extracting with %s at %s", calling.model, calling.base_url)
-        if digests and not settings.digests:
-            raise SystemExit(
-                "no digest is configured to give: EXTRACTION_KINDS names neither"
-            )
         return build_service(model, settings, version, digests)
 
     def preflight() -> None:
