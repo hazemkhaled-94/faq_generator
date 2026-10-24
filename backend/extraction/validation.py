@@ -431,21 +431,12 @@ def _names(tokens: Sequence, word: str, number: str, language: str | None) -> bo
 
 
 def _located(judged: Judged) -> Failure | None:
-    """Refuses a bridge naming the numbered heading one of its passages sits under.
-
-    Unless the text of a cited passage names that label itself, "as Article 12
-    sets out": the passage makes the reference, and the claim is its own.
-    """
-    nlp = pipeline(judged.language)
-    tokens = list(nlp(judged.statement))
-    said = [list(nlp(piece)) for piece in judged.pieces]
+    """Refuses a bridge naming the numbered heading one of its passages sits under."""
+    tokens = list(pipeline(judged.language)(judged.statement))
     for label in judged.labels:
         match = HEADING_LABEL.match(label.strip())
-        if not match:
-            continue
-        word, number = match.group(1).casefold(), match.group(2)
-        if _names(tokens, word, number, judged.language) and not any(
-            _names(piece, word, number, judged.language) for piece in said
+        if match and _names(
+            tokens, match.group(1).casefold(), match.group(2), judged.language
         ):
             return (
                 Rejection.NOT_BRIDGING,
