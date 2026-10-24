@@ -5623,10 +5623,15 @@ class ByParts(Recording):
         self.shown: list[str] = []
 
     def stated(self, question: str, key: str, passages, thread=()) -> tuple[Part, ...]:
-        """Lists the scripted parts, and records the passages it was shown."""
+        """Lists the scripted parts, and records the passages and the key it was shown."""
         self.stated_asked += 1
         self.shown = list(passages)
+        self.key = key
         return self.parts
+
+    def follows(self, question: str, answer: str, passages, thread=()) -> bool:
+        """The entailment gate a derived implication meets: it holds."""
+        return True
 
 
 def _two(first: str, second: str, language: str = "en"):
@@ -6054,13 +6059,114 @@ def test_a_compound_question_is_never_read_for_its_parts() -> None:
     assert recording.stated_asked == 0
 
 
-def test_a_derived_type_or_a_one_passage_question_is_never_read_for_its_parts() -> None:
+def test_a_one_passage_question_is_never_read_for_its_parts() -> None:
     """No call for what has no two passages to tell apart."""
+    one = ByParts(())
+    build(one).check(candidate(facts=group(source(1, passage_id=1)), kind="needs_both"))
+
+    assert one.stated_asked == 0
+
+
+#: A derived question over two documents: the first two passages state its
+#: premises, the explanation says how they combine, and what the parts
+#: reading is told is that explanation: the key is a conclusion no passage holds.
+_DERIVED = {
+    "en": (
+        "A card is blocked after three wrong PINs.",
+        "A blocked card is replaced free of charge.",
+        "Cards are sent by post.",
+        "What happens to a card after three wrong PINs?",
+        "It is replaced free of charge.",
+        "A card is blocked after three wrong PINs, and a blocked card is replaced free of charge, so the card is replaced without cost, which is what a customer who mistyped the code can expect.",
+    ),
+    "de": (
+        "Eine Karte wird nach drei falschen PINs gesperrt.",
+        "Eine gesperrte Karte wird kostenlos ersetzt.",
+        "Karten werden per Post versandt.",
+        "Was geschieht mit einer Karte nach drei falschen PINs?",
+        "Sie wird kostenlos ersetzt.",
+        "Eine Karte wird nach drei falschen PINs gesperrt, und eine gesperrte Karte wird kostenlos ersetzt, also wird die Karte kostenlos ersetzt, womit ein Kunde rechnen kann, der den Code falsch eingegeben hat.",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_derived_question_whose_premises_one_passage_states_is_cited_from_it(
+    language: str,
+) -> None:
+    """Both premises sit in the first passage: the second adds nothing the conclusion rests on."""
+    from database.qa_generator import QuestionType
+
+    premise_a, premise_b, other, question, key, explanation = _DERIVED[language]
+    parts = (Part("premise a", (premise_a,)), Part("premise b", (premise_b,)))
+    recording = ByParts(parts, recovers=key, backs=True)
+
+    result = build(recording).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            answer_explanation=explanation,
+            facts=group(
+                source(
+                    1,
+                    statement=f"{premise_a} {premise_b}",
+                    passage_id=1,
+                    topic_id=1,
+                    language=language,
+                ),
+                source(2, statement=other, passage_id=2, topic_id=2, language=language),
+            ),
+            question_type=QuestionType.IMPLICATION,
+            kind="needs_both",
+        )
+    )
+
+    assert result.accepted, result.rejected_reason
+    assert recording.stated_asked == 1
+    assert recording.key == explanation, "the premises are read from the explanation"
+    assert result.fact_ids == (1,)
+    assert result.kind == "single"
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_derived_question_with_a_premise_in_each_passage_keeps_both(
+    language: str,
+) -> None:
+    """The conclusion needs a premise from each passage."""
+    from database.qa_generator import QuestionType
+
+    premise_a, premise_b, _, question, key, explanation = _DERIVED[language]
+    parts = (Part("premise a", (premise_a,)), Part("premise b", (premise_b,)))
+    recording = ByParts(parts, recovers=key, backs=True)
+
+    result = build(recording).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            answer_explanation=explanation,
+            facts=_two(premise_a, premise_b, language),
+            question_type=QuestionType.IMPLICATION,
+            kind="needs_both",
+        )
+    )
+
+    assert result.accepted, result.rejected_reason
+    assert result.fact_ids == (1, 2)
+    assert result.kind == "needs_both"
+
+
+def test_a_shop_total_over_two_documents_keeps_both() -> None:
+    """Two fees in two documents: each is a premise only its passage states."""
     from database.qa_generator import QuestionType
 
     facts = _two("Standard delivery costs 5 euros.", "Express delivery costs 9 euros.")
-    derived = ByParts(())
-    build(derived).check(
+    parts = (
+        Part("standard", ("Standard delivery costs 5 euros.",)),
+        Part("express", ("Express delivery costs 9 euros.",)),
+    )
+    recording = ByParts(parts, recovers="14 euros", backs=True)
+
+    result = build(recording).check(
         candidate(
             question_text="What do one standard and one express delivery cost together?",
             target_answer="14 euros",
@@ -6069,10 +6175,9 @@ def test_a_derived_type_or_a_one_passage_question_is_never_read_for_its_parts() 
             kind="needs_both",
         )
     )
-    one = ByParts(())
-    build(one).check(candidate(facts=group(source(1, passage_id=1)), kind="needs_both"))
 
-    assert (derived.stated_asked, one.stated_asked) == (0, 0)
+    assert result.fact_ids == (1, 2)
+    assert recording.stated_asked == 1
 
 
 def _holding(parts, texts):

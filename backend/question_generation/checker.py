@@ -775,19 +775,27 @@ class QuestionChecker:
         answers is relabelled, not refused. A bridge cited alone, or a
         follow-up whose narrowed citation would ask nothing its root did not
         (`_thread` is read again on the narrowed group), keeps both passages,
-        with the reading on the row. Where no quote is found in any passage
+        with the reading on the row. A derived question is read the same way
+        over its explanation. Where no quote is found in any passage
         nothing is decided and nothing is recorded. Where every passage states
         every part and the question joins cases with a conjunction, each may
         give the same answer for its own case, so both are kept.
         """
         resting = candidate.group.resting
-        if not candidate.answerable or candidate.spec.derived or len(resting) < 2:
+        if not candidate.answerable or len(resting) < 2:
             return candidate
         texts = [passage.text for passage in resting]
+        # A derived key is a conclusion no passage states, so its parts are
+        # read from the explanation, which says the premises it rests on.
+        said = (
+            candidate.answer_explanation
+            if candidate.spec.derived and candidate.answer_explanation
+            else candidate.target_answer
+        )
         try:
             parts = self._verifier.stated(
                 candidate.question_text,
-                candidate.target_answer or "",
+                said or "",
                 texts,
                 candidate.thread,
             )
