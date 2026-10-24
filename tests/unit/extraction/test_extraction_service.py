@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 import pytest
-from drivers import Extraction, Vectors, passage, table_passage
+from drivers import Extraction, Vectors, cell, passage, table_passage
 
 from database.qa_generator import FactKind, Rejection
 from extraction.models import Twin
@@ -338,6 +338,66 @@ def test_a_table_is_read_without_a_model() -> None:
     assert run.model.calls == 0, "a table needs no model"
     assert run.queue.stored[1], "and still yields facts"
     assert run.queue.stored[1][0].extraction_method == "deterministic"
+
+
+def _unlabelled(*texts: str) -> dict:
+    """A grid of value cells that no header labels, so no cell fact can be composed."""
+    return {
+        "caption": None,
+        "num_rows": 3,
+        "num_cols": len(texts),
+        "cells": [cell(2, at, text, 3) for at, text in enumerate(texts)],
+    }
+
+
+@pytest.mark.parametrize(
+    "texts",
+    [
+        ("Basiskonto", "5 EUR"),
+        ("Basic account", "5 EUR"),
+        ("Compact 4",),
+        ("Standard", "12,50 EUR"),
+    ],
+)
+def test_a_table_the_cell_reader_composes_nothing_from_goes_to_the_model(texts) -> None:
+    """A grid holding values that no header labels is read by the model, as prose is."""
+    run = Extraction(
+        table_passage(_unlabelled(*texts)),
+        facts={"facts": [{"sentences": [3], "statement": "A fee is 5 EUR."}]},
+    )
+    run.next()
+
+    assert run.model.calls == 1, "nothing was composed, so the model reads the grid"
+    assert {one.extraction_method for one in run.queue.stored[1]} == {"llm"}
+
+
+def test_a_table_the_cell_reader_composed_from_needs_no_model() -> None:
+    """The reader that worked is the only one."""
+    run = Extraction(table_passage(), facts=ATOMIC)
+    run.next()
+
+    assert run.model.calls == 0
+
+
+def test_a_grid_of_identifiers_is_still_skipped_not_sent_to_the_model() -> None:
+    """The fallback is for values, not for codes."""
+    run = Extraction(
+        table_passage(_unlabelled("TA-BO1", "TM-2.2.1", "K2", "X")), facts=ATOMIC
+    )
+    run.next()
+
+    assert run.model.calls == 0
+    assert run.queue.stored == {1: []}
+
+
+def test_a_grid_with_no_value_in_it_is_not_sent_to_the_model() -> None:
+    """Words alone are what the cell reader found nothing to label either."""
+    run = Extraction(
+        table_passage(_unlabelled("Basic account", "Premium")), facts=ATOMIC
+    )
+    run.next()
+
+    assert run.model.calls == 0
 
 
 class TestProseMergedWithATable:

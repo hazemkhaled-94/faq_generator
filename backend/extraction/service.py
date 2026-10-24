@@ -812,6 +812,22 @@ def skipped(passage: PassageToExtract) -> str | None:
     return None
 
 
+def _holds_values(passage: PassageToExtract) -> bool:
+    """Whether a table's data cells state a value: a figure or an amount.
+
+    A header cell does not count, nor a word alone. What the cell reader found
+    nothing to label is worth the model's call only if there is a value to
+    read.
+    """
+    return any(
+        _HAS_DIGIT.search(text)
+        for grid in passage.table_cells
+        for cell in grid.get("cells", ())
+        if not (cell.get("column_header") or cell.get("row_header"))
+        if (text := (cell.get("text") or "").strip())
+    )
+
+
 def _led_in(passage: PassageToExtract) -> bool:
     """Whether a list is the end of a sentence its heading trail begins.
 
@@ -1292,6 +1308,7 @@ class ExtractionService(StageService):
 
         readers = self._readers(passage, current)
         facts: list[CheckedFact] = []
+        fell_back = False
         for reader, shown in readers:
             read = [
                 self._checker.check(
@@ -1300,9 +1317,27 @@ class ExtractionService(StageService):
                 for candidate in reader.extract(shown)
             ]
             facts += read + self._repaired(passage, reader, shown, read, current)
+            if (
+                not read
+                and reader.method != WRITTEN
+                and not any(one.method == WRITTEN for one, _ in readers)
+                and _holds_values(passage)
+            ):
+                # A grid no header labels gives the cell reader nothing to
+                # compose, and nothing else would read its values.
+                current.set_attribute("extract.cells_unlabelled", True)
+                fell_back = True
+                model = self._extractors.default
+                read = [
+                    self._checker.check(
+                        passage, candidate, model.method, model.provenance
+                    )
+                    for candidate in model.extract(passage)
+                ]
+                facts += read + self._repaired(passage, model, passage, read, current)
         # Only a model can answer empty: a cell reader finding no row to
         # compose is the grid's answer, not a silent model.
-        asked = any(reader.method == WRITTEN for reader, _ in readers)
+        asked = fell_back or any(reader.method == WRITTEN for reader, _ in readers)
         if not facts and asked:
             _nothing_found(passage, current)
         silent = (not facts) if asked else None

@@ -93,7 +93,9 @@ Routed by block type:
 - **`table` → the deterministic reader.** Walks the cell grid and labels each
   value cell with every header above it and to the left. No model. Both a row
   and a column label are required. Each fact cites the numbered Markdown line
-  its value sits in.
+  its value sits in. A grid whose data cells hold a figure or an amount but
+  which no header labels, so the reader composes nothing from it, is then read
+  by the model as any passage is; a grid with no value in it is not.
 - **everything else → the model.** Shown one passage's numbered sentences and
   its heading trail, it answers with a statement plus the *numbers* of the
   sentences it came from. The evidence is resolved from the numbers
