@@ -103,3 +103,86 @@ def test_a_cap_that_is_not_a_positive_number_is_refused(monkeypatch, value) -> N
 
     with pytest.raises(ValueError, match="SPEND_CAP"):
         spend_cap()
+
+
+# ── The doctor asks as the stages do: with the stored settings ─────────────
+
+
+def _stored(monkeypatch, **stored: str) -> None:
+    """A settings store holding `stored`, over an environment that holds none of it."""
+    import os
+
+    for name in ("LLM_REASONING_EFFORT", "HOST_RUNNER"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LLM_MODEL", "azure/shared")
+    monkeypatch.setenv("ASSESSMENT_ENABLED", "false")
+    monkeypatch.setenv("ASSESSMENT_JUDGE_MODEL", "azure/judge")
+    monkeypatch.setattr(
+        "settings.store.snapshot", lambda: ({**os.environ, **stored}, "version")
+    )
+    monkeypatch.setattr("telemetry.configure", lambda _: None)
+    monkeypatch.setattr("api.doctor.behind_lines", list)
+
+
+def test_the_doctor_asks_with_the_stored_effort_and_judges_what_is_stored_on(
+    monkeypatch, caplog
+) -> None:
+    """A value written through the page is what a worker uses, so what the doctor asks with."""
+    import logging
+
+    _stored(monkeypatch, LLM_REASONING_EFFORT="low", ASSESSMENT_ENABLED="true")
+    served = provider(monkeypatch, reply('{"ok": true}'))
+
+    with caplog.at_level(logging.INFO):
+        assert main() == 0
+
+    assert {call["model"] for call in served.calls} >= {"azure/shared", "azure/judge"}
+    assert {call.get("reasoning_effort") for call in served.calls} == {"low"}
+    said = " ".join(r.getMessage() for r in caplog.records)
+    assert "LLM_REASONING_EFFORT" in said and "ASSESSMENT_ENABLED" in said
+    assert "comes from the store" in said
+
+
+def test_without_a_store_to_read_the_doctor_says_so_and_asks_with_the_environment(
+    monkeypatch, caplog
+) -> None:
+    """A database that is down does not stop the model check."""
+    import logging
+
+    _stored(monkeypatch)
+
+    def down():
+        raise RuntimeError("no database")
+
+    monkeypatch.setattr("settings.store.snapshot", down)
+    served = provider(monkeypatch, reply('{"ok": true}'))
+
+    with caplog.at_level(logging.INFO):
+        assert main() == 0
+
+    assert {call["model"] for call in served.calls} == {"azure/shared"}
+    assert any(
+        "could not read the stored settings" in r.getMessage() for r in caplog.records
+    )
+
+
+def test_the_doctor_fails_on_a_stored_row_the_catalogue_now_refuses(
+    monkeypatch, caplog
+) -> None:
+    """The same refusal a worker's build gives, found before a corpus runs."""
+    import logging
+
+    from settings.store import StoredRefused
+
+    _stored(monkeypatch)
+
+    def refused():
+        raise StoredRefused("TOPIC_MIN_WEIGHT='-1' (written 2026-09-01 10:30) is below 0")
+
+    monkeypatch.setattr("settings.store.snapshot", refused)
+    provider(monkeypatch, reply('{"ok": true}'))
+
+    with caplog.at_level(logging.INFO):
+        assert main() == 1
+
+    assert any("TOPIC_MIN_WEIGHT" in r.getMessage() for r in caplog.records)

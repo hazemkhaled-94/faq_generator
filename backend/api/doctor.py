@@ -141,7 +141,35 @@ def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
     return found
 
 
-def every_model() -> tuple[list[Settings], list[str]]:
+def stored_source() -> Mapping[str, str]:
+    """The settings the stages read: the environment, and what the store overrides it with.
+
+    A value written through the Configuration page or `make settings-set` is the
+    one a worker uses, so it is the one the doctor asks with, and the one it says
+    came from the store. A store that cannot be read is said once, and the
+    environment alone is asked with.
+    """
+    from settings.store import StoredRefused, snapshot
+
+    try:
+        source, _ = snapshot()
+    except StoredRefused:
+        raise
+    except Exception as error:  # noqa: BLE001 - the doctor reports, it does not stop
+        log.warning(
+            "could not read the stored settings (%s); asking with the environment",
+            error,
+        )
+        return os.environ
+    for name in sorted(source):
+        if source[name] != os.environ.get(name):
+            log.info("%s comes from the store: %s", name, source[name])
+    return source
+
+
+def every_model(
+    source: Mapping[str, str] | None = None,
+) -> tuple[list[Settings], list[str]]:
     """Every model a stage run from this environment calls, and the stages that will not load.
 
     LLM_MODEL and each stage's own: backend.env names some of those, so
@@ -161,20 +189,20 @@ def every_model() -> tuple[list[Settings], list[str]]:
     from question_generation.factory import models as question_models
     from topic_modelling.config import Settings as Topics
 
-    shared = Shared.load()
+    shared = Shared.load(source)
 
     def naming() -> list[Shared]:
-        model = Topics.load().model
+        model = Topics.load(source).model
         return [model] if model else []
 
     def judging() -> list[Shared]:
-        judge = Assessment.load()
+        judge = Assessment.load(source)
         return [judge_model(judge, shared)] if judge.enabled else []
 
     stages = {
-        "extraction": lambda: extraction_models(Extraction.load(), shared),
+        "extraction": lambda: extraction_models(Extraction.load(source), shared),
         "topics": naming,
-        "questions": lambda: question_models(Questions.load(), shared),
+        "questions": lambda: question_models(Questions.load(source), shared),
         "assessment": judging,
     }
     asked, refused = [shared], []
@@ -216,6 +244,7 @@ def main() -> int:
     import telemetry
     from llm.check import Unreachable, reachable
     from llm.config import check_split, describe
+    from settings.store import StoredRefused
 
     telemetry.configure("doctor")
 
@@ -242,7 +271,14 @@ def main() -> int:
     for problem in cache_problems():
         log.error("%s", problem)
         failed = 1
-    models, refused = every_model()
+    try:
+        source = stored_source()
+    except StoredRefused as refusal:
+        # What every service build says of the same row.
+        log.error("stored settings: %s", refusal)
+        failed = 1
+        source = os.environ
+    models, refused = every_model(source)
     for stage in refused:
         log.error("settings will not load: %s", stage)
     failed = int(bool(refused) or bool(failed))
