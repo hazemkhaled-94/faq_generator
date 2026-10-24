@@ -1337,7 +1337,12 @@ poetry run pytest tests/integration/database/test_release.py
   question.** Questions belong
   to their facts, not to a topic. Selection skips the facts an accepted
   question already rests on, so a second run writes only about what the first
-  did not reach.
+  did not reach. A new topic that is an old one already generated, by the
+  passages they hold most of, and holds no passage the old fit did not, stays
+  `generated`; the others start `new`. `make questions-rerun` asks again about
+  every topic. A fit or a delete is refused while a worker is writing from a
+  topic (a claim beaten within the lease), so it cannot take the topic from
+  under it.
 - **Re-extracting a single document rejects the cross-document questions
   resting on it.** One that loses a citation and keeps another is rejected
   as `source_changed` rather than deleted, a person's acceptance included.

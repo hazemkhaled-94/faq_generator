@@ -16,6 +16,7 @@ from topics import TopicStore, fitting
 
 from database.qa_generator import Status
 from topic_modelling.models import FittedTopic, PassageWeight
+from topic_modelling.repository import QuestionsRunning
 
 pytestmark = pytest.mark.integration
 
@@ -315,6 +316,152 @@ def test_a_fitted_topic_arrives_new_to_question_generation(store) -> None:
     store.store(fitting("de"))
 
     assert {row["question_status"] for row in store.stored_topics()} == {Status.NEW}
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_refit_over_the_same_passages_keeps_every_topic_generated(
+    store, language
+) -> None:
+    """Nothing a question was written from moved, so nothing is asked again."""
+    store.given_passages(**{language: 4})
+    pairs = ((0, 0, 0.9), (1, 0, 0.8), (2, 1, 0.9), (3, 1, 0.7))
+    store.store(fitting(language, weights=store.weights_for(language, *pairs)))
+    for index in (0, 1):
+        store.given_questions(language, index, Status.GENERATED)
+
+    store.store(fitting(language, weights=store.weights_for(language, *pairs)))
+
+    assert store.question_states(language) == {0: Status.GENERATED, 1: Status.GENERATED}
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_refit_after_a_document_is_added_marks_only_its_topics_new(
+    store, language
+) -> None:
+    """The topics holding the new passages are the ones asked about again."""
+    store.given_passages(**{language: 4})
+    old = ((0, 0, 0.9), (1, 0, 0.8), (2, 1, 0.9), (3, 1, 0.7))
+    store.store(fitting(language, weights=store.weights_for(language, *old)))
+    for index in (0, 1):
+        store.given_questions(language, index, Status.GENERATED)
+    added = store.given_document(language, "added", 2)
+    held = store.passages[language]
+    weights = [
+        *store.weights_for(language, *old),
+        *(PassageWeight(passage_id=one, topic_index=1, weight=0.9) for one in added),
+    ]
+    assert set(added) <= set(held)
+
+    store.store(fitting(language, weights=weights))
+
+    assert store.question_states(language) == {0: Status.GENERATED, 1: Status.NEW}
+
+
+def test_a_topic_whose_passages_moved_is_asked_about_again(store) -> None:
+    """Matching is by the passages a topic holds most of, not by its index."""
+    store.given_passages(de=4)
+    store.store(
+        fitting(
+            "de",
+            weights=store.weights_for(
+                "de", (0, 0, 0.9), (1, 0, 0.8), (2, 1, 0.9), (3, 1, 0.7)
+            ),
+        )
+    )
+    for index in (0, 1):
+        store.given_questions("de", index, Status.GENERATED)
+
+    # Topic 0 now holds passages 0 and 1 under index 1, topic 1 passage 2 and
+    # half of 3: the old topic 1's passages are split, so it matches nothing.
+    store.store(
+        fitting(
+            "de",
+            weights=store.weights_for(
+                "de", (0, 1, 0.9), (1, 1, 0.8), (2, 0, 0.9), (3, 1, 0.7)
+            ),
+        )
+    )
+
+    assert store.question_states("de") == {0: Status.NEW, 1: Status.GENERATED}
+
+
+def test_a_topic_that_was_not_generated_stays_new(store) -> None:
+    """Only what was asked about is carried: failed and new topics start again."""
+    store.given_passages(de=2)
+    pairs = ((0, 0, 0.9), (1, 1, 0.9))
+    store.store(fitting("de", weights=store.weights_for("de", *pairs)))
+    store.given_questions("de", 0, Status.GENERATED)
+    store.given_questions("de", 1, Status.FAILED)
+
+    store.store(fitting("de", weights=store.weights_for("de", *pairs)))
+
+    assert store.question_states("de") == {0: Status.GENERATED, 1: Status.NEW}
+
+
+def test_another_language_is_carried_by_its_own_fit(store) -> None:
+    """A language the fit skipped keeps its topics and their state untouched."""
+    store.given_passages(de=2, en=2)
+    store.store(
+        fitting("de", weights=store.weights_for("de", (0, 0, 0.9), (1, 1, 0.9))),
+        fitting("en", weights=store.weights_for("en", (0, 0, 0.9), (1, 1, 0.9))),
+    )
+    for language in ("de", "en"):
+        store.given_questions(language, 0, Status.GENERATED)
+
+    store.store(
+        fitting("de", weights=store.weights_for("de", (0, 1, 0.9), (1, 0, 0.9)))
+    )
+
+    assert store.question_states("en") == {0: Status.GENERATED, 1: Status.NEW}
+
+
+def test_a_refit_is_refused_while_a_topic_of_its_language_is_being_asked(store) -> None:
+    """A worker writing questions from a topic would lose it under its feet."""
+    store.given_passages(de=2, en=2)
+    store.store(fitting("de"), fitting("en"))
+    fit = store.claim() or store.request()
+    store.given_questions("de", 1, Status.IN_PROGRESS, claimed_ago="10 seconds")
+
+    with pytest.raises(QuestionsRunning, match="de topic 1"):
+        store.queue.replace(fit, [fitting("de")])
+
+    assert len(store.stored_topics()) == 4
+    # The other language is not the one held, so its fit goes ahead.
+    assert store.queue.replace(fit, [fitting("en")]) is not None
+
+
+def test_asking_for_a_fit_is_refused_while_a_topic_is_being_asked(store) -> None:
+    """Better told at the request than failed at the end of a long fit."""
+    store.given_passages(de=1)
+    store.store(fitting("de"))
+    store.given_questions("de", 0, Status.IN_PROGRESS, claimed_ago="10 seconds")
+
+    with pytest.raises(QuestionsRunning, match="de topic 0"):
+        store.request()
+
+    assert store.requests() == []
+
+
+def test_deleting_the_topics_is_refused_while_one_is_being_asked(store) -> None:
+    """Every language, since a delete takes every topic."""
+    store.given_passages(en=1)
+    store.store(fitting("en"))
+    store.given_questions("en", 0, Status.IN_PROGRESS, claimed_ago="10 seconds")
+
+    with pytest.raises(QuestionsRunning, match="en topic 0"):
+        store.catalog.delete_all()
+
+    assert len(store.stored_topics()) == 2
+
+
+def test_a_claim_nobody_beats_any_more_does_not_hold_the_topics(store) -> None:
+    """A worker killed mid-topic leaves in_progress behind: its lease runs out."""
+    store.given_passages(de=1)
+    store.store(fitting("de"))
+    store.given_questions("de", 0, Status.IN_PROGRESS, claimed_ago="1 hour")
+
+    assert store.request() > 0
+    assert store.catalog.delete_all().topics == 2
 
 
 def test_a_fit_finishing_after_a_delete_writes_nothing(store) -> None:

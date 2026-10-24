@@ -102,6 +102,66 @@ class TopicStore:
             session.commit()
         return self
 
+    def given_document(self, language: str, key: str, count: int) -> list[int]:
+        """Writes one more document of `count` passages, and returns their ids.
+
+        `given_passages` writes one document per language, so a corpus that
+        grows between two fits adds its document here.
+        """
+        with Session(self.engine) as session:
+            sha = digest(f"{language}-{key}")
+            session.add(document(sha))
+            session.flush()
+            written = []
+            for ordinal in range(1, count + 1):
+                one = passage(
+                    sha,
+                    ordinal=ordinal,
+                    language=language,
+                    lemmas=["lieferung", "versand"],
+                    text=f"{key} passage {ordinal}",
+                )
+                session.add(one)
+                session.flush()
+                written.append(one.id)
+            session.commit()
+        self.passages.setdefault(language, []).extend(written)
+        return written
+
+    def given_questions(
+        self,
+        language: str,
+        topic_index: int,
+        status: str,
+        *,
+        claimed_ago: str | None = None,
+    ) -> TopicStore:
+        """Sets one topic's question-generation state, claimed `claimed_ago` ago."""
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE topics SET question_status = :status, "
+                    "question_claimed_at = CASE WHEN CAST(:ago AS text) IS NULL "
+                    "THEN NULL ELSE now() - CAST(:ago AS interval) END "
+                    "WHERE language = :language AND topic_index = :index"
+                ),
+                {
+                    "status": status,
+                    "ago": claimed_ago,
+                    "language": language,
+                    "index": topic_index,
+                },
+            )
+        return self
+
+    def question_states(self, language: str) -> dict[int, str]:
+        """Each of one language's topics' question state, by topic index."""
+        return {
+            row["topic_index"]: row["question_status"]
+            for row in self.stored_topics()
+            if row["language"] == language
+        }
+
     def given_table_passage(self, language: str = "de") -> int:
         """Writes one passage that is a table rather than prose."""
         with Session(self.engine) as session:

@@ -247,6 +247,16 @@ refit: neither `make corpus` nor the Dagster corpus job asks for one. Bare
 `make topics` drains only a fit already queued. `make topics-status` also
 reports how many passages are in no topic.
 
+A refit keeps `question_status` `generated` on a new topic that is an old
+generated one (`matches`: each holds more than half of the other's dominant
+passages) and holds no passage the old fit did not, so adding a document asks
+again only about the topics that gained its passages. A passage with no
+vocabulary joins its nearest topic after the fit and is not counted in this.
+A fit request, `DELETE /topics` and `make topics-delete` are refused (409
+`questions_running`, or exit 1) while a topic holds a live question claim: one
+the worker beat within the queue's lease. A fit that finds one at the end fails
+with the same message, and `make topics-retry` returns it to the queue.
+
 A refit that changed the topics leaves stored questions with the topic scope
 (`single` or `multi`) and difficulty band of the old fit: `reverify` skips
 the topic scope, which a refit moves. After it run `make questions-reverify`

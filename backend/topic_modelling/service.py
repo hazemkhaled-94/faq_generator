@@ -14,7 +14,7 @@ from telemetry import tracer, working
 from telemetry.evaluations import current_ids
 from topic_modelling.labels import TopicLabeller
 from topic_modelling.models import FittedTopic, Fitting, PassageWeight
-from topic_modelling.repository import TopicQueue
+from topic_modelling.repository import QuestionsRunning, TopicQueue
 from topic_modelling.space import dump
 from topic_modelling.topics import NoVocabulary, TopicFitter, carry_labels, dominant
 
@@ -119,7 +119,7 @@ class TopicModellingService(StageService):
         ) as current:
             try:
                 self._fit(fit_id, current)
-            except NoVocabulary as exc:
+            except (NoVocabulary, QuestionsRunning) as exc:
                 self._fail(fit_id, str(exc), current)
             except Exception as exc:
                 self._fail(fit_id, f"{type(exc).__name__}: {exc}", current)

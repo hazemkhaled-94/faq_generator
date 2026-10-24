@@ -25,7 +25,7 @@ from api.params import NO_NUL, RowId, RunName
 from api.routes.stage import StageAction, StageStatus, answered, status_of
 from llm.config import host_runner
 from topic_modelling.models import StoredTopic, TopicFit, TopicRemoval
-from topic_modelling.repository import KEEP
+from topic_modelling.repository import KEEP, QuestionsRunning
 
 router = APIRouter(prefix="/topics", tags=["topics"])
 
@@ -122,7 +122,11 @@ def visualisation(language: str) -> Response:
     return Response(content=drawn, media_type=export_bucket.TOPIC_VISUALISATION_TYPE)
 
 
-@router.post("/discover", status_code=202)
+@router.post(
+    "/discover",
+    status_code=202,
+    responses={409: {"model": ErrorBody}},
+)
 def discover(run: RunName = None) -> TopicDiscovery:
     """Queues a fit over the whole corpus.
 
@@ -130,12 +134,19 @@ def discover(run: RunName = None) -> TopicDiscovery:
     replaced when the fit succeeds, and left alone when it does not. Asking
     twice queues one fit; asking while a fit runs queues one behind it.
 
+    Raises:
+        ApiError: 409 `questions_running` while a worker is writing questions
+            from a topic, which the fit would replace under it.
+
     This stage's `start`: asking is what creates the work, so this is where
     the run that asked is recorded. Left out, one is minted and answered
     back.
     """
     trigger = run or uuid4().hex
-    fit_id = topics_queue.request(trigger)
+    try:
+        fit_id = topics_queue.request(trigger)
+    except QuestionsRunning as exc:
+        raise ApiError(409, "questions_running", str(exc)) from exc
     return TopicDiscovery(
         fit=fit_id,
         run=trigger,
@@ -162,7 +173,7 @@ def retry(run: RunName = None) -> StageAction:
     return answered("topics", "retry", topics_queue.retry(trigger=trigger), run=trigger)
 
 
-@router.delete("")
+@router.delete("", responses={409: {"model": ErrorBody}})
 def delete() -> TopicRemoval:
     """Deletes every topic, and with it every membership and visualisation.
 
@@ -174,8 +185,15 @@ def delete() -> TopicRemoval:
     goes with the figure rather than outliving it: a factorisation of
     topics that no longer exist describes nothing, and leaving it behind is
     the orphan the figures used to be.
+
+    Raises:
+        ApiError: 409 `questions_running` while a worker is writing questions
+            from a topic.
     """
-    removed = topic_catalog.delete_all()
+    try:
+        removed = topic_catalog.delete_all()
+    except QuestionsRunning as exc:
+        raise ApiError(409, "questions_running", str(exc)) from exc
     for language in removed.languages:
         archive_bucket.take(
             export_bucket.name, export_bucket.topic_visualisation_key(language)

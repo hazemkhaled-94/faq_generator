@@ -537,6 +537,35 @@ def dominant(weights: Iterable[PassageWeight]) -> dict[int, int]:
     return {passage: one.topic_index for passage, one in strongest.items()}
 
 
+def matches(before: Mapping[int, int], after: Mapping[int, int]) -> dict[int, int]:
+    """Which old topic each new one is, by the passages they hold most of.
+
+    An old topic and a new one are the same topic when each holds more than
+    half of the other's dominant passages: all of the old topic's, so one
+    passage left of many cannot carry it onto a topic of passages new to the
+    corpus, and the new topic's among the passages both fits hold, so a
+    topic grown by new passages still matches. Two topics cannot both hold
+    more than half of one, so a topic has at most one match and none is used
+    twice.
+
+    Args:
+        before: Each passage's dominant topic index in the fit being replaced.
+        after: Each passage's dominant topic index in this one.
+
+    Returns:
+        The old topic index of each new one that has a match, by new index.
+    """
+    common = before.keys() & after.keys()
+    old = Counter(before.values())
+    new = Counter(after[one] for one in common)
+    shared = Counter((before[one], after[one]) for one in common)
+    return {
+        now: was
+        for (was, now), held in shared.items()
+        if 2 * held > old[was] and 2 * held > new[now]
+    }
+
+
 def carry_labels(
     fitted: list[FittedTopic],
     previous: list[FittedTopic],
@@ -546,13 +575,8 @@ def carry_labels(
 ) -> tuple[list[FittedTopic], int]:
     """Re-attaches what a person decided about the previous fit's topics.
 
-    An old topic and a new one are the same topic when each holds more than
-    half of the other's dominant passages: all of the old topic's, so one
-    passage left of many cannot carry it onto a topic of passages new to the
-    corpus, and the new topic's among the passages both fits hold, so a
-    topic grown by new passages still matches. Two topics cannot both hold
-    more than half of one, so a decision has at most one match and none is
-    used twice. The coverage
+    A decision goes to the new topic `matches` finds for its old one, and at
+    most one. The coverage
     choice and the decision time travel; the label and what named it travel
     only when a person named it, since a model's name is given again to
     the new topic with the rest of the fit's.
@@ -568,15 +592,7 @@ def carry_labels(
         `fitted`, each topic carrying the decision it matched or none, and
         how many decisions matched no topic.
     """
-    common = before.keys() & after.keys()
-    old = Counter(before.values())
-    new = Counter(after[one] for one in common)
-    shared = Counter((before[one], after[one]) for one in common)
-    same = {
-        now: was
-        for (was, now), held in shared.items()
-        if 2 * held > old[was] and 2 * held > new[now]
-    }
+    same = matches(before, after)
     decisions = {one.topic_index: one for one in previous}
     carried: list[FittedTopic] = []
     for topic in fitted:

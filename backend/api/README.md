@@ -368,6 +368,7 @@ a caller branches on the code rather than on English:
 | `cross_site_write` | 403 | A request other than GET, HEAD or OPTIONS carries `Sec-Fetch-Site: cross-site` or `same-site`, or an `Origin` that is not the API's own |
 | `already_running` | 409 | `POST /pipeline/run` while a run is going |
 | `assessment_cannot_run` | 409 | `POST /assessment/rerun` (or the kind-narrowed one) while `ASSESSMENT_ENABLED` is off or `ASSESSMENT_JUDGE_MODEL` names no model; no verdict is cleared |
+| `questions_running` | 409 | `POST /topics/discover` or `DELETE /topics` while a worker is writing questions from a topic, which the fit or the delete would take from under it |
 | `version_moved` | 409 | A settings change was sent against a version that is no longer current |
 | `length_required` | 411 | An upload declares no `Content-Length` |
 | `too_large` | 413 | An upload is over the size limit |

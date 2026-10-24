@@ -35,6 +35,70 @@ from topic_modelling.models import (
 
 log = logging.getLogger(__name__)
 
+
+class QuestionsRunning(RuntimeError):
+    """Raised where a topic a question worker holds would be replaced or deleted."""
+
+
+def _refuse_while_asked(session: Any, languages: list[str] | None = None) -> None:
+    """Refuses to go on while a worker is writing questions from a topic.
+
+    A claim is live while the worker beats it within the queue's lease; one
+    nobody beats any more is a dead worker's, and holds nothing. `languages`
+    narrows to the fitted ones, None meaning every topic.
+
+    Raises:
+        QuestionsRunning: Naming the first topic held.
+    """
+    held = session.execute(
+        select(Topic.language, Topic.topic_index, Topic.label, Topic.top_terms)
+        .where(
+            ~_OUTSTANDING,
+            Topic.question_status == Status.IN_PROGRESS,
+            Topic.question_claimed_at >= func.now() - StageQueue.lease,
+            *([] if languages is None else [Topic.language.in_(languages)]),
+        )
+        .order_by(Topic.language, Topic.topic_index)
+    ).all()
+    if held:
+        first = held[0]
+        raise QuestionsRunning(
+            f"questions are being written from {len(held)} topic(s), the first "
+            f"the {first.language} topic {first.topic_index} "
+            f"({first.label or ', '.join(first.top_terms[:3])}); a fit or a "
+            "delete would take it from under the worker. Wait for it, or stop "
+            "the question worker, and ask again"
+        )
+
+
+def _generated(session: Any, fitting: Fitting) -> set[int]:
+    """Which of a fit's new topics are the old topics already asked about.
+
+    A new topic is generated when it is the same topic as an old generated
+    one (`matches`) and holds no passage the old fit did not: a topic that
+    gained a passage is asked about again, so the new passage is.
+    """
+    # Here rather than at the top: the api reads this module, and that one
+    # loads gensim.
+    from topic_modelling.topics import dominant, matches
+
+    old = set(
+        session.scalars(
+            select(Topic.topic_index).where(
+                ~_OUTSTANDING,
+                Topic.language == fitting.language,
+                Topic.question_status == Status.GENERATED,
+            )
+        )
+    )
+    if not old:
+        return set()
+    before = _dominant(session, fitting.language)
+    after = dominant(fitting.weights)
+    grown = {after[one] for one in after.keys() - before.keys()}
+    return {now for now, was in matches(before, after).items() if was in old} - grown
+
+
 #: A row that is a fit request rather than a topic. `topics` is both the queue
 #: and the result, and this separates the two.
 _OUTSTANDING = Topic.topic_index.is_(None)
@@ -201,8 +265,13 @@ class TopicQueue(StageQueue):
 
         Returns:
             The id of the new request row.
+
+        Raises:
+            QuestionsRunning: While a worker is writing questions from a topic,
+                which the fit would replace under it.
         """
         with self._session.begin() as session:
+            _refuse_while_asked(session)
             session.execute(
                 delete(Topic).where(_OUTSTANDING, Topic.status != Status.IN_PROGRESS)
             )
@@ -358,10 +427,17 @@ class TopicQueue(StageQueue):
             keep_request: Leave the claimed request row, for the caller to fail
                 with the languages that had no model.
 
+        A new topic that is an old one already asked about (`_generated`)
+        keeps `question_status` `generated`; the others are `new`.
+
         Returns:
             How many memberships were written and how many decisions a person
             made were lost here, or None when the request was gone or claimed
             again and nothing was written.
+
+        Raises:
+            QuestionsRunning: While a worker is writing questions from a topic
+                of a language this fit replaces.
         """
         with self._lock, self._session.begin() as session:
             # The request gone, or claimed again since this fit claimed it,
@@ -406,6 +482,10 @@ class TopicQueue(StageQueue):
                 .where(~_OUTSTANDING, Topic.language.in_(fitted) | gone)
                 .with_for_update()
             ).all()
+            _refuse_while_asked(session, fitted)
+            generated = {
+                fitting.language: _generated(session, fitting) for fitting in fittings
+            }
             late = _decisions(
                 session,
                 Topic.language.in_(fitted),
@@ -464,6 +544,10 @@ class TopicQueue(StageQueue):
                     "include_in_coverage": topic.include_in_coverage,
                     "decided_at": topic.decided_at,
                     "status": Status.MODELLED,
+                    # A topic asked about and unchanged is not asked again.
+                    "question_status": Status.GENERATED
+                    if topic.topic_index in generated[fitting.language]
+                    else Status.NEW,
                     "requested_at": requested_at or fitted_at,
                     "fitted_at": fitted_at,
                     "corpus_passages": fitting.passages,
@@ -777,8 +861,12 @@ class TopicCatalog(Repository):
 
         Returns:
             What went, and the languages whose figures are now orphaned.
+
+        Raises:
+            QuestionsRunning: While a worker is writing questions from a topic.
         """
         with self._session.begin() as session:
+            _refuse_while_asked(session)
             languages = list(
                 session.scalars(
                     select(Topic.language)

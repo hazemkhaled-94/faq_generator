@@ -28,7 +28,7 @@ from topic_modelling import prompts
 from topic_modelling.config import Settings
 from topic_modelling.factory import build_service
 from topic_modelling.models import TopicFit
-from topic_modelling.repository import TopicCatalog, TopicQueue
+from topic_modelling.repository import QuestionsRunning, TopicCatalog, TopicQueue
 from topic_modelling.space import load
 
 log = logging.getLogger(__name__)
@@ -127,7 +127,11 @@ def main(argv: list[str] | None = None) -> int:
         return _render(args.language)
 
     if args.delete:
-        removed = TopicCatalog().delete_all()
+        try:
+            removed = TopicCatalog().delete_all()
+        except QuestionsRunning as exc:
+            log.error("%s", exc)
+            return 1
         # The figures go with the topics, as they do on the route. `delete_all`
         # reports the languages whose figure is now orphaned and this read that
         # list and dropped it, so the command left the pyLDAvis pages in the
@@ -188,7 +192,11 @@ def main(argv: list[str] | None = None) -> int:
     # for build it here.
     service = build() if args.discover or not args.watch else None
     if service is not None and asking:
-        log.info("queued topic fit %d", service.request(run_id()))
+        try:
+            log.info("queued topic fit %d", service.request(run_id()))
+        except QuestionsRunning as exc:
+            log.error("%s", exc)
+            return 1
 
     naming: list[ModelSettings | None] = []
 

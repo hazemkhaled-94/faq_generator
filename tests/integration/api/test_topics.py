@@ -401,3 +401,30 @@ def test_deleting_reports_the_labels_that_went_with_the_topics(modelled) -> None
     routes.describe(store.topic_id("de", 0), label="Shipping")
 
     assert routes.delete().json()["labels"] == 1
+
+
+def test_a_fit_is_refused_while_questions_are_being_written(modelled) -> None:
+    """409: the worker holds a topic the fit would replace."""
+    routes, store = modelled
+    store.given_questions("de", 0, Status.IN_PROGRESS, claimed_ago="10 seconds")
+
+    refused = routes.discover()
+
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "questions_running"
+    assert "de topic 0" in refused.json()["detail"]
+    assert store.requests() == []
+
+
+def test_deleting_the_topics_is_refused_while_questions_are_being_written(
+    modelled,
+) -> None:
+    """409, and nothing deleted."""
+    routes, store = modelled
+    store.given_questions("de", 1, Status.IN_PROGRESS, claimed_ago="10 seconds")
+
+    refused = routes.delete()
+
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "questions_running"
+    assert len(store.stored_topics()) == 2
