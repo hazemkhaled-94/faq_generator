@@ -16,7 +16,8 @@ import telemetry
 from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
 from database.qa_generator import engine
 from llm.check import before_work
-from settings import decimal
+from llm.tally import carry
+from settings import decimal, optional
 from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages import watch
@@ -65,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         "LANGUAGE to redraw and not which fit to redraw from.",
     )
     args = built.parse_args(sys.argv[1:] if argv is None else argv)
+    carry(optional("SPEND_LEDGER"))
 
     def build():
         """Builds the service from the settings as they stand.

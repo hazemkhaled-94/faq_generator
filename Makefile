@@ -175,6 +175,49 @@ CONFIRMED = $(LOADENV) && { [ "$$CONFIRM" = "$$APP_DB_NAME" ] || \
             { echo "REFUSED: $(1) acts on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT." >&2; \
               echo "  Run it again with CONFIRM=$$APP_DB_NAME to go on." >&2; exit 2; }; }
 
+# True when this is the go-live profile: HOST_RUNNER is a spelling of yes.
+# The host runs the model stages through `make corpus-hosted`, the model
+# workers and Dagster stay stopped, and Ollama is not called.
+GO_LIVE = case "$$(printf %s "$${HOST_RUNNER:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|yes|on) true;; *) false;; esac
+
+# Where a corpus run keeps what its drains spent, and where the hosted run
+# keeps its pid and its log.
+CORPUS_LEDGER = logs/corpus-spend.usd
+HOSTED_PID = logs/corpus-hosted.pid
+HOSTED_LOG = logs/corpus-hosted.log
+
+# What a resumed run puts back in the queue before it starts: a drain killed
+# mid-row leaves its row failed, and rows left failed are not claimed again.
+CORPUS_RETRIES = parse-retry chunk-retry extract-retry topics-retry questions-retry assess-retry
+
+# The database a run acts on, read as every host command reads it: the same
+# files in the same order. Lazy, so only a target that names it pays for the
+# shell.
+CORPUS_DB = $(shell set -a; . ./configs/env/deployment.env 2>/dev/null; \
+              [ ! -f ./.env ] || . ./.env 2>/dev/null; printf %s "$$APP_DB_NAME")
+
+# What every target of the corpus is given on its command line, which beats the
+# files a host command sources: the database the run announced, the Hub off,
+# and the spend ledger. A line is `$(MAKE) target $(CORPUS_PINS)` and not a
+# macro around it, because make runs a line holding `$(MAKE)` even under
+# `make -n`, which is how the targets it names are read without running.
+CORPUS_PINS = $(if $(CORPUS_DB),APP_DB_NAME=$(CORPUS_DB)) HF_HUB_OFFLINE=1 SPEND_LEDGER=$(CORPUS_LEDGER)
+
+# Every profile of compose.yaml unless a command says otherwise, so `down`,
+# `ps`, `logs` and `stop` reach a container whichever profile started it.
+# Only `up` narrows it: see UP.
+export COMPOSE_PROFILES ?= *
+
+# Starts the stack. In development every profile, so the model workers and
+# Dagster come up as they always did. On the go-live profile the services no
+# profile names, and the profiles `.env`'s COMPOSE_PROFILES asks for (review,
+# logs, tools) - never local-models or orchestrated, which that profile does
+# not run.
+UP = $(LOADENV) && if $(GO_LIVE); then \
+       profiles=$$(printf %s "$$COMPOSE_PROFILES" | tr , '\n' | grep -vxE '\*|local-models|orchestrated' | paste -sd, -); \
+     else profiles='*'; fi; \
+     COMPOSE_PROFILES="$$profiles" $(COMPOSE_CMD) up -d
+
 # ── Help ───────────────────────────────────────────────────────────────────
 
 # Listed before anything runs, because `make` on its own used to install
@@ -255,7 +298,7 @@ help:
         review-push-questions review-pull-questions review-delete review-all \
         phoenix-projects phoenix-prune phoenix-purge \
         eval-upload eval-score prompts-publish \
-        all corpus open services review pull auto manual pipeline runs \
+        all corpus corpus-hosted open services review pull auto manual pipeline runs \
         pipeline-status pipeline-stop pipeline-retry
 
 # ── Bootstrap ──────────────────────────────────────────────────────────────
@@ -362,7 +405,7 @@ doctor:
 # Install dependencies, start every service, and create the schema. Then
 # grant Grafana its Phoenix tables, as `up` does.
 dev: install certs logs-dir
-	$(COMPOSE_CMD) up -d
+	@$(UP)
 	@echo "Waiting for PostgreSQL..."
 	@$(LOADENV) && \
 	  ready=; for i in $$(seq 1 30); do \
@@ -430,7 +473,7 @@ logs-dir:
 
 # Start every service, generating the certificates first if they are missing.
 up: certs logs-dir
-	$(COMPOSE_CMD) up -d
+	@$(UP)
 	@$(MAKE) --no-print-directory grafana-grants
 
 # Grafana's reader gets SELECT on the Phoenix tables the run dashboard queries,
@@ -2115,7 +2158,9 @@ all: up
 	$(MAKE) pipeline
 
 # Every stage but the topic fit, in the order a document moves through them,
-# stopping at the first failure.
+# stopping at the first drain that exits non-zero: 3 is a failed row and 75 a drain that
+# stopped itself (the model could not be reached, it answered nothing, or
+# SPEND_CAP was reached), and neither lets the next stage run on what it left.
 #
 # Incremental, not a rebuild. Each `-start` queues only the rows never asked
 # for, so a stage the corpus is already through queues nothing and its drain
@@ -2130,6 +2175,13 @@ all: up
 # It never fits the topics; `make topics-discover` does. In that step's place
 # it reports how many passages are in no topic.
 #
+# It names the database it acts on before it touches it, and every drain gets
+# that name, the Hub switched off (HF_HUB_OFFLINE=1: the weights are in the
+# cache or the run says so), and one spend ledger, because SPEND_CAP is
+# counted in a process and a run is one process per drain. A fresh run starts
+# the ledger again; RESUME=1 keeps it and first returns every stage's failed
+# rows to the queue, which is what a run killed mid-row left.
+#
 # One `$(MAKE)` per line rather than a prerequisite list: prerequisites are
 # ordered only while nothing runs in parallel, and this order is the point.
 #
@@ -2138,15 +2190,41 @@ all: up
 # on the flag here would be a second reader of it, and the two would
 # eventually disagree about which spellings mean yes.
 corpus:
-	$(MAKE) parse-start     && $(MAKE) parse
-	$(MAKE) chunk-start     && $(MAKE) chunk
-	$(MAKE) extract-start   && $(MAKE) extract
-	$(MAKE) extract-digests
-	$(MAKE) topics-status
-	$(MAKE) extract-bridge MISSING=1
-	$(MAKE) questions-start && $(MAKE) questions
-	$(MAKE) questions-balance
-	$(MAKE) assess-start    && $(MAKE) assess
+	@mkdir -p logs && { [ -n "$(RESUME)" ] || : > $(CORPUS_LEDGER); } && touch $(CORPUS_LEDGER)
+	@$(LOADENV) && echo "corpus: database $$APP_DB_NAME, Hub off, spend carried in $(CORPUS_LEDGER)$${SPEND_CAP:+, stopping at USD $$SPEND_CAP}"
+	$(if $(RESUME),$(foreach stage,$(CORPUS_RETRIES),$(MAKE) $(stage) $(CORPUS_PINS) &&) true)
+	$(MAKE) parse-start $(CORPUS_PINS)     && $(MAKE) parse $(CORPUS_PINS)
+	$(MAKE) chunk-start $(CORPUS_PINS)     && $(MAKE) chunk $(CORPUS_PINS)
+	$(MAKE) extract-start $(CORPUS_PINS)   && $(MAKE) extract $(CORPUS_PINS)
+	$(MAKE) extract-digests $(CORPUS_PINS)
+	$(MAKE) topics-status $(CORPUS_PINS)
+	$(MAKE) extract-bridge MISSING=1 $(CORPUS_PINS)
+	$(MAKE) questions-start $(CORPUS_PINS) && $(MAKE) questions $(CORPUS_PINS)
+	$(MAKE) questions-balance $(CORPUS_PINS)
+	$(MAKE) assess-start $(CORPUS_PINS)    && $(MAKE) assess $(CORPUS_PINS)
+
+# The corpus on the host, detached and supervised: a pid file and a log, and
+# a second start refused while the first one runs. The go-live profile's
+# runner, and it needs that profile: the container workers drain the queues
+# otherwise, and `make corpus` is the foreground run.
+#
+# A pid file nobody holds is a run that died - a restart, a kill - so the next
+# start resumes it: the stages' failed rows go back to the queue and the
+# spend so far still counts against SPEND_CAP. A supervisor that restarts it
+# for you (docs/operations.md has a launchd and a systemd unit) runs
+# `make corpus RESUME=1` in the foreground instead.
+#
+#   make corpus-hosted SPEND_CAP=50     stops at USD 50 for the whole run
+corpus-hosted:
+	@mkdir -p logs
+	@if [ -f $(HOSTED_PID) ] && kill -0 "$$(cat $(HOSTED_PID))" 2>/dev/null; then \
+	  echo "corpus-hosted is already running (pid $$(cat $(HOSTED_PID))); follow it: tail -f $(HOSTED_LOG)" >&2; exit 1; fi
+	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
+	@$(LOADENV) && PYTHONPATH=backend poetry run python -c 'from llm.config import check_split; check_split()'
+	@resume=; [ ! -f $(HOSTED_PID) ] || resume=RESUME=1; \
+	  nohup sh -c 'echo $$$$ > $(HOSTED_PID); $(MAKE) corpus '"$$resume"'; code=$$?; rm -f $(HOSTED_PID); exit $$code' >> $(HOSTED_LOG) 2>&1 & \
+	  for i in $$(seq 50); do [ -f $(HOSTED_PID) ] && break; sleep 0.1; done; \
+	  echo "corpus-hosted started: log $(HOSTED_LOG), pid file $(HOSTED_PID)"
 
 # Every container, whether it is listening, and where to open it.
 #

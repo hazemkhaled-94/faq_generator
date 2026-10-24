@@ -18,7 +18,8 @@ from typing import Any
 import telemetry
 from database.qa_generator import Status, engine
 from llm.config import spend_cap
-from settings import decimal
+from llm.tally import carry
+from settings import decimal, optional
 from settings.runs import named_run, run_id
 from stages.queue import StageQueue, Unnarrowable
 from stages.service import SpendCapReached, StageService
@@ -232,6 +233,10 @@ def queue_main(
     extra = extra or {}
     actions = {**_ACTIONS, **{flag: help for flag, (help, _, _) in extra.items()}}
     args = parser(module, actions).parse_args(argv)
+
+    # Before anything is asked of a model: this process's spend counts from
+    # what the run's earlier drains spent.
+    carry(optional("SPEND_LEDGER"))
 
     # Logs now, tracing once this process knows it is going to work.
     #

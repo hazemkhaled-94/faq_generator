@@ -95,7 +95,7 @@ def compose(*args: str) -> subprocess.CompletedProcess:
 @pytest.fixture(scope="module")
 def resolved() -> dict:
     """The compose file with every variable substituted, as the engine sees it."""
-    answered = compose("config", "--format", "json")
+    answered = compose("--profile", "*", "config", "--format", "json")
     if answered.returncode != 0:
         pytest.skip(f"compose could not resolve the file: {answered.stderr[-600:]}")
     return json.loads(answered.stdout)
@@ -137,8 +137,14 @@ def test_every_service_the_pipeline_needs_is_declared(resolved) -> None:
     assert EXPECTED <= declared, sorted(EXPECTED - declared)
 
 
-def test_no_service_is_behind_a_profile(resolved) -> None:
-    """`compose up` starts the whole stack, and that is the point.
+#: The profiles the go-live profile leaves off, which `make up` enables in
+#: development: the host runner drains the model stages, and there is no
+#: orchestrator.
+GO_LIVE_OFF = {"local-models", "orchestrated"}
+
+
+def test_no_service_is_behind_a_profile_but_the_two_go_live_leaves_off(resolved) -> None:
+    """`make up` starts the whole stack in development, and that is the point.
 
     A profile is invisible in exactly the wrong way. `compose config`
     omits the service, `compose up` does not create it, and nothing
@@ -148,12 +154,14 @@ def test_no_service_is_behind_a_profile(resolved) -> None:
     README advertised.
 
     So if a service is not worth starting it should not be declared, and
-    if it is declared it comes up with the rest.
+    if it is declared it comes up with the rest. The two profiles named
+    here are the exception, by design: `make up` enables every profile
+    unless HOST_RUNNER is set, and then only those two are left off.
     """
     gated = {
         name: service["profiles"]
         for name, service in resolved["services"].items()
-        if service.get("profiles")
+        if set(service.get("profiles") or ()) - GO_LIVE_OFF
     }
 
     assert not gated, (

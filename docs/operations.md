@@ -489,6 +489,84 @@ can reach that nothing can move it out of.
 A stage's failure is never an HTTP 500 — it is recorded against the row and
 read back through `/{stage}/status`.
 
+## Go-live host
+
+Go-live reaches a hosted provider from the host, never from a container. The
+model stages (extraction, topics, questions, assessment) run on the host
+through `make corpus-hosted`; the containers keep parsing and chunking, which
+call no model, and the model workers stay stopped. Development is unchanged:
+without `HOST_RUNNER` the containers call Ollama, as the README says.
+
+### The runbook
+
+From a fresh clone, following only this page:
+
+1. Clone outside any synced folder, and keep the secrets where only you can
+   read them (see "Keeping the secrets out of the checkout" below).
+2. `cp .env.example .env`, then `make setup` to fill the passwords. The file
+   ships the go-live split: `HOST_RUNNER=1`, the seven role models and
+   `LLM_REASONING_EFFORT=none`, described in
+   [configuration](configuration.md#the-go-live-split). Put the provider's
+   credentials in `configs/env/provider.env`, which is not in git.
+3. `make up`. With `HOST_RUNNER=1` it starts the services no profile names:
+   postgres, the object store, the api, the parse and chunk workers, the web
+   page and Phoenix. The model workers sit under the `local-models` profile
+   and Dagster under `orchestrated`; `make all`, `make pipeline` and
+   `make auto` refuse, and so do the pipeline's routes, naming the host
+   runner. A queue verb for a model stage still queues its rows, and its answer
+   names the command that drains them.
+4. `make doctor`. It checks the split, asks every model one question, and
+   reads the Hugging Face cache with the Hub switched off.
+5. Upload the documents on the Upload page, or with `curl -F file=@x.pdf`.
+6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
+   detached: `logs/corpus-hosted.log` holds what it does and
+   `logs/corpus-hosted.pid` its process. It names the database it acts on,
+   gives every drain that name and `HF_HUB_OFFLINE=1`, and counts spend
+   across the drains in `logs/corpus-spend.usd`, so `SPEND_CAP` is the cost of
+   the whole run and not of each drain. Every drain logs the split it resolved
+   before its first row, and a role that resolves to an Ollama model stops
+   the run before a model is asked.
+7. When it ends, the two workbooks: `make questions-export OUT=release.xlsx
+   FILTER="--released"` and `make questions-export OUT=all.xlsx`.
+
+### After a stop
+
+A drain that stopped itself, because the model could not be reached or the cap
+was reached, exits 75 and gives its rows back; a failed row exits 3. Either
+stops the run before the next stage. `make corpus-hosted` after a stop, a
+restart or a kill resumes it: it finds the pid file nobody holds, returns every
+stage's failed rows to the queue and runs the chain again, and the spend so far
+still counts against `SPEND_CAP`. A second `make corpus-hosted` while the first
+runs is refused.
+
+To have a supervisor restart it, run the foreground form, which exits 0 only
+when the chain finishes:
+
+```ini
+# /etc/systemd/system/qa-corpus.service
+[Service]
+WorkingDirectory=/srv/qa_generator
+ExecStart=/usr/bin/make corpus RESUME=1 SPEND_CAP=50
+Restart=on-failure
+RestartPreventExitStatus=2
+```
+
+```xml
+<!-- ~/Library/LaunchAgents/qa.corpus.plist: the same on macOS, with launchd -->
+<dict>
+  <key>Label</key><string>qa.corpus</string>
+  <key>WorkingDirectory</key><string>/Users/you/srv/qa_generator</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/bin/make</string><string>corpus</string>
+         <string>RESUME=1</string><string>SPEND_CAP=50</string></array>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+</dict>
+```
+
+A restart by either keeps the ledger (`RESUME=1`), so the cap holds across
+restarts. Delete `logs/corpus-spend.usd` to start a run's count again; a fresh
+`make corpus` without `RESUME=1` does.
+
 ## Upgrading to v0.5.1
 
 ```bash

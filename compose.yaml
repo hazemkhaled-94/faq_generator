@@ -596,6 +596,8 @@ services:
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
     deploy:
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
       resources:
         # This one DOES load EMBEDDING_MODEL, and the note above
         # question-worker saying the other workers load no weights was
@@ -617,6 +619,8 @@ services:
     environment:
       # The model names each topic once the fit is done. The store holds the
       # figure each fit draws of itself.
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
       <<: [*service-env, *phoenix-env, *model-env, *store-env]
     deploy:
       resources:
@@ -660,6 +664,8 @@ services:
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
     deploy:
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
       resources:
         limits: { cpus: "2.0", memory: 6G }
 
@@ -687,6 +693,8 @@ services:
     environment:
       <<: [*service-env, *phoenix-env, *model-env]
     deploy:
+    # The go-live profile leaves it stopped: the host runner drains this stage.
+    profiles: [local-models]
       resources:
         limits: { cpus: "1.0", memory: 1G }
 

@@ -462,9 +462,11 @@ def test_readme_lists_what_corpus_runs() -> None:
     """README's stage-by-stage block is what `make corpus` runs, in its order."""
     recipe = _read("Makefile").split("\ncorpus:\n", 1)[1].split("\n\n", 1)[0]
     steps = [
-        " ".join(line.replace("$(MAKE)", "make").split())
+        " ".join(
+            line.replace(" $(CORPUS_PINS)", "").replace("$(MAKE)", "make").split()
+        )
         for line in recipe.splitlines()
-        if line.strip()
+        if "$(MAKE)" in line and "$(foreach" not in line
     ]
     readme = _read("README.md")
     block = readme.split("Stage by stage", 1)[1].split("```bash\n", 1)[1]
