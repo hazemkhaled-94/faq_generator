@@ -6,6 +6,9 @@ would be marked extracted with no fact under it.
 
 from __future__ import annotations
 
+import os
+import signal
+
 import pytest
 from drivers import Extraction, passage
 
@@ -92,3 +95,41 @@ def test_a_passage_nothing_could_read_is_not_counted() -> None:
 
     assert run.service.stalled is None
     assert run.model.calls == 0
+
+
+@pytest.mark.parametrize("language", TEXTS)
+def test_a_worker_after_the_silent_stop_asks_the_model_nothing_until_rebuilt(
+    language: str, monkeypatch
+) -> None:
+    """The passages it gave back are not read again, and paid for, every poll."""
+    from stages.worker import Shutdown, watch
+
+    held = {one: signal.getsignal(one) for one in (signal.SIGTERM, signal.SIGINT)}
+    run = Extraction(*passages(language, 3 * _WINDOW), facts=NOTHING)
+    run.run()
+    asked = run.model.calls
+    assert run.service.stalled is not None
+    # What the stop gave back is queued again, as the real queue has it.
+    run.queue._pending.extend(passages(language, _WINDOW))
+
+    waits: list[float] = []
+    monkeypatch.setattr(Shutdown, "wait", lambda self, seconds: waits.append(seconds))
+    polls: list[int] = []
+
+    def drain(stopping) -> int:
+        """One poll of a watching worker, which stops after three."""
+        polls.append(run.service.drain(stopping))
+        if len(polls) == 3:
+            os.kill(os.getpid(), signal.SIGTERM)
+        return polls[-1]
+
+    try:
+        watch(drain, 5.0)
+    finally:
+        for one, handler in held.items():
+            signal.signal(one, handler)
+
+    assert polls == [0, 0, 0], "a stopped drain works nothing"
+    assert waits == [5.0, 5.0, 5.0], "and the worker waits its interval after each"
+    assert run.model.calls == asked, "no further model call"
+    assert exit_code(run.service) == STOPPED

@@ -1211,6 +1211,7 @@ class ExtractionService(StageService):
             "queue. Check LLM_REASONING_EFFORT and the context window",
             *silent,
             passage_id,
+            standing=True,
         )
         return True
 

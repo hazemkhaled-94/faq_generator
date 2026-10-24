@@ -283,3 +283,15 @@ def test_rows_the_provider_rejects_fail_and_the_drain_goes_on(
     assert stage.rows.released == []
     assert stage.rows.finished == [1, 2, *range(3 + STOP_AFTER, 21)]
     assert exit_code(stage) == FAILED
+
+
+def test_a_drain_that_stopped_itself_reports_no_rows_worked() -> None:
+    """A watching worker waits its poll interval only on a drain of none.
+
+    The rows it gave back are not worked, and counting the rest as work had a
+    stopped worker claim again at once.
+    """
+    stage = Stage(Rows(40), down_from(11))
+
+    assert stage.drain() == 0
+    assert exit_code(stage) == STOPPED

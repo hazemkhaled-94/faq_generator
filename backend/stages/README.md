@@ -173,7 +173,10 @@ The drain stops itself, and exits 75, in three cases:
   ends the run of five.
 - **Extraction's model answered nothing for half of the last 50 readable
   passages.** Every such row succeeds, so no count of failures sees it. The
-  passages it counted, and the one in hand, go back to the queue.
+  passages it counted, and the one in hand, go back to the queue. The stop
+  stands for as long as the worker's settings do: a watching worker does not
+  read the same passages again each poll, and only a change of settings, which
+  builds its service anew, lifts it.
 - **`SPEND_CAP` is reached.** The drain adds up what litellm priced each call
   at, in its own process, and stops before claiming the row that would pass
   it. Nothing is held then. With it set, a model litellm cannot price is

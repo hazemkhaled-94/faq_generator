@@ -76,6 +76,10 @@ class Service:
         self.drains += 1
         return 0
 
+    def give_back(self) -> bool:
+        """Holds no row."""
+        return False
+
 
 class Driver:
     """The command line with its collaborators replaced."""

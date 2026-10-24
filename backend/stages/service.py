@@ -133,6 +133,10 @@ class StageService(ABC):
         self.failed = 0
         self._outages: list[tuple[Any, bool]] = []
         self.stalled: str | None = None
+        #: A stop that holds for this service's life, not for one drain: what
+        #: stopped it is not going to change by being asked again, only by a
+        #: change of settings, which builds the service anew.
+        self._standing: str | None = None
 
     @abstractmethod
     def process_next(self) -> Any | None:
@@ -181,7 +185,7 @@ class StageService(ABC):
         processed = 0
         self.failed = 0
         self._outages = []
-        self.stalled = None
+        self.stalled = self._standing
         with self._beating():
             while not stopping() and self.stalled is None:
                 # Before the claim, so nothing is held when it stops.
@@ -202,18 +206,24 @@ class StageService(ABC):
                 self.failed,
                 spent_usd(),
             )
-        return processed
+        # None for a stopped drain, whatever it worked first: a watching
+        # worker waits its poll interval on none, and claimed again at once on
+        # the rows a stop had just given back.
+        return 0 if self.stalled else processed
 
-    def _stop(self, reason: str, *keys: Any) -> None:
+    def _stop(self, reason: str, *keys: Any, standing: bool = False) -> None:
         """Stops the drain, giving back the rows it will not finish.
 
         They go back to the queue, the held one included: they were not
         worked on their own account, and rows left failed, or finished with
         nothing, would be passed over by the next run without anybody having
-        said so.
+        said so. A `standing` stop is not lifted by the next drain, which
+        would pay for the same rows again: only a new service lifts it.
         """
         self._repository.release(*keys)
         self.stalled = reason
+        if standing:
+            self._standing = reason
         log.error("%s: %s", self.name, reason)
 
     def give_back(self) -> bool:
