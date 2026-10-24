@@ -30,7 +30,6 @@ from nlp.analysis import (
     normalised,
     numerals,
     owned,
-    reads_finite_in,
     vocabulary,
     written_in,
 )
@@ -197,14 +196,8 @@ def _quoted(judged: Judged) -> Failure | None:
 
 
 def _asserts(judged: Judged) -> Failure | None:
-    """Refuses a statement carrying no finite verb.
-
-    One the tagger read none in still asserts when a word of it, by form, is a
-    finite verb of the cited evidence.
-    """
-    if judged.claim.predicates or reads_finite_in(
-        judged.statement, judged.evidence, judged.language
-    ):
+    """Refuses a statement carrying no finite verb."""
+    if judged.claim.predicates:
         return None
     return (
         Rejection.ASSERTS_NOTHING,
@@ -719,7 +712,6 @@ class FactChecker:
                     end=end,
                 ),
             ),
-            language=language,
         )
 
 

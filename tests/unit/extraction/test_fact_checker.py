@@ -1904,56 +1904,6 @@ def test_an_index_beyond_the_lines_of_the_last_sentence_stays_refused() -> None:
     ("language", "evidence", "statement"),
     [
         (
-            "en",
-            "If a payment is late, it counts as 3 points.",
-            "A late payment counts as 3 points.",
-        ),
-        (
-            "de",
-            "Gebühren und Zinsen verjähren nicht, gemäß Artikel 5.",
-            "Gemäß Artikel 5 verjähren Gebühren und Zinsen nicht.",
-        ),
-        (
-            "en",
-            "If a refund is late, it counts as 3 points.",
-            "A late refund counts as 3 points.",
-        ),
-    ],
-)
-def test_a_verb_the_statements_tagger_misread_is_a_verb_the_evidence_reads_finite(
-    language, evidence, statement
-) -> None:
-    """The same form is finite in the cited sentence, where the verb has its context."""
-    from nlp.analysis import claim
-
-    assert claim(statement, language).predicates == 0, "premise: read as no verb"
-
-    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
-
-    assert judged.validated, (judged.rejection_code, judged.validation_error)
-
-
-@pytest.mark.parametrize(
-    ("language", "evidence", "statement"),
-    [
-        ("en", "The 4 kg device weighs less than the 5 kg one.", "The 4 kg device."),
-        ("de", "Das Gerät wiegt 4 kg und arbeitet leise.", "Das Gerät mit 4 kg."),
-        ("fr", "La carte rouge compte pour trois points.", "La carte rouge."),
-    ],
-)
-def test_a_statement_naming_something_is_still_refused_whatever_its_evidence_says(
-    language, evidence, statement
-) -> None:
-    """None of its words is a finite verb of the evidence."""
-    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
-
-    assert judged.rejection_code == Rejection.ASSERTS_NOTHING
-
-
-@pytest.mark.parametrize(
-    ("language", "evidence", "statement"),
-    [
-        (
             "de",
             "Die Frist ist eingehalten, wenn die Handlung bis 24.00 Uhr MEZ erfolgt.",
             "Die Frist endet um 24:00 Uhr MEZ.",
