@@ -991,8 +991,19 @@ pairs is in [docs/bugs.md](../../docs/bugs.md#found-on-the-v022-rebuild-of-2026-
 
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota: the draw scans sizes down from the largest
-the pool's supply of each band, kind and language allows and keeps the first
-that fills, since a size can fill where a larger one does not. A kind the
+the pool can place and keeps the first that fills, since a size can fill where
+a larger one does not. The pool can place a size where the kinds, each capped
+at what the pool holds of it, leave no more places unplaced than the
+unanswerable ceiling takes: above that, answerable places have no kind to
+spend them on. That is so where the ceiling is at least the tolerance, as the
+shipped 0.10 is (the same release as the scan from the looser bound found, on
+500 random pools of every shape); under it, `QUESTIONS_RELEASE_UNANSWERABLE`
+of 0.05 or none, a size above the bound can still fill within the tolerance,
+and the scan starts from the looser bound of every quota held for rows enough,
+as it always did. The pool is
+ranked, grouped and threaded once, and a draw takes a question out of its cell
+by moving past it, so a draw is linear in the pool: at ten times the reviewed
+build's, 21,750 questions, the scan is minutes where it was 39 a draw. A kind the
 pool holds too few of to fill its share within `TOLERANCE` is asked for what
 the pool can release of it (not the spare members of twin groups, not rows in a
 language the release gives no weight), and the places it cannot take go to the
@@ -1002,7 +1013,13 @@ and the release grows only as far as that balance allows: where the others
 cannot take the freed places the size is too big and the scan goes below it.
 The command reports what it drew, the yield,
 its spread over every share, the languages included, and any quota the pool
-came up short on.
+came up short on. It names a bucket only where the pool holds too few of it
+for what its share asks (`reason (60 of the 90 asked)`): a kind capped at its
+supply is released whole and short of nothing, and the places it cannot take
+leave every band, language and answerability short as well, within the
+tolerance and for no want of those, so a pool short of scarce kinds is told to
+generate more of those and not of the rest. Where nothing is scarce the
+shortfalls are logged without the advice.
 
 It also reports the categories the released questions' writers were told, as
 `categorization=category` on an axis of its own, so a category named like a

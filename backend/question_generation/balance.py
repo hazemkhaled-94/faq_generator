@@ -210,10 +210,44 @@ def _celled(
     return held
 
 
+@dataclass(frozen=True)
+class _Pool:
+    """What a draw reads of a pool, which no size changes.
+
+    Ranked, grouped into cells and into turns once, so `largest`, which draws
+    at many sizes, does the sorting once and each draw only walks.
+    """
+
+    rank: dict[int, str]
+    #: The roots of the pool, by cell, each in `rank` order.
+    cells: dict[tuple[bool, str, str, str], list[Row]]
+    #: Each root with the cell it is in.
+    waiting: dict[int, tuple[tuple[bool, str, str, str], Row]]
+    #: The turns under a question, in id order.
+    turns: dict[int, list[Row]]
+
+
+def _prepared(pool: Sequence[Row]) -> _Pool:
+    """Ranks, groups and threads a pool."""
+    rank = {row.id: _rank(row) for row in pool}
+    cells = _celled([row for row in pool if row.follows_id is None], rank)
+    turns: dict[int, list[Row]] = {}
+    for row in sorted(pool, key=lambda one: one.id):
+        if row.follows_id is not None:
+            turns.setdefault(row.follows_id, []).append(row)
+    return _Pool(
+        rank=rank,
+        cells=cells,
+        waiting={row.id: (key, row) for key, rows in cells.items() for row in rows},
+        turns=turns,
+    )
+
+
 def choose(
     pool: Sequence[Row],
     quota: Quota,
     twins: Mapping[int, set[int]] | None = None,
+    prepared: _Pool | None = None,
 ) -> Release:
     """The questions filling this quota, and whatever it could not fill.
 
@@ -250,6 +284,9 @@ def choose(
     surest of: a later twin's weakest margin is its `near_duplicate` reading
     against the earlier one, so that kept the earlier twin nearly always and
     let creation order back into the draw.
+
+    `prepared` is the pool as `_prepared` read it, for a caller drawing it
+    again at another size.
     """
     alike: Mapping[int, set[int]] = twins or {}
     bands = dict(quota.difficulty)
@@ -259,14 +296,13 @@ def choose(
     held = min(quota.unanswerable, sum(not row.answerable for row in pool))
     places = {True: quota.size - held, False: held}
     left = dict(places)
-    # Each question's hash taken once: every step below compares them.
-    rank = {row.id: _rank(row) for row in pool}
-    cells = _celled([row for row in pool if row.follows_id is None], rank)
-    waiting = {row.id: (key, row) for key, rows in cells.items() for row in rows}
-    turns: dict[int, list[Row]] = {}
-    for row in sorted(pool, key=lambda one: one.id):
-        if row.follows_id is not None:
-            turns.setdefault(row.follows_id, []).append(row)
+    read = prepared or _prepared(pool)
+    rank, cells, waiting, turns = read.rank, read.cells, read.waiting, read.turns
+    #: How far into each cell the rows are already taken, which are skipped
+    #: where it is read, and how many of its rows are not.
+    at = dict.fromkeys(cells, 0)
+    remaining = {key: len(rows) for key, rows in cells.items()}
+    gone: set[int] = set()
     chosen: list[int] = []
     #: `chosen` as a set, for asking whether a twin is already in.
     held_ids: set[int] = set()
@@ -290,14 +326,21 @@ def choose(
 
     def taken(row: Row) -> None:
         """Takes a root out of its cell."""
-        key, _ = waiting.pop(row.id)
-        cells[key] = [one for one in cells[key] if one.id != row.id]
+        gone.add(row.id)
+        remaining[waiting[row.id][0]] -= 1
+
+    def head(key: tuple[bool, str, str, str]) -> Row:
+        """The first row of a cell that is not taken."""
+        rows = cells[key]
+        while rows[at[key]].id in gone:
+            at[key] += 1
+        return rows[at[key]]
 
     while len(chosen) < quota.size:
         best: tuple[float, str, tuple[bool, str, str, str]] | None = None
-        for key, rows in cells.items():
+        for key in cells:
             answerable, band, kind, language = key
-            if not rows or left[answerable] <= 0:
+            if not remaining[key] or left[answerable] <= 0:
                 continue
             if bands.get(band, 0) <= 0 or types.get(kind, 0) <= 0:
                 continue
@@ -313,20 +356,22 @@ def choose(
             share += left[answerable] / max(places[answerable], 1)
             if quota.languages:
                 share += languages[language] / max(quota.languages[language], 1)
-            head = rank[rows[0].id]
-            if best is None or share > best[0] or (share == best[0] and head < best[1]):
-                best = (share, head, key)
+            ahead = rank[head(key).id]
+            if (
+                best is None
+                or share > best[0]
+                or (share == best[0] and ahead < best[1])
+            ):
+                best = (share, ahead, key)
         if best is None:
             break
-        first = cells[best[2]][0]
+        first = head(best[2])
         rivals = [
             waiting[twin][1]
             for twin in alike.get(first.id, set())
-            if twin in waiting and fits(waiting[twin][1])
+            if twin in waiting and twin not in gone and fits(waiting[twin][1])
         ]
         root = min([first, *rivals], key=lambda one: rank[one.id])
-        # ponytail: a cell is rebuilt to take one row out. Upgrade: a deque
-        # per cell, and a set of the ids taken out of turn.
         taken(root)
         spend(root)
         thread = [root]
@@ -348,7 +393,7 @@ def choose(
                 within.add(follow.id)
         for turn in thread:
             for twin in alike.get(turn.id, set()):
-                if twin in waiting:
+                if twin in waiting and twin not in gone:
                     taken(waiting[twin][1])
             chosen.append(turn.id)
             held_ids.add(turn.id)
@@ -396,11 +441,17 @@ def largest(
     The size a balanced set can reach is set by whichever bucket is furthest
     from being able to supply its share. Rather than working that bound out
     for four interacting marginals, the choosing itself is the test: sizes
-    are tried from the largest the pool's supply allows downwards, and the
-    first that fills to within `tolerance` is drawn. Not bisected for,
-    because whether a size fills does not fall steadily with the size: the
-    draw's endgame lands differently at each, so a size failing between two
-    that fill sent a bisection down for good, at times to a few rows.
+    are tried from the largest the pool can place downwards, and the first
+    that fills to within `tolerance` is drawn. Not bisected for, because
+    whether a size fills does not fall steadily with the size: the draw's
+    endgame lands differently at each, so a size failing between two that
+    fill sent a bisection down for good, at times to a few rows.
+
+    The scan starts where the kinds cap at what the pool holds and what they
+    leave unplaced is no more than the unanswerable ceiling (`_placeable`),
+    which is a draw's own limit: above it answerable places are left with no
+    kind to take them. A pool whose kinds place nothing that way starts from
+    the looser bound `_fillable` gives, as the scan always did.
 
     What the release actually came out as is reported rather than assumed -
     `composition` reads it off the rows - so the few places a bucket ends
@@ -416,16 +467,16 @@ def largest(
         ids=[], quota=quota_of(0, bands, types, unanswerable, languages), short={}
     )
     drawable = _drawable(pool, languages, twins)
-    for size in range(
-        _fillable(pool, bands, types, unanswerable, languages, tolerance, twins),
-        0,
-        -1,
-    ):
-        supply = _supply(drawable, unanswerable, size)
+    counts = _counts(drawable)
+    start = _placeable(pool, bands, types, unanswerable, languages, tolerance, counts)
+    prepared = _prepared(pool)
+    for size in range(start, 0, -1):
+        supply = _supply_at(counts, unanswerable, size)
         release = choose(
             pool,
             quota_of(size, bands, types, unanswerable, languages, supply, tolerance),
             twins,
+            prepared,
         )
         if close_enough(release, tolerance):
             return release
@@ -454,19 +505,33 @@ def _drawable(
     return [row for row in pool if row.id in held]
 
 
-def _supply(drawable: Sequence[Row], unanswerable: float, size: int) -> Counter[str]:
+def _counts(drawable: Sequence[Row]) -> tuple[Counter[str], Counter[str]]:
+    """How many rows of each kind are answerable, and how many are not."""
+    answered: Counter[str] = Counter()
+    unanswered: Counter[str] = Counter()
+    for row in drawable:
+        (answered if row.answerable else unanswered)[row.question_type] += 1
+    return answered, unanswered
+
+
+def _supply_at(
+    counts: tuple[Counter[str], Counter[str]], unanswerable: float, size: int
+) -> Counter[str]:
     """How many questions a release of this size could draw of each kind.
 
     Unanswerable rows count only up to the ceiling of that size.
     """
+    answered, unanswered = counts
     ceiling = int(size * unanswerable)
-    supply: Counter[str] = Counter()
-    unanswered: Counter[str] = Counter()
-    for row in drawable:
-        (supply if row.answerable else unanswered)[row.question_type] += 1
+    supply: Counter[str] = Counter(answered)
     for kind, count in unanswered.items():
         supply[kind] += min(count, ceiling)
     return supply
+
+
+def _supply(drawable: Sequence[Row], unanswerable: float, size: int) -> Counter[str]:
+    """How many questions a release of this size could draw of each kind."""
+    return _supply_at(_counts(drawable), unanswerable, size)
 
 
 def _fillable(
@@ -477,12 +542,18 @@ def _fillable(
     languages: Mapping[str, int] | None,
     tolerance: float,
     twins: Mapping[int, set[int]] | None = None,
+    counts: tuple[Counter[str], Counter[str]] | None = None,
+    placeable: bool = False,
 ) -> int:
     """The largest size whose every quota the pool holds rows enough for, within its slack.
 
     No draw above it can fill, whatever it picks, so the scan starts here
     rather than at the size of the pool. Unanswerable rows count per bucket
     only up to the ceiling, the most a draw takes from any one.
+
+    With `placeable`, the places the capped kinds leave unplaced may be no
+    more than the unanswerable ceiling, with no slack: the places a draw can
+    give up for want of a kind are the unanswerable ones.
     """
     held = Counter(
         name
@@ -497,9 +568,9 @@ def _fillable(
         for name in (row.difficulty, row.question_type, row.language)
     )
     unanswered = sum(not row.answerable for row in pool)
-    drawable = _drawable(pool, languages, twins)
+    counts = counts or _counts(_drawable(pool, languages, twins))
     for size in range(len(pool), 0, -1):
-        supply = _supply(drawable, unanswerable, size)
+        supply = _supply_at(counts, unanswerable, size)
         quota = quota_of(size, bands, types, unanswerable, languages, supply, tolerance)
         wanted = {**quota.difficulty, **quota.types, **quota.languages}
         answerable = size - quota.unanswerable
@@ -514,13 +585,39 @@ def _fillable(
         # Places the capped kinds leave unplaced: the draw cannot spend them,
         # and only unanswerable places are not reported when unspent.
         unplaced = size - sum(quota.types.values())
-        if unplaced > quota.unanswerable + _slack(answerable, tolerance):
+        room = 0 if placeable else _slack(answerable, tolerance)
+        if unplaced > quota.unanswerable + room:
             continue
         if all(
             short <= max(1, tolerance * wanted[name]) for name, short in missing.items()
         ):
             return size
     return 0
+
+
+def _placeable(
+    pool: Sequence[Row],
+    bands: Mapping[str, int],
+    types: Mapping[str, int],
+    unanswerable: float,
+    languages: Mapping[str, int] | None,
+    tolerance: float,
+    counts: tuple[Counter[str], Counter[str]],
+) -> int:
+    """The size a scan starts from: what the pool can place, else what it can hold.
+
+    The largest size every quota is held for rows enough for and whose
+    capped kinds leave no more than the unanswerable ceiling unplaced. That
+    holds where the ceiling is at least as much as the tolerance: every size
+    above it leaves a bucket more places than the tolerance forgives, which a
+    release of any other pool does not, so a ceiling under the tolerance (and
+    none at all) starts from what the pool can hold, and the scan is then as
+    long as it always was.
+    """
+    args = (pool, bands, types, unanswerable, languages, tolerance, None, counts)
+    if unanswerable < tolerance:
+        return _fillable(*args)
+    return _fillable(*args, placeable=True) or _fillable(*args)
 
 
 def composition(pool: Sequence[Row], ids: Sequence[int]) -> dict[str, dict[str, int]]:

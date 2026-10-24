@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import ClassVar
 
@@ -27,6 +27,7 @@ from question_generation.balance import (
     composition,
     largest,
     quota_of,
+    shares,
 )
 from question_generation.catalog import QuestionCatalog
 from question_generation.checker import (
@@ -596,7 +597,7 @@ def balance(
         drawn, written = catalog.release(release.ids)
         current.set_attribute("release.quota", release.quota.size)
         current.set_attribute("release.size", written)
-        _report(pool, release, drawn, written)
+        _report(pool, release, drawn, written, types)
         if capped is not None:
             raise capped
         return written
@@ -783,7 +784,9 @@ def _supplied(pool, weights, what: str, attribute: str) -> dict[str, int]:
     return kept
 
 
-def _report(pool, release, drawn, written: int) -> None:
+def _report(
+    pool, release, drawn, written: int, types: Mapping[str, int] | None = None
+) -> None:
     """Logs what the draw came out as, and what it could not fill."""
     log.info(
         "release %s: %d of %d accepted question(s), a yield of %.0f%%",
@@ -849,14 +852,63 @@ def _report(pool, release, drawn, written: int) -> None:
                 for key in sorted(set(counted) | set(asked[name]))
             ),
         )
-    if release.short:
+    scarce = _scarce(pool, release, types)
+    if scarce:
+        # Only what the pool holds too few of. Every other bucket's shortfall
+        # follows from these: the places a scarce kind cannot take are places
+        # a band, a language and answerability are each short of as well.
         log.warning(
-            "the pool could not fill: %s. Generate more, or lower the share "
-            "that is short.",
+            "the pool holds too few of: %s. Generate more of these, or lower "
+            "the share that is short. The places they leave are why the "
+            "other buckets, within the tolerance, are short as well.",
+            ", ".join(
+                f"{name} ({held} of the {asked} asked)"
+                for name, (held, asked) in scarce.items()
+            ),
+        )
+    elif release.short:
+        log.info(
+            "left unfilled, each within the tolerance and none for want of "
+            "questions to draw: %s",
             ", ".join(
                 f"{name} short by {count}" for name, count in release.short.items()
             ),
         )
+
+
+def _scarce(
+    pool, release, types: Mapping[str, int] | None = None
+) -> dict[str, tuple[int, int]]:
+    """The buckets whose supply, in the pool, is under what their share asks.
+
+    Supply is the answerable rows of the bucket and as many unanswerable ones
+    as the ceiling lets a draw take, the same count a kind's quota is capped
+    at. A kind's quota IS capped at it, so what the share asked for is read
+    from the weights: a kind asked for 90 of a pool holding 60 is released
+    whole at 60 and short of nothing, and the 30 places it cannot take are
+    the shortfall of everything else.
+    """
+    quota = release.quota
+    asked = {
+        "difficulty": quota.difficulty,
+        "question_type": shares(types, quota.size) if types else quota.types,
+        "language": quota.languages,
+    }
+    scarce: dict[str, tuple[int, int]] = {}
+    for attribute, wanted in asked.items():
+        answered = Counter(getattr(row, attribute) for row in pool if row.answerable)
+        unanswered = Counter(
+            getattr(row, attribute) for row in pool if not row.answerable
+        )
+        for name, count in wanted.items():
+            held = answered[name] + min(unanswered[name], quota.unanswerable)
+            if held < count:
+                scarce[name] = (held, count)
+    places = quota.size - quota.unanswerable
+    held = sum(row.answerable for row in pool)
+    if held < places:
+        scarce["answerable"] = (held, places)
+    return scarce
 
 
 def rejudge(

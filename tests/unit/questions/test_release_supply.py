@@ -173,6 +173,12 @@ def test_the_tight_bound_keeps_the_ids(monkeypatch):
     """lead-1 equivalence: the hinted bound hands back the same release (passes on BASE too)."""
     pool = _scan_pool()
     base = largest(pool, unanswerable=0.0, **SCAN)
-    monkeypatch.setattr(balance_module, "_fillable", _tight_fillable)
+    monkeypatch.setattr(
+        balance_module,
+        "_placeable",
+        lambda pool, bands, types, unanswerable, languages, tolerance, counts: (
+            _tight_fillable(pool, bands, types, unanswerable, languages, tolerance)
+        ),
+    )
     tight = largest(pool, unanswerable=0.0, **SCAN)
     assert tight.ids == base.ids and tight.short == base.short
