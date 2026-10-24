@@ -135,3 +135,43 @@ def test_the_probe_still_finds_the_twin_in_its_own_language_only(store) -> None:
     assert in_english is not None and in_english.statement.startswith("The card")
     assert in_french is None
     assert anywhere is not None
+
+
+@pytest.mark.parametrize(
+    "text, before, after, now",
+    [
+        # Stored under the fallback, re-read as German by a newly configured model.
+        ("Die Karte kostet 25 Euro im Jahr.", "en", "de", "de"),
+        ("Orders can be returned within 14 days.", "de", "en", "en"),
+        # A language no configuration names behaves like any other.
+        ("Zahlungen werden binnen 3 Tagen gebucht.", "de", "xx", "xx"),
+        # Too short to tell: the document's, as the store reads it.
+        ("Orders can be returned within 14 days.", "de", None, "en"),
+    ],
+)
+def test_a_re_read_that_moves_a_passage_s_language_moves_its_facts(
+    store, text, before, after, now
+) -> None:
+    """`make chunk-revocabulary` rewrites passages.language in place.
+
+    The probe filters on the fact's own copy, so the copy moves with it: the
+    fact is found in the new language and no longer in the old one.
+    """
+    from preprocessing.chunking.repository import PassageCatalog
+
+    written = store.corpus(("moved", [text]), ("kept", ["Another passage here."]))
+    (moved,) = written["moved"]
+    (kept,) = written["kept"]
+    store.language_of(moved, before)
+    store.language_of(kept, "fr")
+    store.store(moved, checked(moved, text, embedding=_axis(0)))
+    store.store(kept, checked(kept, "A kept claim.", embedding=_axis(1)))
+
+    assert PassageCatalog().revocabulary([(moved, after, [])]) == 1
+
+    assert store.queue.nearest_fact(_axis(0), language=now) is not None
+    assert store.queue.nearest_fact(_axis(0), language=before) is None
+    assert store.rows("language", where="statement = :s", s=text) == [(now,)]
+    assert store.rows("language", where="statement = :s", s="A kept claim.") == [
+        ("fr",)
+    ]

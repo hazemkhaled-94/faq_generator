@@ -9,7 +9,7 @@ from typing import ClassVar, cast
 from sqlalchemy import Table, bindparam, delete, func, insert, select, update
 from sqlalchemy.orm import InstrumentedAttribute
 
-from database.qa_generator import Document, Passage, Status
+from database.qa_generator import Document, Fact, FactPassage, Passage, Status
 from database.qa_generator.repository import Repository, matching
 from preprocessing.chunking.models import (
     Chunk,
@@ -45,6 +45,7 @@ DEFAULT_FIELD = "text"
 
 #: The passages table itself, for the bulk update a re-read writes.
 _PASSAGES = cast("Table", Passage.__table__)
+_FACTS = cast("Table", Fact.__table__)
 
 
 def _filtered(query, document, search, block_type, field):
@@ -300,7 +301,11 @@ class PassageCatalog(Repository):
     def revocabulary(self, read: list[tuple[int, str | None, list[str]]]) -> int:
         """Replaces the stored language and lemmas, and nothing else.
 
-        Sentence offsets are left alone: a fact cites one by index.
+        Sentence offsets are left alone: a fact cites one by index. The
+        language of each fact that opens on a moved passage moves with it, to
+        what the extraction store would write now: the passage's, and its
+        document's where the passage names none. The dedup probe filters on
+        that copy.
 
         Args:
             read: One (passage id, language, lemmas) per passage.
@@ -319,6 +324,32 @@ class PassageCatalog(Repository):
                 [
                     {"row": passage_id, "language": language, "lemmas": terms}
                     for passage_id, language, terms in read
+                ],
+            )
+            session.execute(
+                update(_FACTS)
+                .where(
+                    _FACTS.c.id.in_(
+                        select(FactPassage.fact_id).where(
+                            FactPassage.position == 0,
+                            FactPassage.passage_id == bindparam("row"),
+                        )
+                    )
+                )
+                .values(
+                    language=func.coalesce(
+                        bindparam("language", type_=Passage.language.type),
+                        select(Document.language)
+                        .where(
+                            Document.sha256 == Passage.doc_sha256,
+                            Passage.id == bindparam("row"),
+                        )
+                        .scalar_subquery(),
+                    )
+                ),
+                [
+                    {"row": passage_id, "language": language}
+                    for passage_id, language, _ in read
                 ],
             )
         return len(read)
