@@ -759,7 +759,7 @@ class QuestionChecker:
 
     def _needed(
         self, candidate: Candidate, form: str, readings: list[Measurement]
-    ) -> Candidate:
+    ) -> Candidate | tuple[str, str]:
         """Cites a question from the passages that hold a part of its answer.
 
         Citing two passages is the writer's report of what it used, and a
@@ -771,8 +771,8 @@ class QuestionChecker:
         and the band following from it.
 
         Last, and only for a question about to be accepted, so a refused one
-        never pays for the call. It never refuses: a question one passage
-        answers is relabelled, not refused. A bridge cited alone, or a
+        never pays for the call. It never refuses for the citation: a question
+        one passage answers is relabelled, not refused. A bridge cited alone, or a
         follow-up whose narrowed citation would ask nothing its root did not
         (`_thread` is read again on the narrowed group), keeps both passages,
         with the reading on the row. A derived question is read the same way
@@ -780,6 +780,10 @@ class QuestionChecker:
         nothing is decided and nothing is recorded. Where every passage states
         every part and the question joins cases with a conjunction, each may
         give the same answer for its own case, so both are kept.
+
+        The same call says whether the parts answer ONE question: a
+        two-passage question welding unrelated asks together is refused as
+        compound, the one refusal this reading makes.
         """
         resting = candidate.group.resting
         if not candidate.answerable or len(resting) < 2:
@@ -804,6 +808,25 @@ class QuestionChecker:
             # it must not lose a question the passages support.
             log.warning("no parts reading for %r: %s", candidate.question_text, exc)
             return candidate
+        one = getattr(parts, "one_question", True)
+        readings.append(
+            Measurement(
+                "one_question",
+                1.0 if one else 0.0,
+                0.5,
+                opinion=True,
+                version=STATED_VERSION,
+            )
+        )
+        if not one:
+            return (
+                QuestionRejection.COMPOUND,
+                (
+                    "the parts of its answer answer different questions about "
+                    "different subjects, two questions welded into one that no "
+                    "single reply answers"
+                ),
+            )
         keep = needed(parts, texts)
         if keep is None:
             log.info(

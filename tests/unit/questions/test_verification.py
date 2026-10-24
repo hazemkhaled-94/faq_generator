@@ -5616,10 +5616,13 @@ def test_the_verdict_bands_a_question_by_the_kind_it_is_stored_as(monkeypatch) -
 class ByParts(Recording):
     """A verifier that lists the parts of a key as scripted, and what it was shown."""
 
-    def __init__(self, parts: tuple[Part, ...], **kwargs) -> None:
-        """Initialises with the parts it lists."""
+    def __init__(
+        self, parts: tuple[Part, ...], one_question: bool = True, **kwargs
+    ) -> None:
+        """Initialises with the parts it lists, and whether they ask one question."""
         super().__init__(**kwargs)
         self.parts = parts
+        self.one_question = one_question
         self.shown: list[str] = []
 
     def stated(self, question: str, key: str, passages, thread=()) -> tuple[Part, ...]:
@@ -5627,7 +5630,11 @@ class ByParts(Recording):
         self.stated_asked += 1
         self.shown = list(passages)
         self.key = key
-        return self.parts
+        from question_generation.verifier import Parts
+
+        listed = Parts(self.parts)
+        listed.one_question = self.one_question
+        return listed
 
     def follows(self, question: str, answer: str, passages, thread=()) -> bool:
         """The entailment gate a derived implication meets: it holds."""
@@ -6913,3 +6920,84 @@ def test_a_participle_inside_a_noun_phrase_is_not_an_action(
     )
 
     assert (code(failed) == QuestionRejection.WRONG_FORM) is refused
+
+
+_WELDED = {
+    "en": (
+        "A standing order can be cancelled online until the day before it runs.",
+        "Replacing a lost card costs 10 EUR.",
+        "What are the deadline for cancelling a standing order and the fee for a replacement card?",
+        "until the day before; 10 EUR",
+    ),
+    "de": (
+        "Ein Dauerauftrag kann online bis zum Vortag der Ausführung gekündigt werden.",
+        "Der Ersatz einer verlorenen Karte kostet 10 EUR.",
+        "Welche Fristen und Gebühren gelten für die Kündigung eines Dauerauftrags und den Ersatz einer Karte?",
+        "bis zum Vortag; 10 EUR",
+    ),
+    "shop": (
+        "Returns are accepted within 30 days of delivery.",
+        "Standard delivery takes 3 to 5 days.",
+        "What are the return period of a purchase and the delivery time of an order?",
+        "within 30 days; 3 to 5 days",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", ["en", "de", "shop"])
+def test_a_two_passage_question_whose_parts_ask_different_questions_is_refused(
+    case: str,
+) -> None:
+    """The one reading of the parts says the question welds two asks: refused, not relabelled."""
+    first, second, question, key = _WELDED[case]
+    language = "de" if case == "de" else "en"
+    parts = (Part("first ask", (first,)), Part("second ask", (second,)))
+    recording = ByParts(parts, one_question=False, recovers=key)
+
+    result = build(recording).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            facts=_two(first, second, language),
+            kind="needs_both",
+        )
+    )
+
+    assert result.rejected_reason == QuestionRejection.COMPOUND
+    assert [
+        (one.value, one.opinion)
+        for one in result.readings
+        if one.gate == "one_question"
+    ] == [(0.0, True)]
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_two_passage_comparison_the_reading_calls_one_question_is_kept(
+    language: str,
+) -> None:
+    """One comparison of two cases keeps both passages, as it did."""
+    first, second, question, key = _DORMANT[language]
+    parts = (Part("a", (first,)), Part("b", (second,)))
+    recording = ByParts(parts, one_question=True, recovers=key)
+
+    result = build(recording).check(
+        candidate(
+            question_text=question,
+            target_answer=key,
+            facts=_two(first, second, language),
+            kind="needs_both",
+        )
+    )
+
+    assert result.accepted, result.rejected_reason
+    assert result.fact_ids == (1, 2)
+
+
+def test_the_parts_are_a_tuple_that_remembers_whether_they_ask_one_question() -> None:
+    """Every reader of the parts reads them as before."""
+    from question_generation.verifier import Parts
+
+    listed = Parts((Part("a", ("x",)),))
+
+    assert listed == (Part("a", ("x",)),)
+    assert listed.one_question is True
