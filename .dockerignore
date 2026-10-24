@@ -1,16 +1,22 @@
-# Every image builds from the repo root, so everything here would
-# otherwise be sent to the daemon as build context.
-.git/
-.venv/
-.claude/
+# Every image builds from the repo root, so whatever the root holds would
+# otherwise be sent to the engine as build context: the customer's workbooks and
+# documents, the history, the secrets, the tests. An allowlist, because a
+# denylist grows a hole with every folder added.
+#
+# What the three Dockerfiles copy, and nothing else: the backend packages and
+# their locks, the page, the orchestration code location, the telemetry package
+# all three share, and the version the api reads from pyproject.toml.
+# tests/static/test_dockerignore.py holds this file to those COPY lines.
+*
+!backend/
+!frontend/
+!orchestration/
+!telemetry/
+!pyproject.toml
+
+# Caches and litter inside what is copied.
 **/__pycache__/
 **/*.py[cod]
-.pytest_cache/
 **/.DS_Store
-
-certs/
-configs/
-logs/
-poetry.lock
-.env
+**/.pytest_cache/
 frontend/README.md
