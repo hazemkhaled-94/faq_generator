@@ -64,6 +64,28 @@ def test_the_prompt_says_which_mistake_costs_more() -> None:
         assert anchor not in system
 
 
+def test_a_why_over_a_bare_rule_is_taught_silent_with_a_shop_and_a_bank_example() -> (
+    None
+):
+    """The case the recoverability prompt already has, which settles lacked.
+
+    A why question whose passage only states the rule was kept out as answered
+    after all, because a reply restating the rule reads as an answer.
+    """
+    client = Client()
+
+    Verifier(client).settles("Why must a return be announced?", ["Text."])
+
+    system = " ".join(client.asked[-1][0].split())
+    assert "Where the question asks why" in system
+    assert 'A rule said again, with "because" or not, is no reason.' in system
+    silent = system.split("EXAMPLES")[1].split("FORMAT")[0].split("silent")
+    whys = [one for one in silent if "Why" in one]
+    assert len(whys) == 2
+    assert "The shop only accepts returns" in whys[0]
+    assert "A standing order can be changed in online banking" in whys[1]
+
+
 @pytest.mark.parametrize("verdict", list(Settling))
 def test_each_verdict_comes_back_as_the_model_gave_it(verdict: str) -> None:
     """With what the passages said, unless they said nothing."""

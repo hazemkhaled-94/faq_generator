@@ -35,7 +35,7 @@ from llm.prompt import fence, fill, grounded
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "13"
+PROMPT_VERSION = "14"
 
 #: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
 #: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
@@ -282,9 +282,13 @@ STEPS
    case asked about is decided by it?
 6. Check for a general rule: does a passage state a rule that covers the
    case asked about, even though it never names that case?
-7. Give the first of these that holds, or `silent` when none does. Your
+7. Where the question asks why, or what a rule is for, look for a reason:
+   something a passage says about why the rule is there, beyond the rule
+   itself. A rule said again, with "because" or not, is no reason.
+8. Give the first of these that holds, or `silent` when none does. Your
    reply in step 2 is the test: a reply that tells the user what the
-   passages decide is not `silent`.
+   passages decide is not `silent`, and a reply that only repeats the rule a
+   why asks about decides nothing.
 
 CONTEXT
 A chatbot asked this question is marked RIGHT for saying the material does
@@ -299,7 +303,8 @@ a request" settles a question about a visitor's request - a visitor cannot
 raise one - as surely as a sentence naming the visitor would.
 
 A list or rule about the same subject that does not decide this case is
-`silent`.
+`silent`. So is a why question over a rule whose passage gives no reason: the
+rule is stated, and what the question asks for is not.
 
 You have no knowledge outside the passages and may use none. A question the
 world answers and these passages do not is `silent`, and a quote must be
@@ -325,6 +330,14 @@ EXAMPLES
            circumstances the question assumes)
   silent   "Through which channel is the answer to a standard request sent?"
            (no passage says, and no list or rule in them reaches it)
+  silent   passage "The shop only accepts returns that were announced before
+           sending."
+           "Why must a return be announced before the parcel is sent?"
+           (the rule, and nothing on why it is there)
+  silent   passage "A standing order can be changed in online banking until
+           the day before it is executed."
+           "Why can a standing order not be changed on the day it is executed?"
+           (the cut-off, and no reason for it)
 
 FORMAT
 Return `reply`, `quote` and `verdict`, in that order.
