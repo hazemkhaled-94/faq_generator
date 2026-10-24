@@ -3063,3 +3063,29 @@ def test_a_topic_that_writes_its_plan_says_what_it_left(caplog) -> None:
         f"topic {topic().id}: 1 of 1 slots written, stopped: plan, 2 fact(s) left"
         in [record.getMessage() for record in caplog.records]
     )
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_follow_up_is_dealt_the_kind_its_root_was_stored_as(language: str) -> None:
+    """A root the parts reading narrowed to one passage has no needs_both thread."""
+    from factories import candidate, group, plan
+
+    from database.qa_generator import QuestionKind
+    from question_generation.selection import Shape
+
+    sample = group(
+        source(1, passage_id=1, document="a", language=language),
+        source(2, passage_id=2, document="b", language=language),
+    )
+    writer = StubWriter()
+    service, _ = build(topic(language=language), [], writer=writer)
+    root = StubChecker().check(
+        candidate(facts=group(sample.facts[0]), kind=QuestionKind.SINGLE)
+    )
+    dealt = plan(kind=QuestionKind.NEEDS_BOTH, shape=Shape.APART)
+
+    service._followups(sample, dealt, root, [root], 0, 7)
+
+    assert root.kind == QuestionKind.SINGLE
+    assert writer.plans, "no follow-up was written"
+    assert {one.kind for one in writer.plans} == {QuestionKind.SINGLE}

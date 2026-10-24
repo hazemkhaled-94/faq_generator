@@ -1843,7 +1843,10 @@ class QuestionGenerationService(StageService):
                         band=plan.band,
                         shape=plan.shape,
                         answerable=True,
-                        kind=plan.kind,
+                        # What the root was stored as, not what it was dealt:
+                        # a root the parts reading narrowed to one passage
+                        # opens a thread of single questions.
+                        kind=root.kind,
                     ),
                     root_facts=cited,
                     parent_passages=previous,
