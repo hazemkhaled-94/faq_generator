@@ -146,7 +146,11 @@ The deal uses a relative floor instead, `QUESTIONS_MEETS_SHARE`: a second
 passage is offered only when its best fact is among that share of the topic's
 closest cross-passage fact pairs. The bar is read off the topic's own vectors,
 so no cosine is tuned to a corpus or a language, and the closest pair always
-clears it. While `QUESTIONS_MEETS_FLOOR` or `QUESTIONS_MEETS_SHARE` is above
+clears it. It is read from every cross-passage pair of the topic up to two
+million of them, about 2,000 facts, which is every topic of the reviewed build
+(the largest holds 832); a topic of more reads the quantile from 200,000 such
+pairs drawn at random, seeded by its fact ids so one topic gives one floor,
+where the dense product of 50,000 facts was 20 GB. While `QUESTIONS_MEETS_FLOOR` or `QUESTIONS_MEETS_SHARE` is above
 0, the floor is read over the second passage's facts that do not restate the
 head's first word for word, and a passage holding nothing but such copies is
 not offered, since it answers nothing the head does not. A second passage

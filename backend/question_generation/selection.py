@@ -18,6 +18,7 @@ asked about across all of it.
 from __future__ import annotations
 
 import re
+import zlib
 from collections.abc import Callable, Iterable, Sequence
 from enum import StrEnum
 from functools import lru_cache
@@ -173,6 +174,18 @@ def _spelt(statement: str) -> list[str]:
     return re.findall(r"\w+", statement.casefold())
 
 
+#: The most cross-passage pairs of facts the relative floor reads exactly. A
+#: topic with more is read from this many pairs drawn at random, because the
+#: dense product of n facts is n by n: 50,000 facts, 20 GB. Two million is
+#: about 2,000 facts, and no topic of the reviewed build holds half that.
+_PAIR_BUDGET = 2_000_000
+
+#: How many pairs a topic over the budget is read from, and how many of them
+#: are held at once.
+_SAMPLED_PAIRS = 200_000
+_CHUNK = 4_096
+
+
 def _relative_floor(facts: Sequence[SourceFact], share: float) -> float:
     """The cosine a second passage's fact must reach, read off the topic itself.
 
@@ -183,19 +196,52 @@ def _relative_floor(facts: Sequence[SourceFact], share: float) -> float:
     pair. 0.0 where `share` is not positive, the topic holds no pair of
     embedded facts from different passages, or some of its facts carry no
     vector: `meets` then reads words, a scale cosines do not belong to.
+
+    Exact while the topic's pairs fit `_PAIR_BUDGET`. Past it the quantile is
+    read from that many pairs drawn at random, seeded by the facts so one
+    topic gives one floor, which is the same quantile to a hundredth at the
+    sizes it is read from.
     """
     if share <= 0:
         return 0.0
     embedded = [fact for fact in facts if fact.embedding]
     if len(embedded) < 2 or len(embedded) < len(facts):
         return 0.0
-    vectors = np.array([fact.embedding for fact in embedded], dtype=float)
     ids = np.array([fact.passage_id for fact in embedded])
+    if len(embedded) * (len(embedded) - 1) // 2 > _PAIR_BUDGET:
+        return _sampled_floor(embedded, ids, share)
+    vectors = np.array([fact.embedding for fact in embedded], dtype=float)
     pairs = np.triu(ids[:, None] != ids[None, :], k=1)
     if not pairs.any():
         return 0.0
     cosines = np.clip((vectors @ vectors.T)[pairs], 0.0, 1.0)
     return float(np.quantile(cosines, 1 - share))
+
+
+def _sampled_floor(
+    embedded: Sequence[SourceFact], ids: np.ndarray, share: float
+) -> float:
+    """The floor from `_SAMPLED_PAIRS` pairs of facts of different passages, drawn at random.
+
+    The cosines are taken a chunk of pairs at a time: a vector is 4 KB, and the
+    two sides of 200,000 pairs gathered at once are 1.6 GB.
+    """
+    vectors = np.array([fact.embedding for fact in embedded], dtype=np.float32)
+    rng = np.random.default_rng(
+        zlib.crc32(np.sort(np.array([fact.id for fact in embedded])).tobytes())
+    )
+    first = rng.integers(len(embedded), size=2 * _SAMPLED_PAIRS, dtype=np.int32)
+    second = rng.integers(len(embedded), size=2 * _SAMPLED_PAIRS, dtype=np.int32)
+    kept = np.flatnonzero(ids[first] != ids[second])[:_SAMPLED_PAIRS]
+    if not len(kept):
+        return 0.0
+    cosines = np.empty(len(kept), dtype=np.float32)
+    for start in range(0, len(kept), _CHUNK):
+        chunk = kept[start : start + _CHUNK]
+        cosines[start : start + len(chunk)] = np.einsum(
+            "ij,ij->i", vectors[first[chunk]], vectors[second[chunk]]
+        )
+    return float(np.quantile(np.clip(cosines, 0.0, 1.0), 1 - share))
 
 
 def meets(
