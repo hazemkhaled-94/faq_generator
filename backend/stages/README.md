@@ -184,6 +184,12 @@ The drain stops itself, and exits 75, in three cases:
   Each keeps what it wrote and exits 75; the next run asks only for what no
   run has done.
 
+A one-off drain installs the same handler a worker does, with its stage's
+grace: SIGTERM or SIGINT lets the row in hand finish and claims no more, and
+exits 75; a second signal, or the grace running out, gives the row back to
+the queue first and exits 75. A supervised run is never left holding a row for
+`abandon` to fail at the next start.
+
 Before it starts, a drain prints how many rows are queued and what that is
 about to cost at the rate measured on the 2026-10 build, which moves with the
 model split. A watching worker does not exit: after a stop it waits the poll

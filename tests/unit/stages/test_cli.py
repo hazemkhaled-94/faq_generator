@@ -105,6 +105,10 @@ def _queue_main(monkeypatch, *, refuse: Exception | None):
             """Drains nothing."""
             return 0
 
+        def give_back(self):
+            """Holds no row."""
+            return False
+
     def preflight() -> None:
         """Proves the model answers, or does not."""
         if refuse is not None:
@@ -697,3 +701,88 @@ def test_an_extra_pass_that_finishes_exits_0(monkeypatch) -> None:
     )
 
     assert code == 0
+
+
+# ── A one-off drain told to stop ───────────────────────────────────────────
+
+
+@pytest.fixture
+def _signals():
+    """Puts back the handlers a test's drain installed."""
+    import signal
+
+    kept = {one: signal.getsignal(one) for one in (signal.SIGTERM, signal.SIGINT)}
+    yield
+    for one, handler in kept.items():
+        signal.signal(one, handler)
+
+
+def test_a_one_off_drain_told_to_stop_leaves_no_row_claimed_and_exits_75(
+    _signals,
+) -> None:
+    """SIGTERM mid-row: the row in hand finishes, none is claimed after it."""
+    import os
+    import signal
+
+    from unit.stages.test_drain import Rows, Stage
+
+    from stages import cli
+
+    class Stopped(Stage):
+        """A stage whose third row is told to stop while it is worked."""
+
+        def process_next(self):
+            """Works a row, and is sent SIGTERM during the third."""
+            key = super().process_next()
+            if key == 3:
+                os.kill(os.getpid(), signal.SIGTERM)
+            return key
+
+    rows = Rows(8)
+    stage = Stopped(rows, {})
+
+    assert cli.drain_once(stage) == cli.STOPPED == 75
+    assert rows.finished == [1, 2, 3]
+    assert rows.pending == [4, 5, 6, 7, 8], "nothing was claimed after the signal"
+
+
+def test_a_one_off_drain_nobody_stopped_exits_as_a_drain_does(_signals) -> None:
+    """The handler changes nothing for a run left alone."""
+    from unit.stages.test_drain import Rows, Stage
+
+    from stages import cli
+
+    assert cli.drain_once(Stage(Rows(3), {})) == 0
+    assert cli.drain_once(Stage(Rows(3), {2: ValueError("odd")})) == cli.FAILED
+
+
+def test_a_second_signal_gives_the_held_row_back_and_leaves_with_75(_signals) -> None:
+    """A one-off drain is given the same Shutdown a worker has: grace and give-back."""
+    from unittest import mock
+
+    from unit.stages.test_drain import Rows, Stage
+
+    from stages import cli
+    from stages.worker import DEFAULT_GRACE_SECONDS, LEFT_EARLY, Shutdown
+
+    gave: list[bool] = []
+    left: list[int] = []
+    made: list[Shutdown] = []
+
+    class Spy(Shutdown):
+        """Records what the drain gave its shutdown."""
+
+        def __init__(self, grace, give_back=None, leave=left.append) -> None:
+            """Records the grace and the give-back."""
+            super().__init__(grace, give_back, leave)
+            made.append(self)
+            self.grace = grace
+
+    stage = Stage(Rows(1), {})
+    stage.give_back = lambda: gave.append(True) or True  # type: ignore[method-assign]
+    with mock.patch.object(cli, "Shutdown", Spy):
+        cli.drain_once(stage)
+
+    assert made[0].grace == cli.GRACE_SECONDS.get(stage.name, DEFAULT_GRACE_SECONDS)
+    made[0]._leave_now("asked twice")
+    assert gave == [True] and left == [LEFT_EARLY]

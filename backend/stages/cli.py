@@ -22,7 +22,7 @@ from settings import decimal
 from settings.runs import named_run, run_id
 from stages.queue import StageQueue, Unnarrowable
 from stages.service import SpendCapReached, StageService
-from stages.worker import DEFAULT_GRACE_SECONDS, GRACE_SECONDS, watch
+from stages.worker import DEFAULT_GRACE_SECONDS, GRACE_SECONDS, Shutdown, watch
 
 log = logging.getLogger(__name__)
 
@@ -329,8 +329,7 @@ def queue_main(
         # Built once: one drain cannot outlive a change to the settings.
         service = build_service()
         announce(service, repository())
-        service.drain()
-        return exit_code(service)
+        return drain_once(service)
 
     serving: dict[str, Any] = {}
     watch(
@@ -380,6 +379,25 @@ def announce(service: StageService, queue: StageQueue) -> None:
         cost,
         "" if cap is None else f"; stops at USD {cap:.2f}",
     )
+
+
+def drain_once(service: StageService) -> int:
+    """Drains once, as a worker does under a stop, and says how it ended.
+
+    The same `Shutdown` a watching worker has: SIGTERM or SIGINT lets the row
+    in hand finish and claims no more, a second signal or the stage's grace
+    running out gives the row back and leaves, so a supervised one-off drain
+    (the host runner's) never dies holding a row for the next start to fail.
+    A stop asked for ends it 75, as the drain's own stops do.
+    """
+    shutdown = Shutdown(
+        GRACE_SECONDS.get(service.name, DEFAULT_GRACE_SECONDS), service.give_back
+    ).install()
+    try:
+        service.drain(shutdown.requested)
+    finally:
+        shutdown.done()
+    return STOPPED if shutdown.requested() else exit_code(service)
 
 
 def give_back(serving: dict[str, Any]) -> Callable[[], object]:

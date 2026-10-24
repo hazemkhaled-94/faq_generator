@@ -20,7 +20,7 @@ from settings import decimal
 from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages import watch
-from stages.cli import _ready, exit_code, give_back, parser, reloading
+from stages.cli import _ready, drain_once, give_back, parser, reloading
 from stages.prompts import record
 from topic_modelling import prompts
 from topic_modelling.config import Settings
@@ -154,8 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     telemetry.trace_engine(engine())
 
     if not args.watch:
-        service.drain()
-        return exit_code(service)
+        return drain_once(service)
 
     serving: dict[str, Any] = {}
     watch(

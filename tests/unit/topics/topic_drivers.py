@@ -542,10 +542,14 @@ class CommandDriver:
                 driver.queued.append(1)
                 return len(driver.queued)
 
-            def drain(self) -> int:
+            def drain(self, stopping=None) -> int:
                 """Runs whatever is queued."""
                 driver.drains += 1
                 return 0
+
+            def give_back(self) -> bool:
+                """Holds no row."""
+                return False
 
         monkeypatch.setattr(module, "TopicQueue", Queue)
         monkeypatch.setattr(module, "TopicCatalog", Catalog)
