@@ -6613,7 +6613,6 @@ def test_a_compound_half_is_rescued_against_its_own_passage_only() -> None:
     assert encoder.pairs[0][0].startswith(_RESCUED["en"][1])
 
 
-
 # ── A compound row stores its halves ──────────────────────────────────────
 
 
@@ -6645,3 +6644,48 @@ def test_a_question_that_is_not_compound_stores_no_halves() -> None:
 
     assert [one for one in result.readings if one.gate == "halves"] == []
 
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            "Where must the cashier of the main store be seated during the winter sale?",
+            "The cashier of the main store must be seated at the desk during the winter sale.",
+            "en",
+        ),
+        (
+            "Wo muss der Kassierer der Hauptfiliale während des Winterverkaufs sitzen?",
+            "Der Kassierer der Hauptfiliale muss während des Winterverkaufs am Schalter sitzen.",
+            "de",
+        ),
+        (
+            "Which fee applies to a card replaced abroad?",
+            "The replacement fee applies to a card replaced abroad.",
+            "en",
+        ),
+    ],
+)
+def test_a_sentence_key_echoing_the_question_around_a_new_word_does_not_restate(
+    question: str, answer: str, language: str
+) -> None:
+    """The one word the echo is built around is the answer, whatever the sentence's length."""
+    assert not restates(question, answer, language)
+
+
+def test_a_sentence_key_adding_nothing_still_restates_and_an_unknown_language_is_inert() -> (
+    None
+):
+    """A non-why key with no new lemma is an echo; a language with no model cannot raise."""
+    assert restates(
+        "Which fee applies to a card replaced abroad?",
+        "The fee applies to a card replaced abroad.",
+        "en",
+    )
+    assert isinstance(
+        restates(
+            "Où le médecin doit-il s'asseoir?",
+            "Le médecin doit s'asseoir sur le banc.",
+            "fr",
+        ),
+        bool,
+    )
