@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from llm.config import split
 from settings import Source, boolean, csv, integer, optional
 
 #: What is said when the phase is switched off. A message rather than an
@@ -83,15 +84,31 @@ def cannot_run(settings: Settings) -> str | None:
     return None
 
 
+def judge_equals(settings: Settings, source: Source = None) -> list[str]:
+    """The roles whose output is judged that the judge model also is.
+
+    The writer, the verifier, the phrasing judge, the passage reader, the
+    digest reader and the topic namer each produce what this phase judges, and
+    a judge that is any of them marks its own work. Named, so the log and the
+    plan say which.
+    """
+    judge = settings.judge_model
+    if judge is None:
+        return []
+    return [
+        role
+        for role, model in split(source).items()
+        if role != "judge" and model == judge
+    ]
+
+
 def judge_of(settings: Settings, source: Source = None) -> tuple[str | None, bool]:
-    """The model the next run judges with, and whether it is the writer's.
+    """The model the next run judges with, and whether it is one of the pipeline's own.
 
     None where ASSESSMENT_JUDGE_MODEL names nothing, and then nothing is
     judged.
     """
-    writer = optional("LLM_MODEL", source)
-    judge = settings.judge_model
-    return judge, judge is not None and judge == writer
+    return settings.judge_model, bool(judge_equals(settings, source))
 
 
 def judged_kinds(settings: Settings) -> tuple[str, ...]:

@@ -267,3 +267,65 @@ def test_a_judge_named_as_the_writer_is_warned_about(caplog) -> None:
         build_service(settings(ASSESSMENT_JUDGE_MODEL=writer.model), writer)
 
     assert "judging the pipeline's own output" in caplog.text
+
+
+#: The split a deployment names: seven roles, one of which may be the judge's.
+_ROLES = {
+    "LLM_MODEL": "azure/gpt-5.4",
+    "QUESTIONS_MODEL": "azure/gpt-5.6-sol",
+    "QUESTIONS_VERIFIER_MODEL": "azure/gpt-4.1",
+    "QUESTIONS_PHRASING_MODEL": "azure/gpt-5.4",
+    "EXTRACTION_MODEL": "azure/gpt-5.4",
+    "EXTRACTION_DIGEST_MODEL": "azure/gpt-4o",
+    "TOPIC_MODEL": "azure/gpt-4.1",
+}
+
+
+def test_a_judge_equal_to_the_digest_model_names_the_digest_role() -> None:
+    """Every role whose output is judged, not only the shared model."""
+    from assessment.config import judge_equals
+
+    named = settings(ASSESSMENT_JUDGE_MODEL="azure/gpt-4o")
+
+    assert judge_equals(named, _ROLES) == ["digest"]
+    assert judge_of(named, _ROLES) == ("azure/gpt-4o", True)
+
+
+def test_a_judge_equal_to_several_roles_names_each() -> None:
+    """The verifier and the topic namer here."""
+    from assessment.config import judge_equals
+
+    assert judge_equals(settings(ASSESSMENT_JUDGE_MODEL="azure/gpt-4.1"), _ROLES) == [
+        "verifier",
+        "topics",
+    ]
+
+
+def test_a_judge_distinct_from_every_role_is_not_warned_about() -> None:
+    """Nothing to say."""
+    from assessment.config import judge_equals
+
+    named = settings(ASSESSMENT_JUDGE_MODEL="azure/some-other-judge")
+
+    assert judge_equals(named, _ROLES) == []
+    assert judge_of(named, _ROLES)[1] is False
+
+
+def test_a_judge_that_is_one_of_the_roles_is_warned_about_naming_it(
+    caplog, monkeypatch
+) -> None:
+    """The log line says which role it is marking."""
+    from assessment.factory import build_service
+
+    for name, value in _ROLES.items():
+        monkeypatch.setenv(name, value)
+
+    with caplog.at_level("WARNING"):
+        build_service(
+            settings(ASSESSMENT_JUDGE_MODEL="azure/gpt-4o"),
+            model(LLM_MODEL="azure/gpt-5.4"),
+        )
+
+    assert (
+        "digest" in caplog.text and "judging the pipeline's own output" in caplog.text
+    )

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 
-from assessment.config import UNNAMED, Settings, judged_kinds
+from assessment.config import UNNAMED, Settings, judge_equals, judged_kinds
 from assessment.judge import Judge
 from assessment.repository import AssessmentQueue
 from assessment.service import AssessmentService
 from llm.client import Client
 from llm.config import Settings as ModelSettings
+from settings import Source
 
 log = logging.getLogger(__name__)
 
@@ -33,17 +34,26 @@ def judge_model(settings: Settings, shared: ModelSettings) -> ModelSettings:
 
 
 def build_service(
-    settings: Settings, model: ModelSettings, version: str | None = None
+    settings: Settings,
+    model: ModelSettings,
+    version: str | None = None,
+    source: Source = None,
 ) -> AssessmentService:
     """Wires the service and its collaborators."""
     asked = judge_model(settings, model)
-    if asked.model == model.model:
+    # The shared model too, which `source` may not name where a test builds
+    # this from settings alone.
+    marked = judge_equals(settings, source) or (
+        ["writer"] if asked.model == model.model else []
+    )
+    if marked:
         log.warning(
             "%s is judging the pipeline's own output, because "
-            "ASSESSMENT_JUDGE_MODEL names it. A model marking "
+            "ASSESSMENT_JUDGE_MODEL names it: it is the %s model. A model marking "
             "its own work agrees with itself, and this phase exists to hold "
             "an opinion the pipeline does not already hold.",
             asked.model,
+            ", ".join(marked),
         )
     return AssessmentService(
         repository=AssessmentQueue(
