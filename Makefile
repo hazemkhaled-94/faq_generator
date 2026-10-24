@@ -833,7 +833,9 @@ extract-embed:
 # model could not give it, or the provider's filter refused the passage. Their
 # atomic facts were kept and are not read again; only the summary and the
 # outline are written, and a passage whose digest fails again keeps its note
-# and is tried on the next run. Calls the digest model once per such passage.
+# and is tried on the next run. Also those above EXTRACTION_DIGEST_MIN_CHARS
+# that hold no digest, which is how a lowered floor reaches stored passages.
+# Calls the digest model once per such passage.
 extract-digests:
 	@$(call IDLE,extract-worker)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --digests

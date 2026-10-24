@@ -31,12 +31,15 @@ pull request.
 
 ## When a change takes effect
 
-A watching worker picks a change up **at its next drain**. The check sits
+A watching worker picks a change up **once its queue is empty**. The check sits
 between drains, where nothing is claimed, so a change made during a drain
 waits for that drain to empty the queue and is never applied halfway through
 an item. A one-off `make` drain reads the settings once, when it starts.
 
-Nothing is requeued. If the change means what a stage already produced was
+Nothing is requeued, and `make settings SERVICE=<name>` and `make doctor` say how
+many stored rows of extraction, topics and questions were made under another
+configuration than the current one, with the command that brings them in line.
+If the change means what a stage already produced was
 made under the old value, whichever surface you used **says so and names the
 stage**, and how to rebuild it: the cheaper command the catalogue names,
 where every changed setting that stales something has one, and otherwise

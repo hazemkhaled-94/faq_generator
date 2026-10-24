@@ -64,6 +64,27 @@ def every_model() -> tuple[list[Settings], list[str]]:
     return list({(m.model, m.base_url): m for m in asked}.values()), refused
 
 
+def behind_lines() -> list[str]:
+    """What each stage stored under another configuration than the current one.
+
+    A settings change reaches no stored row, so this is where a person finds
+    out which are still made under the old one. Never raises: a database that
+    will not answer is said once, and does not fail the model check.
+    """
+    from settings.run import behind
+    from settings.store import Settings
+
+    try:
+        version = Settings().version()
+        return [
+            line
+            for stage in ("extraction", "topics", "questions")
+            for line in behind(stage, version)
+        ]
+    except Exception as error:  # noqa: BLE001 - the doctor reports, it does not stop
+        return [f"could not read what is stored: {error}"]
+
+
 def main() -> int:
     """Asks every configured model one question, and says what happened.
 
@@ -90,6 +111,8 @@ def main() -> int:
             failed = 1
             continue
         log.info("the model answered in shape")
+    for line in behind_lines():
+        log.info("%s", line)
     return failed
 
 

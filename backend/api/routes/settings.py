@@ -192,7 +192,8 @@ def write(service: Service, change: Change) -> Changed:
     setting named must belong to this service, and one refusal refuses the
     whole request.
 
-    A worker's next drain is worked under the new settings.
+    A worker reads the new settings when its queue is empty, so a drain
+    under way works the rest of its queue under the old ones.
 
     Raises:
         ApiError: 404 `unknown_setting`; 400 `wrong_service`,

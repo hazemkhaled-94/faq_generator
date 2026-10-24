@@ -50,6 +50,7 @@ def test_the_doctor_asks_every_model_a_stage_calls(monkeypatch, judging) -> None
     for name, value in {"LLM_MODEL": "azure/shared", **roles, **judge}.items():
         monkeypatch.setenv(name, value)
     monkeypatch.setattr("telemetry.configure", lambda _: None)
+    monkeypatch.setattr("api.doctor.behind_lines", list)
     served = provider(monkeypatch, reply('{"ok": true}'))
 
     assert main() == 0
@@ -67,6 +68,7 @@ def test_a_stage_that_will_not_load_still_leaves_the_other_models_asked(
     monkeypatch.setenv("ASSESSMENT_ENABLED", "true")
     monkeypatch.setenv("ASSESSMENT_JUDGE_MODEL", "")
     monkeypatch.setattr("telemetry.configure", lambda _: None)
+    monkeypatch.setattr("api.doctor.behind_lines", list)
     served = provider(monkeypatch, reply('{"ok": true}'))
 
     assert main() == 1

@@ -15,11 +15,13 @@ from sqlalchemy import (
     Integer,
     Select,
     Table,
+    and_,
     any_,
     bindparam,
     delete,
     func,
     insert,
+    or_,
     select,
     text,
     true,
@@ -557,14 +559,31 @@ class PassageQueue(RowQueue):
         return {**self.counts_by_status(), "facts": total, "validated": valid}
 
 
-def _next_undigested(after: int):
-    """The next extracted passage that lacks its digest, past `after`."""
+def _next_undigested(after: int, min_chars: int):
+    """The next extracted passage that lacks its digest, past `after`.
+
+    One the extraction left a note on, or one long enough to be worth a digest
+    that holds none. Long enough by its stored text, which is what the digest
+    floor reads; the claims floor needs the sentences and is the service's.
+    """
+    has_digest = (
+        select(FactPassage.fact_id)
+        .join(Fact, Fact.id == FactPassage.fact_id)
+        .where(
+            FactPassage.passage_id == Passage.id,
+            Fact.kind.in_((FactKind.SUMMARY, FactKind.OUTLINE)),
+        )
+        .exists()
+    )
     return (
         select(Passage.id)
         .where(
             Passage.extract_status == Status.EXTRACTED,
-            Passage.extract_error.startswith(DIGEST_FAILED),
             Passage.id > after,
+            or_(
+                Passage.extract_error.startswith(DIGEST_FAILED),
+                and_(func.length(Passage.text) >= min_chars, ~has_digest),
+            ),
         )
         .order_by(Passage.id)
         .with_for_update(skip_locked=True)
@@ -576,19 +595,29 @@ def _next_undigested(after: int):
 class DigestQueue(PassageQueue):
     """The passages that finished extraction without their digest.
 
-    Claims an extracted passage rather than a pending one, so the atomic
-    facts are never read again, and each passage once per drain: one whose
-    digest fails again keeps its note and is not the next claim.
+    Those the extraction left a note on, and those above the digest's length
+    floor that hold none: a floor lowered since they were read reaches them
+    here, without reading the passage again and replacing the facts questions
+    rest on. Claims an extracted passage rather than a pending one, and each
+    passage once per drain: one whose digest fails again keeps its note and is
+    not the next claim.
     """
 
-    def __init__(self, version: str | None = None) -> None:
-        """Binds to the session factory, with a settings version."""
+    def __init__(self, version: str | None = None, min_chars: int = 0) -> None:
+        """Binds to the session factory, with a settings version.
+
+        Args:
+            version: The configuration the digests are written under.
+            min_chars: EXTRACTION_DIGEST_MIN_CHARS, the shortest passage a
+                digest is looked for on.
+        """
         super().__init__(version)
         self._after = 0
+        self._min_chars = min_chars
 
     def _next(self) -> Any:
         """The next passage without a digest, past the last one claimed."""
-        return _next_undigested(self._after)
+        return _next_undigested(self._after, self._min_chars)
 
     def claim(self) -> PassageToExtract | None:
         """Takes the next passage without a digest, in id order."""

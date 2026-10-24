@@ -2055,7 +2055,9 @@ class TestTheDigestPass:
         assert seen == [first, second]
         assert store.statuses()[:2] == [Status.EXTRACTED, Status.EXTRACTED]
 
-    def test_a_passage_with_no_note_is_never_claimed(self, store, corpus) -> None:
+    def test_a_passage_with_no_note_under_the_floor_is_never_claimed(
+        self, store, corpus
+    ) -> None:
         """Nor is one still pending, which the passage reader owns."""
         from extraction.repository import DigestQueue
 
@@ -2064,7 +2066,9 @@ class TestTheDigestPass:
         store.queue.claim()
         store.queue.store(first, [checked(first)])
 
-        assert DigestQueue().claim() is None
+        assert DigestQueue(min_chars=10_000).claim() is None
+        claimed = DigestQueue().claim()
+        assert claimed is not None and claimed.id == first, "pending is not claimed"
 
     def test_a_released_passage_goes_back_extracted_not_pending(
         self, store, corpus
@@ -2079,4 +2083,33 @@ class TestTheDigestPass:
         queue.release(first)
 
         assert store.statuses()[0] == Status.EXTRACTED
-        assert store._execute("SELECT extract_error FROM passages")[0] == (self.NOTE,)
+        assert store._execute("SELECT extract_error FROM passages ORDER BY id")[0] == (
+            self.NOTE,
+        )
+
+    def test_a_long_passage_with_no_digest_is_claimed_without_a_note(
+        self, store, corpus
+    ) -> None:
+        """A floor lowered since it was read reaches it, and only it."""
+        from extraction.repository import DigestQueue
+
+        long, short = corpus["a"]
+        store._execute(
+            "UPDATE passages SET text = :text WHERE id = :id",
+            text="A long enough passage. " * 40,
+            id=long,
+        )
+        store.queued(long, short)
+        for one in (long, short):
+            store.queue.claim()
+            store.queue.store(one, [checked(one, f"Fact of passage {one}.")])
+        before = store.rows("id", "statement", where="kind = 'atomic'")
+        queue = DigestQueue(min_chars=200)
+
+        claimed = queue.claim()
+        assert claimed is not None and claimed.id == long
+        queue.store_digests(long, [checked(long, "Summary.", kind=FactKind.SUMMARY)])
+
+        assert queue.claim() is None, "short is under the floor, long is digested"
+        assert store.rows("id", "statement", where="kind = 'atomic'") == before
+        assert DigestQueue(min_chars=200).claim() is None

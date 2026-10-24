@@ -154,8 +154,12 @@ make settings-unset SERVICE=topics UNSET="TOPIC_PASSES"
 ```
 
 A worker picks a change up once its queue next runs dry: it reads its
-settings again between drains, not per row. Nothing is requeued. If the
-change stales what a stage already produced, the surface you used says so
+settings again between drains, not per row, so a drain under way works the
+rest of its queue under the old values. A change reaches no stored row:
+nothing is requeued, and `make settings SERVICE=<name>` and `make doctor` list,
+for extraction, topics and questions, how many stored rows were made under
+another configuration than the current one, with the command that brings them
+in line. If the change stales what a stage already produced, the surface you used says so
 and names the stage. Where every setting changed that stales something has a
 cheaper rebuild in its catalogue entry, such as `make extract-revalidate` or
 `make questions-balance`, the page and the API name that command; otherwise

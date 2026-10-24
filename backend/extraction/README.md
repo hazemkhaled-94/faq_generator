@@ -125,7 +125,9 @@ the provider's filter refuses the passage, the passage still finishes
 `extracted` with its atomic facts, and `extract_error` says
 `digest failed: <reason>`. `make extract-digests` (`python -m extraction.run
 --digests`, and `make corpus` runs it after `extract`) claims those passages,
-calls only the digest model, and replaces only the summary and the outline,
+and every extracted passage of `EXTRACTION_DIGEST_MIN_CHARS` or more that holds
+no digest, so a floor lowered after a corpus was read reaches it without
+re-reading it. It calls only the digest model, and replaces only the summary and the outline,
 never an atomic fact or its id. A digest that fails again keeps its note and is
 tried again on the next run, once per run.
 

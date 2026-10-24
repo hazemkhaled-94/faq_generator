@@ -195,9 +195,12 @@ SETTINGS: tuple[Setting, ...] = (
         kind="integer",
         low=0,
         invalidates=("extraction",),
+        rebuild="make extract-digests",
         help="The shortest passage worth digesting, in characters. A digest "
         "is a fixed size whatever it is given, so how much it condenses is "
-        "decided by the passage. 0 digests every passage carrying enough claims.",
+        "decided by the passage. 0 digests every passage carrying enough claims. "
+        "Lowered, `make extract-digests` gives a digest to the stored passages "
+        "it now reaches without reading them again.",
     ),
     Setting(
         name="EXTRACTION_MIN_OTHER_SHARE",

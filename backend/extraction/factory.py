@@ -74,7 +74,11 @@ def build_service(
     # worth moving; what produced a fact is recorded on the fact either way.
     condensing = Client(condensed) if settings.digest_model else client
     return (DigestPass if digests_only else ExtractionService)(
-        repository=(DigestQueue if digests_only else PassageQueue)(version=version),
+        repository=(
+            DigestQueue(version, settings.digest_min_chars)
+            if digests_only
+            else PassageQueue(version=version)
+        ),
         extractors=ExtractorRegistry(
             extractors=(TableExtractor(),), default=LlmExtractor(client, cap)
         ),

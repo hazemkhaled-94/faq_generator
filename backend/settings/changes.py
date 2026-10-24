@@ -301,7 +301,9 @@ def _detail(moved: list[str], stale: list[str], rebuilds: list[str]) -> str:
     if not moved:
         return "nothing changed; every value given is the one already set."
     written = (
-        f"{len(moved)} setting(s) changed. Workers pick them up at their next drain."
+        f"{len(moved)} setting(s) changed. A worker reads them when its queue is "
+        "empty, not per row: a drain under way works the rest of its queue "
+        "under the old values."
     )
     if not stale:
         return written

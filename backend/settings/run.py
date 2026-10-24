@@ -10,7 +10,8 @@ One command for all eight services, `platform` included. The Makefile wraps
 it per service.
 
 Nothing here runs a stage. A setting written reaches a worker at that
-worker's next drain, and what a change staled is printed.
+worker once its queue is empty - not per row, so a drain under way works the
+rest of its queue under the old values - and what a change staled is printed.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import argparse
 import logging
 import os
 import sys
+from collections.abc import Callable
 
 import telemetry
 from database.qa_generator import engine
@@ -102,6 +104,76 @@ def report(service: str, store: Settings) -> list[str]:
     return lines
 
 
+#: The stages whose output records the configuration it was made under, with
+#: what one row of it is called and the command that makes it again.
+_RECORDED = {
+    "extraction": ("fact", "make extract-rerun"),
+    "topics": ("topic", "make topics-discover"),
+    "questions": ("question", "make questions-rerun"),
+}
+
+
+def stored_behind(service: str, version: str) -> int:
+    """How many rows a service produced under a configuration other than `version`.
+
+    Rows written before the version was recorded are not counted: nothing
+    says what they were made under.
+    """
+    from sqlalchemy import func, select
+
+    from database.qa_generator import Fact, Question, Topic
+    from database.qa_generator.engine import sessions
+
+    table = {"extraction": Fact, "topics": Topic, "questions": Question}[service]
+    with sessions()() as session:
+        return (
+            session.scalar(
+                select(func.count())
+                .select_from(table)
+                .where(
+                    table.settings_version.is_not(None),
+                    table.settings_version != version,
+                )
+            )
+            or 0
+        )
+
+
+def behind(
+    service: str,
+    version: str,
+    count: Callable[[str, str], int] = stored_behind,
+) -> list[str]:
+    """Says how much of what a service stored predates the configuration now.
+
+    A change to a setting reaches no stored row: nothing requeues them, and
+    a drain under way keeps its settings until its queue is empty. So after a
+    change, this is where a person sees what is still made under the old one,
+    and which command brings it in line: the cheaper ones the catalogue names
+    for the settings of this service that stale its output, and the stage's
+    rerun for those that name none.
+
+    The version is a digest of every setting, so it cannot say which setting
+    moved; the count is of rows made under any other configuration.
+    """
+    if service not in _RECORDED:
+        return []
+    noun, rerun = _RECORDED[service]
+    rows = count(service, version)
+    if not rows:
+        return []
+    staling = [one for one in catalog.of(service) if service in one.invalidates]
+    commands = sorted({one.rebuild for one in staling if one.rebuild})
+    if any(not one.rebuild for one in staling):
+        commands.append(rerun)
+    said = (
+        f"{rows} stored {noun}(s) were made under another configuration than "
+        f"{version}. Whichever of this service's settings moved since, what "
+        f"brings them in line is {' and '.join(commands)}."
+    )
+    return [said]
+
+
 def change(service: str, values: dict[str, str | None], store: Settings) -> list[str]:
     """Writes what a command asked for, refusing what the stage would not read.
 
@@ -138,7 +210,9 @@ def main(argv: list[str] | None = None) -> int:
     store = Settings()
     values = proposed(args.written, args.cleared)
     said = (
-        change(args.service, values, store) if values else report(args.service, store)
+        change(args.service, values, store)
+        if values
+        else report(args.service, store) + behind(args.service, store.version())
     )
     for line in said:
         log.info("%s", line)
