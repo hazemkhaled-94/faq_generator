@@ -558,6 +558,8 @@ REDO_WARNS = {
     "passages": "person-reviewed and released",
     "facts": "person-reviewed and released",
     "assessment": "verdict",
+    "documents": "stored parse",
+    "questions": "asked again",
 }
 
 
@@ -583,7 +585,11 @@ def test_redo_all_asks_before_it_sends_anything(open_view, name) -> None:
 
 @pytest.mark.parametrize(
     ("name", "scope"),
-    (("passages", ("document", SHA)), ("facts", ("passage", "11"))),
+    (
+        ("documents", ("document", SHA)),
+        ("passages", ("document", SHA)),
+        ("facts", ("passage", "11")),
+    ),
 )
 def test_redo_on_one_item_asks_before_it_sends_anything(open_view, name, scope) -> None:
     """The same two presses for the Redo drawn under a picked row."""

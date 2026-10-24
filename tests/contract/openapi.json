@@ -735,9 +735,13 @@
   },
   "/topics": {
     "delete": {
-      "parameters": [],
+      "parameters": [
+        "confirm"
+      ],
       "responses": [
-        "200"
+        "200",
+        "400",
+        "422"
       ]
     },
     "get": {

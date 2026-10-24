@@ -19,10 +19,12 @@ class Session:
     def __init__(self, status: int = 200) -> None:
         self.status = status
         self.sent: list[tuple[str, str, float]] = []
+        self.params: list[dict | None] = []
 
     def request(self, method: str, url: str, *, timeout: float, **kwargs):
         """Records one request and answers it."""
         self.sent.append((method, url, timeout))
+        self.params.append(kwargs.get("params"))
         status = self.status
 
         class Answered:
@@ -184,3 +186,24 @@ def test_the_shared_session_sends_the_deployments_secret(monkeypatch) -> None:
 
     assert backend._session().headers["X-API-Token"] == "s3cret"
     backend._session.clear()
+
+
+def test_an_unnarrowed_redo_is_sent_confirmed_and_a_narrowed_one_is_not() -> None:
+    """The page asked first; the api asks again of whoever did not."""
+    session = Session()
+    api = CatalogApi("http://api", session)  # type: ignore[arg-type]
+
+    api.stage_action("chunking", "rerun")
+    api.stage_action("chunking", "rerun", ("document", "a" * 64))
+    api.stage_action("chunking", "start")
+
+    assert session.params == [{"confirm": "true"}, None, None]
+
+
+def test_deleting_every_topic_is_sent_confirmed() -> None:
+    """The delete box asked first, in two presses."""
+    session = Session()
+
+    CatalogApi("http://api", session).delete_topics()  # type: ignore[arg-type]
+
+    assert session.params == [{"confirm": "true"}]

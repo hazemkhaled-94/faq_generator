@@ -350,7 +350,7 @@ a caller branches on the code rather than on English:
 | `invalid_digest` | 400 | The path segment is not a SHA-256 |
 | `invalid_language` | 400 | The language is not an ISO 639-1 code |
 | `invalid_value` | 400 | A narrowed verb was given a value its column cannot hold, or an upload's filename holds a NUL byte or a lone surrogate |
-| `confirm_required` | 400 | `reclaim` over a whole stage without `?confirm=true` |
+| `confirm_required` | 400 | `rerun` or `reclaim` over a whole stage, or `DELETE /topics`, without `?confirm=true`; the answer names the stage's rows or the topics at stake |
 | `questions_rest_on_it` | 409 | `rerun` on `chunking` or `extraction` while released, accepted or reviewed questions rest on what it replaces, without `?force=true` |
 | `wrong_service` | 400 | A setting belongs to another service |
 | `fixed_setting` | 400 | A setting is the deployment's: served read-only, never stored |

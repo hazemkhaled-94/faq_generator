@@ -68,13 +68,17 @@ class CatalogApi(Endpoint):
         None of these runs anything: they move rows between statuses, and the
         stage's worker picks up whatever is claimable on its next poll.
         `force` goes on a rerun over questions people accepted or reviewed,
-        which the API refuses with a 409 until it is sent.
+        which the API refuses with a 409 until it is sent. A whole-stage redo
+        is sent confirmed: the page that drew the button asked first, and the
+        api refuses one nobody confirmed.
         """
+        confirmed = {"confirm": "true"} if action == "rerun" and scope is None else None
         return self._request(
             "POST",
             f"/{stage}{_within(scope)}/{action}",
             timeout=30,
-            params={"force": "true"} if force else None,
+            params={**(confirmed or {}), **({"force": "true"} if force else {})}
+            or None,
         ).json()
 
     def topics(self) -> list[dict]:
@@ -109,7 +113,7 @@ class CatalogApi(Endpoint):
 
     def delete_topics(self) -> dict:
         """Deletes every topic and membership."""
-        return self._request("DELETE", "/topics").json()
+        return self._request("DELETE", "/topics", params={"confirm": "true"}).json()
 
     def passage_types(self) -> list[str]:
         """Fetches the block types present in the corpus."""

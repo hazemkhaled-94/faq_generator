@@ -173,9 +173,13 @@ def retry(run: RunName = None) -> StageAction:
     return answered("topics", "retry", topics_queue.retry(trigger=trigger), run=trigger)
 
 
-@router.delete("", responses={409: {"model": ErrorBody}})
-def delete() -> TopicRemoval:
+@router.delete("", responses={400: {"model": ErrorBody}, 409: {"model": ErrorBody}})
+def delete(confirm: bool = False) -> TopicRemoval:
     """Deletes every topic, and with it every membership and visualisation.
+
+    Refused with 400 `confirm_required`, naming how many topics it would
+    take, unless `confirm=true`: a label a person assigned is stored nowhere
+    else.
 
     Passages, facts and questions stay. Labels a person assigned go with the
     topics. Any queued fit goes too.
@@ -190,6 +194,14 @@ def delete() -> TopicRemoval:
         ApiError: 409 `questions_running` while a worker is writing questions
             from a topic.
     """
+    if not confirm:
+        held = topics_queue.counts_by_status().get("modelled", 0)
+        raise ApiError(
+            400,
+            "confirm_required",
+            f"this deletes all {held:,} topics, any label a person gave one and "
+            f"the judge's verdicts on them. Pass ?confirm=true.",
+        )
     try:
         removed = topic_catalog.delete_all()
     except QuestionsRunning as exc:

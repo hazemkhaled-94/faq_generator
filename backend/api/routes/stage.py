@@ -387,7 +387,9 @@ def stage_router(
         answered back.
 
         Raises:
-            ApiError: 400 `confirm_required` for an unnarrowed `reclaim`.
+            ApiError: 400 `confirm_required` for an unnarrowed `rerun`, which
+                rebuilds what the stage made and cannot be undone from here,
+                and for an unnarrowed `reclaim`.
                 Nothing here can tell a dead claim from a live one, so this
                 is the one verb that can hand a row a live worker is on to a
                 second one. Narrowed to a single item it is the ordinary way
@@ -402,6 +404,16 @@ def stage_router(
                 "reclaim over a whole stage can take a row from a worker "
                 "that is still on it. Narrow it to one item, or pass "
                 "?confirm=true once the stage is stopped.",
+            )
+        if action == "rerun" and not confirm:
+            held = sum(repository.queue_state().rows.values())
+            raise ApiError(
+                400,
+                "confirm_required",
+                f"rerun over the whole {name} stage queues its {held:,} rows "
+                f"again and rebuilds what the stage made of them, which can "
+                f"delete work a person reviewed or released. Narrow it to one "
+                f"item, or pass ?confirm=true.",
             )
         if action == "rerun" and before_rerun:
             before_rerun()

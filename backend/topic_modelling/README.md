@@ -229,7 +229,7 @@ puts a term in few of its topics, and deflate is very good at that.
 | `POST /topics/discover` | Queues a fit. 202 |
 | `POST /topics/stop` | Withdraws a queued fit |
 | `POST /topics/retry` | Returns a failed fit to the queue |
-| `DELETE /topics` | Deletes every topic, membership, stored model and figure into the archive, which `make restore-documents` restores from |
+| `DELETE /topics?confirm=true` | Deletes every topic, membership, stored model and figure into the archive, which `make restore-documents` restores from |
 
 There is no `POST /topics/start` and no `/topics/rerun`: asking is what
 creates the work, and a fit has no scope to narrow to.

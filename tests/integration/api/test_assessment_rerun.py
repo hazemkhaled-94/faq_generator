@@ -57,7 +57,9 @@ def test_rerun_keeps_stored_verdicts_when_nothing_can_rejudge(
         monkeypatch.setenv("ASSESSMENT_JUDGE_MODEL", judge)
 
     answer = client.post(
-        "/assessment/rerun" if route == "whole" else "/assessment/kind/fact/rerun"
+        "/assessment/rerun?confirm=true"
+        if route == "whole"
+        else "/assessment/kind/fact/rerun"
     )
 
     with Session(engine) as session:

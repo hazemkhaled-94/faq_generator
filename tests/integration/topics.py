@@ -354,4 +354,4 @@ class TopicsApi:
 
     def delete(self):
         """Deletes every topic."""
-        return self.client.delete("/topics")
+        return self.client.delete("/topics", params={"confirm": "true"})

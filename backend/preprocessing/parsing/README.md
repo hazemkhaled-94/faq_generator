@@ -294,7 +294,7 @@ the uploaded bytes.
 | Route | Answers |
 |---|---|
 | `GET /parsing/status` | The queue depth, and whether a worker is on it |
-| `POST /parsing/{action}` | `start`, `stop`, `retry`, `rerun`, `reclaim` |
+| `POST /parsing/{action}` | `start`, `stop`, `retry`, `rerun`, `reclaim`; a whole-stage `rerun` or `reclaim` needs `?confirm=true` |
 | `GET\|POST /parsing/{scope}/{value}/…` | The same, narrowed to one document |
 
 The routes only move rows between statuses; the worker picks up whatever

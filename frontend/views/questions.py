@@ -18,6 +18,13 @@ _WORKBOOK = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 #: page fits; nothing here can fit them.
 _QUESTIONS = stage.Queue("questions", "topics", "generated")
 
+#: What Redo costs, said before it acts.
+_REDO = (
+    "Every topic is asked again, finished ones included, and the model is "
+    "called for each. Questions already written stay: only what the facts "
+    "they skipped did not cover is added."
+)
+
 #: The columns the search box can look in, by the heading each carries in
 #: the table below, mapped to the name /questions takes.
 _FIELDS = {
@@ -473,7 +480,7 @@ def view() -> None:
         )
 
     with service, page.panel("Question generation"):
-        stage.service(client, _QUESTIONS)
+        stage.service(client, _QUESTIONS, redo_warning=_REDO)
         with page.folds():
             with st.expander("Analysis"):
                 st.caption(

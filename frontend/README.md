@@ -123,9 +123,12 @@ Two pages carry a delete box, because two things can be deleted: a document,
 with or without what was derived from it, and the topics, all at once. A
 passage, a fact and a question have no delete.
 
-Redo on Passages, Facts and Assessment asks first in the same two clicks,
-and says what goes: a re-chunk or a re-extraction deletes the questions
-resting on that work, and a re-judge blanks the stored verdicts. A picked
+Redo on every stage's page asks first in the same two clicks, and says what
+goes or what it costs: a re-chunk or a re-extraction deletes the questions
+resting on that work, a re-judge blanks the stored verdicts, a re-parse
+replaces the stored parse, and a re-ask of the questions calls the model for
+every topic. The page sends a whole-stage Redo with `confirm=true`, which the
+api requires of any caller. A picked
 bridge fact offers no Redo and names `make extract-bridge` instead.
 
 A stage's controls and counts redraw every few seconds for as long as the

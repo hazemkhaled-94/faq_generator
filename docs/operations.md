@@ -880,7 +880,7 @@ None is required. These changed:
 
 #### 5. Reruns, in order
 
-None of these is needed to start v0.5.0. Each brings stored data up to what the releases since v0.3.12 read differently, and one pass under v0.5.0's code covers every release at once. Run only the steps your corpus needs. Each `make *-rerun` drains on the host and refuses while that stage's container worker runs. To rerun with the container workers, use the stage's page or `POST /{stage}/rerun` instead.
+None of these is needed to start v0.5.0. Each brings stored data up to what the releases since v0.3.12 read differently, and one pass under v0.5.0's code covers every release at once. Run only the steps your corpus needs. Each `make *-rerun` drains on the host and refuses while that stage's container worker runs. To rerun with the container workers, use the stage's page or `POST /{stage}/rerun?confirm=true` instead.
 
 | Step | Command | Needed because of |
 |---|---|---|
@@ -975,7 +975,7 @@ Model calls: none is added. A topic that is no passage's strongest is no longer 
 
 Topic figures and models move to new keys, `topics/<database>/<language>.html` in `export` and `.npz` in `models`, the database read from the path of `DATABASE_URL`, so a second database on the same object store no longer overwrites or archives this one's. The old keys `topics/<language>.*` are not read: until `make topics-discover` runs, the Topics page and `GET /topics/visualisation/{language}` show no figure and `make topics-render` finds no model. The old objects stay where they are, and nothing reads them.
 
-Stored rows take the new readings only when you rerun them. In order, on an existing database (none of this is needed to start v0.4.4, and a build from scratch needs none of it). Each `make *-rerun` drains on the host and refuses while that stage's container worker runs; to rebuild with the container workers, rerun from the stage's page or `POST /{stage}/rerun` instead:
+Stored rows take the new readings only when you rerun them. In order, on an existing database (none of this is needed to start v0.4.4, and a build from scratch needs none of it). Each `make *-rerun` drains on the host and refuses while that stage's container worker runs; to rebuild with the container workers, rerun from the stage's page or `POST /{stage}/rerun?confirm=true` instead:
 
 1. `make parse-rerun` parses every document again: the mend drops every format character and reads a C1 control as its cp1252 character, a table label wrapped over three lines is joined whole, and a stamped scanned page is named. It runs on the host and refuses while the parse worker runs.
 2. `make chunk-rerun` cuts every document again. A passage the new cut repeats exactly keeps its facts; every other one is replaced, the facts and bridges resting on it go with it, into the archive, and the questions resting on them are rejected as `source_changed` and kept. What moves: sentences after an abbreviation (`incl. VAT`, `Art. 5`, `Mo.–Fr.`), after one inside a bracket or a quote (`(cf. Section 4)`) and after `p.a.` or `EUR/Mon.` before a lower-case word, a figure ending a sentence (`Die Gebühr beträgt EUR 5.`), which no longer opens the next, a lone integer beside its label, a sentence cut at a page break before a capital, a body line opening with the running foot's name, a chapter opening under a heading spelled unlike its running head, a list-item lead-in, a heading holding ` > ` (now written ` › `), a picture's footnote and a bilingual list. Without `SHA` it refuses unless `CONFIRM` names the database.
@@ -1488,8 +1488,8 @@ facts and its topics, so a parsing fix rebuilds only the passages it
 changed.
 
 **Carrying the fixes into stored data.** The parsing and chunking fixes reach
-stored passages through a re-parse and a re-chunk (`POST /parsing/rerun`,
-then `POST /chunking/rerun`, with the stack up); neither calls a model. The
+stored passages through a re-parse and a re-chunk (`POST /parsing/rerun?confirm=true`,
+then `POST /chunking/rerun?confirm=true`, with the stack up); neither calls a model. The
 passages they change lose their facts and questions, so run extraction,
 topics and questions again after them, as the v0.3.0 upgrade describes. On
 the reviewed rulebook that is 30 passages carrying 237 facts and 86
@@ -1651,8 +1651,8 @@ logs that it refuses to claim work. From v0.3.1 an absent line reads 0.02.
 **What the stored data needs.** Most of the fixes change the passages, the
 facts or the topics themselves, so stored rows improve only through a
 rebuild, and the container workers build it. With the stack up (`make up`),
-queue each stage once the one before it has finished: `POST /parsing/rerun`,
-then `POST /chunking/rerun`, then `make extract-start`, then
+queue each stage once the one before it has finished: `POST /parsing/rerun?confirm=true`,
+then `POST /chunking/rerun?confirm=true`, then `make extract-start`, then
 `POST /topics/discover`, then `make extract-bridge MISSING=1`, then
 `make questions-start`, and last `make questions-rejudge` and
 `make questions-balance`. The bridge pass has no worker yet, so it runs on
@@ -1712,7 +1712,7 @@ commands that call no model come first:
 
 Struck-through text, list lead-ins and chapter-aware section paths change
 the passages themselves. They reach stored rows only through a rebuild by the container workers:
-`POST /parsing/rerun`, then `POST /chunking/rerun`, then extraction, topics,
+`POST /parsing/rerun?confirm=true`, then `POST /chunking/rerun?confirm=true`, then extraction, topics,
 the bridge pass (`make extract-bridge MISSING=1`) and questions again, all of which
 from extraction on call models. A fresh question generation also carries
 the fixes that live in how questions are written: the widen retry, the deal,

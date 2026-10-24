@@ -128,6 +128,13 @@ _FIELDS = {"Document, title or digest": "any"}
 #: The parse states a document can be narrowed to.
 _STATES = ("new", "pending", "in_progress", "parsed", "failed")
 
+#: What Redo deletes, said before it acts.
+_REDO = (
+    "Parsing a document again replaces its stored parse. Its passages, facts "
+    "and questions stay as they are until it is chunked again, and then go "
+    "as chunking says."
+)
+
 #: What either deletion takes beyond the document's own rows.
 _ALSO = (
     "The questions resting on the facts it removes go too, person-reviewed "
@@ -188,7 +195,7 @@ def view() -> None:
         pipeline.panel(backend.pipeline_api())
 
     with page.panel("Parsing"):
-        stage.service(client, _PARSING)
+        stage.service(client, _PARSING, redo_warning=_REDO)
         with page.folds():
             with st.expander("Analysis"):
                 page.findings(page.queue_rows("Documents", counts, _STATES))
@@ -259,7 +266,7 @@ def _detail(client, document: dict) -> None:
         page.attributes(
             {label: document.get(key) for label, key in _ATTRIBUTES.items()}
         )
-        stage.service(client, _PARSING, scope)
+        stage.service(client, _PARSING, scope, redo_warning=_REDO)
 
         # A toggle, not an expander: an expander runs its body whichever way
         # it is folded, so the fetch would happen on every rerun regardless.
