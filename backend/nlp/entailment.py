@@ -25,7 +25,8 @@ pipeline does not do, which is insist that the labels name an NLI head.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, cast
@@ -110,6 +111,54 @@ def verdict(scores: Mapping[str, float], model_name: str) -> Verdict:
     )
 
 
+#: Where a premise is cut into sentences for windows: after a sentence mark and
+#: its space, or at a line break (a list item, a table row).
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
+
+#: The tokens a pair spends on its own markers, before the premise's share.
+_SPECIAL = 4
+
+
+def windows(premise: str, room: int, count: Callable[[str], int]) -> list[str]:
+    """Cuts a premise into overlapping windows of at most `room` tokens each.
+
+    By sentence where it can: a window takes whole sentences, and the next one
+    starts at the last sentence of the one before so a claim cut across the
+    boundary is whole in one. A single sentence longer than `room` is cut by
+    its words. A premise that fits is its own one window.
+
+    Args:
+        premise: The text to read.
+        room: The tokens one window may hold.
+        count: Tokens in a text, by the model's tokenizer.
+    """
+    if count(premise) <= room:
+        return [premise]
+    pieces: list[str] = []
+    for sentence in filter(None, (one.strip() for one in _SENTENCE_END.split(premise))):
+        words = sentence.split()
+        while count(sentence) > room and len(words) > 1:
+            take = len(words)
+            while take > 1 and count(" ".join(words[:take])) > room:
+                take -= 1
+            pieces.append(" ".join(words[:take]))
+            words = words[take:]
+            sentence = " ".join(words)
+        pieces.append(sentence)
+    wins: list[str] = []
+    current: list[str] = []
+    for piece in pieces:
+        if current and count(" ".join([*current, piece])) > room:
+            wins.append(" ".join(current))
+            current = (
+                current[-1:] if count(" ".join([current[-1], piece])) <= room else []
+            )
+        current.append(piece)
+    if current:
+        wins.append(" ".join(current))
+    return wins
+
+
 class Entailment:
     """One NLI model, asked about one premise and one hypothesis at a time."""
 
@@ -160,26 +209,56 @@ class Entailment:
         """
         if not pairs:
             return []
+        # A premise past the window is read in overlapping windows of
+        # sentences and the best of them kept, not cut at the window's end
+        # with the rest unread.
+        asked: list[tuple[int, str, str]] = []
+        for at, (premise, hypothesis) in enumerate(pairs):
+            for part in self._windows(premise, hypothesis):
+                asked.append((at, part, hypothesis))
         judged = self._loaded(
             [
                 {"text": premise, "text_pair": hypothesis}
-                for premise, hypothesis in pairs
+                for _, premise, hypothesis in asked
             ],
             # The premise only: the hypothesis is the answer being judged.
             truncation="only_first",
             max_length=self._max_tokens,
-            batch_size=len(pairs),
+            batch_size=len(asked),
         )
         # The pipeline is annotated loosely - it returns a different shape
         # per task - so the rows are read through `dict` rather than
         # indexed straight into a comprehension a checker cannot follow.
-        read: list[Verdict] = []
-        for scored in judged:
+        best: dict[int, Verdict] = {}
+        for (at, _, _), scored in zip(asked, judged, strict=True):
             rows = cast("list[dict[str, Any]]", scored)
-            read.append(
-                verdict(
-                    {str(one["label"]): float(one["score"]) for one in rows},
-                    self._model_name,
-                )
+            one = verdict(
+                {str(row["label"]): float(row["score"]) for row in rows},
+                self._model_name,
             )
-        return read
+            if at not in best or one.entailment > best[at].entailment:
+                best[at] = one
+        return [best[at] for at in range(len(pairs))]
+
+    def _windows(self, premise: str, hypothesis: str) -> list[str]:
+        """The windows a premise is read in, beside this hypothesis.
+
+        One where the loaded pipeline names no tokenizer to count by, or the
+        premise fits.
+        """
+        tokenizer = getattr(self._loaded, "tokenizer", None)
+        if tokenizer is None:
+            return [premise]
+
+        def count(text: str) -> int:
+            return len(tokenizer(text, add_special_tokens=False)["input_ids"])
+
+        room = self._max_tokens - count(hypothesis) - _SPECIAL
+        found = windows(premise, max(room, 1), count)
+        if len(found) > 1:
+            log.debug(
+                "a premise of %d tokens is read in %d windows",
+                count(premise),
+                len(found),
+            )
+        return found

@@ -75,6 +75,28 @@ class Embedder:
         """
         if not texts:
             return []
+        limit = self._model.max_seq_length or 0
+        cut = (
+            sum(
+                len(
+                    self._model.tokenizer(PREFIX + text, add_special_tokens=False)[
+                        "input_ids"
+                    ]
+                )
+                > limit
+                for text in texts
+            )
+            if limit
+            else 0
+        )
+        if cut:
+            log.info(
+                "%d of %d texts run past the %d-token window and are embedded "
+                "from their start",
+                cut,
+                len(texts),
+                limit,
+            )
         return self._model.encode(
             [PREFIX + text for text in texts],
             normalize_embeddings=True,

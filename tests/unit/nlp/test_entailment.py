@@ -178,3 +178,95 @@ def test_a_tokenizer_declaring_nothing_is_not_believed() -> None:
     from nlp.windows import window
 
     assert window(Tokenizer(1_000_000_000_000_000_019_884_624_838_656), 512) == 512
+
+
+# ── A premise longer than the window ──────────────────────────────────────
+
+
+class _Words:
+    """A tokenizer that counts words, as the one field a window is cut by."""
+
+    model_max_length = 40
+    name_or_path = "a/checkpoint"
+
+    def __call__(self, text, add_special_tokens=True):
+        return {"input_ids": text.split()}
+
+
+class _Reader:
+    """A pipeline that entails a hypothesis exactly when its premise holds the answer."""
+
+    tokenizer = _Words()
+
+    def __init__(self) -> None:
+        self.premises: list[str] = []
+
+    def __call__(self, pairs, **options):
+        out = []
+        for pair in pairs:
+            self.premises.append(pair["text"])
+            held = pair["text_pair"].lower() in pair["text"].lower()
+            yes = 0.9 if held else 0.05
+            out.append(
+                [
+                    {"label": "entailment", "score": yes},
+                    {"label": "neutral", "score": 1 - yes},
+                    {"label": "contradiction", "score": 0.0},
+                ]
+            )
+        return out
+
+
+def _reading(reader: _Reader) -> Entailment:
+    judge = Entailment("a/checkpoint", 40)
+    judge.__dict__["_loaded"] = reader
+    return judge
+
+
+@pytest.mark.parametrize(
+    ("filler", "answer"),
+    [
+        (
+            "The customer may return the item and the shop will refund it. " * 6,
+            "30 days",
+        ),
+        (
+            "Der Kunde kann die Ware zurücksenden und der Händler erstattet sie. " * 6,
+            "30 Tage",
+        ),
+        ("| Plan | Fee |\n| Basic | 5 EUR |\n" * 8, "Premium | 12 EUR"),
+    ],
+)
+def test_an_answer_in_the_tail_of_a_premise_longer_than_the_window_is_entailed(
+    filler, answer
+) -> None:
+    """The window is cut by sentence and each is judged, the best one kept."""
+    reader = _Reader()
+    premise = f"{filler}\nThe period is {answer}."
+    assert len(reader.tokenizer(premise)["input_ids"]) > 40
+
+    (read,) = _reading(reader).judge_all([(premise, answer)])
+
+    assert read.entailment == pytest.approx(0.9)
+    assert len(reader.premises) > 1
+    assert all(len(p.split()) <= 40 for p in reader.premises)
+
+
+def test_a_premise_that_fits_is_judged_in_one_window_as_before() -> None:
+    """Nothing is split that did not need to be."""
+    reader = _Reader()
+
+    (read,) = _reading(reader).judge_all([("The period is 30 days.", "30 days")])
+
+    assert read.entailment == pytest.approx(0.9)
+    assert reader.premises == ["The period is 30 days."]
+
+
+def test_a_premise_that_holds_no_answer_in_any_window_is_not_entailed() -> None:
+    """The best window is still not an entailment."""
+    reader = _Reader()
+    premise = "The customer may return the item and the shop will refund it. " * 6
+
+    (read,) = _reading(reader).judge_all([(premise, "30 days")])
+
+    assert read.entailment == pytest.approx(0.05)

@@ -103,3 +103,34 @@ def test_a_passage_cut_to_the_chunk_budget_fits_the_embedder() -> None:
     )._max_tokens
 
     assert len(tokenizer(PREFIX + "word " * budget)["input_ids"]) <= 512
+
+
+def test_a_text_past_the_window_is_counted_in_the_log(caplog) -> None:
+    """The embedding is the head of it, and the log says how many were cut."""
+    import logging
+
+    from nlp.embedding import Embedder
+
+    class Words:
+        def __call__(self, text, add_special_tokens=True):
+            return {"input_ids": text.split()}
+
+    class Model:
+        tokenizer = Words()
+        max_seq_length = 5
+
+        def encode(self, texts, **options):
+            import numpy
+
+            return numpy.ones((len(texts), 2))
+
+    embedder = Embedder.__new__(Embedder)
+    embedder._model = Model()  # type: ignore[assignment]
+    caplog.set_level(logging.INFO, logger="nlp.embedding")
+
+    embedder.embed_all(["short", "one two three four five six seven"])
+
+    assert any(
+        "1 of 2 texts run past the 5-token window" in r.getMessage()
+        for r in caplog.records
+    )
