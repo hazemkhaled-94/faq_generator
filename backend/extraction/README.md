@@ -492,6 +492,12 @@ make extract-rerun SHA=<sha256>     # or to one document
 `extract-embed` does **not** apply the dedup gate: a fact accepted before
 that gate existed was accepted.
 
+A passage read again keeps the facts that come back as they were. A fact with
+the same kind, method, statement (whitespace collapsed) and citations keeps
+its id, its embedding and the questions resting on it; its other columns take
+the new reading. Only a fact the new reading does not repeat is deleted, and a
+question resting on it is rejected as `source_changed`, never deleted.
+
 ## Tests
 
 ```sh

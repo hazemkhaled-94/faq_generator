@@ -22,6 +22,7 @@ from sqlalchemy import (
     delete,
     func,
     insert,
+    literal,
     or_,
     select,
     text,
@@ -514,17 +515,45 @@ class PassageQueue(RowQueue):
                         )
                     )
                 facts = settle(facts)
+            # A fact read again word for word keeps its row, its embedding and
+            # the questions resting on it; the rest of what this passage held
+            # is replaced.
+            held = _held(session, passage_id)
+            kept: list[tuple[int, CheckedFact]] = []
+            added: list[CheckedFact] = []
+            for fact in facts:
+                twins = held.get(_identity(fact))
+                if twins:
+                    kept.append((twins.pop(0), fact))
+                else:
+                    added.append(fact)
             # The citations, not the facts: the orphan trigger deletes a fact
             # left citing nothing, and keeps one another passage still cites.
-            session.execute(
-                delete(FactPassage).where(
-                    FactPassage.passage_id == passage_id,
-                    FactPassage.fact_id.in_(
-                        select(Fact.id).where(Fact.kind != FactKind.BRIDGE)
-                    ),
+            stale = [one for twins in held.values() for one in twins]
+            if stale:
+                session.execute(
+                    delete(FactPassage).where(
+                        FactPassage.passage_id == passage_id,
+                        FactPassage.fact_id.in_(stale),
+                    )
                 )
+            languages = _languages(
+                session,
+                {fact.citations[0].passage_id for _, fact in kept if fact.citations},
             )
-            _write(session, facts, self._version)
+            for fact_id, fact in kept:
+                row = _row(
+                    fact,
+                    self._version,
+                    languages.get(fact.citations[0].passage_id)
+                    if fact.citations
+                    else None,
+                )
+                row["embedding"] = func.coalesce(
+                    Fact.embedding, literal(row["embedding"], Fact.embedding.type)
+                )
+                session.execute(update(Fact).where(Fact.id == fact_id).values(**row))
+            _write(session, added, self._version)
             if embedding is not None:
                 session.execute(
                     update(Passage)
@@ -701,6 +730,71 @@ class DigestQueue(PassageQueue):
             _write(session, facts, self._version)
             self._finish(passage_id, session=session, note=note)
         return len(facts)
+
+
+def _key(kind, method, statement: str, cited) -> tuple:
+    """What makes two readings of a passage the same fact.
+
+    The kind, the method, the statement with its whitespace collapsed and
+    where it rests, sentences and span: a statement over another sentence is
+    another claim. `cited` is each citation's passage, sentences, start, end.
+    """
+    return (
+        kind,
+        method,
+        " ".join(statement.split()),
+        tuple((one, tuple(ids or ()) or None, lo, hi) for one, ids, lo, hi in cited),
+    )
+
+
+def _identity(fact: CheckedFact) -> tuple:
+    """`_key` of a fact about to be written."""
+    return _key(
+        fact.kind,
+        fact.extraction_method,
+        fact.statement,
+        ((c.passage_id, c.sentence_ids, c.start, c.end) for c in fact.citations),
+    )
+
+
+def _held(session, passage_id: int) -> dict[tuple, list[int]]:
+    """The facts other than bridges citing this passage, by `_identity`, oldest first."""
+    rows = session.execute(
+        select(
+            Fact.id,
+            Fact.kind,
+            Fact.extraction_method,
+            Fact.statement,
+            FactPassage.passage_id,
+            FactPassage.sentence_ids,
+            FactPassage.evidence_start,
+            FactPassage.evidence_end,
+        )
+        .join(FactPassage, FactPassage.fact_id == Fact.id)
+        .where(
+            Fact.kind != FactKind.BRIDGE,
+            Fact.id.in_(
+                select(FactPassage.fact_id).where(FactPassage.passage_id == passage_id)
+            ),
+        )
+        .order_by(Fact.id, FactPassage.position)
+    ).all()
+    held: dict[tuple, list[int]] = defaultdict(list)
+    for fact_id, group in groupby(rows, key=lambda row: row.id):
+        cited = list(group)
+        first = cited[0]
+        held[
+            _key(
+                first.kind,
+                first.extraction_method,
+                first.statement,
+                (
+                    (c.passage_id, c.sentence_ids, c.evidence_start, c.evidence_end)
+                    for c in cited
+                ),
+            )
+        ].append(fact_id)
+    return held
 
 
 def _write(session, facts: list[CheckedFact], version: str | None = None) -> int:
