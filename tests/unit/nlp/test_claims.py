@@ -440,3 +440,114 @@ def test_a_german_relative_adverb_is_not_a_question_word() -> None:
         "Ich wohne in einem Ort, wo es keine Filiale gibt. Warum muss ich zahlen?"
     )
     assert interrogatives(question, "de") == ("Warum",)
+
+
+@pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        (
+            "de",
+            (
+                "Die Bank erstattet den Betrag, wenn der Kunde die Ware innerhalb von "
+                "14 Tagen zurücksendet, und der Kunde die Ware weder beschädigt noch "
+                "benutzt hat."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Die Bank erstattet den Betrag, wenn der Kunde die Ware zurücksendet, "
+                "und die Ware unbeschädigt ist."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Die Bank gewährt den Kredit auch ohne Bürgen, vorausgesetzt, der Kunde "
+                "legt einen Gehaltsnachweis vor."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Der Händler erstattet den Betrag, sofern die Ware unbeschädigt "
+                "zurückkommt."
+            ),
+        ),
+        ("en", "Employees may work from home provided their manager agrees."),
+        (
+            "en",
+            "The bank refunds the fee as long as the card is not misused.",
+        ),
+        (
+            "de",
+            (
+                "Der Kunde sendet die Ware zurück, tauscht sie um oder lässt sie "
+                "reparieren."
+            ),
+        ),
+        (
+            "de",
+            "Die Zahlung kann entweder per Karte oder per Überweisung erfolgen.",
+        ),
+        ("en", "The customer either returns the item or has it repaired."),
+        (
+            "en",
+            (
+                "The Terms changes in circular no. 33 are not included in the physical "
+                "Terms of Sale book due to production timelines."
+            ),
+        ),
+    ],
+)
+def test_one_rule_with_its_condition_or_alternatives_is_one_claim(
+    language: str, sentence: str
+) -> None:
+    """A proviso, a verb-final condition, a list closed by "or" and a cut abbreviation."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found == 1, f"{found} claim(s) read in {sentence!r}; expected 1"
+
+
+@pytest.mark.parametrize(
+    ("language", "sentence"),
+    [
+        ("en", "The bank blocks the card and the customer receives a letter."),
+        ("de", "Die Bank sperrt die Karte und der Kunde erhält einen Brief."),
+        (
+            "en",
+            (
+                "The bank blocks the card, provided the card is lost, and the customer "
+                "receives a letter."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Die Bank sperrt die Karte, und der Kunde erhält einen Brief, weil die "
+                "Karte verloren wurde."
+            ),
+        ),
+    ],
+)
+def test_two_independent_main_clauses_are_still_two_claims(
+    language: str, sentence: str
+) -> None:
+    """The repairs read a condition or an alternative, never a second assertion."""
+    from nlp.analysis import claim
+
+    found = claim(sentence, language).predicates
+    assert found == 2, f"{found} claim(s) read in {sentence!r}; expected 2"
+
+
+def test_a_language_with_no_row_reads_its_clauses_as_it_always_did() -> None:
+    """A French pipeline is not configured: the same attachment rule, unchanged."""
+    from nlp.analysis import claim
+
+    sentence = (
+        "La banque bloque la carte, pourvu que le client soit informé, et le "
+        "client reçoit une lettre."
+    )
+
+    assert claim(sentence, "fr").predicates == 0

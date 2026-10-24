@@ -207,8 +207,8 @@ missing from one fails no test.
 | `_ADJECTIVE_ENDINGS` | same | The endings an adjective takes to inflect: a modifier of the two tables above written with one is that modifier, where the lemmatizer leaves a capitalised opening as written (`Besagter Kunde`). A language with no row inflects none | `-er`, `-en` |
 | `_POLITE` | same | Forms of polite address, read as written with their capital: the tagger calls `Sie` third person plural, and a statement addressing the reader points at nothing before it. One opening a statement counts only where another polite form follows it, or one stands inside a sentence of the passage it was drawn from (the fact check passes that passage; the question gates do not) and no sentence there opens on it after a plural subject it could stand for | `Sie`, `Ihre` |
 | `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several, so a singular noun can be what they refer to | `their` |
-| `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb is that verb | `es sei denn`, `provided` |
-| `_DISJUNCTIVE` | same | Coordinators that offer alternatives: a conjunct one joins is no claim of its own | `oder`, `or` |
+| `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb with a subject of its own is that verb (`The bank provided the card`). The full closed class of the language's proviso conjunctions: `vorausgesetzt`, `sofern`, `soweit`, `solange`, `as long as`, `on condition that` | `es sei denn`, `provided` |
+| `_DISJUNCTIVE` | same | Coordinators that offer alternatives, with the first half of a correlative pair: a conjunct one joins is no claim of its own, nor is a member of a comma list one closes (`returned, exchanged or repaired`) | `oder`, `entweder`, `or`, `either` |
 | `_FINITE_TAGS` | same | Fine tags of a finite verb: a statement carrying one asserts something, whatever part of speech the tagger gave the word | `VVFIN`, `VBZ` |
 | `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence on their line, whatever follows | `inkl.`, `incl.` |
 | `_CLOSING_ABBREVIATIONS` | same | Abbreviations ending in a full stop that may end a sentence, closing a list or spelled as a word, and end none before a lower-case word or a figure | `usw.`, `Art.`, `Mon.` |
@@ -234,11 +234,13 @@ A–Z, the German umlauts or ß and the letter after it is a lower-case one of
 those, so a language writing other letters needs them added there, or its
 words broken at a line's end stay broken: `cré- dit` is not rejoined.
 
-Four sets in [`analysis.py`](analysis.py) name languages by a trait of their
+Five sets in [`analysis.py`](analysis.py) name languages by a trait of their
 grammar rather than holding words — `_PLURAL_GENDERLESS`,
-`_SYNCRETIC_FEMININE`, `_NOUN_ANAPHORIC_DEMONSTRATIVES` and
-`_INFINITIVE_IS_PLURAL` — and a language missing from one is read as lacking
-the trait.
+`_SYNCRETIC_FEMININE`, `_NOUN_ANAPHORIC_DEMONSTRATIVES`,
+`_INFINITIVE_IS_PLURAL` and `_VERB_FINAL_SUBORDINATE` (a subordinate clause
+ends on its finite verb, so one of that order after a comma and a coordinator
+goes on with the clause before it) — and a language missing from one is read as
+lacking the trait.
 
 `_NAMED` is the one that is not a word list, and a language missing from it
 falls back quietly to its own ISO code, which is still an instruction a model

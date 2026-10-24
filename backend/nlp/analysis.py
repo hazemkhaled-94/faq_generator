@@ -158,15 +158,40 @@ _COORDINATION = frozenset({"conj", "cj", "cd", "parataxis"})
 #: the parse, keyed by ISO language. "es sei denn" carries a finite verb of
 #: its own, and the clause it opens only restricts the rule before it.
 _EXCEPTIVE: dict[str, tuple[tuple[str, ...], ...]] = {
-    "de": (("es", "sei", "denn"), ("außer",), ("ausser",), ("ausgenommen",)),
-    "en": (("unless",), ("except",), ("provided",), ("providing",)),
+    "de": (
+        ("es", "sei", "denn"),
+        ("außer",),
+        ("ausser",),
+        ("ausgenommen",),
+        ("vorausgesetzt",),
+        ("sofern",),
+        ("soweit",),
+        ("solange",),
+    ),
+    "en": (
+        ("unless",),
+        ("except",),
+        ("provided",),
+        ("providing",),
+        ("as", "long", "as"),
+        ("so", "long", "as"),
+        ("on", "condition", "that"),
+    ),
 }
+
+#: The languages whose subordinate clause ends on its finite verb, so a clause
+#: of that order after a comma and "und" goes on with the subordinate clause
+#: before it rather than starting a main clause: "..., wenn der Kunde zahlt,
+#: und die Ware geliefert wurde". A language not named reads every conjunct as
+#: a main clause; a newly configured one names itself here if its subordinate
+#: clauses are verb-final.
+_VERB_FINAL_SUBORDINATE = frozenset({"de", "nl"})
 
 #: Coordinators that offer alternatives, keyed by ISO language. "A or B" does
 #: not entail A, so a conjunct joined by one is not a claim of its own.
 _DISJUNCTIVE: dict[str, frozenset[str]] = {
-    "de": frozenset({"oder", "bzw.", "beziehungsweise", "noch"}),
-    "en": frozenset({"or", "nor"}),
+    "de": frozenset({"oder", "bzw.", "beziehungsweise", "noch", "entweder"}),
+    "en": frozenset({"or", "nor", "either"}),
 }
 
 
@@ -187,12 +212,87 @@ def _coordinated_to_root(token) -> bool:
     return True
 
 
+def _own_subject(verb) -> bool:
+    """Whether a verb, or an auxiliary or copula under it, has a subject of its own."""
+    return any(
+        child.dep_ in _OWN_SUBJECTS
+        or (
+            child.dep_ in _CARRIERS
+            and any(one.dep_ in _OWN_SUBJECTS for one in child.children)
+        )
+        for child in verb.children
+    )
+
+
+def _finite_of(verb):
+    """The finite token of a clause: the verb, or an auxiliary or copula under it."""
+    for one in (verb, *(child for child in verb.children if child.dep_ in _CARRIERS)):
+        if "Fin" in one.morph.get("VerbForm", []):
+            return one
+    return verb
+
+
+def _ends_on_verb(verb) -> bool:
+    """Whether a conjunct clause has words before its finite verb and ends on it.
+
+    The clause's own tokens, without the clauses coordinated to it and their
+    coordinators: German subordinate order, the finite verb last.
+    """
+    dropped: set[int] = set()
+    for child in verb.children:
+        if child.dep_ in _COORDINATION or child.dep_ in ("cc", "cd"):
+            dropped |= {one.i for one in child.subtree}
+    own = [one for one in verb.subtree if one.i not in dropped and not one.is_punct]
+    return len(own) >= 2 and max(own, key=lambda one: one.i).i == _finite_of(verb).i
+
+
+def _coordination_top(verb):
+    """The first clause of the coordination a conjunct is in."""
+    while verb.dep_ in _COORDINATION and verb.head.i != verb.i:
+        verb = verb.head
+    return verb
+
+
+def _closed_by_alternative(verb, alternatives: frozenset[str]) -> bool:
+    """Whether a conjunct, joined by a comma, is a member of a list closed by "or".
+
+    "The card is returned, exchanged or repaired": the list's last member is
+    joined by an alternative and no coordinator that adds stands between, so
+    each member is one of the alternatives.
+    """
+    top = _coordination_top(verb)
+    if top.dep_ in ("cc", "cd"):
+        top = top.head
+    members: list = []
+    stack = [top]
+    while stack:
+        for child in stack.pop().children:
+            if child.dep_ in _COORDINATION:
+                members.append(child)
+                stack.append(child)
+            elif child.dep_ in ("cc", "cd"):
+                for one in child.children:
+                    if one.dep_ in _COORDINATION:
+                        members.append(one)
+                        stack.append(one)
+    after = sorted((one for one in members if one.i > verb.i), key=lambda one: one.i)
+    if not after:
+        return False
+    between: set[str] = set()
+    for one in after[:-1]:
+        between |= _coordinator_words(one)
+    return bool(_coordinator_words(after[-1]) & alternatives) and not (
+        between - alternatives
+    )
+
+
 def _exceptive_tokens(doc: Doc) -> tuple[set[int], set[int]]:
     """Indices of exceptive-run tokens, and of the token right after each run.
 
-    A one-word run the tagger reads as a finite verb is no exception opened:
-    "The bank provided the card" states what `provided` would otherwise
-    only restrict.
+    A one-word run the tagger reads as a finite verb is no exception opened
+    where it has a subject of its own: "The bank provided the card" states
+    what `provided` would otherwise only restrict, and "provided the card is
+    unused" has the card for its subject.
     """
     words = [token.text.casefold() for token in doc]
     inside: set[int] = set()
@@ -201,7 +301,11 @@ def _exceptive_tokens(doc: Doc) -> tuple[set[int], set[int]]:
         for start in range(len(words) - len(run) + 1):
             if tuple(words[start : start + len(run)]) != run:
                 continue
-            if len(run) == 1 and "Fin" in doc[start].morph.get("VerbForm", []):
+            if (
+                len(run) == 1
+                and "Fin" in doc[start].morph.get("VerbForm", [])
+                and _own_subject(doc[start])
+            ):
                 continue
             inside.update(range(start, start + len(run)))
             end = start + len(run)
@@ -265,6 +369,10 @@ def _predicates(span: Doc | Span) -> int:
     doc = span.doc
     inside, after = _exceptive_tokens(doc)
     disjunctive = _DISJUNCTIVE.get(doc.lang_, frozenset())
+    # Where the sentences start once the parser's cuts are corrected, for a
+    # whole statement: a root the parser cut off in the middle of one is no
+    # claim of its own.
+    starts = set(_boundaries(doc)) if span is doc else None
     # The clauses that restrict or offer an alternative to another, which
     # carry their coordinated members with them: in "es sei denn, der Kunde
     # ruft an und bestätigt", bestätigt is part of the case left out.
@@ -275,21 +383,33 @@ def _predicates(span: Doc | Span) -> int:
             continue
         verb = _clause_verb(token)
         start = min(one.i for one in verb.subtree)
+        conjunct = verb.dep_ in _COORDINATION
+        words = _coordinator_words(token) if conjunct else set()
         if (
             token.i in inside
             or start in inside
             or start in after
-            or (verb.dep_ in _COORDINATION and _coordinator_words(token) & disjunctive)
+            or (conjunct and words & disjunctive)
             # A conjunct its own subordinator opens is a condition however the
             # parser hangs it: "but only if it has not been executed".
             or (
-                verb.dep_ in _COORDINATION
-                and any(child.dep_ in _SUBORDINATOR for child in verb.children)
+                conjunct and any(child.dep_ in _SUBORDINATOR for child in verb.children)
             )
+            # A member of a list a comma joins that "or" closes offers an
+            # alternative: "returned, exchanged or repaired".
+            or (conjunct and not words and _closed_by_alternative(verb, disjunctive))
+            # A subordinate clause of a language that ends it on its verb,
+            # after a comma and "und", goes on with the one before it.
+            or (
+                conjunct
+                and doc.lang_ in _VERB_FINAL_SUBORDINATE
+                and _ends_on_verb(verb)
+            )
+            or (verb.head.i == verb.i and starts is not None and _cut(verb, starts))
         ):
             # Only a conjunct carries its members with it: a main clause
             # opening on "Unless" is not counted, but what is joined to it is.
-            if verb.dep_ in _COORDINATION:
+            if conjunct:
                 excluded.add(verb.i)
             continue
         counted.append(verb)
@@ -301,6 +421,18 @@ def _predicates(span: Doc | Span) -> int:
     ):
         return 1
     return claims or 1
+
+
+def _cut(root, starts: set[int]) -> bool:
+    """Whether a parser root begins a sentence only by the parser's cut.
+
+    One that the corrected boundaries do not start, or that follows text on
+    its line ending in no sentence mark ("circular no. 33 are not included"),
+    is the rest of the sentence before it.
+    """
+    sentence = root.sent
+    before = root.doc.text[: sentence.start_char].rstrip(" \t")
+    return sentence.start not in starts or bool(before and before[-1] not in ".!?;:\n")
 
 
 def _joined_to(verb, excluded: set[int]) -> bool:
@@ -1121,6 +1253,9 @@ _EXPLETIVE_RUNS: dict[str, tuple[tuple[str, ...], ...]] = {
 
 #: Dependency labels of a verb's subject, German and English.
 _SUBJECTS = frozenset({"sb", "sbp", "nsubj", "nsubjpass", "nsubj:pass", "csubj"})
+
+#: The subjects, with the expletive ones a verb has of its own.
+_OWN_SUBJECTS = _SUBJECTS | {"expl", "ep"}
 
 #: How a verb is coordinated with the one before it, German and English.
 _CONJUNCT = frozenset({"conj", "cj"})
