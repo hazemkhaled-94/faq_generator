@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from confidence import Measurement, confidence, scored
 from database.qa_generator import FactKind, Passage, Rejection
-from database.qa_generator.passages import headings_of
+from database.qa_generator.passages import LEAD_IN, headings_of
 from extraction.extractors import (
     BridgeExtractor,
     DigestExtractor,
@@ -799,7 +799,7 @@ def skipped(passage: PassageToExtract) -> str | None:
         return None
     if _is_heading(passage):
         return "heading"
-    if not passage.claims:
+    if not passage.claims and not _led_in(passage):
         return "no finite verb"
     # What the checks above are for, applied to what the parser did not
     # label. Between them these produced questions asking which pages a
@@ -810,6 +810,17 @@ def skipped(passage: PassageToExtract) -> str | None:
     if _reference_list(passage):
         return "an index, a bibliography or a contents page rather than prose"
     return None
+
+
+def _led_in(passage: PassageToExtract) -> bool:
+    """Whether a list is the end of a sentence its heading trail begins.
+
+    A list under a heading that ends with the chunker's lead-in mark, "Ausgeschlossen
+    sind:", is read with it: the items carry no verb of their own, and the
+    lead-in makes each one a statement.
+    """
+    trail = headings_of(passage.section_path)
+    return bool(passage.items and trail and trail[-1].rstrip().endswith(LEAD_IN))
 
 
 def _unread_prose(passage: PassageToExtract) -> bool:

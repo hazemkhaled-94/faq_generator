@@ -350,3 +350,48 @@ def test_a_grid_of_codes_that_are_no_currency_is_still_skipped() -> None:
     )
 
     assert skipped(matrix) == "a grid of identifiers rather than of statements"
+
+
+@pytest.mark.parametrize(
+    ("language", "path", "text"),
+    [
+        (
+            "de",
+            "Rücksendung > Dabei ist Folgendes zu berücksichtigen:",
+            "- die Originalverpackung\n- der Kaufbeleg\n- das unbenutzte Zubehör",
+        ),
+        (
+            "en",
+            "Returns > Eligible items are:",
+            "- unopened software\n- clothing with its tags\n- unused accessories",
+        ),
+        (
+            "de",
+            "Rücksendung > Ausgeschlossen sind:",
+            "- individuell angefertigte Ware\n- Hygieneartikel\n- versiegelte Datenträger",
+        ),
+    ],
+)
+def test_a_list_under_a_lead_in_is_read_though_its_items_carry_no_verb(
+    language, path, text
+) -> None:
+    """The lead-in is the claim and the items complete it, so the model reads both."""
+    read = passage(text, language=language, section_path=path)
+    assert not read.claims and read.items
+
+    assert skipped(read) is None
+
+
+@pytest.mark.parametrize(
+    ("language", "path", "text"),
+    [
+        ("en", "Glossary > Abbreviations", "- ABS\n- ESP\n- ECU"),
+        ("de", "Anhang > Abkürzungen", "- ABS\n- ESP\n- ECU"),
+        ("en", "Terms", "- unopened software\n- clothing with its tags"),
+    ],
+)
+def test_a_list_under_no_lead_in_stays_skipped(language, path, text) -> None:
+    """A key list or an index line under a plain heading names nothing."""
+    read = passage(text, language=language, section_path=path)
+
+    assert skipped(read) == "no finite verb"

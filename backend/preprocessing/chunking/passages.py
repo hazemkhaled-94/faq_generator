@@ -32,13 +32,13 @@ from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import ListItem, TextItem
 from docling_core.types.doc.labels import DocItemLabel
 
-from database.qa_generator.passages import trail_of
+from database.qa_generator.passages import LEAD_IN, trail_of
 from nlp.analysis import read
 from nlp.language import detect, detect_surely
 from nlp.models import Sentence
 from nlp.text import right_to_left
 from nlp.windows import reserved
-from preprocessing.chunking.furniture import LEAD_IN, furniture_of, headed, tidied
+from preprocessing.chunking.furniture import furniture_of, headed, tidied
 from preprocessing.chunking.models import Chunk, Chunking
 
 
