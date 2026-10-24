@@ -115,8 +115,15 @@ poetry run pytest tests/unit/blob_store tests/integration/blob
 
 - **A media type with no known file extension raises rather than storing.**
   A key nothing could find again is worse than a refusal.
-- **Rewriting an object in `documents` or `parsed` is harmless.** The key is
-  content-addressed.
+- **Every key is stored under the database's name** (`<database>/<key>`),
+  because the buckets are one set for every database on the stack and a
+  digest is the same in each. A delete, a re-parse and `archive-purge` in
+  one database touch only its prefix. `get` and `find` fall back to the bare
+  key a store holds from before the prefix (read, never written or
+  deleted; `take` copies it), and `make s3-prefix` copies those under the
+  current database's prefix, once per database.
+- **Rewriting an object in `documents` or `parsed` is harmless to the
+  database that wrote it.** The key is content-addressed.
 - **A fit replaces both `models` and `export`.** It moves each language's old
   model and figure to `archive` before writing its own. A language with no
   figure 404s until the next fit, or until `make topics-render` draws one

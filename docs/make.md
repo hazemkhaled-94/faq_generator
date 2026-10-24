@@ -399,6 +399,7 @@ logs and Dagster is final.
 
 | Target | Does |
 |---|---|
+| `make s3-prefix` | Copy the objects a store holds from before keys carried the database's name under this database's prefix. Once per database that used the store. Copies, never moves |
 | `make documents` | List the newest 1000 documents with their parse state, and warn when the corpus holds more |
 | `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed`. Refuses, deleting nothing, while `extract-worker` runs, which it does after `make up` or `make dev`: stop it first. Then `extract-dedup` over the whole corpus, which gives back a fact another document repeats and had refused as a duplicate of this one's. If that replay fails, the document is already gone: run `make extract-dedup`. A deletion through the API or the UI runs no replay: run `make extract-dedup` after one |
 | `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Refuses while `extract-worker` runs, as `make delete` does, then runs the same replay |

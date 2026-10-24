@@ -24,7 +24,7 @@ def stored_metadata(bucket, key: str) -> dict[str, str]:
     """Reads back what `put` attached, as S3 holds it."""
     from blob_store.s3 import s3_client
 
-    head = s3_client().head_object(Bucket=bucket.name, Key=key)
+    head = s3_client().head_object(Bucket=bucket.name, Key=bucket.scoped(key))
     return {name: unquote(value) for name, value in head["Metadata"].items()}
 
 
@@ -165,7 +165,10 @@ def test_the_fanout_key_is_where_the_object_lands(documents) -> None:
     documents.put(key, PDF, content_type="application/pdf")
 
     listed = s3_client().list_objects_v2(Bucket="documents")["Contents"]
-    assert [one["Key"] for one in listed] == [f"{sha[:2]}/{sha[2:4]}/{sha}.pdf"]
+    database = documents.database_name()
+    assert [one["Key"] for one in listed] == [
+        f"{database}/{sha[:2]}/{sha[2:4]}/{sha}.pdf"
+    ]
 
 
 def test_each_bucket_holds_its_own_objects(buckets) -> None:

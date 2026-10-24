@@ -83,6 +83,19 @@ class Bucket:
             )
         return name
 
+    @classmethod
+    def scoped(cls, key: str) -> str:
+        """Prefixes a key with the database's name, the key the store holds it under.
+
+        The buckets are one set for every database on the stack, and a key
+        is a digest, so two databases holding one file shared one object: a
+        delete, a re-parse or a purge in either took it from both. Every
+        key a caller builds stays as it was and is placed under the
+        database here, once, for put, get, find, remove, count and the
+        archive alike.
+        """
+        return f"{cls.database_name()}/{key}"
+
     @staticmethod
     def fanout_key(sha256: str, extension: str) -> str:
         """Builds a content-addressed key with a 2x2-hex fanout.
@@ -115,7 +128,7 @@ class Bucket:
         """
         s3_client().put_object(
             Bucket=self.name,
-            Key=key,
+            Key=self.scoped(key),
             Body=data,
             ContentType=content_type,
             Metadata={
@@ -142,15 +155,25 @@ class Bucket:
         return key
 
     def get(self, key: str) -> bytes:
-        """Reads an object.
+        """Reads an object, from the database's prefix or else from the bare key.
+
+        The bare key is what a store holds from before keys were prefixed.
+        It is read and never written or deleted, because another database
+        may be reading it.
 
         Raises:
             botocore.exceptions.ClientError: If the object does not exist.
         """
-        return s3_client().get_object(Bucket=self.name, Key=key)["Body"].read()
+        data = self.find(key)
+        if data is None:
+            return s3_client().get_object(Bucket=self.name, Key=key)["Body"].read()
+        return data
 
     def find(self, key: str) -> bytes | None:
         """Reads an object, or None if it is not there.
+
+        Looks under the database's prefix, then at the bare key a store
+        holds from before keys were prefixed.
 
         Raises:
             botocore.exceptions.ClientError: If the store answered with
@@ -158,15 +181,19 @@ class Bucket:
                 the same as holding nothing.
         """
         client = s3_client()
-        try:
-            return client.get_object(Bucket=self.name, Key=key)["Body"].read()
-        except client.exceptions.ClientError as exc:
-            if self._absent(exc):
-                return None
-            raise
+        for held in (self.scoped(key), key):
+            try:
+                return client.get_object(Bucket=self.name, Key=held)["Body"].read()
+            except client.exceptions.ClientError as exc:
+                if not self._absent(exc):
+                    raise
+        return None
 
     def remove(self, key: str) -> bool:
-        """Deletes an object, if it is there.
+        """Deletes an object under the database's prefix, if it is there.
+
+        A bare key from before keys were prefixed is not touched: another
+        database may be reading it.
 
         The head request is what makes the answer possible: S3's own delete
         is silent about a key that was never there.
@@ -180,12 +207,12 @@ class Bucket:
         """
         client = s3_client()
         try:
-            client.head_object(Bucket=self.name, Key=key)
+            client.head_object(Bucket=self.name, Key=self.scoped(key))
         except client.exceptions.ClientError as exc:
             if self._absent(exc):
                 return False
             raise
-        client.delete_object(Bucket=self.name, Key=key)
+        client.delete_object(Bucket=self.name, Key=self.scoped(key))
         return True
 
     @staticmethod
@@ -194,7 +221,7 @@ class Bucket:
         return exc.response.get("Error", {}).get("Code") in _ABSENT
 
     def count(self) -> int:
-        """Counts the objects in the bucket.
+        """Counts the objects the database holds in the bucket.
 
         Walks every page of the listing, so it costs one request per thousand
         objects. Answered from a short-lived cache because the status panel
@@ -205,14 +232,15 @@ class Bucket:
         filer's own per-collection statistics are the upgrade.
         """
         now = monotonic()
-        cached = _COUNTS.get(self.name)
+        prefix = f"{self.database_name()}/"
+        cached = _COUNTS.get(self.name + prefix)
         if cached is not None and now - cached[0] < _COUNT_TTL:
             return cached[1]
         total = sum(
             len(page.get("Contents", []))
             for page in s3_client()
             .get_paginator("list_objects_v2")
-            .paginate(Bucket=self.name)
+            .paginate(Bucket=self.name, Prefix=prefix)
         )
-        _COUNTS[self.name] = (now, total)
+        _COUNTS[self.name + prefix] = (now, total)
         return total

@@ -52,18 +52,24 @@ class ArchiveBucket(Bucket):
         """
         client = s3_client()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
-        try:
-            client.copy_object(
-                Bucket=self.name,
-                Key=f"{self.key_for(origin, key)}@{stamp}",
-                CopySource={"Bucket": origin, "Key": key},
-            )
-        except client.exceptions.ClientError as exc:
-            if self._absent(exc):
-                return False
-            raise
-        client.delete_object(Bucket=origin, Key=key)
-        return True
+        target = self.scoped(f"{self.key_for(origin, key)}@{stamp}")
+        # The database's own object is moved; a bare key from before keys were
+        # prefixed is only copied, because another database may be reading it.
+        for source, move in ((self.scoped(key), True), (key, False)):
+            try:
+                client.copy_object(
+                    Bucket=self.name,
+                    Key=target,
+                    CopySource={"Bucket": origin, "Key": source},
+                )
+            except client.exceptions.ClientError as exc:
+                if not self._absent(exc):
+                    raise
+                continue
+            if move:
+                client.delete_object(Bucket=origin, Key=source)
+            return True
+        return False
 
     def give_back(self, origin: str, key: str) -> bool:
         """Copies an archived object back into `origin`, unless one is there.
@@ -84,12 +90,12 @@ class ArchiveBucket(Bucket):
         """
         client = s3_client()
         try:
-            client.head_object(Bucket=origin, Key=key)
+            client.head_object(Bucket=origin, Key=self.scoped(key))
             return True
         except client.exceptions.ClientError as exc:
             if not self._absent(exc):
                 raise
-        prefix = self.key_for(origin, key)
+        prefix = self.scoped(self.key_for(origin, key))
         copies = [
             entry
             for page in client.get_paginator("list_objects_v2").paginate(
@@ -104,7 +110,7 @@ class ArchiveBucket(Bucket):
         try:
             client.copy_object(
                 Bucket=origin,
-                Key=key,
+                Key=self.scoped(key),
                 CopySource={"Bucket": self.name, "Key": newest["Key"]},
             )
         except client.exceptions.ClientError as exc:
@@ -114,36 +120,54 @@ class ArchiveBucket(Bucket):
         return True
 
     def held(self, *, before: datetime | None = None) -> list[tuple[str, int]]:
-        """Lists what the archive holds, as (key, bytes).
+        """Lists what the database's part of the archive holds, as (key, bytes).
+
+        The keys are as `get` takes them, without the database's prefix.
 
         Args:
             before: Only objects last written before this, or all of them.
         """
+        prefix = self.scoped("")
         return [
-            (entry["Key"], entry["Size"])
+            (entry["Key"].removeprefix(prefix), entry["Size"])
             for page in s3_client()
             .get_paginator("list_objects_v2")
-            .paginate(Bucket=self.name)
+            .paginate(Bucket=self.name, Prefix=prefix)
             for entry in page.get("Contents", [])
             if before is None or entry["LastModified"] < before
         ]
 
     def purge(self, *, before: datetime | None = None) -> int:
-        """Deletes what the archive holds. Irreversible, as the second one is.
+        """Deletes what the database's part of the archive holds. Irreversible.
+
+        Only this database's prefix: another database's copies are its own
+        second deletion to make.
 
         Args:
             before: Only objects last written before this, or all of them.
 
         Returns:
             How many objects were deleted.
+
+        Raises:
+            RuntimeError: If the store refused to delete any of them, which
+                it reports in the body of a successful answer.
         """
         keys = [key for key, _ in self.held(before=before)]
         client = s3_client()
         for start in range(0, len(keys), _BATCH):
-            client.delete_objects(
+            answer = client.delete_objects(
                 Bucket=self.name,
                 Delete={
-                    "Objects": [{"Key": key} for key in keys[start : start + _BATCH]]
+                    "Objects": [
+                        {"Key": self.scoped(key)}
+                        for key in keys[start : start + _BATCH]
+                    ]
                 },
             )
+            if errors := answer.get("Errors"):
+                raise RuntimeError(
+                    f"the store refused to delete {len(errors)} archived object(s), "
+                    f"first {errors[0].get('Key')}: {errors[0].get('Code')}"
+                )
         return len(keys)

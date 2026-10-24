@@ -118,7 +118,9 @@ def test_the_metadata_is_enough_to_rebuild_the_row(service) -> None:
     assert result.sha256 is not None
 
     key = DocumentsBucket.key_for(result.sha256, "application/pdf")
-    held = s3_client().head_object(Bucket="documents", Key=key)["Metadata"]
+    held = s3_client().head_object(Bucket="documents", Key=DocumentsBucket.scoped(key))[
+        "Metadata"
+    ]
     written = {name: unquote(value) for name, value in held.items()}
 
     assert written["sha256"] == result.sha256

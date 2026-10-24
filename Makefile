@@ -218,7 +218,7 @@ help:
         questions-balance questions-export questions-rejudge \
         questions-runs questions-diff \
         documents delete delete-derived wipe-all dagster-wipe \
-        archive archive-purge restore-documents \
+        archive archive-purge restore-documents s3-prefix \
         test test-fast test-unit test-integration test-e2e test-smoke \
         test-eval test-coverage test-perf mutation \
         check typecheck audit lint lint-imports deps \
@@ -1511,6 +1511,13 @@ archive-purge:
 	@[ -z "$(DAYS)" ] || { echo "WARNING: this deletes what the archive has held for more than $(DAYS) day(s). Ctrl-C within 5s to abort."; sleep 5; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.run --purge \
 	   $(if $(TABLE),--table $(TABLE)) $(if $(DAYS),--older-than $(DAYS)) $(if $(filter 1,$(ALL)),--all)
+
+# Copy the objects a store holds from before keys were prefixed with the
+# database's name under this database's prefix. Run it once per database
+# that used the store. It copies and never moves: `get` still falls back to
+# the bare key, and another database may be reading it.
+s3-prefix:
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m blob_store.s3.rekey
 
 # Put back what a deletion archived, after an accidental wipe.
 #
