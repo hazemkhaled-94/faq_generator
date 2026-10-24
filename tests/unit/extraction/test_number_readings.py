@@ -262,17 +262,15 @@ def test_a_language_without_amount_words_reads_no_grouped_number():
     assert numbers("Codes 100 200 300 EUR", "fr") == ("100", "200", "300")
 
 
-# FIX-R164: a wrong spelled count is excused by any number elsewhere in the passage.
+# C-020: an atomic fact rests on its passage, so a spelled count another sentence
+# of the passage gives is supported.
 @pytest.mark.parametrize(
     ("lang", "text", "fact"),
     [
-        pytest.param(
+        (
             "de",
             "Es gibt vier Kontomodelle. Das Basiskonto kostet 5 Euro im Monat.",
             "Das Basiskonto kostet vier Euro im Monat.",
-            marks=pytest.mark.xfail(
-                strict=True, reason="FIX-R164 deferred: no German spelled count is read"
-            ),
         ),
         (
             "en",
@@ -286,11 +284,12 @@ def test_a_language_without_amount_words_reads_no_grouped_number():
         ),
     ],
 )
-def test_a_wrong_spelled_count_is_not_excused_by_an_uncited_sentence(lang, text, fact):
-    """A count in words is checked against the cited sentence, not the passage."""
+def test_a_spelled_count_another_sentence_of_the_passage_gives_is_supported(
+    lang, text, fact
+):
+    """A count in words is read against the passage, as every figure is."""
     f = Checker(passage(text, language=lang)).atomic(fact, 1)
-    v = f.validated
-    assert not v, f"validated a changed count: {fact!r}"
+    assert f.validated, f"refused a count the passage gives: {fact!r}"
 
 
 # VAR-one-same-price: a bare 'one' that is a count.

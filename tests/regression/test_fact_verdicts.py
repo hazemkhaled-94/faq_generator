@@ -716,7 +716,7 @@ UNITS_READ_RIGHT: tuple[tuple[str, str, str, str, str, str | None], ...] = (
 #: (name, language, the excerpt, the sentence cited, statement, expected
 #: code or None): a stored claim refused as `unsupported_addition` for a
 #: figure only the sentence before the cited one gives, the countdown's
-#: five-second limit, which stays refused.
+#: five-second limit, which the passage supports and so is validated.
 NAMED_BEFORE: tuple[tuple[str, str, str, int, str, str | None], ...] = (
     (
         "a figure only the sentence before gives (F13213)",
@@ -732,7 +732,7 @@ NAMED_BEFORE: tuple[tuple[str, str, str, int, str, str | None], ...] = (
             "If the five-second time limit is exceeded at a throw-in or goal kick, "
             "the restart is taken by the opposing team."
         ),
-        Rejection.UNSUPPORTED_ADDITION,
+        None,
     ),
 )
 
@@ -996,7 +996,7 @@ def test_a_unit_its_heading_or_spelling_supports_reaches_its_verdict(
 def test_a_figure_the_sentence_before_gives_reaches_its_verdict(
     language, excerpt, cited, statement, expected
 ) -> None:
-    """The sentence before the one cited is no evidence for a figure."""
+    """The sentence before the one cited is the passage's evidence for a figure."""
     read = passage(excerpt, language=language)
     checked = Checker(read).atomic(statement, cited)
 

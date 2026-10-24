@@ -163,6 +163,15 @@ for, first failure winning:
 | shorter than its passage | `not_condensed` | | ● | ● | |
 | rests on two passages | `not_bridging` | | | | ● |
 
+For an atomic fact, `unsupported_addition` reads the whole passage, its heading
+trail and the document's title as what the fact may rest on: a figure the list
+lead-in states or a name a neighbouring sentence gives is carried. A dotted
+number that numbers a part of the heading's own number ("3.2" under "Article 3")
+is carried only when the cited sentences say it. A digest rests on the sentences
+it cites. For every kind a word is also carried in the form the text layer wrote
+it in: an inflection, a hyphen split or dropped, and, where nouns are not all
+capitalised, a capitalised first word of a list item.
+
 For a bridge, `unsupported_addition` reads each cited passage's heading trail
 and title as it does for an atomic fact (numbers in any spelling, hyphen parts,
 noun forms), and `not_bridging` also refuses a statement naming the numbered

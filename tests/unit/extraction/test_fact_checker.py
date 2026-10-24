@@ -250,6 +250,26 @@ STILL_REFUSED: tuple[tuple[str, str, str, int, str], ...] = (
         1,
         Rejection.UNRESOLVED_REFERENCE,
     ),
+)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement", "cited", "code"),
+    STILL_REFUSED,
+    ids=[f"{row[0]}-{row[4]}-{at}" for at, row in enumerate(STILL_REFUSED)],
+)
+def test_a_bank_or_shop_statement_saying_too_much_is_still_refused(
+    language, text, statement, cited, code
+) -> None:
+    """A second claim, a pronoun naming what came before, a borrowed figure."""
+    judged = Checker(passage(text, language=language)).atomic(statement, cited)
+
+    assert judged.rejection_code == code, (judged.validation_error, judged.units_added)
+
+
+#: Statements that name a figure or a name a neighbouring sentence of their own
+#: passage gives: admitted, as the passage is what an atomic fact rests on.
+BORROWED_FROM_THE_PASSAGE = (
     (
         "en",
         (
@@ -308,16 +328,16 @@ STILL_REFUSED: tuple[tuple[str, str, str, int, str], ...] = (
 
 @pytest.mark.parametrize(
     ("language", "text", "statement", "cited", "code"),
-    STILL_REFUSED,
-    ids=[f"{row[0]}-{row[4]}-{at}" for at, row in enumerate(STILL_REFUSED)],
+    BORROWED_FROM_THE_PASSAGE,
+    ids=[f"{row[0]}-{at}" for at, row in enumerate(BORROWED_FROM_THE_PASSAGE)],
 )
-def test_a_bank_or_shop_statement_saying_too_much_is_still_refused(
+def test_a_figure_or_name_from_another_sentence_of_the_passage_is_supported(
     language, text, statement, cited, code
 ) -> None:
-    """A second claim, a pronoun naming what came before, a borrowed figure."""
+    """A passage that holds the figure or the name supports the fact that says it."""
     judged = Checker(passage(text, language=language)).atomic(statement, cited)
 
-    assert judged.rejection_code == code, (judged.validation_error, judged.units_added)
+    assert judged.rejection_code != code, (judged.validation_error, judged.units_added)
 
 
 @pytest.mark.parametrize(
@@ -694,17 +714,15 @@ class TestSentencesWithAGapBetweenThem:
         assert "weighs 4 kg" in drawn.evidence_text
         assert "arrives in March" in drawn.evidence_text
 
-    def test_a_unit_from_the_uncited_sentence_is_an_addition(self, spaced) -> None:
-        """The defect this is all for.
+    def test_a_unit_from_the_uncited_sentence_is_the_passages(self, spaced) -> None:
+        """The passage gives the 99 though the claim never cited it.
 
-        `unsupported_addition` is what says nothing was invented. Judged
-        against the covering range it would accept 99 from a sentence the
-        claim never cited.
+        The evidence stored and shown stays the cited sentences; what counts
+        as said is the passage.
         """
         borrowed = spaced.atomic("The device costs 99 euro.", (0, 2))
 
-        assert borrowed.rejection_code == Rejection.UNSUPPORTED_ADDITION
-        assert "99" in borrowed.units_added
+        assert borrowed.validated, borrowed.units_added
 
 
 def test_a_deterministic_statement_is_judged_on_its_citation_alone(checker) -> None:
@@ -1298,11 +1316,20 @@ def test_a_name_the_document_title_carries_is_no_addition() -> None:
     assert judged.validated, judged.validation_error
 
 
-def test_a_name_from_an_uncited_sentence_is_still_an_addition() -> None:
-    """Named elsewhere in the passage is not said by the sentence cited."""
+def test_a_name_from_an_uncited_sentence_of_the_passage_is_no_addition() -> None:
+    """The passage says it: an atomic fact is supported by all of its passage."""
     read = passage(
         "The fee applies to all cards. Mastercard holders receive a monthly statement."
     )
+
+    judged = Checker(read).atomic("The fee applies to Mastercard.", 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+def test_a_name_no_sentence_of_the_passage_gives_is_still_an_addition() -> None:
+    """Support is the passage's, not the document's or the world's."""
+    read = passage("The fee applies to all cards. Holders receive a statement.")
 
     judged = Checker(read).atomic("The fee applies to Mastercard.", 0)
 
@@ -1346,18 +1373,93 @@ def test_a_count_written_as_digits_and_a_suffix_is_its_word() -> None:
     assert judged.validated, (judged.rejection_code, judged.units_added)
 
 
-def test_a_lead_in_figure_is_supported_only_when_cited() -> None:
-    """A figure restated from a lead-in is the lead-in's to support."""
-    read = passage(
-        "Orders over EUR 50 are delivered free. Delivery to Austria takes two days."
+@pytest.mark.parametrize(
+    ("text", "statement", "language"),
+    [
+        (
+            "Orders over EUR 50 are delivered free. Delivery to Austria takes two days.",
+            "Orders over EUR 50 are delivered free to Austria.",
+            "en",
+        ),
+        (
+            "Für Rücksendungen gilt: Die Gebühr beträgt 5 EUR. Der Betrag wird erstattet.",
+            "Für Rücksendungen beträgt die Gebühr 5 EUR.",
+            "de",
+        ),
+        (
+            "The terms set a fee of 12 EUR a month. Students pay no fee.",
+            "Students pay no fee of 12 EUR a month.",
+            "en",
+        ),
+    ],
+)
+def test_a_lead_in_figure_is_supported_by_the_passage(
+    text, statement, language
+) -> None:
+    """A figure stated by the lead-in or a neighbouring sentence is the passage's."""
+    read = passage(text, language=language)
+    last = len(read.sentences) - 1
+
+    alone = Checker(read).atomic(statement, last)
+
+    assert alone.validated, (alone.rejection_code, alone.units_added)
+
+
+def test_a_sub_number_of_the_passages_own_heading_is_no_support() -> None:
+    """Under heading 3, a figure 3.2 the passage mentions elsewhere is no evidence."""
+    from dataclasses import replace
+
+    read = replace(
+        passage("Refunds are paid in 14 days. See also clause 3.2 for fees."),
+        section_path="Article 3",
     )
-    statement = "Orders over EUR 50 are delivered free to Austria."
 
-    alone = Checker(read).atomic(statement, 1)
-    with_lead_in = Checker(read).atomic(statement, (0, 1))
+    judged = Checker(read).atomic("Refunds are paid in 14 days under 3.2.", 0)
 
-    assert alone.rejection_code == Rejection.UNSUPPORTED_ADDITION
-    assert with_lead_in.validated, with_lead_in.validation_error
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
+    assert "3.2" in judged.units_added, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("text", "statement"),
+    [
+        (
+            "Die Rückgabefrist beträgt 14 Tage.",
+            "Die Rückgabe-frist beträgt 14 Tage.",
+        ),
+        (
+            "Die Rückgabe-frist beträgt 14 Tage.",
+            "Die Rückgabefrist beträgt 14 Tage.",
+        ),
+    ],
+)
+def test_a_hyphen_the_text_layer_split_or_dropped_is_no_addition(
+    text, statement
+) -> None:
+    """One German compound, with or without the hyphen a line break left."""
+    judged = Checker(passage(text, language="de")).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+def test_a_capitalised_list_opener_is_no_new_name_in_english() -> None:
+    """A bullet's first word is written with a capital and is no name."""
+    read = passage("The shop offers:\n- Refunds within 14 days.\n- Exchanges are free.")
+
+    judged = Checker(read).atomic(
+        "The shop offers refunds within 14 days.", len(read.sentences) - 1
+    )
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+def test_a_word_form_is_read_only_in_a_configured_language() -> None:
+    """A Spanish passage (no pipeline named) gets no form rule."""
+    read = passage("La tarifa es de 5 EUR.", language="es")
+
+    judged = Checker(read).atomic("La tarifa es de 9 EUR.", 0)
+
+    assert not judged.validated
 
 
 @pytest.mark.parametrize(

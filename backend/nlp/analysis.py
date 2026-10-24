@@ -1019,6 +1019,92 @@ def as_noun(word: str, language: str | None) -> frozenset[str]:
     return frozenset(form.casefold() for form in lemmatizer.rule_lemmatize(token))
 
 
+#: What opens a list item in running text, besides a line break.
+_BULLETS = ("-", "\u2022", "*")
+
+
+def _opens_line(token: Token) -> bool:
+    """Whether a token is the first word of a sentence or of a list item."""
+    if token.i == 0 or token.is_sent_start:
+        return True
+    before = token.doc[token.i - 1]
+    return (
+        before.text in _BULLETS
+        or "\n" in before.text_with_ws
+        or (
+            token.i >= 2
+            and "\n" in token.doc[token.i - 2].text_with_ws
+            and before.is_punct
+        )
+    )
+
+
+def written_in(
+    unit: str,
+    statement: str,
+    known: set[str],
+    endings: Sequence[str],
+    language: str | None,
+) -> bool:
+    """Whether a statement's unit is a form the evidence carries, read by how words are written.
+
+    A word is carried when it, or the form the statement spells it in, is one
+    of the evidence's after the spelling differences a text layer leaves: an
+    inflection (`endings`, the language's own table), a hyphen split in either
+    text, a hyphen dropped, or each part of a hyphenated word. In a language
+    that capitalises only names, a capitalised first word of a sentence or
+    list item is no name: it is capitalised for its place.
+
+    Args:
+        unit: A statement unit no form of which is in the evidence's words.
+        statement: The text the unit was read from.
+        known: The evidence's word forms.
+        endings: The endings a word of this language inflects with.
+        language: The language of both texts.
+    """
+    document = _read(statement, language)
+    own = [
+        token
+        for token in document
+        if _bare(token.lemma_.casefold()) == unit
+        or _bare(token.text).casefold() == unit
+    ]
+    numeric = bool(numerals(unit, language))
+
+    def inflected(word: str) -> bool:
+        return any(word + end in known for end in endings) or any(
+            word.endswith(end) and word[: -len(end)] in known for end in endings
+        )
+
+    parts = {part for form in known if "-" in form for part in form.split("-") if part}
+    joined = {form.replace("-", "") for form in known}
+    for word in {unit} | {_bare(token.text).casefold() for token in own}:
+        word = word.rstrip("-")
+        if word in known or word in parts or word.replace("-", "") in joined:
+            return True
+        if numeric:
+            continue
+        if inflected(word) or (
+            "-" in word
+            and all(
+                part in known or part in parts or inflected(part)
+                for part in word.split("-")
+                if part
+            )
+        ):
+            return True
+    if numeric or language in _capitalises_nouns():
+        return False
+    names = [token for token in own if token.pos_ == "PROPN"]
+    return bool(names) and all(
+        token.pos_ == "PROPN"
+        and token.text.istitle()
+        and _opens_line(token)
+        and not token.ent_type_
+        for token in names
+    )
+
+
 #: Dependency labels for a pronoun that stands in for no antecedent: German
 #: `ph` (Platzhalter) and `ep` (expletive es), and English `expl`. "Es gibt
 #: Best Practices", "Es besteht Potenzial" and "There is potential" name

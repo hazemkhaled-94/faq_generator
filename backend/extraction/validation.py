@@ -24,7 +24,14 @@ from extraction.models import (
     PassageToExtract,
     Provenance,
 )
-from nlp.analysis import as_noun, claim, normalised, numerals, vocabulary
+from nlp.analysis import (
+    as_noun,
+    claim,
+    normalised,
+    numerals,
+    vocabulary,
+    written_in,
+)
 from nlp.models import Claim, Sentence
 from nlp.pipelines import name as pipeline_name
 from nlp.pipelines import pipeline
@@ -514,7 +521,7 @@ class FactChecker:
             claim=said,
             evidence_vocabulary=frozenset(known),
             supported=_supported_units(
-                said.units + said.figures, known, numbers, anchor.language
+                said.units + said.figures, known, numbers, anchor.language, statement
             ),
             citations=tuple(one for _, one in rested),
             labels=tuple(
@@ -567,24 +574,39 @@ class FactChecker:
     ) -> Judged:
         """Reads what the statement and its cited sentences each assert.
 
-        What the evidence carries is the cited sentences, the passage's
-        section path and its document's title: the heading trail and the title
-        name what a sentence under them leaves as "the card" or "the bank".
-        The rest of the passage is not evidence, so a name or a number from a
-        sentence the candidate did not cite is still added. A number is read in
-        any spelling ("1st" is "1 st"), a hyphenated unit by its parts, and a
-        name the tagger took for a proper noun by the common noun it is.
+        What an atomic fact's evidence carries is its passage, with the
+        section path and the document's title: a figure the list lead-in
+        states, or a name the sentence before gives, is said by the passage
+        the fact was drawn from. A name or a number no sentence of it has is
+        still added. A digest's evidence is the sentences it cites. Neither
+        counts a dotted number that numbers a part of the heading's own
+        number ("3.2" under "Article 3") unless the cited text says it. A
+        number is read in any spelling ("1st" is "1 st"), a hyphenated unit by
+        its parts, a name the tagger took for a proper noun by the common noun
+        it is, and a word by the form its text layer wrote it in.
         """
         start, end = cited[0].start, cited[-1].end
         evidence = _cited_text(passage, cited)
         language = passage.language
         statement = candidate.statement.strip()
         said = claim(statement, language, (passage.text,))
+        units = said.units + said.figures
         known, numbers = _carried(evidence, passage)
         known |= numbers
-        supported = _supported_units(
-            said.units + said.figures, known, numbers, language
-        )
+        supported = _supported_units(units, known, numbers, language, statement)
+        if candidate.kind == FactKind.ATOMIC:
+            alone = known | supported
+            known |= vocabulary(passage.text, language)
+            numbers |= numerals(passage.text, language)
+            known |= numbers
+            numbered = {
+                unit
+                for unit in units
+                if unit not in alone and _numbers_part_of(unit, passage.section_path)
+            }
+            known -= numbered
+            supported = _supported_units(units, known, numbers, language, statement)
+            supported -= numbered
         return Judged(
             statement=statement,
             evidence=evidence,
@@ -622,13 +644,29 @@ def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[st
     return known, numbers
 
 
+def _numbers_part_of(unit: str, section_path: str | None) -> bool:
+    """Whether a dotted number numbers a part of a number the heading trail writes.
+
+    "19.05" under "Article 19": the passage's own heading numbers what it
+    holds, so the passage naming it says nothing a statement may rest on.
+    """
+    if "." not in unit.strip("."):
+        return False
+    return unit.rsplit(".", 1)[0] in vocabulary(section_path or "", None)
+
+
 def _supported_units(
-    units: Sequence[str], known: set[str], numbers: set[str], language: str | None
+    units: Sequence[str],
+    known: set[str],
+    numbers: set[str],
+    language: str | None,
+    statement: str | None = None,
 ) -> frozenset[str]:
     """Picks the units read as present though no form of them is.
 
     A number spelled another way ("1st" is "1 st"), a hyphenated unit of
-    words it holds, a name it holds as a noun.
+    words it holds, a name it holds as a noun, and, when the statement is
+    given, a word in the form the text layer wrote it in.
     """
     supported = set()
     for unit in units:
@@ -642,6 +680,14 @@ def _supported_units(
             if all(part in known for part in parts):
                 supported.add(unit)
         elif as_noun(unit, language) & known:
+            supported.add(unit)
+        if (
+            unit not in supported
+            and statement is not None
+            and written_in(
+                unit, statement, known, _INFLECTIONS.get(language or "", ()), language
+            )
+        ):
             supported.add(unit)
     return frozenset(supported)
 
