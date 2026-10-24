@@ -178,11 +178,12 @@ class Question(Base):
             postgresql_where=text("reviewed_verdict IS NOT NULL"),
         ),
         {
-            "comment": "The test questions themselves. Append-only and never "
-            "hard-deleted: rejected questions are the drop-rate evidence in the "
-            "coverage report. Deleting every fact a question came from also "
-            "deletes the question: a foreign key cannot cascade that direction, "
-            "so an AFTER DELETE trigger on question_facts does it."
+            "comment": "The test questions themselves. Append-only: rejected questions "
+            "are the drop-rate evidence in the coverage report. Losing a fact, "
+            "the last one included, rejects the question as source_changed and "
+            "keeps it: a foreign key cannot cascade that direction, so an AFTER "
+            "DELETE trigger on question_facts does it. Only deleting a document, "
+            "or what was derived from it, deletes its questions."
         },
     )
 

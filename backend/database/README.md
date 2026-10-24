@@ -60,8 +60,13 @@ questions resting on those facts.
 The `question_facts` trigger exists because a cascade cannot express it: a
 question rests on *several* facts, so `ON DELETE CASCADE` from `facts` would
 take the question when its **first** citation went rather than its last. A
-question that loses a fact and keeps another is rejected as `source_changed`
-instead, and its release cleared.
+question that loses a fact is rejected as `source_changed`, its release
+cleared, whatever is left of its other facts: the last fact included. The
+trigger never deletes a question, so a re-chunk or a re-extraction that
+replaces the facts under accepted, reviewed and released questions keeps
+every one of them. A person deleting a document, or what was derived from
+it, deletes the questions resting only on it explicitly, before the cascade
+(`ingestion.repository`).
 
 A third trigger, `questions_release_thread_whole` on `questions`, keeps a
 thread whole in the release. A question that stops being accepted, whoever
@@ -71,9 +76,9 @@ The follow-ups keep their own status. A restore from the archive applies the
 same rule to the follow-ups it puts back, because the trigger fires on the
 root's update and they were in the archive then.
 
-The two deleting triggers lock the fact or the question before deciding, so
-two deletions at once leave neither a fact with no citation nor a question
-with no fact. The assessments of whatever goes cascade with it.
+The two triggers lock the fact or the question before deciding, so two
+deletions at once leave neither a fact with no citation nor a question
+still accepted with no fact. The assessments of whatever goes cascade with it.
 
 `ingest_events.sha256` is a plain column, not a foreign key, so the record
 that an upload happened outlives the document and keeps its digest.
@@ -189,6 +194,7 @@ The revisions, oldest first:
 | `20261021_0200_a_question_records_its_categories.py` | Adds `questions.categories`, a nullable JSONB column holding the categories `QUESTIONS_CATEGORIZATIONS` dealt a question as its writer was told them, NULL where none was rendered and on every question already stored |
 | `20261021_0300_column_comments_say_what_is_there.py` | Comments only: `questions.categories` is NULL wherever no category was rendered, `topics.top_terms` is not what a label is matched on across a refit, `topics.embedding` is read to place a passage the fit left in no topic, and `facts.bridge` also holds the id of the passage that headed the link |
 | `20261024_1300_a_fact_carries_its_language.py` | Adds `facts.language`, the language of the passage at position 0 of `fact_passages` (its document's where the passage is too short to tell), backfilled from that citation, so the dedup probe filters on the fact itself and the HNSW index serves it |
+| `20261024_1000_a_question_losing_every_fact_is_rejected.py` | The `question_facts` trigger rejects a question left with no fact as `source_changed` instead of deleting it; a document's deletion deletes its own questions explicitly first; the `questions` table comment says so |
 
 ## Column comments
 

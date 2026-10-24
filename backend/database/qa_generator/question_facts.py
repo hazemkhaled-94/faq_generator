@@ -54,44 +54,29 @@ class QuestionFact(Base):
 
 
 #: Rejects a question that loses a fact as `source_changed`, clearing its
-#: release, unless it is rejected already; deletes one left with no fact. A
-#: fact is left while it and a passage it cites exist. A foreign key
-#: cascades parent to child, never the reverse. Does nothing to a question
-#: that is itself being deleted. Locks the question before deciding, so of
+#: release, unless it is rejected already; it never deletes one, whatever is
+#: left of its facts. What a person deletes (a document, or what was derived
+#: from it) deletes its questions first, through `ingestion.repository`. A
+#: foreign key cascades parent to child, never the reverse. Does nothing to
+#: a question that is itself being deleted. Locks the question before deciding, so of
 #: two deletions at once the second waits for the first and sees its fact
 #: gone.
 #:
 #: Declared here, beside the table it belongs to. The migrations carry
 #: their own copy, and tests/integration/database/test_schema.py checks the
 #: installed body against this one.
-#:
-#: ponytail: a bridge losing one of its passages still counts as left until
-#: its own trigger deletes it, so a question resting on it is rejected and
-#: then deleted, and archived rejected. Upgrade: a deferred constraint
-#: trigger that decides at commit.
 DELETE_ORPHAN_FUNCTION = """
 CREATE OR REPLACE FUNCTION delete_question_without_facts() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     PERFORM 1 FROM questions WHERE id = OLD.question_id FOR UPDATE;
-    IF EXISTS (
-        SELECT 1
-          FROM question_facts qf
-          JOIN facts f ON f.id = qf.fact_id
-          JOIN fact_passages fp ON fp.fact_id = f.id
-          JOIN passages p ON p.id = fp.passage_id
-         WHERE qf.question_id = OLD.question_id
-    ) THEN
-        UPDATE questions
-           SET status = 'rejected',
-               rejected_reason = 'source_changed',
-               release_id = NULL,
-               status_changed_at = now()
-         WHERE id = OLD.question_id
-           AND status <> 'rejected';
-    ELSE
-        DELETE FROM questions WHERE id = OLD.question_id;
-    END IF;
+    UPDATE questions
+       SET status = 'rejected',
+           rejected_reason = 'source_changed',
+           release_id = NULL,
+           status_changed_at = now()
+     WHERE id = OLD.question_id
+       AND status <> 'rejected';
     RETURN NULL;
 END;
 $$;

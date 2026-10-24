@@ -104,8 +104,9 @@ def counts(engine) -> dict[str, int]:
 
 def test_deleting_a_document_takes_everything_derived_from_it(corpus, engine) -> None:
     """The passage, its memberships, its facts and the questions on them."""
-    with engine.begin() as connection:
-        connection.execute(text("DELETE FROM documents WHERE sha256 = repeat('a', 64)"))
+    from ingestion.repository import DocumentRepository
+
+    DocumentRepository().delete("a" * 64)
 
     held = counts(engine)
 

@@ -30,9 +30,11 @@ A trigger because the services are not where most of the deleting happens.
 their memberships and their citations, then
 `fact_passages_delete_orphan_fact` takes every bridge resting on a passage
 that is gone and every other fact left resting on none, then
-`question_facts_delete_orphan_question` takes every question left with no
-fact, then the cascade on `follows_id` takes their follow-ups and the
-cascades on `assessments` their judgements. One command, up to nine tables,
+`question_facts_delete_orphan_question` rejects every question left with no
+fact as `source_changed` and keeps it; the questions resting only on the
+document were deleted first, explicitly, by the repository, so the cascade
+on `follows_id` takes their follow-ups and the cascades on `assessments`
+their judgements. One command, up to nine tables,
 and only the first row passes through Python.
 
 The objects are the other half: the removal paths **move** them to the

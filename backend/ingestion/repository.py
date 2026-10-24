@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import ScalarSelect, delete, func, select, update
+from sqlalchemy import ScalarSelect, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from database.qa_generator import (
@@ -38,6 +38,33 @@ def _passages(*where) -> ScalarSelect[int]:
         .where(Passage.doc_sha256 == Document.sha256, *where)
         .scalar_subquery()
     )
+
+
+#: Every question that rests on these documents' passages and on nothing
+#: outside them. The trigger on `question_facts` rejects a question that loses
+#: a fact and never deletes one, so what a person asked to delete is deleted
+#: here first, and a question that also rests elsewhere is left for the
+#: trigger to reject.
+_QUESTIONS_ONLY_ON = text(
+    """
+    DELETE FROM questions q
+     WHERE EXISTS (
+               SELECT 1 FROM question_facts qf
+                 JOIN fact_passages fp ON fp.fact_id = qf.fact_id
+                 JOIN passages p ON p.id = fp.passage_id
+                WHERE qf.question_id = q.id AND p.doc_sha256 = ANY(:digests))
+       AND NOT EXISTS (
+               SELECT 1 FROM question_facts qf
+                 JOIN fact_passages fp ON fp.fact_id = qf.fact_id
+                 JOIN passages p ON p.id = fp.passage_id
+                WHERE qf.question_id = q.id AND p.doc_sha256 <> ALL(:digests))
+    """
+)
+
+
+def _delete_questions(session, digests: list[str]) -> None:
+    """Deletes the questions resting only on these documents, in the caller's transaction."""
+    session.execute(_QUESTIONS_ONLY_ON, {"digests": digests})
 
 
 def _filtered(query, search: str | None, parse_status: str | None = None):
@@ -104,6 +131,7 @@ class DocumentRepository(Repository):
                 .select_from(Passage)
                 .where(Passage.doc_sha256 == sha256)
             )
+            _delete_questions(session, [sha256])
             session.execute(delete(Document).where(Document.sha256 == sha256))
         return passages or 0
 
@@ -124,6 +152,7 @@ class DocumentRepository(Repository):
                     .group_by(Passage.doc_sha256)
                 ).all()
             )
+            _delete_questions(session, digests)
             session.execute(delete(Document).where(Document.sha256.in_(digests)))
         return passages
 
@@ -142,6 +171,7 @@ class DocumentRepository(Repository):
                 .select_from(Passage)
                 .where(Passage.doc_sha256 == sha256)
             )
+            _delete_questions(session, [sha256])
             session.execute(delete(Passage).where(Passage.doc_sha256 == sha256))
             session.execute(
                 update(Document)

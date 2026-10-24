@@ -574,14 +574,17 @@ class TestReplacingCitedBridges:
         assert store.count("questions") == 1
 
     def test_forcing_it_replaces_the_bridge_anyway(self, store, cited) -> None:
-        """And the question resting on that bridge alone goes with it."""
+        """And the question resting on that bridge alone is rejected, not deleted."""
         from extraction.service import bridge
 
         cited("accepted")
 
         assert bridge(store.catalog, UNREAD, UNREAD, 5, 2, force=True) == 0
         assert store.count() == 0
-        assert store.count("questions") == 0
+        assert store.count("questions") == 1
+        assert store._execute("SELECT status, rejected_reason FROM questions") == [
+            ("rejected", "source_changed")
+        ]
 
     def test_a_question_nobody_accepted_does_not_stop_it(self, store, cited) -> None:
         """A draft is not the dataset."""

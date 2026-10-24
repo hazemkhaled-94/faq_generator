@@ -545,10 +545,10 @@ def test_a_re_chunk_after_delete_derived_does_not_make_it_unrestorable(
         ("en", "Goods may be returned within 30 days."),
     ],
 )
-def test_a_fact_left_resting_on_no_passage_is_dropped_with_its_question(
+def test_a_fact_left_resting_on_no_passage_is_dropped_and_its_question_rejected(
     engine, database, buckets, monkeypatch, capsys, language, statement
 ) -> None:
-    """A re-chunk replaced the passage, so the fact and its question have no source."""
+    """A re-chunk replaced the passage, so the fact has no source and its question is rejected."""
     from archive import restore
     from ingestion.repository import DocumentRepository
 
@@ -582,7 +582,13 @@ def test_a_fact_left_resting_on_no_passage_is_dropped_with_its_question(
             connection.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
             for table in ("facts", "question_facts", "questions")
         ]
-    assert counts == [0, 0, 0], "no accepted question rests on a fact with no passage"
+    assert counts == [0, 0, 1]
+    with engine.connect() as connection:
+        assert connection.execute(
+            text("SELECT status, rejected_reason FROM questions")
+        ).all() == [("rejected", "source_changed")], (
+            "no accepted question rests on no passage"
+        )
     assert "facts: " in capsys.readouterr().out
 
 
