@@ -591,6 +591,18 @@ class Deal:
             apart=shape == Shape.APART,
         )
 
+    @property
+    def unspent(self) -> int:
+        """How many facts no sample has been written from yet."""
+        return len(
+            {
+                fact.id
+                for passage in self._by_passage.values()
+                for fact in passage
+                if fact.id not in self._spent
+            }
+        )
+
     def holds(self, prefer: Callable[[SourceFact], bool]) -> bool:
         """Whether a passage still to be dealt holds a fact `prefer` accepts.
 

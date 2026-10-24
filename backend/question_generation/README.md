@@ -297,6 +297,15 @@ to cite every passage it was offered asks for the weld the span rules
 forbid. Every draft is stored, and the last is the one kept: every draft
 before it was refused.
 
+Each topic ends in one line saying how far its plan got: `topic 7: 38 of 120
+slots written, stopped: deal, 0 fact(s) left`. It stopped on `plan` when every
+slot was written, on `deal` when the topic had no passage left to deal a sample
+from before the plan ran out (the number of facts left is then the ones only a
+slot of another shape can use, or none), and on `refusals` when the provider
+refused every prompt in a row. A topic whose coverage stops growing with the
+corpus shows here, as `stopped: deal` on topics whose slots outnumber their
+facts.
+
 ### Step 4 — Gate it
 
 [`checker.py`](checker.py), [`gates.py`](gates.py),

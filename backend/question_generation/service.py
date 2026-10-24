@@ -1217,6 +1217,7 @@ class QuestionGenerationService(StageService):
         roots = 0
         swapped = 0
         refused = 0
+        stopped = "plan"
         for plan in planned:
             prefer = None
             if plan.answerable and plan.spec.name == QuestionType.REASON:
@@ -1282,6 +1283,7 @@ class QuestionGenerationService(StageService):
             if sample is None:
                 # The topic ran out of passages before the plan ran out of
                 # slots. Everything it had has been asked about once.
+                stopped = "deal"
                 break
             written += 1
             if not plan.answerable:
@@ -1340,6 +1342,7 @@ class QuestionGenerationService(StageService):
                     extra={"topic.id": topic.id},
                 )
                 if refused >= _GIVE_UP:
+                    self._stopped(topic, written, len(planned), "refusals", deal)
                     raise
                 continue
             refused = 0
@@ -1373,8 +1376,30 @@ class QuestionGenerationService(StageService):
                     roots += 1
             threads.append(thread)
             threads.extend(self._recycled(checked, plan, deal, accepted, topic.id))
+        self._stopped(topic, written, len(planned), stopped, deal)
         current.set_attribute("questions.samples", written)
         return threads
+
+    @staticmethod
+    def _stopped(
+        topic: TopicToCover, written: int, planned: int, why: str, deal: Deal
+    ) -> None:
+        """Says how far a topic's plan got, why it stopped, and what it left.
+
+        Written is the slots a sample was dealt for, whatever became of the
+        draft. A stop on `plan` wrote every slot; on `deal` the topic had no
+        passage left to deal before the plan ran out; on `refusals` the
+        provider refused every prompt in a row.
+        """
+        log.info(
+            "topic %d: %d of %d slots written, stopped: %s, %d fact(s) left",
+            topic.id,
+            written,
+            planned,
+            why,
+            deal.unspent,
+            extra={"topic.id": topic.id},
+        )
 
     def _recycled(
         self,

@@ -2955,3 +2955,47 @@ def test_a_release_draw_stops_asking_the_judge_at_the_spend_cap(monkeypatch) -> 
 
     assert len(judge.asked) == 1, "the second pair is not asked"
     assert catalog.drawn, "the release as drawn is kept"
+
+
+# ── What a topic reports ──────
+
+
+def test_a_topic_that_runs_out_of_facts_says_so(caplog) -> None:
+    """Slots written of planned, why it stopped, and how many facts are left."""
+    settings = replace(
+        SETTINGS, per_topic=4, sample_size=1, unanswerable_share=0.0, followup_share=0.0
+    )
+    service, _ = build(
+        topic(),
+        [source(1, passage_id=1, statement="Standard delivery takes 3 days.")],
+        settings=settings,
+    )
+
+    with caplog.at_level("INFO"):
+        service.process_next()
+
+    assert (
+        f"topic {topic().id}: 1 of 4 slots written, stopped: deal, 0 fact(s) left"
+        in [record.getMessage() for record in caplog.records]
+    )
+
+
+def test_a_topic_that_writes_its_plan_says_what_it_left(caplog) -> None:
+    """Stopped: plan, and the facts the plan did not reach."""
+    settings = replace(
+        SETTINGS, per_topic=1, sample_size=1, unanswerable_share=0.0, followup_share=0.0
+    )
+    facts = [
+        source(1, passage_id=1, statement="Standard delivery takes 3 days."),
+        source(2, passage_id=2, statement="Gift wrapping costs 3 euros."),
+        source(3, passage_id=3, statement="Returns are free within 14 days."),
+    ]
+    service, _ = build(topic(), facts, settings=settings)
+
+    with caplog.at_level("INFO"):
+        service.process_next()
+
+    assert (
+        f"topic {topic().id}: 1 of 1 slots written, stopped: plan, 2 fact(s) left"
+        in [record.getMessage() for record in caplog.records]
+    )
