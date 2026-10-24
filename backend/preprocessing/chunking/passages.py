@@ -417,12 +417,16 @@ def lead_ins_kept(
     # it was written under, which bounds what it introduces.
     carried: str | None = None
     under: list[str] = []
+    # The list item ending in a colon the last chunk's closing sub-items are
+    # nested under, and how deep it nests.
+    parent: tuple[str, int] | None = None
     for index, chunk in enumerate(chunks):
         same = bool(kept) and trails[index - 1] == trails[index]
         deeper = bool(kept) and _below(trails[index], trails[index - 1])
         continued = same and _opens_a_list(chunk)
         lead = _lead_in(kept[-1], document) if continued or deeper else None
         given = None
+        sub_list = None
         origin = trails[index] or []
         if lead is not None:
             origin = trails[index - 1] or []
@@ -459,6 +463,16 @@ def lead_ins_kept(
             else:
                 chunk = _headed(chunk, text)
         elif (
+            parent is not None
+            and _opens_a_list(chunk)
+            and _depth(chunk.meta.doc_items[0].self_ref, document) > parent[1]
+            and (trails[index] or [])[: len(under)] == under
+        ):
+            given = parent[0]
+            chunk = _headed(chunk, parent[0])
+            origin = under
+            sub_list = parent
+        elif (
             carried is not None
             and _opens_a_list(chunk)
             and (trails[index] or [])[: len(under)] == under
@@ -466,7 +480,8 @@ def lead_ins_kept(
             given = carried
             chunk = _headed(chunk, carried)
             origin = under
-        carried = _introduced(chunk, document, given)
+        parent = _parent_lead_in(chunk, document, sub_list)
+        carried = None if sub_list else _introduced(chunk, document, given)
         under = (
             origin if carried is not None and carried == given else trails[index] or []
         )
@@ -604,6 +619,31 @@ def _introduced(
     if run == len(items):
         return None
     return given if run == 0 else _lead_text(items[run - 1], document)
+
+
+def _parent_lead_in(
+    chunk: DocChunk, document: DoclingDocument, given: tuple[str, int] | None
+) -> tuple[str, int] | None:
+    """The list item ending in ":" a chunk's closing sub-items are nested under.
+
+    The nearest item in the chunk shallower than its last, where that is a
+    list item ending in ":" and the last is a list item; with none shallower
+    in the chunk, `given` where every item of it nests under it still.
+    Returns the item's text and its depth, or None.
+    """
+    items = chunk.meta.doc_items
+    if not items or items[-1].label != DocItemLabel.LIST_ITEM:
+        return None
+    depths = [_depth(item.self_ref, document) for item in items]
+    for item, depth in zip(reversed(items[:-1]), reversed(depths[:-1]), strict=True):
+        if item.label != DocItemLabel.LIST_ITEM:
+            return None
+        if depth < depths[-1]:
+            text = _lead_text(item, document)
+            return (text, depth) if text else None
+    if given is not None and all(depth > given[1] for depth in depths):
+        return given
+    return None
 
 
 def _opens_a_list(chunk: DocChunk) -> bool:
