@@ -283,8 +283,13 @@ def test_each_model_setting_is_where_the_doc_says() -> None:
 
     for name in ("LLM_MODEL", "QUESTIONS_VERIFIER_MODEL", "ASSESSMENT_JUDGE_MODEL"):
         assert name in example and name not in backend, name
+    # backend.env documents each stage model, unset; the go-live split that
+    # sets them is the deployment's, in .env.example.
+    live = set(
+        re.findall(r"^([A-Z][A-Z0-9_]*)=", _read("configs/env/backend.env"), re.M)
+    )
     for name in _STAGE_MODELS:
-        assert name in backend and name not in example, name
+        assert name in backend and name not in live and name in example, name
     assert "LOADENV = set -a && . ./configs/env/backend.env" in _read("Makefile")
 
     row = next(

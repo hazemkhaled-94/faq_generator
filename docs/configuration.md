@@ -111,6 +111,40 @@ judged. A container given a hosted model it has no credential for does not
 restart: its worker waits in place, claims nothing, and logs that it cannot
 reach its model, again every ten minutes, until the model answers.
 
+## The go-live split
+
+Go-live runs the model stages on the host, through `make corpus-hosted`, with
+`HOST_RUNNER` set to `1` in `.env` and the model workers stopped. The split of models
+is `.env`'s too, and `.env.example` ships it:
+
+| Role | Setting | Model |
+|---|---|---|
+| Writer | `QUESTIONS_MODEL` | `azure/gpt-5.6-sol` |
+| Passage reader | `EXTRACTION_MODEL` | `azure/gpt-5.4` |
+| Phrasing judge | `QUESTIONS_PHRASING_MODEL` | `azure/gpt-5.4` |
+| Digest reader | `EXTRACTION_DIGEST_MODEL` | `azure/gpt-4o` |
+| Assessment judge | `ASSESSMENT_JUDGE_MODEL` | `azure/gpt-4o` |
+| Verifier | `QUESTIONS_VERIFIER_MODEL` | `azure/gpt-4.1` |
+| Topic namer | `TOPIC_MODEL` | `azure/gpt-4.1` |
+
+`LLM_MODEL` is the model a role follows when its own setting is unset (the
+judge follows nothing), and `LLM_REASONING_EFFORT=none` is the one effort the
+split needs: a hosted model that does not reason is sent none of it.
+`backend.env` names no role model, so a role you leave unset follows `LLM_MODEL`
+and never the project's default.
+
+The split has one address: every role model is reached through `LLM_BASE_URL`. A split
+across more than one Azure resource, each with its own endpoint and key, needs
+a gateway in front of them that routes by model id; litellm does not pick an
+endpoint per role.
+
+Every drain logs the split it resolved as one line, `split: writer=... effort=...`,
+before it claims a row, and `make doctor` checks it. With `HOST_RUNNER=1` a
+drain and the doctor refuse a role that resolves to an Ollama model, and a
+judge left unset while `ASSESSMENT_ENABLED` is true, naming the role and the
+setting that moves it. The containers keep calling Ollama by design: `.env`'s
+role models never reach them, and compose gives them `LLM_CONTAINER_MODEL`.
+
 ## Precedence
 
 Highest first:
@@ -455,7 +489,7 @@ of them.
 
 | Looking for | Read |
 |---|---|
-| Which model, and where it is served | `.env` for `LLM_MODEL`, the verifier, the judge, their container values and the addresses, and `.env.example` for the provider table; a stage's own model (`EXTRACTION_MODEL`, `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL`, `QUESTIONS_MODEL`, `QUESTIONS_PHRASING_MODEL`) in `configs/env/backend.env`, beside that stage's settings, where the host and the containers both read it |
+| Which model, and where it is served | `.env` for `LLM_MODEL`, the verifier, the judge, their container values and the addresses, and `.env.example` for the provider table and the go-live split (above); a stage's own model (`EXTRACTION_MODEL`, `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL`, `QUESTIONS_MODEL`, `QUESTIONS_PHRASING_MODEL`) is documented, unset, in `configs/env/backend.env`, beside that stage's settings, where the host and the containers both read it |
 | How the model is called — mode, temperature, timeout, attempts, context window, reasoning | `configs/env/backend.env`, "Extraction" |
 | The encoders, the tokenizer, the spaCy pipelines | `configs/env/backend.env`, "Embedding", "Encoders that run in this process" and "Language pipelines" |
 | What a fact may be, and the caps on each kind | `configs/env/backend.env`, "Extraction" |

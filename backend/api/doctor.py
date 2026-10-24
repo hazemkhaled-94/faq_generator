@@ -93,13 +93,21 @@ def main() -> int:
     """
     import telemetry
     from llm.check import Unreachable, reachable
+    from llm.config import check_split, describe
 
     telemetry.configure("doctor")
 
+    log.info("%s", describe())
+    failed = 0
+    try:
+        check_split()
+    except ValueError as refusal:
+        log.error("%s", refusal)
+        failed = 1
     models, refused = every_model()
     for stage in refused:
         log.error("settings will not load: %s", stage)
-    failed = 1 if refused else 0
+    failed = int(bool(refused) or bool(failed))
     for settings in models:
         log.info("model    %s", settings.model)
         log.info("address  %s", settings.base_url or "(the provider's own)")

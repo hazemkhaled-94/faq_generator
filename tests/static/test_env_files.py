@@ -191,6 +191,16 @@ def test_the_example_is_the_only_file_holding_a_secret() -> None:
         "OLLAMA_CONTAINER_URL",
         "ASSESSMENT_ENABLED",
         "ASSESSMENT_JUDGE_MODEL",
+        # The go-live split and its switch: a deployment's choices, which
+        # the shipped file sets to what go-live runs.
+        "HOST_RUNNER",
+        "LLM_REASONING_EFFORT",
+        "QUESTIONS_MODEL",
+        "QUESTIONS_VERIFIER_MODEL",
+        "QUESTIONS_PHRASING_MODEL",
+        "EXTRACTION_MODEL",
+        "EXTRACTION_DIGEST_MODEL",
+        "TOPIC_MODEL",
         # The bearer header, whose value is PHOENIX_ADMIN_SECRET expanded.
         "OTEL_EXPORTER_OTLP_HEADERS",
     }

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from settings import Source, decimal, integer, optional, required
+from settings.env import _TRUE
 
 #: The context window a self-hosted model is asked for when the deployment
 #: names none.
@@ -43,6 +44,79 @@ def spend_cap(source: Source = None) -> float | None:
     if cap <= 0:
         raise ValueError(f"SPEND_CAP={cap!r} must be above 0, or unset for no cap")
     return cap
+
+
+#: The seven roles a model is called in, as (role, the setting that names it,
+#: the role it follows when that is unset). A role with no fallback follows
+#: LLM_MODEL, and the judge follows nothing: a judge that is also the writer
+#: is a model marking its own work.
+ROLES: tuple[tuple[str, str, str | None], ...] = (
+    ("writer", "QUESTIONS_MODEL", None),
+    ("verifier", "QUESTIONS_VERIFIER_MODEL", None),
+    ("phrasing", "QUESTIONS_PHRASING_MODEL", "verifier"),
+    ("extraction", "EXTRACTION_MODEL", None),
+    ("digest", "EXTRACTION_DIGEST_MODEL", "extraction"),
+    ("topics", "TOPIC_MODEL", None),
+    ("judge", "ASSESSMENT_JUDGE_MODEL", ""),
+)
+
+
+def host_runner(source: Source = None) -> bool:
+    """Whether this is the go-live profile, where the host runs the model stages.
+
+    HOST_RUNNER=1 leaves the model workers stopped and refuses every run that
+    would start them; `make corpus-hosted` is the way in. Unset is the
+    development path, where the containers call Ollama.
+    """
+    return (optional("HOST_RUNNER", source) or "").lower() in _TRUE
+
+
+def split(source: Source = None) -> dict[str, str | None]:
+    """The model each role calls, as the settings name them.
+
+    None is a role nobody named and nothing supplies: the judge, which judges
+    nothing, or any role while LLM_MODEL is unset.
+    """
+    shared = optional("LLM_MODEL", source)
+    named: dict[str, str | None] = {}
+    for role, setting, follows in ROLES:
+        fallback = shared if follows is None else named[follows] if follows else None
+        named[role] = optional(setting, source) or fallback
+    return named
+
+
+def describe(source: Source = None) -> str:
+    """The split on one line, with the reasoning effort, for a drain's log."""
+    effort = optional("LLM_REASONING_EFFORT", source)
+    roles = " ".join(f"{role}={model}" for role, model in split(source).items())
+    return f"split: {roles} effort={effort or 'unset'}"
+
+
+def check_split(source: Source = None) -> None:
+    """Refuses a split the go-live profile cannot run.
+
+    Only under HOST_RUNNER: the development path calls Ollama by design.
+
+    Raises:
+        ValueError: If a role resolves to a self-hosted model, or the judge is
+            unset while the evaluation phase is on, naming the role and the
+            setting that moves it.
+    """
+    if not host_runner(source):
+        return
+    judging = (optional("ASSESSMENT_ENABLED", source) or "").lower() in _TRUE
+    for role, setting, _ in ROLES:
+        model = split(source)[role]
+        if model is None and (judging or role != "judge"):
+            raise ValueError(
+                f"HOST_RUNNER=1 and the {role} role names no model: set "
+                f"{setting}" + ("" if role == "judge" else " or LLM_MODEL")
+            )
+        if model is not None and _self_hosted(model):
+            raise ValueError(
+                f"HOST_RUNNER=1 runs hosted models only, and the {role} role "
+                f"resolves to {model}: set {setting}"
+            )
 
 
 def _provider(model: str) -> str:

@@ -1069,6 +1069,19 @@ SETTINGS: tuple[Setting, ...] = (
         "drain starts, and counted per process.",
     ),
     Setting(
+        name="HOST_RUNNER",
+        service="platform",
+        kind="boolean",
+        optional=True,
+        fixed=True,
+        help="The go-live profile: the model stages run on the host through "
+        "make corpus-hosted, the model workers stay stopped, and a run the "
+        "orchestrator or a queue verb would start is refused naming that "
+        "command. A drain then refuses a role that is unset or resolves to "
+        "an Ollama model. Unset is the development path, where the "
+        "containers call Ollama.",
+    ),
+    Setting(
         name="DATABASE_POOL_SIZE",
         service="platform",
         kind="integer",

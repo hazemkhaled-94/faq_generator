@@ -28,7 +28,14 @@ import litellm
 from pydantic import BaseModel, Field
 
 from llm.client import Client
-from llm.config import Settings, spend_cap
+from llm.config import (
+    Settings,
+    _self_hosted,
+    check_split,
+    describe,
+    host_runner,
+    spend_cap,
+)
 from llm.tally import unpriced_models
 
 log = logging.getLogger(__name__)
@@ -134,10 +141,25 @@ def before_work(*models: Settings) -> None:
     answer to the question above is priced as any other, so this is read off
     it and not guessed from the name.
 
+    The drain's split is logged first, in one line. Under HOST_RUNNER=1 a role
+    that is unset or resolves to an Ollama model - in the files, or in what
+    this stage resolved from the stored settings - is refused before any
+    model is asked.
+
     Raises:
         Unreachable: If any of them did not answer, or one has no price while
             a spend cap is set.
+        ValueError: If HOST_RUNNER=1 and a role does not name a hosted model.
     """
+    log.info("%s", describe())
+    check_split()
+    if host_runner():
+        for settings in models:
+            if _self_hosted(settings.model):
+                raise ValueError(
+                    f"HOST_RUNNER=1 runs hosted models only, and this stage "
+                    f"resolved {settings.model}"
+                )
     for settings in {(m.model, m.base_url): m for m in models}.values():
         reachable(settings)
         log.info("%s answered; claiming work", settings.model)
