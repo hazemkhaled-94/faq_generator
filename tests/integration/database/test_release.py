@@ -467,3 +467,54 @@ def _settings(**overrides):
             **overrides,
         }
     )
+
+
+def test_the_earlier_turns_of_a_follow_up_are_walked_through_follows_id(
+    written, engine
+) -> None:
+    """A thread of three, asked about its last turn alone: both turns before it come back."""
+    ids = written([("easy", "factoid", True, "accepted")])
+    with Session(engine) as session:
+        previous = ids[0]
+        for turn in (2, 3):
+            follow = question(
+                question_text=f"Turn {turn}?",
+                target_answer=f"Answer {turn}" if turn == 2 else None,
+                answerable=True,
+                difficulty="easy",
+                question_type="factoid",
+                status="accepted",
+                follows_id=previous,
+                thread_position=turn,
+            )
+            session.add(follow)
+            session.flush()
+            ids.append(follow.id)
+            previous = follow.id
+        session.commit()
+    catalog = QuestionCatalog()
+    everyone = {one.id: one for one in catalog.page(limit=None)[1]}
+
+    walked = catalog.earlier([everyone[ids[2]], everyone[ids[0]]])
+
+    assert walked == {
+        ids[2]: [("A easy factoid question?", "4 kg"), ("Turn 2?", "Answer 2")]
+    }
+
+
+def test_a_citation_carries_the_section_its_passage_sits_under(written, engine) -> None:
+    """With its pages, which a tester needs to find the source by hand."""
+    ids = written([("easy", "factoid", True, "accepted")])
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE passages SET section_path = 'Terms > Returns', "
+                "page_from = 3, page_to = 4"
+            )
+        )
+
+    (cited,) = QuestionCatalog().citations(released=None)
+
+    assert cited.question_id == ids[0]
+    assert cited.section_path == "Terms > Returns"
+    assert cited.page == "3–4"

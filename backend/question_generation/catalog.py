@@ -1411,6 +1411,7 @@ class QuestionCatalog(Repository):
                     Passage.ordinal,
                     Passage.page_from,
                     Passage.page_to,
+                    Passage.section_path,
                     Document.title,
                 )
                 .select_from(QuestionFact)
@@ -1432,9 +1433,55 @@ class QuestionCatalog(Repository):
                 doc_sha256=row.doc_sha256,
                 ordinal=row.ordinal,
                 page=pages(row.page_from, row.page_to),
+                section_path=row.section_path,
             )
             for row in rows
         ]
+
+    def earlier(
+        self, questions: Sequence[StoredQuestion], read: Session | None = None
+    ) -> dict[int, list[tuple[str, str | None]]]:
+        """Each follow-up's turns before it, oldest first, as (question, key).
+
+        Walked through `follows_id`, in the session the questions were read
+        in: a filter that selects the follow-ups and not their roots still
+        has the roots' words on the row. A question that follows nothing has
+        no entry, and a chain that loops stops at the turn that closes it.
+        """
+        known = {
+            one.id: (one.follows_id, one.question_text, one.target_answer)
+            for one in questions
+        }
+        with self._reading(read) as session:
+            while missing := {
+                parent
+                for parent, _, _ in known.values()
+                if parent is not None and parent not in known
+            }:
+                found = session.execute(
+                    select(
+                        Question.id,
+                        Question.follows_id,
+                        Question.question_text,
+                        Question.target_answer,
+                    ).where(Question.id.in_(missing))
+                ).all()
+                known |= {row.id: (row.follows_id, *row[2:]) for row in found}
+                if not found:
+                    break
+        walked: dict[int, list[tuple[str, str | None]]] = {}
+        for one in questions:
+            chain: list[tuple[str, str | None]] = []
+            seen = {one.id}
+            parent = one.follows_id
+            while parent in known and parent not in seen:
+                seen.add(parent)
+                follows, text, answer = known[parent]
+                chain.append((text, answer))
+                parent = follows
+            if chain:
+                walked[one.id] = chain[::-1]
+        return walked
 
     def quality(
         self,

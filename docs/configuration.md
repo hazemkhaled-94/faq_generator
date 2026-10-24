@@ -536,7 +536,7 @@ of them.
 | What a run costs, and what it writes | `configs/env/backend.env`, "Question generation", and [`backend/question_generation/`](../backend/question_generation/README.md) |
 | When two questions count as one | `configs/env/backend.env`, `QUESTIONS_DUPLICATE_COSINE` and `QUESTIONS_DUPLICATE_SHARED_COSINE` |
 | What each question is written as: the paper's categories | `QUESTIONS_CATEGORIZATIONS`, stored rather than in a file; its default is `DEFAULT_CATEGORIZATIONS` in [`question_generation/config.py`](../backend/question_generation/config.py). See [A JSON value](#a-json-value) |
-| Which of the accepted questions ship | `configs/env/backend.env`, "The balanced release" |
+| Which of the accepted questions ship | `configs/env/backend.env`, "The balanced release". A question's `difficulty` band is its retrieval spread (how many passages, documents and subjects it rests on, a long answer and a follow-up a point each), not how hard it is to reason about; the workbook names the column "Retrieval spread". `QUESTIONS_RELEASE_DIFFICULTY` draws the release by that spread, and stays unset so that it follows the bands the answerable pool holds: equal thirds take nearly every multi-passage question the pool has |
 | Whether the judge runs, and who judges | `.env`; which artefacts and how many, `configs/env/backend.env` |
 | A port, an address, a role name | `configs/env/deployment.env` |
 | A password or a key | `.env`, listed in `.env.example`; the provider's in `configs/env/provider.env` |

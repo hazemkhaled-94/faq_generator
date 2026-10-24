@@ -41,6 +41,10 @@ class _Catalog:
         self.asked["citations"] = where
         return []
 
+    def earlier(self, questions, read=None):
+        """No follow-up has a turn before it here."""
+        return {}
+
     def quality(self, *args, **where):
         """A report of nothing."""
         self.asked["quality"] = {"given": args, **where}

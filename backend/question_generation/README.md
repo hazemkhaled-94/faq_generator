@@ -131,7 +131,13 @@ of its own passage it was joined to that claim, whose second passage nothing
 had weighed against it. The claim waits for its passage's next round.
 
 Where nothing in the second passage meets the first, the sample is still
-offered and the writer is told to narrow. `difficulty` is read off what it
+offered and the writer is told to narrow. `difficulty` is a question's
+**retrieval spread**: one point each for resting on more than one passage,
+more than one document and more than one subject, for a long answer and for
+following another question, two points medium and three hard. Nothing weighs
+them and none measures how hard the question is to reason about, so the
+workbook titles the column "Retrieval spread" and a hard row is almost always
+a multi-passage one. It is read off what the question
 cited, so a question that narrowed bands as what it is, and stands: nothing
 asks it to widen.
 
@@ -982,7 +988,7 @@ So the run overgenerates and the composition is chosen afterwards.
 | | |
 |---|---|
 | `QUESTIONS_RELEASE_UNANSWERABLE` | The most of the release that may have no answer. A ceiling, 0.10 as shipped; 0 releases none |
-| `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands. Unset follows the answerable pool's own band split |
+| `QUESTIONS_RELEASE_DIFFICULTY` | How it spreads over the bands, which measure retrieval spread. Unset follows the answerable pool's own band split |
 | `QUESTIONS_RELEASE_TYPES` | How it spreads over the kinds. Unset reuses `QUESTIONS_TYPE_MIX` |
 | `QUESTIONS_RELEASE_LANGUAGES` | How it spreads over the languages. Unset follows the pool's own language split |
 
@@ -1112,6 +1118,19 @@ One workbook, four sheets:
 | Citations | Question × fact × passage, so a bridge takes two; the Document ID column is the head of the document's digest, which `--diversity --by document` splits by |
 | Assessment | Judgement of a question. Empty unless the evaluation phase has run |
 | Summary | The counts, off the same quality report the page shows: types, bands, levels, rejections, and the kind and each `categorization=category` a question was written as, and the models that wrote, verified and phrase-judged the questions |
+
+A row reads on its own. **Earlier turns** holds a follow-up's parent questions
+and keys, oldest first, walked through `follows_id` in the same snapshot, and
+**Source** the document, pages and section path each fact it rests on came
+from (the documents alone when the export carries no citations). The pipeline's
+own columns, **Spread planned**, **Attempt**, **Gate** and **Confidence**, come
+last, after what a tester reads, and the Citations sheet ends with **Fact ID**;
+a page is written as text, a first-last range among single pages. **Retrieval
+spread** is the `difficulty` band under the name that says what it measures.
+The Summary adds the questions by language, how many the judge can judge
+(answerable and answered) beside how many it judged, by language, the judge
+model and template it ran under, and says its counts are not a quality
+estimate. Its **Count** column is numeric: the words are in **Note**.
 
 The Questions sheet's **Categories** column, after Language, names the
 categories each question's writer was told, as `categorization=category`

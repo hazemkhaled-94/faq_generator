@@ -820,6 +820,8 @@ class Citation:
     ordinal: int
     #: The page the passage is on, or first–last where it runs over more.
     page: int | str | None
+    #: The heading trail the passage sits under, where the parser found one.
+    section_path: str | None = None
 
 
 def pages(first: int | None, last: int | None) -> int | str | None:

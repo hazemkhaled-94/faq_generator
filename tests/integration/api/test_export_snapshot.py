@@ -67,7 +67,10 @@ def test_the_workbook_describes_the_rows_it_holds(exported) -> None:
     cites = {
         row[0] for row in list(exported["Citations"].iter_rows(values_only=True))[1:]
     }
-    summary = dict(list(exported["Summary"].iter_rows(values_only=True))[1:])
+    summary = {
+        row[0]: row[1]
+        for row in list(exported["Summary"].iter_rows(values_only=True))[1:]
+    }
 
     assert cites <= held
     assert summary["Matching the filter"] == summary["Questions in this workbook"]

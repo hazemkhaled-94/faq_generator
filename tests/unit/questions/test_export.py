@@ -96,7 +96,7 @@ def test_a_question_carries_the_columns_a_reader_filters_on() -> None:
     assert row["Question"] == "Within how many hours is a request answered?"
     assert row["Answer"] == "48 hours"
     assert row["Type"] is not None
-    assert row["Difficulty"] == "easy"
+    assert row["Retrieval spread"] == "easy"
     assert row["Status"] == "accepted"
 
 
@@ -167,6 +167,7 @@ class _Judged:
         self.metrics = metrics
         self.approved = all(one.approved for one in metrics)
         self.judge_model = "a-model"
+        self.prompt_version = "4"
         self.refused = [one.metric for one in metrics if not one.approved]
         self.disagrees = False
 
@@ -323,7 +324,7 @@ def test_the_summary_counts_what_the_workbook_holds() -> None:
     assert counted["Questions in this workbook"] == 1
     assert counted["Citation rows"] == 1
     assert counted["Matching the filter"] == 4
-    assert counted["difficulty: easy"] == 3
+    assert counted["retrieval spread: easy"] == 3
     assert counted["rejected: duplicate"] == 1
 
 
@@ -393,6 +394,10 @@ class _Catalog:
     def quality(self, read=None, **where):
         """No report, which the workbook takes as None."""
         self.asked["quality"] = where
+
+    def earlier(self, questions, read=None):
+        """No follow-up has a turn before it here."""
+        return {}
 
 
 class _Nothing:
@@ -629,3 +634,169 @@ def test_the_two_modules_read_the_same_summary_words() -> None:
     from assessment import run as assessment_run
 
     assert assessment_run._NEVER == (NEVER_DOCUMENTS, NEVER_PASSAGES)
+
+
+# ── A row a tester can read on its own ────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("language", "earlier", "answer"),
+    [
+        ("en", ("How long is a return window?", "30 days"), "30 days"),
+        ("de", ("Wie lange gilt die Widerrufsfrist?", "14 Tage"), "14 Tage"),
+    ],
+)
+def test_a_follow_up_row_carries_the_turns_before_it(language, earlier, answer) -> None:
+    """Its parent's question and answer, oldest first, on the follow-up's own row."""
+    root = stored(1, language=language)
+    follow = stored(2, language=language, follows_id=1, thread_position=2)
+
+    row = sheets(
+        workbook([root, follow], earlier={2: [earlier, ("Und online?", None)]})
+    )["Questions"]
+
+    assert row["Earlier turns"].iloc[0] in ("", None) or pd.isna(
+        row["Earlier turns"].iloc[0]
+    )
+    assert row["Earlier turns"].iloc[1] == (
+        f"Q: {earlier[0]}\nA: {answer}\nQ: Und online?\nA: not in the material"
+    )
+
+
+def test_every_row_names_where_it_was_drawn_from() -> None:
+    """The document, the pages and the section path, so a source can be found by hand."""
+    drawn = cited(
+        1, document="Terms of sale", page="2–3", section_path="Returns > Receipts"
+    )
+    other = cited(2, document="Kreditbedingungen", page=7, section_path=None)
+
+    row = sheets(workbook([stored(1), stored(2)], [drawn, other, cited(1, page=2)]))[
+        "Questions"
+    ]
+
+    assert row["Source"].iloc[0].splitlines()[0] == (
+        "Terms of sale, p. 2–3, Returns > Receipts"
+    )
+    assert row["Source"].iloc[1] == "Kreditbedingungen, p. 7"
+
+
+def test_a_row_with_no_citation_rows_falls_back_to_its_documents() -> None:
+    """An export without citations still says which documents."""
+    row = sheets(workbook([stored(1, documents=["Service policy", "Merkblatt"])]))[
+        "Questions"
+    ]
+
+    assert row["Source"].iloc[0] == "Service policy\nMerkblatt"
+
+
+def test_the_columns_a_tester_does_not_read_come_after_the_ones_they_do() -> None:
+    """Gate, confidence, attempt and the planned spread move right."""
+    columns = list(sheets(workbook([stored()]))["Questions"].columns)
+    theirs = columns.index("Written")
+
+    for internal in ("Spread planned", "Attempt", "Gate", "Confidence"):
+        assert columns.index(internal) > theirs, internal
+    assert columns.index("Earlier turns") < columns.index("Answerable")
+    assert columns.index("Source") < columns.index("Answerable")
+    assert (
+        list(sheets(workbook([stored()], [cited()]))["Citations"].columns)[-1]
+        == "Fact ID"
+    )
+
+
+def test_a_page_is_written_as_text() -> None:
+    """A range and a single page sit in one column, so neither is a number."""
+    read = sheets(
+        workbook([stored(1), stored(2)], [cited(1, page="2–3"), cited(2, page=7)])
+    )
+
+    assert list(read["Citations"]["Page"]) == ["2–3", "7"]
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_the_difficulty_band_is_titled_and_described_as_retrieval_spread(
+    language: str,
+) -> None:
+    """Not how hard a question is to reason about: how far its sources are spread."""
+    quality = QuestionQuality(
+        total=4,
+        accepted=4,
+        draft=0,
+        unanswerable=0,
+        followups=0,
+        topics_covered=1,
+        topics_in_coverage=1,
+        mean_question_chars=40.0,
+        mean_answer_chars=8.0,
+        rejected={},
+        difficulty={"easy": 3, "hard": 1},
+        passage_scope={},
+        document_scope={},
+        topic_scope={},
+        question_type={},
+        answer_form={},
+        planned_difficulty={},
+        cognitive_level={},
+        cognitive_level_checked=0,
+        planned_met=0,
+    )
+    read = sheets(workbook([stored(language=language)], [cited()], quality))
+    summary = read["Summary"]
+    counted = dict(zip(summary["Measure"], summary["Count"], strict=True))
+    notes = dict(zip(summary["Measure"], summary["Note"].fillna(""), strict=True))
+
+    assert "Difficulty" not in read["Questions"].columns
+    assert read["Questions"]["Retrieval spread"].iloc[0] == "easy"
+    assert counted["retrieval spread: easy"] == 3
+    assert counted["retrieval spread: hard"] == 1
+    assert "difficulty: easy" not in counted
+    note = notes["Retrieval spread"]
+    assert "passages, documents and subjects" in note
+    assert "not of how hard" in note
+
+
+class _Verdict:
+    """What the judge made of one question, as the workbook reads it."""
+
+    def __init__(self, approved: bool, model: str, template: str) -> None:
+        """Holds the verdict, the model and the template version."""
+        self.approved = approved
+        self.disagrees = False
+        self.judge_model = model
+        self.prompt_version = template
+        self.metrics = ()
+        self.refused = ()
+
+
+@pytest.mark.parametrize(("first", "second"), [("en", "de"), ("de", "en")])
+def test_the_summary_names_the_judge_and_counts_by_language(first, second) -> None:
+    """Who judged and under what, what could be judged, and what the figures are not."""
+    questions = [
+        stored(1, language=first),
+        stored(2, language=second),
+        stored(3, language=second, answerable=False, target_answer=None),
+    ]
+    judged = {
+        1: _Verdict(True, "azure/gpt-4.1", "5"),
+        2: _Verdict(False, "azure/gpt-4.1", "5"),
+    }
+
+    summary = sheets(workbook(questions, judged=judged))["Summary"]
+    counted = dict(zip(summary["Measure"], summary["Count"], strict=True))
+    notes = dict(zip(summary["Measure"], summary["Note"].fillna(""), strict=True))
+
+    assert counted["Judged by a model"] == 2
+    assert counted["Judgeable (answerable)"] == 2
+    assert notes["Judge model"] == "azure/gpt-4.1"
+    assert notes["Judge template"] == "5"
+    assert counted[f"Questions in this workbook: {first}"] == 1
+    assert counted[f"Questions in this workbook: {second}"] == 2
+    assert counted[f"Judged by a model: {second}"] == 1
+    assert "not a quality estimate" in notes["Reading the judge"]
+
+
+def test_a_workbook_nobody_judged_says_nothing_of_a_judge() -> None:
+    """No judge rows, no judge lines."""
+    measures = set(sheets(workbook([stored()]))["Summary"]["Measure"])
+
+    assert not {"Judge model", "Judge template", "Judgeable (answerable)"} & measures

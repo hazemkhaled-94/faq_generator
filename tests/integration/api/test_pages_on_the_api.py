@@ -214,7 +214,9 @@ def test_the_workbook_holds_the_kind_of_every_question(corpus) -> None:
     answer = client.get("/questions/export")
     book = load_workbook(io.BytesIO(answer.content))
     rows = list(book["Questions"].iter_rows(values_only=True))
-    summary = dict(list(book["Summary"].iter_rows(values_only=True))[1:])
+    summary = {
+        row[0]: row[1] for row in list(book["Summary"].iter_rows(values_only=True))[1:]
+    }
 
     assert answer.status_code == 200
     assert sorted(row[rows[0].index("Kind")] for row in rows[1:]) == [

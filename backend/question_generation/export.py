@@ -47,6 +47,7 @@ import argparse
 import io
 import logging
 import sys
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from typing import Any, cast
@@ -77,17 +78,22 @@ _COLUMNS = (
     ("question_text", "Question"),
     ("target_answer", "Answer"),
     ("answer_explanation", "Answer in full"),
+    # Filled after the frame is built, as the judge's columns are: the turns
+    # before a follow-up and the documents, pages and sections a question
+    # was drawn from. A row a tester reads should stand on its own.
+    ("earlier", "Earlier turns"),
+    ("source", "Source"),
     ("answerable", "Answerable"),
     ("question_type", "Type"),
     ("kind", "Kind"),
     ("answer_form", "Answer form"),
     ("cognitive_level", "Cognitive level"),
-    ("difficulty", "Difficulty"),
-    ("planned_difficulty", "Difficulty planned"),
+    # The band is how far a question's sources are spread, not how hard it is
+    # to reason about: see `_SPREAD`.
+    ("difficulty", "Retrieval spread"),
     ("passage_scope", "Passage scope"),
     ("document_scope", "Document scope"),
     ("topic_scope", "Topic scope"),
-    ("attempt", "Attempt"),
     ("thread_position", "Turn"),
     ("follows_id", "Follows"),
     ("language", "Language"),
@@ -97,11 +103,6 @@ _COLUMNS = (
     ("categories", "Categories"),
     ("status", "Status"),
     ("released", "Released"),
-    ("rejected_reason", "Gate"),
-    # How close the weakest measuring gate came to refusing it. A margin
-    # and not a probability - see `confidence.py` - and blank on a question
-    # no measuring gate read, which is not the same as a low one.
-    ("confidence", "Confidence"),
     ("reviewed_verdict", "Reviewed"),
     # Filled from the `judged` argument rather than off the row: a question
     # carries no judgement of its own, and this package cannot read the
@@ -119,6 +120,26 @@ _COLUMNS = (
     ("documents", "Documents"),
     ("document_ids", "Document IDs"),
     ("created_at", "Written"),
+    # What the pipeline kept about it, after everything a tester reads.
+    ("planned_difficulty", "Spread planned"),
+    ("attempt", "Attempt"),
+    ("rejected_reason", "Gate"),
+    # How close the weakest measuring gate came to refusing it. A margin
+    # and not a probability - see `confidence.py` - and blank on a question
+    # no measuring gate read, which is not the same as a low one.
+    ("confidence", "Confidence"),
+)
+
+#: What the `difficulty` band measures, which is not how hard a question is
+#: to reason about: a question's points are the passages, the documents and the
+#: subjects it rests on, a long answer and following another question, and
+#: nothing weighs them. Said in the workbook because a tester reads a score by
+#: band, and a band that reads as hardness invites the wrong conclusion.
+_SPREAD = (
+    "easy, medium or hard by how many passages, documents and subjects a "
+    "question rests on, a long answer and a follow-up counting a point each: "
+    "the spread a retriever has to cover, not of how hard the question is to "
+    "reason about"
 )
 
 #: Fields whose list is written one item per line rather than comma-joined.
@@ -128,14 +149,15 @@ _LINES = frozenset({"statements", "evidence"})
 
 _CITATION_COLUMNS = (
     ("question_id", "Question ID"),
-    ("fact_id", "Fact ID"),
     ("statement", "Fact"),
     ("evidence_text", "Evidence"),
     ("validated", "Fact still valid"),
     ("document", "Document"),
     ("doc_sha256", "Document ID"),
     ("page", "Page"),
+    ("section_path", "Section"),
     ("ordinal", "Passage"),
+    ("fact_id", "Fact ID"),
 )
 
 #: The Assessment sheet. One row per judgement rather than per question,
@@ -155,6 +177,8 @@ _ASSESSMENT_COLUMNS = (
 #: named here is sized from its heading, which is right for the short
 #: coded columns and wrong for exactly the four long ones.
 _WIDTHS = {
+    "Earlier turns": 60,
+    "Source": 50,
     "Question": 60,
     "Answer": 50,
     "Answer in full": 60,
@@ -209,6 +233,11 @@ def _frame(rows: Sequence[Any], columns: Sequence[tuple[str, str]]) -> pd.DataFr
         }
         for row in rows
     ]
+    # A page is a number or a first-last range, which one column cannot hold
+    # as numbers.
+    for record in records:
+        if "Page" in record and record["Page"] is not None:
+            record["Page"] = str(record["Page"])
     # An empty selection still gets its headings, so a workbook of nothing
     # is a workbook a reader can see the shape of rather than a blank page.
     return pd.DataFrame(records, columns=pd.Index([head for _, head in columns]))
@@ -221,8 +250,38 @@ def _cited_frame(citations: Sequence[Any]) -> pd.DataFrame:
     return frame
 
 
+def _turns(turns: Sequence[tuple[str, str | None]]) -> str:
+    """The turns before a question, a line each for what was asked and the key."""
+    return "\n".join(
+        f"Q: {question}\nA: {answer or 'not in the material'}"
+        for question, answer in turns
+    )
+
+
+def _sources(citations: Sequence[Citation]) -> dict[int, str]:
+    """Where each question was drawn from: document, pages and section, a line each."""
+    lines: dict[int, list[str]] = {}
+    for one in citations:
+        line = ", ".join(
+            part
+            for part in (
+                one.document,
+                f"p. {one.page}" if one.page is not None else "",
+                one.section_path or "",
+            )
+            if part
+        )
+        held = lines.setdefault(one.question_id, [])
+        if line not in held:
+            held.append(line)
+    return {question: "\n".join(held) for question, held in lines.items()}
+
+
 def _judged_frame(
-    questions: Sequence[StoredQuestion], judged: Mapping[int, Any]
+    questions: Sequence[StoredQuestion],
+    judged: Mapping[int, Any],
+    earlier: Mapping[int, Sequence[tuple[str, str | None]]] | None = None,
+    citations: Sequence[Citation] = (),
 ) -> pd.DataFrame:
     """The Questions sheet, with the judge's three columns filled in.
 
@@ -234,6 +293,14 @@ def _judged_frame(
     frame = _frame(questions, _COLUMNS)
     if not len(frame):
         return frame
+    drawn = _sources(citations)
+    frame["Earlier turns"] = [
+        _turns((earlier or {}).get(one.id, ())) for one in questions
+    ]
+    # Without citation rows, the documents are all there is to name.
+    frame["Source"] = [
+        drawn.get(one.id) or "\n".join(one.documents) for one in questions
+    ]
     # An unanswerable question has no key: what a good reply does for its
     # kind stands in, a criterion for a judge or a person, never a string to
     # match. Blank where none was stored.
@@ -314,53 +381,106 @@ def _assessment_frame(
     return pd.DataFrame(records, columns=pd.Index(list(_ASSESSMENT_COLUMNS)))
 
 
+#: What the judge's figures are and are not, said where they are read.
+_JUDGE_READING = (
+    "a model's opinion of the questions in this workbook, which is not a "
+    "random draw of the set: a count of approvals is not a quality estimate"
+)
+
+
 def _summary(
     quality: QuestionQuality | None,
-    count: int,
+    questions: Sequence[StoredQuestion],
     cited: int,
     judged: Mapping[int, Any] | None = None,
     never: NeverAsked | None = None,
 ) -> pd.DataFrame:
-    """The Summary sheet: what this workbook holds, as counts.
+    """The Summary sheet: what this workbook holds, as counts and notes.
 
     Reads the quality report the API already serves rather than counting
     the frames again, so the figures in the workbook are the figures on the
     page it was exported from.
 
-    The judge's three figures are counted over THIS workbook's questions
+    The judge's figures are counted over THIS workbook's questions
     rather than read off the corpus-wide report, because a workbook that
     says "38 disagreements" about a filter holding twelve questions is
-    describing something the reader cannot see.
+    describing something the reader cannot see. What they are counted
+    against goes beside them: how many of the questions the judge can judge,
+    by language, and which model and template judged.
+
+    A count is a number, so a measure that is words (a model, a template, how
+    to read a band) goes in the Note column, and the Count column stays
+    numeric.
     """
-    rows: list[tuple[str, Any]] = [
-        ("Questions in this workbook", count),
-        ("Citation rows", cited),
+    languages = Counter(one.language for one in questions)
+    rows: list[tuple[str, Any, str | None]] = [
+        ("Questions in this workbook", len(questions), None),
+        *(
+            (f"Questions in this workbook: {code}", n, None)
+            for code, n in sorted(languages.items())
+        ),
+        ("Citation rows", cited, None),
     ]
     if judged is not None:
-        answered = [one for one in judged.values() if one.approved is not None]
+        answered = {
+            question: one
+            for question, one in judged.items()
+            if one.approved is not None
+        }
+        spoken = {one.id: one.language for one in questions}
+        by_language = Counter(spoken.get(question) for question in answered)
+        models = sorted(
+            {str(one.judge_model) for one in answered.values() if one.judge_model}
+        )
+        templates = sorted(
+            {str(one.prompt_version) for one in answered.values() if one.prompt_version}
+        )
+        judgeable = sum(
+            1
+            for one in questions
+            if one.answerable and one.target_answer and one.status != "draft"
+        )
         rows += [
-            ("Judged by a model", len(answered)),
-            ("Judge approved", sum(1 for one in answered if one.approved)),
+            ("Judgeable (answerable)", judgeable, None),
+            ("Judged by a model", len(answered), None),
+            *(
+                (f"Judged by a model: {code}", by_language[code], None)
+                for code in sorted(languages)
+                if by_language.get(code)
+            ),
+            (
+                "Judge approved",
+                sum(1 for one in answered.values() if one.approved),
+                None,
+            ),
             (
                 "Kept by the pipeline, refused by the judge",
-                sum(1 for one in answered if one.disagrees),
+                sum(1 for one in answered.values() if one.disagrees),
+                None,
             ),
+            ("Judge model", None, ", ".join(models) or None),
+            ("Judge template", None, ", ".join(templates) or None),
+            ("Reading the judge", None, _JUDGE_READING),
         ]
     if never is not None:
         # The corpus, not the filter: what no accepted question reaches.
         rows += [
-            (NEVER_DOCUMENTS, len(never.documents)),
-            (NEVER_PASSAGES, never.passages),
-            *((f"{NEVER_DOCUMENTS}: {name}", held) for name, held in never.documents),
+            (NEVER_DOCUMENTS, len(never.documents), None),
+            (NEVER_PASSAGES, never.passages, None),
+            *(
+                (f"{NEVER_DOCUMENTS}: {name}", held, None)
+                for name, held in never.documents
+            ),
         ]
     if quality is not None:
         measured = asdict(quality)
         rows += [
-            ("Matching the filter", measured.get("total")),
-            ("Accepted", measured.get("accepted")),
-            ("Unanswerable", measured.get("unanswerable")),
-            ("Subjects covered", measured.get("topics_covered")),
-            ("Subjects in coverage", measured.get("topics_in_coverage")),
+            ("Matching the filter", measured.get("total"), None),
+            ("Accepted", measured.get("accepted"), None),
+            ("Unanswerable", measured.get("unanswerable"), None),
+            ("Subjects covered", measured.get("topics_covered"), None),
+            ("Subjects in coverage", measured.get("topics_in_coverage"), None),
+            ("Retrieval spread", None, _SPREAD),
         ]
         for name in (
             "difficulty",
@@ -373,9 +493,10 @@ def _summary(
             "cognitive_level",
             "rejected",
         ):
+            shown = "retrieval spread" if name == "difficulty" else name
             for key, value in sorted((measured.get(name) or {}).items()):
-                rows.append((f"{name}: {key}", value))
-    return pd.DataFrame(rows, columns=pd.Index(["Measure", "Count"]))
+                rows.append((f"{shown}: {key}", value, None))
+    return pd.DataFrame(rows, columns=pd.Index(["Measure", "Count", "Note"]))
 
 
 def _dress(sheet: Any, frame: pd.DataFrame) -> None:
@@ -418,6 +539,7 @@ def workbook(
     quality: QuestionQuality | None = None,
     judged: Mapping[int, Any] | None = None,
     never: NeverAsked | None = None,
+    earlier: Mapping[int, Sequence[tuple[str, str | None]]] | None = None,
 ) -> bytes:
     """Builds the workbook, and returns it as the bytes of an .xlsx file.
 
@@ -436,10 +558,10 @@ def workbook(
     """
     held: Mapping[int, Any] = judged or {}
     sheets = {
-        "Questions": _judged_frame(questions, held),
+        "Questions": _judged_frame(questions, held, earlier, citations),
         "Citations": _cited_frame(citations),
         "Assessment": _assessment_frame(questions, held),
-        "Summary": _summary(quality, len(questions), len(citations), judged, never),
+        "Summary": _summary(quality, questions, len(citations), judged, never),
     }
     buffer = io.BytesIO()
     # `WriteExcelBuffer` is a protocol a BytesIO satisfies at runtime and
@@ -597,6 +719,7 @@ def main(argv: list[str] | None = None) -> int:
         _, questions = catalog.page(limit=None, read=read, **where)
         citations = () if args.no_citations else catalog.citations(read=read, **where)
         quality = catalog.quality(read=read, **where)
+        earlier = catalog.earlier(questions, read=read)
 
     # Imported inside `main` rather than at the top of the module, like
     # the catalogue beside it. `workbook` is also called by the api, and
@@ -607,7 +730,12 @@ def main(argv: list[str] | None = None) -> int:
     with open(args.out, "wb") as handle:
         handle.write(
             workbook(
-                questions, citations, quality, judged, QuestionQueue().never_asked()
+                questions,
+                citations,
+                quality,
+                judged,
+                QuestionQueue().never_asked(),
+                earlier,
             )
         )
     log.info("wrote %s", args.out)

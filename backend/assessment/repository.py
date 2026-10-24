@@ -808,6 +808,7 @@ class AssessmentCatalog(Repository):
                     link.label("artifact_id"),
                     APPROVED.label("approved"),
                     Assessment.judge_model,
+                    Assessment.prompt_version,
                     Assessment.assessed_at,
                     _VERDICT[kind].label("verdict"),
                     Assessment.assess_status.label("status"),
@@ -820,7 +821,6 @@ class AssessmentCatalog(Repository):
             row.artifact_id: StoredAssessment(
                 **row._asdict(),
                 kind=kind,
-                prompt_version=None,
                 run_id=None,
                 trace_id=None,
                 span_id=None,
