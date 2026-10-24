@@ -2536,6 +2536,27 @@ def claim(
     )
 
 
+def reads_finite_in(statement: str, evidence: str, language: str | None) -> bool:
+    """Whether a word of the statement the tagger gave no verb is a finite verb of the evidence.
+
+    A tagger reads a verb as a noun or an adjective where the sentence leaves
+    it little context ("A red card counts as 3 points"), and reads the same
+    form as the finite verb it is in the longer sentence it was drawn from.
+    Only a word not tagged a verb is looked up, by its form.
+    """
+    finite = {
+        _bare(token.text).casefold()
+        for token in _read(evidence, language)
+        if "Fin" in token.morph.get("VerbForm", [])
+        or token.tag_ in _FINITE_TAGS.get(language or "", ())
+    }
+    return any(
+        _bare(token.text).casefold() in finite
+        for token in _read(statement, language)
+        if token.pos_ not in ("VERB", "AUX")
+    )
+
+
 def read(
     texts: Iterable[str], language: str | None
 ) -> Iterator[tuple[list[Sentence], list[str]]]:
