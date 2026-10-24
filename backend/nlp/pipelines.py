@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 
 import spacy
 from spacy.language import Language
 
 from settings import csv, required
+
+log = logging.getLogger(__name__)
 
 
 def _models() -> dict[str, str]:
@@ -38,13 +41,41 @@ def _configured() -> tuple[dict[str, str], str]:
 def _loaded(model: str) -> Language:
     """Loads one pipeline, once per process."""
     try:
-        return spacy.load(model)
+        loaded = spacy.load(model)
+        _warn_if_small(model, loaded)
+        return loaded
     except OSError as exc:
         raise RuntimeError(
             f"the spaCy model {model!r} is not installed. It is named in "
             f"NLP_MODELS and must be present in the image; nothing downloads "
             f"it at run time."
         ) from exc
+
+
+def _warn_if_small(model: str, loaded: Language) -> None:
+    """Warns, naming the language, of a pipeline that is small or has no vectors.
+
+    A small pipeline segments, tags and parses differently from the medium
+    and large ones, and with no word vectors it cannot tell what is alike, so
+    what a fact is changes with the pipeline picked.
+    """
+    vectors = loaded.meta.get("vectors", {}).get("vectors", 0)
+    reasons = [
+        *(["is a small (_sm) pipeline"] if model.endswith("_sm") else []),
+        *([] if vectors else ["has no word vectors"]),
+    ]
+    if reasons:
+        named = sorted(
+            language for language, one in _configured()[0].items() if one == model
+        )
+        log.warning(
+            "language %s is read with %s, which %s: sentences, tags and facts "
+            "differ from the medium and large pipelines. Name an _md or _lg "
+            "pipeline for it in NLP_MODELS (see the nlp README).",
+            ", ".join(named) or "?",
+            model,
+            " and ".join(reasons),
+        )
 
 
 def languages() -> tuple[str, ...]:

@@ -153,6 +153,11 @@ features every tagset marks; a handful are word lists. This is all of it.
 **Medium, not small.** `de_core_news_sm` does not tag a German modal as a
 finite verb, which silently changes what `not_atomic` means.
 
+A pipeline whose name ends `_sm`, or that carries no word vectors, is loaded
+with a warning that names the language: sentences, tags and facts differ from
+the medium (`_md`) and large (`_lg`) pipelines, so pick one of those for each
+language, as the shipped German and English entries do.
+
 ### 2. Add the language to the word lists, and name it
 
 These are the readings no feature marks. A language missing from one means
