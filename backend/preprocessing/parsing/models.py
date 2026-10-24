@@ -53,6 +53,8 @@ class Conversion:
         confidence_low: Confidence of its worst page, or None.
         unread_pages: 1-based pages that are a picture and carry no text
             layer, which the conversion could not read.
+        page_scores: Each page's own lower-bound confidence, by page number
+            from 1, where the converter reports one.
         titles: What the document may be called, best first, as the file
             itself sets its type: a pipeline that reads none leaves it empty
             and the analyser reads the document's own headings.
@@ -62,6 +64,7 @@ class Conversion:
     confidence: float | None
     confidence_low: float | None
     unread_pages: tuple[int, ...] = ()
+    page_scores: tuple[tuple[int, float], ...] = ()
     titles: tuple[str, ...] = ()
 
 

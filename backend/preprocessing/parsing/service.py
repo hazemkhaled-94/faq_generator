@@ -195,6 +195,22 @@ class ParsingService(StageService):
             current.set_attribute("parse.image_only_pages", pages)
             log.warning("parsed %s: %s", document.sha256, note)
 
+        weak = [
+            number
+            for number, score in converted.page_scores
+            if score < self._min_confidence
+        ]
+        if weak:
+            pages = ", ".join(map(str, weak))
+            warning = (
+                f"the converter is unsure of page(s) {pages}: each one's own "
+                f"lower bound is under the {self._min_confidence:.2f} floor, "
+                "which only the mean of the pages' lower bounds is held to"
+            )
+            note = f"{note}; {warning}" if note else warning
+            current.set_attribute("parse.low_confidence_pages", pages)
+            log.warning("parsed %s: %s", document.sha256, warning)
+
         key = self._parsed.key_for(document.sha256)
         store = partial(
             self._parsed.put,
@@ -211,6 +227,7 @@ class ParsingService(StageService):
                     if converted.unread_pages
                     else {}
                 ),
+                **({"low-confidence-pages": ",".join(map(str, weak))} if weak else {}),
             },
         )
         # ponytail: downloads the earlier object only to learn it exists; a

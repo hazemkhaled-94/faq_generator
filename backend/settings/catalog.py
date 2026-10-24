@@ -119,7 +119,8 @@ SETTINGS: tuple[Setting, ...] = (
         help="Lowest confidence a conversion may carry and still be kept, "
         "read as Docling's low score: each page's 5% quantile of its "
         "component scores, averaged over the pages, so one bad page among "
-        "many is averaged away. A conversion with no score is not checked. "
+        "many is averaged away, though each page under it is named in the parse "
+        "note. A conversion with no score is not checked. "
         "Lowered, `make parse-retry` returns the documents it refused to the "
         "queue; raised, only `make parse-rerun` refuses one already kept.",
     ),

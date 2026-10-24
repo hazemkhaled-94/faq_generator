@@ -226,7 +226,11 @@ A conversion whose **low score** is under `PARSING_MIN_CONFIDENCE` fails.
 The low score is Docling's: each page's 5% quantile of its component scores,
 averaged over the pages, so it reads the weak side of a typical page rather
 than the worst page, and one garbled page among many is averaged away. A
-conversion with no score is not checked.
+conversion with no score is not checked. So that a page averaged away is not
+lost, every page whose own low score is under the floor is named in the parse
+note (`documents.parse_error`, beside the image-only pages) and in the
+converted object's `low-confidence-pages` metadata, and the document still
+parses.
 
 A document whose `content_sha256` another document already holds fails too.
 Ingestion catches a file uploaded twice by its bytes; the same report

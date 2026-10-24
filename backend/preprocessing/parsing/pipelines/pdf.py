@@ -272,6 +272,7 @@ class PdfPipeline(Pipeline):
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
             unread_pages=image_only_pages(source.data, self._ocr_characters),
+            page_scores=_page_scores(result),
             titles=_titles(document, source.data),
         )
 
@@ -1618,3 +1619,19 @@ def _score(result: ConversionResult, name: str) -> float | None:
     """
     value = getattr(getattr(result, "confidence", None), name, None)
     return None if value is None or math.isnan(value) else float(value)
+
+
+def _page_scores(result: ConversionResult) -> tuple[tuple[int, float], ...]:
+    """Reads each page's own lower-bound confidence off a conversion.
+
+    Returns:
+        Each page's number and score in page order; a page with none, or a
+        NaN, is left out, and so is a conversion that reports none.
+    """
+    pages = getattr(getattr(result, "confidence", None), "pages", None) or {}
+    scores = []
+    for number in sorted(pages):
+        value = getattr(pages[number], "low_score", None)
+        if value is not None and not math.isnan(value):
+            scores.append((number, float(value)))
+    return tuple(scores)

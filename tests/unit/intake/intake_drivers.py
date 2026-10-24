@@ -592,6 +592,7 @@ class ScriptedPipeline(Pipeline):
         raises: Exception | None = None,
         unread_pages: tuple[int, ...] = (),
         titles: tuple[str, ...] = (),
+        page_scores: tuple[tuple[int, float], ...] = (),
     ) -> None:
         """Takes the answer every conversion gets.
 
@@ -602,8 +603,10 @@ class ScriptedPipeline(Pipeline):
             raises: What to raise instead of answering.
             unread_pages: The image-only pages to report.
             titles: The titles the file offers, best first.
+            page_scores: Each page's own lower-bound confidence to report.
         """
         self.unread_pages = unread_pages
+        self.page_scores = page_scores
         self.titles = titles
         self.document = document or docling_document(
             title="The Device", paragraphs=("The device weighs 4 kg.",)
@@ -629,6 +632,7 @@ class ScriptedPipeline(Pipeline):
             confidence_low=self.confidence_low,
             unread_pages=self.unread_pages,
             titles=self.titles,
+            page_scores=self.page_scores,
         )
 
 
