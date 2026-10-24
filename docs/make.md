@@ -207,7 +207,7 @@ one vocabulary.
 | `make topics-visualise` | Write each language's stored pyLDAvis page to `./topics/` |
 | `make topics-render` | Redraw those pages from the stored models, without re-fitting. `CODE=de` for one |
 | `make topics-name` | Name the topics a fit left unnamed, off the stored fit and without re-fitting. A topic with a name is left as it is |
-| `make topics-delete` | Delete every topic and membership, any fit queued or running, and the judge's verdicts on the topics. The figures and models go to the archive. Waits 5 seconds first |
+| `make topics-delete` | Delete every topic and membership, any fit queued or running, and the judge's verdicts on the topics. The figures and models go to the archive. Refuses unless `CONFIRM` names the database |
 
 ### Narrowing to one item
 
@@ -264,7 +264,7 @@ its follow-ups leave the release. Both therefore refuse, naming how many
 released, accepted and reviewed questions rest on what they would replace,
 unless `FORCE=1` is given (the routes take `force=true`; they answer 409
 `questions_rest_on_it` without it). Without `SHA`, or `PASSAGE` for
-extraction, both also warn and wait 5 seconds first.
+extraction, both also refuse unless `CONFIRM` names the database.
 
 ## Questions
 
@@ -390,6 +390,14 @@ Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Tr
 
 ## Documents
 
+Every target that destroys data in a database (`schema-down`, `schema-reset`,
+`wipe`, `wipe-all`, `delete`, `delete-derived`, `topics-delete`, an unnarrowed
+`*-rerun`, and `archive-purge` with `ALL` or `DAYS`) refuses unless
+`CONFIRM=<database>` names the database the settings resolve to, and says
+which database and port it would act on. An `APP_DB_NAME` exported in the
+shell is honoured over `deployment.env`. Host drains print the database and
+port they run against before they start.
+
 Documents are ingestion's, not a stage's. A deletion here is the first of
 two: its rows are archived and its objects moved to the `archive` bucket, so
 `make restore-documents SINCE=<time>` puts them back until
@@ -403,7 +411,7 @@ logs and Dagster is final.
 | `make documents` | List the newest 1000 documents with their parse state, and warn when the corpus holds more |
 | `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question that also rests on another document stays, rejected as `source_changed`. Refuses, deleting nothing, while `extract-worker` runs, which it does after `make up` or `make dev`: stop it first. Then `extract-dedup` over the whole corpus, which gives back a fact another document repeats and had refused as a duplicate of this one's. If that replay fails, the document is already gone: run `make extract-dedup`. A deletion through the API or the UI runs no replay: run `make extract-dedup` after one |
 | `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Refuses while `extract-worker` runs, as `make delete` does, then runs the same replay |
-| `make wipe` | Every document, the topics, then Phoenix, Argilla, the logs and Dagster, in that order, stopping at the first that fails: run it again once that service answers. Waits 5 seconds first |
+| `make wipe` | Every document, the topics, then Phoenix, Argilla, the logs and Dagster, in that order, stopping at the first that fails: run it again once that service answers. Refuses unless `CONFIRM` names the database |
 | `make wipe-all` | The same, then the archive. The one command for "leave nothing" |
 | `make wipe KEEP=golden,runs` | Spare the Phoenix datasets and the Dagster run history |
 
@@ -488,7 +496,7 @@ The services are `ingestion`, `parsing`, `chunking`, `extraction`, `topics`,
 | `make migration m="add the dropped counts"` | Write a revision from the models |
 | `make schema` | Apply everything outstanding |
 | `make schema-status` | Where the database is |
-| `make schema-down` | Take the newest revision back off. From the first revision that drops every table, `archived_rows` included. Waits 5 seconds first |
+| `make schema-down` | Take the newest revision back off. From the first revision that drops every table, `archived_rows` included. Refuses unless `CONFIRM` names the database |
 | `make schema-reset` | Drop every table and rebuild. **Irreversible** |
 | `make schema-stamp` | Adopt a database that already holds the tables |
 

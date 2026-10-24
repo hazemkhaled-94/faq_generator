@@ -757,3 +757,142 @@ def test_dev_waits_a_bounded_time_for_postgres(
     )
 
     assert (ran.returncode != 0) is refused, ran
+
+
+#: Every target that destroys data in a database, as the arguments that make
+#: it unnarrowed, and what it says it is refusing.
+DESTRUCTIVE = {
+    "schema-down": (),
+    "schema-reset": (),
+    "wipe": (),
+    "wipe-all": (),
+    "delete": ("SHA=abc",),
+    "delete-derived": ("SHA=abc",),
+    "topics-delete": (),
+    "parse-rerun": (),
+    "chunk-rerun": (),
+    "extract-rerun": (),
+    "questions-rerun": (),
+    "assess-rerun": (),
+    "archive-purge": ("ALL=1",),
+}
+
+
+def sandbox(tmp_path: Path, name: str = "qa_generator") -> Path:
+    """Env files naming a database, for a recipe line to be run against."""
+    for path, text in {
+        "configs/env/backend.env": "",
+        "configs/env/deployment.env": f"APP_DB_NAME={name}\nPOSTGRES_PORT=5432\n",
+        ".env": "",
+    }.items():
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / path).write_text(text)
+    return tmp_path
+
+
+def refusal(line: str, tmp_path: Path, **environment: str):
+    """Runs one recipe line in the sandbox."""
+    return subprocess.run(
+        ["bash", "-c", line],
+        cwd=tmp_path,
+        env={**os.environ, **environment},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("target", DESTRUCTIVE)
+def test_a_destructive_target_refuses_unless_confirm_names_the_database(
+    tmp_path: Path, target: str
+) -> None:
+    """The first line to act is the guard, and it names database and port."""
+    sandbox(tmp_path)
+    given = DESTRUCTIVE[target]
+    lines = printed(target, *given)
+    at = next((i for i, line in enumerate(lines) if "REFUSED:" in line), None)
+    assert at is not None, lines
+    acting = [
+        i
+        for i, line in enumerate(lines)
+        if any(word in line for word in ("python -m", "alembic", "dagster run"))
+    ]
+    assert not acting or at < acting[0], lines
+
+    ran = refusal(lines[at], tmp_path)
+    assert ran.returncode == 2, ran
+    assert "database qa_generator on localhost:5432" in ran.stderr, ran
+    assert "CONFIRM=qa_generator" in ran.stderr, ran
+
+    wrong = refusal(printed(target, *given, "CONFIRM=other")[at], tmp_path)
+    assert wrong.returncode == 2, wrong
+
+    right = refusal(printed(target, *given, "CONFIRM=qa_generator")[at], tmp_path)
+    assert right.returncode == 0, right
+
+
+@pytest.mark.parametrize(
+    ("target", "given"),
+    [
+        ("chunk-rerun", "SHA=abc"),
+        ("extract-rerun", "PASSAGE=7"),
+        ("parse-rerun", "SHA=abc"),
+        ("questions-rerun", "TOPIC=3"),
+        ("assess-rerun", "TOPIC=3"),
+    ],
+)
+def test_a_narrowed_rerun_needs_no_confirmation(target: str, given: str) -> None:
+    """Only the unnarrowed one reaches the whole corpus."""
+    assert not any("REFUSED:" in line for line in printed(target, given))
+
+
+@pytest.mark.parametrize("target", [*DRAINS, *REWRITES])
+def test_a_drain_names_its_database_and_port(tmp_path: Path, target: str) -> None:
+    """Printed before the drain starts, from the settings the drain will read."""
+    sandbox(tmp_path, "qa_scratch")
+    lines = printed(target)
+    banner = next(
+        i
+        for i, line in enumerate(lines)
+        if "on database $APP_DB_NAME on localhost" in line
+    )
+    assert banner < next(i for i, line in enumerate(lines) if "python -m" in line)
+    ran = refusal(lines[banner], tmp_path)
+    assert "on database qa_scratch on localhost:5432" in ran.stderr, ran
+
+
+@pytest.mark.parametrize(
+    "target", [("settings", "SERVICE=platform"), ("review-status",)]
+)
+def test_an_exported_database_name_is_honoured_not_replaced(
+    tmp_path: Path, target: tuple[str, ...]
+) -> None:
+    """deployment.env says qa_generator; a shell that exported another meant it."""
+    sandbox(tmp_path)
+    (tmp_path / "configs/env/review.env").write_text("")
+    (tmp_path / "poetry").write_text('#!/bin/sh\necho "$APP_DB_NAME $DATABASE_URL"\n')
+    (tmp_path / "poetry").chmod(0o755)
+    (line,) = [
+        one for one in printed(*target, APP_DB_NAME="qa_fx_copy") if "poetry run" in one
+    ]
+
+    ran = refusal(
+        line,
+        tmp_path,
+        APP_DB_NAME="qa_fx_copy",
+        APP_DB_USER="u",
+        APP_DB_PASSWORD="p",
+        PATH=f"{tmp_path}:{os.environ['PATH']}",
+    )
+    assert ran.stdout.split()[0] == "qa_fx_copy", ran
+    assert ran.stdout.strip().endswith("/qa_fx_copy"), ran
+
+    (bare,) = [one for one in printed(*target) if "poetry run" in one]
+    unset = refusal(
+        bare,
+        tmp_path,
+        PATH=f"{tmp_path}:{os.environ['PATH']}",
+        APP_DB_USER="u",
+        APP_DB_PASSWORD="p",
+    )
+    assert unset.stdout.split()[0] == "qa_generator", unset

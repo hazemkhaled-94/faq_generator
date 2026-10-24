@@ -52,9 +52,12 @@ SOURCES := backend frontend telemetry orchestration review evaluation tests
 # The names are the variables whose origin is the command line, not the
 # words of MAKEOVERRIDES, where make escapes a value's spaces and nothing
 # else: split, `OUT="a - b.xlsx"` named `-` and `b.xlsx` settings too.
+# APP_DB_NAME is the one name also taken from the environment: deployment.env
+# sets qa_generator, so sourcing it replaced the database a shell had exported,
+# and a destructive target meant for a scratch copy ran on the real one.
 # Each value is exported single-quoted, its own quotes escaped, for the same
 # reason: re-read by the shell, a `(`, `&` or `'` in a path was a syntax error.
-GIVEN = $(strip $(foreach given,$(.VARIABLES),$(if $(filter command line,$(origin $(given))),$(given))))
+GIVEN = $(strip $(foreach given,$(.VARIABLES),$(if $(filter command line,$(origin $(given))),$(given)))$(if $(filter environment,$(origin APP_DB_NAME)), APP_DB_NAME))
 OVERRIDE = $(if $(GIVEN),&& export $(foreach given,$(GIVEN),$(given)='$(subst ','\'',$($(given)))') QA_COMMAND_LINE="$(GIVEN)",)
 
 # The values that are never written down, because they are built out of ones
@@ -149,6 +152,17 @@ ONLY = $(if $(SHA),--only document=$(SHA),\
 IDLE = ! $(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q . || \
        { echo "$(1) is running and drains this queue. Stop it first:" >&2; \
          echo "  $(COMPOSE_CMD) stop $(1)" >&2; exit 1; }
+
+# Names where a command acts, once the settings are loaded.
+BANNER = $(LOADENV) && echo "on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT" >&2
+
+# Refuses unless CONFIRM equals the database the settings resolve to, and
+# names the database and the port it would act on. $(1) says what is asked.
+#
+#     @$(call CONFIRMED,wipe)
+CONFIRMED = $(LOADENV) && { [ "$$CONFIRM" = "$$APP_DB_NAME" ] || \
+            { echo "REFUSED: $(1) acts on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT." >&2; \
+              echo "  Run it again with CONFIRM=$$APP_DB_NAME to go on." >&2; exit 2; }; }
 
 # ── Help ───────────────────────────────────────────────────────────────────
 
@@ -592,10 +606,9 @@ schema-status:
 # every table, archived_rows included, so it warns and waits as schema-reset
 # does.
 schema-down:
-	@echo "WARNING: at the first revision this drops every table in qa_generator,"
-	@echo "archived_rows included; make schema-status says which one it is at."
-	@echo "Ctrl-C within 5s to abort."
-	@sleep 5
+	@echo "At the first revision this drops every table, archived_rows included;"
+	@echo "make schema-status says which one it is at."
+	@$(call CONFIRMED,schema-down)
 	$(LOADENV) && poetry run alembic downgrade -1
 
 # Adopt a database that already holds the tables, without running anything:
@@ -606,8 +619,7 @@ schema-stamp:
 
 # Drops every table and rebuilds from the revisions. Irreversible.
 schema-reset:
-	@echo "WARNING: this drops every table in qa_generator. Ctrl-C within 5s to abort."
-	@sleep 5
+	@$(call CONFIRMED,schema-reset: it drops every table)
 	$(LOADENV) && poetry run alembic downgrade base
 	$(LOADENV) && poetry run alembic upgrade head
 
@@ -660,6 +672,7 @@ schema-reset:
 # Drain the parsing queue here. The first run downloads Docling's weights.
 parse:
 	@$(call IDLE,parse-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run
 
 # Report how many documents are in each parse state.
@@ -683,7 +696,9 @@ parse-retry:
 # Run this stage again over every document, finished ones included. For when
 # the code behind it changed and its output needs rebuilding.
 parse-rerun:
+	@$(if $(strip $(ONLY)),:,$(call CONFIRMED,parse-rerun: it parses every document again))
 	@$(call IDLE,parse-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run --rerun $(ONLY)
 
 # Split every parsed document into passages. Replaces the passages a document
@@ -691,6 +706,7 @@ parse-rerun:
 # questions drawn from them; a passage repeated exactly keeps its facts.
 chunk:
 	@$(call IDLE,chunk-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run
 
 # Report how many documents are in each chunking state.
@@ -724,7 +740,8 @@ chunk-retry:
 # source_changed, never deleted.
 chunk-rerun:
 	@$(call IDLE,chunk-worker)
-	@[ -n "$(SHA)" ] || { echo "WARNING: this replaces every passage the new cut changes, and the facts and questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
+	@$(BANNER)
+	@$(if $(strip $(ONLY)),:,$(call CONFIRMED,chunk-rerun: it replaces every passage the new cut changes))
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run --rerun $(if $(filter 1,$(FORCE)),--force) $(ONLY)
 
 # Read every stored passage's language and vocabulary again, in place. Only
@@ -740,6 +757,7 @@ chunk-revocabulary:
 # served at LLM_BASE_URL.
 extract:
 	@$(call IDLE,extract-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run
 
 # Report the extraction queue, and how many facts passed every check.
@@ -769,7 +787,8 @@ extract-retry:
 # reviewed questions rest on what it would replace; FORCE=1 goes on.
 extract-rerun:
 	@$(call IDLE,extract-worker)
-	@[ -n "$(SHA)$(PASSAGE)" ] || { echo "WARNING: this replaces every passage's facts, and the questions on them go. Ctrl-C within 5s to abort."; sleep 5; }
+	@$(BANNER)
+	@$(if $(strip $(ONLY)),:,$(call CONFIRMED,extract-rerun: it replaces every passage's facts))
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --rerun $(if $(filter 1,$(FORCE)),--force) $(ONLY)
 
 # Judge every stored fact again with today's checks. The model is not called
@@ -777,6 +796,7 @@ extract-rerun:
 # applies a change to the checks without re-extracting the corpus.
 extract-revalidate:
 	@$(call IDLE,extract-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --revalidate $(ONLY)
 
 # Read every topic's passage groups for the claims that need more than one of
@@ -806,6 +826,7 @@ extract-bridge:
 # `make extract-revalidate` run afterwards judges it with today's checks.
 extract-recap:
 	@$(call IDLE,extract-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --recap $(ONLY)
 
 # Re-decide every stored `duplicate` refusal under today's dedup rule, and take
@@ -823,6 +844,7 @@ extract-recap:
 # corpus, so each refuses to run while extract-worker writes them too.
 extract-dedup:
 	@$(call IDLE,extract-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --dedup $(ONLY)
 
 # Write the vectors onto passages and facts already stored. No model is
@@ -866,6 +888,7 @@ extract-digests:
 # Run any queued fit now, in the foreground.
 topics:
 	@$(call IDLE,topic-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run
 
 # Report the run queue, how many topics and memberships are stored, and how
@@ -878,6 +901,7 @@ topics-status:
 # topic holding most of its passages.
 topics-discover:
 	@$(call IDLE,topic-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --discover
 
 # Write each language's pyLDAvis page to ./topics/<language>.html. Reads the
@@ -917,8 +941,7 @@ topics-name:
 # Passages, facts and questions stay. A label a person assigned is stored
 # nowhere else, and the archived row is now the only copy of one.
 topics-delete:
-	@echo "WARNING: this deletes every topic, any label on one and the judge's verdicts on them. Ctrl-C within 5s to abort."
-	@sleep 5
+	@$(call CONFIRMED,topics-delete: it deletes every topic and any label on one)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --delete
 
 # Withdraw a fit that has been asked for but not started.
@@ -957,6 +980,7 @@ topics-retry:
 # Drain the question queue here, in the foreground.
 questions:
 	@$(call IDLE,question-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run
 
 # Report the queue by topic state, and how many questions are held.
@@ -998,7 +1022,9 @@ questions-reclaim:
 # it looks: facts an accepted question already rests on are skipped, so this
 # writes about what the last run did not reach rather than starting over.
 questions-rerun:
+	@$(if $(strip $(ONLY)),:,$(call CONFIRMED,questions-rerun: it writes questions over every topic again))
 	@$(call IDLE,question-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --rerun $(ONLY)
 
 # Put every stored question through the gates that need no model: its facts
@@ -1136,6 +1162,7 @@ ASSESS = $(LOADENV) && PYTHONPATH=backend poetry run python -m assessment.run
 # Drain the judging queue here, in the foreground.
 assess:
 	@$(call IDLE,assess-worker)
+	@$(BANNER)
 	$(ASSESS)
 
 # Report the queue by artefact state, and warn when no judge is named.
@@ -1187,7 +1214,9 @@ assess-reclaim:
 # in scope is cleared, the sample is enrolled again, and each row is judged
 # again; a row whose judging fails holds no verdict rather than an old one.
 assess-rerun:
+	@$(if $(strip $(ONLY)),:,$(call CONFIRMED,assess-rerun: it judges every sampled question again))
 	@$(call IDLE,assess-worker)
+	@$(BANNER)
 	$(ASSESS) --rerun $(ONLY)
 
 # How varied an exported workbook's questions are, the way the DataMorgana
@@ -1389,7 +1418,9 @@ documents:
 #   make delete SHA=<sha256>
 delete:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete SHA=<sha256>"; exit 2; }
+	@$(call CONFIRMED,delete $(SHA))
 	@$(call IDLE,extract-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete $(SHA)
 	$(MAKE) extract-dedup SHA=
 
@@ -1428,13 +1459,12 @@ delete:
 wipe:
 	@[ -z "$(filter-out golden runs,$(KEPT))" ] || \
 	  { echo "KEEP names $(filter-out golden runs,$(KEPT)); it takes golden and runs."; exit 2; }
-	@echo "WARNING: this deletes every document, topic, fact and question; the"
+	@echo "This deletes every document, topic, fact and question; the"
 	@echo "archive keeps those, see make archive-purge. It deletes for good every"
 	@echo "Phoenix project, the three Argilla review datasets with any answer not"
 	@echo "yet pulled, and the logs; the Phoenix datasets and experiments unless"
-	@echo "KEEP=golden; the Dagster run history unless KEEP=runs. Ctrl-C within 5s"
-	@echo "to abort."
-	@sleep 5
+	@echo "KEEP=golden; the Dagster run history unless KEEP=runs."
+	@$(call CONFIRMED,wipe)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-all
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --delete
 	$(MAKE) phoenix-purge
@@ -1478,7 +1508,9 @@ dagster-wipe:
 #   make delete-derived SHA=<sha256>
 delete-derived:
 	@[ -n "$(SHA)" ] || { echo "usage: make delete-derived SHA=<sha256>"; exit 2; }
+	@$(call CONFIRMED,delete-derived $(SHA))
 	@$(call IDLE,extract-worker)
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-derived $(SHA)
 	$(MAKE) extract-dedup SHA=
 
@@ -1507,8 +1539,7 @@ archive:
 # and pauses first. Only ALL=1 means everything.
 archive-purge:
 	@[ -n "$(TABLE)$(DAYS)$(filter 1,$(ALL))" ] || { echo "usage: make archive-purge [TABLE=<table>] [DAYS=<n>] [ALL=1]"; exit 2; }
-	@[ -z "$(filter 1,$(ALL))" ] || { echo "WARNING: this deletes the whole archive, rows and objects. Ctrl-C within 5s to abort."; sleep 5; }
-	@[ -z "$(DAYS)" ] || { echo "WARNING: this deletes what the archive has held for more than $(DAYS) day(s). Ctrl-C within 5s to abort."; sleep 5; }
+	@[ -z "$(filter 1,$(ALL))$(DAYS)" ] || $(call CONFIRMED,archive-purge: it deletes what the archive holds)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.run --purge \
 	   $(if $(TABLE),--table $(TABLE)) $(if $(DAYS),--older-than $(DAYS)) $(if $(filter 1,$(ALL)),--all)
 
