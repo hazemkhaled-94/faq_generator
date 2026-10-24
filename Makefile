@@ -2271,7 +2271,7 @@ corpus-hosted:
 	@if [ -f $(HOSTED_PID) ] && kill -0 "$$(cat $(HOSTED_PID))" 2>/dev/null; then \
 	  echo "corpus-hosted is already running (pid $$(cat $(HOSTED_PID))); follow it: tail -f $(HOSTED_LOG)" >&2; exit 1; fi
 	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
-	@$(LOADENV) && PYTHONPATH=backend poetry run python -c 'from llm.config import check_split; check_split()'
+	@$(LOADENV) && PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
 	@resume=; [ ! -f $(HOSTED_PID) ] || resume=RESUME=1; \
 	  nohup sh -c 'echo $$$$ > $(HOSTED_PID); $(MAKE) corpus '"$$resume"'; code=$$?; rm -f $(HOSTED_PID); exit $$code' >> $(HOSTED_LOG) 2>&1 & \
 	  for i in $$(seq 50); do [ -f $(HOSTED_PID) ] && break; sleep 0.1; done; \

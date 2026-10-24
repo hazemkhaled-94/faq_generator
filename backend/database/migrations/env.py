@@ -18,7 +18,9 @@ from database.qa_generator import Base
 config = context.config
 
 # Not in alembic.ini: the URL is a credential, and .env is where those live.
-config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+# `%` doubled, because the config parser reads one as the start of an
+# interpolation and a percent-encoded password is a ValueError without it.
+config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"].replace("%", "%%"))
 
 target_metadata = Base.metadata
 

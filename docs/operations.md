@@ -508,6 +508,9 @@ From a fresh clone, following only this page:
    `LLM_REASONING_EFFORT=none`, described in
    [configuration](configuration.md#the-go-live-split). Put the provider's
    credentials in `configs/env/provider.env`, which is not in git.
+   `APP_DB_PASSWORD` must be letters, digits, `-`, `_` and `.`: the connection
+   string is built from it as written, so `@ / : # ? %` in it are refused by
+   `make doctor` and by `make corpus-hosted`, naming the setting.
 3. `make up`. With `HOST_RUNNER=1` it starts the services no profile names:
    postgres, the object store, the api, the parse and chunk workers, the web
    page and Phoenix. The model workers sit under the `local-models` profile

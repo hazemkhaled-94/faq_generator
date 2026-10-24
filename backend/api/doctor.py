@@ -167,6 +167,49 @@ def stored_source() -> Mapping[str, str]:
     return source
 
 
+#: What a URL reads as structure. APP_DB_PASSWORD goes into the connection string
+#: as written, by the Makefile and by compose, neither of which percent-encodes.
+_URL_CHARACTERS = "@/:#?%"
+
+
+def password_problem(source: Mapping[str, str] | None = None) -> str | None:
+    """Why APP_DB_PASSWORD cannot go into a connection string as written, or None.
+
+    A password holding one of `@ / : # ? %` makes the URL name another host or
+    none, and the failure names the database and never the password.
+    """
+    source = os.environ if source is None else source
+    password = source.get("APP_DB_PASSWORD") or ""
+    found = sorted({one for one in password if one in _URL_CHARACTERS})
+    if not found:
+        return None
+    return (
+        f"APP_DB_PASSWORD holds {' '.join(found)}, which a connection string reads "
+        "as structure and nothing here percent-encodes: set one of letters, "
+        "digits, `-`, `_` and `.` (make setup generates one)"
+    )
+
+
+def preflight() -> int:
+    """What the host runner proves before it starts: the split and the password.
+
+    Returns:
+        0 if both hold, else 1, with each reason logged.
+    """
+    from llm.config import check_split
+
+    failed = 0
+    try:
+        check_split()
+    except ValueError as refusal:
+        log.error("%s", refusal)
+        failed = 1
+    if problem := password_problem():
+        log.error("%s", problem)
+        failed = 1
+    return failed
+
+
 def every_model(
     source: Mapping[str, str] | None = None,
 ) -> tuple[list[Settings], list[str]]:
@@ -243,7 +286,7 @@ def main() -> int:
     """
     import telemetry
     from llm.check import Unreachable, reachable
-    from llm.config import check_split, describe
+    from llm.config import describe
     from settings.store import StoredRefused
 
     telemetry.configure("doctor")
@@ -262,12 +305,7 @@ def main() -> int:
                 folder,
             )
     log.info("%s", describe())
-    failed = 0
-    try:
-        check_split()
-    except ValueError as refusal:
-        log.error("%s", refusal)
-        failed = 1
+    failed = preflight()
     for problem in cache_problems():
         log.error("%s", problem)
         failed = 1
