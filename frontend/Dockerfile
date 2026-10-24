@@ -13,6 +13,12 @@ WORKDIR /app
 COPY frontend/requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
 
+# The hash of the lock this image installed, compared at every start with the
+# checkout's own, which `./frontend:/app:ro` supplies: see
+# telemetry/lockcheck.sh.
+RUN sha256sum requirements.lock | cut -d' ' -f1 > /etc/lock-sha
+ENV LOCK_SHA=/etc/lock-sha LOCK_FILE=/app/requirements.lock
+
 COPY frontend/ .
 COPY telemetry/ /shared/telemetry/
 
@@ -25,6 +31,8 @@ RUN mkdir -p /var/log/qa && chown app:app /var/log/qa
 USER app
 
 EXPOSE 8501
+
+ENTRYPOINT ["sh", "/shared/telemetry/lockcheck.sh"]
 
 # Healthcheck is defined in compose.yaml so it stays next to the port mapping.
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]

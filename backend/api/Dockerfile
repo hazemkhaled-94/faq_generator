@@ -117,6 +117,13 @@ COPY backend/confidence.py ./confidence.py
 COPY pyproject.toml ./
 COPY telemetry/ /shared/telemetry/
 
+# The hash of the lock this image installed, which telemetry/lockcheck.sh
+# compares at every start with the checkout's own, mounted read-only at
+# /app/api. A lock changed without `compose build` stops the container with
+# the command to run, where it used to start on the old packages.
+RUN sha256sum requirements.lock | cut -d' ' -f1 > /app/.lock-sha
+ENV LOCK_SHA=/app/.lock-sha LOCK_FILE=/app/api/requirements.lock
+
 RUN useradd --create-home --uid 1000 app
 
 # Where the JSON log lines go, when LOG_DIR points here, and the Hugging Face
@@ -130,6 +137,8 @@ RUN mkdir -p /var/log/qa /home/app/.cache/huggingface \
 USER app
 
 EXPOSE 8000
+
+ENTRYPOINT ["sh", "/shared/telemetry/lockcheck.sh"]
 
 # Healthcheck is defined in compose.yaml so it stays next to the port mapping.
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

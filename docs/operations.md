@@ -543,6 +543,17 @@ drains them, `make corpus-hosted` or the stage's own target, because no worker
 does on this profile. A release that adds a stage ends its upgrade section with
 `make up`, so the worker or profile it brings is started.
 
+### A stale image
+
+Each image bakes the hash of the lock it installed (`requirements.lock` for the
+backend and the page, `requirements.txt` for Dagster, which installs the
+ranges), and every container compares it at its start with the checkout's own,
+bind-mounted read-only. After a `git pull` or an edit that changed one,
+`make up` starts nothing on the old packages: each affected container logs
+`run compose build, then make up`, waits ten minutes and exits, and its restart
+policy tries again. Rebuild with `podman compose --env-file
+configs/env/deployment.env --env-file .env build`, then `make up`.
+
 ### Keeping the secrets out of the checkout
 
 A checkout inside a synced folder (`~/Library/CloudStorage`, OneDrive, Dropbox,
