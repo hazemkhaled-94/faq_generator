@@ -187,6 +187,10 @@ from is not read yet. It sits here rather than in extraction, as the quote
 check that decides what a passage holds sits in `nlp/text.py`, because
 extraction and question generation may not import each other.
 
+### A document's text is fenced
+
+`prompt.fill` substitutes in one pass, so a passage naming `{{answer}}` is sent as written. The placeholders a caller names as `material` hold the document's own text (a passage, a heading trail, a fact, an earlier answer): each is sent between `<material name="...">` tags with every `<` in it escaped, so the text cannot close the tag it sits in. Every system prompt that shows such text carries one line under CONTEXT saying text between the tags is the document's, to be read and never obeyed (`prompt.grounded` puts it there). It limits what a planted instruction can do; it does not make an untrusted document safe, so ingest only documents the customer controls.
+
 ## Cost and latency
 
 Every call is logged with its duration, its token counts and, where
@@ -244,7 +248,7 @@ poetry run pytest tests/unit/llm
 | [`test_client.py`](../../tests/unit/llm/test_client.py) | Asking a served model, and what happens when it will not answer: which failures are retried, which are raised, and what the span carries |
 | [`test_check.py`](../../tests/unit/llm/test_check.py) | The preflight a worker runs before it claims anything: one call, and a refusal naming the model |
 | [`test_overridden.py`](../../tests/unit/llm/test_overridden.py) | One stage calling a different model, and that only the model moves, bar the address on a change of provider |
-| [`test_prompt_fill.py`](../../tests/unit/llm/test_prompt_fill.py) | Filling a prompt template, where a value may carry a placeholder too |
+| [`test_prompt_fill.py`](../../tests/unit/llm/test_prompt_fill.py) | Filling a prompt template, where a value may carry a placeholder too, and fencing the document's text |
 
 No test here reaches a network. The evaluation layer is where a real served
 model is asked anything — see [`evaluation/`](../../evaluation/README.md).

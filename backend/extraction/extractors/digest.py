@@ -11,16 +11,16 @@ from database.qa_generator import FactKind
 from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import BULLET, CandidateFact, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
-from llm.prompt import fill
+from llm.prompt import fence, fill, grounded
 from nlp.models import named
 
 #: Recorded on every summary and outline drawn with the prompt below. 4 asks
 #: what the excerpt establishes, about its subject, where 3 asked what it is
 #: about and got summaries describing "the excerpt". 5 keeps "should" and
-#: "may" as the excerpt wrote them.
-PROMPT_VERSION = "5"
+#: "may" as the excerpt wrote them. 6 fences the excerpt as material.
+PROMPT_VERSION = "6"
 
-_SYSTEM = """ROLE
+_SYSTEM = grounded("""ROLE
 You are a technical editor. You condense one excerpt of a document into
 something a reader can read instead of it.
 
@@ -88,7 +88,7 @@ Rules, all of them mandatory:
 - Keep the strength of what the excerpt says: should stays should, may
   stays may.
 - Say what the excerpt says, not what it implies and not what you know.
-"""
+""")
 
 #: The user message, as the catalogue records it and `_prompt` renders it.
 _USER = """{{context}}Excerpt:
@@ -180,7 +180,7 @@ class DigestExtractor(Extractor):
         """Builds the user message: the heading trail and the passage text."""
         heading = (
             f"Context (not part of the excerpt, use it only to name the "
-            f"subject): {passage.section_path}\n\n"
+            f"subject):\n{fence('context', passage.section_path)}\n\n"
             if passage.section_path
             else ""
         )
@@ -191,6 +191,7 @@ class DigestExtractor(Extractor):
                 "{{excerpt}}": passage.text,
                 "{{language}}": named(passage.language),
             },
+            material=("{{excerpt}}",),
         )
 
 

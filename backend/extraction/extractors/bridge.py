@@ -13,7 +13,7 @@ from extraction.extractors.base import ExtractionFailed
 from extraction.links import Link
 from extraction.models import CandidateFact, Cited, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
-from llm.prompt import fill
+from llm.prompt import fill, grounded
 from llm.spans import RELATIONS
 from nlp.models import named as in_language
 
@@ -23,9 +23,10 @@ _NAMES = ("none", *RELATIONS)
 #: Recorded on every bridge drawn with the prompt below. Bumped whenever that
 #: prompt changes what counts as a bridge or how one is cited: two prompts are
 #: two datasets.
-PROMPT_VERSION = "6"
+PROMPT_VERSION = "7"
 
-_SYSTEM = """ROLE
+_SYSTEM = grounded(
+    """ROLE
 You are a claims analyst working across documents. You read two excerpts the
 documents link and decide whether ONE claim needs both of them.
 
@@ -120,27 +121,28 @@ Rules, all of them mandatory:
 - WRITE IN THE LANGUAGE NAMED BENEATH THE EXCERPTS. It is their own language.
 - When in doubt, answer `none`.
 """.replace(
-    "{{relations}}",
-    "\n".join(
-        line
-        for one in RELATIONS.values()
-        for line in wrap(
-            f"- {one.name}: {one.meaning}",
-            width=79,
-            initial_indent="   ",
-            subsequent_indent="     ",
-        )
-    ),
-).replace(
-    "{{relation_names}}",
-    "\n".join(
-        wrap(
-            f"- `relation`: one of {', '.join(_NAMES)}. With `none`, leave the rest "
-            "empty.",
-            width=79,
-            subsequent_indent="  ",
-        )
-    ),
+        "{{relations}}",
+        "\n".join(
+            line
+            for one in RELATIONS.values()
+            for line in wrap(
+                f"- {one.name}: {one.meaning}",
+                width=79,
+                initial_indent="   ",
+                subsequent_indent="     ",
+            )
+        ),
+    ).replace(
+        "{{relation_names}}",
+        "\n".join(
+            wrap(
+                f"- `relation`: one of {', '.join(_NAMES)}. With `none`, leave the rest "
+                "empty.",
+                width=79,
+                subsequent_indent="  ",
+            )
+        ),
+    )
 )
 
 #: The user message, as the catalogue records it and `_prompt` renders it.
@@ -299,6 +301,7 @@ class BridgeExtractor:
                 "{{link}}": _linked(link),
                 "{{language}}": in_language(offered[0].language),
             },
+            material=("{{excerpts}}",),
         )
 
 

@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pydantic import BaseModel, Field
 
 from llm.client import Client, ModelUnavailable
-from llm.prompt import fill
+from llm.prompt import fill, grounded
 from nlp import pipelines
 from topic_modelling.models import FittedTopic
 
@@ -27,9 +27,9 @@ _BATCH = 25
 
 #: Recorded on every topic named with the prompt below. Bumped whenever that
 #: prompt changes what a name is.
-PROMPT_VERSION = "3"
+PROMPT_VERSION = "4"
 
-_SYSTEM = """ROLE
+_SYSTEM = grounded("""ROLE
 You are a cataloguer. You name the subjects a set of documents covers, for
 a coverage report a person reads by its names.
 
@@ -91,7 +91,7 @@ that has none, with `label` left empty.
 - DO NOT NAME THE DOMAIN EVERY TOPIC SHARES, and do not end every name on
   the same words.
 - DO NOT GIVE TWO TOPICS ONE NAME, AND DO NOT REUSE A NAME ALREADY TAKEN.
-- No quotation marks, no trailing punctuation."""
+- No quotation marks, no trailing punctuation.""")
 
 #: The user message, as the catalogue records it and `_prompt` renders it.
 _USER = """Language: {{language}}
@@ -294,6 +294,7 @@ class TopicLabeller:
                         f"- {excerpt[:_EXCERPT_CHARS].strip()}" for excerpt in excerpts
                     ),
                 },
+                material=("{{excerpts}}",),
             )
             for topic, excerpts in topics
         )

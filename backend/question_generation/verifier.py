@@ -20,7 +20,7 @@ the dataset, not a retriever.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -28,19 +28,20 @@ from pydantic import BaseModel, Field
 
 from confidence import Measurement
 from llm.client import Client
+from llm.prompt import fence, fill, grounded
 
 #: Bumped whenever a prompt here changes what the round trip asks for.
 #: Version 1 is what these have always been; they had no version at all
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "12"
+PROMPT_VERSION = "13"
 
 #: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
 #: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
-STATED_VERSION = "1"
+STATED_VERSION = "2"
 
-_VERIFY = """ROLE
+_VERIFY = grounded("""ROLE
 You are an independent verifier for a document-search chatbot's test set. You
 answer a test question from the material it was drawn from, without having
 seen the answer somebody wrote for it.
@@ -110,10 +111,10 @@ FORMAT
 - `reason_given` is for a question asking why or what for (step 6): true when
   the passages give a reason beyond the rule asked about, false when all they
   give is the rule itself, however it is worded. True for any other question.
-"""
+""")
 
 
-_SUPPORT = """ROLE
+_SUPPORT = grounded("""ROLE
 You are an independent verifier for a document-search chatbot's test set. You
 check one proposed answer against the material it claims to come from.
 
@@ -158,10 +159,10 @@ Return `supported`, true or false, and nothing else.
   number, another party, another period, another condition - or when they do
   not address it at all. A different number is never a paraphrase: if the
   answer says 4 hours and the passages say 48 hours, that is false.
-"""
+""")
 
 
-_COMPUTES = """ROLE
+_COMPUTES = grounded("""ROLE
 You are an independent verifier for a document-search chatbot's test set. You
 check one answer that had to be CALCULATED from the material.
 
@@ -202,10 +203,10 @@ Return `supported`, true or false, and nothing else.
   passages AND the arithmetic gives this answer.
 - It is false when a figure is missing from the passages, or when they are
   all there and come to something else.
-"""
+""")
 
 
-_FOLLOWS = """ROLE
+_FOLLOWS = grounded("""ROLE
 You are an independent verifier for a document-search chatbot's test set. You
 check one answer that had to be REASONED OUT from the material.
 
@@ -252,9 +253,9 @@ Return `supported`, true or false, and nothing else.
 - It is false when a premise is missing, when the passages settle the
   question differently, when the answer needs something you know from outside
   them, or when the passages state the answer outright.
-"""
+""")
 
-_SETTLES = """ROLE
+_SETTLES = grounded("""ROLE
 You are an independent verifier for a document-search chatbot's test set. You
 check whether the material settles a test question, before the question is
 used.
@@ -338,9 +339,9 @@ Return `reply`, `quote` and `verdict`, in that order.
   - `rule` - a general rule in a passage covers the case, though no passage
     names it;
   - `silent` - none of these.
-"""
+""")
 
-_STATED = """ROLE
+_STATED = grounded("""ROLE
 You are an independent verifier for a document-search chatbot's test set. You
 check which of the passages a test question cites state each part of its
 answer.
@@ -425,15 +426,54 @@ Return `parts`, one entry per part, in the order the key gives them.
 - `part` names the part in a few words.
 - `quotes` holds the words of each passage that states the part, as they
   stand, one entry per passage; empty when no passage states it.
-"""
+""")
 
 #: The user messages, as the catalogue records them and the two calls below
 #: render them.
 _USER_JUDGE = "Passages:\n{{passages}}\n\n{{conversation}}Question: {{question}}\nAnswer: {{answer}}"
-_USER_VERIFY = "Passages:\n{{passages}}\n\n{{question}}"
+_USER_VERIFY = "Passages:\n{{passages}}\n\n{{conversation}}Question: {{question}}"
 _USER_STATED = (
     "Passages:\n{{passages}}\n\n{{conversation}}Question: {{question}}\nKey: {{key}}"
 )
+
+
+def _numbered(passages: Sequence[str]) -> str:
+    """The passages as the model reads them, numbered from one."""
+    return "\n\n".join(
+        f"[{position}] {passage}" for position, passage in enumerate(passages, 1)
+    )
+
+
+def _conversation(thread: Sequence[tuple[str, str | None]]) -> str:
+    """The turns before a question, fenced as the document's text; empty for none.
+
+    A follow-up is judged in its conversation: read alone, `And for an urgent
+    one?` has no answer in any passage. The answers were written from the
+    passages, so they are fenced as the passages are.
+    """
+    turns = "\n".join(f"Q: {q}\nA: {a or 'not in the material'}" for q, a in thread)
+    return fence("conversation", turns) + "\n" if turns else ""
+
+
+def _user(
+    template: str,
+    passages: Sequence[str],
+    thread: Sequence[tuple[str, str | None]],
+    values: Mapping[str, str],
+) -> str:
+    """One user message: the passages and the thread, fenced as the document's text.
+
+    Through `fill`, so a passage naming `{{answer}}` is sent as written.
+    """
+    return fill(
+        template,
+        {
+            **values,
+            "{{passages}}": _numbered(passages),
+            "{{conversation}}": _conversation(thread),
+        },
+        material=("{{passages}}",),
+    )
 
 
 _SAME = """ROLE
@@ -711,22 +751,13 @@ class Verifier:
         an answer, and whether they let one be worked out. The two differ
         only in what they expect of an answer the passages do not contain.
         """
-        numbered = "\n\n".join(
-            f"[{position}] {passage}" for position, passage in enumerate(passages, 1)
-        )
-        conversation = (
-            "\n".join(f"Q: {q}\nA: {a or 'not in the material'}" for q, a in thread)
-            + "\n"
-            if thread
-            else ""
-        )
         got = self._client.answer(
             system=system,
-            user=(
-                _USER_JUDGE.replace("{{passages}}", numbered)
-                .replace("{{conversation}}", conversation)
-                .replace("{{question}}", question)
-                .replace("{{answer}}", answer)
+            user=_user(
+                _USER_JUDGE,
+                passages,
+                thread,
+                {"{{question}}": question, "{{answer}}": answer},
             ),
             shape=_Supported,
             prompt_version=PROMPT_VERSION,
@@ -774,14 +805,9 @@ class Verifier:
             ModelUnavailable: If the model could not be reached or would not
                 answer in the shape.
         """
-        numbered = "\n\n".join(
-            f"[{position}] {passage}" for position, passage in enumerate(passages, 1)
-        )
         got = self._client.answer(
             system=_SETTLES,
-            user=_USER_VERIFY.replace("{{passages}}", numbered).replace(
-                "{{question}}", f"Question: {question}"
-            ),
+            user=_user(_USER_VERIFY, passages, (), {"{{question}}": question}),
             shape=_Settled,
             prompt_version=PROMPT_VERSION,
         )
@@ -803,22 +829,9 @@ class Verifier:
             ModelUnavailable: If the model could not be reached or would not
                 answer in the shape.
         """
-        numbered = "\n\n".join(
-            f"[{position}] {passage}" for position, passage in enumerate(passages, 1)
-        )
-        # A follow-up is asked in a conversation, so it is judged in one. Read
-        # alone, `And for an urgent one?` has no answer in any passage.
-        asked = (
-            "\n".join(f"Q: {q}\nA: {a or 'not in the material'}" for q, a in thread)
-            + f"\nQ: {question}"
-            if thread
-            else f"Question: {question}"
-        )
         got = self._client.answer(
             system=_VERIFY,
-            user=_USER_VERIFY.replace("{{passages}}", numbered).replace(
-                "{{question}}", asked
-            ),
+            user=_user(_USER_VERIFY, passages, thread, {"{{question}}": question}),
             shape=_Recovered,
             prompt_version=PROMPT_VERSION,
         )
@@ -842,22 +855,13 @@ class Verifier:
             ModelUnavailable: If the model could not be reached or would not
                 answer in the shape.
         """
-        numbered = "\n\n".join(
-            f"[{position}] {passage}" for position, passage in enumerate(passages, 1)
-        )
-        conversation = (
-            "\n".join(f"Q: {q}\nA: {a or 'not in the material'}" for q, a in thread)
-            + "\n"
-            if thread
-            else ""
-        )
         got = self._client.answer(
             system=_STATED,
-            user=(
-                _USER_STATED.replace("{{passages}}", numbered)
-                .replace("{{conversation}}", conversation)
-                .replace("{{question}}", question)
-                .replace("{{key}}", key)
+            user=_user(
+                _USER_STATED,
+                passages,
+                thread,
+                {"{{question}}": question, "{{key}}": key},
             ),
             shape=_Stated,
             prompt_version=STATED_VERSION,

@@ -132,9 +132,10 @@ def test_the_context_is_given_as_the_situation_a_rule_holds_in() -> None:
     LlmExtractor(client).extract(passage(section_path="Accounts > Students"))
 
     assert client.asked["user"].startswith(
-        "Context (not part of the excerpt): Accounts > Students. It names the "
-        "situation the excerpt sits in; when a rule holds only in that "
-        "situation, the statement names it."
+        "Context (not part of the excerpt), which names the situation the "
+        "excerpt sits in; when a rule holds only in that situation, the "
+        'statement names it:\n<material name="context">\nAccounts > Students\n'
+        "</material>"
     )
 
 
@@ -231,7 +232,8 @@ def test_a_repair_shows_the_numbered_excerpt_the_refusal_and_why() -> None:
     facts = LlmExtractor(client, cap=4).repair(read, [_refused(read, joined)])
 
     sent = client.asked["user"]
-    assert sent.startswith("Context (not part of the excerpt): Devices")
+    assert sent.startswith("Context (not part of the excerpt)")
+    assert "Devices > Specifications" in sent
     assert "[0] The device weighs 4 kg and runs for 12 hours." in sent
     assert f'"{joined}"' in sent
     assert "the statement carries 2 claims" in sent
