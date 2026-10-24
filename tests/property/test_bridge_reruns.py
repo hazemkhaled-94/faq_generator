@@ -71,9 +71,15 @@ class Store(Catalogue):
             self.topic_of[head] for _, head in self.bridges if self._in(head, within)
         )
 
-    def bridged_pairs(self) -> frozenset[frozenset[int]]:
-        """The passage pairs a stored bridge links."""
-        return frozenset(frozenset(rests[:2]) for rests, _ in self.bridges)
+    def bridged_pairs(
+        self, within=None, replaced: bool = False
+    ) -> frozenset[frozenset[int]]:
+        """The passage pairs a stored bridge links, less those a clear would delete."""
+        return frozenset(
+            frozenset(rests[:2])
+            for rests, head in self.bridges
+            if not (replaced and self._in(head, within))
+        )
 
     def add_bridges(self, facts) -> int:
         """Stores each bridge under the passage that headed its link."""

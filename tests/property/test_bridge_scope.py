@@ -234,6 +234,23 @@ def test_two_bridges_on_one_pair_make_one_pair(world) -> None:
     assert world.catalog.bridged_pairs() == frozenset({frozenset({1, 2})})
 
 
+def test_the_pairs_a_pass_is_about_to_replace_are_not_held(world) -> None:
+    """Held pairs are those that stay: the clear comes after the links are dealt."""
+    world.passages({1: ("a", 1), 2: ("a", 1), 3: ("b", 2), 4: ("b", 2)})
+    world.facts({10: (BRIDGE, (1, 2)), 11: (BRIDGE, (3, 4))})
+
+    assert world.catalog.bridged_pairs() == frozenset(
+        {frozenset({1, 2}), frozenset({3, 4})}
+    )
+    assert world.catalog.bridged_pairs(in_document("a"), replaced=True) == frozenset(
+        {frozenset({3, 4})}
+    )
+    assert world.catalog.bridged_pairs(None, replaced=True) == frozenset()
+    assert world.catalog.bridged_pairs(in_document("a")) == frozenset(
+        {frozenset({1, 2}), frozenset({3, 4})}
+    )
+
+
 def test_no_bridge_is_no_pair(world) -> None:
     """A plain fact on two passages is not a bridge."""
     world.passages({1: ("a", 1)})

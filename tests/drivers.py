@@ -647,7 +647,9 @@ class Catalogue:
         self.narrowed.append(within)
         return getattr(self, "bridged", frozenset())
 
-    def bridged_pairs(self) -> frozenset[frozenset[int]]:
+    def bridged_pairs(
+        self, within=None, replaced: bool = False
+    ) -> frozenset[frozenset[int]]:
         """No bridge is stored here."""
         return frozenset()
 

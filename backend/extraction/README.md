@@ -318,7 +318,11 @@ and a tie goes to the lower id. Each passage heads at most one pair, a pair
 is offered once, and a topic is worth `EXTRACTION_BRIDGES_PER_TOPIC` pairs on
 the passages that head them, strided over the topic's heads in reading
 order. The partner may sit in any topic of its language. The pass logs how
-many links of each kind it offered. A heading numbered before its word
+many links of each kind it offered. It reads each passage's vector as a
+float32 array (4 KB, where a tuple of Python floats was 32) and parses each
+passage once, for the sections it names and for its content lemmas together.
+The bridges in scope are deleted after the links are dealt and before the
+first model call, so a pass that dies reading the corpus deletes nothing. A heading numbered before its word
 ("1.2 Returns") gives no reference link: only "Section 7" style headings, a
 word then a number, are learned, and such a section is still linked as a
 sibling or by a shared term.

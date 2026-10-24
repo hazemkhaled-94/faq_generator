@@ -23,7 +23,7 @@ from extraction.extractors import (
     ExtractorRegistry,
     LlmExtractor,
 )
-from extraction.links import linked
+from extraction.links import Link, linked
 from extraction.models import (
     CheckedFact,
     PassageToExtract,
@@ -465,8 +465,10 @@ def bridge(
 ) -> int:
     """Writes the bridge facts a corpus's topics offer.
 
-    One model call per group. Every bridge in scope is deleted first, so a
-    second run replaces what the first wrote instead of adding to it.
+    One model call per group. Every bridge in scope is deleted once the links
+    are dealt and before the first call, so a second run replaces what the
+    first wrote instead of adding to it, and one that dies reading the corpus
+    deletes nothing.
 
     With `missing`, nothing is deleted and only the topics holding no bridge
     are read: what a whole-corpus run asks for, so a second one neither
@@ -504,8 +506,6 @@ def bridge(
             f"{cited} accepted question(s) cite a bridge this pass would delete, "
             "and would be rejected or deleted with it"
         )
-    if not missing:
-        log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
     written = 0
     # Groups the model could not be asked about. Counted because skipping
     # one and carrying on is right - a batch over many groups must
@@ -532,9 +532,10 @@ def bridge(
         for one in ones
         if skipped(one) is None and one.id in facts
     ]
-    # Read after the clear: what is left is what this pass must not repeat,
-    # whichever side of a cross-topic pair heads it.
-    held = catalog.bridged_pairs()
+    # What is left after the clear is what this pass must not repeat,
+    # whichever side of a cross-topic pair heads it: the bridges that stay.
+    held = catalog.bridged_pairs(within, replaced=not missing)
+    offers: list[tuple[str, list[Link]]] = []
     topic: object = object()  # none yet, so the first link reads the cap too
     for language in sorted({one.language or "" for one in partners}):
         links = linked(
@@ -555,6 +556,13 @@ def bridge(
             kinds["sibling"],
             kinds["term"],
         )
+        offers.append((language, links))
+    # After the links are dealt, which is the long read of the whole corpus
+    # and the part that can run out of memory: a pass that dies there has
+    # deleted nothing.
+    if not missing:
+        log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
+    for _, links in offers:
         for link in links:
             # Between topics, so what is written is kept, nothing is held, and
             # no topic is left half bridged: `missing` skips any that has one.

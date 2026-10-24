@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from database.qa_generator import FactKind
 from nlp.models import Sentence
+
+if TYPE_CHECKING:
+    import numpy as np
 
 #: The method whose statements a model writes, as `extraction_method`
 #: records it. A deterministic reader composes its statement from the grid,
@@ -83,8 +87,13 @@ class PassageToExtract:
     doc_sha256: str | None = None
     #: Its vector, where the corpus has been embedded. Read by the bridge
     #: pass to pair a passage with the one it most nearly meets, and None
-    #: for a corpus extracted before the column existed.
-    embedding: tuple[float, ...] | None = None
+    #: for a corpus extracted before the column existed. As the column
+    #: returns it, float32: a tuple of Python floats is eight times the
+    #: memory, and a corpus of 20,000 passages holds every one of them. Not
+    #: compared, so two passages are the same passage by what they say.
+    embedding: np.ndarray | tuple[float, ...] | None = field(
+        default=None, compare=False, repr=False
+    )
     #: The document's title, which names what the whole document is about.
     title: str | None = None
 

@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from itertools import groupby
 from typing import Any, ClassVar, cast
 
+import numpy as np
 from sqlalchemy import (
     ARRAY,
     BigInteger,
@@ -170,7 +171,11 @@ def _passage(row, language: str | None, title: str | None = None) -> PassageToEx
         sentences=_sentences(row.text, row.sentences),
         table_cells=row.table_cells or [],
         doc_sha256=row.doc_sha256,
-        embedding=tuple(row.embedding) if row.embedding is not None else None,
+        embedding=(
+            np.asarray(row.embedding, dtype=np.float32)
+            if row.embedding is not None
+            else None
+        ),
         title=title,
     )
 
@@ -1373,17 +1378,28 @@ class FactCatalog(Repository):
         with self._session() as session:
             return frozenset(session.scalars(query))
 
-    def bridged_pairs(self) -> frozenset[frozenset[int]]:
+    def bridged_pairs(
+        self, within=None, replaced: bool = False
+    ) -> frozenset[frozenset[int]]:
         """The passage pairs a stored bridge opens on, as unordered sets.
 
         The first two passages of each bridge: the pair a link was offered
         as, whichever of the two headed it. What a pass must not offer again.
+
+        Args:
+            within: The narrowing the pass was asked for, as `clear_bridges`
+                takes it.
+            replaced: Leave out the bridges `clear_bridges(within)` is about
+                to delete. A pass deals its links before it clears, and the
+                pairs it must not offer again are those that stay.
         """
         query = (
             select(FactPassage.fact_id, FactPassage.passage_id)
             .join(Fact, Fact.id == FactPassage.fact_id)
             .where(Fact.kind == FactKind.BRIDGE, FactPassage.position < 2)
         )
+        if replaced:
+            query = query.where(Fact.id.not_in(_bridges(within)))
         pairs: dict[int, set[int]] = defaultdict(set)
         with self._session() as session:
             for fact, passage in session.execute(query):

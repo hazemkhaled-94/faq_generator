@@ -17,16 +17,14 @@ import math
 import re
 from collections import defaultdict
 from collections.abc import Container, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
 from extraction.validation import HEADING_LABEL, label_word, numbered
-from nlp.analysis import content, normalised
-from nlp.embedding import cosine
-from nlp.pipelines import pipeline
+from nlp.analysis import content, normalised, parse
 
 #: A quoted span, as two patterns by what opens it. A double mark closes at a
 #: double mark and may hold apostrophes ("Customers’ rights"); a single mark
@@ -111,9 +109,7 @@ def _dot(left: PassageToExtract, right: PassageToExtract) -> float:
 
 def _near(left: PassageToExtract, right: PassageToExtract) -> float:
     """Cosine of two passages, 0 where either has no vector."""
-    if left.embedding is None or right.embedding is None:
-        return 0.0
-    return cosine(list(left.embedding), list(right.embedding))
+    return _dot(left, right)
 
 
 def _shared_prefix(left: PassageToExtract, right: PassageToExtract) -> int:
@@ -175,34 +171,60 @@ class _Edges:
         self.found[key] = (_TIER[kind], Link((first, second), kind, named))
 
 
-def _references(
-    edges: _Edges, partners: Sequence[PassageToExtract], language: str | None
-) -> None:
-    """Adds the links a passage makes by naming a heading."""
-    labels: dict[tuple[str, str], list[tuple[int, str, PassageToExtract]]] = (
-        defaultdict(list)
+@dataclass
+class _Headings:
+    """What a language's heading trails say, read once."""
+
+    #: A numbered heading, by label word and number, with its depth, its text
+    #: and the passage under it.
+    labels: dict[tuple[str, str], list[tuple[int, str, PassageToExtract]]] = field(
+        default_factory=lambda: defaultdict(list)
     )
-    headings: dict[str, list[tuple[str, PassageToExtract]]] = defaultdict(list)
-    parents: dict[str, set[str]] = defaultdict(set)
+    headings: dict[str, list[tuple[str, PassageToExtract]]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
+    parents: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+
+
+def _headings(partners: Sequence[PassageToExtract]) -> _Headings:
+    """Reads every trail: its numbered headings, its headings and their parents."""
+    read = _Headings()
     for p in partners:
         trail = _segments(p)
         plain = [_plain(s) for s in trail]
         for depth, segment in enumerate(trail):
             if match := HEADING_LABEL.match(segment):
-                labels[(match.group(1).casefold(), match.group(2))].append(
+                read.labels[(match.group(1).casefold(), match.group(2))].append(
                     (depth, segment, p)
                 )
-            headings[plain[depth]].append((segment, p))
-            parents[plain[depth]].update(plain[:depth])
-    words = {word for word, _ in labels}
-    nlp = pipeline(language)
-    for head in partners:
-        own = {
-            (m.group(1).casefold(), m.group(2))
-            for s in _segments(head)
-            if (m := HEADING_LABEL.match(s))
-        }
-        tokens = list(nlp(head.text))
+            read.headings[plain[depth]].append((segment, p))
+            read.parents[plain[depth]].update(plain[:depth])
+    return read
+
+
+@dataclass(frozen=True)
+class _Reading:
+    """What one passage's text says, from one parse of it."""
+
+    #: Its content lemmas.
+    lemmas: frozenset[str]
+    #: The sections it names by label and number, each with the sentences
+    #: that name it.
+    named: dict[tuple[str, str], set[str]]
+
+
+def _readings(
+    partners: Sequence[PassageToExtract], words: set[str], language: str | None
+) -> dict[int, _Reading]:
+    """Reads every passage once, for the label it names and the lemmas it holds.
+
+    One parse each, taken before the next passage is read: the parse is kept
+    only as long as its two readings take, so a corpus is never held as
+    parses.
+    """
+    out: dict[int, _Reading] = {}
+    for p in partners:
+        tokens = list(parse(p.text, language))
         named: dict[tuple[str, str], set[str]] = defaultdict(set)
         for at in range(len(tokens) - 1):
             word = label_word(tokens, at, words, language)
@@ -210,6 +232,26 @@ def _references(
                 continue
             for number in numbered(tokens, at):
                 named[(word, number)].add(tokens[at].sent.text)
+        out[p.id] = _Reading(content(p.text, language), named)
+    return out
+
+
+def _references(
+    edges: _Edges,
+    partners: Sequence[PassageToExtract],
+    language: str | None,
+    index: _Headings,
+    read: Mapping[int, _Reading],
+) -> None:
+    """Adds the links a passage makes by naming a heading."""
+    labels, headings, parents = index.labels, index.headings, index.parents
+    for head in partners:
+        own = {
+            (m.group(1).casefold(), m.group(2))
+            for s in _segments(head)
+            if (m := HEADING_LABEL.match(s))
+        }
+        named = read[head.id].named
         for key in sorted(k for k in named if k not in own):
             # A numbered reference names a section of its own document, or of
             # another whose title the sentence names.
@@ -275,10 +317,14 @@ def _siblings(edges: _Edges, partners: Sequence[PassageToExtract]) -> None:
         if trail:
             edges.last[p.id] = trail[-1]
     for parent, family in edges.family.items():
-        width = next((len(p.embedding) for p in family if p.embedding), 0)
+        width = next((len(p.embedding) for p in family if p.embedding is not None), 0)
         if width:
             edges.matrix[parent] = np.array(
-                [p.embedding or (0.0,) * width for p in family], dtype=np.float64
+                [
+                    p.embedding if p.embedding is not None else np.zeros(width)
+                    for p in family
+                ],
+                dtype=np.float32,
             )
 
 
@@ -336,10 +382,10 @@ def _best(
     parent = edges.parent.get(partner.id)
     family = edges.family.get(parent, ()) if parent else ()
     near: dict[int, float] = {}
-    if partner.embedding and parent in edges.matrix:
-        scores = edges.matrix[parent] @ np.asarray(partner.embedding, np.float64)
+    if partner.embedding is not None and parent in edges.matrix:
+        scores = edges.matrix[parent] @ np.asarray(partner.embedding, np.float32)
         near = {
-            p.id: float(score) if p.embedding else 0.0
+            p.id: float(score) if p.embedding is not None else 0.0
             for p, score in zip(family, scores, strict=True)
         }
     mine = edges.last.get(partner.id)
@@ -417,9 +463,12 @@ def linked(
     for language in sorted({p.language or "" for p in partners}):
         mine = [p for p in partners if (p.language or "") == language]
         edges = _Edges()
-        _references(edges, mine, language or None)
+        index = _headings(mine)
+        read = _readings(mine, {word for word, _ in index.labels}, language or None)
+        _references(edges, mine, language or None, index, read)
         _siblings(edges, mine)
-        _terms(edges, mine, {p.id: content(p.text, language or None) for p in mine})
+        _terms(edges, mine, {ident: one.lemmas for ident, one in read.items()})
+        del read
         seen: set[frozenset[int]] = set()
         by_topic: dict[int, list[tuple[PassageToExtract, Link]]] = defaultdict(list)
         for head in (h for h in heads if (h.language or "") == language):
