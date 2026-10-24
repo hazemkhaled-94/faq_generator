@@ -40,6 +40,7 @@ from nlp.text import right_to_left
 from nlp.windows import reserved
 from preprocessing.chunking.furniture import LEAD_IN, furniture_of, headed, tidied
 from preprocessing.chunking.models import Chunk, Chunking
+from settings import required
 
 
 class NoPassages(Exception):
@@ -698,8 +699,12 @@ class PassageBuilder:
             merge_peers: Whether to combine undersized neighbours that share
                 a heading.
         """
+        # The embedder's own commit: a passage is sized by the tokenizer of the
+        # model that will embed it.
         loaded = HuggingFaceTokenizer.from_pretrained(
-            model_name=embedding_model, max_tokens=max_tokens
+            model_name=embedding_model,
+            max_tokens=max_tokens,
+            revision=required("EMBEDDING_MODEL_REVISION"),
         )
         # Less what the embedder adds, so a passage cut to it fits its window.
         self._max_tokens = max_tokens - reserved(loaded.tokenizer)

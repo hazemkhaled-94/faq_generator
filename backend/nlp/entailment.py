@@ -32,6 +32,7 @@ from functools import cached_property
 from typing import Any, cast
 
 from nlp.windows import window
+from settings import required
 
 log = logging.getLogger(__name__)
 
@@ -191,6 +192,8 @@ class Entailment:
         built = pipeline(
             "text-classification",
             model=self._model_name,
+            # The commit NLI_MODEL_REVISION pins.
+            revision=required("NLI_MODEL_REVISION"),
             top_k=None,
             function_to_apply="softmax",
             dtype=torch.float32,

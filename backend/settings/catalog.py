@@ -955,6 +955,37 @@ SETTINGS: tuple[Setting, ...] = (
         "columns, which are vector(1024).",
     ),
     Setting(
+        name="EMBEDDING_MODEL_REVISION",
+        service="platform",
+        kind="text",
+        fixed=True,
+        invalidates=("chunking", "extraction", "questions"),
+        help="The commit of EMBEDDING_MODEL every load reads, the tokenizer "
+        "chunking sizes a passage with included. A bare model id is whatever "
+        "its default branch holds the day a worker first loads it, so a push "
+        "there would change passages and scores under the same settings. "
+        "`make doctor` checks this commit is in the cache.",
+    ),
+    Setting(
+        name="NLI_MODEL_REVISION",
+        service="platform",
+        kind="text",
+        fixed=True,
+        invalidates=("questions",),
+        help="The commit of NLI_MODEL every load reads. See "
+        "EMBEDDING_MODEL_REVISION for why a model is pinned.",
+    ),
+    Setting(
+        name="QA_MODEL_REVISION",
+        service="platform",
+        kind="text",
+        optional=True,
+        fixed=True,
+        invalidates=("questions",),
+        help="The commit of QA_MODEL every load reads. Empty while QA_MODEL is "
+        "empty; a QA_MODEL with none is refused at its first load.",
+    ),
+    Setting(
         name="EMBEDDING_MAX_TOKENS",
         service="platform",
         kind="integer",

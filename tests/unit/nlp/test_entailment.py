@@ -102,6 +102,7 @@ def test_the_weights_are_loaded_in_full_precision(monkeypatch) -> None:
     import transformers.pipelines
 
     asked: dict = {}
+    monkeypatch.setenv("NLI_MODEL_REVISION", "0" * 40)
 
     def pipeline(task, **options):
         asked.update(options)
@@ -110,6 +111,7 @@ def test_the_weights_are_loaded_in_full_precision(monkeypatch) -> None:
     # Where `from transformers import pipeline` finds it once the lazy
     # package has resolved the name.
     monkeypatch.setattr(transformers.pipelines, "pipeline", pipeline)
+    monkeypatch.setattr(transformers, "pipeline", pipeline)
 
     Entailment("a/checkpoint")._loaded  # noqa: B018 - loading is the act
 

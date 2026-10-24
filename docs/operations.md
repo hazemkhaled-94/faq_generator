@@ -516,7 +516,9 @@ From a fresh clone, following only this page:
    runner. A queue verb for a model stage still queues its rows, and its answer
    names the command that drains them.
 4. `make doctor`. It checks the split, asks every model one question, and
-   reads the Hugging Face cache with the Hub switched off.
+   reads the Hugging Face cache with the Hub switched off, naming any encoder
+   or Docling weight that is missing. Fill the cache once beforehand, where the
+   Hub is reachable, as [configuration](configuration.md#pinning-the-encoders) says.
 5. Upload the documents on the Upload page, or with `curl -F file=@x.pdf`.
 6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
    detached: `logs/corpus-hosted.log` holds what it does and

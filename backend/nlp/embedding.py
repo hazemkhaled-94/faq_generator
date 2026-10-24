@@ -26,6 +26,7 @@ import logging
 from sentence_transformers import SentenceTransformer
 
 from nlp.windows import PREFIX, window
+from settings import required
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +46,11 @@ class Embedder:
                 that have to hold it.
         """
         log.info("loading %s", model_name)
-        self._model = SentenceTransformer(model_name)
+        # The commit EMBEDDING_MODEL_REVISION pins: a bare id is whatever the
+        # default branch holds the day a worker first loads it.
+        self._model = SentenceTransformer(
+            model_name, revision=required("EMBEDDING_MODEL_REVISION")
+        )
         # The ceiling a deployment asked for, held to what the checkpoint
         # can actually read - the same reading `nlp.entailment` and `nlp.qa`
         # make of ENCODER_MAX_TOKENS.

@@ -11,8 +11,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 
 #: The calls that fetch from the hub by repository id.
@@ -45,12 +43,6 @@ def test_the_scan_finds_the_four_hub_loads() -> None:
     assert any("nlp/qa.py" in site for site in sites), sites
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="QA-security-3: EMBEDDING_MODEL, NLI_MODEL, QA_MODEL and the "
-    "chunking tokenizer load by bare hub id with no revision, so a push to "
-    "the repository changes passages and scores under the same settings",
-)
 def test_every_hub_load_names_a_revision() -> None:
     """A `revision=` at every call, or nothing reaches the hub at run time."""
     unpinned = [
@@ -60,3 +52,22 @@ def test_every_hub_load_names_a_revision() -> None:
     ]
 
     assert unpinned == []
+
+
+def test_backend_env_pins_the_encoders_it_names_to_a_commit() -> None:
+    """EMBEDDING_MODEL and NLI_MODEL each have a 40-character commit beside them."""
+    import re
+
+    live = dict(
+        re.findall(
+            r"^([A-Z][A-Z0-9_]*)=(.*)$",
+            (ROOT / "configs/env/backend.env").read_text(),
+            re.MULTILINE,
+        )
+    )
+
+    for model in ("EMBEDDING_MODEL", "NLI_MODEL"):
+        assert live[model], model
+        assert re.fullmatch(r"[0-9a-f]{40}", live[f"{model}_REVISION"]), model
+    # QA_MODEL ships empty, and so does its pin.
+    assert live["QA_MODEL"] == "" and live["QA_MODEL_REVISION"] == ""

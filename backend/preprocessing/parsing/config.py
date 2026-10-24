@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from settings import Source, boolean, decimal, integer, optional, required
@@ -46,6 +47,15 @@ class Settings:
             KeyError: If any required setting is missing.
             ValueError: If a numeric setting is not a number.
         """
+        # Docling reads an empty path as the working directory, so a value that
+        # is set and empty is a mistake and not an absence.
+        given = (os.environ if source is None else source).get("DOCLING_ARTIFACTS_PATH")
+        if given is not None and not given.strip():
+            raise ValueError(
+                "DOCLING_ARTIFACTS_PATH is set but empty, which Docling reads as "
+                "the working directory: name the folder holding its weights, or "
+                "leave the setting out"
+            )
         return cls(
             ocr_char_threshold=integer("PARSING_OCR_CHAR_THRESHOLD", source),
             min_confidence=decimal("PARSING_MIN_CONFIDENCE", source),

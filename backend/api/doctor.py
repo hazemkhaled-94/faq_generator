@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -40,6 +41,104 @@ def synced(path: Path) -> str | None:
         if folded.startswith(_SYNC_PREFIXES) or folded in _SYNC_NAMES:
             return part
     return None
+
+
+#: The repositories Docling's converter reads from the Hugging Face cache when
+#: DOCLING_ARTIFACTS_PATH is unset, at the version the lock pins: the layout
+#: model and the table model. A converter upgrade that reads others is a
+#: change here.
+_DOCLING_REPOS = (
+    "docling-project/docling-layout-heron",
+    "docling-project/docling-models",
+)
+
+#: The encoders a stage loads by hub id, as (the setting naming the model, the
+#: setting pinning its commit). The embedding model is also the tokenizer
+#: chunking sizes a passage with.
+_ENCODERS = (
+    ("EMBEDDING_MODEL", "EMBEDDING_MODEL_REVISION"),
+    ("NLI_MODEL", "NLI_MODEL_REVISION"),
+    ("QA_MODEL", "QA_MODEL_REVISION"),
+)
+
+
+def _hub_cache(source: Mapping[str, str]) -> Path:
+    """Where the Hugging Face client keeps what it downloaded."""
+    if source.get("HF_HUB_CACHE"):
+        return Path(source["HF_HUB_CACHE"])
+    home = source.get("HF_HOME") or "~/.cache/huggingface"
+    return Path(home).expanduser() / "hub"
+
+
+def _snapshot(cache: Path, repo: str, revision: str | None) -> bool:
+    """Whether one commit of a repository is in the cache.
+
+    A branch name is read through `refs`, the way the client does; no revision
+    asks for `main`.
+    """
+    folder = cache / f"models--{repo.replace('/', '--')}"
+    wanted = revision or "main"
+    pointer = folder / "refs" / wanted
+    commit = pointer.read_text().strip() if pointer.is_file() else wanted
+    return (folder / "snapshots" / commit).is_dir()
+
+
+def _holds_any(cache: Path, repo: str) -> bool:
+    """Whether the cache holds any snapshot of a repository.
+
+    For the repositories whose revision is not ours to pin: Docling asks for the
+    one its release names, a tag more often than `main`.
+    """
+    snapshots = cache / f"models--{repo.replace('/', '--')}" / "snapshots"
+    return snapshots.is_dir() and any(snapshots.iterdir())
+
+
+def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
+    """What a run with the Hub switched off would fail to find, by name.
+
+    With HF_HUB_OFFLINE=1 a model not in the cache is not downloaded: the first
+    passage fails. Every encoder the settings name is checked at its pinned
+    commit, and the converter's weights where DOCLING_ARTIFACTS_PATH names
+    them or, unset, in the cache. With the Hub reachable nothing is checked,
+    because a missing model is then fetched at its first call, as it always
+    was.
+
+    Args:
+        source: Where to read the settings, or None for the environment.
+    """
+    source = os.environ if source is None else source
+    if (source.get("HF_HUB_OFFLINE") or "").lower() not in ("1", "true", "yes", "on"):
+        return []
+    cache = _hub_cache(source)
+    found = []
+    for model, pin in _ENCODERS:
+        repo = (source.get(model) or "").strip()
+        if not repo:
+            continue
+        revision = (source.get(pin) or "").strip() or None
+        if not _snapshot(cache, repo, revision):
+            found.append(
+                f"{model} {repo} at {revision or 'main'} is not in the cache "
+                f"{cache} and the Hub is off (HF_HUB_OFFLINE=1): fetch it once "
+                "where the Hub is reachable"
+            )
+    artifacts = (source.get("DOCLING_ARTIFACTS_PATH") or "").strip()
+    if artifacts:
+        folder = Path(artifacts).expanduser()
+        if not folder.is_dir() or not any(folder.iterdir()):
+            found.append(
+                f"DOCLING_ARTIFACTS_PATH {artifacts} is not a folder holding the "
+                "converter's weights: run make docling-weights where the Hub is "
+                "reachable"
+            )
+    else:
+        found += [
+            f"Docling's {repo} is not in the cache {cache} and the Hub is off: "
+            "run make docling-weights where the Hub is reachable"
+            for repo in _DOCLING_REPOS
+            if not _holds_any(cache, repo)
+        ]
+    return found
 
 
 def every_model() -> tuple[list[Settings], list[str]]:
@@ -139,6 +238,9 @@ def main() -> int:
         check_split()
     except ValueError as refusal:
         log.error("%s", refusal)
+        failed = 1
+    for problem in cache_problems():
+        log.error("%s", problem)
         failed = 1
     models, refused = every_model()
     for stage in refused:

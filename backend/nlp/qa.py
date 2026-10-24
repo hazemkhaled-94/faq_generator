@@ -37,6 +37,7 @@ import torch
 from transformers import AutoModelForQuestionAnswering, AutoTokenizer
 
 from nlp.windows import window
+from settings import required
 
 log = logging.getLogger(__name__)
 
@@ -87,8 +88,13 @@ class Extractive:
     def _loaded(self):
         """The tokenizer and the model, held to the window the model has."""
         log.info("loading %s", self._model_name)
-        tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        model = AutoModelForQuestionAnswering.from_pretrained(self._model_name)
+        # The commit QA_MODEL_REVISION pins; required, because a QA_MODEL with
+        # none would load whatever the default branch holds.
+        revision = required("QA_MODEL_REVISION")
+        tokenizer = AutoTokenizer.from_pretrained(self._model_name, revision=revision)
+        model = AutoModelForQuestionAnswering.from_pretrained(
+            self._model_name, revision=revision
+        )
         model.eval()
         self._max_tokens = window(tokenizer, self._max_tokens)
         return tokenizer, model

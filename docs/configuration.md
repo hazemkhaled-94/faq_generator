@@ -145,6 +145,27 @@ judge left unset while `ASSESSMENT_ENABLED` is true, naming the role and the
 setting that moves it. The containers keep calling Ollama by design: `.env`'s
 role models never reach them, and compose gives them `LLM_CONTAINER_MODEL`.
 
+## Pinning the encoders
+
+`EMBEDDING_MODEL`, `NLI_MODEL` and `QA_MODEL` are Hugging Face repositories, and
+a bare repository id is whatever its default branch holds the day a worker
+first loads it: a push there changes passages and scores under the same
+settings. Each has a commit beside it, `EMBEDDING_MODEL_REVISION`,
+`NLI_MODEL_REVISION` and `QA_MODEL_REVISION`, and every load (the embedder, the
+tokenizer chunking sizes a passage with, the NLI pipeline, the QA head) passes
+it. `backend.env` ships the commits in the build's cache; `QA_MODEL_REVISION` is
+empty while `QA_MODEL` is, and a `QA_MODEL` with none is refused at its first
+load. The three are fixed: change a model and its commit together, in the file.
+
+With `HF_HUB_OFFLINE=1`, which `make corpus-hosted` sets, nothing is fetched, so
+`make doctor` reads the cache first and names what is missing: each encoder at
+its pinned commit, and Docling's weights, in `DOCLING_ARTIFACTS_PATH` where that
+names a folder and in the cache otherwise. `DOCLING_ARTIFACTS_PATH` set and
+empty is refused, because Docling reads it as the working directory. Fill the
+cache once, where the Hub is reachable, before go-live: `make docling-weights`
+for the converter, and one run of the chunk and question stages (or the
+`huggingface-cli download <repo> --revision <commit>` of each) for the encoders.
+
 ## Precedence
 
 Highest first:
