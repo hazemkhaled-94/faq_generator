@@ -835,7 +835,9 @@ def test_a_fact_takes_the_language_of_its_first_citation(spare: str) -> None:
     }
 
 
-def test_the_language_backfill_leaves_the_planner_statistics_current(spare: str) -> None:
+def test_the_language_backfill_leaves_the_planner_statistics_current(
+    spare: str,
+) -> None:
     """ANALYZE ran after it, so the probe's first plan is not a sequential scan.
 
     A freshly upgraded database has no statistics on the new column until
