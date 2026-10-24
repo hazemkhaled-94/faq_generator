@@ -81,6 +81,23 @@ class ParseQueue(RowQueue):
                 )
             )
 
+    def title_held(self, title: str, besides: str) -> bool:
+        """Whether another document is already called this.
+
+        Args:
+            title: The title a document is about to take.
+            besides: The document being parsed, which is excluded.
+        """
+        with self._session() as session:
+            return (
+                session.scalar(
+                    select(Document.sha256)
+                    .where(Document.title == title, Document.sha256 != besides)
+                    .limit(1)
+                )
+                is not None
+            )
+
     def complete(
         self, sha256: str, parsed: ParsedDocument, note: str | None = None
     ) -> None:

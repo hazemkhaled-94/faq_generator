@@ -652,7 +652,7 @@ def test_the_command_line_draws_the_curve_by_document(
             evidence_text="e",
             validated=True,
             document=f"Seite {(i - 1) % 5}",
-            doc_sha256="0" * 64,
+            doc_sha256=f"{(i - 1) % 5}" * 64,
             ordinal=1,
             page=1,
         )
@@ -667,6 +667,34 @@ def test_the_command_line_draws_the_curve_by_document(
     )
     table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
     assert table[0].split() == ["language", "documents", "n", "PoS-CR", "sd"]
+    assert [row.split()[:3] for row in table[1:]] == [["de", "5", "10"]]
+
+
+def test_documents_sharing_a_title_count_apart_by_their_id(
+    tmp_path, exported, capsys
+) -> None:
+    """Five documents all called alike are five documents to the curve."""
+    path = tmp_path / "same-title.xlsx"
+    rows = [asked(i, f"Frage Nummer {i}?", "de") for i in range(1, 11)]
+    cited = [
+        Citation(
+            question_id=i,
+            fact_id=i,
+            statement="s",
+            evidence_text="e",
+            validated=True,
+            document="Seite",
+            doc_sha256=f"{(i - 1) % 5}" * 64,
+            ordinal=1,
+            page=1,
+        )
+        for i in range(1, 11)
+    ]
+    path.write_bytes(workbook(rows, cited))
+
+    cli.main(["--diversity", "--file", str(path), "--by", "document", "--size", "10"])
+
+    table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
     assert [row.split()[:3] for row in table[1:]] == [["de", "5", "10"]]
 
 

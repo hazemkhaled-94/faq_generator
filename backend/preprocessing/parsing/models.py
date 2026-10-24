@@ -53,12 +53,16 @@ class Conversion:
         confidence_low: Confidence of its worst page, or None.
         unread_pages: 1-based pages that are a picture and carry no text
             layer, which the conversion could not read.
+        titles: What the document may be called, best first, as the file
+            itself sets its type: a pipeline that reads none leaves it empty
+            and the analyser reads the document's own headings.
     """
 
     document: DoclingDocument
     confidence: float | None
     confidence_low: float | None
     unread_pages: tuple[int, ...] = ()
+    titles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

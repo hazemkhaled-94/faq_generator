@@ -729,6 +729,10 @@ class StoredQuestion:
     #: passage), and it carries the page number besides.
     statements: list[str] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
+    #: The head of each document's digest, which a title does not give: two
+    #: documents can be called alike, and a workbook is split by document on
+    #: this.
+    document_ids: list[str] = field(default_factory=list)
     #: Where it sits in its thread, and what it follows. 1 and None on a root.
     thread_position: int = 1
     follows_id: int | None = None

@@ -1092,8 +1092,8 @@ One workbook, four sheets:
 
 | Sheet | One row per |
 |---|---|
-| Questions | Question, with what it rests on folded in; a Kind column (single, needs_both, compound) follows Type |
-| Citations | Question × fact × passage, so a bridge takes two |
+| Questions | Question, with what it rests on folded in; a Kind column (single, needs_both, compound) follows Type; Documents names each document by title and Document IDs by the head of its digest |
+| Citations | Question × fact × passage, so a bridge takes two; the Document ID column is the head of the document's digest, which `--diversity --by document` splits by |
 | Assessment | Judgement of a question. Empty unless the evaluation phase has run |
 | Summary | The counts, off the same quality report the page shows: types, bands, levels, rejections, and the kind and each `categorization=category` a question was written as, and the models that wrote, verified and phrase-judged the questions |
 

@@ -502,6 +502,56 @@ def test_a_document_in_an_unconfigured_language_is_refused_naming_it(
         analysed(document)
 
 
+def test_the_title_is_the_first_one_the_file_offers() -> None:
+    """A PDF reads its title off the type it is set in, ahead of its headings."""
+    document = docling_document(headings=("Introduction",), paragraphs=("Text.",))
+
+    parsed = DocumentAnalyser().analyse(
+        Conversion(
+            document=document,
+            confidence=None,
+            confidence_low=None,
+            titles=("Account fees 2026", "Cards"),
+        )
+    )
+
+    assert parsed.title == "Account fees 2026"
+
+
+def test_a_title_another_document_holds_takes_the_next_candidate() -> None:
+    """Two documents are told apart in the workbook by what they are called."""
+    pipeline = ScriptedPipeline(titles=("Account fees", "Edition 2026"))
+    driver = ParseDriver(
+        queued=(claimed(),), pipeline=pipeline, titled={"Account fees": OTHER}
+    )
+
+    driver.run()
+
+    assert driver.completed[SHA].title == "Account fees - Edition 2026"
+
+
+def test_a_title_no_other_document_holds_is_kept() -> None:
+    """Nothing is added where nothing collides."""
+    pipeline = ScriptedPipeline(titles=("Account fees", "Edition 2026"))
+    driver = ParseDriver(queued=(claimed(),), pipeline=pipeline)
+
+    driver.run()
+
+    assert driver.completed[SHA].title == "Account fees"
+
+
+def test_a_title_held_with_no_candidate_left_stays_as_it_is() -> None:
+    """It still names the document; the workbook carries the document's id too."""
+    pipeline = ScriptedPipeline(titles=("Account fees",))
+    driver = ParseDriver(
+        queued=(claimed(),), pipeline=pipeline, titled={"Account fees": OTHER}
+    )
+
+    driver.run()
+
+    assert driver.completed[SHA].title == "Account fees"
+
+
 def test_the_content_hash_ignores_case_and_spacing() -> None:
     """The same text laid out differently is the same content."""
     spaced = analysed(docling_document(paragraphs=("The  Device   weighs 4 kg.",)))

@@ -513,3 +513,23 @@ def test_the_catalog_reads_the_behaviour_off_the_stored_categories() -> None:
     assert read([kind]).behaviour == "points out ..."
     assert read([kind]).categories == ["Unanswerable=false-presupposition"]
     assert read(None).behaviour is None
+
+
+def test_two_documents_sharing_a_title_are_told_apart_by_their_id() -> None:
+    """Both sheets carry the document's digest head, which a title does not."""
+    first, second = "a1" * 32, "b2" * 32
+    read = sheets(
+        workbook(
+            [
+                stored(1, document_ids=[first[:12]]),
+                stored(2, document_ids=[second[:12]]),
+            ],
+            [
+                cited(1, document="Service policy", doc_sha256=first),
+                cited(2, document="Service policy", doc_sha256=second),
+            ],
+        )
+    )
+
+    assert list(read["Questions"]["Document IDs"]) == [first[:12], second[:12]]
+    assert list(read["Citations"]["Document ID"]) == [first[:12], second[:12]]

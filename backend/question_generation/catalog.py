@@ -296,6 +296,9 @@ def _listing() -> Select:
                         func.coalesce(Document.title, func.left(Passage.doc_sha256, 12))
                     )
                 ).label("documents"),
+                func.array_agg(func.distinct(func.left(Passage.doc_sha256, 12))).label(
+                    "document_ids"
+                ),
                 func.array_agg(func.distinct(Topic.label)).label("topics"),
                 func.array_agg(func.distinct(Fact.statement)).label("statements"),
                 func.array_agg(func.distinct(Fact.evidence_text)).label("evidence"),
@@ -329,6 +332,7 @@ def _stored(row: Any) -> StoredQuestion:
         | {
             "created_at": _when(row.created_at),
             "documents": _present(row.documents),
+            "document_ids": _present(row.document_ids),
             "topics": _present(row.topics),
             "statements": _present(row.statements),
             "evidence": _present(row.evidence),

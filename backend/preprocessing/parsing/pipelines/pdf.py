@@ -11,6 +11,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable
 from difflib import SequenceMatcher
 from itertools import pairwise
+from statistics import median
 from typing import ClassVar, NamedTuple, cast
 
 import pymupdf
@@ -34,6 +35,7 @@ from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.node import DocItem
 from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.table.table_data import TableCell
+from docling_core.types.doc.items.text import SectionHeaderItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.text import printed, rejoined, unfinished
@@ -261,16 +263,16 @@ class PdfPipeline(Pipeline):
             raise ConversionFailed(
                 f"the conversion ended {result.status.value}: {'; '.join(errors)}"
             )
+        document = _tabled(
+            _repaired(_rejoined(_unstruck(result.document, source.data), source.data)),
+            source.data,
+        )
         return Conversion(
-            document=_tabled(
-                _repaired(
-                    _rejoined(_unstruck(result.document, source.data), source.data)
-                ),
-                source.data,
-            ),
+            document=document,
             confidence=_score(result, "mean_score"),
             confidence_low=_score(result, "low_score"),
             unread_pages=image_only_pages(source.data, self._ocr_characters),
+            titles=_titles(document, source.data),
         )
 
     def fetch_weights(self) -> None:
@@ -314,6 +316,165 @@ class PdfPipeline(Pipeline):
             )
             log.info("built the PDF converter")
         return self._built
+
+
+def _lines(page: pymupdf.Page) -> list[tuple[float, str]]:
+    """The size and the text of each line a page shows, in reading order."""
+    found = []
+    for block in cast(dict, page.get_text("dict"))["blocks"]:
+        for line in block.get("lines", ()):
+            text = " ".join("".join(span["text"] for span in line["spans"]).split())
+            if text:
+                found.append((max(span["size"] for span in line["spans"]), text))
+    return found
+
+
+def _cover(pdf: pymupdf.Document) -> str | None:
+    """The block of lines set in the largest type of the first page with text.
+
+    Every line within half a point of that size, joined, so a title broken
+    over lines is whole; a size that holds no letter adds the next one. None
+    where the size is used for two blocks apart, which makes it a heading
+    size and no title.
+    """
+    for page in pdf:
+        lines = _lines(page)
+        if not any(
+            text.isdigit() is False and _LETTER.search(text) for _, text in lines
+        ):
+            continue
+        taken: set[int] = set()
+        for size in sorted({size for size, _ in lines}, reverse=True):
+            at = [i for i, (one, _) in enumerate(lines) if abs(one - size) <= 0.5]
+            if at != list(range(at[0], at[-1] + 1)):
+                return None
+            taken |= set(at)
+            text = " ".join(lines[i][1] for i in sorted(taken))
+            if _LETTER.search(text):
+                # A lone word is a title only where its type stands out from
+                # the page's own: else it is a section word at the top.
+                body = median(one for one, line in lines for _ in line)
+                if len(text.split()) < _TITLE_WORDS and size < _CONSPICUOUS * body:
+                    return None
+                return text
+        return None
+    return None
+
+
+#: A letter of any script.
+_LETTER = re.compile(r"[^\W\d_]")
+
+#: Fewer words than this is a section word, not what a cover is called,
+#: unless it is set this many times larger than the page's usual type, read
+#: from its characters.
+_TITLE_WORDS = 2
+_CONSPICUOUS = 1.6
+
+
+def _heading_title(
+    document: DoclingDocument, pdf: pymupdf.Document, font: Callable
+) -> str | None:
+    """The first heading, when it heads the document and is set as a title is.
+
+    It ends in no comma, colon or semicolon, which a salutation or a lead-in
+    does. No later heading is at its level or above, and it is set in the
+    largest type its page shows.
+    """
+    # In reading order: the texts list is appended to when a heading is replaced.
+    heads = [
+        item
+        for item, _ in document.iterate_items()
+        if isinstance(item, TitleItem | SectionHeaderItem)
+        and item.content_layer == ContentLayer.BODY
+        and item.text.strip()
+        and item.prov
+    ]
+    if not heads:
+        return None
+    first = heads[0]
+    text = first.text.strip()
+    level = getattr(first, "level", 0)
+    if text.endswith((",", ":", ";")) or any(
+        getattr(later, "level", 0) <= level for later in heads[1:]
+    ):
+        return None
+    page_no = first.prov[0].page_no
+    mine = font(page_no, first.prov[0].bbox)
+    sizes = [
+        size
+        for size, line in _lines(pdf.load_page(page_no - 1))
+        if _LETTER.search(line)
+    ]
+    if mine is None or not sizes or mine[1] < round(max(sizes)):
+        return None
+    return text
+
+
+def _running_head(document: DoclingDocument) -> str | None:
+    """What the running heads and feet print on every page that has one.
+
+    The fields that hold a letter and are on each page that prints one, unless
+    the document sets one as a heading: that names a section.
+    """
+    printed_on: dict[str, set[int]] = defaultdict(set)
+    spelled: dict[str, str] = {}
+    pages = set()
+    for item in document.texts:
+        if item.label not in (DocItemLabel.PAGE_HEADER, DocItemLabel.PAGE_FOOTER):
+            continue
+        if not item.prov:
+            continue
+        pages.add(item.prov[0].page_no)
+        for field in _fields(item.text):
+            key = _PUNCT.sub("", field.casefold())
+            printed_on[key].add(item.prov[0].page_no)
+            spelled.setdefault(key, field)
+    headings = {
+        _PUNCT.sub("", item.text.casefold())
+        for item in document.texts
+        if item.label in (DocItemLabel.TITLE, DocItemLabel.SECTION_HEADER)
+    }
+    held = [
+        spelled[key]
+        for key, on in printed_on.items()
+        if on >= pages and _LETTER.search(key) and key not in headings
+    ]
+    return " - ".join(held) or None
+
+
+#: What separates the fields of a running head with no bar in it.
+_GAP = re.compile(r"\s+[–—·•]\s+|\t+|\s{2,}")
+
+
+def _fields(text: str) -> list[str]:
+    """Splits a running head or foot into its fields: on its bars, else on gaps."""
+    parts = text.split("|") if "|" in text else _GAP.split(text)
+    return [part.strip() for part in parts if part.strip()]
+
+
+#: What a running head's field is compared on: letters and digits only.
+_PUNCT = re.compile(r"[\W_]+")
+
+
+def _titles(document: DoclingDocument, data: bytes) -> tuple[str, ...]:
+    """What the document may be called, best first.
+
+    The first heading when set as a title is, else the cover, else the running
+    head; none where the file cannot be read.
+    """
+    try:
+        with pymupdf.open(stream=data, filetype="pdf") as pdf:
+            found = (
+                _heading_title(document, pdf, _typeface(data)),
+                _cover(pdf),
+                _running_head(document),
+            )
+    except Exception as exc:  # noqa: BLE001 - the conversion already succeeded
+        log.warning(
+            "the title was not read off the type: %s: %s", type(exc).__name__, exc
+        )
+        return ()
+    return tuple(dict.fromkeys(one for one in found if one))
 
 
 def _softened(text: str) -> str:

@@ -59,7 +59,7 @@ class DocumentAnalyser:
         self._configured(body)
 
         return ParsedDocument(
-            title=self.title(document),
+            title=conversion.titles[0] if conversion.titles else self.title(document),
             language=detect(body),
             content_sha256=self.content_hash(body),
             page_count=len(document.pages),

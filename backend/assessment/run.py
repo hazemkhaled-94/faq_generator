@@ -368,8 +368,9 @@ def _read(
 def _curve(path: Path, only: str | None, n: int) -> int:
     """Prints the paper's Figure 1: PoS-CR of n questions drawn from k documents.
 
-    Each question's document is the first its Citations rows name, so a
-    question citing two counts under the first. k runs 5, 10, 15 ... up to
+    Each question's document is the first its Citations rows name, by its id
+    where the workbook carries one and by its title otherwise, so a question
+    citing two counts under the first. k runs 5, 10, 15 ... up to
     the language's documents and that count itself; a k too few documents
     can fill is left out. Drawn from questions already written, so it reads
     lower than writing n anew from k documents would: those questions were
@@ -385,7 +386,7 @@ def _curve(path: Path, only: str | None, n: int) -> int:
     first = {
         int(id): str(document)
         for id, document in cited.drop_duplicates("Question ID")[
-            ["Question ID", "Document"]
+            ["Question ID", "Document ID" if "Document ID" in cited else "Document"]
         ].itertuples(index=False, name=None)
     }
     print(f"{'language':<9}{'documents':>10}{'n':>6}{'PoS-CR':>9}{'sd':>8}")

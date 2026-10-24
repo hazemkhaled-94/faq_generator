@@ -110,6 +110,7 @@ _COLUMNS = (
     ("evidence", "The evidence they rest on"),
     ("topics", "Topics"),
     ("documents", "Documents"),
+    ("document_ids", "Document IDs"),
     ("created_at", "Written"),
 )
 
@@ -125,6 +126,7 @@ _CITATION_COLUMNS = (
     ("evidence_text", "Evidence"),
     ("validated", "Fact still valid"),
     ("document", "Document"),
+    ("doc_sha256", "Document ID"),
     ("page", "Page"),
     ("ordinal", "Passage"),
 )
@@ -169,6 +171,10 @@ _WRAPPED = frozenset(_WIDTHS)
 _CELL_LIMIT = 32_000
 
 
+#: How much of a document's digest the sheets carry as its id.
+_ID_CHARS = 12
+
+
 def _flatten(value: Any, joiner: str = ", ") -> Any:
     """Renders one field as a cell.
 
@@ -199,6 +205,13 @@ def _frame(rows: Sequence[Any], columns: Sequence[tuple[str, str]]) -> pd.DataFr
     # An empty selection still gets its headings, so a workbook of nothing
     # is a workbook a reader can see the shape of rather than a blank page.
     return pd.DataFrame(records, columns=pd.Index([head for _, head in columns]))
+
+
+def _cited_frame(citations: Sequence[Any]) -> pd.DataFrame:
+    """The Citations sheet, its document column carrying the digest's head."""
+    frame = _frame(citations, _CITATION_COLUMNS)
+    frame["Document ID"] = frame["Document ID"].str[:_ID_CHARS]
+    return frame
 
 
 def _judged_frame(
@@ -408,7 +421,7 @@ def workbook(
     held: Mapping[int, Any] = judged or {}
     sheets = {
         "Questions": _judged_frame(questions, held),
-        "Citations": _frame(citations, _CITATION_COLUMNS),
+        "Citations": _cited_frame(citations),
         "Assessment": _assessment_frame(questions, held),
         "Summary": _summary(quality, len(questions), len(citations), judged),
     }

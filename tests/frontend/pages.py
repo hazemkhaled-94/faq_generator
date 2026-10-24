@@ -172,6 +172,7 @@ QUESTION = {
     # The document's title, which is what the listing resolves; the digest
     # is the fallback for a row carrying none.
     "documents": ["Service policy"],
+    "document_ids": ["a1b2c3d4e5f6"],
     "topics": ["de #0"],
     "statements": [FACT["statement"]],
     "evidence": [FACT["evidence_text"]],

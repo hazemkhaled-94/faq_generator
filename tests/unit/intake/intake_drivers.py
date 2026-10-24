@@ -591,6 +591,7 @@ class ScriptedPipeline(Pipeline):
         confidence_low: float | None = 0.9,
         raises: Exception | None = None,
         unread_pages: tuple[int, ...] = (),
+        titles: tuple[str, ...] = (),
     ) -> None:
         """Takes the answer every conversion gets.
 
@@ -600,8 +601,10 @@ class ScriptedPipeline(Pipeline):
             confidence_low: The lower-bound confidence to report.
             raises: What to raise instead of answering.
             unread_pages: The image-only pages to report.
+            titles: The titles the file offers, best first.
         """
         self.unread_pages = unread_pages
+        self.titles = titles
         self.document = document or docling_document(
             title="The Device", paragraphs=("The device weighs 4 kg.",)
         )
@@ -625,6 +628,7 @@ class ScriptedPipeline(Pipeline):
             confidence=self.confidence,
             confidence_low=self.confidence_low,
             unread_pages=self.unread_pages,
+            titles=self.titles,
         )
 
 
@@ -637,6 +641,7 @@ class ParseRows:
         self,
         *queued: ParseClaim,
         holders: dict[str, str] | None = None,
+        titled: dict[str, str] | None = None,
         abandoned: int = 0,
     ) -> None:
         """Takes the documents to hand out and the text already held.
@@ -644,10 +649,12 @@ class ParseRows:
         Args:
             queued: The documents to claim, in order.
             holders: Which document holds each content digest already.
+            titled: Which document is already called each title.
             abandoned: What a sweep reports.
         """
         self.pending = list(queued)
         self.holders = holders or {}
+        self.titled = titled or {}
         self.abandoned = abandoned
         self.claims: list[str] = []
         self.completed: dict[str, Any] = {}
@@ -667,6 +674,11 @@ class ParseRows:
         held = self.holders.get(content_sha256)
         return None if held is None or held == besides else held
 
+    def title_held(self, title: str, besides: str) -> bool:
+        """Whether another document is already called this."""
+        held = self.titled.get(title)
+        return held is not None and held != besides
+
     def complete(self, sha256: str, parsed, note: str | None = None) -> None:
         """Records a successful parse.
 
@@ -676,6 +688,8 @@ class ParseRows:
         self.completed[sha256] = parsed
         self.notes[sha256] = note
         self.holders.setdefault(parsed.content_sha256, sha256)
+        if parsed.title is not None:
+            self.titled.setdefault(parsed.title, sha256)
 
     def fail(self, key: str, error: str) -> None:
         """Records a document this stage could not process."""
@@ -700,6 +714,7 @@ class ParseDriver:
         pipeline: ScriptedPipeline | None = None,
         pipelines: PipelineRegistry | None = None,
         holders: dict[str, str] | None = None,
+        titled: dict[str, str] | None = None,
         ocr_char_threshold: int = 100,
         min_confidence: float = 0.5,
         abandoned: int = 0,
@@ -711,12 +726,15 @@ class ParseDriver:
             pipeline: The converter to use.
             pipelines: A registry to use instead of one built from `pipeline`.
             holders: Which document holds each content digest already.
+            titled: Which document is already called each title.
             ocr_char_threshold: Characters per page below which a document
                 counts as scanned.
             min_confidence: Lowest confidence a conversion may carry.
             abandoned: What a sweep reports.
         """
-        self.rows = ParseRows(*queued, holders=holders, abandoned=abandoned)
+        self.rows = ParseRows(
+            *queued, holders=holders, titled=titled, abandoned=abandoned
+        )
         self.documents = MemoryDocuments()
         self.parsed = MemoryParsed()
         self.pipeline = pipeline or ScriptedPipeline()

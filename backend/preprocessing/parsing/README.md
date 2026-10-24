@@ -204,7 +204,21 @@ re-parses.
 [`DocumentAnalyser`](analysis.py) renders the body as text — table values
 included, running headers and footers excluded — finds the title, detects the
 language, and hashes the body with whitespace collapsed and case folded. A
-conversion with no body text fails as `EmptyDocument`.
+conversion with no body text fails as `EmptyDocument`, and one in a language
+`NLP_MODELS` does not name fails as `UnconfiguredLanguage`, naming the
+language, instead of being read as German or English by every later stage.
+
+The PDF pipeline offers the title candidates it reads off the type, best first
+(`Conversion.titles`): the first heading when it heads the document and is set
+in the largest type of its page (it does not end in a comma, colon or semicolon,
+which a salutation or a lead-in does); else the cover, the block of lines set
+in the largest type of the first page with text, joined across its lines (a
+lone word counts only where it stands out from the page's own type); else the
+running head every page prints, unless the document sets it as a heading. The
+analyser takes the first, and falls back to the document's own first title or
+section heading where there is none. A title another document already holds
+takes the next candidate added, as `Title - Next`; with none free it stays, and
+the workbook's Document ID columns tell the two apart.
 
 ### Step 7 — Two refusals after the fact
 

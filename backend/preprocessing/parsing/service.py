@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from functools import partial
 from importlib.metadata import version
 from typing import ClassVar, Protocol
@@ -221,6 +222,7 @@ class ParsingService(StageService):
         parsed = self._analyser.analyse(converted)
         self._trustworthy(parsed)
         self._unheld(document.sha256, parsed)
+        parsed = self._distinct(document.sha256, parsed, converted.titles)
         if earlier:
             store()
         self._repository.complete(document.sha256, parsed, note)
@@ -255,6 +257,25 @@ class ParsingService(StageService):
                 "Everything drawn from it would be built on text nothing "
                 "vouches for. Lower PARSING_MIN_CONFIDENCE to accept it."
             )
+
+    def _distinct(
+        self, sha256: str, parsed: ParsedDocument, titles: tuple[str, ...]
+    ) -> ParsedDocument:
+        """Tells a document from one already called the same.
+
+        The title another document holds gets the next candidate the file
+        offers added to it, as `Title - Next`; with none that is free the
+        title stays, for it still names the document.
+        """
+        title = parsed.title
+        if title is None or not self._repository.title_held(title, sha256):
+            return parsed
+        for other in titles:
+            if other != title and not self._repository.title_held(
+                f"{title} - {other}", sha256
+            ):
+                return replace(parsed, title=f"{title} - {other}")
+        return parsed
 
     def _unheld(self, sha256: str, parsed: ParsedDocument) -> None:
         """Refuses a document whose text the corpus already holds.
