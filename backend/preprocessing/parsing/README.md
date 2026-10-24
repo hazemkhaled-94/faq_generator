@@ -231,6 +231,16 @@ section heading where there is none. A title another document already holds
 takes the next candidate added, as `Title - Next`; with none free it stays, and
 the workbook's Document ID columns tell the two apart.
 
+A page set in two columns whose lines sit at the same heights can come out of
+the converter with a line of each column joined into one block, so a sentence
+of the left column runs into one of the right. [`_interleaved_pages`](pipelines/pdf.py)
+finds the gutter on each page, read off the PDF's own lines (four or more lines
+of text on each side, at most two lines across the page, a title), and names the
+pages where a block of the converter's reading runs across it, in the parse
+note and in the converted object's `interleaved-pages` metadata. Nothing is
+reordered. On a generated two-column page the converter does this; on the 30
+football and 50 shop PDFs it names no page.
+
 ### Step 7 — Two refusals after the fact
 
 A conversion whose **low score** is under `PARSING_MIN_CONFIDENCE` fails.

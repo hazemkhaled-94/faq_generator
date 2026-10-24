@@ -95,3 +95,16 @@ def test_the_characters_nobody_sees_are_counted_in_the_note() -> None:
     assert "235 characters of text no reader can see" in (driver.notes[SHA] or "")
     held = driver.parsed.metadata[driver.parsed.key_for(SHA)]
     assert held["hidden-characters"] == "235"
+
+
+def test_pages_read_across_their_columns_are_named_in_the_note() -> None:
+    """Named, not reordered."""
+    driver = ParseDriver(
+        queued=(claimed(),), pipeline=ScriptedPipeline(interleaved=(3, 4))
+    )
+
+    driver.run()
+
+    assert "page(s) 3, 4 are set in columns" in (driver.notes[SHA] or "")
+    held = driver.parsed.metadata[driver.parsed.key_for(SHA)]
+    assert held["interleaved-pages"] == "3,4"

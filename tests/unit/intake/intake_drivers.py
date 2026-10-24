@@ -594,6 +594,7 @@ class ScriptedPipeline(Pipeline):
         titles: tuple[str, ...] = (),
         page_scores: tuple[tuple[int, float], ...] = (),
         unseen_characters: int = 0,
+        interleaved: tuple[int, ...] = (),
     ) -> None:
         """Takes the answer every conversion gets.
 
@@ -606,10 +607,12 @@ class ScriptedPipeline(Pipeline):
             titles: The titles the file offers, best first.
             page_scores: Each page's own lower-bound confidence to report.
             unseen_characters: How many unseen characters were left out.
+            interleaved: The pages read across their columns.
         """
         self.unread_pages = unread_pages
         self.page_scores = page_scores
         self.unseen_characters = unseen_characters
+        self.interleaved = interleaved
         self.titles = titles
         self.document = document or docling_document(
             title="The Device", paragraphs=("The device weighs 4 kg.",)
@@ -637,6 +640,7 @@ class ScriptedPipeline(Pipeline):
             titles=self.titles,
             page_scores=self.page_scores,
             unseen_characters=self.unseen_characters,
+            interleaved=self.interleaved,
         )
 
 

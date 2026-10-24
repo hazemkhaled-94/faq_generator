@@ -211,6 +211,16 @@ class ParsingService(StageService):
             current.set_attribute("parse.low_confidence_pages", pages)
             log.warning("parsed %s: %s", document.sha256, warning)
 
+        if converted.interleaved:
+            pages = ", ".join(map(str, converted.interleaved))
+            mixed = (
+                f"page(s) {pages} are set in columns the converter read across, "
+                "so a line of one column may run into one of the next"
+            )
+            note = f"{note}; {mixed}" if note else mixed
+            current.set_attribute("parse.interleaved_pages", pages)
+            log.warning("parsed %s: %s", document.sha256, mixed)
+
         if converted.unseen_characters:
             hidden = (
                 f"{converted.unseen_characters} characters of text no reader can "
@@ -240,6 +250,11 @@ class ParsingService(StageService):
                     else {}
                 ),
                 **({"low-confidence-pages": ",".join(map(str, weak))} if weak else {}),
+                **(
+                    {"interleaved-pages": ",".join(map(str, converted.interleaved))}
+                    if converted.interleaved
+                    else {}
+                ),
                 **(
                     {"hidden-characters": str(converted.unseen_characters)}
                     if converted.unseen_characters

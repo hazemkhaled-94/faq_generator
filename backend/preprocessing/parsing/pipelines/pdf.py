@@ -273,6 +273,7 @@ class PdfPipeline(Pipeline):
             confidence_low=_score(result, "low_score"),
             unread_pages=image_only_pages(source.data, self._ocr_characters),
             unseen_characters=unseen_characters(source.data),
+            interleaved=_interleaved_pages(document, source.data),
             page_scores=_page_scores(result),
             titles=_titles(document, source.data),
         )
@@ -318,6 +319,112 @@ class PdfPipeline(Pipeline):
             )
             log.info("built the PDF converter")
         return self._built
+
+
+#: The least clear space, in points, that parts two columns, and how many
+#: lines each must hold.
+_GUTTER = 12.0
+_COLUMN_LINES = 4
+
+#: The shortest line, in characters, that is a column's text, how many lines
+#: may span the page (a title), the step in points a page is probed at, and
+#: how much of the page's width a line spans to be one of those.
+_COLUMN_CHARS = 15
+_TITLES = 2
+_PROBE = 2.0
+_SPANNING = 0.6
+
+
+def _interleaved_pages(document: DoclingDocument, data: bytes) -> tuple[int, ...]:
+    """Names the pages set in columns that the converter read across.
+
+    A page whose lines fall either side of a clear gutter, four or more
+    lines on each side, is set in columns. Where a block of the converter's
+    reading runs across that gutter, a line of the left column and one of
+    the right were joined, and the sentences of the two may be mixed. Lines
+    that span the page, a title, are not read for the gutter. Nothing is
+    reordered: the pages are named.
+
+    Args:
+        document: The converted document.
+        data: The PDF it was converted from.
+
+    Returns:
+        The 1-based numbers of those pages; none where the file cannot be read.
+    """
+    found = []
+    try:
+        with pymupdf.open(stream=data, filetype="pdf") as pdf:
+            for number in range(1, pdf.page_count + 1):
+                page = pdf.load_page(number - 1)
+                gutter = _gutter(page)
+                size = document.pages.get(number)
+                if gutter is None or size is None:
+                    continue
+                left, right = gutter
+                for item in document.texts:
+                    if not item.prov or item.content_layer != ContentLayer.BODY:
+                        continue
+                    for prov in item.prov:
+                        box = prov.bbox.to_top_left_origin(size.size.height)
+                        if prov.page_no == number and box.l <= left and box.r >= right:
+                            found.append(number)
+                            break
+                    else:
+                        continue
+                    break
+    except Exception as exc:  # noqa: BLE001 - the conversion already succeeded
+        log.warning("columns were not looked for: %s: %s", type(exc).__name__, exc)
+        return ()
+    return tuple(found)
+
+
+def _gutter(page: pymupdf.Page) -> tuple[float, float] | None:
+    """The widest clear gap between two columns of text lines on a page, or None.
+
+    Only lines of some length count, a marker or a number is no column. At
+    most two lines span the page, a title; the gap is clear of every other,
+    and four or more lines of each column lie wholly on one side, each side
+    a fifth of the page wide.
+    """
+    width = page.rect.width
+    lines = [
+        (line["bbox"][0], line["bbox"][2])
+        for block in cast(dict, page.get_text("dict"))["blocks"]
+        for line in block.get("lines", ())
+        if len("".join(span["text"] for span in line["spans"]).strip()) >= _COLUMN_CHARS
+    ]
+    # A line across the page is a title; more than a few make it one column.
+    boxes = [(start, end) for start, end in lines if end - start < _SPANNING * width]
+    if not boxes or len(lines) - len(boxes) > _TITLES:
+        return None
+    clear = [
+        step * _PROBE
+        for step in range(int(width / _PROBE))
+        if not any(start < step * _PROBE < end for start, end in boxes)
+    ]
+    best = None
+    runs: list[list[float]] = []
+    for at in clear:
+        if runs and at - runs[-1][-1] <= _PROBE * 1.5:
+            runs[-1].append(at)
+        else:
+            runs.append([at])
+    for run in runs:
+        left, right = run[0], run[-1]
+        if right - left < _GUTTER:
+            continue
+        on_left = [end for start, end in boxes if end <= left]
+        on_right = [start for start, end in boxes if start >= right]
+        if (
+            len(on_left) >= _COLUMN_LINES
+            and len(on_right) >= _COLUMN_LINES
+            and max(on_left) - min(start for start, _ in boxes) >= width / 5
+            and max(end for _, end in boxes) - min(on_right) >= width / 5
+            and (best is None or right - left > best[1] - best[0])
+        ):
+            best = (left, right)
+    return best
 
 
 def _lines(page: pymupdf.Page) -> list[tuple[float, str]]:

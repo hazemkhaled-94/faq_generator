@@ -24,12 +24,16 @@ COLUMNS = {
             "Das Entgelt wird zum Monatsende abgebucht.",
             "Bei Schliessung wird es anteilig erstattet.",
             "Eine Änderung wird zwei Monate vorher mitgeteilt.",
+            "Der Kunde kann der Änderung widersprechen.",
+            "Das Konto kann jederzeit gekündigt werden.",
         ],
         [
             "The card is issued within five working days.",
             "A replacement card costs fifteen euro.",
             "Lost cards must be blocked at once.",
             "Cash withdrawals abroad carry a fee.",
+            "The fee is shown before each withdrawal.",
+            "Limits can be changed in the app.",
         ],
     ),
     "en": (
@@ -38,12 +42,16 @@ COLUMNS = {
             "The fee is taken at the end of the month.",
             "On closing it is refunded in proportion.",
             "A change is announced two months before.",
+            "The customer may object to a change.",
+            "The account may be closed at any time.",
         ],
         [
             "Die Karte wird innerhalb von fünf Werktagen ausgestellt.",
             "Eine Ersatzkarte kostet fünfzehn Euro.",
             "Verlorene Karten sind sofort zu sperren.",
             "Abhebungen im Ausland kosten eine Gebühr.",
+            "Die Gebühr wird vor jeder Abhebung gezeigt.",
+            "Limits lassen sich in der App ändern.",
         ],
     ),
 }
