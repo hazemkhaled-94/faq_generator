@@ -27,6 +27,7 @@ from topic_modelling.models import (
     Fitting,
     LanguageFit,
     PassageVocabulary,
+    PassageWeight,
     StoredTopic,
     TopicFit,
     TopicRemoval,
@@ -539,6 +540,96 @@ class TopicQueue(StageQueue):
                             )
                     return len(memberships) + len(placed), dropped
         return len(memberships), dropped
+
+    def unnamed_languages(self) -> list[str]:
+        """The languages whose stored fit holds a topic with no name."""
+        with self._session() as session:
+            return list(
+                session.scalars(
+                    select(Topic.language)
+                    .where(~_OUTSTANDING, Topic.label.is_(None))
+                    .distinct()
+                    .order_by(Topic.language)
+                ).all()
+            )
+
+    def stored_fit(
+        self, language: str
+    ) -> tuple[list[FittedTopic], list[PassageWeight]]:
+        """One language's stored topics and the memberships they hold.
+
+        What naming reads once a fit is over: the same topics and weights the
+        fit named them from, read back.
+        """
+        with self._session() as session:
+            topics = [
+                FittedTopic(
+                    topic_index=row.topic_index,
+                    top_terms=list(row.top_terms or []),
+                    label=row.label,
+                    labelled_by=row.labelled_by,
+                    include_in_coverage=row.include_in_coverage,
+                    decided_at=row.decided_at,
+                )
+                for row in session.execute(
+                    select(
+                        Topic.topic_index,
+                        Topic.top_terms,
+                        Topic.label,
+                        Topic.labelled_by,
+                        Topic.include_in_coverage,
+                        Topic.decided_at,
+                    )
+                    .where(~_OUTSTANDING, Topic.language == language)
+                    .order_by(Topic.topic_index)
+                )
+            ]
+            weights = [
+                PassageWeight(
+                    passage_id=row.passage_id,
+                    topic_index=row.topic_index,
+                    weight=row.weight,
+                )
+                for row in session.execute(
+                    select(
+                        PassageTopic.passage_id,
+                        Topic.topic_index,
+                        PassageTopic.weight,
+                    )
+                    .join(Topic, Topic.id == PassageTopic.topic_id)
+                    .where(~_OUTSTANDING, Topic.language == language)
+                )
+            ]
+        return topics, weights
+
+    def put_names(self, language: str, names: dict[int, str], by: str) -> int:
+        """Gives names to the topics of one language that have none.
+
+        A topic named since the read, by a person or another pass, keeps its
+        name.
+
+        Args:
+            language: The language the topic indexes are in.
+            names: Each name by topic index.
+            by: What named them: the model's identifier.
+
+        Returns:
+            How many topics were named.
+        """
+        written = 0
+        with self._session.begin() as session:
+            for index, name in names.items():
+                written += session.execute(
+                    update(Topic)
+                    .where(
+                        ~_OUTSTANDING,
+                        Topic.language == language,
+                        Topic.topic_index == index,
+                        Topic.label.is_(None),
+                    )
+                    .values(label=name, labelled_by=by)
+                ).rowcount
+        return written
 
     def bearing_facts(self, passage_ids: list[int]) -> set[int]:
         """Which of these passages carry a validated fact.

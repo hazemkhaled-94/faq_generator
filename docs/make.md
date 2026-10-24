@@ -206,6 +206,7 @@ one vocabulary.
 | `make topics-retry` | Return a failed fit to the queue |
 | `make topics-visualise` | Write each language's stored pyLDAvis page to `./topics/` |
 | `make topics-render` | Redraw those pages from the stored models, without re-fitting. `CODE=de` for one |
+| `make topics-name` | Name the topics a fit left unnamed, off the stored fit and without re-fitting. A topic with a name is left as it is |
 | `make topics-delete` | Delete every topic and membership, any fit queued or running, and the judge's verdicts on the topics. The figures and models go to the archive. Waits 5 seconds first |
 
 ### Narrowing to one item

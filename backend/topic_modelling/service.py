@@ -180,7 +180,7 @@ class TopicModellingService(StageService):
                 fittings.append(
                     replace(
                         fitting,
-                        topics=self._named(carried, fitting, language),
+                        topics=self._named(carried, fitting.weights, language),
                         decisions=tuple(decided),
                         trace_id=trace_id,
                         span_id=span_id,
@@ -309,8 +309,36 @@ class TopicModellingService(StageService):
             except Exception:
                 log.exception("could not draw the %s topics", fitting.language)
 
+    def name_unnamed(self) -> int:
+        """Names the topics a fit left unnamed, off the fit already stored.
+
+        What `make topics-name` runs: the model was down, or refused a batch,
+        when the fit named its topics, and a refit to try again would replace
+        every topic and carry a person's decisions across for nothing. The
+        stored memberships say which passages hold each topic, and a name is
+        written only to a topic that has none.
+
+        Returns:
+            How many topics were named.
+        """
+        if self._labeller is None:
+            log.warning("no model is configured to name the topics")
+            return 0
+        written = 0
+        for language in self._repository.unnamed_languages():
+            topics, weights = self._repository.stored_fit(language)
+            named = self._named(topics, weights, language)
+            names = {
+                after.topic_index: after.label
+                for before, after in zip(topics, named, strict=True)
+                if after.label and not before.label
+            }
+            written += self._repository.put_names(language, names, self._labeller.model)
+        log.info("named %d topic(s)", written)
+        return written
+
     def _named(
-        self, topics: list[FittedTopic], fitting: Fitting, language: str
+        self, topics: list[FittedTopic], weights: list[PassageWeight], language: str
     ) -> list[FittedTopic]:
         """Names the topics that hold no label yet, with the model.
 
@@ -322,9 +350,9 @@ class TopicModellingService(StageService):
         if self._labeller is None:
             return topics
 
-        strongest = dominant(fitting.weights)
+        strongest = dominant(weights)
         held: dict[int, list[PassageWeight]] = {}
-        for weight in fitting.weights:
+        for weight in weights:
             if strongest[weight.passage_id] == weight.topic_index:
                 held.setdefault(weight.topic_index, []).append(weight)
         bearing = self._repository.bearing_facts(list(strongest))

@@ -11,7 +11,7 @@ import pytest
 import synth_topics as st
 from topic_drivers import LabellerDriver, NoSubject, ServiceDriver, corpus
 
-from topic_modelling.models import FittedTopic, PassageVocabulary
+from topic_modelling.models import FittedTopic, PassageVocabulary, PassageWeight
 from topic_modelling.space import load
 from topic_modelling.topics import dominant
 
@@ -671,3 +671,59 @@ def test_a_language_whose_documents_went_takes_its_figure_and_model() -> None:
     assert {"export/topics/de.html", "models/topics/de.npz"} <= set(
         flow.archive.objects
     )
+
+
+# ── Naming a stored fit ───────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("language", "name"), [("de", "German"), ("en", "English"), ("fr", "French")]
+)
+def test_the_topics_a_fit_left_unnamed_are_named_without_a_fit(
+    service, language, name
+) -> None:
+    """From the stored memberships: no walk of the corpus, no claim, no replace."""
+    flow = service(
+        labeller=LabellerDriver("Shipping", "Storage", languages={language: name}),
+        texts={1: "First text.", 2: "Second text.", 3: "Third text."},
+    )
+    flow.queue.stored_topics[language] = [
+        FittedTopic(0, ["alpha", "beta"]),
+        FittedTopic(1, ["gamma", "delta"], label="By hand", labelled_by="person"),
+        FittedTopic(2, ["epsilon", "zeta"]),
+    ]
+    flow.queue.memberships[language] = [
+        PassageWeight(1, 0, 0.9),
+        PassageWeight(2, 1, 0.8),
+        PassageWeight(3, 2, 0.9),
+    ]
+
+    named = flow.service.name_unnamed()
+
+    assert named == 2
+    assert flow.queue.names == {language: {0: "Shipping", 2: "Storage"}}
+    assert flow.queue.claims == [] and flow.stored == [], "no fit ran"
+
+
+def test_naming_a_stored_fit_shows_the_model_the_names_already_given(service) -> None:
+    """A person's name is taken, so the model is told not to repeat it."""
+    labeller = LabellerDriver("Storage", languages={"de": "German"})
+    flow = service(corpora={}, texts={1: "Text."}, labeller=labeller)
+    flow.queue.stored_topics["de"] = [
+        FittedTopic(0, ["a", "b"]),
+        FittedTopic(1, ["c", "d"], label="By hand", labelled_by="person"),
+    ]
+    flow.queue.memberships["de"] = [PassageWeight(1, 0, 0.9)]
+
+    flow.service.name_unnamed()
+
+    assert "By hand" in labeller.prompt
+
+
+def test_naming_a_stored_fit_with_no_model_names_nothing(service) -> None:
+    """Without a labeller a topic keeps its terms."""
+    flow = service(corpora={})
+    flow.queue.stored_topics["de"] = [FittedTopic(0, ["a", "b"])]
+
+    assert flow.service.name_unnamed() == 0
+    assert flow.queue.names == {}

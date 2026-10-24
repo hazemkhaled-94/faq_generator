@@ -102,8 +102,13 @@ is an outstanding request, and a row that has one is a topic.
    `make review-pull-topics` records with the time it was given in the
    review, when that is before the fit was asked for.
 9. **Name the unnamed topics.** Only topics holding no label are offered to
-   the model, all of a language's in one call, so it sees the set and can
-   tell the topics apart. For each it is shown the terms and up to four
+   the model, 25 to a call and each call told the names the calls before it
+   gave, so it sees a set it can tell the topics of apart and a prompt of
+   hundreds of topics is never sent. A call the model cannot answer is split
+   once into two halves, each asked on its own; a half refused too leaves its
+   topics unnamed and the other calls named. `make topics-name` names the
+   topics a fit left unnamed off the stored memberships, with no refit, and
+   leaves a topic that has a name as it is. For each topic it is shown the terms and up to four
    excerpts, and it is told which language to answer in. The excerpts are passages the topic is strongest
    in, those carrying a validated fact when any does, ranked by weight times
    lemma count: a heading can sit wholly in one topic and say nothing a name
@@ -281,7 +286,7 @@ partial refit.
 | Setting | What it does |
 | --- | --- |
 | `TOPIC_PASSAGES_PER_TOPIC` | How many passages one topic is worth. Above 0 this turns `TOPIC_NUM_TOPICS` into a ceiling and fits `passages / this`, floored at 2, counting the passages that carry a validated fact once the language has any. `0` turns it off |
-| `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2 |
+| `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2. Shipped at 300, which a language of 12,000 passages reaches at the shipped `TOPIC_PASSAGES_PER_TOPIC`; the topic worker's memory and the naming calls, 25 topics each, are what bound it |
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
 | `TOPIC_RANDOM_STATE` | Seed of the first of the fit's eight draws. Fixed, so the same passages read in the same order give the same topics. The fit reads them by id, and another order can give other topics: a document whose passages are deleted and chunked again (`make delete-derived`) comes back under new ids, is read last, and can regroup the passages of other documents. A re-chunk keeps an unchanged passage's id |
 | `TOPIC_TOP_TERMS` | Terms stored as a topic's signature |

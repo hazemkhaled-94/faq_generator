@@ -19,6 +19,12 @@ log = logging.getLogger(__name__)
 #: How much of each representative passage the model is shown.
 _EXCERPT_CHARS = 400
 
+#: How many topics one naming call is shown. Twenty-five with their terms and
+#: excerpts is a prompt of about 10,000 tokens, which every model this
+#: pipeline serves reads, and one call is all a corpus of this build's size
+#: needs.
+_BATCH = 25
+
 #: Recorded on every topic named with the prompt below. Bumped whenever that
 #: prompt changes what a name is.
 PROMPT_VERSION = "3"
@@ -154,15 +160,20 @@ class TopicLabeller:
         language: str,
         taken: Sequence[str] = (),
     ) -> dict[int, str]:
-        """Names a language's topics, in one call, so the model sees the set.
+        """Names a language's topics, in calls of `_BATCH` topics at most.
 
-        Seen one at a time, the model names each after the domain the whole
-        corpus shares and in its own spelling, and the report reads as one
-        topic. Shown together, it is asked for distinct names; and what it
-        answers is held to the excerpts: each word the excerpts print takes
-        their spelling, a letter they never use is folded (`ß` where they
-        write `ss`), and words more than half the names end on - the domain
-        again - are taken off.
+        The model sees a whole call's topics together, which is what makes it
+        ask for distinct names: seen one at a time, it names each after the
+        domain the whole corpus shares and in its own spelling, and the report
+        reads as one topic. A language holds a few dozen topics on a corpus
+        the size of a book and hundreds on a library, and hundreds of topics
+        with their excerpts are more prompt than a model reads, so a call
+        holds a fixed number and carries the names the calls before it gave.
+
+        What it answers is held to the excerpts: each word the excerpts print
+        takes their spelling, a letter they never use is folded (`ß` where
+        they write `ss`), and words more than half the names end on - the
+        domain again - are taken off.
 
         Args:
             topics: Each topic, read for its top terms, with the text of the
@@ -175,6 +186,50 @@ class TopicLabeller:
             the model was unreachable, flagged it as having no subject, or gave a
             name another topic or `taken` already has.
         """
+        named: dict[int, str] = {}
+        for start in range(0, len(topics), _BATCH):
+            named |= self._batch(
+                topics[start : start + _BATCH],
+                language,
+                [*taken, *named.values()],
+            )
+        return named
+
+    def _batch(
+        self,
+        topics: Sequence[tuple[FittedTopic, list[str]]],
+        language: str,
+        taken: Sequence[str],
+    ) -> dict[int, str]:
+        """One call's topics, asked again in two halves where the model refused.
+
+        A call a model cannot read, for its length or because its provider
+        refuses it, is split once and each half asked: what one cannot
+        answer two often can. A half refused too leaves its topics unnamed,
+        and the topics of the other calls are named all the same.
+        """
+        named = self._ask(topics, language, taken)
+        if named is not None or len(topics) < 2:
+            return named or {}
+        half = (len(topics) + 1) // 2
+        log.warning(
+            "could not name %d %s topics in one call; asking for %d and %d",
+            len(topics),
+            language,
+            half,
+            len(topics) - half,
+        )
+        first = self._ask(topics[:half], language, taken) or {}
+        second = self._ask(topics[half:], language, [*taken, *first.values()]) or {}
+        return first | second
+
+    def _ask(
+        self,
+        topics: Sequence[tuple[FittedTopic, list[str]]],
+        language: str,
+        taken: Sequence[str],
+    ) -> dict[int, str] | None:
+        """One call, or None where the model was unreachable."""
         if not topics:
             return {}
         try:
@@ -185,8 +240,8 @@ class TopicLabeller:
                 prompt_version=PROMPT_VERSION,
             )
         except ModelUnavailable as exc:
-            log.warning("could not name the %s topics: %s", language, exc)
-            return {}
+            log.warning("could not name %d %s topics: %s", len(topics), language, exc)
+            return None
         asked = [topic.topic_index for topic, _ in topics]
         said: dict[int, str] = {}
         for one in answer.labels:

@@ -207,7 +207,7 @@ help:
         extract-rerun extract-revalidate extract-bridge extract-recap \
         extract-dedup extract-embed extract-digests \
         topics topics-status topics-discover topics-stop topics-delete \
-        topics-retry topics-visualise topics-render \
+        topics-retry topics-visualise topics-render topics-name \
         settings settings-set settings-unset \
         questions questions-status questions-start questions-stop wipe \
         questions-retry questions-reclaim questions-rerun questions-reverify \
@@ -851,6 +851,7 @@ extract-digests:
 #   make topics-discover    POST /topics/discover
 #   make topics-visualise    GET /topics/visualisation/{language}
 #   make topics-render       (no route; redraws it from the stored model)
+#   make topics-name         (no route; names the topics a fit left unnamed)
 #   make topics-stop        POST /topics/stop
 #   make topics-retry       POST /topics/retry
 #   make topics-delete    DELETE /topics
@@ -896,6 +897,12 @@ topics-visualise:
 #   make topics-render CODE=de
 topics-render:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --render $(if $(CODE),--language $(CODE))
+
+# Name the topics a fit left unnamed, off the stored fit and with no refit:
+# what to run when the naming model was down or refused a batch. A topic
+# that has a name, a person's included, is left as it is.
+topics-name:
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --name
 
 # Delete every topic and membership, any fit queued or running, the judge's
 # verdicts on the topics and each topic's question-generation queue state.

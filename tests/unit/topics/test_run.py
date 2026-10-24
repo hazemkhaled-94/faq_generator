@@ -55,6 +55,13 @@ def test_no_flag_at_all_drains_without_queueing(cli) -> None:
     assert cli.drains == 1
 
 
+def test_name_names_the_unnamed_topics_and_fits_nothing(cli) -> None:
+    """The names a fit could not give, from the stored fit and no other work."""
+    assert cli.run("--name") == 0
+    assert "name_unnamed" in cli.calls, cli.calls
+    assert cli.queued == [] and cli.drains == 0
+
+
 def test_watch_keeps_draining_instead_of_returning(cli) -> None:
     """What the worker container runs."""
     assert cli.run("--watch") == 0

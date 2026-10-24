@@ -40,6 +40,7 @@ _ACTIONS = {
     "stop": "withdraw a queued fit",
     "retry": "return a failed fit to the queue",
     "delete": "delete every topic and membership",
+    "name": "name the topics a fit left unnamed, off the stored fit and with no refit",
 }
 
 #: Where --visualise writes, one file per modelled language.
@@ -152,6 +153,10 @@ def main(argv: list[str] | None = None) -> int:
 
     telemetry.configure("topic_modelling", run=run_id(), named=named_run())
     telemetry.trace_engine(engine())
+
+    if args.name:
+        service.name_unnamed()
+        return 0
 
     if not args.watch:
         return drain_once(service)

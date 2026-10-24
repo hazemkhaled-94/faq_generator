@@ -19,6 +19,7 @@ from topic_modelling.models import (
     Fitting,
     LanguageFit,
     PassageVocabulary,
+    PassageWeight,
     TopicFit,
     TopicRemoval,
     TopicSpace,
@@ -249,6 +250,11 @@ class RecordingQueue:
         self.dropped = 0
         self._next_id = 1
         self.held: set[str] = set()
+        #: The topics and memberships of a fit already stored, by language.
+        self.stored_topics: dict[str, list[FittedTopic]] = {}
+        self.memberships: dict[str, list[PassageWeight]] = {}
+        #: The names `put_names` wrote, by language and topic index.
+        self.names: dict[str, dict[int, str]] = {}
 
     def request(self, trigger: str | None = None) -> int:
         """Queues a fit, replacing any unclaimed one."""
@@ -308,6 +314,25 @@ class RecordingQueue:
             for one in held
             if one.id in asked
         }
+
+    def unnamed_languages(self) -> list[str]:
+        """The languages whose stored fit holds a topic with no name."""
+        return [
+            language
+            for language, topics in self.stored_topics.items()
+            if any(not topic.label for topic in topics)
+        ]
+
+    def stored_fit(
+        self, language: str
+    ) -> tuple[list[FittedTopic], list[PassageWeight]]:
+        """One language's stored topics and their memberships."""
+        return self.stored_topics[language], self.memberships.get(language, [])
+
+    def put_names(self, language: str, names: dict[int, str], by: str) -> int:
+        """Writes the names a pass gave topics that had none."""
+        self.names.setdefault(language, {}).update(names)
+        return len(names)
 
     def replace(
         self, fit_id: int, fittings: list[Fitting], *, keep_request: bool = False
@@ -550,6 +575,11 @@ class CommandDriver:
             def give_back(self) -> bool:
                 """Holds no row."""
                 return False
+
+            def name_unnamed(self) -> int:
+                """Names the topics a fit left unnamed."""
+                driver.calls.append("name_unnamed")
+                return 2
 
         monkeypatch.setattr(module, "TopicQueue", Queue)
         monkeypatch.setattr(module, "TopicCatalog", Catalog)
