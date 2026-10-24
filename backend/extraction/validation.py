@@ -589,7 +589,7 @@ class FactChecker:
         evidence = _cited_text(passage, cited)
         language = passage.language
         statement = candidate.statement.strip()
-        said = claim(statement, language, (passage.text,))
+        said = claim(statement, language, (passage.text,), passage.title)
         units = said.units + said.figures
         known, numbers = _carried(evidence, passage)
         known |= numbers

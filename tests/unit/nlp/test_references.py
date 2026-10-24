@@ -529,3 +529,128 @@ def test_a_german_dies_standing_for_a_clause_before_a_semicolon_resolves(
     from nlp.analysis import claim
 
     assert claim(statement, "de").references == ()
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "pointer"),
+    [
+        ("de", "Die UEFA und deren Lieferanten halten die Regeln ein.", "deren"),
+        ("de", "Der Händler und dessen Lieferant haften gemeinsam.", "dessen"),
+        ("en", "All fees apply except those related to the price cap.", "those"),
+        (
+            "en",
+            "The bank refunds charges other than those levied by third parties.",
+            "those",
+        ),
+    ],
+)
+def test_a_pronoun_whose_antecedent_or_clause_is_in_the_statement_resolves(
+    language: str, statement: str, pointer: str
+) -> None:
+    """A genitive "of whom" names the noun before it; "those" with its own clause names what it says."""
+    from nlp.analysis import claim
+
+    assert pointer not in claim(statement, language).references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("statement", "pointer"),
+    [
+        ("Those are blocked abroad.", "those"),
+        ("Deren Lieferanten halten die Regeln ein.", "deren"),
+    ],
+)
+def test_a_genitive_or_those_with_nothing_before_it_still_points_outside(
+    statement: str, pointer: str
+) -> None:
+    """No noun before it, and no clause of its own, so the passage is where it points."""
+    from nlp.analysis import claim
+
+    language = "de" if pointer == "deren" else "en"
+    assert pointer in claim(statement, language).references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "title", "pointer", "names_document"),
+    [
+        (
+            "en",
+            "These terms apply to every order placed online.",
+            "General Terms and Conditions of Sale",
+            "these",
+            True,
+        ),
+        (
+            "de",
+            "Diese Bedingungen gelten für jede Bestellung im Onlineshop.",
+            "Allgemeine Geschäftsbedingungen",
+            "diese",
+            True,
+        ),
+        (
+            "en",
+            "These regulations apply to every club.",
+            "Disciplinary Regulations\nEdition 2026",
+            "these",
+            True,
+        ),
+        (
+            "en",
+            "These regulations apply to every club.",
+            "Disciplinary Regulations / Edition 2026",
+            "these",
+            True,
+        ),
+        (
+            "en",
+            "These regulations apply to every club.",
+            "UEFA Disciplinary Regulations Edition 2026",
+            "these",
+            True,
+        ),
+        (
+            "en",
+            "These provisions apply to every club.",
+            "Disciplinary Regulations / Edition 2026",
+            "these",
+            False,
+        ),
+        (
+            "en",
+            "These provisions apply to every club.",
+            "UEFA Disciplinary Regulations Edition 2026",
+            "these",
+            False,
+        ),
+        (
+            "en",
+            "These terms apply to every order placed online.",
+            None,
+            "these",
+            False,
+        ),
+    ],
+)
+def test_a_demonstrative_naming_the_head_of_the_documents_title_names_the_document(
+    language, statement, title, pointer, names_document
+) -> None:
+    """Under a title about terms, "these terms" is the document itself."""
+    from nlp.analysis import claim
+
+    found = claim(statement, language, title=title).references
+
+    assert (pointer not in found) == names_document, found
+
+
+@pytest.mark.nlp
+def test_a_title_changes_nothing_in_a_language_no_pipeline_is_configured_for() -> None:
+    """French reads no demonstrative here, with or without a title."""
+    from nlp.analysis import claim
+
+    statement = "Ces conditions s'appliquent à toute commande."
+    titled = claim(statement, "fr", title="Conditions générales de vente")
+
+    assert titled.references == claim(statement, "fr").references

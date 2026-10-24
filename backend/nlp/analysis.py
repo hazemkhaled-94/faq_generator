@@ -1308,6 +1308,24 @@ _BESIDE = frozenset({"oa", "oc", "re"})
 #: tags `sein` and `ihre` as determiners, which are never read as pronouns.
 _POSSESSIVE_DEPS = frozenset({"poss", "nmod:poss"})
 
+#: The German demonstratives that stand for a noun as an adnominal genitive,
+#: "die UEFA und deren Lieferanten", and the relation the parser gives them:
+#: a possessive in all but name, so read like one, by ISO 639-1 code. A closed
+#: class of the language; a newly configured language supplies its own or reads
+#: no genitive demonstrative as resolved.
+_GENITIVE_DEMONSTRATIVES: dict[str, tuple[frozenset[str], str]] = {
+    "de": (frozenset({"dessen", "deren"}), "ag"),
+    "en": (frozenset(), ""),
+}
+
+#: The demonstratives that carry a clause of their own, "except those related
+#: to the price cap", by ISO 639-1 code: what they stand for is that clause
+#: and the noun before it. A closed class of the language.
+_CLAUSE_DEMONSTRATIVES: dict[str, frozenset[str]] = {
+    "de": frozenset(),
+    "en": frozenset({"those"}),
+}
+
 #: What opens a clause of its own beneath another: a subordinator on its verb,
 #: or the verb hung off its head as an adverbial or a relative clause. English
 #: and German labels, and the Universal Dependencies names for the same. A
@@ -1554,6 +1572,21 @@ def _other_conjunct(token, noun) -> bool:
     return own.i != other.i and other in _conjuncts(own)
 
 
+def _genitive(token) -> bool:
+    """Whether a token is a demonstrative standing as the genitive of a noun."""
+    words, relation = _GENITIVE_DEMONSTRATIVES.get(token.doc.lang_, (frozenset(), ""))
+    return token.dep_ == relation and token.text.casefold() in words
+
+
+def _carries_clause(token) -> bool:
+    """Whether a demonstrative has a relative clause or participle of its own."""
+    return token.pos_ == "PRON" and (
+        token.text.casefold()
+        in _CLAUSE_DEMONSTRATIVES.get(token.doc.lang_, frozenset())
+        and any(child.dep_ in _EMBEDDED for child in token.children)
+    )
+
+
 def _resolved(token) -> bool:
     """Whether a pronoun names something earlier in its own statement.
 
@@ -1580,6 +1613,10 @@ def _resolved(token) -> bool:
     """
     if _propositional(token):
         return True
+    if _carries_clause(token) and any(
+        one.pos_ in _NOMINAL for one in token.doc[: token.i]
+    ):
+        return True
     demonstrative = (
         "Dem" in token.morph.get("PronType")
         and token.pos_ == "PRON"
@@ -1592,7 +1629,7 @@ def _resolved(token) -> bool:
         return False
     if _correlate(token):
         return True
-    if token.dep_ not in _POSSESSIVE_DEPS:
+    if token.dep_ not in _POSSESSIVE_DEPS and not _genitive(token):
         own = _clause(token)
         kept = [noun for noun in earlier if _clause(noun) != own]
         kept += [
@@ -1620,10 +1657,67 @@ _SOURCE = frozenset(
 )
 
 
-def _sourced(token) -> bool:
-    """Whether a determiner's head or next word names the source document."""
+def _sourced(token, named: frozenset[str] = frozenset()) -> bool:
+    """Whether a determiner's head or next word names the source document.
+
+    `named` is what the document's own title calls it, `_titled`: a noun that
+    is the last part of a longer one it names, `Bedingungen` of
+    `Geschäftsbedingungen`, names it as well.
+    """
     nouns = [token.head] + ([token.nbor()] if token.i + 1 < len(token.doc) else [])
-    return any({t.lemma_.casefold(), t.text.casefold()} & _SOURCE for t in nouns)
+    for noun in nouns:
+        forms = {noun.lemma_.casefold(), noun.text.casefold()}
+        if forms & (_SOURCE | named) or any(
+            len(one) >= len(form) + _COMPOUND_PART and one.endswith(form)
+            for form in forms
+            if form.isalpha()
+            for one in named
+        ):
+            return True
+    return False
+
+
+#: The letters a compound's own head must leave before the part that ends it
+#: for that part to name the compound: `Bedingungen` ends `Geschäftsbedingungen`.
+_COMPOUND_PART = 3
+
+
+#: What separates the lines of a title the converter joined: a line break or a
+#: slash with space around it.
+_TITLE_LINES = re.compile(r"\n| / ")
+
+
+#: How a noun is attached as a part of the noun phrase it modifies, `Regulations`
+#: of `Disciplinary Regulations Edition 2026`, in the labels the pipelines give.
+_PART_OF_NOUN_PHRASE = frozenset({"compound", "nmod"})
+
+
+@lru_cache(maxsize=256)
+def _titled(title: str | None, language: str | None) -> frozenset[str]:
+    """The nouns a document's title is about: those heading each of its lines.
+
+    The root of each line's parse and the nouns coordinated with it, with the
+    nouns that are parts of their noun phrase, as lemma and as written -
+    "Terms" and "Conditions" of "General Terms and Conditions of Sale",
+    "Regulations" of "Disciplinary Regulations Edition 2026" - so a statement
+    saying "these terms" under it names the document. A converter that joined
+    a title's lines with a space leaves the line's head on its last word, and
+    the noun phrase is what is left of the first. Read from the parse, so no
+    word is listed.
+    """
+    heads: set[str] = set()
+    for line in _TITLE_LINES.split(title or ""):
+        if not line.strip():
+            continue
+        for sentence in _read(line, language).sents:
+            stack = [noun for noun in _conjuncts(sentence.root)]
+            while stack:
+                noun = stack.pop()
+                if noun.pos_ not in _NOMINAL:
+                    continue
+                heads |= {noun.lemma_.casefold(), noun.text.casefold()}
+                stack += [c for c in noun.children if c.dep_ in _PART_OF_NOUN_PHRASE]
+    return frozenset(heads)
 
 
 #: Modifiers that make their noun one the passage named before, by ISO 639-1
@@ -1661,7 +1755,7 @@ _ADJECTIVE_ENDINGS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _opens(token) -> bool:
+def _opens(token, named: frozenset[str] = frozenset()) -> bool:
     """Whether a token opening a statement points at something before it.
 
     A demonstrative determiner, `Diese Bibliotheken`, unless it names the
@@ -1676,7 +1770,7 @@ def _opens(token) -> bool:
     if (
         token.pos_ == "DET"
         and "Dem" in token.morph.get("PronType", [])
-        and not _sourced(token)
+        and not _sourced(token, named)
     ) or token.tag_ == "PROAV":
         return True
     # A preposition, or a word heading its object, modifies nothing, whatever
@@ -1726,7 +1820,9 @@ def _opens(token) -> bool:
     )
 
 
-def _references(span: Doc | Span, passages: Sequence[str] = ()) -> tuple[str, ...]:
+def _references(
+    span: Doc | Span, passages: Sequence[str] = (), title: str | None = None
+) -> tuple[str, ...]:
     """Collects what leaves a statement dependent on its context.
 
     The pronouns anywhere that the statement does not resolve itself, and
@@ -1735,6 +1831,7 @@ def _references(span: Doc | Span, passages: Sequence[str] = ()) -> tuple[str, ..
     passages it was drawn from tell a polite form from a pronoun.
     """
     opening = takewhile(lambda t: "Fin" not in t.morph.get("VerbForm", []), span)
+    named = _titled(title, span.doc.lang_) if title else frozenset()
     return tuple(
         sorted(
             {
@@ -1742,7 +1839,7 @@ def _references(span: Doc | Span, passages: Sequence[str] = ()) -> tuple[str, ..
                 for t in span
                 if _refers(t, passages) and not _resolved(t)
             }
-            | {t.text.casefold() for t in opening if _opens(t)}
+            | {t.text.casefold() for t in opening if _opens(t, named)}
         )
     )
 
@@ -2275,7 +2372,12 @@ def _untagged_claim(span: Doc | Span) -> bool:
     return any(token.tag_ in finite for token in span)
 
 
-def claim(text: str, language: str | None, passages: Sequence[str] = ()) -> Claim:
+def claim(
+    text: str,
+    language: str | None,
+    passages: Sequence[str] = (),
+    title: str | None = None,
+) -> Claim:
     """Reads what one written statement asserts.
 
     A statement the tagger read without a finite verb still counts as one
@@ -2286,13 +2388,14 @@ def claim(text: str, language: str | None, passages: Sequence[str] = ()) -> Clai
 
     `passages` are the texts the statement was drawn from, which only its
     references read: a polite form inside one says an opening `Sie` names
-    the reader.
+    the reader. The `title` of the document they came from names it: a
+    demonstrative whose noun the title is about, "these terms", is no reference.
     """
     document = _read(text, language)
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document),
-        references=_references(document, passages),
+        references=_references(document, passages, title),
         verbs=_verbs(document),
         figures=_figures(document),
     )

@@ -188,7 +188,7 @@ missing from one fails no test.
 | `_PURPOSE` | same | How the material says why, by language: what a `reason` slot is dealt | `damit`, `so that` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
-| `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing | `Lehrplan`, `syllabus` |
+| `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing. So is one before a noun the document's own title is about (the root of each title line's parse and its coordinated nouns, or the last part of one, `Bedingungen` of `Geschäftsbedingungen`), which is read from the parse, not listed | `Lehrplan`, `syllabus` |
 | `_SPELLING` | same | How the language writes a cardinal: the words nought to nineteen, the tens, the words for a hundred and a thousand, how a unit and a ten join (`twenty-five`, `fünfundzwanzig`) and whether a scale word glues to its multiplier (`zweitausend`); `CARDINALS` is spelled out of it | `fünf`, `twenty` |
 | `CARDINALS` | same | Every cardinal `_SPELLING` spells, from nought to a hundred (a German one to ninety-nine thousand), each as the value it names: the one count table the fact dedup gate and the question gates both read; two words that make one number (`twenty thousand`) are joined by `numbers` | `zwei`, `one` |
 | `DECIMAL_MARK` | same | The mark the language writes a decimal with: one such mark before three digits is a fraction, not thousands, wherever the question gates read a figure the passages or the verifier's reply state | `,`, `.` |
@@ -199,6 +199,8 @@ missing from one fails no test.
 | `ORDINAL_SUFFIX` | same | What a language writes after the digits of an ordinal figure, so `3rd` and a German `3.` are the ordinal that `third` and `dritte` are, never the count 3, where the question gates compare a key with what came back | `st`, `nd`, `rd`, `th`, `.` |
 | `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
+| `_GENITIVE_DEMONSTRATIVES` | same | The demonstratives standing as the genitive of a noun, with the relation the parser gives them: one of them after a noun of its statement is read as a possessive is, not as pointing outside (`die UEFA und deren Lieferanten`). A language with no row reads none as resolved | `dessen`, `deren` |
+| `_CLAUSE_DEMONSTRATIVES` | same | The demonstratives that carry a clause or participle of their own: one after a noun of its statement is that noun and its clause, not a pointer (`except those related to the price cap`) | `those` |
 | `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |
 | `_ANAPHORIC_MODIFIERS` | same | Modifiers making their noun one the passage named before: a statement opening on one before its noun is refused as a demonstrative is, one written apart (`oben genannt`) or with its hyphen (`above-mentioned`) read as one word. One after its noun (`Withdrawals above EUR 500`), a preposition or a word heading its object (`Above EUR 500,`, `Following the update,`) and the first part of a hyphen compound (`above-average`) point nowhere. The fact side's own, apart from `_ANAPHORIC`, and like it without a bare `genannt` | `solcher`, `such` |
 | `_CATAPHORIC_MODIFIERS` | same | Modifiers making a plural noun a list the passage gives after the statement, read as the opening modifiers are; on a singular noun or one a figure counts they mean the next one (`the following 12 months`), and a list the statement gives after a colon is the one meant | `folgend`, `following` |
@@ -222,7 +224,7 @@ missing from one fails no test.
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS`, `_SOURCE` and the two modifier tables by lemma or
 by the word as written (the modifiers also as written with an `_ADJECTIVE_ENDINGS` ending), `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
-`_EXCEPTIVE`, `_POLITE` and the two abbreviation tables by the word as written, the openings off the start of the question, `_COUNTS`
+`_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`, `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables by the word as written, the openings off the start of the question, `_COUNTS`
 against an answer's first word. `Risikobericht` is a thing a corpus is
 about and `Bericht` is a thing a corpus IS.
 
