@@ -6612,3 +6612,36 @@ def test_a_compound_half_is_rescued_against_its_own_passage_only() -> None:
     assert len(encoder.pairs) == 1
     assert encoder.pairs[0][0].startswith(_RESCUED["en"][1])
 
+
+
+# ── A compound row stores its halves ──────────────────────────────────────
+
+
+@pytest.mark.parametrize("language", ["en", "de"])
+@pytest.mark.parametrize("answers", ["right", "wrong"])
+def test_a_compound_row_stores_both_halves_whatever_the_verdict(
+    language: str, answers: str
+) -> None:
+    """The halves cannot be recomputed from the merged question, so they are kept."""
+    _, _, _, parts = _BANK[language]
+    recording = PerHalf(
+        {part[1]: part[2] if answers == "right" else None for part in parts}
+    )
+
+    result = build(recording).check(_compound(language))
+
+    stored = [one.recorded() for one in result.readings if one.gate == "halves"]
+    assert len(stored) == 1
+    assert stored[0]["detail"] == [
+        {"passage_id": one, "question": two, "answer": three}
+        for one, two, three in parts
+    ]
+    assert stored[0]["margin"] is None, "a stored detail takes no part in confidence"
+
+
+def test_a_question_that_is_not_compound_stores_no_halves() -> None:
+    """Only the compound kind has halves."""
+    result = build(Recording(recovers="4 kg")).check(candidate())
+
+    assert [one for one in result.readings if one.gate == "halves"] == []
+

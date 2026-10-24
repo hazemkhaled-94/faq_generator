@@ -60,6 +60,8 @@ class Measurement:
         shadow: Whether this is a gate measured before it gates anything,
             stored so its bar can be set on real readings. Like an opinion,
             recorded with no margin and left out of `confidence`.
+        detail: What the reading was taken from, stored beside it when it
+            cannot be recomputed from the row: a compound question's halves.
     """
 
     gate: str
@@ -70,6 +72,7 @@ class Measurement:
     opinion: bool = False
     version: str | None = None
     shadow: bool = False
+    detail: Any = None
 
     @property
     def _safest(self) -> float:
@@ -127,6 +130,8 @@ class Measurement:
             recorded["shadow"] = True
         if self.version is not None:
             recorded["version"] = self.version
+        if self.detail is not None:
+            recorded["detail"] = self.detail
         return recorded
 
 

@@ -646,6 +646,20 @@ class QuestionChecker:
         """
         resting = {passage.id for passage in candidate.group.resting}
         parts = candidate.parts
+        # The halves are the writer's and cannot be recomputed from the merged
+        # question, so the row keeps them whatever verdict it gets.
+        readings.append(
+            Measurement(
+                "halves",
+                float(len(parts)),
+                2.0,
+                shadow=True,
+                detail=[
+                    {"passage_id": one, "question": two, "answer": three}
+                    for one, two, three in parts
+                ],
+            )
+        )
         if (
             len(parts) != 2
             or parts[0][0] == parts[1][0]
