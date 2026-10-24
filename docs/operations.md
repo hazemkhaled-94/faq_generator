@@ -538,6 +538,17 @@ drains them, `make corpus-hosted` or the stage's own target, because no worker
 does on this profile. A release that adds a stage ends its upgrade section with
 `make up`, so the worker or profile it brings is started.
 
+### Upgrading a deployment
+
+`make upgrade` takes the stack to the code in the checkout, in the order that
+works: it checks the container engine has the room (`UPGRADE_FREE_GB`, 20 by
+default, read in the podman VM where there is one), builds, prunes the images
+the build orphaned, stops the workers, runs `make schema` and starts the stack
+with `make up`. It stops at the first step that fails, so a build that did not
+finish never reaches the migration. Run it after `git pull` and before
+`make corpus-hosted`; an upgrade section of this page that says to rebuild and
+run `make up` is this.
+
 ### Profiles
 
 With no profile named compose starts eleven services: the database, the object

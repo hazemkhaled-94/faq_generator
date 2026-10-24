@@ -267,7 +267,7 @@ help:
 	  { reset() } \
 	' $(MAKEFILE_LIST)
 
-.PHONY: help setup doctor \
+.PHONY: help setup doctor upgrade \
         dev install install-python docling-weights up grafana-grants down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
         logs-wipe \
@@ -305,6 +305,30 @@ help:
         eval-upload eval-score prompts-publish \
         all corpus corpus-hosted open services review pull auto manual pipeline runs \
         pipeline-status pipeline-stop pipeline-retry
+
+# ── Upgrade ────────────────────────────────────────────────────────────────
+
+# What a build needs free in the engine's disk, in GB, which is the room the
+# backend image takes and then some: a build that runs out half way leaves a
+# stack that will not start.
+UPGRADE_FREE_GB ?= 20
+
+# Take a deployment to the code in this checkout: check the engine has the
+# room, build, reclaim what the build orphaned, stop the workers, migrate, and
+# start. Stops at the first step that fails, so a build that did not finish
+# never reaches the migration. The room is read in the engine's VM where it has
+# one (`podman machine`) and on the host otherwise.
+upgrade:
+	@[ "$(UPGRADE_FREE_GB)" = 0 ] || { \
+	  free=$$($(CONTAINER) machine ssh -- df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc 0-9); \
+	  [ -n "$$free" ] || free=$$(df -BG --output=avail /var/lib 2>/dev/null | tail -1 | tr -dc 0-9); \
+	  [ -n "$$free" ] || { echo "the engine's free disk could not be read: UPGRADE_FREE_GB=0 skips the check" >&2; exit 1; }; \
+	  [ "$$free" -ge $(UPGRADE_FREE_GB) ] || { echo "the engine has $$free GB free, under the $(UPGRADE_FREE_GB) GB an upgrade is budgeted at: make prune, free space, or set UPGRADE_FREE_GB" >&2; exit 1; }; }
+	$(COMPOSE_CMD) build
+	$(MAKE) prune
+	$(COMPOSE_CMD) stop parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker
+	$(MAKE) schema
+	$(MAKE) up
 
 # ── Bootstrap ──────────────────────────────────────────────────────────────
 
