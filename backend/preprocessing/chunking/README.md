@@ -166,6 +166,11 @@ is before the cut, so both alternatives stay in one passage with the word
 between them. One between two headed sections stays a heading, out of the
 trail, and is glued to neither.
 
+A heading that is a member of a list group is a list item the converter's
+bookmark pass made a heading of (a bookmark per clause does it), and is read
+as the list item it is before the cut, so its clause is passage text instead
+of a trail entry or nothing.
+
 A document with no running head or foot is cut with today's trail.
 
 A table is rendered into the passage text as Markdown rows, and the grid is

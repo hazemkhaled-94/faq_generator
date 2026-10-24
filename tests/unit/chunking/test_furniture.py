@@ -846,3 +846,66 @@ def test_a_page_printing_part_of_its_chapter_s_label_stays_in_the_chapter() -> N
     assert inserted == ["Chapter 3 | Fees", "Chapter 4 | Cards"], inserted
     (third,) = [chunk for chunk in chunks if "page 3." in chunk.text]
     assert third.meta.headings == ["Chapter 3", "Fees", "3.1 Account fees"]
+
+
+def clauses(document: DoclingDocument, items: tuple[str, ...], promoted: str) -> None:
+    """A list whose third clause the converter's bookmark pass made a heading."""
+    group = document.add_list_group()
+    for top, item in zip((100, 120), items[:2], strict=True):
+        document.add_list_item(text=item, parent=group, prov=on(1, top))
+    document.add_heading(text=promoted, level=4, parent=group, prov=on(1, 140))
+    document.add_list_item(text=items[2], parent=group, prov=on(1, 160))
+
+
+@pytest.mark.parametrize(
+    ("items", "promoted"),
+    [
+        (
+            (
+                "Die Kündigung bedarf der Schriftform.",
+                "Die Kündigungsfrist beträgt drei Monate.",
+                "Das Konto wird mit Ablauf der Frist geschlossen.",
+            ),
+            "Ein Guthaben wird dem Kunden spätestens zehn Tage nach Ablauf erstattet.",
+        ),
+        (
+            (
+                "The customer may close the account in writing.",
+                "The bank gives two months' notice of a closure.",
+                "Any balance is returned on closing.",
+            ),
+            "Fees already paid for the current quarter are not refunded.",
+        ),
+    ],
+)
+def test_a_clause_made_a_heading_inside_a_list_stays_passage_text(
+    items: tuple[str, ...], promoted: str
+) -> None:
+    """The converter's bookmarks turn some list items into headings of the list."""
+    document = DoclingDocument(name="terms")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    document.add_heading(text="Terms", level=1, prov=on(1, 60))
+    clauses(document, items, promoted)
+
+    chunks = cut(document)
+    text = "\n".join(chunk.text for chunk in chunks)
+
+    assert promoted in text, text
+    assert all(item in text for item in items)
+    assert all(promoted not in chunk.meta.headings for chunk in chunks)
+
+
+def test_a_real_heading_outside_a_list_stays_a_heading() -> None:
+    """Only a heading that is a member of a list is a clause."""
+    document = DoclingDocument(name="terms")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    document.add_heading(text="Terms", level=1, prov=on(1, 60))
+    document.add_heading(text="Closing the account", level=2, prov=on(1, 80))
+    say(document, 1, "The customer may close the account in writing.")
+
+    assert trails(document) == [
+        (
+            "The customer may close the account in writing.",
+            ["Terms", "Closing the account"],
+        )
+    ]

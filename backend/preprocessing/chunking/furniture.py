@@ -25,8 +25,14 @@ from docling_core.transforms.chunker.doc_chunk import DocChunk
 from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
+from docling_core.types.doc.items.group import ListGroup
 from docling_core.types.doc.items.node import DocItem, NodeItem
-from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, TitleItem
+from docling_core.types.doc.items.text import (
+    ListItem,
+    SectionHeaderItem,
+    TextItem,
+    TitleItem,
+)
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.analysis import _capitalises_nouns
@@ -586,6 +592,10 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
     between two headed sections belongs to neither. So does one holding no
     letter or digit, which names nothing.
 
+    A heading that is a member of a list is a list item the converter's
+    bookmark pass made a heading of: it is a list item again, or its clause
+    reaches no passage.
+
     Returns:
         `document` itself when no heading is one, otherwise a copy.
     """
@@ -605,8 +615,17 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
             or {before.label, after.label} <= _PROSE
         )
     }
+    listed = {
+        item.self_ref
+        for item in document.texts
+        if isinstance(item, SectionHeaderItem)
+        and item.parent is not None
+        and isinstance(item.parent.resolve(document), ListGroup)
+    }
     found = [
-        index for index, item in enumerate(document.texts) if item.self_ref in between
+        index
+        for index, item in enumerate(document.texts)
+        if item.self_ref in between | listed
     ]
     if not found:
         return document
@@ -614,14 +633,24 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
     for index in found:
         heading = demoted.texts[index]
         # In its place in the texts, so every reference to it still holds.
-        demoted.texts[index] = TextItem(
-            **{
-                name: getattr(heading, name)
-                for name in TextItem.model_fields
-                if name != "label"
-            },
-            label=DocItemLabel.TEXT,
-        )
+        if heading.self_ref in listed:
+            demoted.texts[index] = ListItem(
+                **{
+                    name: getattr(heading, name)
+                    for name in ListItem.model_fields
+                    if name != "label" and hasattr(heading, name)
+                },
+                label=DocItemLabel.LIST_ITEM,
+            )
+        else:
+            demoted.texts[index] = TextItem(
+                **{
+                    name: getattr(heading, name)
+                    for name in TextItem.model_fields
+                    if name != "label"
+                },
+                label=DocItemLabel.TEXT,
+            )
     return demoted
 
 
