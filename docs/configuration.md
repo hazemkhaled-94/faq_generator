@@ -195,7 +195,8 @@ empty is refused, because Docling reads it as the working directory. Fill the
 host's cache once, where the Hub is reachable, before go-live: `make
 docling-weights HOST=1` for the converter (plain `make docling-weights` fills
 the containers' `models` volume, which the parse worker reads and the host
-does not), and `poetry run hf download <repo> --revision <commit>` of each
+does not; with `DOCLING_ARTIFACTS_PATH` set, `poetry run docling-tools models
+download -o <that folder>` fills it instead), and `poetry run hf download <repo> --revision <commit>` of each
 encoder, the line `make doctor` prints for one it misses.
 
 ## Go-live settings

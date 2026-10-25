@@ -311,3 +311,14 @@ def test_the_doctor_reads_yes_as_every_setting_does(tmp_path, value, strict) -> 
 
     assert cache_check(source(tmp_path, HF_HUB_OFFLINE=value, HOST_RUNNER="")) == strict
     assert (value.strip().lower() in _TRUE) is strict
+
+
+def test_a_missing_artifacts_folder_names_what_fills_that_folder(tmp_path) -> None:
+    """Not make docling-weights, which fills the containers' volume."""
+    fill(tmp_path)
+    folder = tmp_path / "nowhere"
+
+    (said,) = cache_problems(source(tmp_path, DOCLING_ARTIFACTS_PATH=str(folder)))
+
+    assert f"docling-tools models download -o {folder}" in said
+    assert "make docling-weights" not in said.split(", or")[0]

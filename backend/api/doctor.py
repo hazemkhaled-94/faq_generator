@@ -182,8 +182,9 @@ def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
         if not folder.is_dir() or not any(folder.iterdir()):
             found.append(
                 f"DOCLING_ARTIFACTS_PATH {artifacts} is not a folder holding the "
-                "converter's weights: run make docling-weights where the Hub is "
-                "reachable"
+                "converter's weights: fill it where the Hub is reachable with "
+                f"poetry run docling-tools models download -o {folder}, or unset "
+                "it and run make docling-weights HOST=1"
             )
     else:
         # The host's cache, which `make docling-weights` alone does not fill:
