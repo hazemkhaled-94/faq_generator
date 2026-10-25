@@ -129,7 +129,7 @@ equivalent of.
 | `make up` | Start services, then grant Grafana's reader the five Phoenix tables the run dashboard queries. It waits up to 150 seconds for Phoenix to make them and then grants anyway, so a slow first boot fails here with the stack up; run `make grafana-grants` again |
 | `make grafana-grants` | Those grants alone. Safe to run again |
 | `make down` | Stop services, keep data, and remove dangling images |
-| `make down-volumes` | Stop services and **delete all data** |
+| `make down-volumes CONFIRM=all-volumes` | Stop services and **delete all data**: every database's volumes on the stack. Refuses without `CONFIRM=all-volumes` on the command line |
 | `make certs` | Generate the TLS certificates Elasticsearch needs. Stops at a failed step, and skips only once `certs/elasticsearch.crt` is written |
 | `make prune` | Remove dangling container images |
 

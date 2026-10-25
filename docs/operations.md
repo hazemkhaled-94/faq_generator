@@ -469,7 +469,7 @@ Run it on a scratch stack before you need it, and again after any change to the
 stores. It replaces the data of the stack it runs on.
 
 1. Bring up a stack of the same version beside the first (see "A second stack
-   beside the first"), or the same one after `make down-volumes`, then `make up`.
+   beside the first"), or the same one after `make down-volumes CONFIRM=all-volumes`, then `make up`.
 2. Stop everything but postgres and seaweedfs, so that no connection holds a
    database: `podman compose --env-file configs/env/deployment.env --env-file .env stop api frontend parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker dagster-webserver dagster-daemon phoenix argilla grafana`
    (`docker compose` for docker; `ps` lists what else runs).
@@ -1846,7 +1846,7 @@ These two archive nothing, because `TRUNCATE` and a dropped volume fire no
 row trigger:
 
 ```bash
-make down-volumes                 # the containers' data, all of it
+make down-volumes CONFIRM=all-volumes  # the containers' data, all of it
 make schema-reset                 # every table, rebuilt from the revisions
 ```
 

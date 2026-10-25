@@ -592,10 +592,11 @@ down:
 prune:
 	-$(CONTAINER) image prune -f
 
-# Deletes every volume. Irreversible.
+# Deletes every volume: every database's data and objects on the stack.
+# Irreversible, so it refuses unless CONFIRM=all-volumes is typed on the
+# command line.
 down-volumes:
-	@echo "WARNING: this deletes all persistent data. Ctrl-C within 5s to abort."
-	@sleep 5
+	@[ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = all-volumes ] || { echo "REFUSED: down-volumes deletes every volume of the stack: every database's data and objects." >&2; echo "  Run it again with CONFIRM=all-volumes to go on." >&2; exit 2; }
 	$(COMPOSE_CMD) down -v
 
 # The container logs, as the engine holds them. Every service, this project's
@@ -1816,7 +1817,7 @@ restore-backup-stack:
 	  { [ "$$n" -le 1 ] || [ "$(ALL_DATABASES)" = 1 ] || \
 	    { echo "REFUSED: $$n application databases share this stack. restore-backup-stack puts every database's objects back to the backup's, and what they wrote since is lost to the restored filer; the other databases keep their rows." >&2; \
 	      echo "  restore-backup puts one database back. Run this with ALL_DATABASES=1 to go on regardless." >&2; exit 2; }; }
-	@[ "$(CONFIRM)" = stack ] || { echo "REFUSED: restore-backup-stack rolls back the shared SeaweedFS filer, Phoenix, Dagster, Argilla and every database's objects to $(DIR)." >&2; echo "  Run it again with CONFIRM=stack to go on." >&2; exit 2; }
+	@[ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = stack ] || { echo "REFUSED: restore-backup-stack rolls back the shared SeaweedFS filer, Phoenix, Dagster, Argilla and every database's objects to $(DIR)." >&2; echo "  Run it again with CONFIRM=stack to go on." >&2; exit 2; }
 	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
 	  [ "$$name" != "$$ARGILLA_DB_NAME" ] || [ -f "$(DIR)/db/$$name.dump" ] || continue; \
 	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --single-transaction -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \

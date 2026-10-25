@@ -1379,3 +1379,25 @@ def test_dagster_wipe_leaves_the_runs_when_keep_names_them(tmp_path: Path) -> No
 
     ran, log = run_for_real(tmp_path, "dagster-wipe", "CONFIRM=qa_generator")
     assert "orchestration.wipe" in log, (ran, log)
+
+
+def test_a_stack_restore_confirmed_in_the_shell_is_refused(tmp_path: Path) -> None:
+    """CONFIRM=stack counts only from the command line, as it does for every other guard."""
+    sandbox(tmp_path)
+    lines = printed("restore-backup-stack", "DIR=/backups/x", CONFIRM="stack")
+    (line,) = [one for one in lines if "Run it again with CONFIRM=stack" in one]
+
+    assert refusal(line, tmp_path, CONFIRM="stack").returncode == 2
+
+
+def test_down_volumes_refuses_without_confirm_all_volumes() -> None:
+    """It deletes every database's volumes, so a five-second pause is not a guard."""
+    lines = printed("down-volumes")
+    assert any("REFUSED:" in one and "all-volumes" in one for one in lines), lines
+    assert not any("sleep 5" in one for one in lines), lines
+    ran = [
+        one
+        for one in printed("down-volumes", "CONFIRM=all-volumes")
+        if "down -v" in one
+    ]
+    assert ran, "the command is still there once confirmed"
