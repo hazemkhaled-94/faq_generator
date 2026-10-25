@@ -239,7 +239,8 @@ grammar rather than holding words — `_PLURAL_GENDERLESS`,
 `_SYNCRETIC_FEMININE`, `_NOUN_ANAPHORIC_DEMONSTRATIVES`,
 `_INFINITIVE_IS_PLURAL` and `_VERB_FINAL_SUBORDINATE` (a subordinate clause
 ends on its finite verb, so one of that order after a comma and a coordinator
-goes on with the clause before it) — and a language missing from one is read as
+goes on with the subordinate clause before it, and is a second claim after a
+main clause) — and a language missing from one is read as
 lacking the trait.
 
 `_NAMED` is the one that is not a word list, and a language missing from it

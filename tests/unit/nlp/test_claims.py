@@ -474,6 +474,35 @@ def test_a_german_relative_adverb_is_not_a_question_word() -> None:
                 "zurückkommt."
             ),
         ),
+        (
+            "de",
+            (
+                "Die Bank bucht den Betrag zurück, wenn der Kunde widerruft, und die "
+                "Frist nicht abgelaufen ist."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Wenn der Kunde kündigt, und die Frist abgelaufen ist, endet der "
+                "Vertrag."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Der Name der Bank bzw. des Händlers darf anstelle des Logos verwendet "
+                "werden, wobei in diesem Fall die Bestimmungen gemäß Absatz 4 gelten "
+                "und die Buchstaben höchstens 5 cm groß sein dürfen."
+            ),
+        ),
+        (
+            "de",
+            (
+                "Die Gebühr darf abgebucht werden, wobei in diesem Fall die Regeln "
+                "gemäß Absatz 3 gelten und der Betrag höchstens 5 EUR betragen darf."
+            ),
+        ),
         ("en", "Employees may work from home provided their manager agrees."),
         (
             "en",
@@ -529,6 +558,14 @@ def test_one_rule_with_its_condition_or_alternatives_is_one_claim(
                 "Karte verloren wurde."
             ),
         ),
+        # A second main clause that ends on its finite verb after a comma and
+        # "und" is still a main clause when the one before it is a main clause.
+        ("de", "Der Kunde zahlt, und der Händler liefert."),
+        ("de", "Der Kunde zahlt und der Händler liefert."),
+        ("de", "Der Vertrag endet, und die Gebühr entfällt."),
+        ("de", "Die Bank haftet, und der Kunde haftet."),
+        ("de", "Die Karte wird gesperrt, und der Kunde wird informiert."),
+        ("en", "The customer pays, and the merchant delivers."),
     ],
 )
 def test_two_independent_main_clauses_are_still_two_claims(

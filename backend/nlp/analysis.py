@@ -247,6 +247,35 @@ def _ends_on_verb(verb) -> bool:
     return len(own) >= 2 and max(own, key=lambda one: one.i).i == _finite_of(verb).i
 
 
+def _after_subordinate(verb, verbs: list) -> bool:
+    """Whether the clause before a conjunct is a subordinate one.
+
+    The nearest verb before the conjunct's clause, of any form because the
+    parser reads a subordinate verb as a participle at times, is one a
+    subordinator or a relative adverb opens, or a relative clause, or a verb-final conjunct that
+    itself goes on with one: "wenn der Kunde zahlt, und die Ware geliefert
+    wurde". After a main clause a verb-final conjunct is a second main clause:
+    "Der Kunde zahlt, und der Händler liefert".
+    """
+    start = min(one.i for one in verb.subtree)
+    before = [one for one in verbs if one.i < start]
+    if not before:
+        return False
+    earlier = _clause_verb(before[-1])
+    return (
+        any(
+            child.dep_ in _SUBORDINATOR or child.pos_ == "SCONJ"
+            for child in earlier.children
+        )
+        or earlier.dep_ in _RELATIVE
+        or (
+            earlier.dep_ in _COORDINATION
+            and _ends_on_verb(earlier)
+            and _after_subordinate(earlier, verbs)
+        )
+    )
+
+
 def _coordination_top(verb):
     """The first clause of the coordination a conjunct is in."""
     while verb.dep_ in _COORDINATION and verb.head.i != verb.i:
@@ -368,6 +397,7 @@ def _predicates(span: Doc | Span) -> int:
     if not finite:
         return 0
     doc = span.doc
+    verbs = [token for token in doc if token.pos_ in ("VERB", "AUX")]
     inside, after = _exceptive_tokens(doc)
     disjunctive = _DISJUNCTIVE.get(doc.lang_, frozenset())
     # Where the sentences start once the parser's cuts are corrected, for a
@@ -400,11 +430,13 @@ def _predicates(span: Doc | Span) -> int:
             # alternative: "returned, exchanged or repaired".
             or (conjunct and not words and _closed_by_alternative(verb, disjunctive))
             # A subordinate clause of a language that ends it on its verb,
-            # after a comma and "und", goes on with the one before it.
+            # after a comma and "und", goes on with the subordinate clause
+            # before it; after a main clause it is a second one.
             or (
                 conjunct
                 and doc.lang_ in _VERB_FINAL_SUBORDINATE
                 and _ends_on_verb(verb)
+                and _after_subordinate(verb, verbs)
             )
             or (verb.head.i == verb.i and starts is not None and _cut(verb, starts))
         ):
