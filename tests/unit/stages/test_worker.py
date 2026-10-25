@@ -26,11 +26,16 @@ def _handlers():
 
 def test_a_signal_is_recorded_rather_than_raised() -> None:
     """The flag goes up; the process stays."""
-    flag = Shutdown()
+    left: list[int] = []
+    flag = Shutdown(leave=left.append)
     assert not flag.requested()
 
     flag._request(signal.SIGTERM, None)
+    # The grace clock the request started would end the test run when it ran
+    # out: it is stopped as a worker that finished in time stops it.
+    flag.done()
     assert flag.requested()
+    assert left == []
 
 
 def test_sigterm_ends_the_loop_after_the_current_drain() -> None:
