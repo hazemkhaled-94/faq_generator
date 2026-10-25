@@ -56,7 +56,7 @@ def test_the_bridge_pass_logs_proves_traces_then_bridges(monkeypatch, order) -> 
     """The preflight is before the exporter, so a model that will not answer leaves no project."""
     from extraction import run as module
 
-    monkeypatch.setattr(module, "snapshot", lambda: ({}, "v1"))
+    monkeypatch.setattr(module, "snapshot", lambda *_: ({}, "v1"))
     monkeypatch.setattr(module, "ModelSettings", _Loaded())
     monkeypatch.setattr(
         module,
@@ -83,7 +83,7 @@ def test_the_rejudge_logs_proves_traces_then_judges(monkeypatch, order) -> None:
     """The same order for the other pass that asks a model outside a drain."""
     from question_generation import run as module
 
-    monkeypatch.setattr(module, "snapshot", lambda: ({}, "v1"))
+    monkeypatch.setattr(module, "snapshot", lambda *_: ({}, "v1"))
     monkeypatch.setattr(module, "Settings", _Loaded())
     monkeypatch.setattr(module, "ModelSettings", _Loaded())
     monkeypatch.setattr(module, "models", lambda *_: (None, "verifier", None))
