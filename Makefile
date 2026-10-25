@@ -187,15 +187,29 @@ CONFIRMED = $(LOADENV) && { [ "$(if $(filter command line,$(origin CONFIRM)),$(C
             { echo "REFUSED: $(1) acts on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT." >&2; \
               echo "  Run it again with CONFIRM=$$APP_DB_NAME to go on." >&2; exit 2; }; }
 
-# What a drain is given under WAIT=1, which `corpus` sets, while $(1), the
-# container worker draining the same queue, is running: --wait, so the stage
-# is waited for until that worker has emptied its queue rather than drained
-# beside it. The go-live `make up` starts the parse and chunk workers, and a
-# chain that refused there never reached a model stage. Empty otherwise, and
-# without WAIT the drain's IDLE refuses instead.
+# What the parse or chunk drain is given under WAIT=1, which `corpus` sets,
+# while $(1), the container worker draining the same queue, is running:
+# --wait, so the stage is waited for until that worker has emptied its queue
+# rather than drained beside it. The go-live `make up` starts those two
+# workers, and a chain that refused there never reached a model stage. Empty
+# otherwise, and without WAIT the drain's IDLE refuses instead. Never for a
+# model stage: its worker calls Ollama, and one left up from development is
+# refused (see OFF_PROFILE), not waited for.
 #
 #     python -m preprocessing.parsing.run $(call AWAIT,parse-worker)
 AWAIT = $(if $(WAIT),$$($(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q . && echo --wait))
+
+# The services the go-live profile never starts: the model workers, which
+# call Ollama, under `local-models`, and Dagster under `orchestrated`. One
+# left up from development would write a model stage with Ollama, so the
+# hosted run's preflight and `make doctor` refuse beside it. A static test
+# holds this to compose.yaml's two profiles.
+OFF_PROFILE = extract-worker topic-worker question-worker assess-worker dagster-webserver dagster-daemon
+
+# Sets the shell's `up` to those of OFF_PROFILE that are running, space-led.
+# Empty when none is, when no container engine answers, or the stack is down.
+OFF_PROFILE_UP = up=; for one in $(OFF_PROFILE); do \
+                   if $(call RUNNING,$$one); then up="$$up $$one"; fi; done
 
 # True when this is the go-live profile: HOST_RUNNER is a spelling of yes.
 # The host runs the model stages through `make corpus-hosted`, the model
@@ -440,7 +454,11 @@ doctor:
 	  say ok "PHOENIX_ADMIN_SECRET"; \
 	  else say FAIL "PHOENIX_ADMIN_SECRET needs 32+ characters, a digit and a lower-case letter"; fail=1; fi; \
 	if $(GO_LIVE); then \
-	  say "-" "the model workers are stopped (HOST_RUNNER): the containers' model is not checked"; \
+	  $(OFF_PROFILE_UP); \
+	  if [ -n "$$up" ]; then \
+	    say FAIL "$$up up on the go-live profile, where a model worker calls Ollama - stop:"; \
+	    say "" "  $(COMPOSE_CMD) stop$$up"; fail=1; \
+	  else say "-" "the model workers and Dagster are stopped (HOST_RUNNER): the containers' model is not checked"; fi; \
 	elif test -z "$$OLLAMA_CONTAINER_URL"; then \
 	  say FAIL "OLLAMA_CONTAINER_URL is unset, and it is the only address a container may call"; fail=1; \
 	elif test -z "$$LLM_CONTAINER_MODEL"; then \
@@ -896,9 +914,9 @@ chunk-revocabulary:
 # Drain the extraction queue here. Needs the model in LLM_MODEL to be
 # served at LLM_BASE_URL.
 extract:
-	@$(if $(WAIT),,$(call IDLE,extract-worker))
+	@$(call IDLE,extract-worker)
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run $(call AWAIT,extract-worker)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run
 
 # Report the extraction queue, and how many facts passed every check.
 extract-status:
@@ -1120,9 +1138,9 @@ topics-retry:
 
 # Drain the question queue here, in the foreground.
 questions:
-	@$(if $(WAIT),,$(call IDLE,question-worker))
+	@$(call IDLE,question-worker)
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run $(call AWAIT,question-worker)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run
 
 # Report the queue by topic state, and how many questions are held.
 questions-status:
@@ -1304,9 +1322,9 @@ ASSESS = $(LOADENV) && PYTHONPATH=backend poetry run python -m assessment.run
 
 # Drain the judging queue here, in the foreground.
 assess:
-	@$(if $(WAIT),,$(call IDLE,assess-worker))
+	@$(call IDLE,assess-worker)
 	@$(BANNER)
-	$(ASSESS) $(call AWAIT,assess-worker)
+	$(ASSESS)
 
 # Report the queue by artefact state, and warn when no judge is named.
 assess-status:
@@ -2306,10 +2324,11 @@ all:
 # fit replaces them; `make topics-discover` is the refit asked for on its own.
 # A fit a resume returned to the queue is drained there all the same.
 #
-# A stage whose container worker is running is waited for, not drained: the
-# go-live `make up` starts the parse and chunk workers, so the chain waits
+# A parse or chunk stage whose container worker is running is waited for, not
+# drained: the go-live `make up` starts those two workers, so the chain waits
 # until each has emptied its queue, polling the counts, and goes on (see
-# AWAIT); a stage whose worker is down is drained here.
+# AWAIT). A model stage refuses beside its worker, which calls Ollama, and a
+# stage whose worker is down is drained here.
 #
 # It names the database it acts on before it touches it, and every drain gets
 # that name, the Hub switched off (HF_HUB_OFFLINE=1: the weights are in the
@@ -2361,6 +2380,7 @@ corpus-hosted:
 	@mkdir -p logs
 	@scripts/corpus-hosted.sh --check $(HOSTED_ARGS)
 	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
+	@$(OFF_PROFILE_UP); [ -z "$$up" ] || { echo "$$up up, which the go-live profile never runs: a model worker would write its stage with Ollama. Stop them first:" >&2; echo "  $(COMPOSE_CMD) stop$$up" >&2; exit 1; }
 	@$(LOADENV) && HF_HUB_OFFLINE=1 PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
 	@nohup scripts/corpus-hosted.sh $(HOSTED_ARGS) >> $(HOSTED_LOG) 2>&1 & \
 	  for i in $$(seq 50); do [ -f $(HOSTED_PID) ] && break; sleep 0.1; done; \

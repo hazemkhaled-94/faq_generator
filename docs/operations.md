@@ -556,7 +556,10 @@ From a fresh clone, following only this page:
    page and Phoenix. The parse and chunk workers drain their queues here, and
    `make corpus-hosted` waits for each to empty before the model stages. The
    model workers sit under the `local-models` profile
-   and Dagster under `orchestrated`; `make all`, `make pipeline` and
+   and Dagster under `orchestrated`, and this `make up` stops none of them:
+   one left up from development calls Ollama, so `make doctor` and
+   `make corpus-hosted` refuse while any is, naming the `compose stop` that
+   stops it. `make all`, `make pipeline` and
    `make auto` refuse, and so do the pipeline's routes, naming the host
    runner. A queue verb for a model stage still queues its rows, and its answer
    names the command that drains them.

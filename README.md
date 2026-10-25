@@ -210,9 +210,10 @@ the topics of every language it fits, so it is asked for on its own, and
 `make topics-status` says how many passages are in no topic.
 
 `make corpus` runs the same stages on the host, for developing a stage, and
-`make corpus-hosted` runs it detached on the go-live profile. A stage whose
-container worker is running is waited for until that worker has emptied its
-queue rather than drained beside it. Stage by stage, which is what it runs:
+`make corpus-hosted` runs it detached on the go-live profile. A parse or chunk
+stage whose container worker is running is waited for until that worker has
+emptied its queue rather than drained beside it; a model stage refuses beside
+its worker. Stage by stage, which is what it runs:
 
 ```bash
 make parse-start     && make parse       # a stored file becomes a structured document

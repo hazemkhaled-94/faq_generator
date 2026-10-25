@@ -46,6 +46,20 @@ def test_what_the_go_live_profile_runs_has_no_profile(service: str) -> None:
     assert "profiles" not in _compose()[service]
 
 
+def test_what_the_go_live_profile_refuses_beside_is_its_two_profiles() -> None:
+    """OFF_PROFILE is every service under local-models or orchestrated."""
+    (named,) = re.findall(
+        r"^OFF_PROFILE = (.*)$", (ROOT / "Makefile").read_text(), re.MULTILINE
+    )
+    profiled = {
+        name
+        for name, service in _compose().items()
+        if {"local-models", "orchestrated"} & set(service.get("profiles", []))
+    }
+
+    assert set(named.split()) == profiled
+
+
 def test_the_example_turns_the_host_runner_on_and_backend_env_does_not_set_it() -> None:
     """backend.env's default leaves today's development behaviour."""
     live = dict(
@@ -603,6 +617,65 @@ def test_corpus_hosted_runs_on_the_go_live_profile_whose_up_starts_two_workers(
     log = (project / "logs/corpus-hosted.log").read_text()
     assert "is running and drains this queue" not in log, log
     assert any("assessment.run" in line for line in _drained(project)), log
+
+
+@pytest.mark.parametrize(
+    "worker", ["extract-worker", "question-worker", "assess-worker", "dagster-daemon"]
+)
+def test_a_model_worker_left_up_refuses_the_hosted_run_before_any_drain(
+    tmp_path: Path, worker: str
+) -> None:
+    """One left from development calls Ollama: it is refused, never waited for."""
+    project = _project(
+        tmp_path,
+        env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n",
+        running=("parse-worker", "chunk-worker", worker),
+    )
+
+    ran = _make(project, "corpus-hosted")
+
+    assert ran.returncode != 0
+    assert worker in ran.stderr and f"stop {worker}" in ran.stderr, ran.stderr
+    assert not _drained(project), "refused before the preflight and any drain"
+
+
+@pytest.mark.parametrize(
+    "worker", ["extract-worker", "question-worker", "assess-worker"]
+)
+def test_the_chain_refuses_beside_a_model_worker_and_never_waits_for_it(
+    tmp_path: Path, worker: str
+) -> None:
+    """Only the parse and chunk workers are waited for."""
+    project = _project(tmp_path, running=(worker,))
+
+    ran = _make(project, "corpus")
+
+    assert ran.returncode != 0
+    assert f"{worker} is running and drains this queue" in ran.stderr
+    assert not any("--wait" in line for line in _drained(project))
+
+
+@pytest.mark.parametrize(
+    ("running", "said"),
+    [
+        (("extract-worker",), "extract-worker up on the go-live profile"),
+        ((), "the model workers and Dagster are stopped"),
+    ],
+)
+def test_the_doctor_says_the_model_workers_are_stopped_only_after_it_looked(
+    tmp_path: Path, running: tuple[str, ...], said: str
+) -> None:
+    """On the go-live profile a model worker up is a failure, named with its stop."""
+    project = _project(
+        tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n", running=running
+    )
+
+    ran = _make(project, "doctor", CONTAINER="true")
+
+    assert said in ran.stdout, ran.stdout
+    if running:
+        assert ran.returncode != 0
+        assert "stop extract-worker" in ran.stdout
 
 
 def test_corpus_hosted_refuses_without_the_go_live_profile(tmp_path: Path) -> None:

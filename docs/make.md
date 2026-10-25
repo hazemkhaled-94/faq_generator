@@ -59,7 +59,7 @@ is unset, or when `LLM_CONTAINER_MODEL` (or a set
 | Target | Does |
 |---|---|
 | `make all` | Bring the stack up, wait for Dagster to list the corpus job, and launch it. The container workers drain every stage but the topic fit, which Fit all on the Topics page asks for |
-| `make corpus` | Every stage, drained on the host in order, stopping at the first drain that exits non-zero (3 a failed row, 75 a drain that stopped itself). Names the database first, the one `APP_DB_NAME=` on its command line gives or else the files', and gives every drain that name, `HF_HUB_OFFLINE=1` and one spend ledger, so `SPEND_CAP` holds for the whole run and not for each drain. The topics are fitted between extraction and the bridge pass only when a language holds passages and no topic or its topics no longer fit them, and the run stops if a language still has none; the bridge pass for the topics holding none follows, then the release draw and the judge. A stage whose container worker runs (`parse-worker`, `chunk-worker`, `extract-worker`, `question-worker`, `assess-worker`) is waited for until that worker has emptied its queue, not drained beside it, which is how the parse and chunk workers the go-live `make up` starts are met; the digest and bridge steps still refuse beside `extract-worker` and the topic fit beside `topic-worker`, so stop those two in development first. `RESUME=1` keeps the ledger and first returns every stage's failed rows to the queue, which is what a run killed mid-row left. Incremental up to the release: a stage already done queues and claims nothing, but the release draw runs again over every accepted question and asks the verifier about each released question and its nearest released neighbour, in up to three rounds that each draw again over the twins found, and a fourth that only drops the twins the last draw still holds, because those verdicts are not stored; it stops before the judge when the verifier does not answer |
+| `make corpus` | Every stage, drained on the host in order, stopping at the first drain that exits non-zero (3 a failed row, 75 a drain that stopped itself). Names the database first, the one `APP_DB_NAME=` on its command line gives or else the files', and gives every drain that name, `HF_HUB_OFFLINE=1` and one spend ledger, so `SPEND_CAP` holds for the whole run and not for each drain. The topics are fitted between extraction and the bridge pass only when a language holds passages and no topic or its topics no longer fit them, and the run stops if a language still has none; the bridge pass for the topics holding none follows, then the release draw and the judge. A parse or chunk stage whose container worker runs (`parse-worker`, `chunk-worker`) is waited for until that worker has emptied its queue, not drained beside it, which is how the two workers the go-live `make up` starts are met; every model stage refuses beside its worker (`extract-worker`, `topic-worker`, `question-worker`, `assess-worker`), so stop those in development first. `RESUME=1` keeps the ledger and first returns every stage's failed rows to the queue, which is what a run killed mid-row left. Incremental up to the release: a stage already done queues and claims nothing, but the release draw runs again over every accepted question and asks the verifier about each released question and its nearest released neighbour, in up to three rounds that each draw again over the twins found, and a fourth that only drops the twins the last draw still holds, because those verdicts are not stored; it stops before the judge when the verifier does not answer |
 | `make corpus-hosted` | `make corpus` on the host, detached and supervised: `scripts/corpus-hosted.sh` runs it in a process group of its own, recorded with its database in `logs/corpus-hosted.pid`, its log in `logs/corpus-hosted.log`; a second start is refused while a member of that group lives, and a start after a run that ended other than finished (a stop at `SPEND_CAP`, a signal, failed rows, a crash) resumes it on the database it records, keeping its spend; `RESET=1` starts a fresh run instead. The go-live profile's runner, and it needs `HOST_RUNNER=1`: it refuses without it, and a drain refuses a model role that is unset or resolves to Ollama. `make corpus-hosted SPEND_CAP=50` stops the whole run at USD 50. See [Go-live host](operations.md#go-live-host) |
 | `make corpus-hosted-stop` | Stop the hosted run: TERM to its whole process group, so the drain in hand finishes its row or gives it back and exits 75, then KILL to what is left after 300 seconds, a model stage's grace and its give-back. The spend ledger and the pid file are kept, so the next `make corpus-hosted` resumes it |
 | `make pipeline-status` | Where the corpus has got to, every stage in one call |
@@ -165,10 +165,10 @@ There is no `pipeline-start`: `make pipeline` is the better one for a
 terminal, because it starts each stage **and waits for it to drain** before
 the next, which is the whole difficulty. It and the Run button ask Dagster to
 hold that wait while the container workers drain; `make corpus` holds it in
-the shell and drains on the host, and a stage whose container worker runs is
-waited for until that worker has emptied its queue instead (`WAIT=1`, which
-`make corpus` gives every drain): the go-live `make up` starts the parse and
-chunk workers. On the go-live profile (`HOST_RUNNER=1`) there is no
+the shell and drains on the host, and a parse or chunk stage whose container
+worker runs is waited for until that worker has emptied its queue instead
+(`WAIT=1`, which `make corpus` gives every drain): the go-live `make up`
+starts those two workers. A model stage still refuses beside its worker. On the go-live profile (`HOST_RUNNER=1`) there is no
 orchestrator: `make all`, `make pipeline` and `make auto` refuse, naming
 `make corpus-hosted`, and so do `POST /pipeline/run`, `POST /pipeline/start`
 and `PUT /pipeline/automation`, with a 409.
@@ -190,9 +190,8 @@ Each but the drain is the same operation as the stage's route of that name,
 
 A drain here — the bare target, every `-rerun` and `topics-discover` —
 **refuses while that stage's container worker is running**, and prints the
-`podman compose … stop <worker>` that stops it. `WAIT=1` on a bare drain
-(`parse`, `chunk`, `extract`, `questions`, `assess`) waits for that worker to
-empty the queue instead, polling its counts every `WORKER_POLL_SECONDS`, and
+`podman compose … stop <worker>` that stops it. `WAIT=1` on `parse` or
+`chunk` waits for that worker to empty the queue instead, polling its counts every `WORKER_POLL_SECONDS`, and
 exits 3 if it failed rows meanwhile; `make corpus` runs its drains so. With no container engine
 answering, or the stack down, it drains as before. `extract-dedup`,
 `extract-revalidate` and `extract-recap`, which rewrite stored verdicts
