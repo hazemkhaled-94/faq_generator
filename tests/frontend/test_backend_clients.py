@@ -200,6 +200,20 @@ def test_an_unnarrowed_redo_is_sent_confirmed_and_a_narrowed_one_is_not() -> Non
     assert session.params == [{"confirm": "true"}, None, None]
 
 
+def test_a_forced_redo_sends_force_beside_the_confirm_a_whole_stage_one_needs() -> None:
+    """The person confirmed both: the redo, then the questions it rejects."""
+    session = Session()
+    api = CatalogApi("http://api", session)  # type: ignore[arg-type]
+
+    api.stage_action("chunking", "rerun", force=True)
+    api.stage_action("chunking", "rerun", ("document", "a" * 64), force=True)
+
+    assert session.params == [
+        {"confirm": "true", "force": "true"},
+        {"force": "true"},
+    ]
+
+
 def test_deleting_every_topic_is_sent_confirmed() -> None:
     """The delete box asked first, in two presses."""
     session = Session()

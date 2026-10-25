@@ -238,13 +238,13 @@ def _verbs(
 
     if redo_warning and _confirmed(armed, redo_warning, "Yes, redo"):
         act("rerun")
-    return busy(counts)
 
     # The API's own count of what the rerun would reject, put to the person.
     if _confirmed(
         forcing, st.session_state.get(forcing, ""), "Yes, reject them and redo"
     ):
         act("rerun", force=True)
+    return busy(counts)
 
 
 def _confirmed(armed: str, warning: str, label: str) -> bool:
