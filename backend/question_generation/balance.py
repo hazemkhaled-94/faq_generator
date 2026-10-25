@@ -427,6 +427,14 @@ def close_enough(release: Release, tolerance: float = TOLERANCE) -> bool:
     )
 
 
+#: The scan's stride down from `_BY_ONES` upwards: a hundredth of the size it
+#: last tried, so the release it finds there is at most a hundredth smaller than
+#: the largest that fills. Below it the scan steps by ones, as it always did, so
+#: a pool the size of the reviewed build's draws the release it always drew.
+_STRIDE = 100
+_BY_ONES = 2_000
+
+
 def largest(
     pool: Sequence[Row],
     bands: Mapping[str, int],
@@ -446,6 +454,15 @@ def largest(
     whether a size fills does not fall steadily with the size: the draw's
     endgame lands differently at each, so a size failing between two that
     fill sent a bisection down for good, at times to a few rows.
+
+    Downwards in strides of a `_STRIDE`th of the size, then by ones over the
+    sizes the last stride stepped over, from the top: a pool ten times the
+    reviewed build's, whose scarce kind sets its size far below where the
+    scan starts, drew thousands of sizes one by one, an hour on a CI runner.
+    Below `_BY_ONES` the stride is one, the scan by ones it was. Above it, a
+    size that fills between two strides that both fail is passed over, so
+    the release found can be up to a stride smaller than the largest that
+    fills: a hundredth of it.
 
     The scan starts where the kinds cap at what the pool holds and what they
     leave unplaced is no more than the unanswerable ceiling (`_placeable`),
@@ -470,18 +487,30 @@ def largest(
     counts = _counts(drawable)
     start = _placeable(pool, bands, types, unanswerable, languages, tolerance, counts)
     prepared = _prepared(pool)
-    for size in range(start, 0, -1):
+
+    def drawn(size: int) -> Release:
         supply = _supply_at(counts, unanswerable, size)
-        release = choose(
+        return choose(
             pool,
             quota_of(size, bands, types, unanswerable, languages, supply, tolerance),
             twins,
             prepared,
         )
+
+    size, failed = start, start + 1
+    while size > 0:
+        release = drawn(size)
         if close_enough(release, tolerance):
+            # The sizes the last stride stepped over, from the top: the first
+            # of them that fills is the largest fill below the size that
+            # failed, as a scan by ones would have found it.
+            for bigger in range(failed - 1, size, -1):
+                if close_enough(larger := drawn(bigger), tolerance):
+                    return larger
             return release
         if release.size > most.size:
             most = release
+        failed, size = size, size - (size // _STRIDE if size >= _BY_ONES else 1)
     return most
 
 

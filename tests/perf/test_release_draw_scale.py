@@ -2,10 +2,10 @@
 
 21,750 accepted questions in the shape of the build's: six kinds, a scarce one
 among them, two languages, answerable and not. The draw steps down from the
-size the pool can place and draws each size in one pass over the pool, so its
-time is the number of sizes tried times the draw of a pool this size, minutes
-and no longer the hours the draw took when every size rebuilt a list per
-question.
+size the pool can place and draws each size in one pass over the pool, in
+strides of a hundredth above 2,000, so its time is the few dozen sizes tried
+times the draw of a pool this size: seconds, where stepping by ones took an
+hour on a CI runner and every size rebuilding a list per question took hours.
 
 Never on a pull request: `make test-perf`.
 """
@@ -21,8 +21,10 @@ from question_generation.balance import Row, largest
 
 pytestmark = pytest.mark.perf
 
-#: Seconds the whole scan may take, the measured time and its headroom.
-BUDGET = 900
+#: Seconds the whole scan may take: C-089's bar, under five minutes. The scan
+#: by ones took 57 minutes on a CI runner; the strided one takes 13 s on a
+#: laptop.
+BUDGET = 300
 
 
 def test_a_pool_ten_times_the_size_draws_in_bounded_time() -> None:
