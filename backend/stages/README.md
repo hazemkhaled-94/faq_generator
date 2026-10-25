@@ -157,7 +157,7 @@ and a host runner act on:
 | Exit | Means |
 |---|---|
 | 0 | Every row was worked |
-| 3 | A row failed. The drain went on past it; `--retry` returns it |
+| 3 | A row failed, and the drain went on past it (`--retry` returns it); or its start was refused, before it claimed anything: a split the go-live profile cannot run, a stored row the catalogue refuses, a model that does not answer |
 | 75 | The drain stopped itself, with what it held back in the queue, and wants starting again |
 
 The drain stops itself, and exits 75, in three cases:

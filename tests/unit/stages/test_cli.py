@@ -172,7 +172,7 @@ def test_a_rerun_whose_preflight_fails_resets_nothing(monkeypatch) -> None:
         preflight=preflight,
     )
 
-    assert exit_code == 1
+    assert exit_code == 3, "a refused start exits 3, as the runner's docs say"
     assert reset == [], "a refused preflight must leave every stored row as it was"
 
 

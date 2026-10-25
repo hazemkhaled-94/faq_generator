@@ -214,13 +214,13 @@ def test_the_assessment_worker_waits_on_a_refused_row(monkeypatch) -> None:
         run.main(["--watch"])
 
 
-def test_a_one_off_assessment_says_so_and_exits_1(monkeypatch) -> None:
+def test_a_one_off_assessment_says_so_and_exits_3(monkeypatch) -> None:
     """A person holds the exit code."""
     from assessment import run
 
     monkeypatch.setattr(run, "snapshot", _refused)
 
-    assert run.main([]) == 1
+    assert run.main([]) == 3
 
 
 def test_the_topic_worker_waits_on_a_refused_row(monkeypatch) -> None:
@@ -301,3 +301,14 @@ def test_a_stored_topic_min_weight_does_not_stop_another_stage(caplog) -> None:
         store.audit([row("TOPIC_MIN_WEIGHT", "0.2", "topics")], {}, service="parsing")
 
     assert "TOPIC_RELATIVE_WEIGHT" in caplog.text
+
+
+def test_a_one_off_topic_drain_whose_start_is_refused_exits_3(monkeypatch) -> None:
+    """3, which no supervisor restarts, and not a crash's 1."""
+    from topic_modelling import run
+
+    monkeypatch.setattr(run, "snapshot", _refused)
+    monkeypatch.setattr(run, "carry", lambda _ledger: None)
+    monkeypatch.setattr(run.telemetry, "configure", lambda *a, **k: None)
+
+    assert run.main([]) == 3

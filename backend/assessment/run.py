@@ -33,7 +33,7 @@ from llm.check import before_work
 from llm.config import Settings as ModelSettings
 from settings import decimal, integer, optional, required
 from settings.store import snapshot
-from stages.cli import _ready, queue_main
+from stages.cli import REFUSED, _ready, queue_main
 from stages.prompts import record
 
 if TYPE_CHECKING:
@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         phase[:] = [Settings.load(snapshot("assessment")[0]).enabled]
 
     if not _ready("assessment", switched, watching):
-        return 1
+        return REFUSED
     if not phase[0]:
         telemetry.configure("assessment", tracing=False)
         log.info("%s", OFF)

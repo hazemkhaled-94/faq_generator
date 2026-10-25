@@ -364,7 +364,7 @@ def queue_main(
     # would empty into `failed` while the container reported itself up.
     # Before the rerun's reset, which can clear stored work.
     if preflight is not None and not _ready(name, preflight, args.watch):
-        return 1
+        return REFUSED
 
     if args.rerun:
         log.info(
@@ -404,6 +404,12 @@ STOPPED = 75
 
 #: What a drain exits with when a row failed.
 FAILED = 3
+
+#: What a drain exits with when its start is refused - a split the go-live
+#: profile cannot run, a stored row the catalogue refuses, a model that does not
+#: answer: the code of failed rows, since either wants the operator before the
+#: run starts again, and a supervisor restarts neither.
+REFUSED = FAILED
 
 
 def announce(service: StageService, queue: StageQueue) -> None:

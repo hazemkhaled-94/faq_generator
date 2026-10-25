@@ -22,7 +22,15 @@ from settings import decimal, optional
 from settings.runs import named_run, run_id
 from settings.store import snapshot
 from stages import watch
-from stages.cli import FAILED, _ready, drain_once, give_back, parser, reloading
+from stages.cli import (
+    FAILED,
+    REFUSED,
+    _ready,
+    drain_once,
+    give_back,
+    parser,
+    reloading,
+)
 from stages.prompts import record
 from topic_modelling import prompts
 from topic_modelling.config import Settings
@@ -187,17 +195,6 @@ def main(argv: list[str] | None = None) -> int:
         else:
             log.info("fitting the topics: %s", reason)
 
-    # A worker builds its service in the watch loop, which waits on settings
-    # it cannot build on rather than exiting; a one-off drain and a fit asked
-    # for build it here.
-    service = build() if args.discover or not args.watch else None
-    if service is not None and asking:
-        try:
-            log.info("queued topic fit %d", service.request(run_id()))
-        except QuestionsRunning as exc:
-            log.error("%s", exc)
-            return 1
-
     naming: list[ModelSettings | None] = []
 
     def preflight() -> None:
@@ -215,13 +212,26 @@ def main(argv: list[str] | None = None) -> int:
             before_work(model)
         naming[:] = [model]
 
+    # Before anything is built or a fit asked for: a refused start leaves the
+    # queue as it was, and says so with REFUSED.
     if not _ready("topic_modelling", preflight, args.watch):
-        return 1
+        return REFUSED
     if (model := naming[0]) is not None:
         # Here rather than at the top, for the same reason `before_work` is:
         # a deployment with no model never sends this prompt, and a row
         # saying it did would be a record of a call nothing made.
         record(prompts.SERVICE, prompts.catalogue(), model)
+
+    # A worker builds its service in the watch loop, which waits on settings
+    # it cannot build on rather than exiting; a one-off drain and a fit asked
+    # for build it here.
+    service = build() if args.discover or not args.watch else None
+    if service is not None and asking:
+        try:
+            log.info("queued topic fit %d", service.request(run_id()))
+        except QuestionsRunning as exc:
+            log.error("%s", exc)
+            return 1
 
     telemetry.configure("topic_modelling", run=run_id(), named=named_run())
     telemetry.trace_engine(engine())
