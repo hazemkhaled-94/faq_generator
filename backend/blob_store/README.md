@@ -121,7 +121,7 @@ poetry run pytest tests/unit/blob_store tests/integration/blob
   digest is the same in each. A delete, a re-parse and `archive-purge` in
   one database touch only its prefix. `get` and `find` fall back to the bare
   key a store holds from before the prefix (read, never written or
-  deleted; `take` copies it), and `make s3-prefix` copies the ones this
+  deleted; `take` copies it, and moves one that names this database, `topics/<database>/...`), and `make s3-prefix` copies the ones this
   database's rows name (its documents, archived documents and topic keys)
   under its prefix, once per database, and never over an object the prefix
   already holds.

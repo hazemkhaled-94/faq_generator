@@ -53,9 +53,13 @@ class ArchiveBucket(Bucket):
         client = s3_client()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         target = self.scoped(f"{self.key_for(origin, key)}@{stamp}")
-        # The database's own object is moved; a bare key from before keys were
-        # prefixed is only copied, because another database may be reading it.
-        for source, move in ((self.scoped(key), True), (key, False)):
+        # The database's own object is moved. A bare key from before keys were
+        # prefixed is only copied, because another database may be reading it,
+        # unless it names this database (`topics/<database>/...`): then it is
+        # this database's alone and moves, or a deleted fit's figure would go
+        # on being served from it.
+        own = key.startswith(f"topics/{self.database_name()}/")
+        for source, move in ((self.scoped(key), True), (key, own)):
             try:
                 client.copy_object(
                     Bucket=self.name,

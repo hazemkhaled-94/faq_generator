@@ -150,3 +150,31 @@ def test_the_one_off_copy_puts_bare_keys_under_the_prefix_and_keeps_them(
     s3_client().head_object(Bucket=documents.name, Key=key)
     assert documents.remove(key)
     assert documents.get(key) == PDF, "the bare key is still there to fall back to"
+
+
+def test_a_taken_topic_figure_is_no_longer_served(buckets, monkeypatch) -> None:
+    """A bare `topics/<database>/` key names this database alone, so taking it moves it."""
+    from blob_store.s3 import ArchiveBucket, ExportBucket, s3_client
+
+    use(monkeypatch, "qa_one")
+    export = ExportBucket()
+    key = export.topic_visualisation_key("de")
+    s3_client().put_object(Bucket=export.name, Key=key, Body=b"<p>old fit</p>")
+
+    assert ArchiveBucket().take(export.name, key)
+
+    assert export.find(key) is None, "the deleted fit's figure is still served"
+
+
+def test_a_taken_shared_key_stays_for_the_other_databases(buckets, monkeypatch) -> None:
+    """A content-addressed bare key is another database's too: copied, never moved."""
+    from blob_store.s3 import ArchiveBucket, DocumentsBucket, s3_client
+
+    use(monkeypatch, "qa_one")
+    documents = DocumentsBucket()
+    key = documents.key_for(digest("shared-bare"), "application/pdf")
+    s3_client().put_object(Bucket=documents.name, Key=key, Body=PDF)
+
+    assert ArchiveBucket().take(documents.name, key)
+
+    s3_client().head_object(Bucket=documents.name, Key=key)
