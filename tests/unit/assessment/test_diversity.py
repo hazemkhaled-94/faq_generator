@@ -1215,3 +1215,56 @@ def test_the_kind_is_not_replaced_without_asking_for_it(
     rows = report(capsys, "--file", str(with_unanswerable))
 
     assert [row[:2] for row in rows] == [["de", "2"], ["en", "2"]]
+
+
+@pytest.mark.parametrize("column", ["released", "Status", "ANSWERABLE"])
+def test_a_workbook_column_is_not_read_as_a_label(tmp_path, capsys, column) -> None:
+    """A `released: true` in the file is a flag, and would be read as a share."""
+    file = tmp_path / "labels.jsonl"
+    file.write_text(f'{{"id": 1, "usable": "yes", "{column}": true}}')
+
+    with pytest.raises(SystemExit) as refused:
+        cli._labels(file)
+
+    assert refused.value.code == 2
+    assert column in capsys.readouterr().err
+
+
+def test_fields_name_the_labels_and_leave_the_rest_unread(tmp_path) -> None:
+    """The file may carry other fields; only the named ones are labels."""
+    file = tmp_path / "labels.jsonl"
+    file.write_text(
+        '{"id": 1, "usable": "yes", "released": true, "note": "partly"}\n'
+        '{"id": 2, "usable": "no", "released": false, "note": "x"}\n'
+    )
+
+    labels, _ = cli._labels(file, fields=("usable",))
+
+    assert labels == {1: {"usable": 1}, 2: {"usable": 0}}
+
+
+def test_naming_a_workbook_column_in_fields_is_still_refused(tmp_path, capsys) -> None:
+    """Asking for it by name does not make a flag a label."""
+    file = tmp_path / "labels.jsonl"
+    file.write_text('{"id": 1, "usable": "yes", "released": true}')
+
+    with pytest.raises(SystemExit):
+        cli._labels(file, fields=("usable", "released"))
+
+    assert "released" in capsys.readouterr().err
+
+
+def test_the_fields_flag_reaches_the_report(exported, tmp_path, capsys) -> None:
+    """`--fields usable` corrects only that label, whatever else the file holds."""
+    path, file = labelled_set(
+        tmp_path,
+        UNLABELLED + LABELLED,
+        [
+            {**one, "released": True, "note": "partly"}
+            for one in usable(range(9, 13), [1, 0, 0, 1])
+        ],
+    )
+    argv = ["--diversity", "--file", str(path), "--labels", str(file)]
+
+    assert cli.main([*argv, "--fields", "usable"]) == 0
+    assert {row[1] for row in corrected_rows(capsys)} == {"usable"}

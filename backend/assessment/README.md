@@ -441,8 +441,10 @@ text, checked against the workbook's so that labels from another database,
 whose ids overlap, are refused), and one field per label. Every other field
 is a label, read as yes or true (1), no or false (0), na or null (the label
 does not apply to that question: the row is in neither count for it).
-Keep it to those fields: a `released` flag in it would be read as a label
-too.
+A field named like a workbook column (`released`, `status`, `answerable`) is
+refused, naming it, because it is a flag on the question and not a label.
+`--fields usable,key_correct` (`FIELDS=` in make) names the labels where the
+file holds other things, and the rest are left unread.
 
 The predictor is the Judge column, the conjunction of the judge's metrics:
 `approved` is 1 where every metric approves, `refused` 0 where any does not,

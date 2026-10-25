@@ -209,7 +209,15 @@ def diversity(argv: list[str]) -> int:
         help="reviewers' labels of some questions, to correct each share by the "
         "judge's verdict",
     )
+    parser.add_argument(
+        "--fields",
+        metavar="LIST",
+        help="comma-separated: the fields of --labels that are labels, the "
+        "others left unread",
+    )
     args = parser.parse_args(argv)
+    if args.fields is not None and args.labels is None:
+        parser.error("--fields names the labels of --labels, which is not given")
     for named in (args.file, args.against, args.labels):
         if named is not None and not named.is_file():
             parser.error(f"{named} is not a file")
@@ -284,7 +292,13 @@ def diversity(argv: list[str]) -> int:
     if args.against is None:
         _judged(args.file, groups, args.by)
         if args.labels is not None:
-            _corrected(args.file, groups, args.labels, args.by)
+            _corrected(
+                args.file,
+                groups,
+                args.labels,
+                args.by,
+                args.fields.split(",") if args.fields else None,
+            )
     return 0
 
 
@@ -602,14 +616,23 @@ def _refuse(message: str) -> NoReturn:
 #: What a labels file may say: one place where a label is normalised.
 _YES, _NO = ("yes", "true"), ("no", "false")
 
+#: The workbook's own columns, which are a question's state and not a reviewer's
+#: label. Compared in lower case.
+_COLUMNS = frozenset({"released", "status", "answerable"})
 
-def _labels(path: Path) -> tuple[dict[int, dict[str, int | None]], dict[int, str]]:
+
+def _labels(
+    path: Path, fields: Sequence[str] | None = None
+) -> tuple[dict[int, dict[str, int | None]], dict[int, str]]:
     """Reads a JSONL file of an integer `id`, an optional `question` and labels.
 
     Every other field is a label: yes or true is 1, no or false 0 in any
     case, na or null None, which says the label does not apply to that
     question and is not the same as a label the line leaves out. Anything
-    else is refused, naming the field and the line. The questions are by id, for the check that the labels
+    else is refused, naming the field and the line. With `fields` only those
+    are labels and the others are left unread. A field named like one of the
+    workbook's columns (released, status, answerable) is refused: it is a
+    flag on the question, and would be read as a share of it. The questions are by id, for the check that the labels
     belong to the workbook.
     """
     labels: dict[int, dict[str, int | None]] = {}
@@ -630,8 +653,15 @@ def _labels(path: Path) -> tuple[dict[int, dict[str, int | None]], dict[int, str
         if row.get("question") is not None:
             questions[id] = str(row["question"])
         for field, value in row.items():
-            if field in ("id", "question"):
+            if field in ("id", "question") or (
+                fields is not None and field not in fields
+            ):
                 continue
+            if field.lower() in _COLUMNS:
+                _refuse(
+                    f"{path} line {number}: {field} is a column of the workbook, "
+                    "not a label"
+                )
             word = str(value).lower() if value is not None else "na"
             if word in ("na", "none"):
                 labels[id][field] = None
@@ -649,6 +679,7 @@ def _corrected(
     groups: dict[tuple[str, str], list[tuple[int, str]]],
     labels: Path,
     by: str | None,
+    fields: Sequence[str] | None = None,
 ) -> None:
     """Prints each labelled share corrected by the judge's verdict on every row.
 
@@ -671,7 +702,7 @@ def _corrected(
 
     from assessment import ppi
 
-    given, asked = _labels(labels)
+    given, asked = _labels(labels, fields)
     frame = pd.read_excel(
         path,
         sheet_name="Questions",

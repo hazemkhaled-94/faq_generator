@@ -1377,9 +1377,13 @@ assess-rerun:
 #   make diversity FILE=set.xlsx BY=kind
 #   make diversity FILE=pool.xlsx BY=document SIZE=200
 #   make diversity FILE=set.xlsx LABELS=labels.jsonl
+#   make diversity FILE=set.xlsx LABELS=labels.jsonl FIELDS=usable,key_correct
+# Every field of LABELS but id and question is a label, except a workbook
+# column (released, status, answerable), which is refused; FIELDS names the
+# labels when the file holds other things.
 diversity:
-	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category|kind|document] [CODE=de] [SIZE=200] [LABELS=<file>]'; exit 2; }
-	$(ASSESS) --diversity --file "$(FILE)" $(if $(AGAINST),--against "$(AGAINST)") $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE)) $(if $(LABELS),--labels "$(LABELS)")
+	@[ -n "$(FILE)" ] || { echo 'usage: make diversity FILE=<workbook> [AGAINST=<workbook>] [BY=category|kind|document] [CODE=de] [SIZE=200] [LABELS=<file> [FIELDS=a,b]]'; exit 2; }
+	$(ASSESS) --diversity --file "$(FILE)" $(if $(AGAINST),--against "$(AGAINST)") $(if $(BY),--by $(BY)) $(if $(CODE),--language $(CODE)) $(if $(SIZE),--size $(SIZE)) $(if $(LABELS),--labels "$(LABELS)") $(if $(FIELDS),--fields "$(FIELDS)")
 
 # ── Question runs ──────────────────────────────────────────────────────────
 
