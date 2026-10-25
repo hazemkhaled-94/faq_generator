@@ -597,7 +597,9 @@ services:
         # is the one model-adjacent worker that stays small.
         limits: { cpus: "2.0", memory: 3G }
 
-  # Draws facts out of passages. Scalable.
+  # Draws facts out of passages. Two replicas at most: the store's duplicate
+  # lock was measured with two drains side by side and no more
+  # (docs/operations.md, Scaling).
   extract-worker:
     <<: *worker
     # The go-live profile leaves it stopped: the host runner drains this stage.

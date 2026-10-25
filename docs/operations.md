@@ -189,18 +189,23 @@ COMPOSE_PROJECT_NAME=qa_second DAGSTER_WEBSERVER_PORT=23000 make test-smoke
 
 ## Scaling
 
-`parse-worker`, `chunk-worker` and `extract-worker` scale horizontally — each
-claims one row at a time with `FOR UPDATE SKIP LOCKED`. Extract workers running
-side by side judge a passage's facts again inside the store, under a lock per
-language and kind, so two passages read at once do not both keep one restated
-claim; see the `duplicate` refusal in
-[the extraction README](../backend/extraction/README.md). Keep the drains
-within the database's connections ([Sizing Postgres](#sizing-postgres)) and the
-provider's rate limit.
+`parse-worker` and `chunk-worker` scale horizontally — each claims one row at
+a time with `FOR UPDATE SKIP LOCKED`. `extract-worker` does too, **to two
+replicas at most**, or one drain on the host beside one. Extract workers
+running side by side judge a passage's facts again inside the store, under a
+lock per language and kind, so two passages read at once do not both keep one
+restated claim; see the `duplicate` refusal in
+[the extraction README](../backend/extraction/README.md). Two drains were
+measured on copies of the reviewed build and of the shop calibration corpus:
+over the same 257 passages two drains took 0.57 of one drain's time, and over
+168 shop passages 0.54, and neither kept a claim twice. More than two are not
+measured, so a deployment runs no more ([Go-live deployment](#go-live-deployment)).
+Keep the drains within the database's connections
+([Sizing Postgres](#sizing-postgres)) and the provider's rate limit.
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
-podman compose up -d --scale extract-worker=4
+podman compose up -d --scale extract-worker=2
 ```
 
 **How many drains one database takes is bounded by the provider's quota, not
@@ -806,6 +811,190 @@ already applied stay applied. The order:
 A revision that adds a CHECK adds it `NOT VALID` and validates it in a
 revision of its own, and a backfill of many rows runs in batches outside the
 DDL transaction; `backend/database/README.md` has the rule.
+
+## Go-live deployment
+
+The final review of v0.5.1 (2026-10-22) set what a deployment running a
+customer corpus has to hold, and the conditions under which its open items
+stay out of the way. This is that list as it stands in v0.5.2. Each line names
+its item by the review's number (`C-` and three digits, as `docs/bugs.md` gives
+them) and what lifts it. A condition this release's fixes lift has left the
+list and is named, with its fix, under
+[Upgrading to v0.5.2](#upgrading-to-v052). The settings named here are in
+[configuration](configuration.md#go-live-settings), and
+[the runbook](#the-runbook) is how a fresh clone reaches the deployment.
+
+The list covers about ten times the reviewed build: 300 PDFs and 20,000
+passages, German and English. The review measured 30 PDFs and 1,973 passages.
+
+### The model split
+
+- **The measured split** (C-051). `.env.example` ships it and
+  [configuration](configuration.md#the-go-live-split) gives the table: the
+  writer `azure/gpt-5.6-sol` at `LLM_REASONING_EFFORT=none`, extraction and
+  phrasing `azure/gpt-5.4`, digests and the judge `azure/gpt-4o`, the verifier
+  and topic naming `azure/gpt-4.1`. Every drain logs the split it resolved
+  before its first row, and with `HOST_RUNNER=1` a drain and `make doctor`
+  refuse a role that resolves to an Ollama model (C-006, C-013).
+- **One endpoint** for every role, below (C-366).
+
+### Settings
+
+- **The model stages run on the host** (C-006): `HOST_RUNNER=1`, `make
+  corpus-hosted`, and the model workers stopped. The orchestrated path is not
+  part of this profile (C-073): `make all`, `make pipeline`, `make auto` and the
+  pipeline's routes refuse, naming the host runner.
+- **The judge and the provider are the host's** (C-006).
+  `ASSESSMENT_JUDGE_MODEL` in `.env` and the provider's credentials in
+  `configs/env/provider.env` are what the host runner reads, and `make doctor`
+  refuses a judge left unset while `ASSESSMENT_ENABLED` is true. The Assessment
+  page shows the containers' judge, `ASSESSMENT_JUDGE_CONTAINER_MODEL`, so on
+  this profile it says the next run judges nothing: that line is about the
+  stopped workers, not the host run.
+- **A model cache filled once, and read offline** (C-072, C-117). Fill it where
+  the Hub is reachable, as [Pinning the encoders](configuration.md#pinning-the-encoders)
+  says; `make corpus-hosted` then runs every drain with `HF_HUB_OFFLINE=1` and
+  refuses, before it detaches, a cache missing an encoder at its pinned commit
+  or Docling's weights. Point `DOCLING_ARTIFACTS_PATH` at the prefetched parser
+  weights where they are not in the cache.
+- **A spend cap** (C-091): `make corpus-hosted SPEND_CAP=<USD>`, counted across
+  the drains of the run. With it set, a drain refuses a model litellm cannot
+  price (C-219).
+- **Every published port on 127.0.0.1, and one operator** (C-085, below).
+- **Entity and temporal questions stay off** (C-176, C-217). Both carry weight
+  0 in `QUESTIONS_TYPE_MIX` and `QUESTIONS_RELEASE_TYPES`: entity with no
+  defect measured, temporal because a corpus with no periods answers it with
+  comparisons wearing the name. Calibrate each on the go-live corpus before
+  giving it a weight; a corpus of releases, versions or reporting periods is
+  the one where temporal may earn one.
+
+### Resources
+
+- **Postgres sized for the corpus** (C-011). `configs/env/deployment.env`
+  ships the go-live row of [Sizing Postgres](#sizing-postgres). Its measure is
+  the 10x load test `make test-perf` runs: a dedup probe and a fact write
+  within twice their time at the reviewed build's size. It has not yet been
+  read on an idle machine; until it has, raise `POSTGRES_MEMORY` and
+  `POSTGRES_SHARED_BUFFERS` by the table's next row if the probes slow down
+  as the corpus grows.
+- **The podman VM's memory** at least what the limits of the services it runs
+  add up to ([Memory](#memory)): the eleven the go-live profile starts come to
+  about 15 GiB at the shipped sizes, PostgreSQL and the parse worker 4 each and
+  the chunk worker 3. Every profile added on top adds its own.
+- **Free disk before every build**: `make upgrade` refuses below
+  `UPGRADE_FREE_GB` (20) in the engine and prunes what a build orphans. The
+  margin is the review's, not a measured bound.
+- **At most two drains of a model stage a database**, and at most two of
+  extraction (C-082, C-026, below).
+- **Time and spend**: `make estimate` says both for the rows still to do
+  (C-084). [Sizing a corpus](#sizing-a-corpus) works the go-live corpus: 43
+  hours and USD 725 at two drains of extraction and questions, the questions
+  growing with `TOPIC_NUM_TOPICS`.
+
+### Backups
+
+- **`make backup` before every upgrade and every wipe** (C-003), copied off
+  the machine, and [the restore drill](#the-restore-drill) on a scratch stack
+  before it is needed. A backup leaves Argilla's database out unless
+  `ARGILLA=1`, whose dump holds a key in clear.
+- **The archive bucket is the only copy of a deleted row's objects.** Purge it
+  per database on a cadence, after a backup ([Deleting things](#deleting-things)).
+
+### Monitoring
+
+- **Alert on a non-zero exit** (C-009, C-091). A drain exits 3 when a row
+  failed and 75 when it stopped itself (an outage, `SPEND_CAP`, a model that
+  finds nothing, a signal), and `scripts/corpus-hosted.sh` exits with the code
+  of the stage that ended the run ([After a stop](#after-a-stop)).
+- **The database on every log line** (C-005): each line carries `db`, and
+  Phoenix projects, review datasets and Dagster runs carry the database's
+  name.
+- **A retention for Phoenix's traces** (C-103), which hold every passage a
+  prompt sent: `PHOENIX_TRACE_RETENTION_DAYS` in
+  `configs/env/deployment.env`, set at `make up`. Read `make up`'s output: a
+  failure to set it is printed, and the stack starts anyway.
+- **The release draw's time at scale** (C-089): a pool of the reviewed
+  build's accepted questions ten times over, 21,750 rows, draws its release in
+  10.6 s, where v0.5.1's scan took about 39 minutes.
+
+### Before the first go-live release is used
+
+- **Label a sample of it.** The quality figures so far are measured on
+  football regulations and on the shop calibration corpus, and tables, the
+  core of bank and shop material, read worst. Label 60 released rows per
+  language blind under the rubric, with the table slice and the two-passage
+  slice read apart, and use the release only if it meets the review's release
+  bar: usable at least 0.723, invalid at most 3.4 per 60. About two hours of
+  labelling and no model call.
+- **Read the table slice apart** until C-097 and C-282 ship. A table continued
+  on the next page joins its table since v0.5.2 (C-121), but a table's wrong
+  section path (C-097) and a second tier joined to the row above (C-282) are
+  open.
+
+### The conditions that still hold
+
+| Item | Condition | What lifts it |
+|---|---|---|
+| C-026 | At most two `extract-worker` replicas, or two extraction drains, a database: `--scale extract-worker=2`. The store's duplicate lock was measured with two drains side by side (0.57 and 0.54 of one drain's time, no claim kept twice), and more are not measured | A measurement of three or more drains on a copy |
+| C-082 | At most two model drains a database on the current Azure quota: six drains lost 3 of 10 topics to the token rate limit and two lost none. A drain now waits out a rate limit without spending an attempt | A larger quota, measured before the drains are raised |
+| C-085 | Every published port stays on 127.0.0.1, and one operator uses the host. `API_TOKEN` guards the API's writes but is shared, and the pages have no login: serving the stack to a team, or binding another interface, makes this a blocker | A login on the pages and the API |
+| C-366 | Every role model on one endpoint, `LLM_BASE_URL`; a split across Azure resources needs a gateway in front of them that routes by model id | An address per role (deferred: the measured split fits one resource) |
+| C-106 | Ingest only documents the customer authored or controls, no user reviews or third-party submissions: a document's text reaches every prompt as it is, so an instruction planted in it is read as one | Fencing the material in every prompt. It was tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9 |
+| C-054 | After a deletion through the pages or the API, run `make extract-dedup`: it gives back the repeats refused against what was deleted, and on this profile no extraction worker runs to replay it. `make delete` and `make delete-derived` run it themselves | A replay the host runner makes after a deletion |
+| C-029 | Report the difficulty band as retrieval spread, never as hardness, and leave `QUESTIONS_RELEASE_DIFFICULTY` unset: equal thirds drew nearly every multi-passage question, where the welds sit. The workbook titles the column Retrieval spread since v0.5.2 | A grading of how hard a question is to answer, not built |
+| C-031 | Leave distant-from-document out of per-category reports: most of its released rows use the document's words | A per-question reading of how far a row's words are from its evidence, calibrated on two corpora (deferred) |
+| C-052 | Before a release from price lists or fee schedules, read by hand its questions whose explanation states a space-grouped amount (`12 500 €`): a wrong total there can still pass the explanation check. Since v0.5.2 the figure reader takes such an amount as one figure with a marked currency, a price dash, a no-break space or any currency sign after it | The explanation half of the fix, which needs the arithmetic check's model call to tell a right total from a wrong one |
+| C-056 | Before ingest, count the image-only PDFs: a scanned document is refused, and an image-only page is only warned about | OCR (C-083); the reworded page count of C-127 was withdrawn in v0.5.2 |
+| C-083 | OCR stays off. Pillow 13.0.0, which v0.5.2 ships, fixes the advisories that were the other reason | A measured OCR pass on the go-live corpus |
+| C-140 | Before go-live, measure the text nested in pictures on the shop calibration database (`qa_cal_shop`): banners and infographics in bank or shop material may carry statements, which reach no passage | A filter that tells a statement from a diagram label. The clause filter tried in v0.5.2 was withdrawn: 5 of 26 changed passages read worse |
+| C-266 | Before go-live, measure on the shop calibration database the questions drawn from imprint, hotline and contact passages | A passage gate on contact shapes, with a threshold calibrated on the shop corpus (deferred) |
+| C-186 | Before ingest, check the refusal count of a first batch: a PDF whose header follows a few leading bytes, as some document-management exports write them, is refused as unknown type | Reading the signature within the first kilobyte (deferred) |
+| C-278 | Before ingest, compare the corpus's widest table rows with the chunk's token budget (`EMBEDDING_MAX_TOKENS` less the embedder's own tokens): a longer row is cut mid-cell and lands in no grid. Ship the fix first if any exceeds it | Keeping a row whole in one passage (deferred) |
+| C-419 | Check any tracked-change export in the corpus before ingest: only a drawn horizontal strike is read as struck-through | A strike reading for tracked changes, with a fixture first (deferred) |
+| C-245 | Leave `EXTRACTION_DUPLICATE_COSINE` at its shipped value: 0 also stops writing passage embeddings | Building the embedder whatever the threshold (deferred) |
+| C-424 | Leave `QA_MODEL` empty, as it ships, until an encoder is calibrated: the first candidate the settings file names cannot load under transformers 5 | A calibration of one encoder |
+| C-297 | Build the go-live images once, record their digests, and rebuild only on purpose: the Dagster image installs ranges, installs are not hash-checked and base images are named by tag. A container already refuses to start on a lock its image was not built from (C-010) | Locked and hash-checked installs, images by digest (deferred) |
+| C-162 | No schema downgrade past v0.4.2: rolling back `733a3eadef7c` archives every rubric score, and a restore of that deletion fails | Skipping the archive in that downgrade (deferred) |
+| C-200 | Leave the nightly schedule off: it ignores Stop and `INGESTION_OPEN`. The go-live profile runs no Dagster at all | A schedule that skips after a cancelled run (deferred) |
+
+## Upgrading to v0.5.2
+
+### Deployment conditions this release lifts
+
+The final review's go-live gate made these conditions of a deployment. Each
+one's fix ships in v0.5.2, so it has left [Go-live deployment](#go-live-deployment).
+
+| Item | The condition was | What lifts it |
+|---|---|---|
+| C-001 | Do not apply v0.5.1's lower digest floor to stored data | A re-chunk or re-extraction keeps the facts and passages that come back identical and rejects the questions on a changed one as `source_changed` instead of deleting them. On a copy of the reviewed build, `make extract-digests` at 500 characters digested 255 passages and left every atomic fact and every question's id and status as they were |
+| C-024 | `TOPIC_NUM_TOPICS=40` caps the topics, and with them the questions a run can write | The ceiling ships at 300 a language and topics are named 25 to a call; a synthetic language of 10,000 passages fits 250 topics, every one named |
+| C-058 | No refit or topic delete while a question drain runs | A fit request, `DELETE /topics` and `make topics-delete` refuse while a topic holds a live question claim (409 `questions_running`, or exit 1) |
+| C-059 | The workbook says that the judge's figures are not a quality estimate | The judged sample is drawn from each stratum in proportion to its size, from the released questions once a release exists, and the Summary says its counts are not a quality estimate |
+| C-066 | Export a large corpus with `make questions-export`, never through the pages | The workbook is written as it is read, from server-side cursors, in openpyxl's write-only mode: an export of 70,000 questions with their citations passes in a test, and a sheet past Excel's row limit goes on in another |
+| C-072 | `HF_HUB_OFFLINE=1` with a filled model cache | `make corpus-hosted` runs with `HF_HUB_OFFLINE=1` and refuses, before it detaches, a cache missing an encoder at its pinned commit or Docling's weights |
+| C-075 | Stop the workers and drains before `make schema` | Each migration runs in its own transaction under a 5-second lock timeout and a 10-minute statement timeout, so a busy table fails the migration rather than queueing every worker behind it, and `make upgrade` stops the workers first |
+| C-076 | Before ingest, list the page counts and split or try first any document far above 139 pages | `PARSING_MAX_PAGES` (180) refuses a longer document before conversion, naming its pages; `make parse-retry` returns it |
+| C-078 | Run `make confidence-recalibrate` only with the question drains stopped | It reads without a lock and writes back in batches of 300, each row guarded by the scores it read; a row changed meanwhile is left for the next run |
+| C-079 | No `make up` or reboot during a drain, and the `*-retry` targets after any restart | A worker told to stop finishes its row, or gives it back at a second signal or at its stage's grace, and exits 75; compose waits longer than that grace. `make corpus-hosted` resumes a stopped run and returns its failed rows |
+| C-080 | Give the VM at least the compose limits, or stop the unused services | Argilla, Redis, Elasticsearch, Filebeat, Grafana and Adminer sit under profiles, and the go-live `make up` starts eleven services ([Profiles](#profiles)) |
+| C-086 | Check free space and prune dangling images before every rebuild | `make upgrade` checks `UPGRADE_FREE_GB` (20) in the engine, builds, and prunes what the build orphaned before it migrates |
+| C-088 | `LITELLM_LOCAL_MODEL_COST_MAP=true` in the deployment's environment | Committed in `backend.env` |
+| C-102 | Before the first customer workbook, say that a follow-up's earlier turns and a row's location must be looked up | The Questions sheet gives each row its earlier turns and its source. Read blind, 35 of 40 released rows stand on their own (bar 34) |
+| C-103 | Set a trace retention at `make up` for a customer corpus | `make up` sets Phoenix's default trace retention to `PHOENIX_TRACE_RETENTION_DAYS`. It was not checked against a running Phoenix: read what `make up` prints |
+| C-107 | Ingest only documents the customer controls, as for C-106, until hidden text is flagged | Text no reader sees (render mode 3, fully transparent, under 2 points, white on bare paper) is dropped from a page whose other text paints ink: 2 of 80 PDFs change, both by diagram labels under 2 points |
+| C-110 | Pin the parse dependencies and replay a sample after any bump | `make test-golden` converts and chunks pages of the shop corpus, German and English, and a price list made in the test, against stored snapshots |
+| C-112 | Pin the embedding libraries for the go-live corpus | Every Hugging Face load names its pinned commit, and a nightly job fetches the weights at those commits and runs the real-model tests offline, failing where they skipped |
+| C-114 | Bulk loads go through the host, not the Upload page | `make ingest DIR=` loads a folder from the host, and the Upload page refuses more than 20 files or 200 MB at once, naming it |
+| C-117 | Fill the model cache once, keep `HF_HUB_OFFLINE=1`, and record the revisions | `EMBEDDING_MODEL_REVISION`, `NLI_MODEL_REVISION` and `QA_MODEL_REVISION` pin each encoder, fixed beside its model id, and every load passes them |
+| C-118 | A purge cadence in the runbook, run per database | `make archive-purge` deletes in committed batches of 10,000 rows, only this database's, and `make doctor` prints the archive's size ([Deleting things](#deleting-things)) |
+| C-119 | No stored overrides on the go-live database, or check `make settings` after every upgrade | Every stage checks the stored rows against the catalogue when it builds: a row the catalogue refuses, or a retired name, stops that stage naming it, and an override is warned about |
+| C-123 | Read the audit's output by hand before go-live and at each upgrade | `configs/audit-accepted.txt` lists each accepted advisory with its reason and a review-by date, and `make audit` fails on any other and on a passed date |
+| C-201 | A database password without URL-reserved characters | `make doctor` and `make corpus-hosted` refuse an `APP_DB_PASSWORD` holding `@ / : # ? %`, naming it |
+| C-219 | After any model change, a preflight log must show a price for each role | A drain with `SPEND_CAP` set refuses a model litellm cannot price, naming it, and an unpriced call is logged as one |
+| C-253 | Build images locally only and never push them | `.dockerignore` lets in only what the three Dockerfiles copy: no workbook, document, `.env` or key reaches a build |
+| C-295 | Choose the embedding model before go-live and change it only through a migration and a full re-embed | `EMBEDDING_MODEL`, `NLI_MODEL` and `QA_MODEL` are fixed: set in `backend.env` beside their commits, and a stored row for one stops every stage naming the `DELETE` that removes it. A new embedding model still means a migration and a full re-embed |
+| C-299 | Keep `MAX_FILE_SIZE_MB` at or below its shipped 100 | `MAX_FILE_SIZE_MB` is bounded at 150, what the API's 512 MB holds whole, and the API refuses a PDF of more than `PARSING_MAX_PAGES` pages or one read past `PARSING_TIMEOUT_SECONDS`, naming the setting |
+| C-416 | Before ingest, list the currency codes in the corpus's tables, and ship the currency fix first beyond EUR, USD, GBP and CHF | A currency is any ISO 4217 code or currency sign beside a number, or the language's own word for one |
 
 ## Upgrading to v0.5.1
 

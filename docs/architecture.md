@@ -87,11 +87,13 @@ A row arrives `new`, which no worker looks at. Only `pending` is claimed, so
 nothing starts by itself — the Start button, a route, a `make …-start` or the
 [orchestrator](../orchestration/README.md) moves it.
 
-Claiming is `SELECT … FOR UPDATE SKIP LOCKED`, one row at a time:
+Claiming is `SELECT … FOR UPDATE SKIP LOCKED`, one row at a time. Extraction
+runs at most two drains side by side, the number its duplicate lock was
+measured with ([Scaling](operations.md#scaling)):
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
-podman compose up -d --scale extract-worker=4
+podman compose up -d --scale extract-worker=2
 ```
 
 Every claim is timestamped, and the worker holding it refreshes the timestamp

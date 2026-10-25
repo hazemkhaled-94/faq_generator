@@ -69,10 +69,12 @@ the only question a sweep needs answered: is anyone still on it?
 ### Claiming
 
 `SELECT … FOR UPDATE SKIP LOCKED`, one row at a time, so two workers never
-take the same row:
+take the same row. Extraction runs at most two drains side by side, which is
+what the store's duplicate lock was measured with
+([Scaling](../../docs/operations.md#scaling)):
 
 ```bash
-podman compose up -d --scale extract-worker=4
+podman compose up -d --scale extract-worker=2
 ```
 
 A queue claims nothing while the database is not at the code's migration
