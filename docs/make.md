@@ -419,7 +419,7 @@ port they run against before they start.
 
 Documents are ingestion's, not a stage's. A deletion here is the first of
 two: its rows are archived and its objects moved to the `archive` bucket, so
-`make restore-documents SINCE=<time>` puts them back until
+`make restore-documents AT=<time>` puts them back until
 `make archive-purge` empties the archive, which `make wipe-all` does too.
 `make documents` only lists. What `wipe` takes from Phoenix, Argilla, the
 logs and Dagster is final.
@@ -554,7 +554,7 @@ make review-push-questions IDS=12,34,56
 |---|---|
 | `make phoenix-projects` | What Phoenix holds, changing nothing |
 | `make phoenix-prune` | Delete this database's projects in which no work happened (`ALL_DATABASES=1`: every database's). **Irreversible**, and asks nothing first: it names at most 25 of the projects it takes, then deletes them |
-| `make phoenix-purge` | Delete **every** project of this database (names end in `__<database>`; `ALL_DATABASES=1` takes every database's and those filed before) but `default`, whatever it holds, and every dataset. What `make wipe` runs, and what `prune` will not do |
+| `make phoenix-purge` | Delete **every** project of this database (names end in `__<database>`; `ALL_DATABASES=1` takes every database's and those filed before) but `default`, whatever it holds, and every dataset of this database. What `make wipe` runs, and what `prune` will not do |
 | `make phoenix-purge KEEP=golden` | The same, but leave the datasets and their experiments |
 | `make dagster-wipe` | The runs this database launched (the corpus job tags each with it), and the event log under each; untagged history stays. `ALL_DATABASES=1` takes every run Dagster remembers |
 

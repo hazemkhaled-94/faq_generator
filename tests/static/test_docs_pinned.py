@@ -1076,7 +1076,7 @@ def test_the_documents_section_points_at_the_archive() -> None:
     section = _make_md_section("Documents")
 
     assert 'os.environ.get("SINCE")' in _read("backend/archive/restore.py")
-    assert "`make restore-documents SINCE=<time>`" in section
+    assert "`make restore-documents AT=<time>`" in section
     assert "irreversible" not in section.lower()
 
 

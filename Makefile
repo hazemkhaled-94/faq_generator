@@ -730,7 +730,7 @@ schema-status:
 	$(LOADENV) && poetry run alembic history --indicate-current
 
 # Take the newest revision back off. From the first revision that drops
-# every table, archived_rows included, so it warns and waits as schema-reset
+# every table, archived_rows included, so it refuses without CONFIRM as schema-reset does
 # does.
 schema-down:
 	@echo "At the first revision this drops every table, archived_rows included;"
@@ -861,7 +861,7 @@ chunk-retry:
 # passage and any bridge that cited it; a question resting on one is rejected
 # as source_changed and kept, and its follow-ups leave the release. Without
 # SHA that is
-# the whole corpus, so it warns and waits first. It refuses, naming the
+# the whole corpus, so it refuses unless CONFIRM names the database. It refuses, naming the
 # counts, while released, accepted or reviewed questions rest on what it
 # would replace; FORCE=1 goes on, and those questions are rejected as
 # source_changed, never deleted.
@@ -909,7 +909,7 @@ extract-retry:
 # citations, bridges' aside, are replaced, and with them go any fact left
 # citing no passage; a question resting on one is rejected as source_changed
 # and kept, and its follow-ups leave the release. Without SHA or PASSAGE that is the
-# whole corpus, so it warns and waits first. A fact read again word for word
+# whole corpus, so it refuses unless CONFIRM names the database. A fact read again word for word
 # is kept. It refuses, naming the counts, while released, accepted or
 # reviewed questions rest on what it would replace; FORCE=1 goes on.
 extract-rerun:
@@ -1594,7 +1594,8 @@ wipe:
 	@echo "database's Phoenix projects, its three Argilla review datasets with any"
 	@echo "answer not yet pulled, and its log lines; its Phoenix datasets and"
 	@echo "experiments unless KEEP=golden; its Dagster runs unless KEEP=runs."
-	@echo "ALL_DATABASES=1 takes every database's, on the stores they share."
+	@echo "ALL_DATABASES=1 takes every database's Phoenix projects, datasets, log lines and"
+	@echo "Dagster runs; the Argilla datasets are this database's either way."
 	@$(call CONFIRMED,wipe)
 	$(MAKE) wipe-preflight
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-all
@@ -2107,7 +2108,7 @@ phoenix-projects:
 phoenix-prune:
 	$(LOADENV) && poetry run python -m telemetry.projects --prune $(if $(filter 1,$(ALL_DATABASES)),--all-databases)
 
-# Every project this database filed AND every dataset, whatever they hold;
+# Every project this database filed AND its datasets, whatever they hold;
 # `ALL_DATABASES=1` takes every database's projects and any filed before names
 # carried one. What `make wipe`
 # runs: a trace of a run over documents that no longer exist is not worth

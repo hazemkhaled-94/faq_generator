@@ -228,7 +228,7 @@ def drop(settings: Settings) -> int:
     rows nothing can apply their verdict to.
 
     Pull before wiping if the verdicts matter. Nothing here warns about
-    that, because `wipe` already says what it is about to do and waits.
+    that, because `wipe` already says what it is about to do and asks for CONFIRM.
 
     Returns:
         How many datasets were deleted.

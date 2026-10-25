@@ -180,7 +180,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Deletes a question left with no fact again, and drops the stamp."""
+    """Reinstalls the deleting trigger and drops the stamps, their triggers and the column.
+
+    The questions already rejected with no fact stay: nothing here deletes
+    them, and after a downgrade and an upgrade they carry no stamp.
+    """
     op.execute("DROP TRIGGER fact_passages_stamp_questions ON fact_passages")
     op.execute("DROP FUNCTION stamp_questions_with_citation_document()")
     op.execute("DROP TRIGGER facts_stamp_questions ON facts")

@@ -1294,3 +1294,21 @@ def test_logs_wipe_deletes_by_an_exact_term_on_the_db_field() -> None:
     text = "\n".join(printed("logs-wipe", "CONFIRM=qa_generator")).replace("\\", "")
     assert "match_phrase" not in text, text
     assert '"term":{"db":' in text and '"db.keyword"' in text, text
+
+
+@pytest.mark.parametrize(
+    ("path", "stale"),
+    [
+        ("docs/operations.md", "questions resting on it go into the archive"),
+        ("docs/operations.md", "and the questions on them."),
+        ("docs/operations.md", "questions resting on it go with it, into the archive"),
+        ("docs/make.md", "restore-documents SINCE=<time>` puts them back"),
+        ("docs/make.md", "and every dataset. What `make wipe` runs"),
+        ("Makefile", "so it warns and waits first"),
+        ("Makefile", "Every project this database filed AND every dataset"),
+        ("review/service.py", "already says what it is about to do and waits"),
+    ],
+)
+def test_no_text_keeps_a_claim_the_branch_made_false(path: str, stale: str) -> None:
+    """Questions are rejected and kept, an unnarrowed rerun refuses without CONFIRM, a purge is this database's."""
+    assert stale not in (ROOT / path).read_text(), path
