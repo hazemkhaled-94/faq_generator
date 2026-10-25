@@ -139,9 +139,9 @@ def _run_help(available: bool, running: dict | None, hosted: bool = False) -> st
     """Why Run is offered, or why it is not."""
     if hosted:
         return (
-            "The go-live profile runs the model stages through `make "
-            "corpus-hosted` on the host; no orchestrator runs here. Use "
-            "Start to queue rows."
+            "The go-live profile runs the model stages on the host, through "
+            "`make corpus-hosted`, and Dagster is not part of it. A stage's "
+            "own Start queues its rows for that run."
         )
     if not available:
         return (
