@@ -1095,7 +1095,10 @@ def test_the_delete_row_names_the_extract_worker_refusal() -> None:
 
     assert guards and deleting and guards[0] < deleting[0], lines
     assert "`extract-worker`" in delete and "`extract-worker`" in derived
-    assert "through the API or the UI is replayed by the running `extract-worker`" in delete
+    assert (
+        "through the API or the UI is replayed by the running `extract-worker`"
+        in delete
+    )
 
 
 def test_the_pipeline_paragraph_names_what_the_job_skips() -> None:

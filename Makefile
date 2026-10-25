@@ -32,6 +32,9 @@ COMPOSE_CMD = $(COMPOSE) --env-file configs/env/deployment.env --env-file $(ENV_
 # equivalent of --target.
 CONTAINER ?= podman
 
+# The advisories `make audit` accepts, each with its lock, reason and review-by date.
+AUDIT_ACCEPTED ?= configs/audit-accepted.txt
+
 # poetry.lock's pins as name==version lines, torch and torchvision at their +cpu
 # builds, which resolve only from PyTorch's index. The audit reads them, and the
 # image locks are resolved under them, so a package both lock is held to one version.
@@ -1921,12 +1924,21 @@ typecheck:
 # shortcut: a package poetry.lock holds twice (the CUDA wheels for another
 # platform) is audited at its first version, when one of those matters read
 # the second off the lock by hand.
+#
+# The advisories accepted, each with its lock, reason and review-by date, are
+# in configs/audit-accepted.txt and are passed as --ignore-vuln; a date that has
+# come fails the audit before any lock is read. An advisory not listed there is
+# a finding.
 audit:
 	@d=$$(mktemp -d) && trap 'rm -rf $$d' EXIT && \
 	  grep -viE "^(torch|torchvision)==" backend/api/requirements.lock > $$d/api.lock; \
 	  $(HOST_PINS) | grep -vE "^(torch|torchvision)==" > $$d/poetry.lock && \
-	  s=0 && for f in $$d/api.lock frontend/requirements.lock $$d/poetry.lock; do \
-	    poetry run pip-audit --vulnerability-service osv --no-deps --progress-spinner off -r $$f || s=1; \
+	  for l in api frontend poetry; do \
+	    poetry run python configs/audit_ignores.py $$l $(AUDIT_ACCEPTED) > $$d/ignore.$$l || exit 1; \
+	  done && \
+	  s=0 && for f in api:$$d/api.lock frontend:frontend/requirements.lock poetry:$$d/poetry.lock; do \
+	    ignore=$$(sed 's/^/--ignore-vuln /' $$d/ignore.$${f%%:*} | tr '\n' ' '); \
+	    poetry run pip-audit --vulnerability-service osv --no-deps --progress-spinner off $$ignore -r $${f#*:} || s=1; \
 	  done; exit $$s
 
 # ruff check and format check over every source directory. Configuration

@@ -1,0 +1,9 @@
+# Advisories `make audit` accepts, so the nightly turns red only on a new one.
+#
+#   lock | advisory ids (space separated) | review-by (YYYY-MM-DD) | reason
+#
+# lock is api, frontend or poetry, or all where the advisory holds in each: an
+# id accepted for one lock stays a finding in the others. On the review-by date
+# the audit fails until the entry is read again and renewed or removed. Add an
+# id only with the reason it does not reach this product.
+all | CVE-2026-112390 CVE-2026-96638 CVE-2026-112391 CVE-2026-112392 CVE-2026-112393 CVE-2026-96642 CVE-2026-112394 CVE-2026-112395 CVE-2026-96641 CVE-2026-112396 CVE-2026-112397 CVE-2026-112398 CVE-2026-112399 CVE-2026-114501 CVE-2026-112400 CVE-2026-112401 GHSA-78g4-xqwv-q3g8 CVE-2026-112402 CVE-2026-112403 CVE-2026-96644 CVE-2026-112404 CVE-2026-112405 CVE-2026-112406 CVE-2026-112891 CVE-2026-96643 CVE-2026-96778 CVE-2026-96637 CVE-2026-112892 CVE-2026-112893 CVE-2026-112894 CVE-2026-96640 CVE-2026-112895 CVE-2026-96636 CVE-2026-112896 CVE-2026-112897 CVE-2026-112898 CVE-2026-96639 CVE-2026-112899 CVE-2026-112900 CVE-2026-112901 CVE-2026-112902 | 2026-11-30 | Pillow 12.3.0, fixed only in 13.0.0, which no released Docling allows; no Pillow file decoder runs on an uploaded PDF (docs/bugs.md, QA-security-2). Re-read when docling and docling-core release the lift
