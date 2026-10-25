@@ -245,9 +245,10 @@ and `stop` all step over. What the danger needs is the narrowing this section
 already asks for, so that is what the route enforces:
 
 ```bash
-curl -X POST localhost:8000/questions/topic/473/reclaim   # one topic
-curl -X POST localhost:8000/questions/reclaim             # 400, confirm it
-curl -X POST 'localhost:8000/questions/reclaim?confirm=true'
+# Each with -H "X-API-Token: $API_TOKEN", as every write to the api is.
+curl -X POST -H "X-API-Token: $API_TOKEN" localhost:8000/questions/topic/473/reclaim   # one topic
+curl -X POST -H "X-API-Token: $API_TOKEN" localhost:8000/questions/reclaim             # 400, confirm it
+curl -X POST -H "X-API-Token: $API_TOKEN" 'localhost:8000/questions/reclaim?confirm=true'
 ```
 
 ### Two things done once, before the first claim

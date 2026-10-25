@@ -37,3 +37,36 @@ def test_compose_hands_the_secret_to_the_api_and_to_both_callers() -> None:
     for name in ("api", "streamlit", "dagster-webserver", "dagster-daemon"):
         environment = services[name].get("environment", {})
         assert "API_TOKEN" in environment, name
+
+
+def _curls(text: str) -> list[str]:
+    """Every curl command a document shows, its continued lines joined."""
+    joined = re.sub(r"\\\n\s*", " ", text)
+    return [line.strip() for line in joined.splitlines() if "curl " in line]
+
+
+def test_every_documented_curl_the_api_refuses_without_the_secret_sends_it() -> None:
+    """A write, an upload or any /settings read, as the README and the guides show them.
+
+    Copied as written, one without the header answers 401. The bug log is
+    history and is not read.
+    """
+    documents = [
+        ROOT / "README.md",
+        *(ROOT / "docs").glob("*.md"),
+        *(ROOT / "backend").glob("*/README.md"),
+        *(ROOT / "frontend").glob("README.md"),
+    ]
+    refused = [
+        f"{path.relative_to(ROOT)}: {curl}"
+        for path in documents
+        if path.name != "bugs.md"
+        for curl in _curls(path.read_text())
+        if (
+            re.search(r"-X (POST|PATCH|PUT|DELETE)\b| -[Fd] ", curl)
+            or "/settings" in curl
+        )
+        and "X-API-Token: $API_TOKEN" not in curl
+    ]
+
+    assert not refused, refused

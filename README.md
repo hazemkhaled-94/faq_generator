@@ -185,10 +185,11 @@ the go-live profile `.env.example` ships, `make all`, `make pipeline` and
 
 ## An example, end to end
 
-Upload a PDF on the Upload page, or from a terminal:
+Upload a PDF on the Upload page, or from a terminal, with the deployment's
+`API_TOKEN` from `.env`, which every write to the api carries:
 
 ```bash
-curl -F file=@guide.pdf http://localhost:8000/documents   # BACKEND_PORT, in configs/env/deployment.env
+curl -H "X-API-Token: $API_TOKEN" -F file=@guide.pdf http://localhost:8000/documents   # BACKEND_PORT, in configs/env/deployment.env
 ```
 
 which answers with the outcome (`stored` the first time) and the file's

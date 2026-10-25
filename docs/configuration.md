@@ -214,9 +214,10 @@ Three surfaces, all going through the stage's own `Settings.load`:
 ```bash
 # On the page that runs the service, under Configuration.
 
-# Or the API, one service per request:
-curl -s localhost:8000/settings/topics
+# Or the API, one service per request, with API_TOKEN from .env:
+curl -s -H "X-API-Token: $API_TOKEN" localhost:8000/settings/topics
 curl -s -X PATCH localhost:8000/settings/topics \
+  -H "X-API-Token: $API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"values": {"TOPIC_PASSES": "20"}}'
 
@@ -312,6 +313,7 @@ value whole:
 
 ```bash
 curl -s -X PATCH localhost:8000/settings/questions \
+  -H "X-API-Token: $API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"values": {"QUESTIONS_CATEGORIZATIONS": "[]"}}'
 

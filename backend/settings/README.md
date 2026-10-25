@@ -137,9 +137,10 @@ refused for any other; a list of nothing but commas counts as empty.
 ```bash
 # The page that runs the service, under Configuration.
 
-# The API, one service per request:
-curl -s localhost:8000/settings/topics
+# The API, one service per request, with API_TOKEN from .env:
+curl -s -H "X-API-Token: $API_TOKEN" localhost:8000/settings/topics
 curl -s -X PATCH localhost:8000/settings/topics \
+  -H "X-API-Token: $API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"values": {"TOPIC_PASSES": "20"}}'
 
