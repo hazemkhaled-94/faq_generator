@@ -129,18 +129,20 @@ def test_a_fact_is_recalibrated_by_the_same_arithmetic(engine, stored) -> None:
         assert row.confidence == pytest.approx(0.35, abs=1e-2)
 
 
-def test_a_verdict_written_while_it_runs_is_not_written_over(engine, stored) -> None:
-    """A `questions-rejudge` beside it adds an entry the rewrite keeps.
+def test_a_verdict_written_while_it_runs_is_not_written_over(
+    engine, stored, monkeypatch
+) -> None:
+    """A `questions-rejudge` beside it adds an entry the rewrite must keep.
 
-    The row is held while the recalibration starts, as `opine` holds it,
-    and gets its verdict before it is let go. Read without a lock, the
-    recalibration would write back what it read before the verdict.
+    The rows are read without a lock, so the write back says what it read:
+    a row whose scores changed meanwhile is skipped, not overwritten, and the
+    next run takes it.
     """
     import json
-    import threading
-    import time
 
     from sqlalchemy import text
+
+    import stages.recalibrate as module
 
     verdict = {
         "gate": "settles",
@@ -149,48 +151,73 @@ def test_a_verdict_written_while_it_runs_is_not_written_over(engine, stored) -> 
         "margin": None,
         "opinion": True,
     }
-    written: list[int] = []
-    holder = engine.connect()
-    holder.begin()
-    holder.execute(text("SELECT id FROM questions FOR UPDATE"))
-    running = threading.Thread(
-        target=lambda: written.append(recalibrate(Question, floor=0.75))
-    )
-    running.start()
-    try:
-        with engine.connect() as watching:
-            for _ in range(200):
-                waiting = watching.execute(
-                    text(
-                        "SELECT count(*) FROM pg_stat_activity "
-                        "WHERE wait_event_type = 'Lock' "
-                        "AND datname = current_database()"
-                    )
-                ).scalar()
-                # pg_stat_activity is read once per transaction, so each
-                # poll ends its own or it would keep seeing the first look.
-                watching.rollback()
-                if waiting:
-                    break
-                time.sleep(0.05)
-        assert waiting, "the recalibration never reached the held row"
-        holder.execute(
-            text(
-                "UPDATE questions SET gate_scores = gate_scores || "
-                "CAST(:verdict AS jsonb)"
-            ),
-            {"verdict": json.dumps([verdict])},
-        )
-        holder.commit()
-    finally:
-        holder.close()
-        running.join(timeout=10)
+    real = module.scored
 
-    assert written == [1]
+    def scored_after_a_verdict(readings):
+        """Lets a rejudge commit between the read and the write."""
+        with engine.begin() as other:
+            # A held row fails this test instead of hanging it.
+            other.execute(text("SET LOCAL lock_timeout = '2s'"))
+            other.execute(
+                text(
+                    "UPDATE questions SET gate_scores = gate_scores || "
+                    "CAST(:verdict AS jsonb) "
+                    "WHERE NOT gate_scores @> CAST(:verdict AS jsonb)"
+                ),
+                {"verdict": json.dumps([verdict])},
+            )
+        return real(readings)
+
+    monkeypatch.setattr(module, "scored", scored_after_a_verdict)
+
+    assert recalibrate(Question, floor=0.75) == 0
+    with Session(engine) as session:
+        scores = session.scalars(select_one(Question)).one().gate_scores
+    assert [one["gate"] for one in scores] == ["near_duplicate", "settles"]
+
+    monkeypatch.setattr(module, "scored", real)
+    assert recalibrate(Question, floor=0.75) == 1
     with Session(engine) as session:
         scores = session.scalars(select_one(Question)).one().gate_scores
     assert [one["gate"] for one in scores] == ["near_duplicate", "settles"]
     assert scores[0]["margin"] == pytest.approx(0.2778, abs=1e-3)
+
+
+def test_a_fact_gets_a_question_link_while_it_runs(engine, stored, monkeypatch) -> None:
+    """Reading takes no row lock, so a writer beside it is not made to wait.
+
+    With every fact held `FOR UPDATE` for the whole run, linking a question to
+    a fact (a share lock on the fact) waits until the recalibration is over.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+
+    import stages.recalibrate as module
+
+    real = module.scored
+    outcome: list[str] = []
+
+    def scored_while_a_writer_links(readings):
+        """Links a question to the fact from a second connection, mid-run."""
+        try:
+            with engine.begin() as other:
+                other.execute(text("SET LOCAL lock_timeout = '1s'"))
+                other.execute(
+                    text(
+                        "INSERT INTO question_facts (question_id, fact_id) "
+                        "SELECT q.id, f.id FROM questions q, facts f"
+                    )
+                )
+            outcome.append("linked")
+        except OperationalError:
+            outcome.append("waited")
+        return real(readings)
+
+    monkeypatch.setattr(module, "scored", scored_while_a_writer_links)
+
+    recalibrate(Fact, floor=0.75)
+
+    assert outcome == ["linked"]
 
 
 def select_one(model):

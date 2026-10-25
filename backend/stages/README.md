@@ -344,6 +344,11 @@ reading and what it was read against. It moves no verdict, so `status` and
 `make questions-reverify`. A row whose readings come back unchanged is left
 alone, so a second run writes nothing.
 
+It holds no lock while it reads and writes back in batches of 300, each row
+guarded by the scores it read. A row a rejudge or a verdict changed meanwhile
+is left as it is, counted in the log, and taken by the next run; the run does
+not stop a writer of a question or a fact.
+
 A row written before `gate_scores` recorded a direction takes it from
 `_REFUSES_HIGH`: `near_duplicate` and `duplicate` refuse a high reading.
 

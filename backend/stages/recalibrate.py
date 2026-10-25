@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from confidence import Measurement, confidence, scored
 from database.qa_generator import Fact, Question, sessions
@@ -58,8 +58,21 @@ def _reading(stored: dict, floor: float) -> Measurement:
     )
 
 
+#: Rows read at a time off the cursor, and rows written back in one
+#: transaction. Small writes hold their row locks for a moment.
+_READ = 1000
+_BATCH = 300
+
+
 def recalibrate(model, floor: float) -> int:
     """Takes every stored row's margins again, and returns how many moved.
+
+    Rows are read without a lock and written back in small batches, each
+    guarded by the scores it read: `UPDATE ... WHERE gate_scores = :read`. A
+    row a `questions-rejudge` or an `opine` changed meanwhile is skipped,
+    never written over, and the next run takes it. A lock held across the
+    whole read would stop every writer of a question or a fact for as long
+    as the run lasts.
 
     Args:
         model: `Question` or `Fact` - the two tables carrying the columns.
@@ -71,26 +84,48 @@ def recalibrate(model, floor: float) -> int:
         unchanged is left alone, so running this twice writes nothing the
         second time.
     """
-    written = 0
-    with sessions().begin() as session:
-        # Locked while read and written back, as `opine` locks the row it
-        # adds a verdict to, so a `questions-rejudge` running beside this
-        # waits rather than having its entry written over.
-        rows = session.scalars(
-            select(model).where(model.gate_scores.is_not(None)).with_for_update()
-        ).all()
-        for row in rows:
-            stored = list(row.gate_scores or ())
+    written = skipped = 0
+    pending: list[tuple[int, list, list, float | None]] = []
+
+    def flush() -> None:
+        nonlocal written, skipped
+        with sessions().begin() as session:
+            for key, read, scores, margin in pending:
+                moved = session.execute(
+                    update(model)
+                    .where(model.id == key, model.gate_scores == read)
+                    .values(gate_scores=scores, confidence=margin)
+                ).rowcount
+                written += moved
+                skipped += 1 - moved
+        pending.clear()
+
+    with sessions()() as reading:
+        rows = reading.execute(
+            select(model.id, model.gate_scores)
+            .where(model.gate_scores.is_not(None))
+            .execution_options(yield_per=_READ)
+        )
+        for key, scores in rows:
+            stored = list(scores or ())
             if not stored:
                 continue
             readings = [_reading(one, floor) for one in stored]
             recomputed = scored(readings)
             if recomputed == stored:
                 continue
-            row.gate_scores = recomputed
-            row.confidence = confidence(readings)
-            written += 1
+            pending.append((key, stored, recomputed, confidence(readings)))
+            if len(pending) >= _BATCH:
+                flush()
+        flush()
     log.info("recalibrated %d %s row(s)", written, model.__tablename__)
+    if skipped:
+        log.info(
+            "%d %s row(s) changed while this ran and were left as they are; "
+            "run it again to take them",
+            skipped,
+            model.__tablename__,
+        )
     return written
 
 
