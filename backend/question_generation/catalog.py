@@ -8,7 +8,6 @@ the re-check. Claiming a topic is the :mod:`question_generation.queue`'s.
 from __future__ import annotations
 
 import uuid
-from collections import Counter
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime
@@ -26,8 +25,11 @@ from sqlalchemy import (
     select,
     text,
     true,
+    tuple_,
     update,
 )
+from sqlalchemy import column as sql_column
+from sqlalchemy.dialects.postgresql import JSONB, aggregate_order_by
 from sqlalchemy.orm import Session, aliased
 
 from confidence import Measurement, scored
@@ -218,8 +220,14 @@ def _ids(
     would fix the counts and leave the mean length weighted by how many
     facts a question happens to cite.
     """
+    # The facts, passages and topics only where a filter reads them: a join
+    # that nothing filters on multiplies the question and is taken out again
+    # by the DISTINCT.
+    chosen = select(Question.id)
+    if document or topic:
+        chosen = _joined(chosen)
     return _filtered(
-        _joined(select(Question.id)),
+        chosen,
         document,
         topic,
         search,
@@ -393,6 +401,9 @@ _COVERAGE = select(
     .label("facts_asked"),
 )
 
+
+#: The names of those figures, read back off the one row the report takes.
+_REACH = tuple(str(one.key) for one in _COVERAGE.selected_columns)
 
 #: The constant reciprocal rank fusion is usually run with: large enough
 #: that a first place in one ranking does not outweigh two good places.
@@ -1567,39 +1578,13 @@ class QuestionCatalog(Repository):
         """
         # One question per row from here on, so a plain count is the right
         # count and the mean is not weighted by how many facts each cites.
-        selected = Question.id.in_(
+        # The filter is evaluated once, as a CTE the optimiser may not inline
+        # into each use, and everything below is one statement over it.
+        chosen = (
             _ids(document, topic, search, status, answerable, field, **scopes)
+            .cte("chosen")
+            .prefix_with("MATERIALIZED")
         )
-        totals = select(
-            func.count().label("total"),
-            func.count()
-            .filter(Question.status == QuestionStatus.ACCEPTED)
-            .label("accepted"),
-            func.count().filter(Question.status == QuestionStatus.DRAFT).label("draft"),
-            func.count().filter(~Question.answerable).label("unanswerable"),
-            func.count().filter(Question.follows_id.is_not(None)).label("followups"),
-            func.count()
-            .filter(Question.difficulty == Question.planned_difficulty)
-            .label("planned_met"),
-            # How much of `cognitive_level` is a measurement. The level is
-            # derived from the type, and only a few types have a label a
-            # rule settles; the rest declare one nothing checked.
-            func.count(
-                case(
-                    (
-                        and_(
-                            Question.status == QuestionStatus.ACCEPTED,
-                            Question.question_type.in_(tuple(CHECKED)),
-                        ),
-                        1,
-                    )
-                )
-            ).label("levels_checked"),
-            func.coalesce(func.avg(Question.answer_chars), 0.0).label("answer"),
-            func.coalesce(func.avg(func.length(Question.question_text)), 0.0).label(
-                "chars"
-            ),
-        ).where(selected)
         grouped = {
             "rejected": Question.rejected_reason,
             "difficulty": Question.difficulty,
@@ -1621,69 +1606,151 @@ class QuestionCatalog(Repository):
                 Question.phrasing_model, "not run or not recorded"
             ),
         }
+        names = list(grouped)
+        # GROUPING() sets bit i, most significant first, where column i is not
+        # in the row's grouping set: one mask names each spread, and the mask
+        # of the empty set marks the row of plain totals.
+        every = (1 << len(names)) - 1
+        mask = func.grouping(*grouped.values()).label("mask")
+        spreads = {
+            every ^ (1 << (len(names) - 1 - at)): name for at, name in enumerate(names)
+        }
+        count = func.count().label("n")
+
+        # How much of `cognitive_level` is a measurement. The level is
+        # derived from the type, and only a few types have a label a rule
+        # settles; the rest declare one nothing checked.
+        checked = func.count(
+            case(
+                (
+                    and_(
+                        Question.status == QuestionStatus.ACCEPTED,
+                        Question.question_type.in_(tuple(CHECKED)),
+                    ),
+                    1,
+                )
+            )
+        )
+        # The categories dealt, counted off the stored JSON in SQL as
+        # [label, n] pairs, most dealt first.
+        element = (
+            func.jsonb_array_elements(Question.categories)
+            .table_valued(sql_column("value", JSONB))
+            .lateral("element")
+        )
+        label = (
+            element.c.value["categorization"].astext
+            + "="
+            + element.c.value["category"].astext
+        ).label("label")
+        dealt = (
+            select(label, func.count().label("n"))
+            .select_from(Question)
+            .join(chosen, chosen.c.id == Question.id)
+            .join(element, true())
+            .where(Question.categories.is_not(None), label.is_not(None))
+            .group_by(label)
+            .subquery()
+        )
+        categories = (
+            select(
+                func.jsonb_agg(
+                    aggregate_order_by(
+                        func.jsonb_build_array(dealt.c.label, dealt.c.n),
+                        dealt.c.n.desc(),
+                        dealt.c.label,
+                    )
+                )
+            )
+            .select_from(dealt)
+            .scalar_subquery()
+        )
+        # Corpus-wide rather than filtered: coverage is about the topics
+        # that exist, and a filter that selects no question of a topic
+        # cannot say that topic is uncovered.
+        covered = (
+            select(func.count())
+            .select_from(Topic)
+            .where(
+                IS_TOPIC,
+                Topic.include_in_coverage,
+                Topic.question_status == Status.GENERATED,
+            )
+            .scalar_subquery()
+        )
+        in_coverage = (
+            select(func.count())
+            .select_from(Topic)
+            .where(IS_TOPIC, Topic.include_in_coverage)
+            .scalar_subquery()
+        )
+        statement = (
+            select(
+                *grouped.values(),
+                mask,
+                count,
+                func.count()
+                .filter(Question.status == QuestionStatus.ACCEPTED)
+                .label("accepted"),
+                func.count()
+                .filter(Question.status == QuestionStatus.DRAFT)
+                .label("draft"),
+                func.count().filter(~Question.answerable).label("unanswerable"),
+                func.count()
+                .filter(Question.follows_id.is_not(None))
+                .label("followups"),
+                func.count()
+                .filter(Question.difficulty == Question.planned_difficulty)
+                .label("planned_met"),
+                checked.label("levels_checked"),
+                func.coalesce(func.avg(Question.answer_chars), 0.0).label("answer"),
+                func.coalesce(func.avg(func.length(Question.question_text)), 0.0).label(
+                    "chars"
+                ),
+                categories.label("categories"),
+                covered.label("covered"),
+                in_coverage.label("in_coverage"),
+                *_COVERAGE.selected_columns,
+            )
+            .select_from(Question)
+            .join(chosen, chosen.c.id == Question.id)
+            .group_by(
+                func.grouping_sets(
+                    tuple_(),
+                    *(tuple_(each) for each in grouped.values()),
+                )
+            )
+            .order_by(mask, count.desc())
+        )
         with self._reading(read) as session:
-            row = session.execute(totals).one()
-            spread = {
-                name: dict(
-                    session.execute(
-                        select(column, func.count())
-                        .where(selected, column.is_not(None))
-                        .group_by(column)
-                        .order_by(func.count().desc())
-                    ).all()
-                )
-                for name, column in grouped.items()
-            }
-            # shortcut: counted here from the stored JSON, a few MB at 10,000
-            # questions; move to jsonb_array_elements in SQL if the page slows.
-            spread["categories"] = dict(
-                Counter(
-                    f"{one['categorization']}={one['category']}"
-                    for (stored,) in session.execute(
-                        select(Question.categories).where(
-                            selected, Question.categories.is_not(None)
-                        )
-                    )
-                    for one in stored
-                ).most_common()
-            )
-            # Corpus-wide rather than filtered: coverage is about the topics
-            # that exist, and a filter that selects no question of a topic
-            # cannot say that topic is uncovered.
-            covered = (
-                session.scalar(
-                    select(func.count())
-                    .select_from(Topic)
-                    .where(
-                        IS_TOPIC,
-                        Topic.include_in_coverage,
-                        Topic.question_status == Status.GENERATED,
-                    )
-                )
-                or 0
-            )
-            in_coverage = (
-                session.scalar(
-                    select(func.count())
-                    .select_from(Topic)
-                    .where(IS_TOPIC, Topic.include_in_coverage)
-                )
-                or 0
-            )
-            reach = session.execute(_COVERAGE).one()
+            rows = session.execute(statement).all()
+
+        spread: dict[str, dict] = {name: {} for name in names}
+        row = None
+        for one in rows:
+            if one.mask == every:
+                row = one
+                continue
+            value = one[names.index(spreads[one.mask])]
+            if value is not None:
+                spread[spreads[one.mask]][value] = one.n
+        assert row is not None, "the totals row is the empty grouping set"
+        spread["categories"] = {
+            f"{pair[0]}": pair[1] for pair in (row.categories or ())
+        }
 
         return QuestionQuality(
-            total=row.total,
+            total=row.n,
             accepted=row.accepted,
             draft=row.draft,
             unanswerable=row.unanswerable,
             followups=row.followups,
-            topics_covered=covered,
-            topics_in_coverage=in_coverage,
+            topics_covered=row.covered or 0,
+            topics_in_coverage=row.in_coverage or 0,
             mean_question_chars=round(float(row.chars), 1),
             mean_answer_chars=round(float(row.answer), 1),
             planned_met=row.planned_met,
             cognitive_level_checked=row.levels_checked,
             **spread,
-            **reach._asdict(),
+            **{name: row._mapping[name] for name in _REACH},
         )

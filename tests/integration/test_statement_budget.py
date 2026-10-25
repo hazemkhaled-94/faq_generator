@@ -19,8 +19,7 @@ SIZE = 300
 
 #: The statements a route may issue, by the request it answers.
 BUDGET = {
-    # What it costs today: a statement per spread, each re-evaluating the filter.
-    "/questions/quality": 18,
+    "/questions/quality": 1,
     "/questions": 2,
     "/facts": 3,
     "/extraction/status": 1,
@@ -64,3 +63,19 @@ def test_a_route_stays_within_its_statement_budget(corpus, path: str) -> None:
 
     assert answered.status_code == 200, answered.text
     assert len(spent) <= BUDGET[path], f"{len(spent)} statements:\n{spent.describe()}"
+
+
+def test_the_one_statement_still_says_what_the_eighteen_did(corpus) -> None:
+    """The figures the page draws, over the same corpus and in the same order."""
+    measured = corpus.get("/questions/quality").json()
+
+    assert measured["total"] == SIZE
+    assert measured["accepted"] == 200
+    assert measured["rejected"] == {"duplicate": 100}
+    assert measured["difficulty"] == {"easy": 100, "medium": 100, "hard": 100}
+    assert list(measured["categories"].items()) == [
+        (f"style=s{at}", SIZE // 4) for at in range(4)
+    ]
+    assert measured["writer_model"] == {"not recorded": SIZE}
+    filtered = corpus.get("/questions/quality", params={"status": "accepted"}).json()
+    assert filtered["total"] == 200
