@@ -235,10 +235,11 @@ Two more refusals are the service refusing what the checks passed:
   stored fact rests on its own passage alone, so a passage it was refused
   against never counts towards the scope of a question asked of it. The
   refusal does keep that fact's id (`twin_id`, indexed, set NULL when the fact
-  is deleted), so after a drain that replaced facts the replay reads only the
-  refusals that lost their twin. A refusal stored before the column existed
-  has none, so the first replay after the upgrade reads every stored refusal
-  once.
+  is deleted), so the replay reads only the refusals that lost their twin. A
+  refusal stored before the column existed has none, so the first replay
+  after the upgrade reads every stored refusal once, and points each it keeps
+  at its twin, a fact of its own passage included: one refused in flight
+  against such a fact is stored with none, that fact having no id yet.
   `make extract-dedup` re-decides every stored refusal under the rule as it
   stands, giving back the ones it would no longer make with the reading
   taken against today's bar, or none, and takes out the
@@ -257,17 +258,19 @@ Two more refusals are the service refusing what the checks passed:
   worker would have refused it. Drains writing facts of other languages or
   kinds do not wait on each other. The second look costs one more probe a
   fact, which the language column on the facts keeps to a vector-index lookup.
-  Nothing ties a stored fact to the passages refused against it, so
-  deleting its document leaves each repeat refused against a fact that is
-  gone. `make delete` and `make delete-derived` therefore run
-  `extract-dedup`, which gives the repeat back. A deletion through the API
-  or the UI leaves it to the worker: the archive records every deleted fact,
-  and a worker whose queue is empty replays the dedup when that record has
-  moved since it last looked, so with no worker running run
-  `make extract-dedup` after one. That command is also the recovery when the replay of a `make delete` fails, since the document is
+  Deleting a stored fact's document leaves each repeat refused against a
+  fact that is gone, its `twin_id` set NULL. `make delete` and
+  `make delete-derived` therefore run `extract-dedup`, which gives the repeat
+  back, and every deletion ends saying how many refusals lost their twin. A
+  deletion through the API or the UI leaves them to the worker: whenever its
+  queue is empty it asks, through the index on `rejection_code`, whether a
+  `duplicate` refusal points at no twin, and replays the dedup over those
+  alone if one does. That holds for a deletion made while it ran, before it
+  started or across a rebuild for changed settings; with no worker running,
+  run `make extract-dedup` after one. That command is also the recovery when the replay of a `make delete` fails, since the document is
   gone by then. A passage read again - a rerun, a retry - replaces its
-  facts the same way, so a drain that replaced any runs the same replay
-  itself once it finds its queue empty, under an advisory lock, so two
+  facts the same way, and the same probe finds the refusals that named
+  them. The replay runs under an advisory lock, so two
   `extract-worker` replicas never interleave it. Only with the gate on: at
   `EXTRACTION_DUPLICATE_COSINE` 0 the replay would give every refusal back. The passages of the refusals it gives back, and no others,
   are then judged again and re-capped, as `make extract-revalidate` and

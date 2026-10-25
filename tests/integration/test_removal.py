@@ -330,18 +330,68 @@ def test_a_move_the_store_refuses_rolls_the_rows_back(
     assert ParsedBucket().find(ParsedBucket.key_for(held)) is not None
 
 
-def test_a_deletion_moves_what_the_extraction_worker_watches(service, held) -> None:
-    """The worker replays the dedup after a deletion, and finds it here.
+#: A shop's term, as two documents of one language state it.
+TERMS = {"de": "Die Lieferung kostet 5 Euro.", "en": "Delivery costs 5 euros."}
 
-    A fact deleted by cascade is archived by the trigger, whichever surface
-    asked, so the worker needs no message from the API.
+
+@pytest.mark.parametrize("removal", ["delete", "delete_derived"])
+@pytest.mark.parametrize("language", sorted(TERMS))
+def test_deleting_a_document_frees_the_refusal_that_repeated_its_fact(
+    engine, service, language: str, removal: str
+) -> None:
+    """With no make call: an idle extraction worker gives the repeat back.
+
+    The second document's repeat of the first's fact was refused as its
+    duplicate and points at it. Deleting the first sets that pointer NULL, the
+    removal says one refusal lost its twin, and a worker whose queue is empty
+    finds the refusal pointing at nothing and replays the dedup over it.
     """
-    from extraction.repository import PassageQueue
+    from drivers import DIGEST_SHARE, Model, Vectors
+    from facts import FactStore, checked
 
-    queue = PassageQueue()
-    before = queue.deletions()
+    from database.qa_generator import Rejection
+    from extraction.extractors import ExtractorRegistry, LlmExtractor, TableExtractor
+    from extraction.service import ExtractionService
+    from extraction.validation import FactChecker
 
-    service.delete(held)
+    term, along = TERMS[language], [1.0] + [0.0] * 1023
+    store = FactStore(engine, language=language)
+    passages = store.corpus(("kept", [term]), ("repeat", [term]))
+    first, other = passages["kept"][0], passages["repeat"][0]
+    store.store(first, checked(first, term, embedding=along))
+    ((twin,),) = store.rows("id")
+    store.store(
+        other,
+        checked(
+            other,
+            term,
+            validated=False,
+            rejection_code=Rejection.DUPLICATE,
+            validation_error=f"says what fact {twin} already says",
+            embedding=along,
+            twin_id=twin,
+        ),
+    )
+    worker = ExtractionService(
+        repository=store.queue,
+        extractors=ExtractorRegistry(
+            extractors=(TableExtractor(),),
+            default=LlmExtractor(Model({"facts": []})),  # type: ignore[arg-type]
+        ),
+        checker=FactChecker(DIGEST_SHARE),
+        embedder=Vectors(),  # type: ignore[arg-type]
+        duplicate_cosine=0.985,
+        catalog=store.catalog,
+    )
+    assert worker.drain() == 0
+    assert store.rows("rejection_code", where="id <> :twin", twin=twin) == [
+        (Rejection.DUPLICATE,)
+    ], "a refusal pointing at its twin is left alone"
 
-    assert queue.deletions() > before
-    assert queue.deletions() == queue.deletions()
+    removed = getattr(service, removal)(digest("kept"))
+
+    assert removed.twinless == 1
+    assert store.catalog.orphaned()
+    assert worker.drain() == 0
+    assert store.rows("validated", "rejection_code", "twin_id") == [(True, None, None)]
+    assert not store.catalog.orphaned()

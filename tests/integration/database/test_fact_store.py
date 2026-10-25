@@ -1752,7 +1752,10 @@ class TestTheDedupReplay:
         ) == [(True, None, None, "deduped", reading, 0.064)]
 
     def test_what_a_passage_keeps_is_read_with_its_kinds(self, store, corpus) -> None:
-        """The facts it validated, and not the ones it refused."""
+        """The facts it validated, and not the ones it refused, with their ids.
+
+        The id is what a refusal repeating one of them is made to point at.
+        """
         first = corpus["a"][0]
         store.store(
             first,
@@ -1767,9 +1770,11 @@ class TestTheDedupReplay:
             ),
         )
 
+        claim, summary = (one for (one,) in store.rows("id", where="validated"))
+
         assert store.catalog.kept(first) == [
-            ("A claim.", FactKind.ATOMIC, _axis(0)),
-            ("A summary.", FactKind.SUMMARY, _axis(1)),
+            ("A claim.", FactKind.ATOMIC, _axis(0), claim),
+            ("A summary.", FactKind.SUMMARY, _axis(1), summary),
         ]
 
     def test_the_replay_gives_back_a_different_rule_and_keeps_a_restatement(
@@ -1965,24 +1970,37 @@ def _reading(store: FactStore, answer: dict, queue=None):
 class TestTheReplayWhereTheDrainEnds:
     """The extract worker's dedup replay, against the database it writes to."""
 
-    def test_a_passage_a_fact_cites_is_one_its_store_replaces(
-        self, store, corpus
-    ) -> None:
-        """A bridge resting on it is not: `store` leaves bridges alone."""
-        first, other = corpus["a"][0], corpus["b"][0]
-        store.store(first, checked(first))
-        store.bridges(
+    def test_a_refusal_is_orphaned_once_its_twin_is_deleted(self, store) -> None:
+        """What an idle worker asks: a duplicate refusal pointing at no twin.
+
+        One pointing at its twin is not; reading the twin's passage again
+        deletes the twin, and the pointer set NULL is what the probe finds.
+        A refusal with no vector, which no replay can probe, is never one.
+        """
+        passages = store.corpus(
+            ("x", ["The device weighs 4 kg."]), ("y", ["The device weighs 4 kg."])
+        )
+        first, other = passages["x"][0], passages["y"][0]
+        store.store(first, checked(first, embedding=_axis(0)))
+        ((twin,),) = store.rows("id")
+        store.store(
+            other,
             checked(
                 other,
-                "A bridge.",
-                kind=FactKind.BRIDGE,
-                passage_ids=[other, corpus["b"][1]],
-            )
+                validated=False,
+                rejection_code=Rejection.DUPLICATE,
+                embedding=_axis(0),
+                twin_id=twin,
+            ),
+            checked(
+                other, "No vector.", validated=False, rejection_code=Rejection.DUPLICATE
+            ),
         )
+        assert not store.catalog.orphaned()
 
-        assert store.queue.cited(first)
-        assert not store.queue.cited(other)
-        assert not store.queue.cited(corpus["a"][1])
+        store.store(first)
+
+        assert store.catalog.orphaned()
 
     def test_the_lock_is_held_until_the_replay_ends(self, store, engine) -> None:
         """A second worker's replay waits for it rather than interleaving."""
@@ -2017,14 +2035,16 @@ class TestTheReplayWhereTheDrainEnds:
         )
         first, other = passages["x"][0], passages["y"][0]
         store.store(first, checked(first, embedding=_axis(0)))
+        ((twin,),) = store.rows("id")
         store.store(
             other,
             checked(
                 other,
                 validated=False,
                 rejection_code=Rejection.DUPLICATE,
-                validation_error="says what fact 1 already says",
+                validation_error=f"says what fact {twin} already says",
                 embedding=_axis(0),
+                twin_id=twin,
             ),
         )
         store.queued(first)
@@ -2035,24 +2055,29 @@ class TestTheReplayWhereTheDrainEnds:
     def test_a_drain_of_new_passages_leaves_the_refusals_alone(self, store) -> None:
         """Nothing it stored replaced a fact, so no refusal lost its twin."""
         passages = store.corpus(
-            ("x", ["The device weighs 4 kg."]), ("y", ["The device weighs 4 kg."])
+            ("x", ["The device weighs 4 kg."]),
+            ("y", ["The device weighs 4 kg."]),
+            ("z", ["The device weighs 4 kg."]),
         )
-        first, other = passages["x"][0], passages["y"][0]
+        first, other, new = passages["x"][0], passages["y"][0], passages["z"][0]
+        store.store(first, checked(first, embedding=_axis(0)))
+        ((twin,),) = store.rows("id")
         store.store(
             other,
             checked(
                 other,
                 validated=False,
                 rejection_code=Rejection.DUPLICATE,
-                validation_error="says what a deleted fact said",
+                validation_error=f"says what fact {twin} already says",
                 embedding=_axis(0),
+                twin_id=twin,
             ),
         )
-        store.queued(first)
+        store.queued(new)
 
         _reading(store, {"facts": []}).drain()
 
-        assert store.rows("rejection_code") == [(Rejection.DUPLICATE,)]
+        assert store.rows("rejection_code") == [(None,), (Rejection.DUPLICATE,)]
 
 
 class TestBridgeReading:

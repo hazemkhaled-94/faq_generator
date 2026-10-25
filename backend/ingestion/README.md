@@ -122,8 +122,8 @@ two-by-two hex fanout is not cosmetic: the filer keys its metadata on
 | `GET /documents` | The corpus, with each document's stage statuses and passage counts |
 | `GET /documents/names` | Digests and filenames, for the pickers |
 | `GET /documents/{sha256}/file` | The stored bytes back |
-| `DELETE /documents/{sha256}` | Remove the document and everything derived from it. A fact another document repeats was refused as a duplicate of this one's: the running extraction worker gives it back, by the replay `make delete` runs itself |
-| `DELETE /documents/{sha256}/derived` | Remove the passages and what cascades, keep both objects. The extraction worker replays the dedup after it, as after a deletion; `make delete-derived` runs it itself |
+| `DELETE /documents/{sha256}` | Remove the document and everything derived from it. A fact another document repeats was refused as a duplicate of this one's: the answer's `twinless` counts those refusals, and the extraction worker gives them back when its queue is empty, by the replay `make delete` runs itself, or `make extract-dedup` where no worker runs |
+| `DELETE /documents/{sha256}/derived` | Remove the passages and what cascades, keep both objects. The same count, and the same replay as after a deletion; `make delete-derived` runs it itself |
 
 **Command line:** `make documents`, `make ingest DIR=…` (every PDF in a host
 directory, through this service, one line per file), `make delete SHA=…`,

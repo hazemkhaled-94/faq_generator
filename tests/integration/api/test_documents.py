@@ -335,6 +335,7 @@ def test_deleting_a_document_reports_what_went_with_it(client, pdf) -> None:
         "passages": 0,
         "file": True,
         "parsed": False,
+        "twinless": 0,
     }
     assert client.get("/documents").json()["total"] == 0
 

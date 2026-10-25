@@ -148,6 +148,12 @@ def main(argv: list[str] | None = None) -> int:
         removed.file,
         removed.parsed,
     )
+    log.info(
+        "%d duplicate refusal(s) lost the fact they repeated: the extraction "
+        "worker re-decides them when its queue is empty, or `make extract-dedup` "
+        "where none runs",
+        removed.twinless,
+    )
     return 0
 
 

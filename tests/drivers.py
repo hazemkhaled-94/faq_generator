@@ -341,23 +341,10 @@ class Queue:
         self.twin_kind: str | None = None
         #: The language and kind each `nearest_fact` probe was narrowed to.
         self.probed: list[tuple[str | None, str | None]] = []
-        #: The passages a fact already cites when they are read, which a
-        #: store replaces.
-        self.read_before: set[int] = set()
-        #: What the archive says has been deleted, which only grows.
-        self.deleted = 0
-
-    def deletions(self) -> int:
-        """Where the archive's record of deleted facts stands."""
-        return self.deleted
 
     def claim(self) -> PassageToExtract | None:
         """Takes the next passage off the queue."""
         return self._pending.pop(0) if self._pending else None
-
-    def cited(self, passage_id: int) -> bool:
-        """Whether a fact cites the passage already."""
-        return passage_id in self.read_before
 
     def store(
         self,
@@ -552,6 +539,13 @@ class Catalogue:
         """Records a refusal that now points at its twin."""
         self.pointing[fact_id] = twin_id
 
+    def orphaned(self) -> bool:
+        """Whether a refusal still standing points at no twin; records nothing."""
+        return any(
+            one.fact_id not in self.given_back and one.fact_id not in self.pointing
+            for one in self.refusals
+        )
+
     def nearest_fact(
         self,
         embedding: list[float],
@@ -576,10 +570,10 @@ class Catalogue:
         nearest = sorted(found, key=lambda twin: -twin.similarity)[:5]
         return next((one for one in nearest if alike is None or alike(one)), None)
 
-    def kept(self, passage_id: int) -> list[tuple[str, str, list[float]]]:
-        """The validated facts read from one passage."""
+    def kept(self, passage_id: int) -> list[tuple[str, str, list[float], int]]:
+        """The validated facts read from one passage, with their ids."""
         return [
-            (one.statement, one.kind, one.embedding)
+            (one.statement, one.kind, one.embedding, one.fact_id)
             for one in self._validated()
             if one.passage_id == passage_id
         ]

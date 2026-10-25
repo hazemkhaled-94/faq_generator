@@ -136,6 +136,38 @@ def test_a_word_for_word_repeat_of_its_own_passage_stays_refused() -> None:
 
 
 @pytest.mark.parametrize(
+    ("language", "claim", "summary"),
+    [
+        (
+            "de",
+            "Die Rücksendung ist 30 Tage kostenlos.",
+            "Die Rücksendung ist 30 Tage kostenlos.",
+        ),
+        ("en", "Returns are free for 30 days.", "Returns are free for 30 days."),
+    ],
+)
+def test_a_refusal_repeating_its_own_passage_is_made_to_point_at_that_fact(
+    language: str, claim: str, summary: str
+) -> None:
+    """Stored in flight before its twin had an id, it points at none until a replay.
+
+    Pointed at the fact of its own passage it repeats, an idle worker asking
+    for refusals that point at no twin finds none, and does not replay again.
+    """
+    catalog = (
+        Catalogue()
+        .holding_kept(
+            Kept(4, 2, summary, at(0.99), language=language, kind=FactKind.SUMMARY)
+        )
+        .refusing(refusal(claim, passage_id=2, language=language))
+    )
+
+    assert dedup(catalog, BAR, orphaned=True) == 0  # type: ignore[arg-type]
+    assert catalog.pointing == {10: 4}
+    assert not catalog.orphaned()
+
+
+@pytest.mark.parametrize(
     ("language", "summary", "outline"),
     [
         (

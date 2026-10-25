@@ -1827,8 +1827,13 @@ passage. Deleting the first document therefore takes the claim with it,
 and leaves the second copy refused. `make delete` and `make delete-derived`
 then run `make extract-dedup` over the whole corpus. It calls no model,
 gives that copy back, and re-judges and re-caps the passages of what it gave
-back, and no others. A deletion through the API or the UI does not run it,
-so run `make extract-dedup` yourself afterwards. No `make questions-rescore` follows
+back, and no others. Every deletion, `make delete`, `make delete-derived`,
+either `DELETE` route or the Documents page, ends with one line saying how
+many duplicate refusals lost the fact they repeated. The extraction worker
+re-decides them when its queue is empty: it asks for a refusal pointing at no
+twin, which a deletion leaves however it was made, while the worker ran, before
+it started or across a rebuild for changed settings. Where no extraction worker
+runs, as in the go-live profile, run `make extract-dedup`. No `make questions-rescore` follows
 a deletion: the questions that rested on the deleted facts went with them.
 
 The deletion and the replay are two steps. Both refuse beside a running

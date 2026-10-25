@@ -32,7 +32,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
 from database.qa_generator import (
-    ArchivedRow,
     Document,
     Fact,
     FactKind,
@@ -111,6 +110,14 @@ _PAST_THE_FILTERS = text("SET LOCAL hnsw.iterative_scan = strict_order")
 #: The advisory lock a dedup replay holds, so two workers' replays never
 #: interleave. Beside the one a pipeline launch holds, and not that one.
 _REPLAYING = 0x5155_4444
+
+#: A `duplicate` refusal the replay can probe, and the third condition, one
+#: pointing at no twin: what an idle worker looks for and replays.
+_ORPHANED = (
+    Fact.rejection_code == Rejection.DUPLICATE,
+    Fact.embedding.is_not(None),
+    Fact.twin_id.is_(None),
+)
 
 #: The facts table itself, for the bulk update a re-judgement writes.
 _FACTS = cast("Table", Fact.__table__)
@@ -570,46 +577,6 @@ class PassageQueue(RowQueue):
                 )
             self._finish(passage_id, session=session, note=note)
         return len(facts)
-
-    def cited(self, passage_id: int) -> bool:
-        """Whether a fact other than a bridge cites this passage already.
-
-        What its `store` replaces: a passage read again, whose facts a
-        refusal elsewhere may name as its twin.
-        """
-        with self._session() as session:
-            return bool(
-                session.scalar(
-                    select(
-                        select(FactPassage.fact_id)
-                        .join(Fact, Fact.id == FactPassage.fact_id)
-                        .where(
-                            FactPassage.passage_id == passage_id,
-                            Fact.kind != FactKind.BRIDGE,
-                        )
-                        .exists()
-                    )
-                )
-            )
-
-    def deletions(self) -> int:
-        """Where the archive's record of deleted facts stands.
-
-        A deletion through the API or the UI queues nothing, and leaves a
-        refusal elsewhere naming a fact that is gone as its twin. What the
-        archive holds is the only trace of it, so the worker compares this
-        with what it saw last. It moves on any deletion of a fact and, after
-        `make archive-purge`, on that too: a replay too many is harmless.
-        """
-        with self._session() as session:
-            return (
-                session.scalar(
-                    select(func.max(ArchivedRow.id)).where(
-                        ArchivedRow.table_name == "facts"
-                    )
-                )
-                or 0
-            )
 
     def nearest_fact(
         self,
@@ -1234,15 +1201,35 @@ class FactCatalog(Repository):
         Returns:
             The refusals carrying the vector they were refused on.
         """
-        conditions = [
-            Fact.rejection_code == Rejection.DUPLICATE,
-            Fact.embedding.is_not(None),
-        ]
-        if orphaned:
-            conditions.append(Fact.twin_id.is_(None))
+        conditions = list(_ORPHANED if orphaned else _ORPHANED[:2])
         if within is not None:
             conditions.append(_resting(within))
         return self._refusals(*conditions)
+
+    def orphaned(self) -> bool:
+        """Whether a `duplicate` refusal points at no twin, which the replay re-decides.
+
+        Its twin was deleted, through any surface and whether a worker ran or
+        not, or it was stored before the pointer, or in flight against a fact
+        of its own passage that had no id yet. What an idle extraction worker
+        asks at each poll: an EXISTS through the index on `rejection_code`,
+        over the rows `duplicates(orphaned=True)` reads.
+        """
+        with self._session() as session:
+            return bool(
+                session.scalar(
+                    select(
+                        select(Fact.id)
+                        .join(
+                            FactPassage,
+                            (FactPassage.fact_id == Fact.id)
+                            & (FactPassage.position == 0),
+                        )
+                        .where(Fact.kind != FactKind.BRIDGE, *_ORPHANED)
+                        .exists()
+                    )
+                )
+            )
 
     def refused(self, fact_ids: list[int]) -> list[Refused]:
         """Those of these facts stored refused, as a dedup probe reads them.
@@ -1301,15 +1288,15 @@ class FactCatalog(Repository):
                 for row in session.execute(query)
             ]
 
-    def kept(self, passage_id: int) -> list[tuple[str, str, list[float]]]:
-        """What one passage keeps, as (statement, kind, vector).
+    def kept(self, passage_id: int) -> list[tuple[str, str, list[float], int]]:
+        """What one passage keeps, as (statement, kind, vector, id).
 
         Its validated facts carrying a vector, read through their citation
         at 0, in the order they were written: what `written` holds for a
-        passage in flight.
+        passage in flight, with the ids a stored refusal points at.
         """
         query = (
-            select(Fact.statement, Fact.kind, Fact.embedding)
+            select(Fact.statement, Fact.kind, Fact.embedding, Fact.id)
             .join(
                 FactPassage,
                 (FactPassage.fact_id == Fact.id) & (FactPassage.position == 0),
@@ -1324,7 +1311,12 @@ class FactCatalog(Repository):
         )
         with self._session() as session:
             return [
-                (row.statement, row.kind, [float(one) for one in row.embedding])
+                (
+                    row.statement,
+                    row.kind,
+                    [float(one) for one in row.embedding],
+                    row.id,
+                )
                 for row in session.execute(query)
             ]
 

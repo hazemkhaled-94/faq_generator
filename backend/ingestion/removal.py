@@ -65,8 +65,10 @@ class RemovalService:
         def move() -> None:
             found[sha256] = self._take_objects(sha256, media_type, taken)
 
-        passages = self._guarded(taken, lambda: self._repository.delete(sha256, move))
-        return self._removed(sha256, passages, *found[sha256])
+        passages, twinless = self._guarded(
+            taken, lambda: self._repository.delete(sha256, move)
+        )
+        return self._removed(sha256, passages, *found[sha256], twinless=twinless)
 
     def _guarded(self, taken: list[tuple[str, str]], delete):
         """Runs a deletion, giving back the objects already moved if it fails."""
@@ -106,7 +108,12 @@ class RemovalService:
         return moved[0], moved[1]
 
     def _removed(
-        self, sha256: str, passages: int, file_gone: bool, parsed_gone: bool
+        self,
+        sha256: str,
+        passages: int,
+        file_gone: bool,
+        parsed_gone: bool,
+        twinless: int = 0,
     ) -> Removal:
         """Logs and describes one document's removal."""
         log.info(
@@ -122,6 +129,7 @@ class RemovalService:
             passages=passages,
             file=file_gone,
             parsed=parsed_gone,
+            twinless=twinless,
         )
 
     def delete_every(self) -> list[Removal]:
@@ -189,8 +197,13 @@ class RemovalService:
         """
         if self._repository.media_type(sha256) is None:
             return None
-        passages = self._repository.delete_derived(sha256)
+        passages, twinless = self._repository.delete_derived(sha256)
         log.info("dropped derived data for %s: %d passage(s)", sha256, passages)
         return Removal(
-            sha256=sha256, document=False, passages=passages, file=False, parsed=False
+            sha256=sha256,
+            document=False,
+            passages=passages,
+            file=False,
+            parsed=False,
+            twinless=twinless,
         )

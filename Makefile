@@ -1566,9 +1566,12 @@ ingest:
 # alone, and deleting it leaves the repeat refused against a fact that is
 # gone. The dedup gives it back, and re-judges and re-caps its passage.
 # Over the whole corpus, SHA cleared, because the repeat is in another
-# document. A deletion through the API or the UI is replayed by the running
-# extract-worker when its queue is empty. Nor can this resume a replay that failed,
-# since the document is gone by then: `make extract-dedup` is the recovery.
+# document. The deletion ends with one line naming how many refusals lost
+# their twin. After a deletion through the API or the UI, extract-worker
+# re-decides them when its queue is empty, finding a refusal that points at
+# no twin; where none runs, `make extract-dedup`. Nor can this resume a replay
+# that failed, since the document is gone by then: `make extract-dedup` is the
+# recovery.
 # The replay's guard is asked first for that reason: asked by the replay
 # alone, it refused once the document was already gone.
 #   make delete SHA=<sha256>

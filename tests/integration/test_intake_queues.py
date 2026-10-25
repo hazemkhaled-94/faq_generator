@@ -1004,7 +1004,7 @@ def test_deleting_a_document_takes_its_passages_and_keeps_its_events(
         session.add_all([passage(A, ordinal=1), passage(A, ordinal=2)])
         session.commit()
 
-    assert catalogue.delete(A) == 2
+    assert catalogue.delete(A) == (2, 0)
 
     assert one(engine, "SELECT count(*) AS held FROM documents").held == 1
     assert one(engine, "SELECT count(*) AS held FROM passages").held == 0
@@ -1028,7 +1028,7 @@ def test_dropping_the_derived_data_keeps_the_row_and_requeues_chunking(
         session.add(passage(digest("c"), ordinal=1))
         session.commit()
 
-    assert catalogue.delete_derived(digest("c")) == 1
+    assert catalogue.delete_derived(digest("c")) == (1, 0)
 
     row = one(
         engine,
@@ -1041,8 +1041,8 @@ def test_dropping_the_derived_data_keeps_the_row_and_requeues_chunking(
 
 def test_deleting_a_document_that_is_not_there_removes_nothing(catalogue) -> None:
     """A count of zero rather than a failure."""
-    assert catalogue.delete(digest("z")) == 0
-    assert catalogue.delete_derived(digest("z")) == 0
+    assert catalogue.delete(digest("z")) == (0, 0)
+    assert catalogue.delete_derived(digest("z")) == (0, 0)
 
 
 def test_a_row_deleted_while_held_is_gone_not_lost(parsable, engine) -> None:

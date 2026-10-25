@@ -85,6 +85,7 @@ class _Removal:
             passages=3,
             file=document,
             parsed=document,
+            twinless=2,
         )
 
 
@@ -185,6 +186,21 @@ def test_deleting_a_document_reports_what_went_with_it(monkeypatch, caplog) -> N
 
     assert removal.deleted == [SHA]
     assert "3 passage(s) removed" in caplog.text
+
+
+@pytest.mark.parametrize("flag", ["--delete", "--delete-derived"])
+def test_a_deletion_ends_naming_the_refusals_that_lost_their_twin(
+    flag: str, monkeypatch, caplog
+) -> None:
+    """And who re-decides them: the worker, or make extract-dedup where none runs."""
+    monkeypatch.setattr(ingestion_run, "build_removal", lambda: _Removal())
+
+    with caplog.at_level("INFO"):
+        assert ingestion_run.main([flag, SHA]) == 0
+
+    last = caplog.records[-1].getMessage()
+    assert last.startswith("2 duplicate refusal(s) lost the fact they repeated")
+    assert "extraction worker" in last and "`make extract-dedup`" in last
 
 
 def test_dropping_the_derived_data_runs_the_other_deletion(monkeypatch) -> None:

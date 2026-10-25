@@ -4,15 +4,27 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from sqlalchemy import ScalarSelect, delete, func, select, text, update
-from sqlalchemy.dialects.postgresql import distinct_on, insert
+from sqlalchemy import (
+    BigInteger,
+    ScalarSelect,
+    any_,
+    bindparam,
+    delete,
+    func,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, distinct_on, insert
 
 from database.qa_generator import (
     Document,
+    Fact,
     FactPassage,
     IngestEvent,
     Outcome,
     Passage,
+    Rejection,
     Status,
 )
 from database.qa_generator.repository import Repository, lock_reached, matching
@@ -105,6 +117,44 @@ def _filtered(query, search: str | None, parse_status: str | None = None):
     return query
 
 
+def _pointing_into(session, sha256: str) -> list[int]:
+    """The duplicate refusals that name a fact citing this document as their twin.
+
+    Read before the deletion: it sets NULL on each whose twin goes with the
+    document, which is all that is left to count by afterwards.
+    """
+    return list(
+        session.scalars(
+            select(Fact.id)
+            .distinct()
+            .join(FactPassage, FactPassage.fact_id == Fact.twin_id)
+            .join(Passage, Passage.id == FactPassage.passage_id)
+            .where(
+                Fact.rejection_code == Rejection.DUPLICATE,
+                Passage.doc_sha256 == sha256,
+            )
+        )
+    )
+
+
+def _twinless(session, pointing: list[int]) -> int:
+    """How many of these refusals outlived the deletion and lost their twin."""
+    if not pointing:
+        return 0
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Fact)
+            .where(
+                Fact.id
+                == any_(bindparam("pointing", pointing, type_=ARRAY(BigInteger))),
+                Fact.twin_id.is_(None),
+            )
+        )
+        or 0
+    )
+
+
 class DocumentRepository(Repository):
     """Reads and writes `documents` and `ingest_events`."""
 
@@ -143,7 +193,7 @@ class DocumentRepository(Repository):
 
     def delete(
         self, sha256: str, before_commit: Callable[[], object] | None = None
-    ) -> int:
+    ) -> tuple[int, int]:
         """Removes a document row and everything derived from it.
 
         Ingest events survive, keeping the digest.
@@ -155,7 +205,8 @@ class DocumentRepository(Repository):
                 moved, rolls the deletion back.
 
         Returns:
-            Passages the cascade took with it.
+            Passages the cascade took with it, and the duplicate refusals
+            left pointing at no twin.
         """
         with self._session.begin() as session:
             passages = session.scalar(
@@ -163,11 +214,13 @@ class DocumentRepository(Repository):
                 .select_from(Passage)
                 .where(Passage.doc_sha256 == sha256)
             )
+            pointing = _pointing_into(session, sha256)
             _delete_questions(session, [sha256])
             session.execute(delete(Document).where(Document.sha256 == sha256))
+            twinless = _twinless(session, pointing)
             if before_commit is not None:
                 before_commit()
-        return passages or 0
+        return passages or 0, twinless
 
     def delete_all(
         self, digests: list[str], before_commit: Callable[[], object] | None = None
@@ -195,14 +248,15 @@ class DocumentRepository(Repository):
                 before_commit()
         return passages
 
-    def delete_derived(self, sha256: str) -> int:
+    def delete_derived(self, sha256: str) -> tuple[int, int]:
         """Drops a document's passages and returns chunk_status to `new`.
 
         Args:
             sha256: The document's digest.
 
         Returns:
-            Passages deleted.
+            Passages deleted, and the duplicate refusals left pointing at no
+            twin.
         """
         with self._session.begin() as session:
             passages = session.scalar(
@@ -210,6 +264,7 @@ class DocumentRepository(Repository):
                 .select_from(Passage)
                 .where(Passage.doc_sha256 == sha256)
             )
+            pointing = _pointing_into(session, sha256)
             _delete_questions(session, [sha256])
             session.execute(delete(Passage).where(Passage.doc_sha256 == sha256))
             session.execute(
@@ -217,7 +272,7 @@ class DocumentRepository(Repository):
                 .where(Document.sha256 == sha256)
                 .values(chunk_status=Status.NEW)
             )
-        return passages or 0
+            return passages or 0, _twinless(session, pointing)
 
     def counts(self) -> dict[str, int]:
         """Reports what this service owns, for the status panel."""

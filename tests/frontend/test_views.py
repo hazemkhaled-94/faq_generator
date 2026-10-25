@@ -535,6 +535,26 @@ def test_the_deletion_says_only_what_the_api_removed(open_view, monkeypatch) -> 
 
     assert "The file was not there" in said[-1]
     assert "The parsed form was removed" in said[-1]
+    assert "duplicate refusal" not in said[-1], "none lost its twin"
+
+
+def test_the_deletion_names_the_refusals_that_lost_their_twin(
+    open_view, monkeypatch
+) -> None:
+    """Another document's repeats of its facts wait on the dedup replay."""
+    import streamlit as st
+
+    said: list[str] = []
+    monkeypatch.setattr(st, "toast", lambda body, **_: said.append(str(body)))
+    removed = {"sha256": SHA, "document": True, "passages": 10, "file": True}
+    client = Answers(**answers(delete={**removed, "parsed": True, "twinless": 3}))
+
+    open_view("documents", client).select(0).press("Delete document").press(
+        "Yes, delete"
+    )
+
+    assert "3 duplicate refusal(s) lost the fact they repeated" in said[-1]
+    assert "make extract-dedup" in said[-1]
 
 
 @pytest.mark.parametrize("label", ("Delete passages and facts", "Delete document"))

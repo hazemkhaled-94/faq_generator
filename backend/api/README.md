@@ -192,8 +192,9 @@ shows, so the run at work is reached however many are queued behind it.
 | `DELETE /documents/{sha256}/derived` | Only its passages and facts |
 
 A fact another document repeats was refused as a duplicate of this one's, and
-is given back by the dedup replay. Either `DELETE` leaves that to the
-extraction worker, which finds the deletion in the archive when its queue is
+is given back by the dedup replay. Either `DELETE` answers how many such
+refusals lost the fact they repeated (`twinless`), and leaves them to the
+extraction worker, which finds a refusal pointing at no twin when its queue is
 empty and runs the replay `make extract-dedup` runs; with no worker running,
 run `make extract-dedup` after one.
 

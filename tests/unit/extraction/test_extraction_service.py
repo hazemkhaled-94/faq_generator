@@ -414,7 +414,7 @@ class TestTheDedupGate:
         from extraction.service import _closest
 
         vector = [1.0, 0.0]
-        kept = [("The card is blocked abroad.", FactKind.ATOMIC, vector)]
+        kept = [("The card is blocked abroad.", FactKind.ATOMIC, vector, 0)]
 
         assert (
             _closest(
@@ -789,59 +789,112 @@ def test_a_passage_that_yielded_facts_is_not_warned_about(caplog) -> None:
 # ── The dedup replay where a drain ends ────────────────────────────────────
 
 
-class TestTheReplayWhereTheDrainEnds:
-    """A passage read again deletes facts a refusal elsewhere may name as its twin.
+def _orphan(fact_id: int, statement: str, language: str):
+    """A stored duplicate refusal whose twin is gone, as the database holds one.
 
-    A retry or a rerun only queues rows; the drain is what deletes. So the
-    replay `make extract-dedup` runs hangs on the drain finding its queue
-    empty, after a drain that replaced facts.
+    Its pointer set NULL when that fact went; along the first axis, which no
+    kept fact of the fakes lies on, so the replay finds no twin and gives it
+    back.
+    """
+    from extraction.models import Refused
+
+    return Refused(
+        fact_id=fact_id,
+        passage_id=7,
+        language=language,
+        kind=FactKind.ATOMIC,
+        statement=statement,
+        embedding=[1.0, 0.0],
+    )
+
+
+#: A shop's term, German and English: what a deleted document's twin repeated.
+ORPHANS = [
+    (21, "Die Lieferung kostet 5 Euro.", "de"),
+    (22, "Delivery costs 5 euros.", "en"),
+]
+
+
+class TestTheReplayWhereTheDrainEnds:
+    """A refusal whose twin was deleted points at no twin, and the worker replays it.
+
+    Its twin goes with a passage read again, a document deleted through the
+    API, the UI or a make target, before the worker started or across a
+    settings rebuild: the pointer is set NULL whichever it was, so a worker
+    whose queue is empty asks for such a refusal and replays the dedup, as
+    `make extract-dedup` does, over those alone.
     """
 
-    def test_a_drain_that_replaced_facts_ends_with_the_replay(self) -> None:
-        """Once, under the lock, after the last passage was stored."""
-        from dataclasses import replace
-
+    @pytest.mark.parametrize(("fact_id", "statement", "language"), ORPHANS)
+    def test_an_idle_worker_replays_a_refusal_that_lost_its_twin(
+        self, fact_id: int, statement: str, language: str
+    ) -> None:
+        """Once, under the lock, and given back: nothing is left to replay."""
         from drivers import Catalogue
 
-        first = passage()
-        catalog = Catalogue()
-        run = Extraction(
-            first,
-            replace(first, id=2),
-            facts=ATOMIC,
-            duplicate_cosine=0.9,
-            catalog=catalog,
-        )
-        run.queue.read_before = {1, 2}
-
-        assert run.run() == 2
-        assert catalog.unfolded_locked == [True]
-
-    def test_a_drain_reading_only_new_passages_replays_nothing(self) -> None:
-        """A passage nothing cited yet deletes nothing, so it leaves no ghost."""
-        from drivers import Catalogue
-
-        catalog = Catalogue()
+        catalog = Catalogue().refusing(_orphan(fact_id, statement, language))
         run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
 
-        run.run()
-
-        assert catalog.unfolded_locked == []
+        assert run.run() == 1
+        assert catalog.unfolded_locked == [True]
+        assert catalog.orphans == [True], "only the refusals pointing at no twin"
+        assert catalog.given_back == [fact_id]
+        assert run.next() is None
+        assert catalog.unfolded_locked == [True], "and not again until one is orphaned"
 
     def test_the_replay_waits_for_the_queue_to_empty(self) -> None:
         """Not after each passage: a rerun of many would replay once per row."""
         from drivers import Catalogue
 
-        catalog = Catalogue()
+        catalog = Catalogue().refusing(_orphan(*ORPHANS[0]))
         run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
-        run.queue.read_before = {1}
 
         run.next()
         assert catalog.unfolded_locked == [], "a passage stored, the queue not empty"
         assert run.next() is None
         assert catalog.unfolded_locked == [True]
+
+    def test_a_deletion_while_the_worker_is_idle_ends_in_the_replay(self) -> None:
+        """Nothing is queued by a deletion; the pointer it cleared is what is found."""
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
+
+        assert run.next() == 1
         assert run.next() is None
-        assert catalog.unfolded_locked == [True], "and not again until facts move"
+        assert catalog.unfolded_locked == [], "no refusal points at nothing yet"
+
+        catalog.refusing(_orphan(*ORPHANS[1]))
+        assert run.next() is None
+        assert catalog.unfolded_locked == [True]
+
+    def test_a_worker_built_after_the_deletion_replays_it(self) -> None:
+        """At its start, or rebuilt when the settings changed: no mark to have missed."""
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        before = Extraction(duplicate_cosine=0.9, catalog=catalog)
+        assert before.next() is None
+        # Deleted while no worker ran: stopped, or being built again.
+        catalog.refusing(_orphan(*ORPHANS[0]), _orphan(*ORPHANS[1]))
+        rebuilt = Extraction(duplicate_cosine=0.9, catalog=catalog)
+
+        assert rebuilt.next() is None
+        assert catalog.given_back == [21, 22]
+        assert catalog.unfolded_locked == [True]
+
+    def test_refusals_that_point_at_their_twin_replay_nothing(self) -> None:
+        """A drain of new passages, or a deletion of facts nothing repeated."""
+        from drivers import Catalogue
+
+        catalog = Catalogue().refusing(_orphan(*ORPHANS[0]))
+        catalog.pointing[21] = 5
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
+
+        run.run()
+
+        assert catalog.unfolded_locked == []
 
     def test_a_service_with_the_gate_off_replays_nothing(self) -> None:
         """At EXTRACTION_DUPLICATE_COSINE 0 a replay gives every refusal back.
@@ -850,57 +903,11 @@ class TestTheReplayWhereTheDrainEnds:
         """
         from drivers import Catalogue
 
-        catalog = Catalogue()
+        catalog = Catalogue().refusing(_orphan(*ORPHANS[0]))
         run = Extraction(passage(), facts=ATOMIC, catalog=catalog)
-        run.queue.read_before = {1}
 
         run.run()
 
-        assert catalog.unfolded_locked == []
-
-    def test_a_deletion_while_the_worker_is_idle_ends_in_the_replay(self) -> None:
-        """A document deleted through the API leaves refusals naming its facts.
-
-        Nothing is queued by a deletion, so the worker finds it by what the
-        archive says was deleted since it last looked.
-        """
-        from drivers import Catalogue
-
-        catalog = Catalogue()
-        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
-
-        assert run.next() == 1
-        assert run.next() is None
-        assert catalog.unfolded_locked == [], "nothing was deleted yet"
-
-        run.queue.deleted = 3
-        assert run.next() is None
-        assert catalog.unfolded_locked == [True]
-        assert run.next() is None
-        assert catalog.unfolded_locked == [True], "and once per deletion"
-
-    def test_a_worker_starting_after_a_deletion_does_not_replay_it(self) -> None:
-        """What was deleted before this worker looked is `make extract-dedup`'s."""
-        from drivers import Catalogue
-
-        catalog = Catalogue()
-        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
-        run.queue.deleted = 7
-
-        run.run()
-
-        assert catalog.unfolded_locked == []
-
-    def test_a_service_with_the_gate_off_replays_no_deletion(self) -> None:
-        """The same rule as for a replaced fact: the gate off, the replay is not a drain's."""
-        from drivers import Catalogue
-
-        catalog = Catalogue()
-        run = Extraction(passage(), facts=ATOMIC, catalog=catalog)
-        run.next()
-        run.queue.deleted = 1
-
-        assert run.next() is None
         assert catalog.unfolded_locked == []
 
 

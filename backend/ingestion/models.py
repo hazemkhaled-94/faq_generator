@@ -120,6 +120,9 @@ class Removal:
         passages: Passages deleted.
         file: Whether the uploaded file was deleted.
         parsed: Whether the converted form was deleted.
+        twinless: Duplicate refusals of other documents that repeated a fact
+            deleted here, and now point at no twin until the dedup replay
+            re-decides them.
     """
 
     sha256: str
@@ -127,6 +130,7 @@ class Removal:
     passages: int
     file: bool
     parsed: bool
+    twinless: int = 0
 
 
 @dataclass(frozen=True)

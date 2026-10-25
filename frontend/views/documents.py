@@ -328,6 +328,12 @@ def _removal(client, document: dict, name: str, sha: str) -> None:
                 ("The parsed form", removed["parsed"]),
             )
         ]
+    if twinless := removed.get("twinless"):
+        said.append(
+            f"{twinless} duplicate refusal(s) lost the fact they repeated: the "
+            "extraction worker re-decides them, or make extract-dedup where "
+            "none runs."
+        )
     st.toast(" ".join(said))
     st.rerun()
 

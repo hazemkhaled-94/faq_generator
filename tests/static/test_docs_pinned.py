@@ -1084,8 +1084,8 @@ def test_the_documents_section_points_at_the_archive() -> None:
 def test_the_delete_row_names_the_extract_worker_refusal() -> None:
     """`make delete` refuses before deleting while extract-worker runs.
 
-    And a deletion through the API or the UI is replayed by the running
-    worker, which is why the row tells what to stop first.
+    And every deletion ends naming the refusals that lost their twin, which
+    the extraction worker re-decides, or `make extract-dedup` where none runs.
     """
     lines = _make("-n", "delete", "SHA=abc")
     guards = [at for at, line in enumerate(lines) if "ps -q extract-worker " in line]
@@ -1095,10 +1095,8 @@ def test_the_delete_row_names_the_extract_worker_refusal() -> None:
 
     assert guards and deleting and guards[0] < deleting[0], lines
     assert "`extract-worker`" in delete and "`extract-worker`" in derived
-    assert (
-        "through the API or the UI is replayed by the running `extract-worker`"
-        in delete
-    )
+    assert "duplicate refusals lost the fact they repeated" in delete
+    assert "`make extract-dedup` where none runs" in delete
 
 
 def test_the_pipeline_paragraph_names_what_the_job_skips() -> None:

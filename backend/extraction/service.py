@@ -289,9 +289,10 @@ def dedup(
 ) -> int:
     """Re-decides every stored `duplicate` refusal, without calling the model.
 
-    With `orphaned` only those pointing at no twin, which is what a drain that
-    replaced facts leaves of the refusals that repeated them. A refusal this
-    keeps refused is made to point at the twin it found.
+    With `orphaned` only those pointing at no twin, which is what a deletion
+    of the facts they repeated leaves, by a drain that replaced them or by a
+    document removed. A refusal this keeps refused is made to point at the
+    twin it found, a fact of its own passage included.
 
     The replay for this gate, as `recap` is for the cap: what the model wrote
     is kept and only the verdict moves. Two steps, in this order:
@@ -953,14 +954,15 @@ def _closest(
     language: str | None,
     vector: Sequence[float],
     probed: Twin | None,
-    kept: Sequence[tuple[str, str, Sequence[float]]],
+    kept: Sequence[tuple[str, str, Sequence[float], int]],
 ) -> Twin | None:
     """The closest fact that could be this statement's twin, or None.
 
     `probed` is what the index answered for the rest of the corpus, and
     `kept` is what the statement's own passage keeps, as (statement, kind,
-    vector). One rule for the gate in flight and for `dedup`, which replays
-    it over the refusals already stored.
+    vector, id), the id 0 for a fact in flight that has none yet. One rule
+    for the gate in flight and for `dedup`, which replays it over the
+    refusals already stored and points each at the twin it finds.
 
     Only a fact stating the statement's own numbers is a twin, on either
     probe: two statements naming different numbers are two claims however
@@ -980,7 +982,7 @@ def _closest(
     twin = probed
     if twin is not None and not _counted_alike(statement, twin.statement, language):
         twin = None
-    for other_statement, other_kind, other in kept:
+    for other_statement, other_kind, other, other_id in kept:
         if (
             (
                 other_kind == kind
@@ -992,7 +994,7 @@ def _closest(
             continue
         score = cosine(list(vector), list(other))
         if twin is None or score > twin.similarity:
-            twin = Twin(fact_id=0, statement=other_statement, similarity=score)
+            twin = Twin(fact_id=other_id, statement=other_statement, similarity=score)
     return twin
 
 
@@ -1059,8 +1061,8 @@ class ExtractionService(StageService):
             duplicate_floor: The cosine two unrelated statements score,
                 which the stored confidence is measured from. Calibration
                 only; it refuses nothing.
-            catalog: Where the dedup replay runs when the queue empties
-                after this service replaced facts, or None to run none.
+            catalog: Where the dedup replay runs when the queue is empty
+                and a refusal points at no twin, or None to run none.
         """
         super().__init__(repository)
         self._repository: PassageQueue = repository
@@ -1073,11 +1075,6 @@ class ExtractionService(StageService):
         self._duplicate_cosine = duplicate_cosine
         self._duplicate_floor = duplicate_floor
         self._catalog = catalog
-        # Whether a passage stored since the last replay replaced facts.
-        self._replaced = False
-        # Where the archive of deleted facts stood when this service last
-        # looked: a deletion made outside this drain moves it.
-        self._deletions: int | None = None
         # Held for the life of the service, as question generation holds
         # its own: the client is one connection and the batch spans
         # passages, so a passage yielding four facts costs no call.
@@ -1102,13 +1099,10 @@ class ExtractionService(StageService):
         Returns:
             The passage's id, or None when the queue is empty.
         """
-        if self._deletions is None and self._replays():
-            self._deletions = self._repository.deletions()
         passage = self._repository.claim()
         if passage is None:
-            if self._replays() and self._deleted_elsewhere():
-                self._replaced = True
-            if self._replaced:
+            catalog = self._catalog
+            if catalog is not None and self._replays() and catalog.orphaned():
                 self._replay()
             return None
 
@@ -1131,8 +1125,6 @@ class ExtractionService(StageService):
                     self._deduplicated(facts, current, passage.id, passage.language),
                     current,
                 )
-                if self._replays() and not self._replaced:
-                    self._replaced = self._repository.cited(passage.id)
                 settled: list[CheckedFact] = []
 
                 def settle(
@@ -1187,29 +1179,16 @@ class ExtractionService(StageService):
             and self._duplicate_cosine > 0
         )
 
-    def _deleted_elsewhere(self) -> bool:
-        """Whether a fact was deleted since this service last looked.
-
-        A document removed through the API or the UI is not a passage read
-        again, so no drain of this worker deleted it, and a refusal naming
-        one of its facts as its twin would stay refused until somebody ran
-        `make extract-dedup`. What was deleted before this service started
-        is that command's.
-        """
-        now = self._repository.deletions()
-        moved = now != self._deletions
-        self._deletions = now
-        return moved
-
     def _replay(self) -> None:
-        """Re-decides every stored duplicate refusal, as `make extract-dedup` does.
+        """Re-decides the duplicate refusals that point at no twin.
 
-        A passage read again has its facts replaced, and a refusal elsewhere
-        naming one of them as its twin is left refused against a fact that
-        is gone. A retry or a rerun only queues the rows, so the drain that
-        deletes is this one and the replay runs where it finds its queue
-        empty. Under a lock, so two workers' replays never interleave: the
-        second waits for the first and then replays what that one left.
+        As `make extract-dedup` does, over those alone. A refusal's twin is
+        set NULL when that fact goes: a passage read again by this drain, a
+        document deleted through the API, the UI or a make target, while a
+        worker ran or before one started. Where the queue is empty, so a
+        rerun of many passages replays once. Under a lock, so two workers'
+        replays never interleave: the second waits for the first and then
+        replays what that one left.
         """
         assert self._catalog is not None
         with self._catalog.replaying():
@@ -1221,9 +1200,6 @@ class ExtractionService(StageService):
                 cap=self._atomic_cap,
                 orphaned=True,
             )
-        self._replaced = False
-        # What the replay itself deleted is not another one to replay.
-        self._deletions = self._repository.deletions()
 
     def _record(self, passage: PassageToExtract, facts: list[CheckedFact]) -> None:
         """Puts every fact's verdict in Phoenix's Evaluations view.
@@ -1476,7 +1452,9 @@ class ExtractionService(StageService):
         another drain committed in between.
         """
         threshold = self._duplicate_cosine
-        written: list[tuple[str, str, list[float]]] = []
+        # Ids 0: in flight, these facts have none, so a refusal of one of
+        # them is stored pointing at no twin and the next replay points it.
+        written: list[tuple[str, str, list[float], int]] = []
         checked: list[CheckedFact] = []
         refused = 0
         for fact in facts:
@@ -1496,7 +1474,7 @@ class ExtractionService(StageService):
                 refused += 1
                 checked.append(_duplicate(fact, twin, threshold))
                 continue
-            written.append((fact.statement, fact.kind, vector))
+            written.append((fact.statement, fact.kind, vector, 0))
             checked.append(fact)
         if refused and current is not None:
             current.set_attribute("extract.duplicates", refused)
@@ -1506,7 +1484,7 @@ class ExtractionService(StageService):
         self,
         fact: CheckedFact,
         vector: list[float],
-        written: Sequence[tuple[str, str, list[float]]],
+        written: Sequence[tuple[str, str, list[float], int]],
         passage_id: int,
         language: str | None,
     ) -> Twin | None:

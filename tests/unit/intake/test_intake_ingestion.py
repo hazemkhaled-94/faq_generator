@@ -410,6 +410,18 @@ def test_dropping_the_derived_data_keeps_the_document_and_both_objects() -> None
     assert driver.holds_parsed(SHA)
 
 
+@pytest.mark.parametrize("removal", ["delete", "delete_derived"])
+def test_a_deletion_reports_the_refusals_it_left_without_a_twin(removal: str) -> None:
+    """Counted in the deletion's transaction; what the line after it names."""
+    driver = RemovalDriver(held=(SHA,), passages=4)
+    driver.rows.twinless = 2
+
+    removed = getattr(driver, removal)(SHA)
+
+    assert removed is not None
+    assert removed.twinless == 2
+
+
 def test_dropping_the_derived_data_returns_chunking_to_not_started() -> None:
     """`new` rather than `pending`: starting a stage stays a decision."""
     driver = RemovalDriver(held=(SHA,), passages=4)

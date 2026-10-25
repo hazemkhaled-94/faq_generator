@@ -356,6 +356,7 @@ REMOVAL = {
     "passages": 10,
     "file": True,
     "parsed": True,
+    "twinless": 0,
 }
 
 TOPIC_REMOVAL = {"topics": 2, "memberships": 60, "labels": 1, "languages": ["de"]}

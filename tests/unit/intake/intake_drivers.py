@@ -350,6 +350,9 @@ class DocumentRows:
         #: Simulates another upload of the same bytes landing between the
         #: existence check and the insert.
         self.raced = False
+        #: Duplicate refusals of other documents a deletion leaves pointing
+        #: at no twin.
+        self.twinless = 0
 
     def exists(self, sha256: str) -> bool:
         """Whether these exact bytes are already stored."""
@@ -397,13 +400,15 @@ class DocumentRows:
             }
         )
 
-    def delete(self, sha256: str, before_commit=None) -> int:
+    def delete(self, sha256: str, before_commit=None) -> tuple[int, int]:
         """Removes a document row and everything derived from it.
 
         `before_commit` runs inside the transaction: if it raises, the rows
-        are as they were.
+        are as they were. With the refusals elsewhere left pointing at no
+        twin, `twinless`.
         """
-        return self.delete_all([sha256], before_commit).get(sha256, 0)
+        removed = self.delete_all([sha256], before_commit).get(sha256, 0)
+        return removed, self.twinless
 
     def delete_all(self, digests: list[str], before_commit=None) -> dict[str, int]:
         """Removes these document rows at once, or none if `before_commit` raises."""
@@ -434,10 +439,10 @@ class DocumentRows:
         forgotten, self.events = len(self.events), []
         return forgotten
 
-    def delete_derived(self, sha256: str) -> int:
+    def delete_derived(self, sha256: str) -> tuple[int, int]:
         """Drops a document's passages and returns chunk_status to `new`."""
         self.chunk_status[sha256] = Status.NEW
-        return self.passages.pop(sha256, 0)
+        return self.passages.pop(sha256, 0), self.twinless
 
     def page(
         self, search: str | None = None, limit: int = 100, offset: int = 0
