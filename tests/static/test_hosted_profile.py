@@ -1084,3 +1084,36 @@ def test_a_worker_serving_another_database_is_not_waited_for_but_refused(
     said = (project / "logs/corpus-hosted.log").read_text()
     assert worker in said and "qa_scratch" in said and "qa_other" in said, said
     assert not any("--wait" in line for line in _drained(project))
+
+
+def _unreachable_engine(project: Path) -> None:
+    """A compose whose engine does not answer, as a daemon without the user's podman sees."""
+    (project / "bin/compose").write_text(
+        "#!/bin/sh\necho 'unable to connect to Podman socket' >&2\nexit 125\n"
+    )
+
+
+def test_the_preflight_refuses_when_it_cannot_ask_which_containers_are_up(
+    tmp_path: Path,
+) -> None:
+    """A failed compose ps is not an answer that no model worker is up."""
+    project = _project(tmp_path, env=GO_LIVE)
+    _unreachable_engine(project)
+
+    ran = _make(project, "corpus-preflight")
+
+    assert ran.returncode != 0
+    assert "could not ask the container engine" in ran.stderr, ran.stderr
+    assert not _drained(project), "refused before the preflight's model calls"
+
+
+def test_the_doctor_says_it_could_not_look_at_the_model_workers(tmp_path: Path) -> None:
+    """Never that they are stopped, when it did not see."""
+    project = _project(tmp_path, env=GO_LIVE)
+    _unreachable_engine(project)
+
+    ran = _make(project, "doctor", CONTAINER="true")
+
+    assert "could not ask the container engine" in ran.stdout, ran.stdout
+    assert "are stopped" not in ran.stdout
+    assert ran.returncode != 0

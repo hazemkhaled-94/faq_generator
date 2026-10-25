@@ -206,10 +206,13 @@ AWAIT = $(if $(WAIT),$$($(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q . && ech
 # holds this to compose.yaml's two profiles.
 OFF_PROFILE = extract-worker topic-worker question-worker assess-worker dagster-webserver dagster-daemon
 
-# Sets the shell's `up` to those of OFF_PROFILE that are running, space-led.
-# Empty when none is, when no container engine answers, or the stack is down.
-OFF_PROFILE_UP = up=; for one in $(OFF_PROFILE); do \
-                   if $(call RUNNING,$$one); then up="$$up $$one"; fi; done
+# Sets the shell's `up` to those of OFF_PROFILE that are running, space-led,
+# empty when none is or the stack is down; and `unasked` to what failed where
+# compose could not ask the engine at all, so an engine that does not answer
+# is never read as nothing running.
+OFF_PROFILE_UP = up=; unasked=; for one in $(OFF_PROFILE); do \
+                   ids=$$($(COMPOSE_CMD) ps -q $$one 2>/dev/null) || { unasked="compose ps exited $$?"; break; }; \
+                   [ -z "$$ids" ] || up="$$up $$one"; done
 
 # True when this is the go-live profile: HOST_RUNNER is a spelling of yes.
 # The host runs the model stages through `make corpus-hosted`, the model
@@ -466,7 +469,9 @@ doctor:
 	  else say FAIL "PHOENIX_ADMIN_SECRET needs 32+ characters, a digit and a lower-case letter"; fail=1; fi; \
 	if $(GO_LIVE); then \
 	  $(OFF_PROFILE_UP); \
-	  if [ -n "$$up" ]; then \
+	  if [ -n "$$unasked" ]; then \
+	    say FAIL "could not ask the container engine whether a model worker or Dagster is up ($$unasked)"; fail=1; \
+	  elif [ -n "$$up" ]; then \
 	    say FAIL "$$up up on the go-live profile, where a model worker calls Ollama - stop:"; \
 	    say "" "  $(COMPOSE_CMD) stop$$up"; fail=1; \
 	  else say "-" "the model workers and Dagster are stopped (HOST_RUNNER): the containers' model is not checked"; fi; \
@@ -2406,7 +2411,7 @@ corpus-hosted:
 # split, the database password and the cache with the Hub off.
 corpus-preflight:
 	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
-	@$(OFF_PROFILE_UP); [ -z "$$up" ] || { echo "$$up up, which the go-live profile never runs: a model worker would write its stage with Ollama. Stop them first:" >&2; echo "  $(COMPOSE_CMD) stop$$up" >&2; exit 1; }
+	@$(OFF_PROFILE_UP); [ -z "$$unasked" ] || { echo "could not ask the container engine whether a model worker or Dagster is up ($$unasked): start it, or run this where it answers" >&2; exit 1; }; [ -z "$$up" ] || { echo "$$up up, which the go-live profile never runs: a model worker would write its stage with Ollama. Stop them first:" >&2; echo "  $(COMPOSE_CMD) stop$$up" >&2; exit 1; }
 	@$(LOADENV) && HF_HUB_OFFLINE=1 PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
 
 # The database a corpus run acts on, as `make corpus` resolves it.
