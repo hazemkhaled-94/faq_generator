@@ -865,3 +865,22 @@ def test_the_language_backfill_leaves_the_planner_statistics_current(
     command.upgrade(config, LANGUAGED)
 
     assert sql(spare, held) == [(1,)]
+
+
+def test_a_fact_s_twin_is_indexed_and_the_index_taken_back_out(spare: str) -> None:
+    """Deleting a fact looks up the refusals pointing at it, so twin_id has an index."""
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, "head")
+    held = (
+        "SELECT indexdef FROM pg_indexes "
+        "WHERE tablename = 'facts' AND indexname = 'ix_facts_twin_id'"
+    )
+    assert len(sql(spare, held)) == 1
+
+    command.downgrade(config, COMMENTS_CORRECTED)
+    assert sql(spare, held) == []
+
+    command.upgrade(config, "head")
+    assert len(sql(spare, held)) == 1

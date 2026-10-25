@@ -61,6 +61,9 @@ class Fact(Base):
         Index("ix_facts_rejection_code", "rejection_code"),
         # Filters the listing and groups the quality report by kind.
         Index("ix_facts_kind", "kind"),
+        # Deleting a fact sets NULL on the refusals that name it as their twin;
+        # without this each deleted row scans the table for them.
+        Index("ix_facts_twin_id", "twin_id"),
         # Partial: the column is low-cardinality and mostly NULL. Declared
         # here rather than as `index=True` on the column, because that
         # renders a plain index and nothing compares the predicate.

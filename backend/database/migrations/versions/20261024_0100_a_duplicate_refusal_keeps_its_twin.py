@@ -4,7 +4,9 @@ Without it the replay after a drain that replaced facts could not tell which
 refusals had lost their twin, and read every duplicate refusal of the corpus.
 The column is a foreign key to facts that is set NULL when the twin is
 deleted, so a NULL on a refusal is what marks it for the replay. NULL on every
-row already stored, which the first replay then reads once.
+row already stored, which the first replay then reads once. The column is
+indexed because deleting a fact looks up the rows pointing at it to set them
+NULL, which without an index scans the table once per deleted row.
 
 Revision: 7a41c9d2e8b0
 Parent:   860d56b11032
@@ -32,7 +34,7 @@ _COMMENT = (
 
 
 def upgrade() -> None:
-    """Adds the column and its foreign key."""
+    """Adds the column, its foreign key and its index."""
     op.add_column(
         "facts",
         sa.Column("twin_id", sa.BigInteger(), nullable=True, comment=_COMMENT),
@@ -40,9 +42,11 @@ def upgrade() -> None:
     op.create_foreign_key(
         "facts_twin_id_fkey", "facts", "facts", ["twin_id"], ["id"], ondelete="SET NULL"
     )
+    op.create_index("ix_facts_twin_id", "facts", ["twin_id"], unique=False)
 
 
 def downgrade() -> None:
-    """Drops both."""
+    """Drops all three."""
+    op.drop_index("ix_facts_twin_id", table_name="facts")
     op.drop_constraint("facts_twin_id_fkey", "facts", type_="foreignkey")
     op.drop_column("facts", "twin_id")
