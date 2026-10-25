@@ -101,6 +101,7 @@ def _delete_questions(session, digests: list[str]) -> None:
         select(FactPassage.fact_id)
         .join(Passage, Passage.id == FactPassage.passage_id)
         .where(Passage.doc_sha256.in_(digests)),
+        digests,
     )
     session.execute(_QUESTIONS_ON_ANY, {"digests": digests})
     session.execute(_QUESTIONS_STAMPED, {"digests": digests})

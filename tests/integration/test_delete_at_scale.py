@@ -11,7 +11,7 @@ from sqlalchemy import text
 pytestmark = pytest.mark.integration
 
 #: Seconds: origin/main took 2.65 for this corpus, and the lock must stay of that order.
-BOUND = 40
+BOUND = 15
 
 
 def seed(

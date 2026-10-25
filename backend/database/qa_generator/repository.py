@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import BigInteger, any_, literal, or_, select
+from sqlalchemy import CHAR, BigInteger, any_, literal, or_, select
 from sqlalchemy.dialects.postgresql import ARRAY
 
 from database.qa_generator.engine import sessions
@@ -21,7 +21,7 @@ class Repository:
         self._session = sessions()
 
 
-def lock_reached(session, fact_ids: Any) -> None:
+def lock_reached(session, fact_ids: Any, digests: list[str] | None = None) -> None:
     """Locks the facts, then the questions on them and their whole threads, in id order, before a delete.
 
     The orphan triggers lock each fact and question as the cascade reaches
@@ -38,6 +38,8 @@ def lock_reached(session, fact_ids: Any) -> None:
         session: The transaction that is about to delete.
         fact_ids: The facts the deletion reaches: a list of ids, or a select
             of them.
+        digests: The documents the deletion takes, whose stamped questions it
+            deletes too.
     """
     session.execute(
         select(Fact.id)
@@ -48,6 +50,14 @@ def lock_reached(session, fact_ids: Any) -> None:
     seed = select(QuestionFact.question_id.label("id")).where(
         _among(QuestionFact.fact_id, fact_ids)
     )
+    if digests:
+        # The questions a rerun left with no fact, named only by their stamp,
+        # which the same delete takes: locked in the same line.
+        seed = seed.union(
+            select(Question.id).where(
+                Question.source_digests.op("&&")(_array(digests, CHAR(64)))
+            )
+        )
     session.execute(
         select(Question.id)
         .where(Question.id == any_(_array(_thread(session, seed))))
@@ -56,9 +66,9 @@ def lock_reached(session, fact_ids: Any) -> None:
     ).all()
 
 
-def _array(ids: Any):
-    """A list of ids as one array parameter, whose size psycopg does not count against its limit."""
-    return literal(list(ids), ARRAY(BigInteger))
+def _array(ids: Any, kind: Any = BigInteger):
+    """A list as one array parameter, whose size psycopg does not count against its limit."""
+    return literal(list(ids), ARRAY(kind))
 
 
 def _among(column, ids: Any):
