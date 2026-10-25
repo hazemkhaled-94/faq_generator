@@ -263,7 +263,7 @@ def test_a_fresh_corpus_starts_a_fresh_ledger_and_a_resume_keeps_it(
 ) -> None:
     """A second run on another day is not held to the first one's spend."""
     project = _project(tmp_path)
-    ledger = project / "logs/corpus-spend.usd"
+    ledger = project / LEDGER
     ledger.parent.mkdir()
     ledger.write_text("4.5\n")
 
@@ -382,6 +382,9 @@ def test_corpus_hosted_refuses_a_second_start(tmp_path: Path) -> None:
 
 GO_LIVE = "HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n"
 
+#: The spend ledger of the database the stand-in files name: one a database.
+LEDGER = "logs/corpus-spend-qa_scratch.usd"
+
 
 def _until(done: Callable[[], bool], seconds: float = 20) -> None:
     end = time.time() + seconds
@@ -427,7 +430,7 @@ def test_the_stop_signals_the_whole_run_and_its_drain_stops_as_asked(
 ) -> None:
     """TERM to the group reaches the drain, which exits 75; nothing after it runs."""
     project = _project(tmp_path, env=GO_LIVE)
-    ledger = project / "logs/corpus-spend.usd"
+    ledger = project / LEDGER
     assert _make(project, "corpus-hosted", SLOW="60").returncode == 0
     _until(lambda: _extracting(project))
     group = int((project / "logs/corpus-hosted.pid").read_text().split()[0])
@@ -449,7 +452,7 @@ def test_a_stopped_run_keeps_its_record_and_its_spend_and_the_next_start_resumes
     """75 at the cap or 3 for failed rows: the restart counts the spend so far."""
     project = _project(tmp_path, env=GO_LIVE)
     pidfile = project / "logs/corpus-hosted.pid"
-    ledger = project / "logs/corpus-spend.usd"
+    ledger = project / LEDGER
 
     first = _make(
         project,
@@ -472,10 +475,69 @@ def test_a_stopped_run_keeps_its_record_and_its_spend_and_the_next_start_resumes
     assert not pidfile.exists(), "a run that finished leaves no record"
 
 
+def test_a_fresh_corpus_on_another_database_keeps_a_stopped_run_s_spend(
+    tmp_path: Path,
+) -> None:
+    """Each database has its ledger: qa_b's run never empties qa_scratch's."""
+    project = _project(tmp_path, env=GO_LIVE)
+    ledger = project / LEDGER
+    _make(project, "corpus-hosted", FAIL="extraction.run --digests", CODE="75")
+    _waited(project)
+    ledger.write_text("45.0\n")
+
+    other = _make(project, "corpus", "APP_DB_NAME=qa_b")
+    again = _make(project, "corpus-hosted")
+    _waited(project, runs=2)
+
+    assert other.returncode == 0, other.stderr
+    assert again.returncode == 0, again.stderr
+    assert (project / "logs/corpus-spend-qa_b.usd").exists()
+    assert ledger.read_text().startswith("45.0\n"), "the resume still counts 45.0"
+
+
+def test_a_fresh_corpus_beside_a_stopped_hosted_run_of_its_database_is_refused(
+    tmp_path: Path,
+) -> None:
+    """It would start the stopped run's spend again; resume it or RESET=1."""
+    project = _project(tmp_path, env=GO_LIVE)
+    ledger = project / LEDGER
+    _make(project, "corpus-hosted", FAIL="extraction.run --digests", CODE="75")
+    _waited(project)
+    ledger.write_text("45.0\n")
+    (project / "drains.log").unlink()
+
+    fresh = _make(project, "corpus")
+
+    assert fresh.returncode != 0
+    assert "RESET=1" in fresh.stderr and "make corpus-hosted" in fresh.stderr
+    assert ledger.read_text() == "45.0\n"
+    assert not _drained(project)
+
+
+def test_make_corpus_beside_a_live_hosted_run_of_its_database_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A second chain on its queues would overwrite its spend."""
+    project = _project(tmp_path, env=GO_LIVE)
+    assert _make(project, "corpus-hosted", SLOW="60").returncode == 0
+    _until(lambda: _extracting(project))
+    ledger = project / LEDGER
+    ledger.write_text("3.5\n")
+
+    try:
+        beside = _make(project, "corpus", "RESUME=1")
+    finally:
+        _make(project, "corpus-hosted-stop", "HOSTED_GRACE=20")
+
+    assert beside.returncode != 0
+    assert "is going" in beside.stderr, beside.stderr
+    assert ledger.read_text() == "3.5\n"
+
+
 def test_reset_starts_a_fresh_run_after_a_stop(tmp_path: Path) -> None:
     """The one way to start the count again besides a run that finished."""
     project = _project(tmp_path, env=GO_LIVE)
-    ledger = project / "logs/corpus-spend.usd"
+    ledger = project / LEDGER
     _make(project, "corpus-hosted", FAIL="extraction.run --digests", CODE="75")
     _waited(project)
     ledger.write_text("45.0\n")

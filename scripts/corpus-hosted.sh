@@ -5,12 +5,15 @@
 # `make corpus-hosted-stop` asks it to --stop, and a supervisor runs it in the
 # foreground (docs/operations.md, "After a stop").
 #
-#   scripts/corpus-hosted.sh [--check|--stop|--zero-on-stop] [VAR=value ...]
+#   scripts/corpus-hosted.sh [--check|--stop|--guard|--zero-on-stop] [VAR=value ...]
 #
 # The VAR=value words are `make corpus`'s command line; APP_DB_NAME among them
 # is the database recorded, and RESET=1 forgets a stopped run instead of
 # resuming it. --check stops after what a start refuses, which
-# `make corpus-hosted` asks before it pays for the preflight.
+# `make corpus-hosted` asks before it pays for the preflight. --guard is what
+# `make corpus` asks first: it refuses beside a hosted run of its database that
+# is going, and, unless it resumes (RESUME=1), beside a stopped one, whose
+# spend ledger a fresh run would start again.
 #
 # It exits with the code of the stage that ended the run, not make's 2: 0 when
 # the run finished, 75 when a drain stopped itself (SPEND_CAP, a model that
@@ -35,13 +38,15 @@ mkdir -p logs
 grace=${HOSTED_GRACE:-300}
 
 mode=
-case ${1:-} in --check | --stop | --zero-on-stop) mode=$1; shift ;; esac
+case ${1:-} in --check | --stop | --guard | --zero-on-stop) mode=$1; shift ;; esac
 database=
 reset=
+resuming=
 given=()
 for word in "$@"; do
   case $word in
     RESET=?*) reset=1; continue ;;
+    RESUME=?*) resuming=1 ;;
     APP_DB_NAME=*) database=${word#APP_DB_NAME=} ;;
   esac
   given+=("$word")
@@ -82,6 +87,24 @@ if [ "$mode" = --stop ]; then
   kill -TERM -- "-$group"
   outlast "$group"
   exit 0
+fi
+if [ "$mode" = --guard ]; then
+  # Another database's run, or none, is not this one's business.
+  [ -n "$group" ] || exit 0
+  [ -z "$recorded" ] || [ -z "$database" ] || [ "$recorded" = "$database" ] || exit 0
+  if [ -n "$alive" ]; then
+    # The hosted run's own `make corpus`, which leads that group.
+    [ "$(ps -o pgid= -p $$ | tr -d ' ')" != "$group" ] || exit 0
+    echo "a hosted run on ${recorded:-this database} is going (process group $group):" \
+      "a second chain would drain its queues and overwrite its spend ledger." \
+      "Follow it: tail -f $log; stop it: make corpus-hosted-stop" >&2
+    exit 3
+  fi
+  [ -z "$resuming" ] || exit 0
+  echo "a stopped hosted run on ${recorded:-this database} is recorded, and a fresh" \
+    "make corpus would start its spend ledger again: resume it with make corpus-hosted," \
+    "or start afresh with make corpus-hosted RESET=1" >&2
+  exit 3
 fi
 if [ -n "$alive" ]; then
   echo "corpus-hosted is already running (process group $group${recorded:+, database $recorded});" \

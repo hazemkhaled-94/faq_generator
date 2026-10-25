@@ -221,10 +221,10 @@ GO_LIVE = case "$$(printf %s "$${HOST_RUNNER:-}" | tr '[:upper:]' '[:lower:]')" 
 NOT_GO_LIVE = $(LOADENV) && { ! $(GO_LIVE) || \
               { echo "the go-live profile runs the model stages through make corpus-hosted" >&2; exit 1; }; }
 
-# Where a corpus run keeps what its drains spent, and where the hosted run
-# keeps its process group and database, and its log: scripts/corpus-hosted.sh
-# writes both.
-CORPUS_LEDGER = logs/corpus-spend.usd
+# Where a corpus run keeps what its drains spent, one ledger a database, so a
+# run on one never empties another's; and where the hosted run keeps its
+# process group and database, and its log: scripts/corpus-hosted.sh writes both.
+CORPUS_LEDGER = logs/corpus-spend-$(CORPUS_DB).usd
 HOSTED_PID = logs/corpus-hosted.pid
 HOSTED_LOG = logs/corpus-hosted.log
 
@@ -2333,9 +2333,12 @@ all:
 # It names the database it acts on before it touches it, and every drain gets
 # that name, the Hub switched off (HF_HUB_OFFLINE=1: the weights are in the
 # cache or the run says so), and one spend ledger, because SPEND_CAP is
-# counted in a process and a run is one process per drain. A fresh run starts
-# the ledger again; RESUME=1 keeps it and first returns every stage's failed
-# rows to the queue, which is what a run killed mid-row left.
+# counted in a process and a run is one process per drain: the database's own
+# ledger. A fresh run starts it again; RESUME=1 keeps it and first returns
+# every stage's failed rows to the queue, which is what a run killed mid-row
+# left. Beside a hosted run of the same database it refuses: one going would
+# get a second chain on its queues, and a stopped one's resume needs its
+# ledger, so a fresh run waits for `make corpus-hosted` or its RESET=1.
 #
 # One `$(MAKE)` per line rather than a prerequisite list: prerequisites are
 # ordered only while nothing runs in parallel, and this order is the point.
@@ -2345,7 +2348,8 @@ all:
 # on the flag here would be a second reader of it, and the two would
 # eventually disagree about which spellings mean yes.
 corpus:
-	@mkdir -p logs && { [ -n "$(RESUME)" ] || : > $(CORPUS_LEDGER); } && touch $(CORPUS_LEDGER)
+	@mkdir -p logs && scripts/corpus-hosted.sh --guard APP_DB_NAME=$(CORPUS_DB) $(if $(RESUME),RESUME=1)
+	@{ [ -n "$(RESUME)" ] || : > $(CORPUS_LEDGER); } && touch $(CORPUS_LEDGER)
 	@$(LOADENV) && echo "corpus: database $$APP_DB_NAME, Hub off, spend carried in $(CORPUS_LEDGER)$${SPEND_CAP:+, stopping at USD $$SPEND_CAP}"
 	$(if $(RESUME),$(foreach stage,$(CORPUS_RETRIES),$(MAKE) $(stage) $(CORPUS_PINS) &&) true)
 	$(MAKE) parse-start $(CORPUS_PINS)     && $(MAKE) parse $(CORPUS_PINS)

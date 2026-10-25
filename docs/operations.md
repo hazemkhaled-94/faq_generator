@@ -576,7 +576,8 @@ From a fresh clone, following only this page:
    `logs/corpus-hosted.pid` its process group and database;
    `make corpus-hosted-stop` stops it. It names the database it acts on,
    gives every drain that name and `HF_HUB_OFFLINE=1`, and counts spend
-   across the drains in `logs/corpus-spend.usd` (`SPEND_LEDGER`), so `SPEND_CAP` is the cost of
+   across the drains in `logs/corpus-spend-<database>.usd` (`SPEND_LEDGER`), one
+   ledger a database, so `SPEND_CAP` is the cost of
    the whole run and not of each drain. The file holds the run's total and is
    rewritten after every priced call, so a drain killed outright leaves its
    spend counted. Every drain logs the split it resolved
@@ -680,7 +681,11 @@ again. A start that names another database than a stopped run's is refused,
 since that run's failed rows and spend are not its own. A second
 `make corpus-hosted` while the first
 runs is refused: the pid file records the run's process group, and a member of
-it alive, a drain whose make was killed included, is a run going on.
+it alive, a drain whose make was killed included, is a run going on. Each
+database has its own ledger, so a run on another database never touches this
+one's, and a `make corpus` on the same database refuses beside the hosted run:
+while it goes, and, unless it resumes with `RESUME=1`, while a stopped one is
+recorded, whose spend a fresh run would start again.
 
 `make corpus-hosted-stop` stops a hosted run: it sends TERM to that whole
 group, so the drain in hand finishes its row, or gives it back, and exits 75,
