@@ -155,9 +155,10 @@ threshold in this service is the `duplicate` refusal below.
 
 The citation is resolved first — a citation naming nothing that exists is
 `evidence_absent` and no further check runs. One index past the last sentence
-is read as a line of it only where that sentence holds list lines (a bullet or
-a numbered item), because the model reads a list line by line; past a sentence
-of wrapped prose it names nothing. Then the checks the kind calls
+is read as a line of it only where that sentence holds two list lines or more (a
+bullet or a numbered item), because the model reads a list line by line; past a
+sentence of wrapped prose, or one whose only such line is a date opening a wrapped
+line ("1. January"), it names nothing. Then the checks the kind calls
 for, first failure winning:
 
 | Check | Refuses | `atomic` | `summary` | `outline` | `bridge` |
@@ -179,7 +180,12 @@ number that numbers a part of the heading's own number ("3.2" under "Article 3")
 is carried only when the cited sentences say it. A figure only the rest of the
 passage states is refused, with the cited figure named in the reason, when the
 cited sentences state another of its kind (the same currency, unit or sign beside
-it, read from the parse): "costs EUR 2" for a cited "costs EUR 5". A digest rests
+it, read from the parse): "costs EUR 2" for a cited "costs EUR 5". Kinds are one
+across spellings (a currency code, sign or word; a share; a period) and figures
+written in words are read, in the languages that configure number words. The
+rest of the passage includes the cited sentences, so a time or a range sharing a
+digit group with the cited one is a swap too ("by 6:00 pm" for a cited "by 3:00
+pm"). A cited figure the statement writes as well is kept, not swapped out. A digest rests
 on the sentences it cites. For every kind a word is also carried in the form the text layer wrote
 it in: an inflection, a hyphen split or dropped, and, where nouns are not all
 capitalised, a capitalised first word of a list item.
