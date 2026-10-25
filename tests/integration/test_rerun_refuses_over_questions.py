@@ -71,23 +71,36 @@ def written(engine, database):
 
 
 def _rerun(stage: str, *argv: str) -> None:
-    """Runs one stage's command line with a service that does nothing."""
+    """Runs one stage's command line with a service that claims nothing.
+
+    A service in full, so the drain reads what it reads of a real one; only
+    the row it would work is missing.
+    """
     from extraction.repository import PassageQueue
     from preprocessing.chunking.repository import ChunkQueue
     from stages import cli
+    from stages.service import StageService
 
-    class Service:
-        """Drains nothing."""
+    queue = {"chunking": ChunkQueue, "extraction": PassageQueue}[stage]
 
-        def drain(self, stopping=None) -> int:
-            """Drains nothing."""
-            return 0
+    class Service(StageService):
+        """Works nothing."""
+
+        name = stage
+        unit = "row"
+
+        def __init__(self) -> None:
+            """On the stage's own queue."""
+            super().__init__(queue())
+
+        def process_next(self) -> None:
+            """Claims nothing."""
 
     cli.queue_main(
         name=stage,
         module=f"{stage}.run",
-        repository={"chunking": ChunkQueue, "extraction": PassageQueue}[stage],
-        build_service=Service,  # pyright: ignore[reportArgumentType]
+        repository=queue,
+        build_service=Service,
         argv=list(argv),
     )
 
