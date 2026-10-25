@@ -306,6 +306,38 @@ def test_a_purge_commits_in_batches_not_in_one_delete(
     assert len(commits) >= 3, "ten rows at a time, not one transaction for all"
 
 
+def test_a_full_purge_leaves_the_rows_archived_after_it_started(
+    archive, engine, monkeypatch
+) -> None:
+    """A re-extraction running beside a purge keeps its second chance."""
+    from sqlalchemy import event
+
+    from archive import store
+
+    fill(engine, 25)
+    monkeypatch.setattr(store, "BATCH", 10)
+    commits: list[int] = []
+
+    def arrive(connection) -> None:
+        """After the first batch has committed, one more row is archived."""
+        commits.append(1)
+        if len(commits) == 2:
+            with engine.begin() as other:
+                other.execute(
+                    text(
+                        "INSERT INTO archived_rows (table_name, payload) "
+                        "VALUES ('facts', '{\"id\": 1}')"
+                    )
+                )
+
+    event.listen(archive._session.kw["bind"], "commit", arrive)
+
+    purged = archive.purge()
+
+    assert purged.rows == 25
+    assert archived(engine) == {"facts": 1}, "the row that arrived was purged too"
+
+
 def test_the_archive_size_is_estimated_without_counting_it(archive, engine) -> None:
     """What `make doctor` prints: the planner's row count and the table's size."""
     fill(engine, 25)

@@ -104,7 +104,9 @@ class Archive:
         all means the whole archive.
 
         An age is cut at one moment read off the database's clock, for the
-        rows' `archived_at` and the objects' `LastModified` alike.
+        rows' `archived_at` and the objects' `LastModified` alike. Without
+        an age the rows are cut at the moment the purge started, so a row
+        archived while the batches run is left, and so is the loop's end.
 
         Args:
             table: Only rows deleted from this table, or every table.
@@ -125,8 +127,8 @@ class Archive:
                     select(func.now() - timedelta(days=older_than_days))
                 ).scalar_one()
             )
-        if cutoff is not None:
-            wanted = wanted.where(ArchivedRow.archived_at < cutoff)
+            started = cutoff or session.execute(select(func.now())).scalar_one()
+        wanted = wanted.where(ArchivedRow.archived_at < started)
 
         rows = 0
         while True:
