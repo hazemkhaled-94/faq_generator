@@ -64,12 +64,12 @@ cymem==2.0.13
 defusedxml==0.7.1
 dill==0.4.1
 distro==1.9.0
-doclang==0.7.3
-docling-core==2.103.1
+doclang==0.8.0
+docling-core==2.104.0
 docling-ibm-models==4.0.4
-docling-parse==7.22.4
-docling-slim==2.141.0
-docling==2.141.0
+docling-parse==7.23.0
+docling-slim==2.142.1
+docling==2.142.1
 docstring_parser==0.18.0
 et_xmlfile==2.0.0
 fastapi==0.159.1

@@ -18,7 +18,7 @@ numpy>=2.0.0,<3.0.0
 # torch, which is most of the image size. Held at the version poetry.lock
 # pins, so the image runs the Docling the tests run. A Docling upgrade changes
 # parse output.
-docling==2.141.0
+docling==2.142.1
 lingua-language-detector>=2.2.0,<3.0.0
 # Extraction: the model client, structured output and retries.
 litellm>=1.98.0,<2.0.0
