@@ -216,6 +216,11 @@ HOSTED_LOG = logs/corpus-hosted.log
 # backend/stages/worker.py, which a static test holds this to).
 HOSTED_GRACE = 300
 
+# What the hosted run is given: the database it acts on, recorded beside its
+# process group, and RESET when asked for. The rest of a command line, such
+# as SPEND_CAP, reaches its `make corpus` through MAKEFLAGS.
+HOSTED_ARGS = APP_DB_NAME=$(CORPUS_DB) $(if $(RESET),RESET=1)
+
 # What a resumed run puts back in the queue before it starts: a drain killed
 # mid-row leaves its row failed, and rows left failed are not claimed again.
 CORPUS_RETRIES = parse-retry chunk-retry extract-retry topics-retry questions-retry assess-retry
@@ -2285,19 +2290,22 @@ corpus:
 # container workers drain the queues otherwise, and `make corpus` is the
 # foreground run.
 #
-# A pid file nobody holds is a run that died - a restart, a kill - so the next
-# start resumes it: the stages' failed rows go back to the queue and the
-# spend so far still counts against SPEND_CAP. A supervisor that restarts it
-# for you (docs/operations.md has a launchd and a systemd unit) runs
-# `make corpus RESUME=1` in the foreground instead.
+# A run that ends other than finished - stopped at SPEND_CAP, by a signal or
+# by failed rows, or killed - keeps its record, so the next start resumes it:
+# the stages' failed rows go back to the queue and the spend so far still
+# counts against SPEND_CAP. A run that finished, or RESET=1, makes the next
+# one fresh. A supervisor that restarts it for you (docs/operations.md has a
+# launchd and a systemd unit) runs `make corpus RESUME=1` in the foreground
+# instead.
 #
 #   make corpus-hosted SPEND_CAP=50     stops at USD 50 for the whole run
+#   make corpus-hosted RESET=1          a fresh run, not the stopped one's resume
 corpus-hosted:
 	@mkdir -p logs
-	@scripts/corpus-hosted.sh --check APP_DB_NAME=$(CORPUS_DB)
+	@scripts/corpus-hosted.sh --check $(HOSTED_ARGS)
 	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
 	@$(LOADENV) && PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
-	@nohup scripts/corpus-hosted.sh APP_DB_NAME=$(CORPUS_DB) >> $(HOSTED_LOG) 2>&1 & \
+	@nohup scripts/corpus-hosted.sh $(HOSTED_ARGS) >> $(HOSTED_LOG) 2>&1 & \
 	  for i in $$(seq 50); do [ -f $(HOSTED_PID) ] && break; sleep 0.1; done; \
 	  echo "corpus-hosted started: log $(HOSTED_LOG), pid file $(HOSTED_PID); stop it with make corpus-hosted-stop"
 

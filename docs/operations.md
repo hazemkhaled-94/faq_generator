@@ -621,10 +621,15 @@ workers are stopped.
 
 A drain that stopped itself, because the model could not be reached or the cap
 was reached, exits 75 and gives its rows back; a failed row exits 3. Either
-stops the run before the next stage. `make corpus-hosted` after a stop, a
-restart or a kill resumes it: it finds the pid file nobody holds, returns every
-stage's failed rows to the queue and runs the chain again, and the spend so far
-still counts against `SPEND_CAP`. A second `make corpus-hosted` while the first
+stops the run before the next stage. A run that ends other than finished keeps
+its pid file, so `make corpus-hosted` after a stop, a crash or a kill resumes
+it: it finds the pid file nobody holds, returns every stage's failed
+rows to the queue and runs the chain again on the database it records, and the
+spend so far still counts against `SPEND_CAP`. Only a run that finished, or
+`make corpus-hosted RESET=1`, makes the next one fresh, with its count started
+again. A start that names another database than a stopped run's is refused,
+since that run's failed rows and spend are not its own. A second
+`make corpus-hosted` while the first
 runs is refused: the pid file records the run's process group, and a member of
 it alive, a drain whose make was killed included, is a run going on.
 
@@ -658,8 +663,8 @@ RestartPreventExitStatus=2
 ```
 
 A restart by either keeps the ledger (`RESUME=1`), so the cap holds across
-restarts. Delete `logs/corpus-spend.usd` to start a run's count again; a fresh
-`make corpus` without `RESUME=1` does.
+restarts. `make corpus-hosted RESET=1`, or a fresh `make corpus` without
+`RESUME=1`, starts a run's count again.
 
 ## Upgrading to v0.5.1
 

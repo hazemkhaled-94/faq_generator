@@ -85,7 +85,7 @@ def _project(
     (stand_ins / "poetry").write_text(
         "#!/bin/sh\n"
         'echo "$APP_DB_NAME $HF_HUB_OFFLINE $SPEND_LEDGER $*" >> "$LOG"\n'
-        'case "$*" in *"$FAIL"*) [ -n "$FAIL" ] && exit 3;; esac\n'
+        'case "$*" in *"$FAIL"*) [ -n "$FAIL" ] && exit "${CODE:-3}";; esac\n'
         'case "$*" in *topic_modelling*--ensure*) echo "x" >> "$SPEND_LEDGER";; esac\n'
         # A long extraction drain, stopped as drain_once stops one: 75 on SIGTERM.
         'case "$*" in *"extraction.run") [ -n "$SLOW" ] && {\n'
@@ -292,9 +292,11 @@ def test_a_resume_returns_failed_rows_to_the_queue_first(tmp_path: Path) -> None
 # ── corpus-hosted ──────────────────────────────────────────────────────────
 
 
-def _waited(project: Path) -> None:
-    for _ in range(200):
-        if not (project / "logs/corpus-hosted.pid").exists():
+def _waited(project: Path, runs: int = 1) -> None:
+    """Until the runner has said `runs` times that its run ended."""
+    log = project / "logs/corpus-hosted.log"
+    for _ in range(300):
+        if log.exists() and log.read_text().count("the run ended") >= runs:
             return
         time.sleep(0.1)
     raise AssertionError("the hosted run never finished")
@@ -394,6 +396,67 @@ def test_the_stop_signals_the_whole_run_and_its_drain_stops_as_asked(
     assert not _alive(group)
     assert "question_generation" not in "\n".join(_drained(project))
     assert ledger.read_text() == "3.5\n", "the stop keeps the spend"
+
+
+@pytest.mark.parametrize("code", ["75", "3"])
+def test_a_stopped_run_keeps_its_record_and_its_spend_and_the_next_start_resumes(
+    tmp_path: Path, code: str
+) -> None:
+    """75 at the cap or 3 for failed rows: the restart counts the spend so far."""
+    project = _project(tmp_path, env=GO_LIVE)
+    pidfile = project / "logs/corpus-hosted.pid"
+    ledger = project / "logs/corpus-spend.usd"
+
+    first = _make(
+        project,
+        "corpus-hosted",
+        "SPEND_CAP=50",
+        FAIL="extraction.run --digests",
+        CODE=code,
+    )
+    assert first.returncode == 0, first.stderr
+    _waited(project)
+    assert pidfile.read_text().split()[1] == "qa_scratch", "the run's identity is kept"
+    ledger.write_text("45.0\n")  # what the stopped run had spent
+
+    again = _make(project, "corpus-hosted", "SPEND_CAP=50")
+    assert again.returncode == 0, again.stderr
+    _waited(project, runs=2)
+
+    assert any(" --retry" in line for line in _drained(project)), "a resume"
+    assert ledger.read_text().startswith("45.0\n"), "the 45.0 still counts"
+    assert not pidfile.exists(), "a run that finished leaves no record"
+
+
+def test_reset_starts_a_fresh_run_after_a_stop(tmp_path: Path) -> None:
+    """The one way to start the count again besides a run that finished."""
+    project = _project(tmp_path, env=GO_LIVE)
+    ledger = project / "logs/corpus-spend.usd"
+    _make(project, "corpus-hosted", FAIL="extraction.run --digests", CODE="75")
+    _waited(project)
+    ledger.write_text("45.0\n")
+    (project / "drains.log").unlink()
+
+    again = _make(project, "corpus-hosted", "RESET=1")
+    assert again.returncode == 0, again.stderr
+    _waited(project, runs=2)
+
+    assert not any(" --retry" in line for line in _drained(project))
+    assert not ledger.read_text().startswith("45.0")
+
+
+def test_a_stopped_run_is_not_resumed_on_another_database(tmp_path: Path) -> None:
+    """Its ledger and its failed rows are another database's."""
+    project = _project(tmp_path, env=GO_LIVE)
+    _make(project, "corpus-hosted", FAIL="extraction.run --digests", CODE="75")
+    _waited(project)
+    (project / "drains.log").unlink()
+
+    other = _make(project, "corpus-hosted", "APP_DB_NAME=qa_other")
+
+    assert other.returncode != 0
+    assert "qa_scratch" in other.stderr and "RESET=1" in other.stderr
+    assert not _drained(project), "refused before the preflight"
 
 
 def test_a_stop_with_no_run_going_says_so(tmp_path: Path) -> None:
