@@ -85,8 +85,10 @@ and gives back the objects already moved.
 returns `chunk_status` to `new`. Both objects stay.
 
 A question a rerun left with no fact (rejected `source_changed`) keeps no link
-to its document, so a deletion that leaves no document held deletes those
-too; with other documents held they stay until the last one goes, or the wipe.
+to its document through `question_facts`, so a trigger on `passages` and on
+`facts` stamps `questions.source_digests` with the documents a deleted source
+belonged to, and a deletion deletes every question stamped with one of its
+digests: one written from two documents goes with either.
 
 `delete_every`, behind `make wipe`, does what `delete` does to every
 document and then drops the `ingest_events` rows too. Those go last, so a

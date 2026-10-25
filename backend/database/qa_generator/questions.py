@@ -283,6 +283,14 @@ class Question(Base):
         "the difficulty band it fed can be recomputed and checked. NULL on an "
         "unanswerable question, which has no answer to measure.",
     )
+    source_digests: Mapped[list[str] | None] = mapped_column(
+        ARRAY(CHAR(64)),
+        comment="The digests of the documents a source of this question was "
+        "taken from, set by a trigger when a passage or a fact it rested on is "
+        "deleted. NULL while it keeps every source. A question left with no "
+        "fact keeps no link to its document through question_facts; this is "
+        "what deleting the document finds it by.",
+    )
     follows_id: Mapped[int | None] = mapped_column(
         BigInteger,
         ForeignKey("questions.id", ondelete="CASCADE"),

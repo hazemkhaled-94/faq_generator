@@ -577,7 +577,7 @@ def test_the_later_revisions_step_down_and_back_up_over_a_corpus(spare: str) -> 
     # kind, single on each of these: none of them has a passage scope, and
     # the categories, NULL.
     assert at_head["questions"] == [
-        (*row, None, None, None, "single", None) for row in before["questions"]
+        (*row, None, None, None, "single", None, None) for row in before["questions"]
     ]
 
     for _ in LATER:

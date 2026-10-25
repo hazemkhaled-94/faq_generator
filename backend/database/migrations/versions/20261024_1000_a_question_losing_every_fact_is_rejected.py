@@ -7,7 +7,11 @@ whatever their status. It now rejects every question that loses a fact as
 `source_changed`, clears its release and keeps the row, its id and its
 verdict; a thread trigger takes its follow-ups out of the release. A person
 deleting a document, or what was derived from it, deletes that document's
-questions explicitly, before the cascade runs.
+questions explicitly, before the cascade runs. A question left with no fact
+keeps no link to its document, so `questions.source_digests` records the
+documents a deleted passage or fact belonged to (BEFORE DELETE triggers on
+`passages` and `facts`, while `fact_passages` still names them) and the
+explicit delete finds the question by it.
 
 Revision: 4a7c2e91d3b8
 Parent:   7a41c9d2e8b0
@@ -18,7 +22,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.postgresql import ARRAY
 
 revision: str = "4a7c2e91d3b8"
 down_revision: str | None = "7a41c9d2e8b0"
@@ -64,6 +70,45 @@ _DELETES = """    IF EXISTS (
     END IF;"""
 
 
+_STAMP_PASSAGE = """
+CREATE OR REPLACE FUNCTION stamp_questions_with_passage_document() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE questions q
+       SET source_digests = coalesce(q.source_digests, '{}') || OLD.doc_sha256
+     WHERE q.id IN (
+               SELECT qf.question_id
+                 FROM question_facts qf
+                 JOIN fact_passages fp ON fp.fact_id = qf.fact_id
+                WHERE fp.passage_id = OLD.id)
+       AND NOT coalesce(q.source_digests, '{}') @> ARRAY[OLD.doc_sha256];
+    RETURN OLD;
+END;
+$$;
+"""
+
+_STAMP_FACT = """
+CREATE OR REPLACE FUNCTION stamp_questions_with_fact_documents() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    digest char(64);
+BEGIN
+    FOR digest IN
+        SELECT DISTINCT p.doc_sha256
+          FROM fact_passages fp
+          JOIN passages p ON p.id = fp.passage_id
+         WHERE fp.fact_id = OLD.id
+    LOOP
+        UPDATE questions q
+           SET source_digests = coalesce(q.source_digests, '{}') || digest
+         WHERE q.id IN (SELECT qf.question_id FROM question_facts qf WHERE qf.fact_id = OLD.id)
+           AND NOT coalesce(q.source_digests, '{}') @> ARRAY[digest];
+    END LOOP;
+    RETURN OLD;
+END;
+$$;
+"""
+
 _COMMENT = (
     "The test questions themselves. Append-only: rejected questions are the "
     "drop-rate evidence in the coverage report. Losing a fact, the last one "
@@ -83,12 +128,40 @@ _OLD_COMMENT = (
 
 
 def upgrade() -> None:
-    """Rejects the question whatever is left of its facts."""
+    """Rejects the question whatever is left of its facts, and stamps its documents."""
+    op.add_column(
+        "questions",
+        sa.Column(
+            "source_digests",
+            ARRAY(sa.CHAR(64)),
+            nullable=True,
+            comment="The digests of the documents a source of this question was "
+            "taken from, set by a trigger when a passage or a fact it rested on is "
+            "deleted. NULL while it keeps every source. A question left with no "
+            "fact keeps no link to its document through question_facts; this is "
+            "what deleting the document finds it by.",
+        ),
+    )
+    op.execute(_STAMP_PASSAGE)
+    op.execute(_STAMP_FACT)
+    op.execute(
+        "CREATE TRIGGER passages_stamp_questions BEFORE DELETE ON passages "
+        "FOR EACH ROW EXECUTE FUNCTION stamp_questions_with_passage_document()"
+    )
+    op.execute(
+        "CREATE TRIGGER facts_stamp_questions BEFORE DELETE ON facts "
+        "FOR EACH ROW EXECUTE FUNCTION stamp_questions_with_fact_documents()"
+    )
     op.execute(_FUNCTION.format(body=_REJECTS))
     op.execute(f"COMMENT ON TABLE questions IS '{_COMMENT}'")
 
 
 def downgrade() -> None:
-    """Deletes a question left with no fact again."""
+    """Deletes a question left with no fact again, and drops the stamp."""
+    op.execute("DROP TRIGGER facts_stamp_questions ON facts")
+    op.execute("DROP TRIGGER passages_stamp_questions ON passages")
+    op.execute("DROP FUNCTION stamp_questions_with_fact_documents()")
+    op.execute("DROP FUNCTION stamp_questions_with_passage_document()")
+    op.drop_column("questions", "source_digests")
     op.execute(_FUNCTION.format(body=_DELETES))
     op.execute(f"COMMENT ON TABLE questions IS '{_OLD_COMMENT}'")

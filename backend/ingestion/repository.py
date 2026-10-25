@@ -65,23 +65,18 @@ _QUESTIONS_ONLY_ON = text(
 )
 
 
-#: A question left with no fact by a rerun keeps no link to the document it
-#: came from, so it is deleted only when no other document is held: whatever
-#: has no fact then came from the documents being deleted.
-_QUESTIONS_WITHOUT_FACTS = text(
-    """
-    DELETE FROM questions q
-     WHERE NOT EXISTS (SELECT 1 FROM question_facts qf WHERE qf.question_id = q.id)
-       AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.sha256 <> ALL(:digests))
-    """
+#: Every question a trigger stamped with one of these documents' digests, which
+#: includes one written from two documents when either goes.
+_QUESTIONS_STAMPED = text(
+    "DELETE FROM questions WHERE source_digests && CAST(:digests AS char(64)[])"
 )
 
 
 def _delete_questions(session, digests: list[str]) -> None:
     """Deletes the questions resting only on these documents, in the caller's transaction.
 
-    With these the last documents held, also the questions a rerun left with
-    no fact, which nothing else links to a document.
+    Also the questions stamped with one of these digests: a rerun left them
+    with no fact, and `source_digests` is all that still names the document.
 
     The facts and questions the deletion will reach are locked first, in id
     order, so two deletions at once do not wait on each other in a circle.
@@ -93,7 +88,7 @@ def _delete_questions(session, digests: list[str]) -> None:
         .where(Passage.doc_sha256.in_(digests)),
     )
     session.execute(_QUESTIONS_ONLY_ON, {"digests": digests})
-    session.execute(_QUESTIONS_WITHOUT_FACTS, {"digests": digests})
+    session.execute(_QUESTIONS_STAMPED, {"digests": digests})
 
 
 def _filtered(query, search: str | None, parse_status: str | None = None):

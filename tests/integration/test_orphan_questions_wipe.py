@@ -1,4 +1,4 @@
-"""A question a re-chunk left with no fact goes with the last document: no wipe leaves one behind."""
+"""A question a re-chunk left with no fact goes with the document it was written from, whatever else is held."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ CASES = [
     ("de", "Die Kontoführung kostet 5 EUR.", "Die Kontoführung kostet 6 EUR."),
     ("en", "Account fees are 5 EUR.", "Account fees are 6 EUR."),
     ("en", "Returns are free within 30 days.", "Returns are free within 14 days."),
+    ("xx", "Lorem ipsum dolor 30.", "Lorem ipsum dolor 31."),
 ]
 
 
@@ -52,7 +53,7 @@ def orphaned(engine, sha: str, language: str, before: str, after: str) -> None:
             connection.execute(
                 text("SELECT count(*) FROM questions WHERE status='rejected'")
             ).scalar_one()
-            == 1
+            >= 1
         )
 
 
@@ -106,19 +107,113 @@ def test_deleting_what_was_derived_from_the_only_document_leaves_no_question(
     assert questions(engine) == 0
 
 
-def test_a_question_orphaned_beside_another_document_stays_when_one_is_deleted(
-    engine, database
+def hold_another(engine, name: str = "other") -> str:
+    """A second document with a question of its own that keeps its fact."""
+    sha = digest(name)
+    with Session(engine) as session:
+        session.add(document(sha, parse_status="parsed"))
+        session.flush()
+        cut = passage(sha, ordinal=1, text="Delivery takes 3 days.")
+        session.add(cut)
+        session.flush()
+        claim = fact(cut.id, statement="Delivery takes 3 days.")
+        session.add(claim)
+        session.flush()
+        asked = question(status="accepted")
+        session.add(asked)
+        session.flush()
+        session.add(link(asked.id, claim.id))
+        session.commit()
+    return sha
+
+
+@pytest.mark.parametrize(("language", "before", "after"), CASES)
+def test_deleting_one_document_deletes_its_orphaned_question_beside_another(
+    engine, database, language, before, after
 ) -> None:
-    """Nothing links a fact-less question to its document, so with others present it waits for the wipe."""
+    """The other document and its question stay."""
     from ingestion.repository import DocumentRepository
 
-    sha, other = digest("beside-a"), digest("beside-b")
-    orphaned(engine, sha, "en", "Fees are 5 EUR.", "Fees are 6 EUR.")
-    with Session(engine) as session:
-        session.add(document(other, parse_status="parsed"))
-        session.commit()
+    sha = digest(f"beside-{language}-{before}")
+    orphaned(engine, sha, language, before, after)
+    hold_another(engine)
 
-    DocumentRepository().delete(other)
-    assert questions(engine) == 1
     DocumentRepository().delete(sha)
+
+    assert questions(engine) == 1
+
+
+@pytest.mark.parametrize(("language", "before", "after"), CASES)
+def test_deleting_what_was_derived_deletes_its_orphaned_question_beside_another(
+    engine, database, language, before, after
+) -> None:
+    """Dropping a document's passages takes the question it was left with none from."""
+    from ingestion.repository import DocumentRepository
+
+    sha = digest(f"derived-{language}-{before}")
+    orphaned(engine, sha, language, before, after)
+    hold_another(engine)
+
+    DocumentRepository().delete_derived(sha)
+
+    assert questions(engine) == 1
+
+
+def test_deleting_some_documents_deletes_the_orphans_of_those_only(
+    engine, database
+) -> None:
+    """delete_all over a subset."""
+    from ingestion.repository import DocumentRepository
+
+    a, b = digest("subset-a"), digest("subset-b")
+    orphaned(engine, a, "en", "Fees are 5 EUR.", "Fees are 6 EUR.")
+    orphaned(engine, b, "de", "Die Gebühr beträgt 5 EUR.", "Die Gebühr beträgt 6 EUR.")
+
+    DocumentRepository().delete_all([a])
+
+    assert questions(engine) == 1
+
+
+def test_a_question_on_two_documents_goes_with_either(engine, database) -> None:
+    """It cannot stand on half its sources: one document's fact is replaced, then that document goes."""
+    from ingestion.repository import DocumentRepository
+
+    a, b = digest("two-a"), digest("two-b")
+    with Session(engine) as session:
+        ids = {}
+        for sha, body in ((a, "Fees are 5 EUR."), (b, "Returns take 14 days.")):
+            session.add(document(sha, parse_status="parsed"))
+            session.flush()
+            cut = passage(sha, ordinal=1, text=body)
+            session.add(cut)
+            session.flush()
+            claim = fact(cut.id, statement=body)
+            session.add(claim)
+            session.flush()
+            ids[sha] = (cut.id, claim.id)
+        asked = question(status="accepted", release_id=uuid.uuid4())
+        session.add(asked)
+        session.flush()
+        for _, claim_id in ids.values():
+            session.add(link(asked.id, claim_id))
+        session.commit()
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM passages WHERE id = :p"), {"p": ids[a][0]})
+    assert questions(engine) == 1
+
+    DocumentRepository().delete(a)
+
     assert questions(engine) == 0
+
+
+def test_a_question_that_keeps_its_facts_is_not_stamped(engine, database) -> None:
+    """The stamp is for questions that lost a source: NULL for the rest."""
+    sha = hold_another(engine, "unstamped")
+    with engine.connect() as connection:
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM questions WHERE source_digests IS NOT NULL")
+            ).scalar_one()
+            == 0
+        )
+    assert sha
