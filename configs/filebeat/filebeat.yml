@@ -128,6 +128,14 @@ setup.template.append_fields:
     type: long
   - name: topic_fit.language
     type: keyword
+  # The link a bridge pass is reading: how it was found, in what language,
+  # and which passages it joins.
+  - name: link.kind
+    type: keyword
+  - name: link.language
+    type: keyword
+  - name: link.passages
+    type: keyword
   - name: upload.filename
     type: keyword
   - name: upload.size_bytes
