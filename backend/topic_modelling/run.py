@@ -169,11 +169,11 @@ def main(argv: list[str] | None = None) -> int:
 
     asking = args.discover
     if args.ensure:
-        catalog = TopicCatalog()
-        reason = fit_needed(catalog.fit_state(), catalog.languages())
+        queue = TopicQueue()
+        reason = fit_needed(TopicCatalog().fit_state(), queue.languages())
         # A fit a resume returned to the queue (make corpus RESUME=1 runs
         # topics-retry first) is drained rather than left pending for good.
-        waiting = TopicQueue().counts_by_status().get(Status.PENDING, 0)
+        waiting = queue.counts_by_status().get(Status.PENDING, 0)
         if reason is None and not waiting:
             log.info("every language holds topics that fit its passages")
             return 0
@@ -225,8 +225,8 @@ def main(argv: list[str] | None = None) -> int:
     if service is not None and not args.watch:
         code = drain_once(service)
         if args.ensure:
-            catalog = TopicCatalog()
-            if missing := unfitted(catalog.fit_state(), catalog.languages()):
+            languages = TopicQueue().languages()
+            if missing := unfitted(TopicCatalog().fit_state(), languages):
                 log.error("no topic for %s after the fit", ", ".join(missing))
                 return code or FAILED
         return code

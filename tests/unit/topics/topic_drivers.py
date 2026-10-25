@@ -494,6 +494,10 @@ class CommandDriver:
                 """The fits by status: those waiting."""
                 return {Status.PENDING: driver.pending}
 
+            def languages(self) -> list[str]:
+                """The languages the corpus holds passages in."""
+                return list(driver.corpus)
+
         class Catalog:
             """The stored topics."""
 
@@ -501,10 +505,6 @@ class CommandDriver:
                 """Removes every topic."""
                 driver.calls.append("delete_all")
                 return TopicRemoval(topics=12, memberships=40, labels=3)
-
-            def languages(self) -> list[str]:
-                """The languages the corpus holds passages in."""
-                return list(driver.corpus)
 
             def fit_state(self):
                 """Reports which languages hold topics."""

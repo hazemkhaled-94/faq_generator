@@ -811,18 +811,6 @@ class TopicCatalog(Repository):
             languages=languages,
         )
 
-    def languages(self) -> list[str]:
-        """Every language the corpus holds passages in, ordered."""
-        with self._session() as session:
-            return list(
-                session.scalars(
-                    select(Passage.language)
-                    .where(Passage.language.is_not(None))
-                    .distinct()
-                    .order_by(Passage.language)
-                )
-            )
-
     def fit_state(self) -> TopicFit:
         """Reports the state of the model, one entry per language.
 
