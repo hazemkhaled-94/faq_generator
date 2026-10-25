@@ -144,11 +144,14 @@ WHERE release_id IS NOT NULL AND id IN (SELECT id FROM below)
 
 #: A restored fact whose citations were left behind rests on nothing, and a
 #: bridge needs two passages. The triggers that drop such a fact fire only on
-#: DELETE, so the restore does it: the cascade takes its question links, and
-#: the question trigger the question left with no fact.
-_UNSOURCED = (
+#: DELETE, so the restore does it, and the cascade takes its question links.
+#: The question trigger rejects the question left with no fact and keeps it;
+#: with no citation left to read, nothing would stamp it with its document, so
+#: `_UNSOURCED_STAMP` does first, from the archived citations, and a later
+#: delete of the document takes it.
+_UNSOURCED_FACTS = (
     """
-DELETE FROM facts f
+SELECT f.id FROM facts f
 WHERE f.id IN (
     SELECT (a.payload->>'id')::bigint FROM archived_rows a
     WHERE a.table_name = 'facts' AND """
@@ -158,6 +161,32 @@ WHERE f.id IN (
       < CASE WHEN f.kind = 'bridge' THEN 2 ELSE 1 END
 """
 )
+
+_UNSOURCED = "DELETE FROM facts WHERE id IN (" + _UNSOURCED_FACTS + ")"
+
+_UNSOURCED_STAMP = (
+    """
+UPDATE questions q
+SET source_digests = ARRAY(
+    SELECT DISTINCT unnest(coalesce(q.source_digests, '{}') || s.digests))
+FROM (
+    SELECT qf.question_id,
+           array_agg(DISTINCT CAST(ap.payload->>'doc_sha256' AS char(64))) AS digests
+    FROM question_facts qf
+    JOIN archived_rows afp ON afp.table_name = 'fact_passages'
+         AND (afp.payload->>'fact_id')::bigint = qf.fact_id
+         AND afp.archived_at = ANY(CAST(:chosen AS timestamptz[]))
+    JOIN archived_rows ap ON ap.table_name = 'passages'
+         AND (ap.payload->>'id')::bigint = (afp.payload->>'passage_id')::bigint
+         AND ap.archived_at = ANY(CAST(:chosen AS timestamptz[]))
+    WHERE qf.fact_id IN ("""
+    + _UNSOURCED_FACTS
+    + """)
+    GROUP BY qf.question_id) s
+WHERE q.id = s.question_id
+"""
+)
+
 
 #: A fact archived before facts carried a language comes back with none, and
 #: the dedup probe filters on it. Read again from the citation at position 0,
@@ -478,6 +507,7 @@ def main() -> int:
                 if table == "questions":
                     connection.execute(text(_SUPERSEDED), {"chosen": chosen})
                     connection.execute(text(_ROOTLESS), {"chosen": chosen})
+            connection.execute(text(_UNSOURCED_STAMP), {"chosen": chosen})
             dropped = connection.execute(text(_UNSOURCED), {"chosen": chosen}).rowcount
             connection.execute(text(_LANGUAGED), {"chosen": chosen})
             connection.execute(text(_CHUNKED), {"chosen": chosen})

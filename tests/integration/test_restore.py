@@ -605,6 +605,16 @@ def test_a_fact_left_resting_on_no_passage_is_dropped_and_its_question_rejected(
             "no accepted question rests on no passage"
         )
     assert "facts: " in capsys.readouterr().out
+    with engine.connect() as connection:
+        assert connection.execute(
+            text("SELECT source_digests FROM questions")
+        ).scalar_one() == [sha], "stamped with the document its fact came from"
+
+    DocumentRepository().delete(sha)
+    with engine.connect() as connection:
+        assert (
+            connection.execute(text("SELECT count(*) FROM questions")).scalar_one() == 0
+        )
 
 
 @pytest.mark.parametrize("language", ["de", "en"])
