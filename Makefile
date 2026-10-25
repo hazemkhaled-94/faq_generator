@@ -175,11 +175,12 @@ WIPE_STEP = if $(call RUNNING,$(1)); then $(MAKE) $(2); else $(call STORE_DOWN,$
 # Names where a command acts, once the settings are loaded.
 BANNER = $(LOADENV) && echo "on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT" >&2
 
-# Refuses unless CONFIRM equals the database the settings resolve to, and
+# Refuses unless CONFIRM, typed on the command line (one exported in the shell
+# does not count), equals the database the settings resolve to, and
 # names the database and the port it would act on. $(1) says what is asked.
 #
 #     @$(call CONFIRMED,wipe)
-CONFIRMED = $(LOADENV) && { [ "$$CONFIRM" = "$$APP_DB_NAME" ] || \
+CONFIRMED = $(LOADENV) && { [ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = "$$APP_DB_NAME" ] || \
             { echo "REFUSED: $(1) acts on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT." >&2; \
               echo "  Run it again with CONFIRM=$$APP_DB_NAME to go on." >&2; exit 2; }; }
 

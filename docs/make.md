@@ -409,7 +409,8 @@ Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Tr
 Every target that destroys data in a database (`schema-down`, `schema-reset`,
 `wipe`, `wipe-all`, `delete`, `delete-derived`, `topics-delete`, an unnarrowed
 `*-rerun`, and `archive-purge` with `TABLE`, `ALL` or `DAYS`) refuses unless
-`CONFIRM=<database>` names the database the settings resolve to, and says
+`CONFIRM=<database>`, typed on the command line (a `CONFIRM` exported in the
+shell does not count), names the database the settings resolve to, and says
 which database and port it would act on. An `APP_DB_NAME` exported in the
 shell is honoured over `deployment.env`. Host drains print the database and
 port they run against before they start.

@@ -1234,3 +1234,17 @@ def test_a_restore_keeps_the_owners_the_dump_carries(target: str, given) -> None
     text = "\n".join(printed(target, "DIR=/backups/x", *given))
     assert "pg_restore --clean --if-exists -U" in text, text
     assert "--no-owner" not in text, text
+
+
+@pytest.mark.parametrize("target", ["wipe", "schema-reset", "topics-delete"])
+def test_a_confirm_exported_in_the_shell_does_not_satisfy_the_guard(
+    tmp_path: Path, target: str
+) -> None:
+    """Only a CONFIRM typed on the command line counts: an exported one confirms every later target."""
+    sandbox(tmp_path)
+    lines = printed(target, CONFIRM="qa_generator")
+    at = next(i for i, line in enumerate(lines) if "REFUSED:" in line)
+
+    ran = refusal(lines[at], tmp_path, CONFIRM="qa_generator")
+
+    assert ran.returncode == 2, ran
