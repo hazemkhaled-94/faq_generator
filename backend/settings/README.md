@@ -107,7 +107,8 @@ The catalogue moves under a stored row: a floor is raised, a choice dropped, a
 name retired. Whenever a stage reads its settings (`store.snapshot(<stage>)`,
 which every stage's build and command goes through, parsing and chunking
 included) each row is checked against the catalogue as it stands. A row the
-catalogue now refuses, or one stored under a name in `store.RETIRED`, stops the
+catalogue now refuses, or one stored under a name in `store.RETIRED`
+(`TOPIC_MIN_WEIGHT`, which `TOPIC_RELATIVE_WEIGHT` replaces), stops the
 build of a stage that reads it, a setting of that stage's or of the platform,
 with the row, its value and when it was written, naming the replacement for a
 retired name; every worker waits on it in place, as it does for any setting it

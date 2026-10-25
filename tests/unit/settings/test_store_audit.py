@@ -25,9 +25,9 @@ def _unwarned(monkeypatch):
     monkeypatch.setattr(store, "_warned", set())
 
 
-def row(name: str, value: str) -> SimpleNamespace:
-    """One stored row."""
-    return SimpleNamespace(name=name, value=value, updated_at=WHEN)
+def row(name: str, value: str, service: str = "") -> SimpleNamespace:
+    """One stored row, and the service it was stored under."""
+    return SimpleNamespace(name=name, value=value, updated_at=WHEN, service=service)
 
 
 def test_a_stored_value_below_the_catalogue_floor_refuses_the_build() -> None:
@@ -280,3 +280,24 @@ def test_a_row_left_alone_is_warned_about_once(caplog) -> None:
             store.audit([row("SPEND_CAP", "5")], {})
 
     assert len(caplog.records) == 1
+
+
+# ── TOPIC_MIN_WEIGHT, retired ──────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("service", [None, "topics"])
+def test_a_stored_topic_min_weight_is_refused_naming_its_replacement(service) -> None:
+    """The floor became relative (C-095): an absolute value stored for the old name means nothing now."""
+    with pytest.raises(store.StoredRefused) as refused:
+        store.audit([row("TOPIC_MIN_WEIGHT", "0.2", "topics")], {}, service=service)
+
+    said = str(refused.value)
+    assert "TOPIC_MIN_WEIGHT" in said and "TOPIC_RELATIVE_WEIGHT" in said
+
+
+def test_a_stored_topic_min_weight_does_not_stop_another_stage(caplog) -> None:
+    """Parsing reads no topic setting."""
+    with caplog.at_level(logging.WARNING):
+        store.audit([row("TOPIC_MIN_WEIGHT", "0.2", "topics")], {}, service="parsing")
+
+    assert "TOPIC_RELATIVE_WEIGHT" in caplog.text

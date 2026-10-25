@@ -37,8 +37,13 @@ _VERSION_CHARS = 12
 #: Settings that were renamed or dropped, by their old name, with what replaced
 #: them ("" for nothing). A row stored under one is refused at the build, naming
 #: the replacement, because nothing reads it any more and the value it holds was
-#: somebody's decision. None so far; a release that renames a setting adds it.
-RETIRED: dict[str, str] = {}
+#: somebody's decision. A release that renames a setting adds it.
+RETIRED: dict[str, str] = {
+    # C-095: a membership's floor is now a share of the passage's strongest
+    # topic, not an absolute weight, so a stored absolute value read under the
+    # new name would be a near no-op floor.
+    "TOPIC_MIN_WEIGHT": "TOPIC_RELATIVE_WEIGHT",
+}
 
 
 #: The rows this process has warned about, by name and value: a worker audits
@@ -153,7 +158,7 @@ def audit(
                 f"{stored} is stored under a retired setting"
                 + (f"; {replacement} replaces it" if replacement else "")
                 + f": delete the row (DELETE FROM service_settings WHERE name = '{row.name}')",
-                _owner(catalog.BY_NAME.get(replacement), row),
+                _owner(catalog.BY_NAME.get(replacement) or setting, row),
                 service,
                 row,
             )
