@@ -292,69 +292,26 @@ def test_a_numbered_reference_names_another_document_by_its_title(language, rows
 
 
 @pytest.mark.parametrize(
-    "language,rows",
+    "segment",
     [
-        (
-            "en",
-            [
-                (
-                    "Fees for dormant accounts are set out in Article 17.",
-                    "Card Terms > Article 2 Dormant accounts",
-                    "bank",
-                ),
-                (
-                    "A dormant card account is charged 10 EUR a year.",
-                    "Card Terms > Article 17 Ethical provisions",
-                    "bank",
-                ),
-            ],
-        ),
-        (
-            "de",
-            [
-                (
-                    "Die Kündigung regelt gemäß § 5 der Vertrag.",
-                    "Bedingungen > § 2 Laufzeit",
-                    "shop",
-                ),
-                (
-                    "Der Kunde kann jederzeit mit einer Frist von 14 Tagen kündigen.",
-                    "Bedingungen > § 5 Kündigung",
-                    "shop",
-                ),
-            ],
-        ),
-        (
-            "en",
-            [
-                (
-                    "Fees are set out in Section 7.",
-                    "Terms > Section 2: Scope",
-                    "bank",
-                ),
-                (
-                    "A dormant card account is charged 10 EUR a year.",
-                    "Terms > Section 7: Fees",
-                    "bank",
-                ),
-            ],
-        ),
+        "iPhone 15 Pro",
+        "Windows 11 Home",
+        "Tarif 2025 Privatkunden",
+        "Plan 3 Gold card",
+        "Step 1 Register your account",
+        "Schritt 1 Konto eröffnen",
     ],
 )
-def test_a_heading_with_a_title_after_its_number_is_a_reference_target(language, rows):
-    """`Article 17 Ethical provisions` teaches `article` and is what `Article 17` names."""
-    assert references(language, rows) == [(1, 2)]
+def test_a_product_or_year_heading_is_no_numbered_section(segment: str) -> None:
+    """A word, a number and more is a title, not the document's own label of a part."""
+    from extraction.validation import HEADING_LABEL
+
+    assert HEADING_LABEL.match(segment) is None
 
 
-def test_a_heading_with_no_number_teaches_no_label() -> None:
-    """`Overview` is a heading, not a numbered part."""
-    rows = [
-        ("See Overview 7 for details.", "Terms > Section 2 Scope", "bank"),
-        (
-            "A dormant card account is charged 10 EUR a year.",
-            "Terms > Overview",
-            "bank",
-        ),
-    ]
+@pytest.mark.parametrize("segment", ["Section 7", "Regel 5.1", "§ 3", "Artikel 12"])
+def test_a_word_and_a_number_alone_is_a_numbered_section(segment: str) -> None:
+    """The label the document gives a part stays read."""
+    from extraction.validation import HEADING_LABEL
 
-    assert references("en", rows) == []
+    assert HEADING_LABEL.match(segment) is not None
