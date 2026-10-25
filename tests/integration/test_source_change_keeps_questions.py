@@ -131,6 +131,42 @@ def test_a_changed_chunker_rejects_released_questions_and_deletes_none(
 
 
 @pytest.mark.parametrize("lang,s1,s2,ft", CASES)
+def test_a_changed_passage_rejects_a_root_resting_on_it_alone_and_keeps_it(
+    engine, database, lang, s1, s2, ft
+) -> None:
+    """The blocker's case: every fact of a released question goes with its one passage.
+
+    Before the change the trigger deleted the root, and its follow-up with it.
+    """
+    sha, root, follow, _, (_, fact_b) = _thread(
+        engine, "alone-" + lang, lang, s1, s2, ft
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM question_facts WHERE question_id = :q AND fact_id = :f"),
+            {"q": root, "f": fact_b},
+        )
+
+    ChunkQueue().replace(
+        sha,
+        Chunking(
+            passages=[_chunk(1, s1 + " (revised)"), _chunk(2, s2)],
+            oversized=0,
+        ),
+    )
+
+    held = {
+        row.id: row
+        for row in _rows(engine, "questions", "id, status, rejected_reason, release_id")
+    }
+    assert set(held) == {root, follow}, "the root, or its follow-up, was deleted"
+    assert held[root].status == "rejected"
+    assert held[root].rejected_reason == "source_changed"
+    assert held[root].release_id is None
+    assert held[follow].release_id is None, "the follow-up stays out of the release"
+
+
+@pytest.mark.parametrize("lang,s1,s2,ft", CASES)
 def test_a_rechunk_that_changes_nothing_changes_no_id(
     engine, database, lang, s1, s2, ft
 ) -> None:
