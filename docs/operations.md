@@ -1490,8 +1490,12 @@ make archive-purge DAYS=30        # the second deletion. This one is final
 ```
 
 Nothing purges itself, so the archive grows on ordinary runs too — a
-re-extraction and a re-chunk delete what they replace. See
-[`backend/archive/`](../backend/archive/README.md).
+re-extraction and a re-chunk delete what they replace. `make doctor` prints the archive's rows and
+size, read from the planner's statistics so it costs nothing however large the
+archive is. Purge on a cadence per database, after `make backup`: `make
+archive-purge DAYS=<n>` deletes in committed batches of 10,000 rows, so a large
+archive never holds one lock or one transaction, and it takes only this
+database's rows and objects. See [`backend/archive/`](../backend/archive/README.md).
 
 These two archive nothing, because `TRUNCATE` and a dropped volume fire no
 row trigger:

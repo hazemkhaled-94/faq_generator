@@ -33,6 +33,12 @@ def _parser() -> argparse.ArgumentParser:
         "--status", action="store_true", help="what the archive holds, by table"
     )
     group.add_argument(
+        "--size",
+        action="store_true",
+        help="one line: the archive's rows and size as the planner estimates "
+        "them, which costs nothing however large it is. What `make doctor` prints",
+    )
+    group.add_argument(
         "--purge",
         action="store_true",
         help="delete what it holds. Irreversible, unlike the first deletion",
@@ -112,6 +118,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.status:
         return _status(archive)
+
+    if args.size:
+        rows, size = archive.estimate()
+        log.info("archive: about %d row(s), %s", rows, _sized(size))
+        return 0
 
     if not (args.table or args.older_than is not None or args.all):
         log.error(

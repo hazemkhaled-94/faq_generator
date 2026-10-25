@@ -6,13 +6,17 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 
 from blob_store.s3 import ArchiveBucket
 from database.qa_generator.archived_rows import ArchivedRow
 from database.qa_generator.engine import sessions
 
 log = logging.getLogger(__name__)
+
+#: Rows a purge deletes per transaction: one DELETE over a table the size of a
+#: corpus holds its locks, and writes its log, until the very end.
+BATCH = 10_000
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,23 @@ class Archive:
                 ).all()
             ]
 
+    def estimate(self) -> tuple[int, int]:
+        """Rows and bytes the archive table holds, as the planner knows them.
+
+        Read from `pg_class`, so it costs nothing however large the archive
+        has grown, where `rows` reads every payload. An estimate: a table
+        never analysed reports none.
+        """
+        with self._session() as session:
+            rows, size = session.execute(
+                text(
+                    "SELECT greatest(reltuples, 0)::bigint, "
+                    "pg_total_relation_size(oid) FROM pg_class "
+                    "WHERE oid = 'archived_rows'::regclass"
+                )
+            ).one()
+        return int(rows), int(size)
+
     def objects(self) -> tuple[int, int]:
         """How many objects the archive bucket holds, and how many bytes."""
         held = self._bucket.held()
@@ -92,9 +113,9 @@ class Archive:
         Returns:
             How many rows and how many objects were deleted.
         """
-        statement = delete(ArchivedRow)
+        wanted = select(ArchivedRow.id)
         if table is not None:
-            statement = statement.where(ArchivedRow.table_name == table)
+            wanted = wanted.where(ArchivedRow.table_name == table)
 
         with self._session.begin() as session:
             cutoff = (
@@ -104,9 +125,20 @@ class Archive:
                     select(func.now() - timedelta(days=older_than_days))
                 ).scalar_one()
             )
-            if cutoff is not None:
-                statement = statement.where(ArchivedRow.archived_at < cutoff)
-            rows = session.execute(statement).rowcount
+        if cutoff is not None:
+            wanted = wanted.where(ArchivedRow.archived_at < cutoff)
+
+        rows = 0
+        while True:
+            with self._session.begin() as session:
+                taken = session.execute(
+                    delete(ArchivedRow).where(
+                        ArchivedRow.id.in_(wanted.limit(BATCH).scalar_subquery())
+                    )
+                ).rowcount
+            rows += taken
+            if taken < BATCH:
+                break
 
         objects = 0 if table is not None else self._bucket.purge(before=cutoff)
         log.info("purged %d archived row(s) and %d archived object(s)", rows, objects)

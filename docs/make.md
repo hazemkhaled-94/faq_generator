@@ -21,7 +21,7 @@ is the long form.
 |---|---|
 | `make setup` | Write `.env` and `configs/env/provider.env`, and fill in every placeholder |
 | `make install` | The Python dependencies, the spaCy pipelines and Docling's weights |
-| `make doctor` | Check the tools and the configuration, compare the settings the api serves with the checkout's (a warning when the api is down), then ask the model one question |
+| `make doctor` | Check the tools and the configuration, compare the settings the api serves with the checkout's (a warning when the api is down), then ask the model one question, and print the archive's estimated rows and size (`python -m archive.run --size`) |
 | `make dev` | `make install` first, then certificates, every service, the schema and the Grafana grants |
 
 `setup` is safe to run twice: it replaces `change_me_*` placeholders and

@@ -8,6 +8,7 @@ make archive                          # what is held, by table, with its age
 make archive-purge TABLE=questions    # one table's rows
 make archive-purge DAYS=30            # everything held longer than that
 make archive-purge ALL=1              # the whole thing, objects included
+# a purge deletes 10,000 rows per committed transaction; `python -m archive.run --size` estimates rows and size from pg_class
 ```
 
 ## Nothing here archives anything

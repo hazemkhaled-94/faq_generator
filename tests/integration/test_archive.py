@@ -270,3 +270,49 @@ def test_a_topic_membership_is_archived_with_its_passage(archive, held, engine) 
 
     assert archived(engine)["passage_topics"] == 1
     assert "topics" not in archived(engine), "a fit is over the corpus, not a file"
+
+
+def fill(engine, count: int) -> None:
+    """`count` archived rows of one table, as the trigger would have left them."""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO archived_rows (table_name, payload) "
+                "SELECT 'questions', jsonb_build_object('id', n) "
+                "FROM generate_series(1, :count) AS n"
+            ),
+            {"count": count},
+        )
+
+
+def test_a_purge_commits_in_batches_not_in_one_delete(
+    archive, engine, monkeypatch
+) -> None:
+    """A purge of a table the size of a corpus held one lock and one log record."""
+    from sqlalchemy import event
+
+    from archive import store
+
+    fill(engine, 25)
+    monkeypatch.setattr(store, "BATCH", 10)
+    commits: list[int] = []
+    bind = archive._session.kw["bind"]
+    event.listen(bind, "commit", lambda connection: commits.append(1))
+
+    purged = archive.purge(older_than_days=0)
+
+    assert purged.rows == 25
+    assert archived(engine) == {}
+    assert len(commits) >= 3, "ten rows at a time, not one transaction for all"
+
+
+def test_the_archive_size_is_estimated_without_counting_it(archive, engine) -> None:
+    """What `make doctor` prints: the planner's row count and the table's size."""
+    fill(engine, 25)
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        connection.execute(text("ANALYZE archived_rows"))
+
+    rows, size = archive.estimate()
+
+    assert rows == 25
+    assert size > 0

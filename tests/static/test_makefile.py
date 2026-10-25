@@ -1038,3 +1038,8 @@ def test_the_wipe_preflight_passes_when_no_store_runs(tmp_path: Path) -> None:
     done = made("wipe-preflight", f"COMPOSE={engine}")
     assert done.returncode == 0, done
     assert "not running" in done.stdout, done.stdout
+
+
+def test_doctor_prints_what_the_archive_holds() -> None:
+    """The archive grows with every rerun; nobody looks unless doctor does."""
+    assert any("archive.run --size" in line for line in printed("doctor"))

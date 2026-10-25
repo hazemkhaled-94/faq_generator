@@ -346,6 +346,8 @@ doctor:
 	echo; echo "Asking every model a stage calls one question, as the host calls it..."; \
 	PYTHONPATH=backend poetry run python -m api.doctor || fail=1; \
 	echo; \
+	PYTHONPATH=backend poetry run python -m archive.run --size || say "-" "the archive could not be read"; \
+	echo; \
 	if test $$fail -eq 0; then echo "Ready. Next: make dev"; \
 	  else echo "Fix the above, then run make doctor again."; exit 1; fi
 
