@@ -299,7 +299,7 @@ asked again for one well-formed search query in keywords, where a question
 is told to end in a single question mark. Prompt version 19 is the first to
 send the line; a slot dealt no query is sent what version 18 sent.
 
-Prompt version 31 adds two rules to what the writer reads. Every writer is
+Prompt version 32 adds two rules to what the writer reads. Every writer is
 told the reader never sees the passage, so the question names the rule,
 product or procedure in its own words and never "the article" or "the
 regulation". An answerable writer is also told to put the case, party or
