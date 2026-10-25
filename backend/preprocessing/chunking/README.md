@@ -53,10 +53,7 @@ heading trail, which extraction and question generation both show the
 model. A list longer than one chunk carries its lead-in on: every chunk
 after, under the same headings, that opens with a list item and follows a
 chunk ending on one has the lead-in appended to its trail, wherever the
-lead-in itself was kept. A list item ending on ":" is the lead-in of the
-sub-items nested under it the same way: every chunk after one that closes
-on them, and opens with an item nested deeper than it, has it appended to its
-trail, until an item at its own depth or above ends what it introduces. A lead-in followed by a sub-heading introduces
+lead-in itself was kept. A lead-in followed by a sub-heading introduces
 what the sub-heading opens, as `The bank charges a fee when:` does a section
 per case: it moves into that chunk the same way, and heads every later chunk
 opening with a list item under a heading below its own, until a heading at
