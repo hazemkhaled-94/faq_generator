@@ -1084,9 +1084,10 @@ SETTINGS: tuple[Setting, ...] = (
         service="assessment",
         kind="boolean",
         help="Whether the sample spans every language, and every type of "
-        "question, in an order fixed by a hash of the id, instead of taking "
-        "the newest rows. Drawn again over the same corpus, it is the same "
-        "rows.",
+        "question, each in proportion to its size, in an order fixed by a "
+        "hash of the id, instead of taking the newest rows. Questions come "
+        "from the released ones once a release has been drawn. Drawn again "
+        "over the same corpus, it is the same rows.",
     ),
     Setting(
         name="WORKER_POLL_SECONDS",

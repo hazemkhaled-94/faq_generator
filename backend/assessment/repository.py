@@ -12,10 +12,12 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from sqlalchemy import (
+    Float,
     Select,
     Text,
     and_,
     case,
+    cast,
     delete,
     func,
     literal,
@@ -70,6 +72,14 @@ _JUDGEABLE_QUESTION = and_(
     Question.answerable.is_(True),
     Question.target_answer.is_not(None),
     Question.status != QuestionStatus.DRAFT,
+)
+
+#: Questions enrolled are the released ones where a release has been drawn,
+#: which is the scope the workbook reports, and every judgeable one where none
+#: has: there is then nothing to narrow it to.
+_IN_THE_RELEASE = or_(
+    Question.release_id.is_not(None),
+    ~select(Question.id).where(Question.release_id.is_not(None)).exists(),
 )
 
 #: The next artefact to judge. FOR UPDATE SKIP LOCKED, so scaling the
@@ -328,7 +338,7 @@ class AssessmentQueue(RowQueue):
             ),
             ArtifactKind.QUESTION: (
                 select(Question.id)
-                .where(_JUDGEABLE_QUESTION)
+                .where(_JUDGEABLE_QUESTION, _IN_THE_RELEASE)
                 .order_by(Question.id.desc()),
                 "question_id",
                 (Question.language, Question.question_type),
@@ -337,9 +347,10 @@ class AssessmentQueue(RowQueue):
         source, column, bands = enrolled[kind]
         # Newest first, so a sample of a corpus judged once already is the
         # part that arrived since rather than the part judged before.
-        # Stratified, the first of every band in an order fixed by a hash of
-        # the id, then the second, so a sample spans every band and a second
-        # draw over the same corpus is the first.
+        # Stratified, each band's rows in an order fixed by a hash of the id,
+        # taken by how far through its band each one is, so a band of 900 and
+        # a band of 100 give 180 and 20 of 200: the sample's shares are the
+        # population's, and a second draw over the same corpus is the first.
         # ponytail: an artefact arriving after a draw that hashes into its
         # band's first places is enrolled by the next stratified start, so
         # the sample grows with the corpus. The upgrade is recording which
@@ -347,7 +358,11 @@ class AssessmentQueue(RowQueue):
         if stratify:
             shuffled = func.md5(source.selected_columns[0].cast(Text))
             source = source.order_by(None).order_by(
-                func.row_number().over(partition_by=bands, order_by=shuffled),
+                cast(
+                    func.row_number().over(partition_by=bands, order_by=shuffled),
+                    Float,
+                )
+                / func.count().over(partition_by=bands),
                 shuffled,
             )
         if sample > 0:

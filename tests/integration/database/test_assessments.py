@@ -16,7 +16,7 @@ from dataclasses import replace
 
 import pytest
 from seed import digest, document, fact, fitted, link, passage, question
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from assessment.models import Assessed, Judgement
@@ -677,3 +677,85 @@ def test_a_question_is_judged_on_its_first_facts_in_order(engine, database) -> N
 
     assert claimed is not None
     assert claimed.fields["facts"].splitlines() == [f"- Claim {n}." for n in range(8)]
+
+
+def _bulk_questions(engine, by_language: dict[str, int], **columns: str) -> None:
+    """Accepted, answerable questions in bulk, `n` of each language."""
+    with engine.begin() as connection:
+        for language, count in by_language.items():
+            connection.execute(
+                text(
+                    "INSERT INTO questions (question_text, answerable, language, "
+                    "target_answer, status, question_type) "
+                    "SELECT :text || g, true, :language, 'x', 'accepted', "
+                    ":kind FROM generate_series(1, :n) AS g"
+                ),
+                {
+                    "text": f"Frage {language} ",
+                    "language": language,
+                    "kind": columns.get("kind", "factoid"),
+                    "n": count,
+                },
+            )
+
+
+@pytest.mark.parametrize(
+    ("big", "small"),
+    [("de", "en"), ("en", "de")],
+    ids=["german-heavy", "english-heavy"],
+)
+def test_a_stratified_sample_follows_the_strata_it_draws_from(
+    engine, database, big, small
+) -> None:
+    """900 and 100 questions give 180 and 20 of 200, not 100 and 100."""
+    _bulk_questions(engine, {big: 900, small: 100})
+
+    AssessmentQueue(kinds=("question",), sample=200, stratify=True).enrol()
+
+    with engine.connect() as connection:
+        counts = dict(
+            connection.execute(
+                text(
+                    "SELECT q.language, count(*) FROM assessments a "
+                    "JOIN questions q ON q.id = a.question_id GROUP BY 1"
+                )
+            ).all()
+        )
+    assert counts == {big: 180, small: 20}
+
+
+def test_a_sample_is_drawn_from_the_release_where_one_was_drawn(
+    engine, database
+) -> None:
+    """The scope the workbook reports: the released questions alone."""
+    _bulk_questions(engine, {"de": 6, "en": 6})
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE questions SET release_id = gen_random_uuid() "
+                "WHERE id IN (SELECT id FROM questions WHERE language = 'de' "
+                "ORDER BY id LIMIT 3) OR id IN (SELECT id FROM questions "
+                "WHERE language = 'en' ORDER BY id LIMIT 2)"
+            )
+        )
+        released = set(
+            connection.execute(
+                text("SELECT id FROM questions WHERE release_id IS NOT NULL")
+            ).scalars()
+        )
+
+    AssessmentQueue(kinds=("question",), sample=0, stratify=False).enrol()
+
+    assert _enrolled_questions(engine) == released
+    assert len(released) == 5
+
+
+def test_a_sample_is_drawn_from_every_question_where_none_was_released(
+    engine, database
+) -> None:
+    """No release, so nothing narrows it: what the sample always was."""
+    _bulk_questions(engine, {"de": 3, "en": 3})
+
+    AssessmentQueue(kinds=("question",), sample=0, stratify=False).enrol()
+
+    assert len(_enrolled_questions(engine)) == 6

@@ -306,7 +306,7 @@ From [`configs/env/backend.env`](../../configs/env/backend.env), in git:
 | --- | --- |
 | `ASSESSMENT_KINDS` | Which artefacts are judged |
 | `ASSESSMENT_SAMPLE` | How many of each kind one `start` enrols, newest first. 0 is all of them |
-| `ASSESSMENT_STRATIFY` | Whether that sample spans every language, and every type of question, in an order fixed by a hash of the id, instead of taking the newest. Drawn again, it is the same rows |
+| `ASSESSMENT_STRATIFY` | Whether that sample spans every language, and every type of question, each in proportion to its size (900 and 100 questions give 180 and 20 of 200), in an order fixed by a hash of the id, instead of taking the newest. Drawn again, it is the same rows |
 
 ## How varied the questions are
 
@@ -521,6 +521,9 @@ poetry run pytest tests/unit/assessment
   `assessed`, its stored `approved` is false, and every reader counts it as
   thin: neither approved nor refused.
 - **Unanswerable questions are not enrolled.** They have no answer to judge.
+- **Once a release is drawn, only released questions are enrolled.** That is
+  the set the workbook reports; before one is drawn, every judgeable question
+  is eligible. Questions judged earlier keep their verdicts.
 - **`hallucination`, `toxicity` and `refusal` score 1.0 for the bad label.**
   Read the direction.
 - **A sample is the default.** `ASSESSMENT_SAMPLE=0` judges the corpus, and
