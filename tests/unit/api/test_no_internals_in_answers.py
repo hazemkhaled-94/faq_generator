@@ -67,6 +67,42 @@ def test_a_failing_object_store_is_reported_without_its_endpoint(monkeypatch) ->
     assert "seaweedfs" not in reported.detail
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "HTTPConnectionPool(host='dagster-webserver', port=3000): Max retries exceeded",
+        "Verbindung zu dagster-webserver:3000 abgelehnt",
+    ],
+)
+def test_an_orchestrator_that_does_not_answer_is_reported_without_its_address(
+    failure: str, caplog
+) -> None:
+    """Unreachable, and neither its address nor the transport's sentence.
+
+    What GET /pipeline polls and what a 503 carries; the log keeps both.
+    """
+    import requests
+
+    from api.orchestrator import Dagster, Unavailable
+
+    class Down:
+        def post(self, *_, **__):
+            raise requests.exceptions.ConnectionError(failure)
+
+    client = Dagster("http://dagster-webserver:3000", session=Down())  # type: ignore[arg-type]
+    caplog.set_level(logging.ERROR)
+
+    detail = client.state().detail or ""
+    with pytest.raises(Unavailable) as raised:
+        client.launch()
+
+    for said in (detail, str(raised.value)):
+        assert "nreachable" in said
+        assert "dagster-webserver" not in said
+        assert failure not in said
+    assert failure in caplog.text
+
+
 @pytest.fixture
 def broken() -> TestClient:
     """An application whose one route fails as a driver fails."""

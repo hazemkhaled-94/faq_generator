@@ -168,15 +168,22 @@ class Dagster:
                 timeout=_TIMEOUT,
             )
         except requests.exceptions.RequestException as unreachable:
+            # Its address and the transport's sentence are the deployment's:
+            # they go to the log, with the request's trace id.
+            log.error("orchestrator at %s unreachable: %s", self._url, unreachable)
             raise Unavailable(
-                f"the orchestrator at {self._url} is not answering: {unreachable}"
+                "The orchestrator is unreachable; see the api log."
             ) from unreachable
         try:
             body = response.json()
         except ValueError as unreadable:
+            log.error(
+                "orchestrator at %s replied %d with something that is not GraphQL",
+                self._url,
+                response.status_code,
+            )
             raise Unavailable(
-                f"the orchestrator at {self._url} is not answering: it replied "
-                f"{response.status_code} with something that is not GraphQL"
+                "The orchestrator is unreachable; see the api log."
             ) from unreadable
         if body.get("errors"):
             raise Refused(

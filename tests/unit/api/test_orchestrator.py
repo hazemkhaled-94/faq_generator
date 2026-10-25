@@ -128,7 +128,7 @@ def test_a_webserver_that_is_down_reads_as_unavailable_rather_than_raising() -> 
 
     assert state.available is False
     assert state.automation.available is False
-    assert "not answering" in (state.detail or "")
+    assert "unreachable" in (state.detail or "")
 
 
 def test_a_verb_against_a_missing_orchestrator_raises_unavailable() -> None:
