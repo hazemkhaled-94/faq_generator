@@ -130,8 +130,10 @@ _STATES = ("new", "pending", "in_progress", "parsed", "failed")
 
 #: What either deletion takes beyond the document's own rows.
 _ALSO = (
-    "The questions resting on its facts go too, person-reviewed and released "
-    "ones included, and so does every bridge it shares with another document."
+    "The questions resting only on its facts go too, person-reviewed and "
+    "released ones included, and so does every bridge it shares with another "
+    "document. A question that also rests on another document's facts is "
+    "rejected (source changed) and kept."
 )
 
 #: Everything a document row holds, by the heading the detail table gives it.

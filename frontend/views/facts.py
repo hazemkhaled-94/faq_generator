@@ -196,9 +196,10 @@ _DECOMPOSITION_FLOOR = 1.2
 #: What Redo deletes, said before it acts.
 _REDO = (
     "Extracting a passage again replaces its facts. Every fact drawn from it "
-    "goes, bridges apart, and with them the questions resting on those "
-    "facts, person-reviewed and released questions included. The rows are "
-    "archived, and nothing here puts them back."
+    "goes, bridges apart. The questions resting on those facts are rejected "
+    "as source_changed and kept, person-reviewed and released ones "
+    "included; nothing is deleted. The facts are archived, and nothing here "
+    "puts them back."
 )
 
 

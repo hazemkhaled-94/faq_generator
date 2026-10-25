@@ -57,15 +57,24 @@ class CatalogApi(Endpoint):
         return self._request("GET", f"/{stage}{_within(scope)}/status").json()
 
     def stage_action(
-        self, stage: str, action: str, scope: tuple[str, str] | None = None
+        self,
+        stage: str,
+        action: str,
+        scope: tuple[str, str] | None = None,
+        force: bool = False,
     ) -> dict:
         """Moves rows on or off one stage's queue, for one item or for all.
 
         None of these runs anything: they move rows between statuses, and the
         stage's worker picks up whatever is claimable on its next poll.
+        `force` goes on a rerun over questions people accepted or reviewed,
+        which the API refuses with a 409 until it is sent.
         """
         return self._request(
-            "POST", f"/{stage}{_within(scope)}/{action}", timeout=30
+            "POST",
+            f"/{stage}{_within(scope)}/{action}",
+            timeout=30,
+            params={"force": "true"} if force else None,
         ).json()
 
     def topics(self) -> list[dict]:

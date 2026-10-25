@@ -160,10 +160,11 @@ def _verbs(
     everything = scope is None and scopes is None
     unit = queue.unit
     armed = _key("redo", queue, scope)
+    forcing = _key("force", queue, scope)
 
-    def act(action: str) -> None:
+    def act(action: str, force: bool = False) -> None:
         """Runs one verb over whatever this control is pointed at."""
-        _act(client, queue.name, scope, action, scopes)
+        _act(client, queue.name, scope, action, scopes, force, forcing)
 
     row = st.container(horizontal=True, vertical_alignment="center")
 
@@ -220,6 +221,12 @@ def _verbs(
 
     if redo_warning and _confirmed(armed, redo_warning, "Yes, redo"):
         act("rerun")
+
+    # The API's own count of what the rerun would reject, put to the person.
+    if _confirmed(
+        forcing, st.session_state.get(forcing, ""), "Yes, reject them and redo"
+    ):
+        act("rerun", force=True)
 
 
 def _confirmed(armed: str, warning: str, label: str) -> bool:
@@ -314,8 +321,14 @@ def _act(
     scope: tuple[str, str] | None,
     action: str,
     scopes: Sequence[tuple[str, str]] | None = None,
+    force: bool = False,
+    refused: str | None = None,
 ) -> None:
     """Sends one queue action and says what it did.
+
+    A rerun the API refuses because released or reviewed questions rest on it
+    (409 `questions_rest_on_it`) arms `refused`, a session key, with the
+    refusal's own count; the caller then asks again with `force`.
 
     The whole app, not just this fragment: the figures at the top of the
     page count the same queue these verbs just moved.
@@ -324,22 +337,38 @@ def _act(
     to one value. They are reported as one line: somebody who ticked two
     kinds asked for one thing.
     """
+    sent = {"force": True} if force else {}
     try:
         if scopes is None:
-            answer = client.stage_action(stage, action, scope)
+            answer = client.stage_action(stage, action, scope, **sent)
             said = answer.get("detail") or f"{stage}: {action}"
         else:
             moved = sum(
-                client.stage_action(stage, action, one).get("rows", 0) for one in scopes
+                client.stage_action(stage, action, one, **sent).get("rows", 0)
+                for one in scopes
             )
             named = ", ".join(value for _, value in scopes)
             said = f"{stage}: {action} moved {moved:,} row(s) for {named}"
     except requests.exceptions.RequestException as exc:
+        if refused and _is_resting(exc):
+            st.session_state[refused] = refusal(exc)
+            st.rerun(scope="app")
         st.error(refusal(exc))
         return
     page.acted()
     st.toast(said)
     st.rerun(scope="app")
+
+
+def _is_resting(error: requests.exceptions.RequestException) -> bool:
+    """Whether the API refused because questions rest on what the rerun replaces."""
+    response = getattr(error, "response", None)
+    if response is None or response.status_code != 409:
+        return False
+    try:
+        return response.json().get("code") == "questions_rest_on_it"
+    except (ValueError, AttributeError):
+        return False
 
 
 def removal(

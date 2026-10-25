@@ -90,9 +90,10 @@ _STATES = ("new", "pending", "in_progress", "chunked", "failed")
 #: What Redo deletes, said before it acts.
 _REDO = (
     "Chunking a document again replaces all of its passages. The facts drawn "
-    "from them go, with every bridge citing one of them and the questions "
-    "resting on those facts, person-reviewed and released questions "
-    "included. The rows are archived, and nothing here puts them back."
+    "from them go, with every bridge citing one of them. The questions "
+    "resting on those facts are rejected as source_changed and kept, "
+    "person-reviewed and released ones included; nothing is deleted. The "
+    "facts are archived, and nothing here puts them back."
 )
 
 
