@@ -85,7 +85,7 @@ and gives back the objects already moved.
 returns `chunk_status` to `new`. Both objects stay.
 
 A question a rerun left with no fact (rejected `source_changed`) keeps no link
-to its document through `question_facts`, so a trigger on `passages` and on
+to its document through `question_facts`, so a trigger on `passages`, on `fact_passages` and on
 `facts` stamps `questions.source_digests` with the documents a deleted source
 belonged to, and a deletion deletes every question stamped with one of its
 digests: one written from two documents goes with either.

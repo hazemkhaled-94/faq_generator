@@ -10,7 +10,7 @@ deleting a document, or what was derived from it, deletes that document's
 questions explicitly, before the cascade runs. A question left with no fact
 keeps no link to its document, so `questions.source_digests` records the
 documents a deleted passage or fact belonged to (BEFORE DELETE triggers on
-`passages` and `facts`, while `fact_passages` still names them) and the
+`passages`, `facts` and `fact_passages`, while the document is still known) and the
 explicit delete finds the question by it.
 
 Revision: 4a7c2e91d3b8
@@ -109,6 +109,24 @@ END;
 $$;
 """
 
+_STAMP_CITATION = """
+CREATE OR REPLACE FUNCTION stamp_questions_with_citation_document() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    digest char(64);
+BEGIN
+    SELECT p.doc_sha256 INTO digest FROM passages p WHERE p.id = OLD.passage_id;
+    IF digest IS NOT NULL THEN
+        UPDATE questions q
+           SET source_digests = coalesce(q.source_digests, '{}') || digest
+         WHERE q.id IN (SELECT qf.question_id FROM question_facts qf WHERE qf.fact_id = OLD.fact_id)
+           AND NOT coalesce(q.source_digests, '{}') @> ARRAY[digest];
+    END IF;
+    RETURN OLD;
+END;
+$$;
+"""
+
 _COMMENT = (
     "The test questions themselves. Append-only: rejected questions are the "
     "drop-rate evidence in the coverage report. Losing a fact, the last one "
@@ -152,12 +170,19 @@ def upgrade() -> None:
         "CREATE TRIGGER facts_stamp_questions BEFORE DELETE ON facts "
         "FOR EACH ROW EXECUTE FUNCTION stamp_questions_with_fact_documents()"
     )
+    op.execute(_STAMP_CITATION)
+    op.execute(
+        "CREATE TRIGGER fact_passages_stamp_questions BEFORE DELETE ON fact_passages "
+        "FOR EACH ROW EXECUTE FUNCTION stamp_questions_with_citation_document()"
+    )
     op.execute(_FUNCTION.format(body=_REJECTS))
     op.execute(f"COMMENT ON TABLE questions IS '{_COMMENT}'")
 
 
 def downgrade() -> None:
     """Deletes a question left with no fact again, and drops the stamp."""
+    op.execute("DROP TRIGGER fact_passages_stamp_questions ON fact_passages")
+    op.execute("DROP FUNCTION stamp_questions_with_citation_document()")
     op.execute("DROP TRIGGER facts_stamp_questions ON facts")
     op.execute("DROP TRIGGER passages_stamp_questions ON passages")
     op.execute("DROP FUNCTION stamp_questions_with_fact_documents()")
