@@ -227,9 +227,10 @@ NOT_GO_LIVE = $(LOADENV) && { ! $(GO_LIVE) || \
 CORPUS_LEDGER = logs/corpus-spend-$(CORPUS_DB).usd
 
 # What the hosted run is given: the database it acts on, recorded beside its
-# process group, and RESET when asked for. The rest of a command line, such
-# as SPEND_CAP, reaches its `make corpus` through MAKEFLAGS.
-HOSTED_ARGS = APP_DB_NAME=$(CORPUS_DB) $(if $(RESET),RESET=1)
+# process group, and RESET as given, which the runner reads as a spelling of
+# yes or not. The rest of a command line, such as SPEND_CAP, reaches its
+# `make corpus` through MAKEFLAGS.
+HOSTED_ARGS = APP_DB_NAME=$(CORPUS_DB) $(if $(RESET),RESET=$(RESET))
 
 # What a resumed run puts back in the queue before it starts: a drain killed
 # mid-row leaves its row failed, and rows left failed are not claimed again.

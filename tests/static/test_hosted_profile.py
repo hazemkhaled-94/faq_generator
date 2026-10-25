@@ -546,8 +546,14 @@ def test_make_corpus_beside_a_live_hosted_run_of_its_database_is_refused(
     assert ledger.read_text() == "3.5\n"
 
 
-def test_reset_starts_a_fresh_run_after_a_stop(tmp_path: Path) -> None:
-    """The one way to start the count again besides a run that finished."""
+@pytest.mark.parametrize(
+    ("value", "fresh"),
+    [("1", True), ("yes", True), ("TRUE", True), ("0", False), ("no", False)],
+)
+def test_reset_starts_a_fresh_run_after_a_stop(
+    tmp_path: Path, value: str, fresh: bool
+) -> None:
+    """The one way to start the count again besides a run that finished: a spelling of yes."""
     project = _project(tmp_path, env=GO_LIVE)
     ledger = project / LEDGER
     _make(project, "corpus-hosted", FAIL="extraction.run --digests", CODE="75")
@@ -555,12 +561,12 @@ def test_reset_starts_a_fresh_run_after_a_stop(tmp_path: Path) -> None:
     ledger.write_text("45.0\n")
     (project / "drains.log").unlink()
 
-    again = _make(project, "corpus-hosted", "RESET=1")
+    again = _make(project, "corpus-hosted", f"RESET={value}")
     assert again.returncode == 0, again.stderr
     _waited(project, runs=2)
 
-    assert not any(" --retry" in line for line in _drained(project))
-    assert not ledger.read_text().startswith("45.0")
+    assert any(" --retry" in line for line in _drained(project)) is not fresh
+    assert ledger.read_text().startswith("45.0") is not fresh
 
 
 def test_a_stopped_run_is_not_resumed_on_another_database(tmp_path: Path) -> None:

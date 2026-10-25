@@ -49,7 +49,12 @@ resuming=
 given=()
 for word in "$@"; do
   case $word in
-    RESET=?*) reset=1; continue ;;
+    # A spelling of yes, as every setting reads one (settings/env.py's _TRUE):
+    # RESET=0 resumes.
+    RESET=*)
+      case $(printf %s "${word#RESET=}" | tr '[:upper:]' '[:lower:]') in 1 | true | yes | on) reset=1 ;; esac
+      continue
+      ;;
     RESUME=?*) resuming=1 ;;
     APP_DB_NAME=*) database=${word#APP_DB_NAME=}; named=1 ;;
   esac

@@ -113,8 +113,10 @@ def _holds_any(cache: Path, repo: str) -> bool:
 
 
 def _yes(value: str | None) -> bool:
-    """Whether a flag's value is a spelling of yes."""
-    return (value or "").strip().lower() in ("1", "true", "yes", "on")
+    """Whether a flag's value is a spelling of yes, as every setting reads one."""
+    from settings.env import _TRUE
+
+    return (value or "").strip().lower() in _TRUE
 
 
 def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:

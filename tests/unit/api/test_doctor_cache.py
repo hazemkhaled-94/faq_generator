@@ -292,3 +292,22 @@ def test_a_missing_encoder_names_the_command_that_fetches_its_commit(tmp_path) -
     (said,) = [one for one in cache_problems(source(tmp_path)) if EMBEDDER[0] in one]
 
     assert f"hf download {EMBEDDER[0]} --revision {EMBEDDER[1]}" in said
+
+
+@pytest.mark.parametrize(
+    ("value", "strict"),
+    [
+        ("1", True),
+        (" Yes ", True),
+        ("TRUE", True),
+        ("on", True),
+        ("0", False),
+        ("no", False),
+    ],
+)
+def test_the_doctor_reads_yes_as_every_setting_does(tmp_path, value, strict) -> None:
+    """One reader of the spellings of yes, settings.env's, not a second one."""
+    from settings.env import _TRUE
+
+    assert cache_check(source(tmp_path, HF_HUB_OFFLINE=value, HOST_RUNNER="")) == strict
+    assert (value.strip().lower() in _TRUE) is strict
