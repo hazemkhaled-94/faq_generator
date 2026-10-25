@@ -123,7 +123,7 @@ equivalent of.
 | `make dev` | `make install` first (poetry install, the spaCy downloads and Docling's weights, which need the network), then certificates, every service, wait for PostgreSQL, create the schema, then the grants `make up` makes. Use `make up` to start an installed stack |
 | `make install` | `make install-python`, then `make docling-weights` |
 | `make install-python` | Dependencies and the spaCy pipelines `NLP_MODELS` names, on the host alone. What CI's setup runs |
-| `make docling-weights` | Download Docling's weights into the `models` volume parse-worker reads offline. Needs the container engine; fetches nothing already cached |
+| `make docling-weights` | Download Docling's weights into the `models` volume parse-worker reads offline. Needs the container engine; fetches nothing already cached. `HOST=1` fetches them into the host's own Hugging Face cache instead, which `make doctor`, the hosted run's preflight and a host drain read |
 | `make up` | Start services, then grant Grafana's reader the five Phoenix tables the run dashboard queries. It waits up to 150 seconds for Phoenix to make them and then grants anyway, so a slow first boot fails here with the stack up; run `make grafana-grants` again |
 | `make grafana-grants` | Those grants alone. Safe to run again |
 | `make down` | Stop services, keep data, and remove dangling images |

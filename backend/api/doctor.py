@@ -141,7 +141,8 @@ def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
             found.append(
                 f"{model} {repo} at {revision or 'main'} is not in the cache "
                 f"{cache}, or holds no weights there: fetch it once where the "
-                "Hub is reachable"
+                f"Hub is reachable, with poetry run hf download {repo} "
+                f"--revision {revision or 'main'}"
             )
     artifacts = (source.get("DOCLING_ARTIFACTS_PATH") or "").strip()
     if artifacts:
@@ -153,9 +154,11 @@ def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
                 "reachable"
             )
     else:
+        # The host's cache, which `make docling-weights` alone does not fill:
+        # that one fills the containers' `models` volume.
         found += [
             f"Docling's {repo} is not in the cache {cache}: run make "
-            "docling-weights where the Hub is reachable"
+            "docling-weights HOST=1 where the Hub is reachable"
             for repo in _DOCLING_REPOS
             if not _holds_any(cache, repo)
         ]

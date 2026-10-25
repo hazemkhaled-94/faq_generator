@@ -568,8 +568,10 @@ From a fresh clone, following only this page:
    naming any encoder, at its pinned commit, or Docling weight that is missing
    or holds no weights; on this profile that fails, as it does with
    `HF_HUB_OFFLINE=1`, and `make corpus-hosted` checks it again before it
-   detaches. Fill the cache once beforehand, where the
-   Hub is reachable, as [configuration](configuration.md#pinning-the-encoders) says.
+   detaches. Fill the host's cache once beforehand, where the Hub is
+   reachable: `make docling-weights HOST=1` for Docling and the
+   `poetry run hf download` line the doctor prints for a missing encoder, as
+   [configuration](configuration.md#pinning-the-encoders) says.
 5. Upload the documents on the Upload page, or with `curl -F file=@x.pdf`.
 6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
    detached: `logs/corpus-hosted.log` holds what it does and

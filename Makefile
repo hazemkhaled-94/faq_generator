@@ -538,8 +538,12 @@ install-python:
 # so a fresh volume failed every document. chunk-worker is the same image
 # with the same volume on a network that reaches the hub. Builds the image
 # if there is none yet; fetches nothing already cached.
+#
+# HOST=1 runs the same fetch on the host, into the host's own Hugging Face
+# cache, which is what `make doctor` and the hosted run's preflight read and
+# what a host drain loads with the Hub off: the volume is no use to them.
 docling-weights:
-	$(COMPOSE_CMD) run --rm --no-deps chunk-worker python -m preprocessing.parsing.weights
+	$(if $(filter 1,$(HOST)),$(LOADENV) && HF_HUB_OFFLINE=0 PYTHONPATH=backend poetry run python -m preprocessing.parsing.weights,$(COMPOSE_CMD) run --rm --no-deps chunk-worker python -m preprocessing.parsing.weights)
 
 # ── Services ───────────────────────────────────────────────────────────────
 

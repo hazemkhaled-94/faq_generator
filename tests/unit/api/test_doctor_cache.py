@@ -271,3 +271,24 @@ def test_a_docling_repository_with_no_snapshot_is_named(tmp_path) -> None:
     (said,) = cache_problems(source(tmp_path))
 
     assert "docling-models" in said
+
+
+# ── What fills the cache this check reads ─────────────────────────────────
+
+
+def test_missing_docling_weights_name_the_host_fetch(tmp_path) -> None:
+    """The plain target fills the containers' volume, not the host cache read here."""
+    cached(tmp_path, *EMBEDDER)
+    cached(tmp_path, *CLASSIFIER)
+
+    said = cache_problems(source(tmp_path))
+
+    assert len(said) == 2
+    assert all("make docling-weights HOST=1" in one for one in said), said
+
+
+def test_a_missing_encoder_names_the_command_that_fetches_its_commit(tmp_path) -> None:
+    """The repository at the pinned commit, into the cache this check reads."""
+    (said,) = [one for one in cache_problems(source(tmp_path)) if EMBEDDER[0] in one]
+
+    assert f"hf download {EMBEDDER[0]} --revision {EMBEDDER[1]}" in said

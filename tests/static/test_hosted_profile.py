@@ -808,3 +808,15 @@ def test_the_launchd_daemon_restarts_only_a_crash() -> None:
     assert job["KeepAlive"] == {"SuccessfulExit": False}
     assert job["RunAtLoad"] is True
     assert job["ExitTimeOut"] > 300
+
+
+def test_docling_weights_host_fills_the_host_cache_and_not_the_volume() -> None:
+    """What make doctor and the hosted preflight read on the go-live host."""
+    hosted = printed("docling-weights", "HOST=1")
+    volume = printed("docling-weights")
+
+    assert any(
+        "poetry run python -m preprocessing.parsing.weights" in line for line in hosted
+    ), hosted
+    assert not any("compose" in line and " run " in line for line in hosted), hosted
+    assert any("run --rm --no-deps chunk-worker" in line for line in volume), volume

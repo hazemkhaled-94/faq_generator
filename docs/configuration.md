@@ -180,9 +180,11 @@ folder and in the cache otherwise. It fails on what is missing with
 `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, and warns otherwise, where a first load
 fetches it; `make corpus-hosted` checks it with the Hub off before it detaches. `DOCLING_ARTIFACTS_PATH` set and
 empty is refused, because Docling reads it as the working directory. Fill the
-cache once, where the Hub is reachable, before go-live: `make docling-weights`
-for the converter, and one run of the chunk and question stages (or the
-`huggingface-cli download <repo> --revision <commit>` of each) for the encoders.
+host's cache once, where the Hub is reachable, before go-live: `make
+docling-weights HOST=1` for the converter (plain `make docling-weights` fills
+the containers' `models` volume, which the parse worker reads and the host
+does not), and `poetry run hf download <repo> --revision <commit>` of each
+encoder, the line `make doctor` prints for one it misses.
 
 ## Precedence
 
