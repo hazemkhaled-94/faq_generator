@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Mapping
+import re
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -43,6 +44,35 @@ def synced(path: Path) -> str | None:
         if folded.startswith(_SYNC_PREFIXES) or folded in _SYNC_NAMES:
             return part
     return None
+
+
+#: The committed files the secrets file is read after, in the order the Makefile
+#: and compose read them: a name `.env` sets again wins over theirs.
+_COMMITTED = (
+    Path("configs/env/backend.env"),
+    Path("configs/env/deployment.env"),
+)
+
+#: A live assignment, as the Makefile's ASSIGNED reads one: a comment is none.
+_ASSIGNED = re.compile(r"^([A-Z][A-Z0-9_]*)=", re.MULTILINE)
+
+
+def _assigned(path: Path) -> set[str]:
+    return set(_ASSIGNED.findall(path.read_text())) if path.is_file() else set()
+
+
+def overridden(
+    env_file: Path, committed: Sequence[Path] = _COMMITTED
+) -> list[tuple[str, Path]]:
+    """Every name the secrets file sets that a committed file sets too, with that file.
+
+    A second stack moves its ports this way, and a value set twice by mistake
+    wins the same way unseen, so `make doctor` names each one.
+    """
+    secrets = _assigned(env_file)
+    return [
+        (name, path) for path in committed for name in sorted(secrets & _assigned(path))
+    ]
 
 
 #: The repositories Docling's converter reads from the Hugging Face cache when
@@ -362,6 +392,9 @@ def main() -> int:
                 where,
                 folder,
             )
+    secrets = Path(os.environ.get("ENV_FILE") or ".env")
+    for name, path in overridden(secrets):
+        log.info("%s sets %s over %s", secrets, name, path)
     log.info("%s", describe())
     failed = _split_and_password()
     failed = cache_check() or failed

@@ -27,11 +27,18 @@ beside it.
 | `configs/env/provider.env` | **no** | Whatever env vars the model provider needs. `make setup` writes it from `configs/env/provider.env.example`, which is in git |
 | `.env` | **no** | The credentials, and which model this deployment calls |
 
-**A name appears in exactly one of them.** There is no file that overrides
-another, and no name to look up in two places to find out which value wins.
+**As shipped, a name appears in exactly one of them.** No committed file
+overrides another, and `.env.example` sets no name a committed file sets.
 `tests/static/test_env_files.py` refuses a second live assignment of a name
 across them, reading `.env.example` in place of `.env`;
 `configs/env/provider.env` is not in git, so it does not read that one.
+
+`.env` is the exception a deployment may make. It is read last, by the
+Makefile and by compose, so a name it sets again wins over `backend.env` or
+`deployment.env`: that is how [a second stack](operations.md#a-second-stack-beside-the-first)
+moves its ports and its project name. A name set twice by mistake wins the
+same way, so `make doctor` lists every name `.env` (or `ENV_FILE`) sets over a
+committed file, with the file it wins over.
 
 compose hands each file to the services that need it with `env_file`, and
 the Makefile sources `backend.env`, `deployment.env`, `provider.env` and

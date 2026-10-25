@@ -161,7 +161,7 @@ database, object store and images. The database names in
 
 Set the name and the ten ports in the second checkout's `.env`. Compose and
 the Makefile read it after `configs/env/deployment.env`, so a value there
-wins:
+wins, and `make doctor` lists each name it moves:
 
 ```ini
 COMPOSE_PROJECT_NAME=qa_second
