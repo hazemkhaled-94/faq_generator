@@ -84,6 +84,10 @@ and gives back the objects already moved.
 `delete_derived` drops only the passages and what cascades from them, and
 returns `chunk_status` to `new`. Both objects stay.
 
+A question a rerun left with no fact (rejected `source_changed`) keeps no link
+to its document, so a deletion that leaves no document held deletes those
+too; with other documents held they stay until the last one goes, or the wipe.
+
 `delete_every`, behind `make wipe`, does what `delete` does to every
 document and then drops the `ingest_events` rows too. Those go last, so a
 move that fails leaves every document still held with its name and date.
