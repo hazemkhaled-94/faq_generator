@@ -514,7 +514,7 @@ def bridge(
     elif not force and (cited := catalog.accepted_on_bridges(within)):
         raise CitedBridges(
             f"{cited} accepted question(s) cite a bridge this pass would delete, "
-            "and would be rejected or deleted with it"
+            "and would be rejected as source_changed with it"
         )
     written = 0
     # Groups the model could not be asked about. Counted because skipping

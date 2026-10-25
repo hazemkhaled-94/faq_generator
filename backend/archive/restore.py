@@ -502,7 +502,8 @@ def main() -> int:
     if reopenable:
         print(
             f"  questions: {len(reopenable)} rejected as source_changed have all their "
-            f"facts back (ids {', '.join(map(str, reopenable))}): `make questions-reverify`"
+            f"facts back (ids {', '.join(map(str, reopenable))}); no command "
+            "reopens them: accept each again with PATCH /questions/<id>"
         )
     for bucket, key in missing:
         print(f"  {bucket}/{key} is in neither its bucket nor the archive")

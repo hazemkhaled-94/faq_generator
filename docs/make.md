@@ -392,7 +392,7 @@ Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Tr
 
 Every target that destroys data in a database (`schema-down`, `schema-reset`,
 `wipe`, `wipe-all`, `delete`, `delete-derived`, `topics-delete`, an unnarrowed
-`*-rerun`, and `archive-purge` with `ALL` or `DAYS`) refuses unless
+`*-rerun`, and `archive-purge` with `TABLE`, `ALL` or `DAYS`) refuses unless
 `CONFIRM=<database>` names the database the settings resolve to, and says
 which database and port it would act on. An `APP_DB_NAME` exported in the
 shell is honoured over `deployment.env`. Host drains print the database and
@@ -469,7 +469,7 @@ Every deletion of a row or an object above is the first of two.
 | `make backup DIR=<dir> [ARGILLA=1]` | Dump the application, SeaweedFS, Phoenix and Dagster databases (`pg_dump -Fc`), and Argilla's only with `ARGILLA=1` (its dump holds the owner's API key in clear: store it as a secret), copy every object of the five buckets and write a manifest of row counts and sha256 into `DIR`. Never `.env`, `provider.env` or a certificate key. `DIR` must hold no backup. See Backups in the operations guide |
 | `make restore-backup DIR=<dir> CONFIRM=<database>` | Put one database back: `pg_restore` of the application database and its own objects (under its prefix), checked against the manifest. Leaves the shared stores (filer, Phoenix, Dagster, Argilla) and other databases' objects alone. Refuses while a worker runs and unless `CONFIRM` names the database. **Replaces the data** |
 | `make restore-backup-stack DIR=<dir> CONFIRM=stack` | Put the whole stack back: the five databases and every database's objects. Rolls back every other database too, so it refuses while more than one application database exists unless `ALL_DATABASES=1`. **Replaces the data of the stack** |
-| `make restore-documents` | Without `SINCE`, the 20 newest minutes that hold a deletion, and it exits 2, so make reports an error; an older start is read off `archived_rows`. With `SINCE=<time>`, list the deleting transactions from then on (exact `archived_at` each, tables and rows). With `AT=<archived_at>[,...]`, put back those deletions only; `service_settings` and `prompts` stay out unless `TABLES` names them. Run it before `archive-purge` |
+| `make restore-documents` | Without `SINCE`, the 20 newest deleting transactions, and it exits 2, so make reports an error; an older start is read off `archived_rows`. With `SINCE=<time>`, list the deleting transactions from then on (exact `archived_at` each, tables and rows). With `AT=<archived_at>[,...]`, put back those deletions only; `service_settings` and `prompts` stay out unless `TABLES` names them. Run it before `archive-purge` |
 | `make archive-purge` | The second deletion. **This one is final** |
 
 ```bash

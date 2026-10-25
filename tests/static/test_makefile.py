@@ -1132,3 +1132,35 @@ def test_the_stack_restore_skips_a_dump_the_backup_did_not_take() -> None:
     """A backup without Argilla's dump restores without it."""
     text = "\n".join(printed("restore-backup-stack", "DIR=/backups/x", "CONFIRM=stack"))
     assert "continue" in text and "ARGILLA_DB_NAME" in text, text
+
+
+def test_a_purge_of_one_tables_archive_needs_confirmation_like_the_others(
+    tmp_path: Path,
+) -> None:
+    """TABLE= is as irreversible as DAYS= and ALL=1: it is the second deletion of a whole table."""
+    sandbox(tmp_path)
+    (line,) = [
+        one for one in printed("archive-purge", "TABLE=questions") if "REFUSED:" in one
+    ]
+    assert refusal(line, tmp_path).returncode == 2
+    with_confirm = printed("archive-purge", "TABLE=questions", "CONFIRM=qa_generator")
+    (line,) = [one for one in with_confirm if "REFUSED:" in one]
+    assert refusal(line, tmp_path).returncode == 0
+
+
+def test_no_text_still_says_a_rerun_deletes_questions_it_now_rejects() -> None:
+    """A re-chunk, a bridge replacement and a lost fact reject as source_changed and keep the question."""
+    stale = "rejected or deleted"
+    for path in (
+        "Makefile",
+        "docs/operations.md",
+        "docs/make.md",
+        "backend/extraction/README.md",
+        "backend/extraction/service.py",
+    ):
+        assert stale not in (ROOT / path).read_text(), path
+
+
+def test_restore_documents_lists_transactions_not_minutes() -> None:
+    """Without SINCE it lists the newest deleting transactions."""
+    assert "20 newest minutes" not in (ROOT / "docs/make.md").read_text()

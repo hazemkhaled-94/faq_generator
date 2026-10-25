@@ -101,8 +101,9 @@ what it held.
   unique key; it is skipped, and the run fails if nothing else was chosen.
 - **A restored document with passages is marked `chunked`**, in the restore's
   transaction.
-- **Rejected questions whose facts are all back are listed** with their ids and
-  `make questions-reverify`, which decides them again.
+- **Rejected questions whose facts are all back are listed** with their ids.
+  No command reopens them (`make questions-reverify` skips every rejected
+  question): a person accepts each again, with `PATCH /questions/<id>`.
 
 The `embedding` comes back NULL. It is the one column not kept — a vector
 renders as about 13 kB of text a row, ten times everything else a fact holds

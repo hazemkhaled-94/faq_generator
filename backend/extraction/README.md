@@ -30,7 +30,7 @@ of the passage that heads each, and writes what they yield. Topics must be
 fitted first. A second
 pass replaces the bridges in scope, so it refuses, deleting nothing, while an
 accepted question cites one of them; `FORCE=1` replaces them anyway, and
-those questions are rejected or deleted with them. `MISSING=1` deletes
+those questions are rejected as `source_changed` and kept. `MISSING=1` deletes
 nothing and reads only the topics holding no bridge yet: `make corpus` runs it
 that way after the topics are known, so a rebuild writes bridges and a second
 one leaves cited ones alone. A pass narrowed by `TOPIC`, `SHA` or `PASSAGE`

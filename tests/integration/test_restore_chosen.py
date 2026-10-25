@@ -253,4 +253,6 @@ def test_questions_whose_facts_are_back_are_listed_for_reverification(
     assert restore(monkeypatch, AT=at) == 0
 
     shown = capsys.readouterr().out
-    assert str(asked_id) in shown and "make questions-reverify" in shown
+    assert str(asked_id) in shown
+    # reverify skips every rejected question: the printed remedy must be what reopens one.
+    assert "make questions-reverify" not in shown and "PATCH /questions/" in shown

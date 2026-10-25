@@ -825,7 +825,7 @@ extract-revalidate:
 # Re-running replaces the bridges it wrote last time instead of adding to
 # them. It refuses, deleting nothing, while an accepted question cites one
 # of those bridges, and says how many; FORCE=1 replaces them anyway, and
-# those questions are rejected or deleted with them. MISSING=1 deletes nothing
+# those questions are rejected as source_changed with them, and kept. MISSING=1 deletes nothing
 # and reads only the topics holding no bridge yet, which is what `corpus`
 # runs, so a second build neither replaces nor stops on cited bridges.
 #
@@ -1584,11 +1584,12 @@ archive:
 #   make archive-purge ALL=1              the whole thing, objects included
 #
 # TABLE is about rows, so it leaves the bucket alone: an archived upload
-# belongs to no table. DAYS and ALL take the objects too, and each warns
-# and pauses first. Only ALL=1 means everything.
+# belongs to no table. DAYS and ALL take the objects too. Each of the three
+# is final and refuses unless CONFIRM names the database. Only ALL=1 means
+# everything.
 archive-purge:
 	@[ -n "$(TABLE)$(DAYS)$(filter 1,$(ALL))" ] || { echo "usage: make archive-purge [TABLE=<table>] [DAYS=<n>] [ALL=1]"; exit 2; }
-	@[ -z "$(filter 1,$(ALL))$(DAYS)" ] || $(call CONFIRMED,archive-purge: it deletes what the archive holds)
+	@$(call CONFIRMED,archive-purge: it deletes what the archive holds)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.run --purge \
 	   $(if $(TABLE),--table $(TABLE)) $(if $(DAYS),--older-than $(DAYS)) $(if $(filter 1,$(ALL)),--all)
 
