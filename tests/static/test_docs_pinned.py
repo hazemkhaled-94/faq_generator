@@ -1149,3 +1149,28 @@ def test_the_cost_log_is_named_the_spend_of_record() -> None:
         assert "spend of record" in text, path
         assert "`make spend`" in text, path
         assert "Phoenix" in text and "indicative" in text, path
+
+
+def test_every_text_on_the_categorization_default_names_the_out_of_corpus_kind() -> (
+    None
+):
+    """An unanswerable question is written as the out-of-corpus kind alone, unset.
+
+    The settings page, the env file's comment and the configuration guide are
+    three places an operator reads what unset does; two of them left the
+    unanswerable half out.
+    """
+    from settings.catalog import BY_NAME
+
+    texts = {
+        "catalog help": BY_NAME["QUESTIONS_CATEGORIZATIONS"].help,
+        "backend.env": _read("configs/env/backend.env").split(
+            "# QUESTIONS_CATEGORIZATIONS=[]"
+        )[0][-1500:],
+        "configuration guide": _flat(_read("docs/configuration.md")),
+    }
+
+    for where, text in texts.items():
+        flat = _flat(text)
+        assert "out-of-corpus" in flat, where
+        assert "alone" in flat, where

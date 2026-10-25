@@ -459,7 +459,8 @@ SETTINGS: tuple[Setting, ...] = (
         "written as one category of each, and an unanswerable one as its kind "
         "where a categorization carrying settles is set. Unset writes the paper's two natural "
         "phrasings, its two premises and its two linguistic variations, each "
-        "at even odds; [] writes none.",
+        "at even odds; [] writes none. Unset, an unanswerable question is written "
+        "as UAEval4RAG's out-of-corpus kind alone.",
     ),
     Setting(
         name="QUESTIONS_DIFFICULTY_MIX",
