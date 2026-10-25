@@ -115,7 +115,7 @@ jobs:
         run: |
           docker pull pgvector/pgvector:pg18
           docker pull chrislusf/seaweedfs:4.44
-      - run: poetry run pytest -m integration --cov --cov-report= --cov-fail-under=0
+      - run: poetry run pytest -m "integration and not perf" --cov --cov-report= --cov-fail-under=0
         env:
           HYPOTHESIS_PROFILE: ci
       # Named for the job: pytest-cov combines its own workers into one

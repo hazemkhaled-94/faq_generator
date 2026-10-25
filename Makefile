@@ -1541,7 +1541,7 @@ test-unit:
 
 # Everything needing a Postgres and a SeaweedFS, short of end to end.
 test-integration:
-	poetry run pytest -m "integration and not e2e"
+	poetry run pytest -m "integration and not e2e and not perf"
 
 # One corpus, every stage, against a stack of its own.
 test-e2e:
@@ -1571,7 +1571,7 @@ test-coverage:
 	poetry run coverage erase
 	poetry run pytest -m "not integration and not smoke and not eval and not perf" \
 	  --cov --cov-append --cov-report= --cov-fail-under=0
-	poetry run pytest -m integration --cov --cov-append --cov-report= --cov-fail-under=0
+	poetry run pytest -m "integration and not perf" --cov --cov-append --cov-report= --cov-fail-under=0
 	poetry run coverage report
 
 # Times the ceilings the code names in a comment: the combination search in
