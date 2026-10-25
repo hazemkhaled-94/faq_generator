@@ -1287,3 +1287,10 @@ def test_a_restore_is_one_transaction(target: str) -> None:
     )
     text = "\n".join(printed(target, "DIR=/backups/x", *given))
     assert "--single-transaction" in text, text
+
+
+def test_logs_wipe_deletes_by_an_exact_term_on_the_db_field() -> None:
+    """match_phrase on the analysed field matched qa-fx-2's lines for qa-fx."""
+    text = "\n".join(printed("logs-wipe", "CONFIRM=qa_generator")).replace("\\", "")
+    assert "match_phrase" not in text, text
+    assert '"term":{"db":' in text and '"db.keyword"' in text, text

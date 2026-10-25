@@ -695,7 +695,7 @@ logs-wipe:
 	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"; else \
 	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
 	  -X POST "https://localhost:9200/qa-logs*/_delete_by_query?conflicts=proceed&refresh=true" \
-	  -H "Content-Type: application/json" -d "{\"query\":{\"match_phrase\":{\"db\":\"$$WIPE_DB\"}}}"; fi' 2>&1); \
+	  -H "Content-Type: application/json" -d "{\"query\":{\"bool\":{\"should\":[{\"term\":{\"db\":\"$$WIPE_DB\"}},{\"term\":{\"db.keyword\":\"$$WIPE_DB\"}}],\"minimum_should_match\":1}}}"; fi' 2>&1); \
 	  echo "$$answer"; \
 	  case "$$answer" in *'"acknowledged":true'*|*'"deleted":'*|*index_not_found_exception*) ;; *) exit 1;; esac
 	@if [ "$(ALL_DATABASES)" = 1 ]; then \

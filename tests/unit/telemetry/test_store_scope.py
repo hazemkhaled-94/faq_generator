@@ -163,3 +163,26 @@ def test_a_url_with_no_password_names_its_database(monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost:5432/qa_two")
 
     assert pipeline.database() == "qa_two"
+
+
+@pytest.mark.parametrize(
+    "tail", ["?application_name=a@b", "?options=x@y&sslmode=require", "#frag@ment"]
+)
+def test_an_at_sign_after_the_path_does_not_unscope_the_names(
+    monkeypatch, tail
+) -> None:
+    """The query is not the host: only the last host before the path counts."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv("DATABASE_URL", f"postgresql://u:p@h:5432/qa_one{tail}")
+
+    assert pipeline.database() == "qa_one"
+
+
+def test_a_name_is_owned_only_when_the_whole_scope_matches(monkeypatch) -> None:
+    """A database named x__a, or qa-fx-2, owns nothing of a or qa-fx."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    for owner, other in (("a", "x__a"), ("qa-fx", "qa-fx-2"), ("qa_x", "z__qa_x")):
+        name = pipeline.scoped("4-extraction", other)
+        assert pipeline.owned(name, other)
+        assert not pipeline.owned(name, owner), (name, owner)
+        assert pipeline.owned(pipeline.scoped("4-extraction", owner), owner)

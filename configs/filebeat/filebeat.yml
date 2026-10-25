@@ -104,6 +104,10 @@ setup.template.append_fields:
   # Phoenix names its project after, which is what joins the two stores.
   - name: run.id
     type: keyword
+  # Which database wrote the line. A keyword, so `make logs-wipe` matches it
+  # exactly instead of by the analysed words of its name.
+  - name: db
+    type: keyword
   # Which stage wrote the line. The one field every dashboard groups on.
   - name: stage
     type: keyword

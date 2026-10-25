@@ -103,14 +103,17 @@ def database() -> str | None:
     Read from DATABASE_URL, or from APP_DB_NAME for the processes - the
     orchestrator's - that have no URL of the application database.
 
-    The path is what follows the last `@`, which ends the secret before the
-    host: a password holding `/`, `#` or `?` is not a delimiter, and nothing
-    of it may reach a name. No SQLAlchemy here, because the frontend image
+    The path follows the last `@host/`, which ends the secret before the
+    host: a password holding `/`, `#` or `?`, or a query holding `@`, is not
+    a delimiter, and nothing of it may reach a name. No SQLAlchemy here, because the frontend image
     shares this module and holds none.
     """
-    url = os.environ.get("DATABASE_URL", "")
-    path = (url.partition("://")[2] or url).rpartition("@")[2].partition("/")[2]
-    named = re.split(r"[?#]", path, maxsplit=1)[0].strip("/")
+    raw = os.environ.get("DATABASE_URL", "")
+    url = raw.partition("://")[2] or raw
+    after_host = re.findall(r"@[^@/?#]*/([^/?#]*)", url)
+    named = (
+        after_host[-1] if after_host else re.split(r"[?#]", url.partition("/")[2])[0]
+    )
     return named or os.environ.get("APP_DB_NAME") or None
 
 
@@ -131,13 +134,18 @@ def scoped(name: str, owner: str | None = None) -> str:
     owner = owner or database()
     if not owner:
         return name
-    return f"{name}{_DATABASE_SEPARATOR}{re.sub(r'[^A-Za-z0-9_-]', '_', owner)}"
+    return f"{name}{_DATABASE_SEPARATOR}{_sanitised(owner)}"
+
+
+def _sanitised(owner: str) -> str:
+    """A database's name as the stores accept it."""
+    return re.sub(r"[^A-Za-z0-9_-]", "_", owner)
 
 
 def owned(name: str, owner: str | None = None) -> bool:
     """Whether a name `scoped` gave belongs to the database."""
     owner = owner or database()
-    return bool(owner) and name.endswith(scoped("", owner))
+    return bool(owner) and name.partition(_DATABASE_SEPARATOR)[2] == _sanitised(owner)
 
 
 def project(service: str, run: str | None = None) -> str:
