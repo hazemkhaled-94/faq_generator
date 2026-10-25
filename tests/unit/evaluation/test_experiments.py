@@ -293,3 +293,28 @@ def test_the_extraction_experiment_scores_the_reader_production_builds(
     assert extractor._cap == extraction.atomic_cap
     assert extractor._client.model == "ollama/extraction-model"
     assert phoenix.ran["experiment_name"] == "extraction-ollama/extraction-model"
+
+
+def test_a_golden_set_is_uploaded_under_this_databases_name(monkeypatch) -> None:
+    """Phoenix is shared by every database: one's wipe must not take another's set."""
+    from evaluation.config import Settings
+
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/qa_shop")
+    made: dict = {}
+
+    class Client:
+        datasets = None
+
+        def create_dataset(self, **asked) -> object:
+            made.update(asked)
+            return type("Dataset", (), {"id": "d"})()
+
+    client = Client()
+    client.datasets = client
+    monkeypatch.setattr(experiments, "_client", lambda settings: client)
+
+    experiments.upload(experiments.EXTRACTION, Settings.__new__(Settings))
+
+    assert made["name"] == "extraction-golden__qa_shop"
+    assert experiments.stored(experiments.PHRASING) == "phrasing-golden__qa_shop"

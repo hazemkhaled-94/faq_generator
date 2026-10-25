@@ -9,7 +9,7 @@ so two can be compared by more than their scrollback.
 ## Using it
 
 ```bash
-make eval-upload                                 # the cases become a Phoenix dataset
+make eval-upload                                 # the cases become a Phoenix dataset, named with this database
 make eval-score                                  # score the model, and record it
 make eval-score EVAL_RUN_NAME=extraction-prompt-v7
 make eval-phrasing                               # the two phrasing judgements, against their floor

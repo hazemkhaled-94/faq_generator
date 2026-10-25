@@ -451,7 +451,7 @@ nothing there a wipe could take.
 
 | `KEEP=` | Leaves |
 |---|---|
-| `golden` | The Phoenix datasets and the experiments under them. `make eval-upload` puts `extraction-golden` back and `make eval-phrasing` `phrasing-golden` |
+| `golden` | This database's Phoenix datasets and the experiments under them (every database's with `ALL_DATABASES=1`). Each is named `<name>__<database>`; `make eval-upload` puts `extraction-golden` back and `make eval-phrasing` `phrasing-golden`. A set uploaded before names carried the database is taken only with `ALL_DATABASES=1`; upload it again |
 | `runs` | The Dagster run history |
 | `golden,runs` | Both |
 

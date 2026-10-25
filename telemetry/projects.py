@@ -275,8 +275,13 @@ def prune(
     return deleted
 
 
-def purge_datasets(client) -> int:
-    """Deletes every dataset, and says how many went.
+def purge_datasets(client, every_database: bool = False) -> int:
+    """Deletes this database's datasets, or every one, and says how many went.
+
+    A dataset carries its database after its name, as a project does, so
+    the golden set one database uploaded and the experiments scored on it
+    are not taken by another's wipe. `every_database` takes them all, and
+    any uploaded before names carried one.
 
     A different resource from a project and not reached by deleting one:
     `/v1/projects` holds the traces a run wrote, `/v1/datasets` holds the
@@ -291,7 +296,11 @@ def purge_datasets(client) -> int:
     Returns:
         How many datasets were deleted.
     """
-    taking = list(listed(client, "/v1/datasets"))
+    taking = [
+        one
+        for one in listed(client, "/v1/datasets")
+        if every_database or pipeline.owned(one.get("name", ""))
+    ]
     if not taking:
         return 0
     log.warning("deleting %d dataset(s) and their experiments", len(taking))
@@ -320,8 +329,8 @@ def parser() -> argparse.ArgumentParser:
         "--all-databases",
         action="store_true",
         dest="all_databases",
-        help="with --prune or --purge, take every database's projects and any "
-        "from before names carried one, not only this database's",
+        help="with --prune, --purge or --purge-datasets, take every database's "
+        "and any from before names carried one, not only this database's",
     )
     group = built.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -376,7 +385,10 @@ def main(argv: list[str] | None = None) -> int:
                 prune(client, projects, args.purge, args.all_databases),
             )
         if args.purge_datasets:
-            log.info("deleted %d dataset(s)", purge_datasets(client))
+            log.info(
+                "deleted %d dataset(s)",
+                purge_datasets(client, args.all_databases),
+            )
     return 0
 
 

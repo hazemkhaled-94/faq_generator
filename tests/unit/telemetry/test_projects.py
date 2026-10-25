@@ -252,7 +252,7 @@ def test_purging_takes_the_golden_datasets_too() -> None:
 
     client = _Client()
 
-    assert projects.purge_datasets(client) == 2
+    assert projects.purge_datasets(client, every_database=True) == 2
     assert client.deleted == ["/v1/datasets/d1", "/v1/datasets/d2"]
 
 
@@ -407,3 +407,95 @@ def test_the_command_line_flag_picks_what_is_deleted(monkeypatch, flag, taken) -
 
     assert projects.main([flag]) == 0
     assert client.deleted == taken
+
+
+class _Datasets:
+    """A Phoenix that lists the datasets of two databases and one filed before names carried one."""
+
+    def __init__(self) -> None:
+        """Holds the names and no deletions yet."""
+        self.names = {
+            "d1": "extraction-golden__qa_bank",
+            "d2": "extraction-golden__qa_shop",
+            "d3": "extraction-golden",
+        }
+        self.deleted: list[str] = []
+
+    def get(self, path: str, params=None):
+        """The dataset listing."""
+        names = self.names
+
+        class Answer:
+            ok = True
+
+            @staticmethod
+            def json() -> dict:
+                return {
+                    "data": [{"id": i, "name": n} for i, n in names.items()],
+                    "next_cursor": None,
+                }
+
+            @staticmethod
+            def raise_for_status() -> None:
+                pass
+
+        return Answer()
+
+    def delete(self, path: str):
+        """Records the delete."""
+        self.deleted.append(path.rsplit("/", 1)[1])
+
+        class Answer:
+            ok = True
+
+        return Answer()
+
+
+def test_a_dataset_purge_in_one_database_takes_only_its_own_datasets(
+    monkeypatch,
+) -> None:
+    """The experiments under another database's datasets are its own scored work."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/qa_bank")
+    client = _Datasets()
+
+    assert projects.purge_datasets(client) == 1
+    assert client.deleted == ["d1"]
+
+
+def test_a_dataset_purge_of_every_database_takes_them_all(monkeypatch) -> None:
+    """Including one uploaded before names carried a database."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/qa_bank")
+    client = _Datasets()
+
+    assert projects.purge_datasets(client, every_database=True) == 3
+    assert client.deleted == ["d1", "d2", "d3"]
+
+
+def test_the_dataset_flag_reads_all_databases(monkeypatch) -> None:
+    """--purge-datasets --all-databases is the whole-Phoenix form."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/qa_bank")
+    client = _Datasets()
+    monkeypatch.setattr(projects, "_client", lambda: _Context(client))
+
+    projects.main(["--purge-datasets"])
+    assert client.deleted == ["d1"]
+    projects.main(["--purge-datasets", "--all-databases"])
+    assert client.deleted == ["d1", "d1", "d2", "d3"]
+
+
+class _Context:
+    """A client as a context manager."""
+
+    def __init__(self, client) -> None:
+        """Holds the client."""
+        self.client = client
+
+    def __enter__(self):
+        """The client."""
+        return self.client
+
+    def __exit__(self, *exc) -> None:
+        """Nothing to close."""

@@ -1164,3 +1164,20 @@ def test_no_text_still_says_a_rerun_deletes_questions_it_now_rejects() -> None:
 def test_restore_documents_lists_transactions_not_minutes() -> None:
     """Without SINCE it lists the newest deleting transactions."""
     assert "20 newest minutes" not in (ROOT / "docs/make.md").read_text()
+
+
+def test_a_wipe_of_one_database_takes_only_its_phoenix_datasets() -> None:
+    """The golden datasets and their experiments are on the Phoenix every database shares."""
+    own = [
+        one
+        for one in printed("phoenix-purge")
+        if "--purge-datasets" in one and "telemetry.projects" in one
+    ]
+    every = [
+        one
+        for one in printed("phoenix-purge", "ALL_DATABASES=1")
+        if "--purge-datasets" in one and "telemetry.projects" in one
+    ]
+    assert own and every
+    assert all("--all-databases" not in one for one in own), own
+    assert all("--all-databases" in one for one in every), every

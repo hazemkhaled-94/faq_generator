@@ -1480,10 +1480,11 @@ wipe:
 	@[ -z "$(filter-out golden runs,$(KEPT))" ] || \
 	  { echo "KEEP names $(filter-out golden runs,$(KEPT)); it takes golden and runs."; exit 2; }
 	@echo "This deletes every document, topic, fact and question; the"
-	@echo "archive keeps those, see make archive-purge. It deletes for good every"
-	@echo "Phoenix project, the three Argilla review datasets with any answer not"
-	@echo "yet pulled, and the logs; the Phoenix datasets and experiments unless"
-	@echo "KEEP=golden; the Dagster run history unless KEEP=runs."
+	@echo "archive keeps those, see make archive-purge. It deletes for good this"
+	@echo "database's Phoenix projects, its three Argilla review datasets with any"
+	@echo "answer not yet pulled, and its log lines; its Phoenix datasets and"
+	@echo "experiments unless KEEP=golden; its Dagster runs unless KEEP=runs."
+	@echo "ALL_DATABASES=1 takes every database's, on the stores they share."
 	@$(call CONFIRMED,wipe)
 	$(MAKE) wipe-preflight
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-all
@@ -2003,7 +2004,7 @@ phoenix-prune:
 phoenix-purge:
 	$(LOADENV) && poetry run python -m telemetry.projects --purge $(if $(filter 1,$(ALL_DATABASES)),--all-databases)
 	@$(call SPARED,golden,the Phoenix datasets) || \
-	  { $(LOADENV) && poetry run python -m telemetry.projects --purge-datasets; }
+	  { $(LOADENV) && poetry run python -m telemetry.projects --purge-datasets $(if $(filter 1,$(ALL_DATABASES)),--all-databases); }
 
 # ── Review ─────────────────────────────────────────────────────────────────
 #

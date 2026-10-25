@@ -24,6 +24,7 @@ from typing import Any
 
 from evaluation import cases
 from evaluation.config import Settings
+from telemetry import pipeline
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +33,11 @@ EXTRACTION = "extraction-golden"
 QUESTIONS = "questions-golden"
 PHRASING = "phrasing-golden"
 NAMES = (EXTRACTION, QUESTIONS, PHRASING)
+
+
+def stored(name: str) -> str:
+    """The name Phoenix holds a golden set under: this database's, since it is shared."""
+    return pipeline.scoped(name)
 
 
 def _client(settings: Settings):
@@ -107,7 +113,7 @@ def upload(name: str, settings: Settings) -> str:
     """
     inputs, outputs = _examples(name)
     dataset = _client(settings).datasets.create_dataset(
-        name=name,
+        name=stored(name),
         inputs=inputs,
         outputs=outputs,
         dataset_description=(
@@ -326,7 +332,7 @@ def run(name: str, settings: Settings) -> str:
     log.info("scoring %s against %s", name, model.model)
 
     client = _client(settings)
-    dataset = client.datasets.get_dataset(dataset=name)
+    dataset = client.datasets.get_dataset(dataset=stored(name))
     experiment = client.experiments.run_experiment(
         dataset=dataset,
         task=_extraction_task(
@@ -373,7 +379,7 @@ def _phrasing(settings: Settings) -> str:
     log.info("scoring %s against %s", PHRASING, asked.model)
 
     client = _client(settings)
-    dataset = client.datasets.get_dataset(dataset=PHRASING)
+    dataset = client.datasets.get_dataset(dataset=stored(PHRASING))
     experiment = client.experiments.run_experiment(
         dataset=dataset,
         task=_phrasing_task(PhrasingJudge(ModelClient(asked))),
