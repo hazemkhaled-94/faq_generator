@@ -408,7 +408,9 @@ Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry Tr
 
 Every target that destroys data in a database (`schema-down`, `schema-reset`,
 `wipe`, `wipe-all`, `delete`, `delete-derived`, `topics-delete`, an unnarrowed
-`*-rerun`, and `archive-purge` with `TABLE`, `ALL` or `DAYS`) refuses unless
+`*-rerun`, `archive-purge` with `TABLE`, `ALL` or `DAYS`, and the four store
+steps of the wipe run alone: `phoenix-purge`, `review-delete`, `logs-wipe` and
+`dagster-wipe`) refuses unless
 `CONFIRM=<database>`, typed on the command line (a `CONFIRM` exported in the
 shell does not count), names the database the settings resolve to, and says
 which database and port it would act on. An `APP_DB_NAME` exported in the

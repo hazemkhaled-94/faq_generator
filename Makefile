@@ -689,6 +689,7 @@ LOG_FILES = { $(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec t
 # open, and an unlinked one goes on being written where Filebeat cannot see
 # it until a restart or a rotation.
 logs-wipe:
+	@$(call CONFIRMED,logs-wipe: it deletes this database's log lines)
 	@$(LOADENV) && answer=$$($(COMPOSE_CMD) exec -T -e WIPE_DB="$(if $(filter 1,$(ALL_DATABASES)),,$$APP_DB_NAME)" elasticsearch sh -c 'if [ -z "$$WIPE_DB" ]; then \
 	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
 	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"; else \
@@ -1650,6 +1651,7 @@ wipe-all: wipe
 # instance's database configuration are; `--force` because the prompt has
 # no terminal to answer it.
 dagster-wipe:
+	@$(call CONFIRMED,dagster-wipe: it deletes this database's Dagster runs)
 	@$(call SPARED,runs,the Dagster run history) || \
 	  $(if $(filter 1,$(ALL_DATABASES)),$(COMPOSE_CMD) exec -T dagster-webserver dagster run wipe --force,$(LOADENV) && $(COMPOSE_CMD) exec -T -e APP_DB_NAME="$$APP_DB_NAME" dagster-webserver python -m orchestration.wipe)
 
@@ -2110,6 +2112,7 @@ phoenix-prune:
 # work. The datasets are `make eval-upload`'s golden cases and the
 # experiments under them; `KEEP=golden` spares those, see `wipe`.
 phoenix-purge:
+	@$(call CONFIRMED,phoenix-purge: it deletes this database's Phoenix projects and datasets)
 	$(LOADENV) && poetry run python -m telemetry.projects --purge $(if $(filter 1,$(ALL_DATABASES)),--all-databases)
 	@$(call SPARED,golden,the Phoenix datasets) || \
 	  { $(LOADENV) && poetry run python -m telemetry.projects --purge-datasets $(if $(filter 1,$(ALL_DATABASES)),--all-databases); }
@@ -2145,6 +2148,7 @@ review-status:
 # dataset it finds precisely so it never does. Pull first if a verdict
 # still matters.
 review-delete:
+	@$(call CONFIRMED,review-delete: it deletes the Argilla review datasets and any answer not yet pulled)
 	$(REVIEW) --delete
 
 # Push a sample of facts, spread over the checker's verdicts.

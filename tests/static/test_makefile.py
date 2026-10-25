@@ -804,6 +804,10 @@ DESTRUCTIVE = {
     "assess-rerun": (),
     "archive-purge": ("ALL=1",),
     "restore-backup": ("DIR=/backups/x",),
+    "phoenix-purge": (),
+    "review-delete": (),
+    "logs-wipe": (),
+    "dagster-wipe": (),
 }
 
 
