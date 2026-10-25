@@ -72,14 +72,28 @@ outlast() {
   done
 }
 
-# The run recorded: its process group and its database. A group with a member
-# alive is a run going on, whoever led it: a kill of the make at its head
-# leaves the drain under it running.
+# The run recorded: its process group and database, and on a line of its own
+# when the make leading the group started, which tells the run apart from
+# another group given the same number later - the record outlives every stop,
+# and a reboot or a wrapped pid count hands the number on.
 group=
 recorded=
-[ ! -f "$pid" ] || read -r group recorded < "$pid"
+started=
+[ ! -f "$pid" ] || { read -r group recorded; read -r started; } < "$pid"
+
+# Whether the recorded group is the run, going on: its leader alive with the
+# start time recorded or, that make killed, members of its group left - a
+# drain finishing under it. A record with no start time names no run.
+ours() {
+  [ -n "$group" ] && [ -n "$started" ] || return 1
+  if ps -p "$group" >/dev/null 2>&1; then
+    [ "$(ps -o lstart= -p "$group" | sed 's/ *$//')" = "$started" ]
+  else
+    kill -0 -- "-$group" 2>/dev/null
+  fi
+}
 alive=
-[ -z "$group" ] || ! kill -0 -- "-$group" 2>/dev/null || alive=1
+! ours || alive=1
 
 if [ "$mode" = --stop ]; then
   [ -n "$alive" ] || { echo "no hosted run is going"; exit 0; }
@@ -132,7 +146,7 @@ start=0
 set -m
 make --no-print-directory corpus $resume ${given[@]+"${given[@]}"} >> "$log" 2>&1 &
 run=$!
-echo "$run $database" > "$pid"
+printf '%s %s\n%s\n' "$run" "$database" "$(ps -o lstart= -p "$run" | sed 's/ *$//')" > "$pid"
 # A stop asked of this script - a supervisor's - is passed to the whole run.
 stopping=
 trap 'stopping=1; kill -TERM -- "-$run" 2>/dev/null' TERM INT

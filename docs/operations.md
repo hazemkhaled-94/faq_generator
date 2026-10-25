@@ -575,7 +575,7 @@ From a fresh clone, following only this page:
 5. Upload the documents on the Upload page, or with `curl -F file=@x.pdf`.
 6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
    detached: `logs/corpus-hosted.log` holds what it does and
-   `logs/corpus-hosted.pid` its process group and database;
+   `logs/corpus-hosted.pid` its process group, database and leader's start time;
    `make corpus-hosted-stop` stops it. It names the database it acts on,
    gives every drain that name and `HF_HUB_OFFLINE=1`, and counts spend
    across the drains in `logs/corpus-spend-<database>.usd` (`SPEND_LEDGER`), one
@@ -682,8 +682,11 @@ spend so far still counts against `SPEND_CAP`. Only a run that finished, or
 again. A start that names another database than a stopped run's is refused,
 since that run's failed rows and spend are not its own. A second
 `make corpus-hosted` while the first
-runs is refused: the pid file records the run's process group, and a member of
-it alive, a drain whose make was killed included, is a run going on. Each
+runs is refused: the pid file records the run's process group and when the make
+leading it started, and that group, its leader alive with that start time or, the
+leader killed, a drain of it left, is a run going on. A group number another
+process has taken since (after a reboot or a wrap of the pid count) is not the
+run: the stop signals nothing of it, and a start resumes. Each
 database has its own ledger, so a run on another database never touches this
 one's, and a `make corpus` on the same database refuses beside the hosted run:
 while it goes, and, unless it resumes with `RESUME=1`, while a stopped one is

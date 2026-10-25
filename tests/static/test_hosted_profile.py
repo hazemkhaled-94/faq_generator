@@ -362,12 +362,24 @@ def test_corpus_hosted_runs_the_corpus_detached_with_a_pid_file_and_a_log(
     assert _drained(project)
 
 
+def _started(pid: int) -> str:
+    """A process's start time, as the runner records its run's leader."""
+    return subprocess.run(
+        ["ps", "-o", "lstart=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
 def test_corpus_hosted_refuses_a_second_start(tmp_path: Path) -> None:
-    """While the process group the first one recorded has a member alive."""
+    """While the process group the first one recorded, its leader as started, lives."""
     project = _project(tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n")
     (project / "logs").mkdir()
     running = subprocess.Popen(["sleep", "60"], start_new_session=True)
-    (project / "logs/corpus-hosted.pid").write_text(f"{running.pid} qa_scratch\n")
+    (project / "logs/corpus-hosted.pid").write_text(
+        f"{running.pid} qa_scratch\n{_started(running.pid)}\n"
+    )
 
     try:
         ran = _make(project, "corpus-hosted")
@@ -414,7 +426,7 @@ def test_killing_the_make_at_the_head_of_the_run_leaves_a_start_refused(
     project = _project(tmp_path, env=GO_LIVE)
     assert _make(project, "corpus-hosted", SLOW="6").returncode == 0
     _until(lambda: _extracting(project))
-    group, database = (project / "logs/corpus-hosted.pid").read_text().split()
+    group, database = (project / "logs/corpus-hosted.pid").read_text().split()[:2]
 
     os.kill(int(group), signal.SIGKILL)
     second = _make(project, "corpus-hosted")
@@ -820,3 +832,32 @@ def test_docling_weights_host_fills_the_host_cache_and_not_the_volume() -> None:
     ), hosted
     assert not any("compose" in line and " run " in line for line in hosted), hosted
     assert any("run --rm --no-deps chunk-worker" in line for line in volume), volume
+
+
+@pytest.mark.parametrize(
+    "record",
+    ["{pid} qa_scratch\n", "{pid} qa_scratch\nThu Jan  1 00:00:00 1970\n"],
+    ids=["no-start-time", "another-start-time"],
+)
+def test_a_group_number_reused_by_another_process_is_not_the_run(
+    tmp_path: Path, record: str
+) -> None:
+    """The stop signals nothing of it, and a start resumes rather than refuses."""
+    project = _project(tmp_path, env=GO_LIVE)
+    (project / "logs").mkdir()
+    unrelated = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (project / "logs/corpus-hosted.pid").write_text(record.format(pid=unrelated.pid))
+
+    try:
+        stopped = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=3")
+        alive_after_stop = unrelated.poll() is None
+        started = _make(project, "corpus-hosted")
+        _waited(project)
+    finally:
+        unrelated.kill()
+        unrelated.wait()
+
+    assert "no hosted run" in stopped.stdout, stopped.stdout
+    assert alive_after_stop, "the stop signalled an unrelated group"
+    assert started.returncode == 0, started.stderr
+    assert any(" --retry" in line for line in _drained(project)), "a resume"
