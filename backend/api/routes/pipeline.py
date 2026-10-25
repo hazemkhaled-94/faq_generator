@@ -254,7 +254,7 @@ def run() -> Run:
         try:
             running = orchestrator.live()
         except Unavailable as missing:
-            raise ApiError(_NO_ORCHESTRATOR, "no_orchestrator", str(missing)) from None
+            raise _no_orchestrator(missing) from None
         except Refused as refusal:
             raise ApiError(
                 _NO_ORCHESTRATOR, "orchestrator_refused", str(refusal)
@@ -269,17 +269,22 @@ def run() -> Run:
         return _launched()
 
 
+def _no_orchestrator(missing: Unavailable) -> ApiError:
+    """The 503 a run with no orchestrator gets, naming what still works."""
+    return ApiError(
+        _NO_ORCHESTRATOR,
+        "no_orchestrator",
+        f"{missing} Every stage can still be run on its own: "
+        f"POST /parsing/start, then /chunking/start, and so on.",
+    )
+
+
 def _launched() -> Run:
     """The run the orchestrator started, or the refusal it gave."""
     try:
         return orchestrator.launch()
     except Unavailable as missing:
-        raise ApiError(
-            _NO_ORCHESTRATOR,
-            "no_orchestrator",
-            f"{missing} Every stage can still be run on its own: "
-            f"POST /parsing/start, then /chunking/start, and so on.",
-        ) from None
+        raise _no_orchestrator(missing) from None
     except Refused as refusal:
         raise ApiError(_NO_ORCHESTRATOR, "orchestrator_refused", str(refusal)) from None
 
