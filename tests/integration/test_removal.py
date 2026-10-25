@@ -328,3 +328,20 @@ def test_a_move_the_store_refuses_rolls_the_rows_back(
     assert counts(engine) == before
     assert DocumentsBucket().find(DocumentsBucket.key_for(held, "application/pdf"))
     assert ParsedBucket().find(ParsedBucket.key_for(held)) is not None
+
+
+def test_a_deletion_moves_what_the_extraction_worker_watches(service, held) -> None:
+    """The worker replays the dedup after a deletion, and finds it here.
+
+    A fact deleted by cascade is archived by the trigger, whichever surface
+    asked, so the worker needs no message from the API.
+    """
+    from extraction.repository import PassageQueue
+
+    queue = PassageQueue()
+    before = queue.deletions()
+
+    service.delete(held)
+
+    assert queue.deletions() > before
+    assert queue.deletions() == queue.deletions()

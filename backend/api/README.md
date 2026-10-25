@@ -191,10 +191,11 @@ shows, so the run at work is reached however many are queued behind it.
 | `DELETE /documents/{sha256}` | The document and everything derived from it |
 | `DELETE /documents/{sha256}/derived` | Only its passages and facts |
 
-A deletion through the API does not run the dedup replay, so run
-`make extract-dedup` after either `DELETE`: a fact another document repeats
-was refused as a duplicate of this one's and is given back only by that
-replay, which `make delete` and `make delete-derived` run themselves.
+A fact another document repeats was refused as a duplicate of this one's, and
+is given back by the dedup replay. Either `DELETE` leaves that to the
+extraction worker, which finds the deletion in the archive when its queue is
+empty and runs the replay `make extract-dedup` runs; with no worker running,
+run `make extract-dedup` after one.
 
 **Passages** — served by [chunking](../preprocessing/chunking/README.md).
 

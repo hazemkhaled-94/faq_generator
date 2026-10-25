@@ -261,8 +261,10 @@ Two more refusals are the service refusing what the checks passed:
   deleting its document leaves each repeat refused against a fact that is
   gone. `make delete` and `make delete-derived` therefore run
   `extract-dedup`, which gives the repeat back. A deletion through the API
-  or the UI does not, so run `make extract-dedup` after it; it is also the
-  recovery when the replay of a `make delete` fails, since the document is
+  or the UI leaves it to the worker: the archive records every deleted fact,
+  and a worker whose queue is empty replays the dedup when that record has
+  moved since it last looked, so with no worker running run
+  `make extract-dedup` after one. That command is also the recovery when the replay of a `make delete` fails, since the document is
   gone by then. A passage read again - a rerun, a retry - replaces its
   facts the same way, so a drain that replaced any runs the same replay
   itself once it finds its queue empty, under an advisory lock, so two

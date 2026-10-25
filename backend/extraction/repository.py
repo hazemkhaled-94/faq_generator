@@ -32,6 +32,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
 from database.qa_generator import (
+    ArchivedRow,
     Document,
     Fact,
     FactKind,
@@ -589,6 +590,25 @@ class PassageQueue(RowQueue):
                         .exists()
                     )
                 )
+            )
+
+    def deletions(self) -> int:
+        """Where the archive's record of deleted facts stands.
+
+        A deletion through the API or the UI queues nothing, and leaves a
+        refusal elsewhere naming a fact that is gone as its twin. What the
+        archive holds is the only trace of it, so the worker compares this
+        with what it saw last. It moves on any deletion of a fact and, after
+        `make archive-purge`, on that too: a replay too many is harmless.
+        """
+        with self._session() as session:
+            return (
+                session.scalar(
+                    select(func.max(ArchivedRow.id)).where(
+                        ArchivedRow.table_name == "facts"
+                    )
+                )
+                or 0
             )
 
     def nearest_fact(

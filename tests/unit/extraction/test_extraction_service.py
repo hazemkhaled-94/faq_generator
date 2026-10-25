@@ -858,6 +858,51 @@ class TestTheReplayWhereTheDrainEnds:
 
         assert catalog.unfolded_locked == []
 
+    def test_a_deletion_while_the_worker_is_idle_ends_in_the_replay(self) -> None:
+        """A document deleted through the API leaves refusals naming its facts.
+
+        Nothing is queued by a deletion, so the worker finds it by what the
+        archive says was deleted since it last looked.
+        """
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
+
+        assert run.next() == 1
+        assert run.next() is None
+        assert catalog.unfolded_locked == [], "nothing was deleted yet"
+
+        run.queue.deleted = 3
+        assert run.next() is None
+        assert catalog.unfolded_locked == [True]
+        assert run.next() is None
+        assert catalog.unfolded_locked == [True], "and once per deletion"
+
+    def test_a_worker_starting_after_a_deletion_does_not_replay_it(self) -> None:
+        """What was deleted before this worker looked is `make extract-dedup`'s."""
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        run = Extraction(passage(), facts=ATOMIC, duplicate_cosine=0.9, catalog=catalog)
+        run.queue.deleted = 7
+
+        run.run()
+
+        assert catalog.unfolded_locked == []
+
+    def test_a_service_with_the_gate_off_replays_no_deletion(self) -> None:
+        """The same rule as for a replaced fact: the gate off, the replay is not a drain's."""
+        from drivers import Catalogue
+
+        catalog = Catalogue()
+        run = Extraction(passage(), facts=ATOMIC, catalog=catalog)
+        run.next()
+        run.queue.deleted = 1
+
+        assert run.next() is None
+        assert catalog.unfolded_locked == []
+
 
 #: One rule joining two actions under one condition, as the model wrote it.
 DISPUTE = (

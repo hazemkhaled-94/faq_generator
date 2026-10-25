@@ -344,6 +344,12 @@ class Queue:
         #: The passages a fact already cites when they are read, which a
         #: store replaces.
         self.read_before: set[int] = set()
+        #: What the archive says has been deleted, which only grows.
+        self.deleted = 0
+
+    def deletions(self) -> int:
+        """Where the archive's record of deleted facts stands."""
+        return self.deleted
 
     def claim(self) -> PassageToExtract | None:
         """Takes the next passage off the queue."""

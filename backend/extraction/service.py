@@ -1075,6 +1075,9 @@ class ExtractionService(StageService):
         self._catalog = catalog
         # Whether a passage stored since the last replay replaced facts.
         self._replaced = False
+        # Where the archive of deleted facts stood when this service last
+        # looked: a deletion made outside this drain moves it.
+        self._deletions: int | None = None
         # Held for the life of the service, as question generation holds
         # its own: the client is one connection and the batch spans
         # passages, so a passage yielding four facts costs no call.
@@ -1099,8 +1102,12 @@ class ExtractionService(StageService):
         Returns:
             The passage's id, or None when the queue is empty.
         """
+        if self._deletions is None and self._replays():
+            self._deletions = self._repository.deletions()
         passage = self._repository.claim()
         if passage is None:
+            if self._replays() and self._deleted_elsewhere():
+                self._replaced = True
             if self._replaced:
                 self._replay()
             return None
@@ -1180,6 +1187,20 @@ class ExtractionService(StageService):
             and self._duplicate_cosine > 0
         )
 
+    def _deleted_elsewhere(self) -> bool:
+        """Whether a fact was deleted since this service last looked.
+
+        A document removed through the API or the UI is not a passage read
+        again, so no drain of this worker deleted it, and a refusal naming
+        one of its facts as its twin would stay refused until somebody ran
+        `make extract-dedup`. What was deleted before this service started
+        is that command's.
+        """
+        now = self._repository.deletions()
+        moved = now != self._deletions
+        self._deletions = now
+        return moved
+
     def _replay(self) -> None:
         """Re-decides every stored duplicate refusal, as `make extract-dedup` does.
 
@@ -1201,6 +1222,8 @@ class ExtractionService(StageService):
                 orphaned=True,
             )
         self._replaced = False
+        # What the replay itself deleted is not another one to replay.
+        self._deletions = self._repository.deletions()
 
     def _record(self, passage: PassageToExtract, facts: list[CheckedFact]) -> None:
         """Puts every fact's verdict in Phoenix's Evaluations view.
