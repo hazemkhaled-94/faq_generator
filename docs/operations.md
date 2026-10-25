@@ -559,7 +559,7 @@ ranges), and every container compares it at its start with the checkout's own,
 bind-mounted read-only. After a `git pull` or an edit that changed one,
 `make up` starts nothing on the old packages: each affected container logs
 `run compose build, then make up`, waits ten minutes and exits, and its restart
-policy tries again. Rebuild with `podman compose --env-file
+policy tries again; `make down` or a stop ends that wait at once. Rebuild with `podman compose --env-file
 configs/env/deployment.env --env-file .env build`, then `make up`.
 
 ### Keeping the secrets out of the checkout

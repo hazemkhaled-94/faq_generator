@@ -10,13 +10,19 @@
 #
 # A refusal waits before it exits. `restart: unless-stopped` restarts a
 # container whatever its exit code, so the wait is what keeps a stale image to
-# one line in the log every ten minutes and not a spin.
+# one line in the log every ten minutes and not a spin. The wait ends at a
+# TERM or an INT: this sh is PID 1, which has no default action for either, so
+# a plain sleep made `make down` wait out the container's stop_grace_period.
 set -u
 baked=$(cat "${LOCK_SHA:-}" 2>/dev/null || true)
 live=$(sha256sum "${LOCK_FILE:-}" 2>/dev/null | cut -d' ' -f1)
 if [ -z "$baked" ] || [ "$baked" != "$live" ]; then
   echo "${LOCK_FILE:-the lock} is not the one this image was built from: run compose build, then make up" >&2
-  sleep "${LOCKCHECK_WAIT:-600}"
+  waiting=
+  trap 'kill "$waiting" 2>/dev/null; exit 78' TERM INT
+  sleep "${LOCKCHECK_WAIT:-600}" &
+  waiting=$!
+  wait "$waiting"
   exit 78
 fi
 exec "$@"

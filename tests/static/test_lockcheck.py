@@ -94,6 +94,40 @@ def test_a_refusal_waits_before_it_exits_so_a_restart_policy_does_not_spin(
     assert "sleep" in text and "LOCKCHECK_WAIT" in text
 
 
+def test_a_refusal_waiting_out_its_wait_leaves_at_once_on_sigterm(
+    tmp_path: Path,
+) -> None:
+    """As PID 1 sh has no default action for TERM, and make down waited out the grace."""
+    import signal
+    import time
+
+    sha = tmp_path / "lock-sha"
+    sha.write_text(hashlib.sha256(b"torch==2.9\n").hexdigest() + "\n")
+    lock = tmp_path / "requirements.lock"
+    lock.write_text("torch==2.10\n")
+    waiting = subprocess.Popen(
+        ["sh", str(CHECK), "echo", "started"],
+        env={
+            "PATH": os.environ["PATH"],
+            "LOCK_SHA": str(sha),
+            "LOCK_FILE": str(lock),
+            "LOCKCHECK_WAIT": "60",
+        },
+        stderr=subprocess.PIPE,
+    )
+    assert waiting.stderr is not None
+    waiting.stderr.readline()  # the refusal is said: the wait has begun
+    time.sleep(0.2)
+    began = time.monotonic()
+
+    waiting.send_signal(signal.SIGTERM)
+    code = waiting.wait(timeout=10)
+    waiting.stderr.close()
+
+    assert code == 78
+    assert time.monotonic() - began < 5
+
+
 @pytest.mark.parametrize("image", sorted(IMAGES))
 def test_each_dockerfile_bakes_the_hash_and_starts_through_the_check(
     image: str,
