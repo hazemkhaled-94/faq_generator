@@ -2298,7 +2298,7 @@ corpus-hosted:
 	@mkdir -p logs
 	@scripts/corpus-hosted.sh --check $(HOSTED_ARGS)
 	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
-	@$(LOADENV) && PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
+	@$(LOADENV) && HF_HUB_OFFLINE=1 PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
 	@nohup scripts/corpus-hosted.sh $(HOSTED_ARGS) >> $(HOSTED_LOG) 2>&1 & \
 	  for i in $$(seq 50); do [ -f $(HOSTED_PID) ] && break; sleep 0.1; done; \
 	  echo "corpus-hosted started: log $(HOSTED_LOG), pid file $(HOSTED_PID); stop it with make corpus-hosted-stop"

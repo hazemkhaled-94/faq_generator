@@ -70,8 +70,20 @@ def _hub_cache(source: Mapping[str, str]) -> Path:
     return Path(home).expanduser() / "hub"
 
 
+#: What an encoder loads its weights from, one of which a snapshot must hold
+#: beside its config: safetensors, the older bin, or the index of either's
+#: shards. A snapshot holding only the tokenizer, which is what a tokenizer load
+#: leaves, is not one a model loads from.
+_WEIGHTS = (
+    "model.safetensors",
+    "pytorch_model.bin",
+    "model.safetensors.index.json",
+    "pytorch_model.bin.index.json",
+)
+
+
 def _snapshot(cache: Path, repo: str, revision: str | None) -> bool:
-    """Whether one commit of a repository is in the cache.
+    """Whether one commit of a repository is in the cache, with its weights.
 
     A branch name is read through `refs`, the way the client does; no revision
     asks for `main`.
@@ -80,17 +92,27 @@ def _snapshot(cache: Path, repo: str, revision: str | None) -> bool:
     wanted = revision or "main"
     pointer = folder / "refs" / wanted
     commit = pointer.read_text().strip() if pointer.is_file() else wanted
-    return (folder / "snapshots" / commit).is_dir()
+    snapshot = folder / "snapshots" / commit
+    return (snapshot / "config.json").is_file() and any(
+        (snapshot / name).is_file() for name in _WEIGHTS
+    )
 
 
 def _holds_any(cache: Path, repo: str) -> bool:
-    """Whether the cache holds any snapshot of a repository.
+    """Whether the cache holds any snapshot of a repository with something in it.
 
     For the repositories whose revision is not ours to pin: Docling asks for the
     one its release names, a tag more often than `main`.
     """
     snapshots = cache / f"models--{repo.replace('/', '--')}" / "snapshots"
-    return snapshots.is_dir() and any(snapshots.iterdir())
+    return snapshots.is_dir() and any(
+        one.is_dir() and any(one.iterdir()) for one in snapshots.iterdir()
+    )
+
+
+def _yes(value: str | None) -> bool:
+    """Whether a flag's value is a spelling of yes."""
+    return (value or "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
@@ -98,17 +120,14 @@ def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
 
     With HF_HUB_OFFLINE=1 a model not in the cache is not downloaded: the first
     passage fails. Every encoder the settings name is checked at its pinned
-    commit, and the converter's weights where DOCLING_ARTIFACTS_PATH names
-    them or, unset, in the cache. With the Hub reachable nothing is checked,
-    because a missing model is then fetched at its first call, as it always
-    was.
+    commit, for its config and the weights it loads, and the converter's
+    weights where DOCLING_ARTIFACTS_PATH names them or, unset, in the cache.
+    Read whether the Hub is off or not: `cache_check` decides what it costs.
 
     Args:
         source: Where to read the settings, or None for the environment.
     """
     source = os.environ if source is None else source
-    if (source.get("HF_HUB_OFFLINE") or "").lower() not in ("1", "true", "yes", "on"):
-        return []
     cache = _hub_cache(source)
     found = []
     for model, pin in _ENCODERS:
@@ -119,8 +138,8 @@ def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
         if not _snapshot(cache, repo, revision):
             found.append(
                 f"{model} {repo} at {revision or 'main'} is not in the cache "
-                f"{cache} and the Hub is off (HF_HUB_OFFLINE=1): fetch it once "
-                "where the Hub is reachable"
+                f"{cache}, or holds no weights there: fetch it once where the "
+                "Hub is reachable"
             )
     artifacts = (source.get("DOCLING_ARTIFACTS_PATH") or "").strip()
     if artifacts:
@@ -133,12 +152,35 @@ def cache_problems(source: Mapping[str, str] | None = None) -> list[str]:
             )
     else:
         found += [
-            f"Docling's {repo} is not in the cache {cache} and the Hub is off: "
-            "run make docling-weights where the Hub is reachable"
+            f"Docling's {repo} is not in the cache {cache}: run make "
+            "docling-weights where the Hub is reachable"
             for repo in _DOCLING_REPOS
             if not _holds_any(cache, repo)
         ]
     return found
+
+
+def cache_check(
+    source: Mapping[str, str] | None = None, *, offline: bool | None = None
+) -> int:
+    """Says what the cache lacks, and whether that fails: 1 if it does, else 0.
+
+    A failure where the run reads the cache with the Hub off: HF_HUB_OFFLINE=1,
+    or the go-live profile (HOST_RUNNER=1), whose runner switches it off.
+    Elsewhere a warning, since a model missing there is fetched at its first
+    load. `offline` decides it for a caller that knows, as the hosted run's
+    preflight does.
+    """
+    source = os.environ if source is None else source
+    if offline is None:
+        offline = _yes(source.get("HF_HUB_OFFLINE")) or _yes(source.get("HOST_RUNNER"))
+    problems = cache_problems(source)
+    for problem in problems:
+        if offline:
+            log.error("%s, and this run reads it with the Hub off", problem)
+        else:
+            log.warning("%s; with the Hub on, the first load fetches it", problem)
+    return int(offline and bool(problems))
 
 
 def stored_source() -> Mapping[str, str]:
@@ -190,12 +232,8 @@ def password_problem(source: Mapping[str, str] | None = None) -> str | None:
     )
 
 
-def preflight() -> int:
-    """What the host runner proves before it starts: the split and the password.
-
-    Returns:
-        0 if both hold, else 1, with each reason logged.
-    """
+def _split_and_password() -> int:
+    """The model split and the database password: 1 if either fails, each reason logged."""
     from llm.config import check_split
 
     failed = 0
@@ -208,6 +246,19 @@ def preflight() -> int:
         log.error("%s", problem)
         failed = 1
     return failed
+
+
+def preflight() -> int:
+    """What the host runner proves before it starts: the split, the password and the cache.
+
+    The cache as the run reads it, with the Hub off, so a missing encoder
+    refuses the start rather than the detached run's first drain.
+
+    Returns:
+        0 if all three hold, else 1, with each reason logged.
+    """
+    failed = _split_and_password()
+    return cache_check(offline=True) or failed
 
 
 def every_model(
@@ -305,10 +356,8 @@ def main() -> int:
                 folder,
             )
     log.info("%s", describe())
-    failed = preflight()
-    for problem in cache_problems():
-        log.error("%s", problem)
-        failed = 1
+    failed = _split_and_password()
+    failed = cache_check() or failed
     try:
         source = stored_source()
     except StoredRefused as refusal:

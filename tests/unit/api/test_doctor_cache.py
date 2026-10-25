@@ -1,18 +1,21 @@
-"""`make doctor` reads the Hugging Face cache with the Hub switched off.
+"""`make doctor` reads the Hugging Face cache a run with the Hub off loads from.
 
 With HF_HUB_OFFLINE=1 a model not in the cache is not downloaded: the first
 passage fails. The doctor says which model, and which pinned revision, is
-missing, before a corpus pays for finding out. Tests use a scratch HF_HOME and
+missing or holds no weights, before a corpus pays for finding out: a failure
+where the run reads the cache with the Hub off (HF_HUB_OFFLINE=1, or the
+go-live HOST_RUNNER=1), a warning elsewhere. Tests use a scratch HF_HOME and
 download nothing.
 """
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
 
-from api.doctor import cache_problems
+from api.doctor import cache_check, cache_problems
 
 EMBEDDER = ("org-a/embedder", "1" * 40)
 CLASSIFIER = ("org-b/classifier", "2" * 40)
@@ -34,13 +37,16 @@ def source(home: Path, **more: str) -> dict[str, str]:
     }
 
 
-def cached(home: Path, repo: str, revision: str) -> None:
-    """Puts one snapshot where the Hub client puts it."""
+def cached(
+    home: Path, repo: str, revision: str, files=("config.json", "model.safetensors")
+) -> None:
+    """Puts one snapshot where the Hub client puts it, holding `files`."""
     snapshot = (
         home / "hub" / f"models--{repo.replace('/', '--')}" / "snapshots" / revision
     )
     snapshot.mkdir(parents=True)
-    (snapshot / "config.json").write_text("{}")
+    for name in files:
+        (snapshot / name).write_text("{}")
 
 
 def fill(home: Path) -> None:
@@ -99,9 +105,89 @@ def test_a_set_qa_model_is_checked_like_the_others(tmp_path) -> None:
     assert "org-c/reader" in said
 
 
-def test_with_the_hub_reachable_nothing_is_checked(tmp_path) -> None:
-    """A model not cached is downloaded at the first call, as it always was."""
-    assert cache_problems(source(tmp_path, HF_HUB_OFFLINE="")) == []
+def test_with_the_hub_reachable_the_cache_is_still_read(tmp_path) -> None:
+    """What is missing is said either way; whether it fails is the caller's."""
+    said = " ".join(cache_problems(source(tmp_path, HF_HUB_OFFLINE="")))
+
+    assert EMBEDDER[0] in said and CLASSIFIER[0] in said
+
+
+@pytest.mark.parametrize(
+    "files",
+    [(), ("tokenizer.json", "tokenizer_config.json"), ("config.json",)],
+    ids=["empty", "tokenizer-only", "no-weights"],
+)
+def test_a_snapshot_without_the_weights_is_incomplete(tmp_path, files) -> None:
+    """What a tokenizer-only load leaves: an offline encoder load fails on it."""
+    fill(tmp_path)
+    folder = tmp_path / "hub" / f"models--{EMBEDDER[0].replace('/', '--')}"
+    for one in (folder / "snapshots" / EMBEDDER[1]).iterdir():
+        one.unlink()
+    for name in files:
+        (folder / "snapshots" / EMBEDDER[1] / name).write_text("{}")
+
+    (said,) = cache_problems(source(tmp_path))
+
+    assert EMBEDDER[0] in said and EMBEDDER[1] in said
+
+
+@pytest.mark.parametrize(
+    "weights",
+    ["model.safetensors", "pytorch_model.bin", "model.safetensors.index.json"],
+)
+def test_each_weights_file_a_model_loads_from_counts(tmp_path, weights) -> None:
+    """Safetensors, the older bin, or a sharded index."""
+    fill(tmp_path)
+    folder = tmp_path / "hub" / f"models--{EMBEDDER[0].replace('/', '--')}"
+    (folder / "snapshots" / EMBEDDER[1] / "model.safetensors").unlink()
+    (folder / "snapshots" / EMBEDDER[1] / weights).write_text("{}")
+
+    assert cache_problems(source(tmp_path)) == []
+
+
+@pytest.mark.parametrize(
+    ("offline", "host_runner", "failed"),
+    [("1", "", 1), ("", "1", 1), ("true", "true", 1), ("", "", 0), ("0", "no", 0)],
+)
+def test_a_missing_model_fails_where_the_run_reads_with_the_hub_off(
+    tmp_path, caplog, offline, host_runner, failed
+) -> None:
+    """HF_HUB_OFFLINE=1 or the go-live profile fails; development warns."""
+    with caplog.at_level(logging.WARNING):
+        code = cache_check(
+            source(tmp_path, HF_HUB_OFFLINE=offline, HOST_RUNNER=host_runner)
+        )
+
+    assert code == failed
+    levels = {r.levelno for r in caplog.records if EMBEDDER[0] in r.getMessage()}
+    assert levels == {logging.ERROR if failed else logging.WARNING}
+
+
+def test_a_filled_cache_says_nothing(tmp_path, caplog) -> None:
+    """On either profile."""
+    fill(tmp_path)
+
+    with caplog.at_level(logging.WARNING):
+        assert cache_check(source(tmp_path, HOST_RUNNER="1")) == 0
+
+    assert caplog.records == []
+
+
+def test_the_hosted_run_s_preflight_reads_the_cache_with_the_hub_off(
+    tmp_path, monkeypatch, caplog
+) -> None:
+    """The hosted run refuses before it detaches, not at its first drain."""
+    from api import doctor
+
+    for name, value in source(tmp_path, HF_HUB_OFFLINE="").items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr("llm.config.check_split", lambda source=None: None)
+    monkeypatch.delenv("APP_DB_PASSWORD", raising=False)
+
+    with caplog.at_level(logging.ERROR):
+        assert doctor.preflight() == 1
+
+    assert EMBEDDER[0] in caplog.text
 
 
 def test_docling_artifacts_named_but_missing_are_reported(tmp_path) -> None:
@@ -177,7 +263,8 @@ def test_a_docling_repository_with_no_snapshot_is_named(tmp_path) -> None:
     """Present as a folder, holding nothing."""
     fill(tmp_path)
     folder = tmp_path / "hub" / "models--docling-project--docling-models"
-    (folder / "snapshots" / ("3" * 40) / "config.json").unlink()
+    for one in (folder / "snapshots" / ("3" * 40)).iterdir():
+        one.unlink()
     (folder / "snapshots" / ("3" * 40)).rmdir()
 
     (said,) = cache_problems(source(tmp_path))

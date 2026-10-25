@@ -168,8 +168,12 @@ load. The three are fixed: change a model and its commit together, in the file.
 
 With `HF_HUB_OFFLINE=1`, which `make corpus-hosted` sets, nothing is fetched, so
 `make doctor` reads the cache first and names what is missing: each encoder at
-its pinned commit, and Docling's weights, in `DOCLING_ARTIFACTS_PATH` where that
-names a folder and in the cache otherwise. `DOCLING_ARTIFACTS_PATH` set and
+its pinned commit, with its config and a weights file (`model.safetensors`,
+`pytorch_model.bin` or a shard index; a snapshot a tokenizer load left holds
+neither), and Docling's weights, in `DOCLING_ARTIFACTS_PATH` where that names a
+folder and in the cache otherwise. It fails on what is missing with
+`HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, and warns otherwise, where a first load
+fetches it; `make corpus-hosted` checks it with the Hub off before it detaches. `DOCLING_ARTIFACTS_PATH` set and
 empty is refused, because Docling reads it as the working directory. Fill the
 cache once, where the Hub is reachable, before go-live: `make docling-weights`
 for the converter, and one run of the chunk and question stages (or the
