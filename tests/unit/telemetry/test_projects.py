@@ -499,3 +499,75 @@ class _Context:
 
     def __exit__(self, *exc) -> None:
         """Nothing to close."""
+
+
+# ── Retention ──────────────────────────────────────────────────────────────
+
+
+class Graph:
+    """A Phoenix whose GraphQL endpoint records what it is sent."""
+
+    def __init__(self, answer: dict | None = None) -> None:
+        """Holds the answer it gives every call."""
+        self.sent: list[tuple[str, dict]] = []
+        self._answer = answer or {"data": {"patchProjectTraceRetentionPolicy": {}}}
+
+    def post(self, path: str, json: dict) -> Answer:
+        """Records one call."""
+        self.sent.append((path, json))
+        return Answer(self._answer)
+
+
+def test_the_retention_step_sends_the_configured_days_to_the_default_policy() -> None:
+    """Customer text in a trace is kept this long and no longer."""
+    client = Graph()
+
+    projects.set_retention(client, 45)
+
+    ((path, body),) = client.sent
+    assert path == "/graphql"
+    assert body["variables"]["input"] == {
+        "id": projects.DEFAULT_POLICY,
+        "rule": {"maxDays": {"maxDays": 45}},
+    }
+    assert "patchProjectTraceRetentionPolicy" in body["query"]
+
+
+def test_the_default_policy_is_phoenixs_policy_zero() -> None:
+    """A global id: the type's name and the number, as base64."""
+    import base64
+
+    assert base64.b64decode(projects.DEFAULT_POLICY) == b"ProjectTraceRetentionPolicy:0"
+
+
+def test_a_missing_value_uses_the_default() -> None:
+    """Thirty days, which a deployment overrides in deployment.env."""
+    assert projects.retention_days({}) == projects.RETENTION_DAYS == 30
+    assert projects.retention_days({"PHOENIX_TRACE_RETENTION_DAYS": ""}) == 30
+
+
+def test_a_configured_value_is_used() -> None:
+    """Read as a whole number of days."""
+    assert projects.retention_days({"PHOENIX_TRACE_RETENTION_DAYS": "90"}) == 90
+
+
+@pytest.mark.parametrize("value", ["0", "-3", "a month", "1.5"])
+def test_a_value_that_is_not_a_positive_number_of_days_is_refused(value: str) -> None:
+    """Zero is Phoenix's own never: the policy this step exists to replace."""
+    with pytest.raises(SystemExit, match="PHOENIX_TRACE_RETENTION_DAYS"):
+        projects.retention_days({"PHOENIX_TRACE_RETENTION_DAYS": value})
+
+
+def test_a_refusal_from_phoenix_is_raised_with_its_message() -> None:
+    """GraphQL answers 200 with the error in the body."""
+    client = Graph({"errors": [{"message": "no such policy"}]})
+
+    with pytest.raises(RuntimeError, match="no such policy"):
+        projects.set_retention(client, 30)
+
+
+def test_the_flag_is_an_operation_of_its_own() -> None:
+    """Beside list, prune and purge, and never with them."""
+    assert projects.parser().parse_args(["--retention"]).retention is True
+    with pytest.raises(SystemExit):
+        projects.parser().parse_args(["--retention", "--purge"])

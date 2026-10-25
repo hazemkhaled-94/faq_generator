@@ -496,6 +496,21 @@ stay after `make delete`, `make archive-purge` and `make wipe-all` until a
 person removes them from the buckets, once every database has run `make
 s3-prefix`.
 
+### What Phoenix keeps
+
+Every trace holds the prompts a run sent, and every prompt is a passage of a
+customer's document. Phoenix keeps them for ever unless told otherwise, so
+`make up` and `make dev` set its default trace retention policy to
+`PHOENIX_TRACE_RETENTION_DAYS` (30 where unset; it is in
+`configs/env/deployment.env`, with its reason). `make phoenix-retention` sets
+it again after a change, and it needs the stack up. Phoenix applies the
+policy on its own schedule, so spans a day past the limit may still be there
+for a while. A failure to set it is printed and the stack still starts: read
+it. A policy of zero is refused, because it is Phoenix's own "never delete".
+
+The cost log is the spend of record, not what Phoenix holds, so shortening the
+retention loses no figure `make spend` reports.
+
 ## Failure
 
 A row a worker died holding is failed by the next run of that stage with the

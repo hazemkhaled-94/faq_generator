@@ -20,6 +20,12 @@ when something other than a model call happened in it: an `assess`, an
 process that proved the model answers and then died, and the call it
 proved it with is in the logs.
 
+A third thing is kept here for the same reason, that Phoenix holds what was
+sent: every prompt is a passage of a customer's document. `--retention` sets
+the default trace retention policy, which every project without a policy of
+its own is under and which ships as "never delete", to
+`PHOENIX_TRACE_RETENTION_DAYS`. `make up` runs it.
+
 Runs on the host, like `evaluation/` and `review/`: no image carries a
 reason to delete a project.
 """
@@ -27,10 +33,11 @@ reason to delete a project.
 from __future__ import annotations
 
 import argparse
+import base64
 import logging
 import os
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 
 import requests
@@ -51,6 +58,19 @@ SAMPLE = 50
 #: The span a model call produces, whoever made it. A project holding
 #: nothing else is a preflight that never became a run.
 CALL = "completion"
+
+#: How many days a trace is kept where the deployment says nothing.
+RETENTION_DAYS = 30
+
+#: Phoenix's default retention policy, which a project with no policy of its
+#: own is under. A GraphQL global id: the type's name and the policy's number.
+DEFAULT_POLICY = base64.b64encode(b"ProjectTraceRetentionPolicy:0").decode()
+
+_RETAIN = """
+mutation ($input: PatchProjectTraceRetentionPolicyInput!) {
+  patchProjectTraceRetentionPolicy(input: $input) { __typename }
+}
+"""
 
 #: Never deleted, whatever it holds. Phoenix files a span carrying no
 #: project name here, so it is where anything misconfigured ends up - and
@@ -275,6 +295,60 @@ def prune(
     return deleted
 
 
+def retention_days(environment: Mapping[str, str] | None = None) -> int:
+    """How many days traces are kept, from PHOENIX_TRACE_RETENTION_DAYS.
+
+    Raises:
+        SystemExit: If it is set and is not a whole number of days above
+            zero. Zero is Phoenix's own "never delete", the policy this
+            replaces, so it is refused rather than read as a choice.
+    """
+    value = (
+        (os.environ if environment is None else environment)
+        .get("PHOENIX_TRACE_RETENTION_DAYS", "")
+        .strip()
+    )
+    if not value:
+        return RETENTION_DAYS
+    if not value.isdecimal() or int(value) < 1:
+        raise SystemExit(
+            f"PHOENIX_TRACE_RETENTION_DAYS={value!r} is not a whole number of "
+            "days above zero; it is in configs/env/deployment.env."
+        )
+    return int(value)
+
+
+def set_retention(client, days: int) -> None:
+    """Sets the default trace retention policy to `days`.
+
+    Phoenix deletes spans older than that when its policy runs, which it does
+    on its own schedule, so what a trace held is gone by a day after the limit
+    and not at it.
+
+    Raises:
+        RuntimeError: If Phoenix answers with an error. GraphQL answers 200
+            with the error in the body.
+    """
+    answered = client.post(
+        "/graphql",
+        json={
+            "query": _RETAIN,
+            "variables": {
+                "input": {
+                    "id": DEFAULT_POLICY,
+                    "rule": {"maxDays": {"maxDays": days}},
+                }
+            },
+        },
+    )
+    answered.raise_for_status()
+    if errors := answered.json().get("errors"):
+        raise RuntimeError(
+            "Phoenix refused the retention policy: "
+            + "; ".join(str(one.get("message", one)) for one in errors)
+        )
+
+
 def purge_datasets(client, every_database: bool = False) -> int:
     """Deletes this database's datasets, or every one, and says how many went.
 
@@ -359,6 +433,14 @@ def parser() -> argparse.ArgumentParser:
         "from a project, so `--purge` does not reach them. Irreversible, "
         "and re-uploadable from evaluation/.",
     )
+    group.add_argument(
+        "--retention",
+        action="store_true",
+        help="set the default trace retention policy to "
+        "PHOENIX_TRACE_RETENTION_DAYS (30 where unset), so a prompt - a "
+        "passage of a customer's document - is not kept for ever. What "
+        "`make up` runs.",
+    )
     return built
 
 
@@ -374,6 +456,11 @@ def main(argv: list[str] | None = None) -> int:
     telemetry.configure("telemetry-projects")
 
     with _client() as client:
+        if args.retention:
+            days = retention_days()
+            set_retention(client, days)
+            log.info("Phoenix keeps traces for %d day(s)", days)
+            return 0
         # Only when a project is being read or taken: `held` costs one
         # request per project, and the dataset flag touches none of them.
         projects = [] if args.purge_datasets else held(client)

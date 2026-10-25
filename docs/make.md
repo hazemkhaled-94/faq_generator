@@ -554,6 +554,7 @@ make review-push-questions IDS=12,34,56
 | Target | Does |
 |---|---|
 | `make phoenix-projects` | What Phoenix holds, changing nothing |
+| `make phoenix-retention` | Set Phoenix's default trace retention policy to `PHOENIX_TRACE_RETENTION_DAYS` days (30 where unset), so a prompt, which is a passage of a customer's document, is not kept for ever. Run by `make up` and `make dev` |
 | `make phoenix-prune` | Delete this database's projects in which no work happened (`ALL_DATABASES=1`: every database's). **Irreversible**, and asks nothing first: it names at most 25 of the projects it takes, then deletes them |
 | `make phoenix-purge` | Delete **every** project of this database (names end in `__<database>`; `ALL_DATABASES=1` takes every database's and those filed before) but `default`, whatever it holds, and every dataset of this database. What `make wipe` runs, and what `prune` will not do |
 | `make phoenix-purge KEEP=golden` | The same, but leave the datasets and their experiments |

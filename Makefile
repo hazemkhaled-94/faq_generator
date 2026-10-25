@@ -328,7 +328,7 @@ help:
         review-status review-push-facts review-pull-facts \
         review-push-topics review-pull-topics \
         review-push-questions review-pull-questions review-delete review-all \
-        phoenix-projects phoenix-prune phoenix-purge \
+        phoenix-projects phoenix-prune phoenix-purge phoenix-retention \
         eval-upload eval-score prompts-publish \
         all corpus corpus-hosted corpus-hosted-stop open services review pull auto manual pipeline runs \
         pipeline-status pipeline-stop pipeline-retry
@@ -474,6 +474,7 @@ dev: install certs logs-dir
 	  [ -n "$$ready" ] || { echo "PostgreSQL was not ready after 60 seconds" >&2; exit 1; }
 	$(MAKE) schema
 	@$(MAKE) --no-print-directory grafana-grants
+	-@$(MAKE) --no-print-directory phoenix-retention
 
 # The spaCy pipelines are downloaded, not resolved: they are not on PyPI
 # under a version range.
@@ -533,6 +534,7 @@ logs-dir:
 up: certs logs-dir
 	@$(UP)
 	@$(MAKE) --no-print-directory grafana-grants
+	-@$(MAKE) --no-print-directory phoenix-retention
 
 # Grafana's reader gets SELECT on the Phoenix tables the run dashboard queries,
 # once Phoenix has made them. Run by `up` and `dev`; safe to run again.
@@ -542,6 +544,14 @@ grafana-grants:
 	  sleep 5; \
 	done
 	$(COMPOSE_CMD) exec -T postgres sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$PHOENIX_DB_NAME" -c "GRANT SELECT ON projects, traces, spans, span_costs, span_annotations TO $$GRAFANA_DB_USER"'
+
+# Phoenix keeps every prompt, which is a passage of a customer's document, until
+# told otherwise. Sets the default trace retention policy to
+# PHOENIX_TRACE_RETENTION_DAYS (configs/env/deployment.env; 30 where unset).
+# Run by `up` and `dev`, which ignore a failure so the stack still starts;
+# safe to run again.
+phoenix-retention:
+	$(LOADENV) && poetry run python -m telemetry.projects --retention
 
 # Stop every service. The volumes are kept.
 down:

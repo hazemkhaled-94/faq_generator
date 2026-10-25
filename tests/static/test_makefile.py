@@ -603,7 +603,13 @@ def test_all_brings_the_stack_up_waits_for_dagster_then_launches_the_corpus() ->
 
     assert up and wait and launch, lines
     assert up[0] < wait[0] < launch[0], lines
-    assert not [line for line in lines if "python -m" in line or "alembic" in line]
+    # `up` also sets Phoenix's retention, which is a call to Phoenix and not a drain.
+    assert not [
+        line
+        for line in lines
+        if ("python -m" in line and "telemetry.projects --retention" not in line)
+        or "alembic" in line
+    ]
 
 
 @pytest.mark.parametrize(
