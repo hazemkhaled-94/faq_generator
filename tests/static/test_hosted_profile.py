@@ -195,6 +195,26 @@ def test_the_corpus_says_its_database_and_pins_what_every_drain_reads(
 
 
 @pytest.mark.parametrize("target", ["corpus", "corpus-hosted"])
+def test_a_database_exported_in_the_shell_is_the_one_announced_and_used(
+    tmp_path: Path, target: str
+) -> None:
+    """As every host command's OVERRIDE takes it: never deployment.env's instead."""
+    project = _project(tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n")
+
+    ran = _make(project, target, APP_DB_NAME="qa_shell")
+
+    assert ran.returncode == 0, ran.stderr
+    if target == "corpus-hosted":
+        _waited(project)
+        said = (project / "logs/corpus-hosted.log").read_text()
+    else:
+        said = ran.stdout + ran.stderr
+    assert "corpus: database qa_shell" in said, said
+    drains = _drained(project)
+    assert drains and {line.split()[0] for line in drains} == {"qa_shell"}, drains
+
+
+@pytest.mark.parametrize("target", ["corpus", "corpus-hosted"])
 def test_a_database_given_on_the_command_line_is_the_one_announced_and_used(
     tmp_path: Path, target: str
 ) -> None:

@@ -220,9 +220,9 @@ HOSTED_ARGS = APP_DB_NAME=$(CORPUS_DB) $(if $(RESET),RESET=1)
 CORPUS_RETRIES = parse-retry chunk-retry extract-retry topics-retry questions-retry assess-retry
 
 # The database a run acts on, as every host command reads it: the one a
-# command line gives, which OVERRIDE puts over the files, else the files' in
-# their order. Lazy, so only a target that names it pays for the shell.
-CORPUS_DB = $(if $(filter command line,$(origin APP_DB_NAME)),$(APP_DB_NAME),$(shell \
+# command line gives or the shell exports, which OVERRIDE puts over the files,
+# else the files' in their order. Lazy, so only a target that names it pays for the shell.
+CORPUS_DB = $(if $(filter command line environment,$(origin APP_DB_NAME)),$(APP_DB_NAME),$(shell \
               set -a; . ./configs/env/deployment.env 2>/dev/null; \
               [ ! -f "$(ENV_PATH)" ] || . "$(ENV_PATH)" 2>/dev/null; printf %s "$$APP_DB_NAME"))
 
