@@ -1115,3 +1115,22 @@ def test_a_group_with_no_spread_is_not_pooled(exported, tmp_path, capsys) -> Non
 
     assert "usable not pooled: de has no spread" in out
     assert not [row for row in out.splitlines() if row.startswith("all") and "[" in row]
+
+
+def test_the_all_row_weighs_each_language_by_its_rows_in_the_workbook(
+    exported, tmp_path, capsys
+) -> None:
+    """Held 40 to 4, judged 18 to 4: the pooled share follows the rows, not the judging."""
+    german = [(i, "", bool(i % 2)) for i in range(1, 19)]
+    german += [(i, "", None) for i in range(201, 223)]
+    english = [(i, "", True) for i in range(101, 105)]
+    # German labelled yes on one in two, English on two of three
+    labels = usable(range(1, 5), [1, 0, 1, 0]) + usable(range(101, 104), [1, 1, 0])
+    path, file = labelled_set(
+        tmp_path, german + english, labels, english=frozenset(range(101, 105))
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    rows = {row[0]: row for row in corrected_rows(capsys)}
+
+    de, en, pooled = (float(rows[one][6]) for one in ("de", "en", "all"))
+    assert pooled == pytest.approx((40 * de + 4 * en) / 44, abs=2e-3)

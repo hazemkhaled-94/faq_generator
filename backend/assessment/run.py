@@ -645,7 +645,8 @@ def _corrected(
     labelled rows give the label and the judged rows without one give what
     the judge says alone; prediction-powered inference (ARES, Saad-Falcon et
     al., NAACL 2024, section 3.3) corrects the second by the first. The
-    languages of each label are then pooled by their size as the row `all`.
+    languages of each label are then pooled by their rows in the workbook,
+    not by how many the judge scored, as the row `all`.
 
     A label can apply to some rows only: a row labelled `na` for it is in
     neither count, and a row left out of the labels is counted only if it is
@@ -733,7 +734,7 @@ def _corrected(
                 [verdict[id] for id in tagged],
                 [given[id][field] or 0 for id in tagged],
             )
-            pool[(label, field)].append((one, tagged, rest, language))
+            pool[(label, field)].append((one, tagged, rest, language, len(group)))
             _print_corrected(shown, field, one, tagged + rest, tagged, verdict, given)
     for (label, field), parts in sorted(pool.items()):
         shown = f"{'all':<9}{label:<36}" if by else f"{'all':<9}"
@@ -741,14 +742,20 @@ def _corrected(
             missing = ", ".join(unmeasured[(label, field)])
             print(f"{shown}{field} not pooled: {missing} not measured")
             continue
-        flat = [language for one, _, _, language in parts if one.se == 0]
+        flat = [language for one, _, _, language, _ in parts if one.se == 0]
         if flat:
             print(f"{shown}{field} not pooled: {', '.join(flat)} has no spread")
             continue
-        tagged = [id for _, t, _, _ in parts for id in t]
-        ids = tagged + [id for _, _, rest, _ in parts for id in rest]
+        tagged = [id for _, t, _, _, _ in parts for id in t]
+        ids = tagged + [id for _, _, rest, _, _ in parts for id in rest]
         _print_corrected(
-            shown, field, ppi.pooled([p[0] for p in parts]), ids, tagged, verdict, given
+            shown,
+            field,
+            ppi.pooled([p[0] for p in parts], [p[4] for p in parts]),
+            ids,
+            tagged,
+            verdict,
+            given,
         )
     print()
     if unjudged:

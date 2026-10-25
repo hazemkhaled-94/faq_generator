@@ -245,3 +245,24 @@ def test_the_interval_covers_the_true_share_whatever_the_number_of_labels(
             covered += low <= share <= high
 
     assert covered / (len(shares) * reps) >= 0.93
+
+
+def test_strata_are_pooled_by_their_population_when_it_is_given() -> None:
+    """100 judged each, but 900 and 100 rows in the workbook: weighted 0.9 and 0.1."""
+    de = Corrected(0.9, 0.05, math.nan, 20, 80, 0.9)
+    en = Corrected(0.5, 0.05, math.nan, 20, 80, 0.5)
+
+    by_judged = pooled([de, en])
+    by_rows = pooled([de, en], [900, 100])
+
+    assert by_judged.estimate == pytest.approx(0.7, **APPROX)
+    assert by_rows.estimate == pytest.approx(0.86, **APPROX)
+    assert by_rows.se == pytest.approx(math.sqrt(0.9**2 * 0.05**2 + 0.1**2 * 0.05**2))
+
+
+def test_a_size_for_every_stratum_or_none() -> None:
+    """A list of the wrong length is refused rather than zipped short."""
+    part = Corrected(0.5, 0.1, math.nan, 20, 80, 0.5)
+
+    with pytest.raises(ValueError, match="size"):
+        pooled([part, part], [10])

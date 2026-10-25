@@ -182,17 +182,22 @@ def corrected_mean(
     return _at(float(weight), f_judged, f_labelled, y)
 
 
-def pooled(parts: Sequence[Corrected]) -> Corrected:
+def pooled(parts: Sequence[Corrected], sizes: Sequence[int] | None = None) -> Corrected:
     """Strata estimated apart, combined by their size.
 
-    The weights are each stratum's rows, labelled and judged, over all the
-    rows, so a stratum labelled evenly with the others still counts as big
-    as it is.
+    `sizes` is each stratum's population, its rows in the workbook, which is
+    what the pooled share is a share of. Left out, it is the rows judged,
+    labelled and not, which is the population only where every row is judged
+    and says nothing of a stratum the judge saw less of.
     """
     if not parts:
         raise ValueError("nothing to pool")
-    sizes = np.array([p.labelled + p.judged for p in parts], float)
-    share = sizes / sizes.sum()
+    if sizes is not None and len(sizes) != len(parts):
+        raise ValueError("a size for each stratum")
+    weights = np.array(
+        sizes if sizes is not None else [p.labelled + p.judged for p in parts], float
+    )
+    share = weights / weights.sum()
     return Corrected(
         estimate=float(np.sum(share * [p.estimate for p in parts])),
         se=math.sqrt(float(np.sum(share**2 * [p.se**2 for p in parts]))),
