@@ -106,15 +106,24 @@ started_at() {
   LC_ALL=C TZ=UTC0 ps -o lstart= -p "$1" 2>/dev/null | sed 's/ *$//'
 }
 
+# Whether a member of group $1 is a corpus run's: a make given a run's spend
+# ledger on its command line, or a stage's drain. What tells a run whose make
+# was killed from a group that took the number after a reboot or a wrap of the
+# pid count and whose own leader has exited.
+run_member() {
+  ps -A -o pgid= -o command= 2>/dev/null | awk -v group="$1" '$1 == group' \
+    | grep -qE 'SPEND_LEDGER=state/corpus-spend-|-m [a-z_.]+\.run( |$)'
+}
+
 # Whether the recorded group is the run, going on: its leader alive with the
-# start time recorded or, that make killed, members of its group left - a
-# drain finishing under it. A record with no start time names no run.
+# start time recorded or, that make killed, a make or a drain of the run left
+# in its group, finishing a row. A record with no start time names no run.
 ours() {
   [ -n "$group" ] && [ -n "$started" ] || return 1
   if ps -p "$group" >/dev/null 2>&1; then
     [ "$(started_at "$group")" = "$started" ]
   else
-    kill -0 -- "-$group" 2>/dev/null
+    run_member "$group"
   fi
 }
 alive=

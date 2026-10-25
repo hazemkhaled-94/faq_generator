@@ -1016,3 +1016,56 @@ def test_pruning_old_logs_leaves_a_stopped_run_and_its_spend(tmp_path: Path) -> 
     _make(project, "logs-prune")
 
     assert ledger.exists() and record.exists()
+
+
+#: Forks a group leader that starts an unrelated sleep in its group and exits.
+_LEADERLESS = """
+import os, subprocess
+r, w = os.pipe()
+if os.fork() == 0:
+    os.setpgid(0, 0)
+    subprocess.Popen(["sleep", "60"], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    os.write(w, str(os.getpid()).encode())
+    os._exit(0)
+os.wait()
+print(os.read(r, 32).decode())
+"""
+
+
+def _leaderless_group() -> int:
+    """A group whose leader has exited, an unrelated sleep left in it."""
+    import sys
+
+    made = subprocess.run(
+        [sys.executable, "-c", _LEADERLESS],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return int(made.stdout)
+
+
+def test_a_reused_group_number_whose_leader_is_gone_is_not_the_run(
+    tmp_path: Path,
+) -> None:
+    """Only a member that is a corpus run's - its make or a stage's drain - is the run."""
+    project = _project(tmp_path, env=GO_LIVE)
+    (project / "state").mkdir()
+    group = _leaderless_group()
+    (project / "state/corpus-hosted.pid").write_text(
+        f"{group} qa_scratch\nMon Oct 19 08:00:00 2026\n"
+    )
+
+    try:
+        stopped = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=3")
+        alive_after_stop = _alive(group)
+        started = _make(project, "corpus-hosted")
+        _waited(project)
+    finally:
+        os.killpg(group, signal.SIGKILL) if _alive(group) else None
+
+    assert "no hosted run" in stopped.stdout, stopped.stdout
+    assert alive_after_stop, "the stop signalled an unrelated group"
+    assert started.returncode == 0, started.stderr
+    assert any(" --retry" in line for line in _drained(project)), "a resume"
