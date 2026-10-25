@@ -146,9 +146,9 @@ def test_an_unambiguous_compound_still_points() -> None:
 @pytest.mark.parametrize(
     ("text", "language"),
     [
-        ("What is the fee for the 2026/27 season?", "en"),
+        ("What is the fee for the 2026/27 budget?", "en"),
         ("When does the 2026/27 term start?", "en"),
-        ("Welche Gebühr gilt für die 2026/27 Saison?", "de"),
+        ("Welche Gebühr gilt für das 2026/27 Budget?", "de"),
         ("Wann beginnt das Semester 2026/27?", "de"),
     ],
 )

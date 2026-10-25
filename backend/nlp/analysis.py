@@ -2179,7 +2179,7 @@ def _counted(token):
     `die drei Wege` is caught too and is a perfectly good question - which is
     allowed, because this measurement may only ever offer a pointer for the
     verdict to rule on. A figure with a slash in it is a period, not a count:
-    `the 2026/27 season` names its own.
+    `the 2026/27 budget` names its own.
     """
     definite = False
     quantified = None
