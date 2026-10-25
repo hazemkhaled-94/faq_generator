@@ -510,9 +510,7 @@ is, and re-verify rejects it.
 
 Applied cheapest first, in this order. The first five are one structural
 step, and the free half of `leaks_source`, a question quoting the title of
-its own document, runs in it too: only where the title is cited as a source
-(in quotation marks, as the object of an adposition, or in apposition to or as
-a modifier of a document noun), not where it is the question's own subject.
+its own document, runs in it too.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|

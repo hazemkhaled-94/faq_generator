@@ -740,9 +740,7 @@ def structural(
     quoted = [
         title
         for title in titles
-        if len(title.strip()) >= _TITLE_CHARS
-        and normalised(title) in folded
-        and cites_title(asked, title, language)
+        if len(title.strip()) >= _TITLE_CHARS and normalised(title) in folded
     ]
     if quoted:
         return (
@@ -995,52 +993,6 @@ def cites_source(question: str, language: str | None) -> bool | None:
             ):
                 return True
     return False if names_a_rule else None
-
-
-#: The marks a title is set in quotation in, opening and closing.
-_QUOTES = "\"'„“”‚‘’«»‹›"
-
-
-def cites_title(question: str, title: str, language: str | None) -> bool:
-    """Whether a question names a document's title as its source.
-
-    A title is cited where it is set in quotation marks, where it is the
-    object of an adposition (`laut X`, `according to X`, `im X`), or where it
-    names the document in apposition or as a modifier of a document noun
-    (`the X circular`, `das Rundschreiben X`). Where it is the question's own
-    subject or object - `Wann sind Beruhigungspausen vorgesehen?` asked of a
-    document titled `Beruhigungspausen` - the question is about what the
-    title names, and the phrasing judge keeps the rest.
-
-    True where the title cannot be located in the parse: the verbatim match
-    that called this was made on folded text, and a doubt is a refusal as it
-    was.
-    """
-    found = re.search(
-        r"\s+".join(map(re.escape, title.split())), question, re.IGNORECASE
-    )
-    if found is None:
-        return True
-    start, end = found.span()
-    if question[start - 1 : start] in _QUOTES and question[end : end + 1] in _QUOTES:
-        return True
-    inside = [
-        token for token in pipeline(language)(question) if start <= token.idx < end
-    ]
-    # The span's own head: the one token whose head lies outside the span.
-    tops = [
-        token for token in inside if token.head not in inside or token.head is token
-    ]
-    return any(
-        token.head.pos_ == "ADP"
-        or token.dep_ == "appos"
-        or token.head.lemma_.casefold() in _DOCUMENTS
-        or any(
-            child.pos_ == "ADP" and child.i < token.i and child.dep_ == "case"
-            for child in token.children
-        )
-        for token in tops
-    )
 
 
 def anchored(question: str, language: str | None) -> bool:
