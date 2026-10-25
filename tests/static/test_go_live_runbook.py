@@ -57,3 +57,20 @@ def test_the_runbook_says_how_to_resume_after_a_stop() -> None:
     text = " ".join((ROOT / "docs/operations.md").read_text().split())
 
     assert "make corpus-hosted` after a stop" in text
+
+
+def test_after_a_stop_says_how_to_get_past_rows_that_fail_every_time() -> None:
+    """A resume retries every failed row, so one that always fails stops every resume."""
+    text = (ROOT / "docs/operations.md").read_text()
+    section = " ".join(
+        text.split("### After a stop", 1)[1].split("\n## ", 1)[0].split()
+    )
+
+    for needle in (
+        "the same stage",
+        "logs/corpus-hosted.log",
+        "make delete SHA=",
+        "-retry",
+        "RESET=1",
+    ):
+        assert needle in section, needle

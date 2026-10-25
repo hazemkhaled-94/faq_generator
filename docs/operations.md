@@ -692,6 +692,17 @@ one's, and a `make corpus` on the same database refuses beside the hosted run:
 while it goes, and, unless it resumes with `RESUME=1`, while a stopped one is
 recorded, whose spend a fresh run would start again.
 
+A resume returns every stage's failed rows to the queue first, so a row that
+fails every time - a document parsing refuses for its language, an empty or
+broken PDF - stops every resume at the same stage with 3. Read why before
+starting it again: `logs/corpus-hosted.log` names each failed row and its
+error, and the stage's page lists them. Then put the row right or take it out:
+`make delete SHA=<sha256>` removes a document that cannot be processed, and
+once the cause is fixed the stage's `-retry` target (`make parse-retry
+SHA=<sha256>`, `make extract-retry PASSAGE=<id>`) returns that row alone.
+`make corpus-hosted RESET=1` starts a fresh run, which retries no failed row
+and starts the spend count again.
+
 `make corpus-hosted-stop` stops a hosted run: it sends TERM to that whole
 group, so the drain in hand finishes its row, or gives it back, and exits 75,
 and kills what is left after 300 seconds, a model stage's grace and its
