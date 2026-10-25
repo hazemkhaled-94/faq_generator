@@ -606,8 +606,12 @@ calls too, and so is one whose spans Phoenix would not hand over.
 same but `tests`.
 
 `test-perf` and `mutation` run only in the nightly workflow, which also runs
-`make audit`, every layer but eval and perf, and the eval layer
-`make test-eval` runs. Which modules and layers mutation covers is
+`make audit`, every layer but eval, perf and slow, and the eval layer
+`make test-eval` runs. The slow layer, the golden PDFs, runs in its weights
+job alone, whose cache holds the embedding, NLI and Docling weights, keyed by
+the Docling release; where a conversion differs from the snapshots it
+converts them again and keeps them as the `golden-snapshots-linux` artifact,
+from which a refresh recorded on Linux is taken. Which modules and layers mutation covers is
 `[tool.mutmut]` in `pyproject.toml`; `mutmut browse` reads the survivors.
 
 ## Cost

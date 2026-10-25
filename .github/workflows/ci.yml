@@ -79,7 +79,7 @@ jobs:
       # profiles in tests/conftest.py.
       - run: >-
           poetry run pytest
-          -m "not integration and not smoke and not eval and not perf"
+          -m "not integration and not smoke and not eval and not perf and not slow"
           --ignore=tests/static --cov --cov-report= --cov-fail-under=0
         env:
           HYPOTHESIS_PROFILE: ci

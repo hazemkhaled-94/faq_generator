@@ -55,8 +55,9 @@ jobs:
       # containers call, which only .env.example declares.
       - run: cp .env.example .env
       # A thousand examples per property where CI runs 200 and a laptop
-      # runs 25, which is the budget nothing else has time for.
-      - run: poetry run pytest -m "not eval and not perf"
+      # runs 25, which is the budget nothing else has time for. The golden
+      # conversions are the weights job's, the one that fetches them.
+      - run: poetry run pytest -m "not eval and not perf and not slow"
         env:
           HYPOTHESIS_PROFILE: nightly
 
@@ -104,11 +105,17 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: ./.github/actions/setup
         id: setup
+      # Docling's weights land in the Hugging Face cache too, with
+      # DOCLING_ARTIFACTS_PATH unset, at the revisions its release pins: the
+      # key carries that release, or the first one's weights are kept forever.
+      - name: Read the Docling release
+        id: docling
+        run: echo "version=$(sed -n '/^name = "docling"$/{n;s/^version = "\(.*\)"$/\1/p;}' poetry.lock)" >> "$GITHUB_OUTPUT"
       - name: Cache the models
         uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
         with:
           path: ~/.cache/huggingface
-          key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}
+          key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}-docling-${{ steps.docling.outputs.version }}
       - name: Fetch the models at their pinned revisions
         run: |
           set -a; . configs/env/backend.env; set +a
@@ -132,6 +139,17 @@ jobs:
           tests/regression/test_fact_refusals.py
           tests/unit/chunking/test_chunking.py
           tests/golden
+      # The snapshots were recorded on another system: what this runner
+      # converts is kept, so a refresh for Linux is taken from it.
+      - name: Convert the golden PDFs again into their snapshots
+        if: failure()
+        run: make golden-refresh
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: failure()
+        with:
+          name: golden-snapshots-linux
+          path: tests/golden/snapshots
+          retention-days: 14
 
   # The ceilings the code names in a comment. Reported rather than gated: a
   # wall-clock budget on a shared runner measures the runner.

@@ -254,3 +254,56 @@ def test_the_nightly_fails_rather_than_skips_where_weights_are_missing() -> None
     assert run["env"]["HF_HUB_OFFLINE"] == "1"
     for tests in ("test_embedding.py", "test_fact_refusals.py", "tests/golden"):
         assert tests in run["run"], tests
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+def test_the_golden_conversion_runs_in_the_weights_job_alone(path: Path) -> None:
+    """Every other selection leaves the slow layer out.
+
+    It converts real PDFs from the cached weights against snapshots, which only
+    the nightly weights job fetches; anywhere else it would download them on
+    every run and compare against snapshots no runner of that kind recorded.
+    """
+    from collections import defaultdict
+
+    selecting = [
+        (name, expression)
+        for name, job in loaded(path)["jobs"].items()
+        if name != "weights"
+        for step in job.get("steps", [])
+        for expression in _SELECTOR.findall(step.get("run", ""))
+    ]
+
+    chosen = [
+        f"{name}: {expression}"
+        for name, expression in selecting
+        if eval(expression, {}, defaultdict(bool, {"slow": True}))
+    ]
+    assert not chosen, chosen
+
+
+def test_the_weights_job_caches_docling_by_its_version_and_keeps_a_failed_conversion() -> (
+    None
+):
+    """Its cache holds Docling's weights, and a difference leaves a Linux refresh.
+
+    Docling's weights land in the Hugging Face cache when DOCLING_ARTIFACTS_PATH
+    is unset, at revisions its release pins, so the key carries that release: a
+    key of the embedding model alone kept the first Docling's weights forever.
+    A golden difference converts again into the snapshots and uploads them.
+    """
+    job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["weights"]
+    steps = job["steps"]
+    (cache,) = [one for one in steps if "actions/cache@" in one.get("uses", "")]
+    read = [one for one in steps if one.get("id") == "docling"]
+    refresh = [one for one in steps if "golden-refresh" in one.get("run", "")]
+    kept = [one for one in steps if "actions/upload-artifact@" in one.get("uses", "")]
+
+    assert "~/.cache/huggingface" in cache["with"]["path"]
+    assert "steps.docling.outputs.version" in cache["with"]["key"]
+    assert read and 'name = "docling"' in read[0]["run"]
+    assert "poetry.lock" in read[0]["run"]
+    assert refresh and refresh[0]["if"] == "failure()"
+    assert kept and kept[0]["if"] == "failure()"
+    assert kept[0]["with"]["path"] == "tests/golden/snapshots"
+    assert steps.index(refresh[0]) < steps.index(kept[0])
