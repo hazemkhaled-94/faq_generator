@@ -1617,6 +1617,7 @@ s3-prefix:
 backup:
 	@[ -n "$(DIR)" ] || { echo "usage: make backup DIR=<directory>"; exit 2; }
 	@[ ! -e "$(DIR)/manifest.json" ] || { echo "REFUSED: $(DIR) already holds a backup." >&2; exit 2; }
+	@echo "A worker still running writes while this copies: the dumps, the objects and the row counts are of different moments. Stop the workers first (docs/operations.md, Backups)." >&2
 	@mkdir -p "$(DIR)/db"
 	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $(if $(filter 1,$(ARGILLA)),$$ARGILLA_DB_NAME); do \
 	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_dump -Fc -U \"\$$POSTGRES_USER\" -d $$name" > "$(DIR)/db/$$name.dump" || exit 1; \

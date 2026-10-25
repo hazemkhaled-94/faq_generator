@@ -435,6 +435,14 @@ store secrets, and rotate `ARGILLA_API_KEY` if it leaks. Without it, the review
 datasets come back from the database with `make review-push-*`, and an answer
 not yet pulled with `make review-pull-*` is not in the backup.
 
+Stop the workers first (`podman compose ... stop parse-worker chunk-worker
+extract-worker topic-worker question-worker assess-worker`, as step 2 of the
+drill below does). `make backup` takes the dumps, then the objects, then the
+row counts, and a worker still writing makes them three moments: the backup
+then verifies with differences, and a row dumped before an object was deleted
+has no object in it. It prints this before it starts and does not refuse,
+which would need a force flag for a case the operator can see for themselves.
+
 Copy `DIR` off the machine. A backup on the volume it protects is not one.
 
 ### The restore drill

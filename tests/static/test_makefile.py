@@ -1181,3 +1181,15 @@ def test_a_wipe_of_one_database_takes_only_its_phoenix_datasets() -> None:
     assert own and every
     assert all("--all-databases" not in one for one in own), own
     assert all("--all-databases" in one for one in every), every
+
+
+def test_a_backup_says_before_it_dumps_that_running_workers_make_it_inconsistent() -> (
+    None
+):
+    """The dumps, the objects and the row counts are three moments while a worker writes."""
+    lines = printed("backup", "DIR=/backups/x")
+    said = next(
+        (at for at, one in enumerate(lines) if "different moments" in one), None
+    )
+    dumped = next(at for at, one in enumerate(lines) if "pg_dump" in one)
+    assert said is not None and said < dumped, lines
