@@ -240,6 +240,23 @@ def _migrate(url: str) -> None:
 
 
 @pytest.fixture(scope="session")
+def own_postgres():
+    """What a test starting a Postgres of its own takes from here.
+
+    A fixture rather than an import: a test module that says `from conftest
+    import` gets whichever conftest.py pytest loaded first under that name.
+    """
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        image=POSTGRES_IMAGE,
+        started=_started,
+        install_extensions=_install_extensions,
+        migrate=_migrate,
+    )
+
+
+@pytest.fixture(scope="session")
 def engine(postgres: str):
     """An engine on the migrated database, for the tests that read directly."""
     from sqlalchemy import create_engine

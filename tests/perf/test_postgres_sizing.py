@@ -69,9 +69,8 @@ def _sizing() -> dict[str, str]:
 
 
 @pytest.fixture(scope="module")
-def sized(runtime):
+def sized(runtime, own_postgres):
     """A Postgres started with the shipped sizing, migrated, with its URL."""
-    from conftest import POSTGRES_IMAGE, _install_extensions, _migrate, _started
     from testcontainers.community.postgres import PostgresContainer
 
     size = _sizing()
@@ -86,7 +85,7 @@ def sized(runtime):
 
     def build():
         return (
-            PostgresContainer(POSTGRES_IMAGE, driver="psycopg")
+            PostgresContainer(own_postgres.image, driver="psycopg")
             .with_command(["postgres", *options])
             .with_kwargs(
                 mem_limit=size["POSTGRES_MEMORY"],
@@ -96,11 +95,11 @@ def sized(runtime):
             )
         )
 
-    container = _started(build)
+    container = own_postgres.started(build)
     try:
         url = container.get_connection_url()
-        _install_extensions(url)
-        _migrate(url)
+        own_postgres.install_extensions(url)
+        own_postgres.migrate(url)
         yield container, url, size
     finally:
         container.stop()
