@@ -10,7 +10,7 @@ from sqlalchemy import Table, bindparam, delete, func, insert, select, update
 from sqlalchemy.orm import InstrumentedAttribute
 
 from database.qa_generator import Document, Fact, FactPassage, Passage, Status
-from database.qa_generator.repository import Repository, matching
+from database.qa_generator.repository import Repository, lock_reached, matching
 from preprocessing.chunking.models import (
     Chunk,
     Chunking,
@@ -171,6 +171,10 @@ class ChunkQueue(RowQueue):
                     added.append(chunk)
             gone = [row.id for row in stored if row.id not in kept]
             if gone:
+                lock_reached(
+                    session,
+                    select(FactPassage.fact_id).where(FactPassage.passage_id.in_(gone)),
+                )
                 session.execute(delete(Passage).where(Passage.id.in_(gone)))
             if kept:
                 # (doc_sha256, ordinal) is unique and Postgres checks it row by

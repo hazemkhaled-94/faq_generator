@@ -80,6 +80,13 @@ The two triggers lock the fact or the question before deciding, so two
 deletions at once leave neither a fact with no citation nor a question
 still accepted with no fact. The assessments of whatever goes cascade with it.
 
+The triggers lock row by row in the order the rows are stored, so two deletions
+reaching the same facts through different rows could each wait on the other.
+The paths that delete (`store` of a passage's facts, a chunk store, a
+document's deletion) first call `lock_reached`, which locks the facts and
+questions the cascade will reach in id order, so every such deletion waits in
+one line.
+
 `ingest_events.sha256` is a plain column, not a foreign key, so the record
 that an upload happened outlives the document and keeps its digest.
 

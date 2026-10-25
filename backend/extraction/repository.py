@@ -45,7 +45,7 @@ from database.qa_generator import (
     engine,
 )
 from database.qa_generator.passage_topics import DOMINANT
-from database.qa_generator.repository import Repository, matching
+from database.qa_generator.repository import Repository, lock_reached, matching
 from extraction.models import (
     REPAIRED,
     WRITTEN,
@@ -537,6 +537,7 @@ class PassageQueue(RowQueue):
             # left citing nothing, and keeps one another passage still cites.
             stale = [one for twins in held.values() for one in twins]
             if stale:
+                lock_reached(session, stale)
                 session.execute(
                     delete(FactPassage).where(
                         FactPassage.passage_id == passage_id,
@@ -1402,6 +1403,7 @@ class FactCatalog(Repository):
             left = len({row.fact_id for row in found if not row.anchored})
             if not unfolded:
                 return 0, left
+            lock_reached(session, unfolded)
             session.execute(
                 delete(FactPassage).where(
                     FactPassage.fact_id.in_(unfolded), FactPassage.position >= 1

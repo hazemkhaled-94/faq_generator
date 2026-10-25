@@ -9,12 +9,13 @@ from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from database.qa_generator import (
     Document,
+    FactPassage,
     IngestEvent,
     Outcome,
     Passage,
     Status,
 )
-from database.qa_generator.repository import Repository, matching
+from database.qa_generator.repository import Repository, lock_reached, matching
 from ingestion.models import DocumentName, PdfFacts, StoredDocument, UploadedFile
 
 #: The name and date a digest first arrived under. DISTINCT ON, so the name
@@ -65,7 +66,17 @@ _QUESTIONS_ONLY_ON = text(
 
 
 def _delete_questions(session, digests: list[str]) -> None:
-    """Deletes the questions resting only on these documents, in the caller's transaction."""
+    """Deletes the questions resting only on these documents, in the caller's transaction.
+
+    The facts and questions the deletion will reach are locked first, in id
+    order, so two deletions at once do not wait on each other in a circle.
+    """
+    lock_reached(
+        session,
+        select(FactPassage.fact_id)
+        .join(Passage, Passage.id == FactPassage.passage_id)
+        .where(Passage.doc_sha256.in_(digests)),
+    )
     session.execute(_QUESTIONS_ONLY_ON, {"digests": digests})
 
 
