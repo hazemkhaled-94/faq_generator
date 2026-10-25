@@ -1412,9 +1412,7 @@ def asks_for_an_agent(question: str, answer: str, language: str | None) -> bool:
 #: answered by the set of them.
 #:
 #: ponytail: openings in the two languages NLP_MODELS configures; a language
-#: missing here is typed by its slot, and `restates` holds every key in it to
-#: the share a why is held to, so a newly configured language supplies its
-#: why openings here or keeps that test. Upgrade: a per-language setting.
+#: missing here is typed by its slot. Upgrade: a per-language setting.
 _ASKED_FOR: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "en": (
         (r"^how (many|much)\b", (QuestionType.FACTOID, QuestionType.AGGREGATION)),
@@ -1828,11 +1826,8 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     nothing to the question it answered, because `cautioned` is the answer
     and a verb.
 
-    Asked why, fewer than `_NEW` of the answer's lemmas new to the question;
-    asked anything else, none new at all (one new word is the answer, and
-    `Where must the cashier ... be seated?` is answered `at the desk` inside
-    a sentence that echoes the rest); in a language with no openings to read
-    a why by, every key is held to the share. The share: `accurate test metrics for exploratory testing sessions can be
+    Fewer than `_NEW` of the answer's lemmas new to the question:
+    `accurate test metrics for exploratory testing sessions can be
     challenging to determine` adds one in eight. There IS no gate here for
     "the question is its own fact rearranged" and that is deliberate - it
     was written twice, and both formulations refused `Wie hoch war die
@@ -1891,16 +1886,7 @@ def restates(question: str, answer: str, language: str | None) -> bool:
         return False
     if any(token.lower_ in _AGENTS for token in asked):
         return False
-    new = said - _says(asked)
-    # Asked why, an answer is a reason only if enough of it is new: a share.
-    # Asked anything else, one new lemma is the answer, however much of the
-    # question the sentence echoes around it. A language `_ASKED_FOR` has no
-    # openings for cannot tell a why from anything else, so it keeps the share.
-    if (opened and opened[0] == QuestionType.REASON) or not _ASKED_FOR.get(
-        (language or "").strip().lower()
-    ):
-        return len(new) / len(said) < _NEW
-    return not new
+    return len(said - _says(asked)) / len(said) < _NEW
 
 
 #: How much of what the verifier independently recovered may be missing from
