@@ -122,3 +122,32 @@ def test_a_wipe_after_a_reextraction_leaves_no_question(
 
     assert store._execute("SELECT count(*) FROM documents") == [(0,)]
     assert store._execute("SELECT id FROM questions") == []
+
+
+@pytest.mark.parametrize(
+    ("lang", "own", "repeat"),
+    [
+        ("de", "Die Karte kostet 30 EUR im Jahr.", "Die Karte kostet 30 EUR im Jahr."),
+        ("en", "The card costs 30 EUR a year.", "The card costs 30 EUR a year."),
+    ],
+)
+def test_deleting_a_document_that_only_repeats_a_fact_keeps_the_question_on_it(
+    store, engine, lang, own, repeat
+) -> None:
+    """A folded fact, read from B with a further citation onto A's passage, survives A's deletion whole."""
+    from ingestion.repository import DocumentRepository
+
+    store.language = lang
+    ids = store.corpus(("y2-b", [own]), ("y2-a", [repeat]))
+    (on_b,), (on_a,) = ids["y2-b"], ids["y2-a"]
+    store.store(on_b, checked(on_b, own))
+    ((fact_id,),) = store.rows("id")
+    store.folded(fact_id, on_a)
+    question_id = asked(engine, fact_id, lang)
+
+    DocumentRepository().delete(digest("y2-a"))
+
+    assert store.rows("id") == [(fact_id,)], "the fact stays, resting on B"
+    assert store._execute("SELECT id, status FROM questions") == [
+        (question_id, "accepted")
+    ]

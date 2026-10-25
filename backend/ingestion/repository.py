@@ -43,19 +43,27 @@ def _passages(*where) -> ScalarSelect[int]:
     )
 
 
-#: Every question that rests on any fact citing these documents' passages,
-#: whatever else it rests on: one written from two documents cannot stand on
-#: half its sources, and holds text derived from the deleted one. The trigger
-#: on `question_facts` rejects a question that loses a fact and never deletes
+#: Every question resting on a fact the deletion removes: one whose citations
+#: are all on these documents' passages, or a bridge citing one of them, which
+#: goes on any citation. A question written from two documents cannot stand on
+#: half its sources, so one on a fact of either goes. A fact another document
+#: still cites stays whole, and so does its question. The trigger on
+#: `question_facts` rejects a question that loses a fact and never deletes
 #: one, so what a person asked to delete is deleted here first.
 _QUESTIONS_ON_ANY = text(
     """
     DELETE FROM questions q
      WHERE EXISTS (
                SELECT 1 FROM question_facts qf
-                 JOIN fact_passages fp ON fp.fact_id = qf.fact_id
+                 JOIN facts f ON f.id = qf.fact_id
+                 JOIN fact_passages fp ON fp.fact_id = f.id
                  JOIN passages p ON p.id = fp.passage_id
-                WHERE qf.question_id = q.id AND p.doc_sha256 = ANY(:digests))
+                WHERE qf.question_id = q.id AND p.doc_sha256 = ANY(:digests)
+                  AND (f.kind = 'bridge' OR NOT EXISTS (
+                           SELECT 1 FROM fact_passages other
+                             JOIN passages op ON op.id = other.passage_id
+                            WHERE other.fact_id = f.id
+                              AND op.doc_sha256 <> ALL(:digests))))
     """
 )
 

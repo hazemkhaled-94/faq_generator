@@ -65,7 +65,7 @@ cleared, whatever is left of its other facts: the last fact included. The
 trigger never deletes a question, so a re-chunk or a re-extraction that
 replaces the facts under accepted, reviewed and released questions keeps
 every one of them. A person deleting a document, or what was derived from
-it, deletes the questions resting on any of it explicitly, before the cascade
+it, deletes the questions resting on a fact it removes explicitly, before the cascade
 (`ingestion.repository`).
 
 A third trigger, `questions_release_thread_whole` on `questions`, keeps a
