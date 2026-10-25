@@ -64,6 +64,66 @@ PDF = (
 )
 
 
+#: Two short documents of a shop's terms, one German and one English, marked
+#: by a comment in their file. Each section is one passage of one sentence,
+#: and the statement the stub reads out of it is the sentence's first clause:
+#: two sections under one title are what the bridge pass joins.
+SHOPS = {
+    b"%shop-en": {
+        "title": "Terms of the shop",
+        "sections": (
+            (
+                "Shipping",
+                "A parcel leaves the warehouse within 2 working days of payment and is tracked online.",
+                "A parcel leaves the warehouse within 2 working days of payment.",
+            ),
+            (
+                "Returns",
+                (
+                    "A returned item is refunded within 14 days of its arrival and the "
+                    "refund goes back to the card."
+                ),
+                "A returned item is refunded within 14 days of its arrival.",
+            ),
+        ),
+    },
+    b"%shop-de": {
+        "title": "Bedingungen des Shops",
+        "sections": (
+            (
+                "Versand",
+                (
+                    "Eine Bestellung wird innerhalb von 2 Werktagen nach der Zahlung "
+                    "versandt und kann online verfolgt werden."
+                ),
+                (
+                    "Eine Bestellung wird innerhalb von 2 Werktagen nach der Zahlung "
+                    "versandt."
+                ),
+            ),
+            (
+                "Rücksendung",
+                (
+                    "Eine zurückgesendete Ware wird innerhalb von 14 Tagen nach ihrem "
+                    "Eingang erstattet und der Betrag geht auf die Karte zurück."
+                ),
+                (
+                    "Eine zurückgesendete Ware wird innerhalb von 14 Tagen nach ihrem "
+                    "Eingang erstattet."
+                ),
+            ),
+        ),
+    },
+}
+
+#: What the stub reads out of each shop sentence.
+CLAUSES = {
+    sentence: clause
+    for shop in SHOPS.values()
+    for _, sentence, clause in shop["sections"]
+}
+
+
 class FakePdfPipeline(Pipeline):
     """A converter that answers with a document instead of reading one.
 
@@ -75,15 +135,34 @@ class FakePdfPipeline(Pipeline):
     media_types: ClassVar[tuple[str, ...]] = ("application/pdf",)
 
     def convert(self, source: SourceDocument) -> Conversion:
-        """Builds a two-paragraph document."""
+        """Builds a two-paragraph document, or a shop's terms where the file says so."""
         from docling_core.types.doc.document import DoclingDocument
         from docling_core.types.doc.labels import DocItemLabel
 
         document = DoclingDocument(name=source.sha256[:12])
-        document.add_title(text="The Device")
-        for paragraph in PARAGRAPHS:
-            document.add_text(label=DocItemLabel.TEXT, text=paragraph)
+        shop = next((one for key, one in SHOPS.items() if key in source.data), None)
+        if shop is None:
+            document.add_title(text="The Device")
+            for paragraph in PARAGRAPHS:
+                document.add_text(label=DocItemLabel.TEXT, text=paragraph)
+        else:
+            document.add_title(text=shop["title"])
+            for heading, sentence, _ in shop["sections"]:
+                document.add_heading(text=heading, level=1)
+                document.add_text(label=DocItemLabel.TEXT, text=sentence)
         return Conversion(document=document, confidence=0.9, confidence_low=None)
+
+
+def _statement(line: str) -> str:
+    """The claim the stub reads out of one numbered sentence."""
+    for sentence, clause in CLAUSES.items():
+        if sentence in line:
+            return clause
+    return (
+        "The device weighs 4 kg."
+        if "4 kg" in line
+        else "The device arrives in March 2026."
+    )
 
 
 class StubModel:
@@ -104,9 +183,7 @@ class StubModel:
             facts=[
                 {
                     "sentences": [index],
-                    "statement": "The device weighs 4 kg."
-                    if "4 kg" in line
-                    else "The device arrives in March 2026.",
+                    "statement": _statement(line),
                 }
                 for index, line in enumerate(numbered)
             ]
@@ -709,3 +786,218 @@ def test_a_re_check_never_overturns_a_person(pipeline, engine) -> None:
             ).all()
         )
     assert states == {("rejected", None)}, "a re-check rewrote a person's verdict"
+
+
+# ── Through the bridges, the release, the judge and the workbook ───────────
+
+
+class StubBridge:
+    """A served model that joins the first fact of each of two excerpts."""
+
+    model = "ollama/stub-bridge"
+    temperature = 0.0
+
+    def __init__(self) -> None:
+        """Initialises the call counter."""
+        self.calls = 0
+
+    def answer(self, *, system: str, user: str, shape, prompt_version=None):
+        """Joins the facts the excerpts list, in the language they are written in."""
+        self.calls += 1
+        listed = [
+            line.partition("] ")[2] for line in user.splitlines() if "[F0]" in line
+        ]
+        german = "German" in user
+        first, second = (one.rstrip(".") for one in listed[:2])
+        joined = (
+            f"{first}, und {second[0].lower()}{second[1:]}."
+            if german
+            else f"{first}, and {second[0].lower()}{second[1:]}."
+        )
+        return shape(
+            relation="consequence",
+            facts=[{"excerpt": 0, "fact": 0}, {"excerpt": 1, "fact": 0}],
+            statement=joined,
+            question="Wie lange dauert beides?" if german else "How long is each step?",
+            answer="2 Werktage" if german else "2 working days",
+        )
+
+
+class StubJudge:
+    """An independent judge that approves everything it is asked about."""
+
+    model = "ollama/stub-judge"
+
+    def judge(self, artifact):
+        """One approving judgement for each metric the kind is judged on."""
+        from assessment.models import Judgement
+        from assessment.templates import _CHOICES, metrics_of
+
+        found = []
+        for metric in metrics_of(artifact.kind):
+            scores, good = _CHOICES[metric]
+            found.append(
+                Judgement(
+                    metric=metric,
+                    label=good,
+                    score=scores[good],
+                    approved=True,
+                    explanation="approved by the stand-in",
+                )
+            )
+        return tuple(found)
+
+    def due(self, artifact) -> int:
+        """Every metric the kind declares."""
+        from assessment.templates import metrics_of
+
+        return len(metrics_of(artifact.kind))
+
+
+def fit_topics_by_language(engine) -> dict[str, int]:
+    """One topic a language, holding every passage of that language.
+
+    The stand-in for the fit, as `fit_topics` is, but per language: a
+    German passage joins a German topic, which is what the bridge pass and
+    the writer both read.
+    """
+    topics: dict[str, int] = {}
+    with engine.begin() as connection:
+        for (language,) in connection.execute(
+            text("SELECT DISTINCT language FROM passages ORDER BY 1")
+        ).all():
+            topic = connection.execute(
+                text(
+                    "INSERT INTO topics (language, topic_index, top_terms, status, "
+                    "requested_at, fitted_at) VALUES (:language, 0, ARRAY['shop'], "
+                    "'modelled', now(), now()) RETURNING id"
+                ),
+                {"language": language},
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO passage_topics (passage_id, topic_id, weight) "
+                    "SELECT id, :topic, 0.9 FROM passages WHERE language = :language"
+                ),
+                {"topic": topic, "language": language},
+            )
+            topics[language] = topic
+    return topics
+
+
+def _everything(pipeline, engine) -> dict:
+    """The device document and two shops' terms, through to a drawn release.
+
+    Upload, parse, chunk and extract; a topic per language; the bridge pass;
+    the questions; the release draw; and the judge. What each stage leaves is
+    what the next one claims, which is the handover this file is about.
+    """
+    from dataclasses import replace
+
+    from assessment.repository import AssessmentQueue
+    from assessment.service import AssessmentService
+    from extraction.extractors.bridge import BridgeExtractor
+    from extraction.repository import FactCatalog
+    from extraction.service import bridge
+    from question_generation.service import balance
+
+    for name, marker in (
+        ("device.pdf", b""),
+        ("shop.pdf", b"%shop-en"),
+        ("laden.pdf", b"%shop-de"),
+    ):
+        pipeline["ingest"].ingest(UploadedFile(name, PDF + marker))
+    ParseQueue().start()
+    pipeline["parse"].drain()
+    ChunkQueue().start()
+    pipeline["chunk"].drain()
+    PassageQueue().start()
+    pipeline["extract"].drain()
+
+    topics = fit_topics_by_language(engine)
+    model = StubBridge()
+    bridged = bridge(
+        FactCatalog(),
+        BridgeExtractor(model),
+        FactChecker(),
+        groups_per_topic=2,
+        size=2,
+    )
+
+    QuestionQueue().start()
+    pipeline["questions"].drain()
+    settings = replace(QUESTIONS, release_size=1)
+    released = balance(QuestionCatalog(), settings, None, Verifier(StubVerifier()))
+
+    queue = AssessmentQueue(kinds=("question",), sample=0, stratify=False)
+    enrolled = queue.enrol()
+    queue.start()
+    judged = AssessmentService(queue, StubJudge()).drain()
+    return {
+        "topics": topics,
+        "bridged": bridged,
+        "bridge_calls": model.calls,
+        "released": released,
+        "enrolled": enrolled,
+        "judged": judged,
+    }
+
+
+def test_the_run_goes_on_through_bridges_the_release_and_the_judge(
+    pipeline, engine
+) -> None:
+    """Each stage after questions finds what the one before it left.
+
+    A German document and an English one, both a shop's terms: a bridge is
+    written in each language, and what is drawn into the release is judged.
+    """
+    ran = _everything(pipeline, engine)
+
+    assert set(ran["topics"]) >= {"de", "en"}
+    assert ran["bridge_calls"] >= 2, "a link was offered in each language"
+    assert ran["bridged"] >= 2, "and each was stored"
+    with engine.connect() as connection:
+        bridges = (
+            connection.execute(
+                text(
+                    "SELECT DISTINCT p.language FROM facts f "
+                    "JOIN fact_passages fp ON fp.fact_id = f.id "
+                    "JOIN passages p ON p.id = fp.passage_id WHERE f.kind = 'bridge'"
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert sorted(bridges) == ["de", "en"]
+    assert ran["released"] > 0, "nothing was drawn into the release"
+    assert ran["enrolled"] > 0 and ran["judged"] == ran["enrolled"]
+
+
+def test_the_workbook_holds_the_release_its_judge_and_its_summary(
+    pipeline, engine, tmp_path
+) -> None:
+    """The last thing a person takes away: the released questions, read back."""
+    from openpyxl import load_workbook
+
+    from question_generation.export import main
+
+    _everything(pipeline, engine)
+    out = tmp_path / "release.xlsx"
+
+    assert main(["--out", str(out), "--released"]) == 0
+
+    book = load_workbook(out, read_only=True)
+    assert book.sheetnames == ["Questions", "Citations", "Assessment", "Summary"]
+    head, *released = list(book["Questions"].iter_rows(values_only=True))
+    column = {name: at for at, name in enumerate(head)}
+    assert released, "the sheet holds a header and no released question"
+    for row in released:
+        assert row[column["Released"]] is True
+        assert row[column["Status"]] == "accepted"
+        assert row[column["Language"]] in {"de", "en"}
+        assert row[column["Judge"]] == "approved"
+    assert len(list(book["Assessment"].iter_rows(values_only=True))) > 1
+    summary = dict(list(book["Summary"].iter_rows(values_only=True))[1:])
+    assert summary["Questions in this workbook"] == len(released)
+    assert summary["Judged by a model"] == len(released)
+    assert summary["Judge approved"] == len(released)

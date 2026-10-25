@@ -585,7 +585,7 @@ calls too, and so is one whose spans Phoenix would not hand over.
 | `make test-fast` | Only the fast layers: no spaCy, no pyright, no containers |
 | `make test-unit` | Everything but integration, smoke, eval and perf |
 | `make test-integration` | The container layers, end to end aside, which is `make test-e2e` |
-| `make test-e2e` | One document through every stage, in this process |
+| `make test-e2e` | One document through every stage, in this process, and on through the bridge pass, the release draw, a stub-judged assessment and the workbook export |
 | `make test-smoke` | Build both images and look inside them |
 | `make test-eval` | Score the served model against the golden passages. Never gates |
 | `make test-perf` | Time the ceilings the code names. Never gates |

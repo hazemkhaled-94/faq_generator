@@ -27,7 +27,7 @@ make mutation       # change a gate and ask whether a test notices. Hours
 | [`regression/`](regression/) | The verdicts the checks have always reached, pinned as a table | spaCy |
 | [`contract/`](contract/) | The OpenAPI surface, the paths the frontend builds, the refusals each route declares, and generated calls against every read route | a container |
 | [`integration/`](integration/) | The database, the object store and the HTTP surface, against the images compose runs | a container |
-| [`e2e/`](e2e/) | One document through every stage in this process, with the PDF converter, the served models, the embedder and the topic fit stood in for | a container |
+| [`e2e/`](e2e/) | One document through every stage in this process, then a German and an English shop's terms through the bridge pass, the release draw, a stub-judged assessment and the workbook export, with the PDF converter, the served models, the judge, the embedder and the topic fit stood in for | a container |
 | [`frontend/`](frontend/) | Each Streamlit page against a scripted backend | nothing |
 | [`smoke/`](smoke/) | Both images built and looked inside, and the compose file resolved | a container engine |
 | [`eval/`](eval/) | How a real served model reads the golden passages, answers the phrasing judgements and writes questions, and whether the round-trip gate splits the golden questions | a served model |
