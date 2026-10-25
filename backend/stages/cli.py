@@ -211,6 +211,19 @@ def narrowing(queue: StageQueue, only: str | None):
         raise SystemExit(str(exc)) from None
 
 
+def trace(name: str) -> None:
+    """Starts exporting this process's spans, once it is going to call a model.
+
+    Named with the run only when somebody named the run: an unnamed one
+    appends to the stage's own project and is told apart by the `run.id`
+    attribute. See telemetry/pipeline.py. For a drain, and for a pass of a
+    stage's own that calls a model - which calls this after its own preflight,
+    in the same order a drain does: logged, proved, traced, worked.
+    """
+    telemetry.configure(name, run=run_id(), named=named_run())
+    telemetry.trace_engine(engine())
+
+
 def queue_main(
     *,
     name: str,
@@ -355,11 +368,8 @@ def queue_main(
         )
 
     # Past here the process is going to claim rows, so its spans are worth
-    # a project. Named with the run only when somebody named the run: an
-    # unnamed one appends to the stage's own project and is told apart by
-    # the `run.id` attribute. See telemetry/pipeline.py.
-    telemetry.configure(name, run=run_id(), named=named_run())
-    telemetry.trace_engine(engine())
+    # a project.
+    trace(name)
 
     # After preflight, so a deployment that cannot work does not leave a
     # record of prompts it never sent. Never raises; see stages.prompts.

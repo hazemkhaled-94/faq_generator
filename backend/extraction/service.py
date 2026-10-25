@@ -572,7 +572,7 @@ def bridge(
     # deleted nothing.
     if not missing:
         log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
-    for _, links in offers:
+    for language, links in offers:
         for link in links:
             # Between topics, so what is written is kept, nothing is held, and
             # no topic is left half bridged: `missing` skips any that has one.
@@ -580,35 +580,48 @@ def bridge(
                 stop_at_cap(written)
                 topic = at
             offered = list(link.passages)
-            try:
-                proposed = extractor.extract(offered, link, facts)
-            except ExtractionFailed as exc:
-                log.warning(
-                    "link %s: a group failed: %s", [one.id for one in offered], exc
-                )
-                dropped += 1
-                continue
-            try:
-                written += catalog.add_bridges(
-                    [
-                        _headed(
-                            checker.check_bridge(
-                                offered, candidate, extractor.provenance
-                            ),
-                            link.head,
-                        )
-                        for candidate in proposed
-                    ]
-                )
-            except IntegrityError as exc:
-                # A passage of the link was deleted since the links were read
-                # (a document removed, a re-chunk): its write rolled back.
-                log.warning(
-                    "link %s: dropped, a passage is gone: %s",
-                    [one.id for one in offered],
-                    str(exc.orig).splitlines()[0],
-                )
-                dropped += 1
+            # One span a link, over its model call and its checks, so Phoenix
+            # holds the pass link by link and a trace is one offered link.
+            with working(
+                span,
+                "bridge_link",
+                {
+                    "stage": "extraction",
+                    "link.kind": link.kind,
+                    "link.language": language,
+                    "link.passages": ",".join(str(one.id) for one in offered),
+                },
+            ):
+                try:
+                    proposed = extractor.extract(offered, link, facts)
+                except ExtractionFailed as exc:
+                    log.warning(
+                        "link %s: a group failed: %s", [one.id for one in offered], exc
+                    )
+                    dropped += 1
+                    continue
+                try:
+                    written += catalog.add_bridges(
+                        [
+                            _headed(
+                                checker.check_bridge(
+                                    offered, candidate, extractor.provenance
+                                ),
+                                link.head,
+                            )
+                            for candidate in proposed
+                        ]
+                    )
+                except IntegrityError as exc:
+                    # A passage of the link was deleted since the links were
+                    # read (a document removed, a re-chunk): its write rolled
+                    # back.
+                    log.warning(
+                        "link %s: dropped, a passage is gone: %s",
+                        [one.id for one in offered],
+                        str(exc.orig).splitlines()[0],
+                    )
+                    dropped += 1
     if dropped:
         log.warning(
             "wrote %d bridge fact(s), and %d group(s) were dropped because the "

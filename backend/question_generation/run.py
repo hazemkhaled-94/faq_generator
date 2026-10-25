@@ -23,7 +23,7 @@ from question_generation.service import balance, rejudge, rescore, reverify
 from question_generation.verifier import Verifier
 from settings.runs import named_run, run_id
 from settings.store import snapshot
-from stages.cli import queue_main
+from stages.cli import queue_main, trace
 from stages.prompts import record
 
 log = logging.getLogger(__name__)
@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         settings, model, _ = configured()
         _, verifier, _ = models(settings, model)
         before_work(verifier)
+        trace("questions")
         return rejudge(QuestionCatalog(), settings, Verifier(Client(verifier)), within)
 
     #: This stage's own operation. No model is called: it puts the stored

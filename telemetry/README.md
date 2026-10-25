@@ -65,6 +65,13 @@ Two rules in [`traces.py`](traces.py) keep that line:
   themselves. No requests, no botocore, no FastAPI — and the database only
   behind `TRACE_DATABASE`.
 
+The passes that call a model outside a drain, `make extract-bridge`,
+`make questions-balance` and `make questions-rejudge`, configure the exporter
+themselves after the preflight that proves the model answers, through
+`stages.cli.trace`, in the order a drain does: logged, proved, traced, worked.
+The bridge pass opens one `bridge_link` span per offered link, the parent of
+that link's model call, so a Phoenix trace is one link.
+
 A run's id is spelled the same in all three stores: `questions.run_id` on
 the rows, `run.id` on every span in Phoenix and on every log line. A run
 named with `RUN_ID` also gets a Phoenix project of its own. The **Run**

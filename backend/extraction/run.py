@@ -22,7 +22,7 @@ from llm.check import Unreachable, before_work
 from llm.config import Settings as ModelSettings
 from settings.runs import named_run, run_id
 from settings.store import snapshot
-from stages.cli import queue_main
+from stages.cli import queue_main, trace
 from stages.prompts import record
 
 log = logging.getLogger(__name__)
@@ -98,6 +98,9 @@ def main(argv: list[str] | None = None) -> int:
             before_work(model.overridden(settings.model))
         except Unreachable as refusal:
             raise SystemExit(f"{refusal}; no bridge was deleted") from None
+        # After the proof, as a drain's is: a model that will not answer
+        # leaves no Phoenix project, and the pass's spans reach one.
+        trace("extraction")
         try:
             return bridge(
                 FactCatalog(version=version),
