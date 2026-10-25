@@ -755,6 +755,25 @@ restarts. `make corpus-hosted RESET=1`, or a fresh `make corpus` without
 run after one that finished, which draws the release again at the verifier's
 cost: disable it once the run is done.
 
+## Upgrading the schema on a stack with data
+
+`make schema` applies each revision in a transaction of its own, and a
+revision that cannot get its lock within 5 seconds fails with the lock
+timeout instead of waiting: a DDL statement queues behind any open transaction
+on its table, and every query behind it queues in turn. A statement may run
+10 minutes. When one fails, find what holds the table (a drain, a worker, a
+long `make` command), stop it and run `make schema` again: the revisions
+already applied stay applied. The order:
+
+1. Stop the stage workers and the host drains.
+2. Back up with `make backup` (see "Backups").
+3. `make schema`.
+4. Build the images, then `make up`.
+
+A revision that adds a CHECK adds it `NOT VALID` and validates it in a
+revision of its own, and a backfill of many rows runs in batches outside the
+DDL transaction; `backend/database/README.md` has the rule.
+
 ## Upgrading to v0.5.1
 
 ```bash

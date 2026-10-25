@@ -44,6 +44,16 @@ _COMPARE = {
 }
 
 
+#: What a revision may wait for a lock, and take to run one statement. A DDL
+#: statement queues behind any open transaction on its table, and every query
+#: that arrives after it queues behind the DDL: a revision that cannot get its
+#: lock in seconds fails with a message and is run again, rather than holding
+#: the application still. A backfill that needs longer is batched outside the
+#: DDL transaction (database/README.md, Migrations).
+LOCK_TIMEOUT = "5s"
+STATEMENT_TIMEOUT = "10min"
+
+
 def run_migrations_offline() -> None:
     """Emits the migrations as SQL, without connecting.
 
@@ -67,10 +77,17 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={
+            "options": f"-c lock_timeout={LOCK_TIMEOUT} "
+            f"-c statement_timeout={STATEMENT_TIMEOUT}"
+        },
     )
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata, **_COMPARE
+            connection=connection,
+            target_metadata=target_metadata,
+            transaction_per_migration=True,
+            **_COMPARE,
         )
         with context.begin_transaction():
             context.run_migrations()

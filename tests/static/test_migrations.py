@@ -86,3 +86,46 @@ def test_every_revision_can_be_taken_back_out(scripts: ScriptDirectory) -> None:
             or (isinstance(one, ast.Expr) and isinstance(one.value, ast.Constant))
             for one in downgrade.body
         ), f"{Path(revision.path).name} has an empty downgrade"
+
+
+#: Revisions up to here predate the rule below and are not read against it.
+_BEFORE_THE_RULE = "20261021_0300"
+
+
+def _blocking_check(source: str) -> bool:
+    """Whether a revision adds a CHECK that scans the table under its lock.
+
+    A CHECK added `NOT VALID` takes a short lock and is validated by a later
+    revision; `op.create_check_constraint` has no such option.
+    """
+    if "create_check_constraint(" in source:
+        return True
+    adds = re.findall(
+        r"ADD\s+CONSTRAINT[^;\"']*?\bCHECK\b[^;]*", source, re.IGNORECASE | re.DOTALL
+    )
+    return any("NOT VALID" not in one.upper() for one in adds)
+
+
+@pytest.mark.parametrize(
+    ("source", "blocks"),
+    [
+        ('op.create_check_constraint("c", "questions", "a > 0")', True),
+        ('op.execute("ALTER TABLE questions ADD CONSTRAINT c CHECK (a > 0)")', True),
+        (
+            'op.execute("ALTER TABLE questions ADD CONSTRAINT c CHECK (a > 0) NOT VALID")',
+            False,
+        ),
+        ('op.execute("ALTER TABLE rechnungen ADD CONSTRAINT c CHECK (b)")', True),
+        ('op.add_column("orders", sa.Column("x", sa.Text()))', False),
+    ],
+)
+def test_the_check_rule_reads_a_revision(source: str, blocks: bool) -> None:
+    """In any table's name and in any language of its comments."""
+    assert _blocking_check(source) is blocks
+
+
+def test_no_revision_after_the_rule_adds_a_blocking_check() -> None:
+    """A CHECK is added NOT VALID, and validated by a revision of its own."""
+    later = [p for p in sorted(VERSIONS.glob("*.py")) if p.name > _BEFORE_THE_RULE]
+
+    assert [p.name for p in later if _blocking_check(p.read_text())] == []

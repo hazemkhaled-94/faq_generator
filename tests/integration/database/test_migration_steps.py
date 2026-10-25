@@ -152,3 +152,34 @@ def test_each_revision_round_trips_the_whole_catalogue(spare: str) -> None:
 
     assert len(chain) > 20 and below["triggers"] and below["column comments"]
     assert not broken, "\n".join(broken)
+
+
+def test_a_migration_waiting_for_a_lock_fails_instead_of_hanging(spare: str) -> None:
+    """Another session's transaction on `questions` stops the upgrade, with a message.
+
+    Without a lock timeout, the ALTER waits behind that transaction, and every
+    query that arrives behind the ALTER waits behind it in turn.
+    """
+    import time
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(ROOT / "backend/database/migrations"))
+    os.environ["DATABASE_URL"] = spare
+    command.upgrade(config, "head")
+    # Two back: the newest revision only writes comments, which wait for no one.
+    command.downgrade(config, "-2")
+
+    holder = create_engine(spare).connect()
+    holder.execute(text("BEGIN"))
+    holder.execute(text("SELECT 1 FROM questions LIMIT 1"))
+    started = time.monotonic()
+    try:
+        with pytest.raises(Exception, match="lock timeout|canceling statement"):
+            command.upgrade(config, "head")
+    finally:
+        holder.close()
+
+    assert time.monotonic() - started < 30

@@ -165,6 +165,19 @@ taking it out does not put back;
 and `20261021_0200_a_question_records_its_categories.py` holds the
 categories each question's writer was told, which taking it out drops.
 
+Each revision runs in a transaction of its own, with a 5 second lock timeout
+and a 10 minute statement timeout (`migrations/env.py`), so a revision that
+cannot get its table fails and is run again, instead of holding every query
+behind it. A revision written after `20261021_0300` therefore:
+
+- adds a CHECK `NOT VALID` (`op.execute("ALTER TABLE ... ADD CONSTRAINT ...
+  CHECK (...) NOT VALID")`) and validates it in a revision of its own;
+  `op.create_check_constraint` scans the table under its lock, and
+  `tests/static/test_migrations.py` refuses it;
+- backfills many rows in batches, committed one at a time, outside the DDL
+  transaction;
+- builds an index on a table with data `CONCURRENTLY`, in an autocommit block.
+
 A revision's docstring says **why**; the diff says what.
 
 `/status` and every queue compare the revision the database records with the
