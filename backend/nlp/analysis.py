@@ -1940,7 +1940,9 @@ def _titled(title: str | None, language: str | None) -> frozenset[str]:
                 # A head that a number labels, "Edition 2026", names no
                 # document but the noun phrase it labels, whose head is the
                 # noun before it: "Regulations" of "Customer Regulations
-                # Edition 2026".
+                # Edition 2026". Only a plural one, which names the document
+                # as a set of rules; a singular is what the document is
+                # about: "Card" of "Credit Card Conditions 2025".
                 if any(child.pos_ == "NUM" for child in noun.children):
                     labelled = [
                         child
@@ -1948,6 +1950,7 @@ def _titled(title: str | None, language: str | None) -> frozenset[str]:
                         if child.dep_ in _PART_OF_NOUN_PHRASE
                         and child.pos_ in _NOMINAL
                         and child.i < noun.i
+                        and "Plur" in child.morph.get("Number")
                     ]
                     if labelled:
                         last = max(labelled, key=lambda child: child.i)
