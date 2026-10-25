@@ -228,6 +228,31 @@ def test_a_missing_key_with_no_default_refuses_naming_the_column(
     assert count(engine, "SELECT count(*) FROM facts") == 0
 
 
+def test_a_thousand_reopenable_questions_print_the_count_and_twenty_ids(
+    engine, database, buckets, monkeypatch, capsys
+) -> None:
+    """One line of thousands of ids was unreadable."""
+    ids = seed(engine, "a")
+    with Session(engine) as session:
+        for _ in range(30):
+            asked = question()
+            session.add(asked)
+            session.flush()
+            session.add(link(asked.id, ids["a"]))
+        session.commit()
+    run(engine, f"DELETE FROM facts WHERE id = {ids['a']}")
+    at = deleted_at(engine, "facts")
+
+    assert restore(monkeypatch, AT=at) == 0
+
+    shown = capsys.readouterr().out
+    line = next(
+        one for one in shown.splitlines() if "rejected as source_changed" in one
+    )
+    assert "30 rejected as source_changed" in line
+    assert len(line.split("(the first 20:")[1].split(")")[0].split(",")) == 20
+
+
 def test_questions_whose_facts_are_back_are_listed_for_reverification(
     engine, database, buckets, monkeypatch, capsys
 ) -> None:

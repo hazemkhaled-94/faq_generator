@@ -334,6 +334,9 @@ WHERE d.chunk_status::text <> 'chunked'
 """
 )
 
+#: How many ids the restore prints of the questions it can reopen.
+_LISTED = 20
+
 #: Questions a fact's deletion rejected as source_changed, and whose facts
 #: the restore has put back. Nothing re-opens them: that is `questions-reverify`.
 _REOPENABLE = (
@@ -502,7 +505,8 @@ def main() -> int:
     if reopenable:
         print(
             f"  questions: {len(reopenable)} rejected as source_changed have all their "
-            f"facts back (ids {', '.join(map(str, reopenable))}); no command "
+            f"facts back (the first {_LISTED}: "
+            f"{', '.join(map(str, reopenable[:_LISTED]))}); no command "
             "reopens them: accept each again with PATCH /questions/<id>"
         )
     for bucket, key in missing:
