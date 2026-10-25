@@ -301,7 +301,7 @@ partial refit.
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
 | `TOPIC_RANDOM_STATE` | Seed of the first of the fit's eight draws. Fixed, so the same passages read in the same order give the same topics. The fit reads them by id, and another order can give other topics: a document whose passages are deleted and chunked again (`make delete-derived`) comes back under new ids, is read last, and can regroup the passages of other documents. A re-chunk keeps an unchanged passage's id |
 | `TOPIC_TOP_TERMS` | Terms stored as a topic's signature |
-| `TOPIC_RELATIVE_WEIGHT` | The share of a passage's strongest membership weight another must reach to be stored. In `(0, 1)`. It replaces `TOPIC_MIN_WEIGHT`, an absolute floor that was a share of one over the topic count and so moved with it; a stored `TOPIC_MIN_WEIGHT` is ignored, and the topics are refitted (`make topics`) to apply the new setting |
+| `TOPIC_RELATIVE_WEIGHT` | The share of a passage's strongest membership weight another must reach to be stored. In `(0, 1)`. It replaces `TOPIC_MIN_WEIGHT`, an absolute floor that was a share of one over the topic count and so moved with it; a row stored under `TOPIC_MIN_WEIGHT` stops the topic stage, naming this setting, until it is deleted (see the settings README), and `make topics-discover` refits the topics to apply the new setting |
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |
 | `TOPIC_NO_ABOVE` | Drop a term appearing in more than this share. In `(0, 1]` |
 | `TOPIC_LANGUAGE_NAMES` | ISO code to language name, for the naming prompt |

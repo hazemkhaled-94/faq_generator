@@ -430,7 +430,9 @@ before names carried the database belongs to none and is left unless
 `make logs-wipe` deletes by. The corpus job tags each Dagster run with the
 database, and `make dagster-wipe` deletes the runs so tagged.
 
-The Phoenix datasets (the golden cases) are not scoped: they are the
-evaluation's, one set for every database, and `make phoenix-purge` still
-takes them unless `KEEP=golden`. Dashboards that match a run by project name
+The Phoenix datasets (the golden cases) carry the database too, as
+`<name>__<database>`: `make eval-upload` and `make eval-phrasing` upload this
+database's, and `make phoenix-purge` takes only those unless `KEEP=golden`. A
+set uploaded before names carried the database is taken only with
+`ALL_DATABASES=1`; upload it again under its database's name. Dashboards that match a run by project name
 strip the database suffix.
