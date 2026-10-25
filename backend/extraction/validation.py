@@ -843,7 +843,7 @@ def _swapped(
     cited figure the statement writes too is kept, not swapped out:
     "EUR 4.95 for orders under EUR 50" keeps the 4.95.
     """
-    elsewhere = numerals(passage.text, language) - cited
+    elsewhere = numerals(passage.text, language)
     swaps: dict[str, str] = {}
     own = None
     said = _figure_tokens(statement, language)

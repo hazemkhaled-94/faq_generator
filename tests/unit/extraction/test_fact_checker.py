@@ -1549,6 +1549,42 @@ def test_a_figure_of_the_same_kind_swapped_for_the_cited_one_is_refused(
 
 
 @pytest.mark.parametrize(
+    ("text", "statement", "language"),
+    [
+        (
+            "Bestellungen bis 14:00 Uhr werden am selben Tag versandt. Die Hotline ist bis 18:00 Uhr erreichbar.",
+            "Bestellungen bis 18:00 Uhr werden am selben Tag versandt.",
+            "de",
+        ),
+        (
+            "Transfers received by 3:00 pm are booked the same day. Standing orders run at 6:00 pm.",
+            "Transfers received by 6:00 pm are booked the same day.",
+            "en",
+        ),
+        (
+            "Der Standardversand dauert 2\u20134 Werktage. Der Versand ins Ausland dauert 2\u20137 Werktage.",
+            "Der Standardversand dauert 2\u20137 Werktage.",
+            "de",
+        ),
+        (
+            "Standard delivery takes 2\u20134 working days. Delivery abroad takes 2\u20137 working days.",
+            "Standard delivery takes 2\u20137 working days.",
+            "en",
+        ),
+    ],
+)
+def test_a_swap_sharing_a_numeral_with_the_cited_figure_is_refused(
+    text, statement, language
+) -> None:
+    """A time or a range sharing a digit group with the cited one is still another figure."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, (
+        judged.validation_error
+    )
+
+
+@pytest.mark.parametrize(
     ("text", "statement", "language", "cited"),
     [
         (
