@@ -93,14 +93,16 @@ LLM_MODEL=azure/<deployment>           # a key, or Entra ID
 `LLM_CONTAINER_MODEL` is what the containers call and compose refuses to start
 without it. Set both to the same value if one model serves both.
 
-Three judgements ship on a smaller model of their own, named in
-`configs/env/backend.env`: `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL` and
-`QUESTIONS_PHRASING_MODEL` are `ollama_chat/muse-glimmer:30b-mlx`. Pull it
-too, or point those three lines at a model you have. Blank, the digest
-follows the passage reader, the topic names follow `LLM_MODEL`, and the
-phrasing judge follows the verifier. The other three roles,
-`EXTRACTION_MODEL`, `QUESTIONS_MODEL` and `QUESTIONS_VERIFIER_MODEL`, ship
-unset and follow `LLM_MODEL`.
+`.env.example`, which `make setup` copies, ships the go-live profile:
+`HOST_RUNNER=1`, `LLM_MODEL=azure/gpt-5.4` and the seven roles split across
+Azure models ([the go-live split](docs/configuration.md#the-go-live-split)),
+run on the host by `make corpus-hosted`
+([the runbook](docs/operations.md#the-runbook)). `configs/env/backend.env`
+names no role model: a role left unset follows `LLM_MODEL`, the digest reader
+follows the passage reader, the phrasing judge the verifier, and the judge
+nothing. For development with Ollama, switch `LLM_MODEL` to the commented
+Ollama line beside it, empty the role models that name Azure (they then follow
+it) and leave `HOST_RUNNER` unset, together.
 
 ```bash
 make install    # dependencies, the spaCy pipelines NLP_MODELS names, and Docling's weights
@@ -113,7 +115,7 @@ volume from a container that has. After `make down-volumes`, run
 `make docling-weights` again before parsing.
 
 `doctor` ends with a real call to every model a stage calls, `LLM_MODEL` and
-each of the six roles above, so a wrong model id, an unreachable address or a
+each of the seven roles, so a wrong model id, an unreachable address or a
 stale credential fails there rather than on the first passage of a run.
 
 ## Run
@@ -175,10 +177,11 @@ hosted: then the host drains are the way, as
 `make corpus` and the bare stage targets drain on the host instead, for
 developing a stage.
 
-**The easiest path is `make setup` → `make install` → `make doctor` →
-`make dev`, with Ollama for the model, Podman for the engine, and the
-browser for the pipeline.** Nothing runs until asked; every stage is
-incremental and skips what is already done.
+**The easiest path is `make setup`, `.env` switched to Ollama as above, then `make install` → `make doctor` → `make dev`,
+with Podman for the engine and the browser for the pipeline.** Nothing runs
+until asked; every stage is incremental and skips what is already done. On
+the go-live profile `.env.example` ships, `make all`, `make pipeline` and
+`make auto` refuse, and `make up` then `make corpus-hosted` is the run.
 
 ## An example, end to end
 
@@ -205,9 +208,10 @@ container workers do the draining. It never fits the topics: a fit replaces
 the topics of every language it fits, so it is asked for on its own, and
 `make topics-status` says how many passages are in no topic.
 
-`make corpus` runs the same stages on the host, for developing a stage. It
-stops at the first stage whose worker is running and prints the command that
-stops it. Stage by stage, which is what it runs:
+`make corpus` runs the same stages on the host, for developing a stage, and
+`make corpus-hosted` runs it detached on the go-live profile. A stage whose
+container worker is running is waited for until that worker has emptied its
+queue rather than drained beside it. Stage by stage, which is what it runs:
 
 ```bash
 make parse-start     && make parse       # a stored file becomes a structured document
