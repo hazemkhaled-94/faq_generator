@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import OperationalError
 
 from confidence import Measurement, confidence, scored
 from database.qa_generator import Fact, Question, sessions
@@ -63,6 +64,27 @@ def _reading(stored: dict, floor: float) -> Measurement:
 _READ = 1000
 _BATCH = 300
 
+#: PostgreSQL's code for a transaction it aborted to end a deadlock.
+_DEADLOCK = "40P01"
+
+
+def _write(model, pending: list[tuple[int, list, list, float | None]]) -> int:
+    """Writes one batch back in a transaction of its own; how many rows moved."""
+    with sessions().begin() as session:
+        return sum(
+            session.execute(
+                update(model)
+                .where(model.id == key, model.gate_scores == read)
+                .values(gate_scores=scores, confidence=margin)
+            ).rowcount
+            for key, read, scores, margin in pending
+        )
+
+
+def _deadlocked(exc: OperationalError) -> bool:
+    """Whether Postgres aborted the batch to end a deadlock."""
+    return getattr(exc.orig, "sqlstate", None) == _DEADLOCK
+
 
 def recalibrate(model, floor: float) -> int:
     """Takes every stored row's margins again, and returns how many moved.
@@ -73,6 +95,11 @@ def recalibrate(model, floor: float) -> int:
     never written over, and the next run takes it. A lock held across the
     whole read would stop every writer of a question or a fact for as long
     as the run lasts.
+
+    A batch takes its rows' locks in its own order, so a writer updating
+    several of them in another can deadlock with it, and Postgres aborts one
+    side. A batch aborted so is written once more, and aborted again it
+    fails the run naming its rows; the batches before it stay written.
 
     Args:
         model: `Question` or `Fact` - the two tables carrying the columns.
@@ -89,15 +116,31 @@ def recalibrate(model, floor: float) -> int:
 
     def flush() -> None:
         nonlocal written, skipped
-        with sessions().begin() as session:
-            for key, read, scores, margin in pending:
-                moved = session.execute(
-                    update(model)
-                    .where(model.id == key, model.gate_scores == read)
-                    .values(gate_scores=scores, confidence=margin)
-                ).rowcount
-                written += moved
-                skipped += 1 - moved
+        if not pending:
+            return
+        try:
+            moved = _write(model, pending)
+        except OperationalError as exc:
+            if not _deadlocked(exc):
+                raise
+            log.warning(
+                "a batch of %d %s row(s) deadlocked with another writer; "
+                "writing it once more",
+                len(pending),
+                model.__tablename__,
+            )
+            try:
+                moved = _write(model, pending)
+            except OperationalError as again:
+                if not _deadlocked(again):
+                    raise
+                raise RuntimeError(
+                    f"{model.__tablename__} rows {pending[0][0]} to "
+                    f"{pending[-1][0]} deadlocked twice with another writer and "
+                    "were left as they are; run it again"
+                ) from again
+        written += moved
+        skipped += len(pending) - moved
         pending.clear()
 
     with sessions()() as reading:

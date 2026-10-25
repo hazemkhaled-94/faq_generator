@@ -5,6 +5,9 @@ The half of a recalibration that is not a database write.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Self
+
 import pytest
 
 from confidence import scored
@@ -202,3 +205,73 @@ def test_an_opinion_keeps_its_prompt_version() -> None:
     }
 
     assert scored([_reading(stored, floor=0.75)]) == [stored]
+
+
+class _Deadlocking:
+    """The session factory `recalibrate` asks for, its writes deadlocking `times` times.
+
+    Reads two rows carrying a reading written before the direction was
+    stored, which the recalibration rewrites; a write is one batch.
+    """
+
+    def __init__(self, times: int) -> None:
+        """Deadlocks the first `times` batches it is asked to write."""
+        self.left = times
+        self.written = 0
+        self.batches = 0
+
+    def __call__(self) -> Self:
+        """Itself, as `sessions()` returns the factory."""
+        return self
+
+    def __enter__(self) -> Self:
+        """A session, or a batch's transaction."""
+        return self
+
+    def __exit__(self, *_) -> bool:
+        """Lets an error through."""
+        return False
+
+    def begin(self) -> Self:
+        """One batch's transaction."""
+        self.batches += 1
+        return self
+
+    def execute(self, statement):
+        """The read, or one row's guarded update."""
+        import psycopg
+        from sqlalchemy.exc import OperationalError
+
+        if statement.is_select:
+            reading = {"gate": "near_duplicate", "value": 0.88, "threshold": 0.93}
+            return [(1, [reading]), (2, [reading])]
+        if self.left:
+            self.left -= 1
+            raise OperationalError(
+                "UPDATE", {}, psycopg.errors.DeadlockDetected("deadlock detected")
+            )
+        self.written += 1
+        return SimpleNamespace(rowcount=1)
+
+
+def test_a_deadlocked_batch_is_written_once_more(monkeypatch) -> None:
+    """Another writer took the same rows in another order; Postgres chose this side."""
+    from database.qa_generator import Question
+    from stages import recalibrate as module
+
+    factory = _Deadlocking(times=1)
+    monkeypatch.setattr(module, "sessions", factory)
+
+    assert module.recalibrate(Question, floor=0.75) == 2
+    assert factory.batches == 2
+
+
+def test_a_batch_deadlocked_twice_fails_naming_its_rows(monkeypatch) -> None:
+    """Not a traceback of the driver alone: which rows, and that a rerun takes them."""
+    from database.qa_generator import Question
+    from stages import recalibrate as module
+
+    monkeypatch.setattr(module, "sessions", _Deadlocking(times=2))
+
+    with pytest.raises(RuntimeError, match=r"questions rows 1 to 2 deadlocked twice"):
+        module.recalibrate(Question, floor=0.75)
