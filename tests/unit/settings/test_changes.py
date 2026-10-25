@@ -158,9 +158,12 @@ def test_a_setting_read_from_the_environment_alone_is_not_written(name: str) -> 
 
 
 @pytest.mark.parametrize("name", ["EMBEDDING_MODEL", "NLI_MODEL", "QA_MODEL"])
-def test_a_local_encoder_may_still_be_changed(name: str) -> None:
-    """Run in the worker, the same on the host and in a container."""
-    assert changes.owned("platform", [name])[name].fixed is False
+def test_a_pinned_encoder_is_not_written_from_the_page(name: str) -> None:
+    """Its commit is fixed, so the id moves with it, in the file, or a load fails."""
+    assert catalog.BY_NAME[name].fixed is True
+    assert catalog.BY_NAME[f"{name}_REVISION"].fixed is True
+    with pytest.raises(ValueError, match=name):
+        catalog.writable(name)
 
 
 class Recording(Environment):

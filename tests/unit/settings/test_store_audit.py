@@ -224,3 +224,25 @@ def test_the_topic_worker_waits_on_a_refused_row(monkeypatch) -> None:
 
     with pytest.raises(_Waited):
         run.main(["--watch"])
+
+
+# ── A model id moves with its pinned commit ────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("name", "service"),
+    [
+        ("QA_MODEL", "questions"),
+        ("NLI_MODEL", "questions"),
+        ("EMBEDDING_MODEL", "chunking"),
+    ],
+)
+def test_a_stored_encoder_row_is_refused_before_any_load(
+    name: str, service: str
+) -> None:
+    """QA_MODEL stored with no QA_MODEL_REVISION failed at its first load, mid-run."""
+    with pytest.raises(store.StoredRefused) as refused:
+        store.audit([row(name, "org-c/reader")], {}, service=service)
+
+    said = str(refused.value)
+    assert name in said and f"{name}_REVISION" in said and "DELETE FROM" in said

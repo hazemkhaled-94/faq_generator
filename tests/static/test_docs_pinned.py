@@ -334,12 +334,15 @@ def test_architecture_names_every_model_setting() -> None:
 def test_llm_readme_names_the_stage_models_containers_inherit() -> None:
     """Every model compose does not override reaches the containers from backend.env.
 
-    So the llm README's container section names each of them.
+    So the llm README's container section names each of them. The encoders a
+    commit pins are fixed too, and are no LLM: the section is not theirs.
     """
     from settings.catalog import BY_NAME
 
     models = {
-        name for name, one in BY_NAME.items() if name.endswith("_MODEL") and one.fixed
+        name
+        for name, one in BY_NAME.items()
+        if name.endswith("_MODEL") and one.fixed and f"{name}_REVISION" not in BY_NAME
     }
     named = set(
         re.findall(

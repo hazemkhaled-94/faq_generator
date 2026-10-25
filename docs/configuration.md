@@ -164,7 +164,11 @@ settings. Each has a commit beside it, `EMBEDDING_MODEL_REVISION`,
 tokenizer chunking sizes a passage with, the NLI pipeline, the QA head) passes
 it. `backend.env` ships the commits in the build's cache; `QA_MODEL_REVISION` is
 empty while `QA_MODEL` is, and a `QA_MODEL` with none is refused at its first
-load. The three are fixed: change a model and its commit together, in the file.
+load. The three commits are fixed, and so are the three model ids beside them:
+neither is offered on the Configuration page, a model and its commit change
+together, in the file, and a row stored for one of the model ids before this
+release is refused at every stage's build, naming its pin and the `DELETE` that
+removes it.
 
 With `HF_HUB_OFFLINE=1`, which `make corpus-hosted` sets, nothing is fetched, so
 `make doctor` reads the cache first and names what is missing: each encoder at

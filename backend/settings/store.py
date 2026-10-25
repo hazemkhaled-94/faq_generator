@@ -109,9 +109,11 @@ def audit(
     One warning per row that overrides the file, naming the stored value, the
     file's and when it was written. A row the catalogue would now refuse, or one
     stored under a retired name, refuses the build of a stage that reads it, so
-    the worker waits as it does for any setting it cannot build on. A row for a
-    name the deployment owns or nothing configures is warned about and left:
-    `make settings-unset` cannot delete one, so it must not stop a build.
+    the worker waits as it does for any setting it cannot build on, and so does a
+    row for a model id whose commit is pinned, which moves only with its pin. A
+    row for another name the deployment owns or nothing configures is warned
+    about and left: `make settings-unset` cannot delete one, so it must not stop
+    a build.
 
     Args:
         rows: What the table holds: a name, a value and `updated_at` each.
@@ -138,6 +140,17 @@ def audit(
                 + (f"; {replacement} replaces it" if replacement else "")
                 + f": delete the row (DELETE FROM service_settings WHERE name = '{row.name}')",
                 _owner(catalog.BY_NAME.get(replacement), row),
+                service,
+            )
+            continue
+        if setting is not None and (pin := f"{row.name}_REVISION") in catalog.BY_NAME:
+            # Its commit is the file's, so a stored id would load another
+            # repository at that commit, or fail at its first load mid-run.
+            _refuse(
+                f"{stored} is refused: {row.name} moves only with its pinned "
+                f"commit {pin}, both set in configs/env/backend.env; delete the "
+                f"row (DELETE FROM service_settings WHERE name = '{row.name}')",
+                setting.service,
                 service,
             )
             continue

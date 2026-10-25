@@ -112,7 +112,9 @@ build of a stage that reads it, a setting of that stage's or of the platform,
 with the row, its value and when it was written, naming the replacement for a
 retired name; every worker waits on it in place, as it does for any setting it
 cannot build on, and a one-off command says so and exits 1. Another stage's
-refused row is warned about and left for that stage. A row that overrides the file is one
+refused row is warned about and left for that stage. A row for a model id whose
+commit is pinned (`EMBEDDING_MODEL`, `NLI_MODEL`, `QA_MODEL`) is refused the
+same way: the id moves only with its `*_REVISION`, in the file. A row that overrides the file is one
 warning naming the stored value, the file's and the date. A row for a name the
 deployment now owns, or that nothing configures, is warned about and ignored: it
 cannot be deleted with `make settings-unset`, so it must not stop a build.

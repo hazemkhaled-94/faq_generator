@@ -752,10 +752,12 @@ SETTINGS: tuple[Setting, ...] = (
         service="platform",
         kind="text",
         optional=True,
+        fixed=True,
         invalidates=("questions",),
         help="A local extractive QA encoder asked for the answer span before "
         "the verifier is. Absent asks the verifier for every question. Runs "
-        "in the worker, like the embedding model, and is not an LLM_MODEL.",
+        "in the worker, like the embedding model, and is not an LLM_MODEL. "
+        "Set in the file with QA_MODEL_REVISION, the commit every load reads.",
     ),
     Setting(
         name="QA_ANSWER_CONFIDENCE",
@@ -782,10 +784,12 @@ SETTINGS: tuple[Setting, ...] = (
         service="platform",
         kind="text",
         optional=True,
+        fixed=True,
         invalidates=("questions",),
         help="A local NLI encoder asked whether the cited passages entail an "
         "answer recall did not find. Absent asks the verifier instead. Runs "
-        "in the worker, like the embedding model, and is not an LLM_MODEL.",
+        "in the worker, like the embedding model, and is not an LLM_MODEL. "
+        "Set in the file with NLI_MODEL_REVISION, the commit every load reads.",
     ),
     Setting(
         name="NLI_ENTAILMENT_THRESHOLD",
@@ -950,11 +954,13 @@ SETTINGS: tuple[Setting, ...] = (
         name="EMBEDDING_MODEL",
         service="platform",
         kind="text",
+        fixed=True,
         invalidates=("chunking", "extraction", "questions"),
         help="The one embedding model, and the tokenizer chunking sizes a "
         "passage with: extraction embeds passages and facts with it, and "
         "questions are embedded by it. Its width must match the embedding "
-        "columns, which are vector(1024).",
+        "columns, which are vector(1024). Set in the file with "
+        "EMBEDDING_MODEL_REVISION, the commit every load reads.",
     ),
     Setting(
         name="EMBEDDING_MODEL_REVISION",
