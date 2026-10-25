@@ -27,12 +27,11 @@ from database.qa_generator import (
     Difficulty,
     QuestionType,
 )
-from llm.prompt import grounded
 
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "31"
+PROMPT_VERSION = "32"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -100,7 +99,7 @@ _STEPS = """STEPS
 """
 
 #: What the writer is given, and who it is writing for.
-_CONTEXT = grounded("""CONTEXT
+_CONTEXT = """CONTEXT
 You are given numbered FACTS drawn from a corpus, and the PASSAGE each came
 from. The question must be answered by the facts. The passage is there so you
 know what the material is about - use it to phrase the question, never as
@@ -109,7 +108,7 @@ something to ask about and never as something to cite.
 The person you are writing for has not read the passage. They do not know
 which document answers them - finding that out is the whole reason they are
 asking.
-""")
+"""
 
 #: How every question must READ, whatever it is for. Shared by the writer and
 #: by the perturbation that writes the unanswerable ones: a rule in one prompt

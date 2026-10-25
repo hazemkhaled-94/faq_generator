@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import CandidateFact, CheckedFact, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
-from llm.prompt import fence, fill, grounded
+from llm.prompt import fill
 from nlp.models import named
 
 #: Recorded on every fact drawn with the prompt below. Bumped whenever that
@@ -18,17 +18,16 @@ from nlp.models import named
 #: conditions, its exception and the set an "only" closes, carries a list's
 #: lead-in into each item, and leaves out claims about the document itself.
 #: 12 gives the heading trail as the situation a rule may hold only in, and
-#: keeps a list whose lead-in closes it as one fact. 13 fences the excerpt and
-#: its heading trail as material, never instructions.
-PROMPT_VERSION = "13"
+#: keeps a list whose lead-in closes it as one fact.
+PROMPT_VERSION = "12"
 
 #: Recorded on every fact the repair prompt wrote, which is how a later reader
 #: tells a claim split out of a refused statement from one the prompt above
 #: wrote. Its own version, bumped apart: what a fact is and how a refused one
 #: is split are two decisions.
-REPAIR_PROMPT_VERSION = "repair-2"
+REPAIR_PROMPT_VERSION = "repair-1"
 
-_SYSTEM = grounded("""ROLE
+_SYSTEM = """ROLE
 You are a claims analyst. You read one numbered excerpt of a document and
 separate out the individual claims it makes.
 
@@ -168,7 +167,7 @@ Rules, all of them mandatory:
   rest.
 - A sentence with no factual content yields no facts. An empty list is a
   correct answer and is better than a weak one.
-""")
+"""
 
 #: The user message, as the catalogue records it and `_prompt` renders it.
 #: One source, so the recorded template and the sent text cannot drift.
@@ -200,7 +199,7 @@ MOST IMPORTANT RULE, ABOVE ALL THE OTHERS:
 #: with those statements. Without it the rule a joined statement carried was
 #: lost: the counter is right that two finite verbs are two claims, and
 #: nothing asked for the two.
-_REPAIR_SYSTEM = grounded("""ROLE
+_REPAIR_SYSTEM = """ROLE
 You are a claims analyst. Statements written from one numbered excerpt of a
 document were refused, because each joins several claims in one sentence.
 You write the claims each of them joined as facts of their own.
@@ -292,7 +291,7 @@ Rules, all of them mandatory:
   language, and a statement in another is a fact nothing downstream can use.
 - Rewrite only what was refused. A claim no refused statement makes is not
   asked for here.
-""")
+"""
 
 #: The repair's user message: the excerpt as `_USER` shows it, and what was
 #: refused in it.
@@ -467,9 +466,9 @@ class LlmExtractor(Extractor):
         `more` fills the placeholders a template has beyond those.
         """
         heading = (
-            f"Context (not part of the excerpt), which names the situation the "
-            f"excerpt sits in; when a rule holds only in that situation, the "
-            f"statement names it:\n{fence('context', passage.section_path)}\n\n"
+            f"Context (not part of the excerpt): {passage.section_path}. It "
+            f"names the situation the excerpt sits in; when a rule holds only "
+            f"in that situation, the statement names it.\n\n"
             if passage.section_path
             else ""
         )
@@ -484,5 +483,4 @@ class LlmExtractor(Extractor):
                 "{{language}}": named(passage.language),
             }
             | (more or {}),
-            material=("{{excerpt}}",),
         )

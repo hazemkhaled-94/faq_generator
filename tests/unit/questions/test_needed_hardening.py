@@ -237,14 +237,11 @@ def test_the_user_message_is_exactly_passages_conversation_question_key() -> Non
     Verifier(bare).stated("Is it free?", "yes", ["Shipping is free."])
 
     assert client.asked[0][1] == (
-        'Passages:\n<material name="passages">\n'
-        "[1] Erste Regel.\n\n[2] Zweite Regel.\n</material>\n\n"
-        '<material name="conversation">\n'
+        "Passages:\n[1] Erste Regel.\n\n[2] Zweite Regel.\n\n"
         "Q: Wie hoch ist die Gebühr?\nA: 5 Euro\n"
-        "Q: Und online?\nA: not in the material\n</material>\n"
+        "Q: Und online?\nA: not in the material\n"
         "Question: Und bei Filialen?\nKey: ja"
     )
     assert bare.asked[0][1] == (
-        'Passages:\n<material name="passages">\n[1] Shipping is free.\n'
-        "</material>\n\nQuestion: Is it free?\nKey: yes"
+        "Passages:\n[1] Shipping is free.\n\nQuestion: Is it free?\nKey: yes"
     )
