@@ -189,8 +189,8 @@ class ParsingService(StageService):
         if converted.unread_pages:
             pages = ", ".join(map(str, converted.unread_pages))
             note = (
-                f"page(s) {pages} are a picture with no body text, which is "
-                "not read without OCR"
+                f"no text layer on page(s) {pages}, which hold only a picture "
+                "and are not read without OCR, so their text is missing"
             )
             current.set_attribute("parse.image_only_pages", pages)
             log.warning("parsed %s: %s", document.sha256, note)
