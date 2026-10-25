@@ -8,7 +8,7 @@ would become an object key in.
 from __future__ import annotations
 
 import string
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import pytest
 from fastapi import FastAPI
@@ -110,9 +110,12 @@ def documents(monkeypatch) -> TestClient:
 _NOT_A_DIGEST = st.text(
     alphabet=string.hexdigits + "gGxXzZ.-_ é%٠²", min_size=1, max_size=70
 ).filter(
-    # A dot segment is resolved away by the client before any route sees it.
+    # A dot segment is resolved away by the client before any route sees it,
+    # and Starlette's test client decodes a path twice where a server decodes
+    # it once, so `%2F` would reach the routes as a slash only here.
     lambda text: (
-        text not in (".", "..")
+        unquote(text) not in (".", "..")
+        and "/" not in unquote(text)
         and not (len(text) == 64 and set(text) <= set("0123456789abcdef"))
     )
 )
