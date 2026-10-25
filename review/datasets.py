@@ -45,8 +45,12 @@ STAGES = {
 
 
 def dataset_name(name: str) -> str:
-    """What Argilla holds one kind under, numbered by its stage."""
-    return pipeline.numbered(name, STAGES.get(name))
+    """What Argilla holds one kind under, numbered by its stage.
+
+    Carries the database, because the workspace is one for every database
+    and a pull by a bare name wrote another database's verdicts here.
+    """
+    return pipeline.scoped(pipeline.numbered(name, STAGES.get(name)))
 
 
 #: The one question every verdict dataset asks. Two labels and no middle:

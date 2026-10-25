@@ -30,6 +30,8 @@ from typing import Any, cast
 
 from opentelemetry import trace
 
+from telemetry import pipeline
+
 _FORMAT = (
     "%(asctime)s %(levelname)-7s %(name)s "
     "[trace=%(otelTraceID)s span=%(otelSpanID)s] %(message)s"
@@ -196,6 +198,9 @@ class JsonFormatter(logging.Formatter):
             # at all: the api, the frontend, the orchestrator and every host
             # command.
             "run.id": _RUN.get() or self._run,
+            # Which database the line is about. The log stream is one for every
+            # database on the stack, so `make wipe` deletes by this field.
+            "db": pipeline.database() or "",
         }
 
         if record.exc_info and record.exc_info[0] is not None:

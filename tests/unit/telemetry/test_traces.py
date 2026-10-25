@@ -12,7 +12,7 @@ from typing import ClassVar
 
 import pytest
 
-from telemetry import traces
+from telemetry import pipeline, traces
 
 
 class _Recorder:
@@ -85,7 +85,7 @@ def test_a_named_run_is_filed_under_a_project_of_its_own(monkeypatch) -> None:
 
     traces.configure("extraction", run="abc123", named="a-gpt-4.1")
 
-    assert seen[traces.PROJECT] == "4-extraction-a-gpt-4.1"
+    assert seen[traces.PROJECT] == pipeline.scoped("4-extraction-a-gpt-4.1")
 
 
 def test_a_run_nobody_named_appends_to_the_stage(monkeypatch) -> None:
@@ -98,7 +98,7 @@ def test_a_run_nobody_named_appends_to_the_stage(monkeypatch) -> None:
 
     traces.configure("extraction", run="8f2c1e")
 
-    assert seen[traces.PROJECT] == "4-extraction"
+    assert seen[traces.PROJECT] == pipeline.scoped("4-extraction")
 
 
 def test_every_span_carries_the_run_whether_or_not_it_was_named(

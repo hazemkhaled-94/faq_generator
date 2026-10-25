@@ -485,7 +485,7 @@ def test_the_log_wipe_empties_files_rather_than_unlinking_them(tmp_path: Path) -
     Unlinked, the file vanished from under its writer, which went on
     appending to a name nothing could open until a restart or a rotation.
     """
-    on_volume = command("logs-wipe", "/var/log/qa")
+    on_volume = command("logs-wipe", "/var/log/qa", ALL_DATABASES="1")
     assert "-delete" not in on_volume and "truncate -s 0" in on_volume, on_volume
     log = tmp_path / "logs" / "api-host-1.log"
     log.parent.mkdir()
@@ -494,7 +494,7 @@ def test_the_log_wipe_empties_files_rather_than_unlinking_them(tmp_path: Path) -
         writer.write("before\n")
         writer.flush()
         subprocess.run(
-            ["bash", "-c", command("logs-wipe", "find logs")],
+            ["bash", "-c", command("logs-wipe", "find logs", ALL_DATABASES="1")],
             cwd=tmp_path,
             check=True,
         )
@@ -523,6 +523,7 @@ def test_the_log_wipe_fails_unless_elasticsearch_deleted_or_had_nothing(
     tmp_path: Path, answer: str, refused: bool
 ) -> None:
     """A refusal or a stopped container is not "deleted"."""
+    sandbox(tmp_path)
     engine = stand_in(tmp_path, answer)
     delete = command("logs-wipe", "_data_stream", COMPOSE=str(engine))
 
@@ -896,3 +897,41 @@ def test_an_exported_database_name_is_honoured_not_replaced(
         APP_DB_PASSWORD="p",
     )
     assert unset.stdout.split()[0] == "qa_generator", unset
+
+
+def test_the_log_wipe_deletes_by_database_unless_every_database_is_meant() -> None:
+    """One data stream serves every database: a wipe deletes its own lines."""
+    own = command("logs-wipe", "_data_stream")
+    assert '-e WIPE_DB="$APP_DB_NAME"' in own, own
+    assert "_delete_by_query" in own and '\\"db\\":\\"$WIPE_DB' in own, own
+
+    every = command("logs-wipe", "_data_stream", ALL_DATABASES="1")
+    assert '-e WIPE_DB=""' in every, every
+
+
+def test_the_shared_log_files_are_left_unless_every_database_is_meant() -> None:
+    """Emptied, they would take the other databases' unshipped lines."""
+    left = command("logs-wipe", "find logs")
+    assert '[ "" = 1 ]' in left, left
+    assert '[ "1" = 1 ]' in command("logs-wipe", "find logs", ALL_DATABASES="1")
+
+
+def test_the_dagster_wipe_takes_only_the_runs_tagged_with_the_database() -> None:
+    """`dagster run wipe` takes the instance's whole history: ALL_DATABASES only."""
+    own = command("dagster-wipe", "dagster-webserver")
+    assert "python -m orchestration.wipe" in own and "run wipe" not in own, own
+    assert '-e APP_DB_NAME="$APP_DB_NAME"' in own, own
+    assert "run wipe --force" in command(
+        "dagster-wipe", "dagster-webserver", ALL_DATABASES="1"
+    )
+
+
+@pytest.mark.parametrize("target", ["phoenix-purge", "phoenix-prune"])
+def test_the_phoenix_purge_takes_only_this_databases_projects(target: str) -> None:
+    """The other databases' traces are on the same Phoenix."""
+    (own,) = [one for one in printed(target) if "telemetry.projects" in one][:1]
+    assert "--all-databases" not in own, own
+    (every,) = [
+        one for one in printed(target, "ALL_DATABASES=1") if "telemetry.projects" in one
+    ][:1]
+    assert "--all-databases" in every, every

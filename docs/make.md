@@ -134,7 +134,7 @@ equivalent of.
 | `make logs-shipper` | The log shipper, when Grafana shows nothing |
 | `make logs-retention` | Not a follow: how long Elasticsearch keeps them. **Run once** |
 | `make logs-prune` | Not a follow: delete the log files nothing has written to for `LOGS_KEEP_DAYS`, on the `logs` volume and in `./logs`. Fails when the api, through which it reaches the volume, does not answer |
-| `make logs-wipe` | Not a follow: delete every `qa-logs*` data stream and empty every log file, which the running services go on writing. Stops unless Elasticsearch acknowledges the delete or holds no stream. What `make wipe` runs |
+| `make logs-wipe` | Not a follow: delete this database's log lines (every line carries a `db` field), and leave the shared log files. `ALL_DATABASES=1` deletes every `qa-logs*` data stream and empties every log file, which the running services go on writing. Stops unless Elasticsearch acknowledges the delete or holds no stream. What `make wipe` runs |
 
 ```bash
 make logs-retention LOGS_RETENTION_DAYS=90
@@ -511,7 +511,7 @@ a trigger, a data backfill, or anything ordered.
 | `make review-push-topics` / `review-pull-topics` | The same, for topic labels, except that every topic is pushed rather than a sample |
 | `make review-push-questions` / `review-pull-questions` | The same, for questions |
 | `make review-status` | How much has been looked at |
-| `make review-delete` | Delete the three review datasets: facts, topic labels and questions. A dataset under another name is left. **Irreversible** - pull first. What `make wipe` runs |
+| `make review-delete` | Delete this database's three review datasets: facts, topic labels and questions, each named with the database. A dataset under another name, another database's included, is left. **Irreversible** - pull first. What `make wipe` runs |
 | `make review-all` | Every artefact of every kind, not a sample |
 | `make eval-upload` | Put the golden cases in Phoenix |
 | `make eval-score` | Score the served model against them, and record it |
@@ -530,10 +530,10 @@ make review-push-questions IDS=12,34,56
 | Target | Does |
 |---|---|
 | `make phoenix-projects` | What Phoenix holds, changing nothing |
-| `make phoenix-prune` | Delete the projects in which no work happened. **Irreversible**, and asks nothing first: it names at most 25 of the projects it takes, then deletes them |
-| `make phoenix-purge` | Delete **every** project but `default`, whatever it holds, and every dataset. What `make wipe` runs, and what `prune` will not do |
+| `make phoenix-prune` | Delete this database's projects in which no work happened (`ALL_DATABASES=1`: every database's). **Irreversible**, and asks nothing first: it names at most 25 of the projects it takes, then deletes them |
+| `make phoenix-purge` | Delete **every** project of this database (names end in `__<database>`; `ALL_DATABASES=1` takes every database's and those filed before) but `default`, whatever it holds, and every dataset. What `make wipe` runs, and what `prune` will not do |
 | `make phoenix-purge KEEP=golden` | The same, but leave the datasets and their experiments |
-| `make dagster-wipe` | Every run Dagster remembers, and the event log under each |
+| `make dagster-wipe` | The runs this database launched (the corpus job tags each with it), and the event log under each; untagged history stays. `ALL_DATABASES=1` takes every run Dagster remembers |
 
 A Phoenix project is created by whatever sends the first span to it and
 removed by nothing. While a project meant a run somebody asked for that was

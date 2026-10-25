@@ -35,6 +35,8 @@ from dataclasses import dataclass
 
 import requests
 
+from telemetry import pipeline
+
 log = logging.getLogger(__name__)
 
 #: How many projects one page of the listing asks for.
@@ -215,12 +217,32 @@ def report(projects: list[Project]) -> list[str]:
     ]
 
 
-def prune(client, projects: list[Project], everything: bool = False) -> int:
+def own(projects: list[Project], every_database: bool = False) -> list[Project]:
+    """The projects this database filed, or all of them where asked.
+
+    A project from before names carried the database belongs to none, so it
+    is left alone unless every database is meant.
+    """
+    return (
+        projects
+        if every_database
+        else [one for one in projects if pipeline.owned(one.name)]
+    )
+
+
+def prune(
+    client,
+    projects: list[Project],
+    everything: bool = False,
+    every_database: bool = False,
+) -> int:
     """Deletes projects, and says how many went.
 
     Args:
         client: The Phoenix client.
         projects: Everything Phoenix holds.
+        every_database: Take other databases' projects too, and any filed before
+            names carried one. Without it only this database's go.
         everything: Take all of them bar KEEP, rather than only the spent ones. What
             `make wipe` passes: a corpus that is gone has no traces worth
             keeping, and the spent-only rule would leave every project that
@@ -229,6 +251,7 @@ def prune(client, projects: list[Project], everything: bool = False) -> int:
     Returns:
         How many were deleted.
     """
+    projects = own(projects, every_database)
     taking = (
         [one for one in projects if one.name not in KEEP]
         if everything
@@ -293,6 +316,13 @@ def parser() -> argparse.ArgumentParser:
         description="What Phoenix is holding, and taking back the projects "
         "holding no work.",
     )
+    built.add_argument(
+        "--all-databases",
+        action="store_true",
+        dest="all_databases",
+        help="with --prune or --purge, take every database's projects and any "
+        "from before names carried one, not only this database's",
+    )
     group = built.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--list",
@@ -341,7 +371,10 @@ def main(argv: list[str] | None = None) -> int:
         for line in report(projects) if not args.purge_datasets else ():
             log.info("%s", line)
         if args.prune or args.purge:
-            log.info("deleted %d project(s)", prune(client, projects, args.purge))
+            log.info(
+                "deleted %d project(s)",
+                prune(client, projects, args.purge, args.all_databases),
+            )
         if args.purge_datasets:
             log.info("deleted %d dataset(s)", purge_datasets(client))
     return 0

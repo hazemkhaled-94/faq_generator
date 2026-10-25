@@ -235,6 +235,8 @@ x-dagster: &dagster
     # reads both through `env:`, so one file serves this and `dagster dev`.
     DAGSTER_DB_HOST: postgres
     DAGSTER_DB_PORT: 5432
+    # The database the corpus job drives, tagged on every run it makes.
+    APP_DB_NAME: ${APP_DB_NAME}
     # The only thing it talks to. The compose service name, not localhost.
     BACKEND_URL: ${BACKEND_CONTAINER_URL}
     LOG_LEVEL: ${LOG_LEVEL}

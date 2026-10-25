@@ -133,7 +133,7 @@
           "format": "table",
           "rawQuery": true,
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
-          "rawSql": "SELECT count(*) AS \"calls\",\n       sum(s.llm_token_count_prompt) AS \"tokens in\",\n       sum(s.llm_token_count_completion) AS \"tokens out\",\n       round(coalesce(sum(c.total_cost), 0)::numeric, 2) AS \"spend\",\n       round((percentile_cont(0.95) WITHIN GROUP (\n           ORDER BY extract(epoch FROM s.end_time - s.start_time)) * 1000)::numeric) AS \"p95 call\"\nFROM projects p\nJOIN traces t ON t.project_rowid = p.id\nJOIN spans  s ON s.trace_rowid = t.id\nLEFT JOIN span_costs c ON c.span_rowid = s.id\nWHERE s.span_kind = 'LLM' AND regexp_replace(p.name, '^[0-9]+-[a-z_]+-', '') = '$run'"
+          "rawSql": "SELECT count(*) AS \"calls\",\n       sum(s.llm_token_count_prompt) AS \"tokens in\",\n       sum(s.llm_token_count_completion) AS \"tokens out\",\n       round(coalesce(sum(c.total_cost), 0)::numeric, 2) AS \"spend\",\n       round((percentile_cont(0.95) WITHIN GROUP (\n           ORDER BY extract(epoch FROM s.end_time - s.start_time)) * 1000)::numeric) AS \"p95 call\"\nFROM projects p\nJOIN traces t ON t.project_rowid = p.id\nJOIN spans  s ON s.trace_rowid = t.id\nLEFT JOIN span_costs c ON c.span_rowid = s.id\nWHERE s.span_kind = 'LLM' AND regexp_replace(p.name, '^[0-9]+-[a-z_]+-|__(?:[A-Za-z0-9-]|_(?!_))+$', '', 'g') = '$run'"
         }
       ]
     },
@@ -203,7 +203,7 @@
           "format": "table",
           "rawQuery": true,
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
-          "rawSql": "SELECT btrim(replace(coalesce(\n           s.attributes->'tag'->>'tags', '[\"untagged\"]'), '_', ' '), '[]\" ') AS shape,\n       s.attributes->'llm'->>'model_name' AS model,\n       count(*) AS calls,\n       round(coalesce(sum(c.total_cost), 0)::numeric, 4) AS spend,\n       round(avg(extract(epoch FROM s.end_time - s.start_time) * 1000)::numeric) AS mean\nFROM projects p\nJOIN traces t ON t.project_rowid = p.id\nJOIN spans  s ON s.trace_rowid = t.id\nLEFT JOIN span_costs c ON c.span_rowid = s.id\nWHERE s.span_kind = 'LLM' AND regexp_replace(p.name, '^[0-9]+-[a-z_]+-', '') = '$run'\nGROUP BY 1, 2\nORDER BY calls DESC"
+          "rawSql": "SELECT btrim(replace(coalesce(\n           s.attributes->'tag'->>'tags', '[\"untagged\"]'), '_', ' '), '[]\" ') AS shape,\n       s.attributes->'llm'->>'model_name' AS model,\n       count(*) AS calls,\n       round(coalesce(sum(c.total_cost), 0)::numeric, 4) AS spend,\n       round(avg(extract(epoch FROM s.end_time - s.start_time) * 1000)::numeric) AS mean\nFROM projects p\nJOIN traces t ON t.project_rowid = p.id\nJOIN spans  s ON s.trace_rowid = t.id\nLEFT JOIN span_costs c ON c.span_rowid = s.id\nWHERE s.span_kind = 'LLM' AND regexp_replace(p.name, '^[0-9]+-[a-z_]+-|__(?:[A-Za-z0-9-]|_(?!_))+$', '', 'g') = '$run'\nGROUP BY 1, 2\nORDER BY calls DESC"
         }
       ]
     },
@@ -225,7 +225,7 @@
           "format": "table",
           "rawQuery": true,
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
-          "rawSql": "SELECT p.name AS project,\n       count(s.id) AS spans,\n       count(*) FILTER (WHERE s.status_code = 'ERROR') AS errors,\n       min(s.start_time) AS started,\n       max(s.end_time) AS ended\nFROM projects p\nJOIN traces t ON t.project_rowid = p.id\nJOIN spans  s ON s.trace_rowid = t.id\nWHERE regexp_replace(p.name, '^[0-9]+-[a-z_]+-', '') = '$run'\nGROUP BY p.name\nORDER BY spans DESC"
+          "rawSql": "SELECT p.name AS project,\n       count(s.id) AS spans,\n       count(*) FILTER (WHERE s.status_code = 'ERROR') AS errors,\n       min(s.start_time) AS started,\n       max(s.end_time) AS ended\nFROM projects p\nJOIN traces t ON t.project_rowid = p.id\nJOIN spans  s ON s.trace_rowid = t.id\nWHERE regexp_replace(p.name, '^[0-9]+-[a-z_]+-|__(?:[A-Za-z0-9-]|_(?!_))+$', '', 'g') = '$run'\nGROUP BY p.name\nORDER BY spans DESC"
         }
       ]
     },
@@ -252,7 +252,7 @@
           "format": "table",
           "rawQuery": true,
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "qa-phoenix" },
-          "rawSql": "SELECT a.name AS annotation,\n       a.annotator_kind AS kind,\n       count(*) AS scored,\n       round(avg(a.score)::numeric, 3) AS \"mean score\"\nFROM span_annotations a\nJOIN spans   s ON a.span_rowid = s.id\nJOIN traces  t ON s.trace_rowid = t.id\nJOIN projects p ON t.project_rowid = p.id\nWHERE regexp_replace(p.name, '^[0-9]+-[a-z_]+-', '') = '$run'\nGROUP BY 1, 2\nORDER BY 1"
+          "rawSql": "SELECT a.name AS annotation,\n       a.annotator_kind AS kind,\n       count(*) AS scored,\n       round(avg(a.score)::numeric, 3) AS \"mean score\"\nFROM span_annotations a\nJOIN spans   s ON a.span_rowid = s.id\nJOIN traces  t ON s.trace_rowid = t.id\nJOIN projects p ON t.project_rowid = p.id\nWHERE regexp_replace(p.name, '^[0-9]+-[a-z_]+-|__(?:[A-Za-z0-9-]|_(?!_))+$', '', 'g') = '$run'\nGROUP BY 1, 2\nORDER BY 1"
         }
       ]
     },

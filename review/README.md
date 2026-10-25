@@ -212,3 +212,11 @@ None of them reaches a network.
   dataset in Argilla and push again.
 - **`extract-revalidate` does not touch `reviewed_verdict`.**
 - **This never runs in a container.** No image carries the Argilla client.
+
+## One workspace, many databases
+
+The Argilla workspace is shared, so each dataset's name carries the database
+(`6-questions__qa_generator`, by `datasets.dataset_name`). Push, pull and
+`make review-delete` read and delete only this database's. A dataset an
+earlier version pushed under the bare name is left where it is: pull its
+verdicts before upgrading (`make review-pull-*`), and push again afterwards.

@@ -548,9 +548,12 @@ logs-prune: logs-dir
 	  'find /var/log/qa -type f -mtime +$(LOGS_KEEP_DAYS) -print -delete' \
 	  | wc -l | xargs printf '%s file(s) deleted on the volume.\n'
 
-# Every log line, in both places one lives: the `qa-logs*` data streams that
-# Grafana reads, and the JSON files Filebeat ships from. What `make wipe`
-# runs - a log trail of a corpus that is gone describes nothing.
+# This database's log lines: the `db` field every line carries is what
+# Elasticsearch deletes by, so another database's lines stay. The JSON files
+# Filebeat ships from are shared by every database and are left.
+# `ALL_DATABASES=1` takes the whole `qa-logs*` data streams that Grafana
+# reads and empties the files. What `make wipe` runs - a log trail of a
+# corpus that is gone describes nothing.
 #
 # Through the container: elasticsearch publishes no port, and Argilla
 # reaches it over TLS with a certificate the host does not have. Filebeat
@@ -566,15 +569,19 @@ logs-prune: logs-dir
 # open, and an unlinked one goes on being written where Filebeat cannot see
 # it until a restart or a rotation.
 logs-wipe:
-	@answer=$$($(COMPOSE_CMD) exec -T elasticsearch sh -c 'curl -sS \
-	  --cacert /usr/share/elasticsearch/config/certs/ca.crt \
-	  -u "elastic:$$ELASTIC_PASSWORD" \
-	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"' 2>&1); \
+	@$(LOADENV) && answer=$$($(COMPOSE_CMD) exec -T -e WIPE_DB="$(if $(filter 1,$(ALL_DATABASES)),,$$APP_DB_NAME)" elasticsearch sh -c 'if [ -z "$$WIPE_DB" ]; then \
+	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
+	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"; else \
+	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
+	  -X POST "https://localhost:9200/qa-logs*/_delete_by_query?conflicts=proceed&refresh=true" \
+	  -H "Content-Type: application/json" -d "{\"query\":{\"match_phrase\":{\"db\":\"$$WIPE_DB\"}}}"; fi' 2>&1); \
 	  echo "$$answer"; \
-	  case "$$answer" in *'"acknowledged":true'*|*index_not_found_exception*) ;; *) exit 1;; esac
-	@$(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec truncate -s 0 {} +' || true
-	@find logs -type f -exec truncate -s 0 {} + 2>/dev/null || true
-	@echo "log stream deleted and files emptied."
+	  case "$$answer" in *'"acknowledged":true'*|*'"deleted":'*|*index_not_found_exception*) ;; *) exit 1;; esac
+	@if [ "$(ALL_DATABASES)" = 1 ]; then \
+	  $(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec truncate -s 0 {} +' || true; \
+	  find logs -type f -exec truncate -s 0 {} + 2>/dev/null || true; \
+	  echo "log stream deleted and files emptied."; \
+	else echo "this database's log lines deleted; the shared files are left (ALL_DATABASES=1 empties them)."; fi
 
 # ── Database ───────────────────────────────────────────────────────────────
 #
@@ -1485,7 +1492,9 @@ wipe:
 wipe-all: wipe
 	$(MAKE) archive-purge ALL=1
 
-# Every run Dagster remembers, and the event log under each. What `make
+# The runs this database launched, and the event log under each: the corpus
+# job tags every run with the database, and a run with no tag is left.
+# `ALL_DATABASES=1` takes every run the instance remembers. What `make
 # wipe` runs: a run record for a corpus that is gone names assets nothing
 # can open. `KEEP=runs` spares it.
 #
@@ -1494,7 +1503,7 @@ wipe-all: wipe
 # no terminal to answer it.
 dagster-wipe:
 	@$(call SPARED,runs,the Dagster run history) || \
-	  $(COMPOSE_CMD) exec -T dagster-webserver dagster run wipe --force
+	  $(if $(filter 1,$(ALL_DATABASES)),$(COMPOSE_CMD) exec -T dagster-webserver dagster run wipe --force,$(LOADENV) && $(COMPOSE_CMD) exec -T -e APP_DB_NAME="$$APP_DB_NAME" dagster-webserver python -m orchestration.wipe)
 
 # Delete what the pipeline built from one document: its passages, and with
 # them their topic memberships, any fact left citing no passage, any bridge
@@ -1884,15 +1893,17 @@ phoenix-projects:
 # Irreversible, and asks nothing first: it names at most 25 of the projects
 # it takes, then deletes them.
 phoenix-prune:
-	$(LOADENV) && poetry run python -m telemetry.projects --prune
+	$(LOADENV) && poetry run python -m telemetry.projects --prune $(if $(filter 1,$(ALL_DATABASES)),--all-databases)
 
-# Every project AND every dataset, whatever they hold. What `make wipe`
+# Every project this database filed AND every dataset, whatever they hold;
+# `ALL_DATABASES=1` takes every database's projects and any filed before names
+# carried one. What `make wipe`
 # runs: a trace of a run over documents that no longer exist is not worth
 # keeping, and `prune` would leave all of them - they each recorded real
 # work. The datasets are `make eval-upload`'s golden cases and the
 # experiments under them; `KEEP=golden` spares those, see `wipe`.
 phoenix-purge:
-	$(LOADENV) && poetry run python -m telemetry.projects --purge
+	$(LOADENV) && poetry run python -m telemetry.projects --purge $(if $(filter 1,$(ALL_DATABASES)),--all-databases)
 	@$(call SPARED,golden,the Phoenix datasets) || \
 	  { $(LOADENV) && poetry run python -m telemetry.projects --purge-datasets; }
 

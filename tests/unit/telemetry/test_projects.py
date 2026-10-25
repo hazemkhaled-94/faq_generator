@@ -8,9 +8,11 @@ corpus of labelling. `5-topic_modelling` reads exactly the second way.
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
-from telemetry import projects
+from telemetry import pipeline, projects
 
 
 class Answer:
@@ -50,9 +52,14 @@ class Phoenix:
 
 
 def project(name: str, spans: list[str], readable: bool = True) -> projects.Project:
-    """One project holding spans with these names, as `held` reads it."""
-    (read,) = projects.held(Phoenix(name, spans, readable))
-    return read
+    """One project holding spans with these names, as `held` reads it.
+
+    Filed by this process's own database, as `pipeline.project` files it;
+    `default` is Phoenix's own and belongs to none.
+    """
+    filed = name if name == "default" else pipeline.scoped(name)
+    (read,) = projects.held(Phoenix(filed, spans, readable))
+    return dataclasses.replace(read, id=name)
 
 
 def test_a_project_of_nothing_but_model_calls_is_spent() -> None:
@@ -96,7 +103,9 @@ def test_default_is_never_taken() -> None:
         project("7-parsing-abc", [projects.CALL]),
     ]
 
-    assert [one.name for one in projects.spent(held)] == ["7-parsing-abc"]
+    assert [one.name for one in projects.spent(held)] == [
+        pipeline.scoped("7-parsing-abc")
+    ]
 
 
 def test_the_report_counts_both_sides() -> None:

@@ -403,3 +403,20 @@ poetry run pytest tests/unit/telemetry
   with.
 - **The Elasticsearch heap is shared with Argilla.** `ES_JAVA_OPTS` is where
   to raise it.
+
+## One server, many databases
+
+Phoenix, Argilla and the log stream are one server for every database on the
+stack, so each name here carries the database. `pipeline.scoped` appends
+`__<database>` (read from `DATABASE_URL`, or `APP_DB_NAME` where a process has
+no URL): a Phoenix project is `4-extraction__qa_generator`, and
+`make phoenix-purge` takes only the projects that end so. A project filed
+before names carried the database belongs to none and is left unless
+`ALL_DATABASES=1`. Every log line carries a `db` field, which
+`make logs-wipe` deletes by. The corpus job tags each Dagster run with the
+database, and `make dagster-wipe` deletes the runs so tagged.
+
+The Phoenix datasets (the golden cases) are not scoped: they are the
+evaluation's, one set for every database, and `make phoenix-purge` still
+takes them unless `KEEP=golden`. Dashboards that match a run by project name
+strip the database suffix.

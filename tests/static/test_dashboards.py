@@ -201,7 +201,7 @@ def _aggregated(target: dict) -> set[str]:
 
 
 #: How a run dashboard panel takes a run's name off a Phoenix project's.
-RUN_OF_PROJECT = re.compile(r"regexp_replace\(p\.name, '([^']+)', ''\) = '\$run'")
+RUN_OF_PROJECT = re.compile(r"regexp_replace\(p\.name, '([^']+)', '', 'g'\) = '\$run'")
 
 
 def test_no_panel_matches_a_run_by_suffix() -> None:
@@ -221,6 +221,6 @@ def test_no_panel_matches_a_run_by_suffix() -> None:
         assert not re.search(r"LIKE\s+'[^']*\$run", sql), sql
         (prefix,) = RUN_OF_PROJECT.findall(sql)
         for stage in pipeline.STAGES:
-            for run in ("a", "b-a", "a_b", "4-extraction"):
-                taken = re.sub(prefix, "", pipeline.project(stage, run), count=1)
+            for run in ("a", "b-a", "a_b", "4-extraction", "a__b"):
+                taken = re.sub(prefix, "", pipeline.project(stage, run))
                 assert taken == run, (sql, stage, run)

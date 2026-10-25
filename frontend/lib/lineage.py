@@ -186,7 +186,7 @@ def elsewhere(chain: dict, at: dict[str, str]) -> list[str]:
             f"[open]({at['dagster-webserver']}/assets/{asset})"
         )
     if at.get("argilla") and stage in pipeline.DATASET:
-        named = pipeline.numbered(pipeline.DATASET[stage], stage)
+        named = pipeline.scoped(pipeline.numbered(pipeline.DATASET[stage], stage))
         lines.append(
             f"- **Argilla** — what a person said, in `{named}`: "
             f"[open]({at['argilla']}/datasets)"

@@ -44,6 +44,7 @@ import telemetry
 from orchestration import stages
 from orchestration.client import Backend
 from orchestration.settings import Settings
+from telemetry import pipeline
 
 # The same logging and tracing every other process installs, so the
 # orchestrator's lines land in the same index under the same field names
@@ -72,6 +73,9 @@ corpus = define_asset_job(
     selection=AssetSelection.all() - AssetSelection.assets("topics"),
     description="Every stage but the topic fit, in the order a document "
     "moves through them.",
+    # The database it drives, so `make dagster-wipe` takes this database's
+    # runs and leaves the ones another database launched on the same Dagster.
+    tags={"database": pipeline.database()} if pipeline.database() else None,
 )
 
 #: The corpus job at 02:00 UTC. Off by default: a schedule that starts

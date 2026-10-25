@@ -17,6 +17,14 @@ name, the field names. It holds no logic of its own and imports nothing.
 
 from __future__ import annotations
 
+import os
+import re
+from urllib.parse import urlparse
+
+#: What joins a store's name to the database it belongs to. Two underscores,
+#: because Argilla allows letters, digits, `-` and `_` in a dataset name.
+_DATABASE_SEPARATOR = "__"
+
 #: Every stage, in the order a document moves through them. `ingestion` is
 #: first and owns no queue; `assessment` is last and nothing reads it.
 STAGES: tuple[str, ...] = (
@@ -90,6 +98,42 @@ def numbered(name: str, stage: str | None = None, separator: str = "-") -> str:
     return f"{at}{separator}{name}" if at else name
 
 
+def database() -> str | None:
+    """The database this process runs against, or None where it names none.
+
+    Read from DATABASE_URL, or from APP_DB_NAME for the processes - the
+    orchestrator's - that have no URL of the application database.
+    """
+    named = urlparse(os.environ.get("DATABASE_URL", "")).path.strip("/")
+    return named or os.environ.get("APP_DB_NAME") or None
+
+
+def scoped(name: str, owner: str | None = None) -> str:
+    """Names something in a store every database on the stack shares.
+
+    Phoenix, Argilla and Elasticsearch are one server for all of them, so a
+    name that carried no database let one database's wipe take another's
+    traces and verdicts.
+
+    Args:
+        name: What the store would call it alone.
+        owner: The database, defaulting to this process's own.
+
+    Returns:
+        The name with the database after it, or unchanged where there is none.
+    """
+    owner = owner or database()
+    if not owner:
+        return name
+    return f"{name}{_DATABASE_SEPARATOR}{re.sub(r'[^A-Za-z0-9_-]', '_', owner)}"
+
+
+def owned(name: str, owner: str | None = None) -> bool:
+    """Whether a name `scoped` gave belongs to the database."""
+    owner = owner or database()
+    return bool(owner) and name.endswith(scoped("", owner))
+
+
 def project(service: str, run: str | None = None) -> str:
     """What Phoenix files one service's spans under.
 
@@ -116,4 +160,4 @@ def project(service: str, run: str | None = None) -> str:
     telling them apart is a filter rather than a hunt through a sidebar.
     """
     stage = STAGE_OF.get(service, service)
-    return f"{numbered(stage)}-{run}" if run else numbered(stage)
+    return scoped(f"{numbered(stage)}-{run}" if run else numbered(stage))
