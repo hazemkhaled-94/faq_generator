@@ -204,10 +204,17 @@ NOT_GO_LIVE = $(LOADENV) && { ! $(GO_LIVE) || \
               { echo "the go-live profile runs the model stages through make corpus-hosted" >&2; exit 1; }; }
 
 # Where a corpus run keeps what its drains spent, and where the hosted run
-# keeps its pid and its log.
+# keeps its process group and database, and its log: scripts/corpus-hosted.sh
+# writes both.
 CORPUS_LEDGER = logs/corpus-spend.usd
 HOSTED_PID = logs/corpus-hosted.pid
 HOSTED_LOG = logs/corpus-hosted.log
+
+# How long `corpus-hosted-stop` waits for the run's drains after TERM before
+# it kills what is left, in seconds: a model stage's grace and the time to
+# give its row back (DEFAULT_GRACE_SECONDS and RELEASE_MARGIN in
+# backend/stages/worker.py, which a static test holds this to).
+HOSTED_GRACE = 300
 
 # What a resumed run puts back in the queue before it starts: a drain killed
 # mid-row leaves its row failed, and rows left failed are not claimed again.
@@ -323,7 +330,7 @@ help:
         review-push-questions review-pull-questions review-delete review-all \
         phoenix-projects phoenix-prune phoenix-purge \
         eval-upload eval-score prompts-publish \
-        all corpus corpus-hosted open services review pull auto manual pipeline runs \
+        all corpus corpus-hosted corpus-hosted-stop open services review pull auto manual pipeline runs \
         pipeline-status pipeline-stop pipeline-retry
 
 # ── Upgrade ────────────────────────────────────────────────────────────────
@@ -2271,10 +2278,12 @@ corpus:
 	$(MAKE) questions-balance $(CORPUS_PINS)
 	$(MAKE) assess-start $(CORPUS_PINS)    && $(MAKE) assess $(CORPUS_PINS)
 
-# The corpus on the host, detached and supervised: a pid file and a log, and
-# a second start refused while the first one runs. The go-live profile's
-# runner, and it needs that profile: the container workers drain the queues
-# otherwise, and `make corpus` is the foreground run.
+# The corpus on the host, detached and supervised: scripts/corpus-hosted.sh
+# runs `make corpus` in a process group of its own, recorded with its database
+# in the pid file, and a second start is refused while a member of that group
+# lives. The go-live profile's runner, and it needs that profile: the
+# container workers drain the queues otherwise, and `make corpus` is the
+# foreground run.
 #
 # A pid file nobody holds is a run that died - a restart, a kill - so the next
 # start resumes it: the stages' failed rows go back to the queue and the
@@ -2285,14 +2294,23 @@ corpus:
 #   make corpus-hosted SPEND_CAP=50     stops at USD 50 for the whole run
 corpus-hosted:
 	@mkdir -p logs
-	@if [ -f $(HOSTED_PID) ] && kill -0 "$$(cat $(HOSTED_PID))" 2>/dev/null; then \
-	  echo "corpus-hosted is already running (pid $$(cat $(HOSTED_PID))); follow it: tail -f $(HOSTED_LOG)" >&2; exit 1; fi
+	@scripts/corpus-hosted.sh --check APP_DB_NAME=$(CORPUS_DB)
 	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
 	@$(LOADENV) && PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
-	@resume=; [ ! -f $(HOSTED_PID) ] || resume=RESUME=1; \
-	  nohup sh -c 'echo $$$$ > $(HOSTED_PID); $(MAKE) corpus '"$$resume"'; code=$$?; rm -f $(HOSTED_PID); exit $$code' >> $(HOSTED_LOG) 2>&1 & \
+	@nohup scripts/corpus-hosted.sh APP_DB_NAME=$(CORPUS_DB) >> $(HOSTED_LOG) 2>&1 & \
 	  for i in $$(seq 50); do [ -f $(HOSTED_PID) ] && break; sleep 0.1; done; \
-	  echo "corpus-hosted started: log $(HOSTED_LOG), pid file $(HOSTED_PID)"
+	  echo "corpus-hosted started: log $(HOSTED_LOG), pid file $(HOSTED_PID); stop it with make corpus-hosted-stop"
+
+# Stop the hosted run: TERM to its whole process group, so the drain in hand
+# finishes its row or gives it back and exits 75, then KILL to whatever is
+# left after HOSTED_GRACE seconds. The spend ledger is kept.
+corpus-hosted-stop:
+	@group=; [ ! -f $(HOSTED_PID) ] || read -r group database < $(HOSTED_PID); \
+	if [ -z "$$group" ] || ! kill -0 -- -$$group 2>/dev/null; then echo "no hosted run is going"; exit 0; fi; \
+	echo "stopping the hosted run (process group $$group): each drain finishes or gives back its row, for up to $(HOSTED_GRACE)s"; \
+	kill -TERM -- -$$group; \
+	for i in $$(seq $(HOSTED_GRACE)); do kill -0 -- -$$group 2>/dev/null || exit 0; sleep 1; done; \
+	echo "the run is still going after $(HOSTED_GRACE)s: killing what is left" >&2; kill -KILL -- -$$group
 
 # Every container, whether it is listening, and where to open it.
 #

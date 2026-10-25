@@ -268,3 +268,19 @@ def test_a_worker_stage_gets_a_grace_its_container_outlasts() -> None:
         )
         need = GRACE_SECONDS.get(stage, DEFAULT_GRACE_SECONDS) + RELEASE_MARGIN
         assert seconds >= need, f"{name}: {given} is under {need:.0f}s"
+
+
+def test_the_hosted_stop_outlasts_every_stage_grace() -> None:
+    """The stop kills only what a drain's grace and give-back left."""
+    import re
+    from pathlib import Path
+
+    from stages.worker import DEFAULT_GRACE_SECONDS, GRACE_SECONDS, RELEASE_MARGIN
+
+    makefile = (Path(__file__).resolve().parents[3] / "Makefile").read_text()
+    (given,) = re.findall(r"^HOSTED_GRACE = (\d+)$", makefile, re.MULTILINE)
+
+    assert (
+        int(given)
+        >= max(DEFAULT_GRACE_SECONDS, *GRACE_SECONDS.values()) + RELEASE_MARGIN
+    )

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -77,6 +79,7 @@ def _project(
         (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / name).write_text(text)
     (tmp_path / "Makefile").symlink_to(ROOT / "Makefile")
+    (tmp_path / "scripts").symlink_to(ROOT / "scripts")
     stand_ins = tmp_path / "bin"
     stand_ins.mkdir(exist_ok=True)
     (stand_ins / "poetry").write_text(
@@ -84,6 +87,11 @@ def _project(
         'echo "$APP_DB_NAME $HF_HUB_OFFLINE $SPEND_LEDGER $*" >> "$LOG"\n'
         'case "$*" in *"$FAIL"*) [ -n "$FAIL" ] && exit 3;; esac\n'
         'case "$*" in *topic_modelling*--ensure*) echo "x" >> "$SPEND_LEDGER";; esac\n'
+        # A long extraction drain, stopped as drain_once stops one: 75 on SIGTERM.
+        'case "$*" in *"extraction.run") [ -n "$SLOW" ] && {\n'
+        "  trap 'echo stopped >> \"$LOG.stopped\"; exit 75' TERM\n"
+        '  sleep "$SLOW" & wait $!; };; esac\n'
+        "exit 0\n"
     )
     (stand_ins / "compose").write_text(
         "#!/bin/sh\n"
@@ -310,16 +318,92 @@ def test_corpus_hosted_runs_the_corpus_detached_with_a_pid_file_and_a_log(
 
 
 def test_corpus_hosted_refuses_a_second_start(tmp_path: Path) -> None:
-    """While the first one's pid is alive."""
+    """While the process group the first one recorded has a member alive."""
     project = _project(tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n")
     (project / "logs").mkdir()
-    (project / "logs/corpus-hosted.pid").write_text(f"{os.getpid()}\n")
+    running = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (project / "logs/corpus-hosted.pid").write_text(f"{running.pid} qa_scratch\n")
 
-    ran = _make(project, "corpus-hosted")
+    try:
+        ran = _make(project, "corpus-hosted")
+    finally:
+        running.kill()
+        running.wait()
 
     assert ran.returncode != 0
     assert "already running" in ran.stderr
     assert not _drained(project)
+
+
+GO_LIVE = "HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n"
+
+
+def _until(done: Callable[[], bool], seconds: float = 20) -> None:
+    end = time.time() + seconds
+    while not done():
+        if time.time() > end:
+            raise AssertionError("it never happened")
+        time.sleep(0.1)
+
+
+def _extracting(project: Path) -> bool:
+    return any(line.endswith("extraction.run") for line in _drained(project))
+
+
+def _alive(group: int) -> bool:
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_killing_the_make_at_the_head_of_the_run_leaves_a_start_refused(
+    tmp_path: Path,
+) -> None:
+    """The pid file holds the run's process group: its drain outlives a kill -9 of make."""
+    project = _project(tmp_path, env=GO_LIVE)
+    assert _make(project, "corpus-hosted", SLOW="6").returncode == 0
+    _until(lambda: _extracting(project))
+    group, database = (project / "logs/corpus-hosted.pid").read_text().split()
+
+    os.kill(int(group), signal.SIGKILL)
+    second = _make(project, "corpus-hosted")
+
+    assert database == "qa_scratch"
+    assert second.returncode != 0
+    assert "already running" in second.stderr
+    _until(lambda: not _alive(int(group)))
+
+
+def test_the_stop_signals_the_whole_run_and_its_drain_stops_as_asked(
+    tmp_path: Path,
+) -> None:
+    """TERM to the group reaches the drain, which exits 75; nothing after it runs."""
+    project = _project(tmp_path, env=GO_LIVE)
+    ledger = project / "logs/corpus-spend.usd"
+    assert _make(project, "corpus-hosted", SLOW="60").returncode == 0
+    _until(lambda: _extracting(project))
+    group = int((project / "logs/corpus-hosted.pid").read_text().split()[0])
+    ledger.write_text("3.5\n")
+
+    stopped = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=20")
+
+    assert stopped.returncode == 0, stopped.stderr
+    assert (project / "drains.log.stopped").exists(), "the drain was told to stop"
+    assert not _alive(group)
+    assert "question_generation" not in "\n".join(_drained(project))
+    assert ledger.read_text() == "3.5\n", "the stop keeps the spend"
+
+
+def test_a_stop_with_no_run_going_says_so(tmp_path: Path) -> None:
+    """And signals nothing."""
+    project = _project(tmp_path, env=GO_LIVE)
+
+    stopped = _make(project, "corpus-hosted-stop")
+
+    assert stopped.returncode == 0
+    assert "no hosted run" in stopped.stdout
 
 
 def test_corpus_hosted_resumes_after_a_run_that_was_killed(tmp_path: Path) -> None:
@@ -363,6 +447,18 @@ def test_corpus_hosted_refuses_without_the_go_live_profile(tmp_path: Path) -> No
     assert ran.returncode != 0
     assert "HOST_RUNNER" in ran.stderr
     assert not _drained(project)
+
+
+def test_the_runner_parses_in_the_bash_a_mac_ships() -> None:
+    """/bin/bash on macOS is 3.2, and a supervisor runs the script with it."""
+    script = ROOT / "scripts/corpus-hosted.sh"
+    parsed = subprocess.run(
+        ["/bin/bash", "-n", str(script)], capture_output=True, text=True, check=False
+    )
+
+    assert parsed.returncode == 0, parsed.stderr
+    assert os.access(script, os.X_OK)
+    assert script.read_text().startswith("#!/bin/bash\n")
 
 
 def test_the_supervisor_unit_is_documented() -> None:

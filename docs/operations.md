@@ -527,7 +527,8 @@ From a fresh clone, following only this page:
 5. Upload the documents on the Upload page, or with `curl -F file=@x.pdf`.
 6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
    detached: `logs/corpus-hosted.log` holds what it does and
-   `logs/corpus-hosted.pid` its process. It names the database it acts on,
+   `logs/corpus-hosted.pid` its process group and database;
+   `make corpus-hosted-stop` stops it. It names the database it acts on,
    gives every drain that name and `HF_HUB_OFFLINE=1`, and counts spend
    across the drains in `logs/corpus-spend.usd` (`SPEND_LEDGER`), so `SPEND_CAP` is the cost of
    the whole run and not of each drain. Every drain logs the split it resolved
@@ -624,7 +625,13 @@ stops the run before the next stage. `make corpus-hosted` after a stop, a
 restart or a kill resumes it: it finds the pid file nobody holds, returns every
 stage's failed rows to the queue and runs the chain again, and the spend so far
 still counts against `SPEND_CAP`. A second `make corpus-hosted` while the first
-runs is refused.
+runs is refused: the pid file records the run's process group, and a member of
+it alive, a drain whose make was killed included, is a run going on.
+
+`make corpus-hosted-stop` stops a hosted run: it sends TERM to that whole
+group, so the drain in hand finishes its row, or gives it back, and exits 75,
+and kills what is left after `HOSTED_GRACE` seconds (300). The spend ledger is
+kept.
 
 To have a supervisor restart it, run the foreground form, which exits 0 only
 when the chain finishes:
