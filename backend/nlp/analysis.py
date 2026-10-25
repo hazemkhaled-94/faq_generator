@@ -781,11 +781,14 @@ CARDINALS: dict[str, dict[str, int]] = {
 DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 
 #: The words that mark an amount of money, by ISO 639-1 code, as lower case:
-#: codes, symbols and names. A number grouped by a space - `5 000 Euro`,
+#: codes and names. A number grouped by a space - `5 000 Euro`,
 #: `EUR 100 000`, `12 500.00 GBP` (DIN 5008 and SI) - is read as one figure
-#: only with one of them directly before or after it. Anywhere else a space
-#: is no thousands mark: a flattened table row, a phone number. A language
-#: missing here reads the groups as separate figures.
+#: only with one of them, an ISO 4217 code or a currency sign (`€`, `¥`, `₹`:
+#: any of Unicode's category Sc, so none is listed here) directly before or
+#: after it, see `is_currency`. Anywhere else a space is no thousands mark: a
+#: flattened table row, a phone number. A language missing here reads the
+#: groups as separate figures beside a word, and as one beside a code or a
+#: sign, which are no language's words.
 #:
 #: ponytail: one group of three digits after the head, so an amount past
 #: 999 999 written `1 000 000` stays three figures, and a two-cell table row
@@ -803,9 +806,6 @@ AMOUNT_WORDS: dict[str, frozenset[str]] = {
             "pfund",
             "chf",
             "franken",
-            "€",
-            "$",
-            "£",
         ]
     ),
     "en": frozenset(
@@ -820,9 +820,6 @@ AMOUNT_WORDS: dict[str, frozenset[str]] = {
             "pound",
             "pounds",
             "chf",
-            "€",
-            "$",
-            "£",
         ]
     ),
 }
@@ -908,14 +905,14 @@ def _beside(found: re.Match[str] | None, keep_case: bool = False) -> str:
 
 
 #: The word that follows an amount: its letters only, so `Euro/Kunde` and
-#: `Euro*` are `Euro`, after an optional price dash (`5 000,- EUR`) which only
-#: a decimal mark may open: `500-Euro-Scheine` is a hyphen-joined noun, not an
-#: amount.
-_CURRENCY_AFTER = re.compile(r"\s?(?:[.,][-–—]+\s?)?([^\W\d_]+|[€$£])")
+#: `Euro*` are `Euro`, or one sign, after an optional price dash
+#: (`5 000,- EUR`) which only a decimal mark may open: `500-Euro-Scheine` is a
+#: hyphen-joined noun, not an amount.
+_CURRENCY_AFTER = re.compile(r"\s?(?:[.,][-–—]+\s?)?([^\W\d_]+|[^\w\s])")
 
 
 def _amount(text: str, start: int, end: int, language: str | None) -> bool:
-    """Whether a space-grouped run is an amount: a currency word beside it, no label before.
+    """Whether a space-grouped run is an amount: a currency word or sign beside it, no label before.
 
     A text that is the run alone is one, as a unit read back out of an amount.
     """

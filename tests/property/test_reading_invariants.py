@@ -1,9 +1,10 @@
 """What the number readings hold for any amount and any ordinal, not just the examples.
 
 A run of digit groups joined by a space is one amount only beside a word of
-the language's `AMOUNT_WORDS`, and never after a `REFERENCE_LABELS` word; a
-language with no row reads the groups apart. An ordinal, written as a word or
-as a figure, is the ordinal it is and never the count of the same digits.
+the language's `AMOUNT_WORDS` or a currency sign, and never after a
+`REFERENCE_LABELS` word; a language with no row reads the groups apart beside
+a word, and as one beside a sign. An ordinal, written as a word or as a
+figure, is the ordinal it is and never the count of the same digits.
 """
 
 from __future__ import annotations
@@ -21,6 +22,10 @@ pytestmark = pytest.mark.nlp
 #: Words that stand beside a number and mark no amount.
 _PLAIN = ("Kunden", "customers", "Stück", "items", "Tage", "days", "Mio.", "Konto")
 
+#: Currency signs, which no row lists, and a sign that is none.
+_SIGNS = ("€", "£", "¥", "₹")
+_NO_SIGN = "%"
+
 
 @st.composite
 def spaced(draw):
@@ -32,8 +37,8 @@ def spaced(draw):
     run = f"{head} {group:03d}{fraction}"
     words = sorted(AMOUNT_WORDS.get(language, frozenset())) or ["eur"]
     labels = sorted(REFERENCE_LABELS.get(language, frozenset())) or ["section"]
-    before = draw(st.sampled_from(["", *_PLAIN, *words, *labels]))
-    after = draw(st.sampled_from(["", *_PLAIN, *words]))
+    before = draw(st.sampled_from(["", *_PLAIN, *words, *_SIGNS, *labels]))
+    after = draw(st.sampled_from(["", *_PLAIN, *words, *_SIGNS, _NO_SIGN]))
     return language, run, before, after
 
 
@@ -45,7 +50,7 @@ def test_a_space_grouped_run_is_one_amount_only_beside_a_currency_word(case) -> 
     amounts = AMOUNT_WORDS.get(language, frozenset())
     merged = before.casefold() not in REFERENCE_LABELS.get(
         language, frozenset()
-    ) and bool({before.casefold(), after.casefold()} & amounts)
+    ) and bool({before.casefold(), after.casefold()} & {*amounts, *_SIGNS})
 
     read = figures(text, language)
     tokens = [one.text for one in parse(text, language)]

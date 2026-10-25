@@ -125,3 +125,27 @@ def test_c052_one_amount_reader_folds_marks_and_keeps_counts_apart(
 ) -> None:
     """An amount beside a currency is one figure whatever mark follows; a count of notes or a phone number is not."""
     assert figures(text, language) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "expected"),
+    [
+        ("The plan costs 12 500 ¥ a year.", "en", [12500.0]),
+        ("The order totals 12 500 ₹ with delivery.", "en", [12500.0]),
+        ("The plan costs ¥ 12 500 a year.", "en", [12500.0]),
+        ("Die Gebühr beträgt 12 500 ¥ im Jahr.", "de", [12500.0]),
+        ("Der Warenkorb kostet 12 500 ₹ ohne Versand.", "de", [12500.0]),
+        ("Das Konto kostet 12 500 ₺ im Jahr.", "de", [12500.0]),
+        ("Prices rose 12 500 % in a decade.", "en", [12.0, 500.0]),
+        ("Le forfait coûte 12 500 ¥ par an.", "fr", [12500.0]),
+        ("Le forfait coûte 12 500 euros par an.", "fr", [12.0, 500.0]),
+    ],
+)
+def test_c052_any_currency_sign_marks_an_amount(text, language, expected) -> None:
+    """Every sign of Unicode's category Sc after an amount is a currency, not only `€`, `$` and `£`.
+
+    A sign that is no currency keeps the groups apart. A sign is no
+    language's word, so a language no configuration names reads it too,
+    while a currency word there leaves the groups apart.
+    """
+    assert figures(text, language) == expected
