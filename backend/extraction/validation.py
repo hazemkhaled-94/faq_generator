@@ -667,10 +667,16 @@ class FactChecker:
             known |= vocabulary(passage.text, language)
             numbers |= numerals(passage.text, language)
             known |= numbers
+            valued = {
+                written
+                for written, _, _, kind in _figure_tokens(statement, language)
+                if kind in _VALUE_KINDS
+            }
             numbered = {
                 unit
                 for unit in units
                 if unit not in alone
+                and unit not in valued
                 and _numbers_part_of(unit, passage.section_path)
             }
             known -= numbered
@@ -737,6 +743,11 @@ _TIME_UNITS: dict[str, frozenset[str]] = {
     "de": frozenset({"tag", "woche", "monat"}),
     "en": frozenset({"day", "week", "month"}),
 }
+
+
+#: The kinds `_named_kind` reads, whose figures state a value: never a number
+#: of a part of the heading.
+_VALUE_KINDS = frozenset({"currency", "share", "period"})
 
 
 def _named_kind(word: str, language: str | None) -> str | None:

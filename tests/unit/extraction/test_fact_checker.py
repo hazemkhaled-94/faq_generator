@@ -2122,6 +2122,42 @@ def test_an_index_past_a_wrapped_prose_sentence_names_nothing(
 
 
 @pytest.mark.parametrize(
+    ("language", "text", "statement", "section"),
+    [
+        (
+            "en",
+            "Each card costs EUR 4.95 per year. Cards can be ordered online.",
+            "Cards ordered online cost EUR 4.95 per year.",
+            "4 Card fees",
+        ),
+        (
+            "de",
+            "Jede Karte kostet 4.95 EUR im Jahr. Karten können online bestellt werden.",
+            "Online bestellte Karten kosten 4.95 EUR im Jahr.",
+            "4 Kartenentgelte",
+        ),
+        (
+            "en",
+            "Delivery takes 3.5 days. Orders can be placed online.",
+            "Orders placed online are delivered in 3.5 days.",
+            "3 Delivery",
+        ),
+    ],
+)
+def test_a_price_or_measure_is_no_sub_number_of_the_heading(
+    language, text, statement, section
+) -> None:
+    """A figure beside a currency or a unit is a value, however the heading is numbered."""
+    from dataclasses import replace
+
+    read = replace(passage(text, language=language), section_path=section)
+
+    judged = Checker(read).atomic(statement, 1)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.parametrize(
     ("language", "evidence", "statement"),
     [
         ("en", "The fee is EUR 12.30 a month.", "The fee is EUR 30 a month."),
