@@ -2130,6 +2130,37 @@ def test_an_index_beyond_the_lines_of_the_last_sentence_stays_refused() -> None:
     ("language", "text", "statement"),
     [
         (
+            "de",
+            "Die Kontoführung kostet 5 EUR. Die neuen Entgelte gelten ab dem\n1. Januar 2026 für alle Privatkunden.",
+            "Die neuen Entgelte gelten ab dem 1. Januar 2026 für alle Privatkunden.",
+        ),
+        (
+            "en",
+            "The account costs EUR 5. The new fees apply from\n1 January 2026 to every customer.",
+            "The new fees apply from 1 January 2026 to every customer.",
+        ),
+        (
+            "pl",
+            "Prowadzenie konta kosztuje 5 EUR. Nowe opłaty obowiązują od\n1. stycznia 2026 dla wszystkich klientów.",
+            "Nowe opłaty obowiązują od 1. stycznia 2026 dla wszystkich klientów.",
+        ),
+    ],
+)
+def test_a_wrapped_line_opening_with_a_date_is_no_list_line(
+    language, text, statement
+) -> None:
+    """A lone number and its mark at a line start is a date or an ordinal, not a list."""
+    read = passage(text, language=language)
+
+    judged = Checker(read).atomic(statement, len(read.sentences))
+
+    assert judged.rejection_code == Rejection.EVIDENCE_ABSENT, judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
             "en",
             "The bank charges a fee for each transfer.\nThe fee is charged at the end of the month and\nshown on the statement.",
             "The fee is shown on the statement.",

@@ -56,13 +56,15 @@ def _lines_of(sentence: Sentence) -> list[Sentence]:
     """The non-empty lines of a sentence that holds list lines, each located in the passage.
 
     A sentence with none is one line: wrapped prose is not cited by its lines.
+    Nor is one with a single such line: a lone number and its mark opening a
+    wrapped line is a date or an ordinal ("1. January"), not a list.
 
     A line keeps the index of the sentence it is in, so a citation of it
     resolves again as that sentence does.
     """
     lines = []
     at = sentence.start
-    if not _LIST_LINE.search(sentence.text):
+    if len(_LIST_LINE.findall(sentence.text)) < 2:
         return [sentence]
     for line in sentence.text.split("\n"):
         if line.strip():
