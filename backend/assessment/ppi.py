@@ -26,8 +26,15 @@ References:
 
 Valid only if the labelled rows are a random sample of the same rows the
 judge scored, and the judge was fixed before the labels were read. The
-guarantee is asymptotic, so an interval on a few dozen labels is rough, and
-one interval covers the share, not any single row.
+guarantee is asymptotic, so under MIN_LABELS labels the interval is not the
+corrected one but the labels' own, by Wilson, and the row is called rough: in
+a simulation the corrected interval covered about 70% at 17 labels. From
+MIN_LABELS on the interval takes a t quantile on the variances with one
+degree of freedom taken off, and a group whose labels leave no spread gets
+the rule-of-three bound; both are widened to hold the labels' own interval,
+because a Wald interval of any kind covers a share near 0.95 far less than
+95% at thirty labels, and the judge here agrees with the labels too little to
+narrow it. One interval covers the share, not any single row.
 
 Pure functions over numbers: the predictions and the labels come from
 elsewhere.
@@ -41,10 +48,29 @@ from typing import NamedTuple
 
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy.stats import norm
+from scipy.stats import norm, t
 
 #: The confidence level's complement: a 95% interval.
 ALPHA = 0.05
+
+#: Labels a group needs before the corrected interval is trusted. Under it the
+#: interval is Wilson's on the labels alone.
+MIN_LABELS = 30
+
+
+def wilson(share: float, n: int, alpha: float = ALPHA) -> tuple[float, float]:
+    """The Wilson score interval of a share of `n` yes-or-no labels."""
+    z = float(norm.ppf(1 - alpha / 2))
+    centre = (share + z * z / (2 * n)) / (1 + z * z / n)
+    half = (
+        z * math.sqrt(share * (1 - share) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    )
+    return centre - half, centre + half
+
+
+def _variance(values: np.ndarray) -> float:
+    """The sample variance, 0 for fewer than two values."""
+    return float(np.var(values, ddof=1)) if len(values) > 1 else 0.0
 
 
 class Corrected(NamedTuple):
@@ -58,14 +84,41 @@ class Corrected(NamedTuple):
     labelled: int
     #: The judged rows without one.
     judged: int
+    #: The share the labels alone give, which the rough interval is built on.
+    label_mean: float = math.nan
+    #: How many strata this pools, for the degrees of freedom.
+    strata: int = 1
+
+    @property
+    def rough(self) -> bool:
+        """Whether there are too few labels to trust the corrected interval."""
+        return self.labelled < MIN_LABELS
 
     def interval(self, alpha: float = ALPHA) -> tuple[float, float]:
-        """The estimate plus and minus its normal quantile times its error.
+        """The interval to print: the labels' own where rough, else the corrected.
 
-        Not clipped to [0, 1]: a caller that shows a share clips it there.
+        Corrected, it is the estimate plus and minus a t quantile times its
+        error, with the labels less the strata as degrees of freedom; where
+        the labels leave no spread it is the rule-of-three bound, 3 over the
+        labels each side. Either is widened to hold the labels' own Wilson
+        interval, so the correction never prints narrower than the labels
+        can bear. Not clipped to [0, 1]: a caller that shows a share clips
+        it there.
         """
-        half = float(norm.ppf(1 - alpha / 2)) * self.se
-        return self.estimate - half, self.estimate + half
+        if self.rough:
+            return self.labels_interval(alpha)
+        only_low, only_high = self.labels_interval(alpha)
+        if self.se == 0:
+            return (
+                min(self.estimate - 3 / self.labelled, only_low),
+                max(self.estimate + 3 / self.labelled, only_high),
+            )
+        half = float(t.ppf(1 - alpha / 2, self.labelled - self.strata)) * self.se
+        return min(self.estimate - half, only_low), max(self.estimate + half, only_high)
+
+    def labels_interval(self, alpha: float = ALPHA) -> tuple[float, float]:
+        """Wilson's interval of the labels alone, which the correction is read against."""
+        return wilson(self.label_mean, self.labelled, alpha)
 
 
 def _arrays(
@@ -96,12 +149,13 @@ def _at(
             (np.mean(imputed) if len(imputed) else 0.0) + np.mean(rectifier)
         ),
         se=math.sqrt(
-            (np.var(imputed) / len(imputed) if len(imputed) else 0.0)
-            + np.var(rectifier) / len(rectifier)
+            (_variance(imputed) / len(imputed) if len(imputed) else 0.0)
+            + _variance(rectifier) / len(rectifier)
         ),
         weight=float(weight),
         labelled=len(y),
         judged=len(f_judged),
+        label_mean=float(np.mean(y)),
     )
 
 
@@ -145,4 +199,6 @@ def pooled(parts: Sequence[Corrected]) -> Corrected:
         weight=math.nan,
         labelled=sum(p.labelled for p in parts),
         judged=sum(p.judged for p in parts),
+        label_mean=float(np.sum(share * [p.label_mean for p in parts])),
+        strata=len(parts),
     )

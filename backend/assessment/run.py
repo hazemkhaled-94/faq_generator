@@ -694,7 +694,8 @@ def _corrected(
     print("\nLabelled shares corrected by the paper's judge:")
     print(
         f"{'language':<9}{named}{'label':<16}{'n':>5}{'N':>6}{'judge':>8}"
-        f"{'labels':>8}{'corrected':>11}  {'95% interval':<18}{'weight':>7}"
+        f"{'labels':>8}{'corrected':>11}  {'95% interval':<26}"
+        f"{'width':>7}{'labels-only':>13}{'weight':>8}"
     )
     pool: dict[tuple[str, str], list] = defaultdict(list)
     # Languages a label could not be measured in, which leave it unpooled:
@@ -732,7 +733,7 @@ def _corrected(
                 [verdict[id] for id in tagged],
                 [given[id][field] or 0 for id in tagged],
             )
-            pool[(label, field)].append((one, tagged, rest))
+            pool[(label, field)].append((one, tagged, rest, language))
             _print_corrected(shown, field, one, tagged + rest, tagged, verdict, given)
     for (label, field), parts in sorted(pool.items()):
         shown = f"{'all':<9}{label:<36}" if by else f"{'all':<9}"
@@ -740,8 +741,12 @@ def _corrected(
             missing = ", ".join(unmeasured[(label, field)])
             print(f"{shown}{field} not pooled: {missing} not measured")
             continue
-        tagged = [id for _, t, _ in parts for id in t]
-        ids = tagged + [id for _, _, rest in parts for id in rest]
+        flat = [language for one, _, _, language in parts if one.se == 0]
+        if flat:
+            print(f"{shown}{field} not pooled: {', '.join(flat)} has no spread")
+            continue
+        tagged = [id for _, t, _, _ in parts for id in t]
+        ids = tagged + [id for _, _, rest, _ in parts for id in rest]
         _print_corrected(
             shown, field, ppi.pooled([p[0] for p in parts]), ids, tagged, verdict, given
         )
@@ -765,20 +770,29 @@ def _print_corrected(
     verdict: dict[int, int],
     given: dict[int, dict[str, int | None]],
 ) -> None:
-    """One row of the corrected table; the interval is clipped to [0, 1] to show.
+    """One row of the corrected table; the intervals are clipped to [0, 1] to show.
 
-    Labels that all agree, under a judge given no weight, leave no spread to
-    build an interval from, and an interval of one point would read as
-    certainty.
+    The interval is the corrected one, or the labels' own by Wilson where
+    there are too few labels, which the row then calls rough. Beside it the
+    widths of both, so what the correction buys is read off the row. Labels
+    that all agree leave the corrected error no spread, said so: an interval
+    of one point would read as certainty, and the bound printed is the
+    rule-of-three one.
     """
     low, high = (min(max(end, 0.0), 1.0) for end in one.interval())
-    interval = "no spread" if one.se == 0 else f"[{low:.3f}, {high:.3f}]"
+    only_low, only_high = (min(max(end, 0.0), 1.0) for end in one.labels_interval())
+    interval = f"[{low:.3f}, {high:.3f}]"
+    if one.rough:
+        interval += " rough"
+    if one.se == 0:
+        interval += " no spread"
     weight = "-" if isnan(one.weight) else f"{one.weight:.3f}"
     print(
         f"{shown}{field:<16}{one.labelled:>5}{one.judged:>6}"
         f"{sum(verdict[id] for id in ids) / len(ids):>8.3f}"
         f"{sum(given[id][field] or 0 for id in tagged) / len(tagged):>8.3f}"
-        f"{one.estimate:>11.3f}  {interval:<18}{weight:>7}"
+        f"{one.estimate:>11.3f}  {interval:<26}"
+        f"{high - low:>7.3f}{only_high - only_low:>13.3f}{weight:>8}"
     )
 
 

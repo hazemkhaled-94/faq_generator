@@ -827,7 +827,7 @@ def corrected_rows(capsys) -> list[list[str]]:
     """The corrected table's rows, each split into its cells."""
     out = capsys.readouterr().out.split("Labelled shares corrected", 1)[1]
     _, heading, *rows = out.split("\n\n", 1)[0].splitlines()
-    assert heading.split()[-9:] == [
+    assert heading.split()[-11:] == [
         "label",
         "n",
         "N",
@@ -836,6 +836,8 @@ def corrected_rows(capsys) -> list[list[str]]:
         "corrected",
         "95%",
         "interval",
+        "width",
+        "labels-only",
         "weight",
     ]
     return [row.split() for row in rows]
@@ -878,7 +880,12 @@ def test_the_report_corrects_a_labelled_share(exported, tmp_path, capsys) -> Non
         tmp_path, UNLABELLED + LABELLED, usable(range(9, 13), [1, 0, 0, 1])
     )
     assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
-    cells = ["usable", "4", "8", "0.750", "0.500", "0.500", "[0.067,", "0.933]"]
+    # Four labels: too few to trust the correction, so the interval is the
+    # labels' own by Wilson, called rough, with both widths beside it.
+    cells = [
+        *["usable", "4", "8", "0.750", "0.500", "0.500"],
+        *["[0.150,", "0.850]", "rough", "0.700", "0.700"],
+    ]
     assert corrected_rows(capsys) == [
         ["de", *cells, "0.407"],
         ["all", *cells, "-"],
@@ -931,8 +938,10 @@ def test_the_correction_splits_by_category(
     assert cli.main([*argv, "--by", "category"]) == 0
     rows = corrected_rows(capsys)
     assert [row[:2] + row[3:5] + row[7:] for row in rows if row[0] == "de"] == [
-        ["de", "A", "4", "8", "0.500", "[0.067,", "0.933]", "0.407"],
-        ["de", "B", "6", "4", "0.500", "[0.189,", "0.811]", "-0.360"],
+        ["de", "A", "4", "8", "0.500", "[0.150,", "0.850]", "rough"]
+        + ["0.700", "0.700", "0.407"],
+        ["de", "B", "6", "4", "0.500", "[0.188,", "0.812]", "rough"]
+        + ["0.625", "0.625", "-0.360"],
     ]
 
 
@@ -1073,3 +1082,36 @@ def test_a_label_left_out_of_a_row_is_still_corrected_over_that_row(
     rows = {row[1]: row for row in corrected_rows(capsys) if row[0] != "all"}
 
     assert rows["key_correct"][2:4] == ["4", "8"]
+
+
+def test_a_group_with_thirty_labels_is_not_rough(exported, tmp_path, capsys) -> None:
+    """From thirty labels the corrected interval is printed, with both widths."""
+    labelled = [(i, "", bool(i % 3)) for i in range(9, 39)]
+    path, file = labelled_set(
+        tmp_path,
+        UNLABELLED + labelled,
+        usable(range(9, 39), [i % 2 for i in range(9, 39)]),
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    row = corrected_rows(capsys)[0]
+
+    assert row[2:4] == ["30", "8"]
+    assert "rough" not in row
+    assert float(row[-3]) >= float(row[-2]) > 0
+
+
+def test_a_group_with_no_spread_is_not_pooled(exported, tmp_path, capsys) -> None:
+    """German labels all yes leave no error to pool; an `all` row would hide it."""
+    german = [(i, "", True) for i in range(1, 9)]
+    english = [(i, "", bool(i % 2)) for i in range(101, 109)]
+    path, file = labelled_set(
+        tmp_path,
+        german + english,
+        usable(range(1, 5), [1, 1, 1, 1]) + usable(range(101, 105), [1, 0, 0, 1]),
+        english=frozenset(range(101, 109)),
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    out = capsys.readouterr().out
+
+    assert "usable not pooled: de has no spread" in out
+    assert not [row for row in out.splitlines() if row.startswith("all") and "[" in row]

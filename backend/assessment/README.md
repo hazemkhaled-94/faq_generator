@@ -436,7 +436,8 @@ and it gets a confidence interval.
 The labels file is JSONL: an integer `id`, an optional `question` (the
 text, checked against the workbook's so that labels from another database,
 whose ids overlap, are refused), and one field per label. Every other field
-is a label, read as yes or true (1), no or false (0), na or null (no label).
+is a label, read as yes or true (1), no or false (0), na or null (the label
+does not apply to that question: the row is in neither count for it).
 Keep it to those fields: a `released` flag in it would be read as a label
 too.
 
@@ -450,7 +451,9 @@ or kind, and pooled as `all`:
 | judge | The share the judge approves, over every judged row |
 | labels | The share labelled yes, over the labelled rows |
 | corrected | The labelled share, corrected by the judge's verdict on the rest |
-| 95% interval | Its interval, clipped to [0, 1] for display |
+| 95% interval | Its interval, clipped to [0, 1] for display. Under 30 labels it is the labels' own interval by Wilson, and the row says `rough`; from 30 on it is the corrected estimate plus and minus a t quantile, widened to hold the labels' own interval. Labels that all agree leave no spread, said so, and the bound is the rule of three |
+| width | The interval's width |
+| labels-only | The width of the labels' own Wilson interval, which the correction is read against |
 | weight | How much of the judge's prediction was kept: 0 is the labels alone, 1 the paper's plain method |
 
 The weight is tuned from the data, as PPI++ ([Angelopoulos, Duchi and
@@ -465,8 +468,11 @@ Read it with three caveats:
   sample drawn evenly over languages is read per language and pooled by
   size, which the `all` row does.
 - The guarantee is asymptotic, so an interval on a few dozen labels is
-  rough. Each row's interval holds on its own; claiming K rows at once
-  needs z at α/(2K).
+  rough: under 30 labels the corrected interval covered about 70% at 17
+  labels in a simulation, and the report prints the labels' own Wilson
+  interval instead, called `rough`. A group whose labels leave no spread is
+  left out of the pooled `all` row, which says so. Each row's interval holds
+  on its own; claiming K rows at once needs a wider quantile.
 - What it buys depends on the judge. With the paper's judge on this
   project's review, the intervals narrow by under 3% ([the measurements
   page](../../docs/measurements.md#the-judges-verdict-as-a-correction-prediction-powered-inference)).
