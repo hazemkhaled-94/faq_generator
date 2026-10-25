@@ -1118,3 +1118,21 @@ def test_the_pipeline_paragraph_names_what_the_job_skips() -> None:
     assert "`make extract-bridge MISSING=1`" in section
     assert "`LLM_CONTAINER_MODEL`" in section
     assert "without the bridge pass or the release draw" in _comment_above("pipeline")
+
+
+def test_the_readme_names_the_profile_the_example_ships() -> None:
+    """The model and HOST_RUNNER .env.example ships, and no role model backend.env lacks."""
+    example = _read(".env.example")
+    readme = _read("README.md")
+    (shipped,) = re.findall(r"^LLM_MODEL=(\S+)", example, re.MULTILINE)
+
+    assert re.search(r"^HOST_RUNNER=1$", example, re.MULTILINE)
+    assert f"LLM_MODEL={shipped}" in readme and "HOST_RUNNER=1" in readme
+    assert "make corpus-hosted" in readme
+    claimed = set(re.findall(r"`(ollama_chat/[^`]+)`", readme))
+    assert not claimed & set(
+        re.findall(r"=(ollama_chat/\S+)", _read("configs/env/backend.env"))
+    )
+    assert not re.search(r"ship[a-z]* .{0,80}`ollama_chat/", readme, re.DOTALL), (
+        "the README says a role ships an Ollama model"
+    )
