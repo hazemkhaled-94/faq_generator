@@ -1137,3 +1137,12 @@ def test_the_readme_names_the_profile_the_example_ships() -> None:
     assert not re.search(r"ship[a-z]* .{0,80}`ollama_chat/", readme, re.DOTALL), (
         "the README says a role ships an Ollama model"
     )
+
+
+def test_the_cost_log_is_named_the_spend_of_record() -> None:
+    """Phoenix prices a model on its own table, so what it shows is indicative."""
+    for path in ("docs/operations.md", "telemetry/README.md"):
+        text = _flat(_read(path))
+        assert "spend of record" in text, path
+        assert "`make spend`" in text, path
+        assert "Phoenix" in text and "indicative" in text, path

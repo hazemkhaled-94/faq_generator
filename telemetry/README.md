@@ -327,6 +327,13 @@ where compose set it and `PHOENIX_ADMIN_SECRET` where `.env` did.
 `LOG_DIR` is read through a variable rather than a literal, so the static
 settings scan cannot see it. It is checked by hand.
 
+## Spend
+
+The cost log is the spend of record: `make spend` reads it. The cost Phoenix
+shows on a span is indicative, since Phoenix prices a model from its own table
+and may price a new model differently. Where the two differ, `make spend` is
+right.
+
 ## Retention
 
 Two halves, because a line is in two places:

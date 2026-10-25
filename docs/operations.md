@@ -310,6 +310,11 @@ make spend LOG=run.log SINCE=2026-09-19
 `LOG` is required and names the text log a terminal saw, not the shipped
 JSON.
 
+The cost log is the spend of record. The figure Phoenix shows is indicative:
+it prices a call on its own table of models, which may price a new model
+differently from the runner's `make spend`. Reconcile the two per model after
+setting a price in Phoenix, and trust `make spend` where they differ.
+
 ## Replaying a call in the Phoenix playground
 
 Open any `completion` span in Phoenix and replay it against a model you pick
