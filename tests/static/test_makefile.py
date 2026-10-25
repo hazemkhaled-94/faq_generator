@@ -330,6 +330,36 @@ def made(
     )
 
 
+def _auditing(tmp_path: Path, advised: str = "", extra: str = "") -> Path:
+    """A poetry whose `run python` is the test's interpreter, and a pip-audit.
+
+    The pip-audit is recorded and writes an empty report where `--output`
+    says, or one advisory on the lock `advised` names, exiting 1 as pip-audit
+    does on a finding.
+    """
+    calls = tmp_path / "calls"
+    poetry = tmp_path / "poetry"
+    finding = (
+        '{"dependencies": [{"name": "pillow", "version": "12.3.0", "vulns": '
+        '[{"id": "GHSA-new", "fix_versions": ["13.0.0"], "aliases": []}]}], '
+        '"fixes": []}'
+    )
+    poetry.write_text(
+        f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
+        f'echo "$*" >> {calls}\n{extra}'
+        'out=""; while [ $# -gt 0 ]; do [ "$1" = --output ] && out=$2; shift; done\n'
+        'echo \'{"dependencies": [], "fixes": []}\' > "$out"\n'
+        + (
+            f'case "$(cat {calls} | tail -1)" in *{advised}*) '
+            f"echo '{finding}' > \"$out\"; exit 1;; esac\n"
+            if advised
+            else ""
+        )
+    )
+    poetry.chmod(0o755)
+    return calls
+
+
 @pytest.mark.parametrize(
     ("advised", "refused"),
     [
@@ -340,21 +370,13 @@ def made(
     ],
     ids=["backend-advisory", "frontend-advisory", "host-advisory", "none"],
 )
-def test_the_audit_keeps_pip_audits_exit_status(
+def test_the_audit_fails_on_an_advisory_in_any_lock(
     tmp_path: Path, advised: str, refused: bool
 ) -> None:
     """An advisory in any of the three locks fails it, and all are still read."""
-    calls = tmp_path / "calls"
-    poetry = tmp_path / "poetry"
-    # `poetry run python` runs the test's own interpreter; pip-audit is only recorded.
-    poetry.write_text(
-        f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
-        f'echo "$*" >> {calls}\n'
-        + (f'case "$*" in *{advised}*) exit 1;; esac\n' if advised else "")
-    )
-    poetry.chmod(0o755)
+    calls = _auditing(tmp_path, advised)
 
-    ran = made("audit", path=tmp_path)
+    ran = made("audit", "AUDIT_ACCEPTED=/dev/null", path=tmp_path)
 
     assert (ran.returncode != 0) is refused, ran
     assert len(calls.read_text().splitlines()) == 3, calls.read_text()
@@ -365,14 +387,12 @@ def test_the_audit_reads_the_host_lock_without_the_torch_it_cannot_resolve(
 ) -> None:
     """poetry.lock is what CI and the host install; torch is a +cpu build there too."""
     seen = tmp_path / "seen"
-    poetry = tmp_path / "poetry"
-    poetry.write_text(
-        f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
-        f'for f in "$@"; do case "$f" in *poetry.lock) cp "$f" {seen};; esac; done\n'
+    _auditing(
+        tmp_path,
+        extra=f'for f in "$@"; do case "$f" in *poetry.lock) cp "$f" {seen};; esac; done\n',
     )
-    poetry.chmod(0o755)
 
-    assert made("audit", path=tmp_path).returncode == 0
+    assert made("audit", "AUDIT_ACCEPTED=/dev/null", path=tmp_path).returncode == 0
     pins = seen.read_text().splitlines()
 
     assert any(pin.startswith("aiohttp==") for pin in pins), pins[:5]
@@ -384,15 +404,9 @@ def test_the_audit_reads_every_lock_against_osv(tmp_path: Path) -> None:
 
     On Pillow 12.3.0 it listed 18 of OSV's 21, a critical one left out.
     """
-    calls = tmp_path / "calls"
-    poetry = tmp_path / "poetry"
-    poetry.write_text(
-        f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
-        f'echo "$*" >> {calls}\n'
-    )
-    poetry.chmod(0o755)
+    calls = _auditing(tmp_path)
 
-    assert made("audit", path=tmp_path).returncode == 0
+    assert made("audit", "AUDIT_ACCEPTED=/dev/null", path=tmp_path).returncode == 0
     audited = calls.read_text().splitlines()
 
     assert len(audited) == 3, audited

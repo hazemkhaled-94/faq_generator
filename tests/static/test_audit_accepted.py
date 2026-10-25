@@ -8,6 +8,7 @@ somebody must look again; past that date the audit fails.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -77,16 +78,52 @@ def test_every_accepted_advisory_is_explained_and_not_yet_due() -> None:
         assert _script().ignores(ACCEPTED.read_text(), lock, date.today()) is not None
 
 
+#: Which lock each file pip-audit is handed is, by its name.
+_LOCK_FILES = {
+    "api.lock": "api",
+    "requirements.lock": "frontend",
+    "poetry.lock": "poetry",
+}
+
+
 def _poetry(tmp_path: Path) -> Path:
-    """A poetry that runs python for real and records what pip-audit is given."""
+    """A poetry that runs python for real and stands in for pip-audit.
+
+    It records what pip-audit is given and writes, where `--output` says, the
+    findings `found.<lock>.json` holds for that lock, or none.
+    """
     calls = tmp_path / "calls"
     poetry = tmp_path / "poetry"
+    names = " ".join(f"{name}) lock={lock};;" for name, lock in _LOCK_FILES.items())
     poetry.write_text(
         f'#!/bin/sh\ncase "$*" in "run python"*) shift 2; exec {sys.executable} "$@";; esac\n'
         f'echo "$*" >> {calls}\n'
+        'out=""; read=""\n'
+        'while [ $# -gt 0 ]; do case "$1" in --output) out=$2;; -r) read=$2;; esac; shift; done\n'
+        f'case "$(basename "$read")" in {names} esac\n'
+        f'cp "{tmp_path}/found.$lock.json" "$out" 2>/dev/null '
+        '|| echo \'{"dependencies": [], "fixes": []}\' > "$out"\n'
     )
     poetry.chmod(0o755)
     return calls
+
+
+def _found(tmp_path: Path, lock: str, *ids: tuple[str, ...]) -> None:
+    """What pip-audit reports for one lock: Pillow, one advisory per id group."""
+    findings = {
+        "dependencies": [
+            {
+                "name": "pillow",
+                "version": "12.3.0",
+                "vulns": [
+                    {"id": one[0], "fix_versions": ["13.0.0"], "aliases": list(one[1:])}
+                    for one in ids
+                ],
+            }
+        ],
+        "fixes": [],
+    }
+    (tmp_path / f"found.{lock}.json").write_text(json.dumps(findings))
 
 
 def _audit(tmp_path: Path, listed: str) -> subprocess.CompletedProcess:
@@ -106,7 +143,9 @@ def _audit(tmp_path: Path, listed: str) -> subprocess.CompletedProcess:
 
 
 def test_the_audit_passes_each_lock_its_accepted_ids(tmp_path: Path) -> None:
-    """pip-audit is told to ignore them, lock by lock."""
+    """An advisory accepted for its lock, by its id or an alias, is no finding."""
+    _found(tmp_path, "api", ("GHSA-api", "CVE-API"))
+    _found(tmp_path, "frontend", ("CVE-FRONT",))
     ran = _audit(
         tmp_path,
         _entry("api", "CVE-API", date.today() + timedelta(days=9))
@@ -115,10 +154,43 @@ def test_the_audit_passes_each_lock_its_accepted_ids(tmp_path: Path) -> None:
     calls = (tmp_path / "calls").read_text().splitlines()
 
     assert ran.returncode == 0, ran
-    (api,) = [one for one in calls if "api.lock" in one]
-    (front,) = [one for one in calls if "frontend/requirements.lock" in one]
-    assert "--ignore-vuln CVE-API" in api and "CVE-FRONT" not in api
-    assert "--ignore-vuln CVE-FRONT" in front and "CVE-API" not in front
+    assert len(calls) == 3, "one pip-audit run per lock"
+    assert all("--format json" in one for one in calls)
+
+
+def test_an_advisory_accepted_for_another_lock_is_a_finding(tmp_path: Path) -> None:
+    """One lock's acceptance does not hide the same id in another."""
+    _found(tmp_path, "api", ("CVE-FRONT",))
+    _found(tmp_path, "frontend", ("CVE-FRONT",))
+    ran = _audit(
+        tmp_path, _entry("frontend", "CVE-FRONT", date.today() + timedelta(days=9))
+    )
+
+    assert ran.returncode != 0
+    assert "api: pillow 12.3.0 CVE-FRONT" in ran.stdout
+
+
+def test_an_accepted_id_no_lock_reports_any_more_fails_the_audit(
+    tmp_path: Path,
+) -> None:
+    """A stale acceptance is named, so the list cannot hide what it no longer needs.
+
+    Pillow moved past its advisory: the id appears in no lock it was accepted for.
+    """
+    _found(tmp_path, "api", ("CVE-KEPT",))
+    ran = _audit(
+        tmp_path,
+        _entry("all", "CVE-KEPT CVE-GONE", date.today() + timedelta(days=9))
+        + _entry("api", "CVE-FRONT-ONLY", date.today() + timedelta(days=9)),
+    )
+
+    stale = [line for line in ran.stdout.splitlines() if "no longer needed" in line]
+
+    assert ran.returncode != 0
+    assert [line.split(": ")[1].split()[0] for line in stale] == [
+        "CVE-GONE",
+        "CVE-FRONT-ONLY",
+    ]
 
 
 def test_the_audit_fails_before_auditing_when_an_entry_is_due(tmp_path: Path) -> None:

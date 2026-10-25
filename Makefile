@@ -1942,20 +1942,22 @@ typecheck:
 # the second off the lock by hand.
 #
 # The advisories accepted, each with its lock, reason and review-by date, are
-# in configs/audit-accepted.txt and are passed as --ignore-vuln; a date that has
-# come fails the audit before any lock is read. An advisory not listed there is
-# a finding.
+# in configs/audit-accepted.txt; a date that has come fails the audit before
+# any lock is read. pip-audit reports every advisory of each lock as JSON, and
+# configs/audit_ignores.py fails on one not accepted for its lock, and on an
+# accepted id that no lock it covers reports any more, which the list would
+# otherwise keep hiding.
 audit:
 	@d=$$(mktemp -d) && trap 'rm -rf $$d' EXIT && \
 	  grep -viE "^(torch|torchvision)==" backend/api/requirements.lock > $$d/api.lock; \
 	  $(HOST_PINS) | grep -vE "^(torch|torchvision)==" > $$d/poetry.lock && \
 	  for l in api frontend poetry; do \
-	    poetry run python configs/audit_ignores.py $$l $(AUDIT_ACCEPTED) > $$d/ignore.$$l || exit 1; \
+	    poetry run python configs/audit_ignores.py $$l $(AUDIT_ACCEPTED) > /dev/null || exit 1; \
 	  done && \
-	  s=0 && for f in api:$$d/api.lock frontend:frontend/requirements.lock poetry:$$d/poetry.lock; do \
-	    ignore=$$(sed 's/^/--ignore-vuln /' $$d/ignore.$${f%%:*} | tr '\n' ' '); \
-	    poetry run pip-audit --vulnerability-service osv --no-deps --progress-spinner off $$ignore -r $${f#*:} || s=1; \
-	  done; exit $$s
+	  for f in api:$$d/api.lock frontend:frontend/requirements.lock poetry:$$d/poetry.lock; do \
+	    poetry run pip-audit --vulnerability-service osv --no-deps --progress-spinner off --format json --aliases on --output $$d/found.$${f%%:*}.json -r $${f#*:}; \
+	  done; \
+	  poetry run python configs/audit_ignores.py --verdict $(AUDIT_ACCEPTED) $$d
 
 # ruff check and format check over every source directory. Configuration
 # lives in [tool.ruff] in pyproject.toml.
