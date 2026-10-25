@@ -62,8 +62,13 @@ def test_the_example_turns_the_host_runner_on_and_backend_env_does_not_set_it() 
 # ── make ───────────────────────────────────────────────────────────────────
 
 
-def _project(tmp_path: Path, *, env: str = "", given: str = "") -> Path:
-    """A directory the Makefile can run in, with env files and stand-ins on PATH."""
+def _project(
+    tmp_path: Path, *, env: str = "", given: str = "", running: tuple[str, ...] = ()
+) -> Path:
+    """A directory the Makefile can run in, with env files and stand-ins on PATH.
+
+    `running` names the containers the compose stand-in reports as up.
+    """
     for name, text in {
         "configs/env/backend.env": "",
         "configs/env/deployment.env": "APP_DB_NAME=qa_scratch\nBACKEND_PORT=8000\n",
@@ -80,7 +85,12 @@ def _project(tmp_path: Path, *, env: str = "", given: str = "") -> Path:
         'case "$*" in *"$FAIL"*) [ -n "$FAIL" ] && exit 3;; esac\n'
         'case "$*" in *topic_modelling*--ensure*) echo "x" >> "$SPEND_LEDGER";; esac\n'
     )
-    (stand_ins / "compose").write_text("#!/bin/sh\n")
+    (stand_ins / "compose").write_text(
+        "#!/bin/sh\n"
+        + "".join(
+            f'case "$*" in *"ps -q {one}"*) echo 0123abcd;; esac\n' for one in running
+        )
+    )
     for one in stand_ins.iterdir():
         one.chmod(0o755)
     return tmp_path
@@ -211,6 +221,34 @@ def test_a_drain_that_exits_non_zero_stops_the_chain(
     assert "question_generation" not in drained, drained
 
 
+def test_a_stage_whose_worker_runs_is_waited_for_and_not_drained_beside_it(
+    tmp_path: Path,
+) -> None:
+    """The go-live `make up` starts the parse and chunk workers: the chain waits for each."""
+    project = _project(tmp_path, running=("parse-worker", "chunk-worker"))
+
+    ran = _make(project, "corpus")
+
+    assert ran.returncode == 0, ran.stderr
+    drained = [line.split(" python -m ")[-1] for line in _drained(project)]
+    assert "preprocessing.parsing.run --wait" in drained, drained
+    assert "preprocessing.chunking.run --wait" in drained, drained
+    assert "preprocessing.parsing.run" not in drained, "no host drain beside the worker"
+    assert "preprocessing.chunking.run" not in drained
+    assert "extraction.run" in drained, "a stage whose worker is down is drained here"
+    assert "assessment.run" in drained, drained
+
+
+def test_rows_the_worker_failed_while_the_chain_waited_stop_it(tmp_path: Path) -> None:
+    """The wait exits as a drain would: 3 when rows failed, and the next stage waits."""
+    project = _project(tmp_path, running=("parse-worker",))
+
+    ran = _make(project, "corpus", FAIL="preprocessing.parsing.run --wait")
+
+    assert ran.returncode != 0
+    assert "chunking" not in "\n".join(_drained(project))
+
+
 def test_a_resume_returns_failed_rows_to_the_queue_first(tmp_path: Path) -> None:
     """A killed drain leaves rows failed, and the lease sweep gave them up."""
     project = _project(tmp_path)
@@ -275,6 +313,25 @@ def test_corpus_hosted_resumes_after_a_run_that_was_killed(tmp_path: Path) -> No
     assert ran.returncode == 0, ran.stderr
     _waited(project)
     assert any(" --retry" in line for line in _drained(project))
+
+
+def test_corpus_hosted_runs_on_the_go_live_profile_whose_up_starts_two_workers(
+    tmp_path: Path,
+) -> None:
+    """parse-worker and chunk-worker run there; the hosted run reaches the model stages."""
+    project = _project(
+        tmp_path,
+        env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n",
+        running=("parse-worker", "chunk-worker"),
+    )
+
+    ran = _make(project, "corpus-hosted", "SPEND_CAP=1")
+
+    assert ran.returncode == 0, ran.stderr
+    _waited(project)
+    log = (project / "logs/corpus-hosted.log").read_text()
+    assert "is running and drains this queue" not in log, log
+    assert any("assessment.run" in line for line in _drained(project)), log
 
 
 def test_corpus_hosted_refuses_without_the_go_live_profile(tmp_path: Path) -> None:

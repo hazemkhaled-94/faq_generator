@@ -183,6 +183,16 @@ CONFIRMED = $(LOADENV) && { [ "$$CONFIRM" = "$$APP_DB_NAME" ] || \
             { echo "REFUSED: $(1) acts on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT." >&2; \
               echo "  Run it again with CONFIRM=$$APP_DB_NAME to go on." >&2; exit 2; }; }
 
+# What a drain is given under WAIT=1, which `corpus` sets, while $(1), the
+# container worker draining the same queue, is running: --wait, so the stage
+# is waited for until that worker has emptied its queue rather than drained
+# beside it. The go-live `make up` starts the parse and chunk workers, and a
+# chain that refused there never reached a model stage. Empty otherwise, and
+# without WAIT the drain's IDLE refuses instead.
+#
+#     python -m preprocessing.parsing.run $(call AWAIT,parse-worker)
+AWAIT = $(if $(WAIT),$$($(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q . && echo --wait))
+
 # True when this is the go-live profile: HOST_RUNNER is a spelling of yes.
 # The host runs the model stages through `make corpus-hosted`, the model
 # workers and Dagster stay stopped, and Ollama is not called.
@@ -211,10 +221,11 @@ CORPUS_DB = $(shell set -a; . ./configs/env/deployment.env 2>/dev/null; \
 
 # What every target of the corpus is given on its command line, which beats the
 # files a host command sources: the database the run announced, the Hub off,
-# and the spend ledger. A line is `$(MAKE) target $(CORPUS_PINS)` and not a
+# the spend ledger, and WAIT, so a stage whose container worker runs is waited
+# for (see AWAIT). A line is `$(MAKE) target $(CORPUS_PINS)` and not a
 # macro around it, because make runs a line holding `$(MAKE)` even under
 # `make -n`, which is how the targets it names are read without running.
-CORPUS_PINS = $(if $(CORPUS_DB),APP_DB_NAME=$(CORPUS_DB)) HF_HUB_OFFLINE=1 SPEND_LEDGER=$(CORPUS_LEDGER)
+CORPUS_PINS = $(if $(CORPUS_DB),APP_DB_NAME=$(CORPUS_DB)) HF_HUB_OFFLINE=1 SPEND_LEDGER=$(CORPUS_LEDGER) WAIT=1
 
 # Every profile of compose.yaml unless a command says otherwise, so `down`,
 # `ps`, `logs` and `stop` reach a container whichever profile started it.
@@ -778,9 +789,9 @@ schema-reset:
 
 # Drain the parsing queue here. The first run downloads Docling's weights.
 parse:
-	@$(call IDLE,parse-worker)
+	@$(if $(WAIT),,$(call IDLE,parse-worker))
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run $(call AWAIT,parse-worker)
 
 # Report how many documents are in each parse state.
 parse-status:
@@ -812,9 +823,9 @@ parse-rerun:
 # already had and the new cut does not repeat, which cascades to the facts and
 # questions drawn from them; a passage repeated exactly keeps its facts.
 chunk:
-	@$(call IDLE,chunk-worker)
+	@$(if $(WAIT),,$(call IDLE,chunk-worker))
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run $(call AWAIT,chunk-worker)
 
 # Report how many documents are in each chunking state.
 chunk-status:
@@ -863,9 +874,9 @@ chunk-revocabulary:
 # Drain the extraction queue here. Needs the model in LLM_MODEL to be
 # served at LLM_BASE_URL.
 extract:
-	@$(call IDLE,extract-worker)
+	@$(if $(WAIT),,$(call IDLE,extract-worker))
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run $(call AWAIT,extract-worker)
 
 # Report the extraction queue, and how many facts passed every check.
 extract-status:
@@ -1086,9 +1097,9 @@ topics-retry:
 
 # Drain the question queue here, in the foreground.
 questions:
-	@$(call IDLE,question-worker)
+	@$(if $(WAIT),,$(call IDLE,question-worker))
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run $(call AWAIT,question-worker)
 
 # Report the queue by topic state, and how many questions are held.
 questions-status:
@@ -1268,9 +1279,9 @@ ASSESS = $(LOADENV) && PYTHONPATH=backend poetry run python -m assessment.run
 
 # Drain the judging queue here, in the foreground.
 assess:
-	@$(call IDLE,assess-worker)
+	@$(if $(WAIT),,$(call IDLE,assess-worker))
 	@$(BANNER)
-	$(ASSESS)
+	$(ASSESS) $(call AWAIT,assess-worker)
 
 # Report the queue by artefact state, and warn when no judge is named.
 assess-status:
@@ -2224,6 +2235,11 @@ all:
 # extraction and the bridges, and the run stops if a language still has no
 # topic afterwards. A corpus whose topics are live is not refitted, because a
 # fit replaces them; `make topics-discover` is the refit asked for on its own.
+#
+# A stage whose container worker is running is waited for, not drained: the
+# go-live `make up` starts the parse and chunk workers, so the chain waits
+# until each has emptied its queue, polling the counts, and goes on (see
+# AWAIT); a stage whose worker is down is drained here.
 #
 # It names the database it acts on before it touches it, and every drain gets
 # that name, the Hub switched off (HF_HUB_OFFLINE=1: the weights are in the

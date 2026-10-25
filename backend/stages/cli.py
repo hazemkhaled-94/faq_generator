@@ -17,6 +17,7 @@ from typing import Any
 
 import telemetry
 from database.qa_generator import Status, engine
+from database.qa_generator.status import OUTSTANDING
 from llm.config import spend_cap
 from llm.tally import carry
 from settings import decimal, optional
@@ -37,6 +38,13 @@ _ACTIONS = {
     "out its lease. Narrow it with --only unless the stage is stopped",
     "rerun": "queue every row again, finished ones included",
 }
+
+#: The host's own action, which no route mirrors: what `make corpus` does with
+#: a stage whose container worker is running, rather than drain beside it.
+_WAIT = (
+    "wait for the stage's container worker to empty the queue, logging the "
+    "counts as they move; 3 if rows failed meanwhile"
+)
 
 #: One operation only a single stage has, as (help, verb, run). `run` takes
 #: whatever `--only` narrowed to and returns how many rows it changed.
@@ -231,7 +239,11 @@ def queue_main(
     is worse than a run that did not happen only if the run happened.
     """
     extra = extra or {}
-    actions = {**_ACTIONS, **{flag: help for flag, (help, _, _) in extra.items()}}
+    actions = {
+        **_ACTIONS,
+        "wait": _WAIT,
+        **{flag: help for flag, (help, _, _) in extra.items()},
+    }
     args = parser(module, actions).parse_args(argv)
 
     # Before anything is asked of a model: this process's spend counts from
@@ -260,6 +272,9 @@ def queue_main(
     if args.status:
         log.info("%s queue: %s", name, act(lambda q, w: q.counts_by_status(w)))
         return 0
+
+    if args.wait:
+        return wait_for_worker(name, repository(), decimal("WORKER_POLL_SECONDS"))
 
     # Every verb that queues rows stamps them with this process's run, so
     # the drain that picks them up - a different process, or a container
@@ -419,6 +434,45 @@ def drain_once(service: StageService) -> int:
     finally:
         shutdown.done()
     return STOPPED if shutdown.requested() else exit_code(service)
+
+
+def wait_for_worker(name: str, queue: StageQueue, interval: float) -> int:
+    """Waits for the stage's container worker to empty the queue, and says how it ended.
+
+    What the corpus chain does where that worker runs - parsing and chunking
+    on the go-live profile - since a host drain beside it is what the
+    Makefile's guard refuses. Polls the counts every `interval` seconds and
+    logs them when they move, until nothing is pending or in progress. Exits
+    as a drain would: 3 when rows failed while it waited, so the chain stops
+    there, and 75 when a stop is asked for, which it obeys at once because
+    it holds nothing.
+    """
+    shutdown = Shutdown().install()
+    try:
+        counts = queue.counts_by_status()
+        failed = counts.get(Status.FAILED, 0)
+        said = None
+        while any(left := tuple(counts.get(one, 0) for one in OUTSTANDING)):
+            if left != said:
+                log.info(
+                    "%s: waiting for its worker: %d pending, %d in progress",
+                    name,
+                    *left,
+                )
+                said = left
+            shutdown.wait(interval)
+            if shutdown.requested():
+                return STOPPED
+            counts = queue.counts_by_status()
+    finally:
+        shutdown.done()
+    if (newly := counts.get(Status.FAILED, 0) - failed) > 0:
+        log.error(
+            "%s: its worker failed %d row(s) while it was waited for", name, newly
+        )
+        return FAILED
+    log.info("%s: its worker has emptied the queue", name)
+    return 0
 
 
 def give_back(serving: dict[str, Any]) -> Callable[[], object]:

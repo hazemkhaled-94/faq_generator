@@ -513,7 +513,9 @@ From a fresh clone, following only this page:
    `make doctor` and by `make corpus-hosted`, naming the setting.
 3. `make up`. With `HOST_RUNNER=1` it starts the services no profile names:
    postgres, the object store, the api, the parse and chunk workers, the web
-   page and Phoenix. The model workers sit under the `local-models` profile
+   page and Phoenix. The parse and chunk workers drain their queues here, and
+   `make corpus-hosted` waits for each to empty before the model stages. The
+   model workers sit under the `local-models` profile
    and Dagster under `orchestrated`; `make all`, `make pipeline` and
    `make auto` refuse, and so do the pipeline's routes, naming the host
    runner. A queue verb for a model stage still queues its rows, and its answer

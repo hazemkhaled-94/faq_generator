@@ -786,3 +786,99 @@ def test_a_second_signal_gives_the_held_row_back_and_leaves_with_75(_signals) ->
     assert made[0].grace == cli.GRACE_SECONDS.get(stage.name, DEFAULT_GRACE_SECONDS)
     made[0]._leave_now("asked twice")
     assert gave == [True] and left == [LEFT_EARLY]
+
+
+# ── Waiting for a container worker ─────────────────────────────────────────
+
+
+class _Emptied:
+    """A queue a container worker works through: one set of counts per poll."""
+
+    def __init__(self, *polls: dict) -> None:
+        """Holds the counts each poll reads, the last one standing."""
+        self.polls = list(polls)
+        self.read = 0
+
+    def counts_by_status(self, within=None) -> dict:
+        """The next poll's counts."""
+        self.read += 1
+        return self.polls.pop(0) if len(self.polls) > 1 else self.polls[0]
+
+
+def _wait(monkeypatch, queue: _Emptied) -> int:
+    """Runs a stage's `--wait`, polling at once rather than every few seconds."""
+    from stages import cli
+
+    monkeypatch.setattr(cli.telemetry, "configure", lambda name, **kwargs: None)
+    monkeypatch.setattr(cli, "decimal", lambda name: 0.0)
+
+    def never() -> None:
+        """A wait builds no service."""
+        raise AssertionError("the wait drained the queue")
+
+    return cli.queue_main(
+        name="parsing",
+        module="preprocessing.parsing.run",
+        repository=lambda: queue,
+        build_service=never,
+        argv=["--wait"],
+    )
+
+
+def test_the_wait_polls_until_nothing_is_pending_or_held(monkeypatch, caplog) -> None:
+    """What the corpus chain does while the stage's container worker drains it."""
+    from database.qa_generator import Status
+
+    queue = _Emptied(
+        {Status.PENDING: 2, Status.PARSED: 1},
+        {Status.PENDING: 1, Status.IN_PROGRESS: 1, Status.PARSED: 1},
+        {Status.IN_PROGRESS: 1, Status.PARSED: 2},
+        {Status.PARSED: 3},
+    )
+
+    with caplog.at_level("INFO"):
+        assert _wait(monkeypatch, queue) == 0
+
+    assert queue.read >= 4
+    assert "2 pending" in caplog.text, "the progress is logged"
+
+
+def test_rows_the_worker_failed_while_it_was_waited_for_exit_3(monkeypatch) -> None:
+    """As a drain that failed one does; rows failed before the wait do not count."""
+    from database.qa_generator import Status
+    from stages import cli
+
+    queue = _Emptied(
+        {Status.PENDING: 1, Status.FAILED: 4},
+        {Status.FAILED: 5},
+    )
+
+    assert _wait(monkeypatch, queue) == cli.FAILED
+
+
+def test_rows_failed_before_the_wait_leave_it_at_0(monkeypatch) -> None:
+    """A corpus with an old failure is not stopped by it."""
+    from database.qa_generator import Status
+
+    assert _wait(monkeypatch, _Emptied({Status.FAILED: 4, Status.PARSED: 9})) == 0
+
+
+def test_a_wait_told_to_stop_exits_75(monkeypatch, _signals) -> None:
+    """SIGTERM while waiting: nothing is held, so it leaves at once."""
+    import os
+    import signal
+
+    from database.qa_generator import Status
+    from stages import cli
+
+    class _Busy(_Emptied):
+        """A worker that never finishes, and a stop asked for on the second poll."""
+
+        def counts_by_status(self, within=None) -> dict:
+            """Always one row in progress."""
+            self.read += 1
+            if self.read == 2:
+                os.kill(os.getpid(), signal.SIGTERM)
+            return {Status.IN_PROGRESS: 1}
+
+    assert _wait(monkeypatch, _Busy({})) == cli.STOPPED

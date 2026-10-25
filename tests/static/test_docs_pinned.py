@@ -933,7 +933,7 @@ def test_every_help_line_describes_its_own_target() -> None:
 
 
 def test_the_corpus_row_names_the_workers_to_stop() -> None:
-    """Each drain `make corpus` runs refuses while its container worker runs.
+    """Each drain `make corpus` runs waits for or refuses beside its container worker.
 
     `make up` and `make dev` start every one, so the row has to name them all
     or a developer meets them one refusal at a time.
