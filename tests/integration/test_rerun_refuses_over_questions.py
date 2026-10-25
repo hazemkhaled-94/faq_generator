@@ -195,7 +195,10 @@ def test_a_rerun_narrowed_to_the_document_the_questions_rest_on_is_refused(
 def test_the_route_refuses_the_same_rerun_with_a_409(
     client, written, lang, statement, stage
 ) -> None:
-    """Whole-queue and narrowed, until force=true is sent."""
+    """Whole-queue and narrowed, until force=true is sent.
+
+    The whole queue's is sent confirmed, as any whole-stage rerun must be.
+    """
     held, _ = written(lang, statement)
     scoped = (
         f"/chunking/document/{digest('a')}/rerun"
@@ -203,13 +206,14 @@ def test_the_route_refuses_the_same_rerun_with_a_409(
         else f"/extraction/passage/{held}/rerun"
     )
 
-    for path in (f"/{stage}/rerun", scoped):
-        refused = client.post(path)
+    for path, asked in ((f"/{stage}/rerun", {"confirm": "true"}), (scoped, {})):
+        refused = client.post(path, params=asked)
         assert refused.status_code == 409, path
         assert refused.json()["code"] == "questions_rest_on_it"
         assert "3 question(s)" in refused.json()["detail"]
 
-        assert client.post(path, params={"force": "true"}).status_code == 202
+        forced = client.post(path, params={**asked, "force": "true"})
+        assert forced.status_code == 202, path
 
 
 @pytest.mark.parametrize("stage", ["chunking", "extraction"])
@@ -223,4 +227,4 @@ def test_the_route_does_not_refuse_a_corpus_no_question_rests_on(
         session.add(passage(digest("c")))
         session.commit()
 
-    assert client.post(f"/{stage}/rerun").status_code == 202
+    assert client.post(f"/{stage}/rerun", params={"confirm": "true"}).status_code == 202
