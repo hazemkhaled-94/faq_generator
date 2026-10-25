@@ -31,10 +31,10 @@ corrected one but the labels' own, by Wilson, and the row is called rough: in
 a simulation the corrected interval covered about 70% at 17 labels. From
 MIN_LABELS on the interval takes a t quantile on the variances with one
 degree of freedom taken off, and a group whose labels leave no spread gets
-the rule-of-three bound; both are widened to hold the labels' own interval,
-because a Wald interval of any kind covers a share near 0.95 far less than
-95% at thirty labels, and the judge here agrees with the labels too little to
-narrow it. One interval covers the share, not any single row.
+the rule-of-three bound. In a simulation whose labelled rows are a random
+sample of the judged ones, shares from 0.5 to 0.95 and a judge right on 60%
+of rows, that interval covered 0.93 to 0.95 from 30 to 100 labels. One
+interval covers the share, not any single row.
 
 Pure functions over numbers: the predictions and the labels come from
 elsewhere.
@@ -100,21 +100,18 @@ class Corrected(NamedTuple):
         Corrected, it is the estimate plus and minus a t quantile times its
         error, with the labels less the strata as degrees of freedom; where
         the labels leave no spread it is the rule-of-three bound, 3 over the
-        labels each side. Either is widened to hold the labels' own Wilson
-        interval, so the correction never prints narrower than the labels
-        can bear. Not clipped to [0, 1]: a caller that shows a share clips
-        it there.
+        labels each side. Not clipped to [0, 1]: a caller that shows a share
+        clips it there.
         """
         if self.rough:
             return self.labels_interval(alpha)
-        only_low, only_high = self.labels_interval(alpha)
         if self.se == 0:
             return (
-                min(self.estimate - 3 / self.labelled, only_low),
-                max(self.estimate + 3 / self.labelled, only_high),
+                self.estimate - 3 / self.labelled,
+                self.estimate + 3 / self.labelled,
             )
         half = float(t.ppf(1 - alpha / 2, self.labelled - self.strata)) * self.se
-        return min(self.estimate - half, only_low), max(self.estimate + half, only_high)
+        return self.estimate - half, self.estimate + half
 
     def labels_interval(self, alpha: float = ALPHA) -> tuple[float, float]:
         """Wilson's interval of the labels alone, which the correction is read against."""

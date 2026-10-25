@@ -457,7 +457,7 @@ or kind, and pooled as `all`:
 | judge | The share the judge approves, over every judged row |
 | labels | The share labelled yes, over the labelled rows |
 | corrected | The labelled share, corrected by the judge's verdict on the rest |
-| 95% interval | Its interval, clipped to [0, 1] for display. Under 30 labels it is the labels' own interval by Wilson, and the row says `rough`; from 30 on it is the corrected estimate plus and minus a t quantile, widened to hold the labels' own interval. Labels that all agree leave no spread, said so, and the bound is the rule of three |
+| 95% interval | Its interval, clipped to [0, 1] for display. Under 30 labels it is the labels' own interval by Wilson, and the row says `rough`; from 30 on it is the corrected estimate plus and minus a t quantile, which covered 0.93 to 0.95 from 30 to 100 labels in a simulation whose labelled rows are a random sample of the judged ones. Labels that all agree leave no spread, said so, and the bound is the rule of three |
 | width | The interval's width |
 | labels-only | The width of the labels' own Wilson interval, which the correction is read against |
 | weight | How much of the judge's prediction was kept: 0 is the labels alone, 1 the paper's plain method |

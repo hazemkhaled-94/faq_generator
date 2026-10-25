@@ -99,10 +99,7 @@ def test_strata_are_pooled_by_their_size() -> None:
     assert (result.labelled, result.judged) == (40, 60)
     assert math.isnan(result.weight)
     half = t.ppf(0.975, 40 - 2) * 0.01
-    low, high = wilson(0.68, 40)
-    assert result.interval() == pytest.approx(
-        (min(0.68 - half, low), max(0.68 + half, high)), **APPROX
-    )
+    assert result.interval() == pytest.approx((0.68 - half, 0.68 + half), **APPROX)
 
 
 def test_nothing_is_pooled_from_no_strata() -> None:
@@ -187,7 +184,9 @@ def test_under_the_floor_the_interval_is_the_labels_own_by_wilson() -> None:
 def test_from_the_floor_on_the_interval_takes_a_t_quantile() -> None:
     """Thirty labels: the estimate plus and minus t on 29 degrees of freedom.
 
-    Widened to hold the labels' own interval where that is the wider.
+    Not widened to the labels' own interval, which is wider below the
+    estimate here: the correction is what the interval rests on, and the
+    labels-only width is printed beside it.
     """
     labels = [1, 0, 1, 1, 0, 1] * 5
     judged = [1, 1, 0, 1] * 10
@@ -197,28 +196,36 @@ def test_from_the_floor_on_the_interval_takes_a_t_quantile() -> None:
     assert not result.rough
     half = t.ppf(0.975, MIN_LABELS - 1) * result.se
     low, high = wilson(result.label_mean, MIN_LABELS)
+    assert low < result.estimate - half
     assert result.interval() == pytest.approx(
-        (min(result.estimate - half, low), max(result.estimate + half, high)),
-        **APPROX,
+        (result.estimate - half, result.estimate + half), **APPROX
     )
     assert result.labels_interval() == pytest.approx((low, high), **APPROX)
 
 
 def test_labels_that_all_agree_get_the_rule_of_three() -> None:
-    """No spread and enough labels: three over the labels each side of the share.
-
-    Held to the labels' own interval, which is the wider below the share.
-    """
+    """No spread and enough labels: three over the labels each side of the share."""
     result = corrected_mean([1] * 20, [1] * 40, [1] * 40)
 
     assert result.se == 0
-    low, high = wilson(1.0, 40)
-    assert result.interval() == pytest.approx(
-        (min(1 - 3 / 40, low), max(1 + 3 / 40, high)), **APPROX
+    assert result.interval() == pytest.approx((1 - 3 / 40, 1 + 3 / 40), **APPROX)
+
+
+def _judged(rng: np.random.Generator, share: float, rows: int) -> tuple:
+    """Rows of one model: a true share, and a judge right on 60% of them.
+
+    Where it is not right it says yes at 0.76 whatever the row is. The
+    labelled rows and the judged ones are drawn alike, as PPI requires of a
+    random sample of the judged rows.
+    """
+    truth = (rng.random(rows) < share).astype(float)
+    said = np.where(
+        rng.random(rows) < 0.6, truth, (rng.random(rows) < 0.76).astype(float)
     )
+    return truth, said
 
 
-@pytest.mark.parametrize("labelled", [5, 10, 17, 25, 29, 30, 40])
+@pytest.mark.parametrize("labelled", [5, 10, 17, 25, 29, 30, 31, 40, 60, 100])
 def test_the_interval_covers_the_true_share_whatever_the_number_of_labels(
     labelled: int,
 ) -> None:
@@ -233,15 +240,9 @@ def test_the_interval_covers_the_true_share_whatever_the_number_of_labels(
     covered = 0
     for share in shares:
         for _ in range(reps):
-            y = (rng.random(labelled) < share).astype(float)
-            predicted = np.where(
-                rng.random(labelled) < 0.6,
-                y,
-                (rng.random(labelled) < 0.76).astype(float),
-            )
-            low, high = corrected_mean(
-                (rng.random(100) < 0.76).astype(float), predicted, y
-            ).interval()
+            y, predicted = _judged(rng, share, labelled)
+            _, judged = _judged(rng, share, 100)
+            low, high = corrected_mean(judged, predicted, y).interval()
             covered += low <= share <= high
 
     assert covered / (len(shares) * reps) >= 0.93
