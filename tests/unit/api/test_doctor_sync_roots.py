@@ -23,6 +23,9 @@ from api.doctor import synced
         "/Users/ana/Library/Mobile Documents/com~apple~CloudDocs/qa",
         "/Users/ana/iCloud Drive/qa",
         "C:/Users/bo/OneDrive - Acme/qa",
+        "/Users/ana/Dropbox (Personal)/qa",
+        "/Users/ana/Dropbox (Acme)/qa/.env",
+        "/Users/ana/Box Sync/qa",
     ],
 )
 def test_a_path_under_a_known_sync_root_is_flagged(path: str) -> None:
@@ -38,6 +41,9 @@ def test_a_path_under_a_known_sync_root_is_flagged(path: str) -> None:
         "/Users/ana/srv/qa/.env",
         "/etc/qa/secrets.env",
         "/opt/Dropboxer/qa",
+        "/Users/ana/onedrive-migration-tool/qa",
+        "/srv/OneDriveBackup/qa",
+        "/srv/boxes/sync/qa",
     ],
 )
 def test_a_path_outside_every_sync_root_passes(path: str) -> None:

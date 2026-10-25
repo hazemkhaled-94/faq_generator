@@ -24,10 +24,12 @@ log = logging.getLogger(__name__)
 
 #: Folders a sync client copies to a vendor's servers and to every device signed
 #: in, by the name each vendor gives its folder: a component that starts with
-#: one of the first group, or is one of the second. A path check, so it needs no
-#: client installed and asks no vendor.
-_SYNC_PREFIXES = ("onedrive", "icloud", "googledrive", "google drive")
-_SYNC_NAMES = ("dropbox", "cloudstorage", "mobile documents")
+#: one of the first group, or is one of the second, whole. `OneDrive` alone or
+#: as `OneDrive - <organisation>`, and `Dropbox` alone or as `Dropbox (<team>)`,
+#: so a folder merely beginning with either word is not one. A path check, so it
+#: needs no client installed and asks no vendor.
+_SYNC_PREFIXES = ("onedrive - ", "dropbox (", "icloud", "googledrive", "google drive")
+_SYNC_NAMES = ("onedrive", "dropbox", "box sync", "cloudstorage", "mobile documents")
 
 
 def synced(path: Path) -> str | None:

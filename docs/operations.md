@@ -564,7 +564,8 @@ configs/env/deployment.env --env-file .env build`, then `make up`.
 
 ### Keeping the secrets out of the checkout
 
-A checkout inside a synced folder (`~/Library/CloudStorage`, OneDrive, Dropbox,
+A checkout inside a synced folder (`~/Library/CloudStorage`, `OneDrive` or
+`OneDrive - <organisation>`, `Dropbox` or `Dropbox (<team>)`, `Box Sync`,
 iCloud Drive) is copied to a vendor's servers and to every device signed in,
 `.env` and `provider.env` with it. Go-live runs from a clone elsewhere:
 
