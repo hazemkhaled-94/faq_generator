@@ -125,8 +125,10 @@ def test_a_document_without_such_pages_is_recorded_as_before(caplog) -> None:
 
 
 def test_a_rotated_scan_with_a_stamp_is_still_a_picture_page() -> None:
-    """A landscape scan stored with /Rotate 90, whose only text is a page number
-    stamped at the foot as the reader sees it, is named as a picture page."""
+    """A scan stored with /Rotate 90 and stamped with a page number is a picture.
+
+    Its only text is the number, stamped at the foot as the reader sees it.
+    """
     import pymupdf
 
     from preprocessing.parsing.pipelines.pdf import image_only_pages
@@ -141,9 +143,7 @@ def test_a_rotated_scan_with_a_stamp_is_still_a_picture_page() -> None:
         page.insert_image(page.rect, pixmap=pix, keep_proportion=False)
         page.set_rotation(90)
         visual = pymupdf.Point(page.rect.width / 2, page.rect.height - 20)
-        page.insert_text(
-            visual * page.derotation_matrix, "17", fontsize=9, rotate=90
-        )
+        page.insert_text(visual * page.derotation_matrix, "17", fontsize=9, rotate=90)
         data = doc.tobytes()
 
     assert image_only_pages(data, 100) == (2,)

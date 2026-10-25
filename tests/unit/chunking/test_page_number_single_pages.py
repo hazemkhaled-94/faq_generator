@@ -1,7 +1,8 @@
-"""A document of single pages that prints two
-page-unique numbers on each page - its page number in the foot and a sheet
-or Bates number in the head - is not a spread. A bare value in a margin
-stays text."""
+"""A document of single pages with two numbers per page is not a spread.
+
+It prints its page number in the foot and a sheet or Bates number in the
+head; a bare value in a margin stays text.
+"""
 
 from __future__ import annotations
 
@@ -23,6 +24,7 @@ HEAD = {"de": "Blatt", "en": "Sheet"}
 
 
 def at(page: int, top: float, left: float) -> ProvenanceItem:
+    """A box of the page at this position."""
     return ProvenanceItem(
         page_no=page,
         bbox=BoundingBox(
@@ -33,6 +35,7 @@ def at(page: int, top: float, left: float) -> ProvenanceItem:
 
 
 def dual(language: str, value: str, pages: int = 20, on: int = 15) -> DoclingDocument:
+    """Pages with a head sheet number and a foot page number, and a margin value."""
     document = DoclingDocument(name="dual")
     for page in range(1, pages + 1):
         document.add_page(page_no=page, size=Size(width=595, height=842))
@@ -49,7 +52,9 @@ def dual(language: str, value: str, pages: int = 20, on: int = 15) -> DoclingDoc
             prov=at(page, 810, 290),
             content_layer=ContentLayer.FURNITURE,
         )
-    document.add_text(label=DocItemLabel.TEXT, text=BODY[language], prov=at(on, 770, 54))
+    document.add_text(
+        label=DocItemLabel.TEXT, text=BODY[language], prov=at(on, 770, 54)
+    )
     document.add_text(label=DocItemLabel.TEXT, text=value, prov=at(on, 790, 54))
     return document
 
@@ -57,6 +62,7 @@ def dual(language: str, value: str, pages: int = 20, on: int = 15) -> DoclingDoc
 @pytest.mark.parametrize("language", sorted(BODY))
 @pytest.mark.parametrize("value", ["25", "14", "3"])
 def test_a_margin_value_of_a_dual_numbered_document_stays(language, value) -> None:
+    """A value such as 25 under a label is text, not a page number."""
     _, chunks = chunks_of(dual(language, value), word_chunker(200), language)
     text = "\n".join(chunk.text for chunk in chunks)
     assert value in text.split()

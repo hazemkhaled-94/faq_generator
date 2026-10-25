@@ -1,6 +1,8 @@
-"""A paragraph lead-in heads a long list whose first item ends in a colon and
-has nested sub-items cut by the chunker: the outer items after the sub-list
-keep the paragraph's lead-in."""
+"""A lead-in paragraph still heads the later items of an outer list.
+
+The list's first item ends in a colon and has nested sub-items the chunker
+cuts; the outer items after the sub-list keep the paragraph's lead-in.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ CASES = {
 
 
 def document(language: str) -> DoclingDocument:
+    """A lead-in paragraph, then a list whose first item has sub-items."""
     lead, item, sub, outer = CASES[language]
     doc = DoclingDocument(name="t")
     doc.add_heading(text="Entgelte", level=1)
@@ -35,7 +38,9 @@ def document(language: str) -> DoclingDocument:
     parent = doc.add_list_item(text=item, parent=group)
     children = doc.add_list_group(parent=parent)
     for at in range(6):
-        doc.add_list_item(text=sub.format(n=at + 1), parent=children, marker=f"{chr(97 + at)}.")
+        doc.add_list_item(
+            text=sub.format(n=at + 1), parent=children, marker=f"{chr(97 + at)}."
+        )
     for at in range(8):
         doc.add_list_item(text=outer.format(n=at + 1), parent=group)
     return doc
@@ -45,8 +50,13 @@ def document(language: str) -> DoclingDocument:
 def test_outer_items_after_cut_sub_items_keep_the_paragraph_lead_in(
     language: str,
 ) -> None:
-    lead, item, sub, outer = CASES[language]
+    """The items after the cut sub-items carry the lead-in."""
+    lead, _, _, outer = CASES[language]
     _, chunks = chunks_of(document(language), word_chunker(40), language)
-    later = [c for c in chunks if outer.split("{n}")[0].strip() in c.text and lead not in c.text]
+    later = [
+        c
+        for c in chunks
+        if outer.split("{n}")[0].strip() in c.text and lead not in c.text
+    ]
     missing = [c.text[:50] for c in later if lead not in (c.meta.headings or [])]
     assert not missing, missing
