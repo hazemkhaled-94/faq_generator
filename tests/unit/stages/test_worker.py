@@ -277,8 +277,10 @@ def test_the_hosted_stop_outlasts_every_stage_grace() -> None:
 
     from stages.worker import DEFAULT_GRACE_SECONDS, GRACE_SECONDS, RELEASE_MARGIN
 
-    makefile = (Path(__file__).resolve().parents[3] / "Makefile").read_text()
-    (given,) = re.findall(r"^HOSTED_GRACE = (\d+)$", makefile, re.MULTILINE)
+    runner = Path(__file__).resolve().parents[3] / "scripts/corpus-hosted.sh"
+    (given,) = re.findall(
+        r"^grace=\$\{HOSTED_GRACE:-(\d+)\}$", runner.read_text(), re.MULTILINE
+    )
 
     assert (
         int(given)

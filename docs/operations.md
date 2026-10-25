@@ -637,36 +637,83 @@ it alive, a drain whose make was killed included, is a run going on.
 
 `make corpus-hosted-stop` stops a hosted run: it sends TERM to that whole
 group, so the drain in hand finishes its row, or gives it back, and exits 75,
-and kills what is left after `HOSTED_GRACE` seconds (300). The spend ledger is
-kept.
+and kills what is left after 300 seconds, a model stage's grace and its
+give-back. The spend ledger and the pid file are kept, so the next
+`make corpus-hosted` resumes the run.
 
-To have a supervisor restart it, run the foreground form, which exits 0 only
-when the chain finishes:
+To have a supervisor restart it, run `scripts/corpus-hosted.sh`, the runner
+`make corpus-hosted` detaches, in the foreground. It takes `make corpus`'s
+command line, keeps the same pid file and ledger, and exits with the code of
+the stage that ended the run rather than make's 2: 0 when the run finished, 75
+when it stopped (at `SPEND_CAP`, on a model that cannot be reached, or on a
+signal, which it passes to the whole run), 3 when rows failed or the start was
+refused, and anything else for a crash. Only a crash is restarted: a stop at the
+cap restarted would pay every model drain's preflight again for nothing, and
+failed rows want reading first. The runner resumes a run that did not finish by
+itself, so neither unit names `RESUME=1`. Its `PATH` must reach `make`,
+`poetry` and the container engine; give the database the run is for, and
+`ENV_FILE` where the secrets live outside the checkout.
 
 ```ini
 # /etc/systemd/system/qa-corpus.service
+[Unit]
+Description=qa_generator corpus run
+Wants=network-online.target
+After=network-online.target
+
 [Service]
+User=qa
 WorkingDirectory=/srv/qa_generator
-ExecStart=/usr/bin/make corpus RESUME=1 SPEND_CAP=50
+Environment=PATH=/home/qa/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/srv/qa_generator/scripts/corpus-hosted.sh APP_DB_NAME=qa_generator SPEND_CAP=50
 Restart=on-failure
-RestartPreventExitStatus=2
+RestartSec=60
+RestartPreventExitStatus=3 75
+KillMode=mixed
+TimeoutStopSec=330
+
+[Install]
+WantedBy=multi-user.target
 ```
+
+`KillMode=mixed` sends the stop to the runner alone, which passes it to the run
+once; `TimeoutStopSec` outlasts its 300 seconds.
 
 ```xml
-<!-- ~/Library/LaunchAgents/qa.corpus.plist: the same on macOS, with launchd -->
+<!-- /Library/LaunchDaemons/qa.corpus.plist: the same on macOS. A daemon, so it
+     runs without anybody logged in; launchd restarts on any code but 0, so the
+     runner is told to turn a stop into 0. -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
 <dict>
   <key>Label</key><string>qa.corpus</string>
+  <key>UserName</key><string>you</string>
   <key>WorkingDirectory</key><string>/Users/you/srv/qa_generator</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/you/.local/bin:/opt/podman/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
   <key>ProgramArguments</key>
-  <array><string>/usr/bin/make</string><string>corpus</string>
-         <string>RESUME=1</string><string>SPEND_CAP=50</string></array>
+  <array>
+    <string>/Users/you/srv/qa_generator/scripts/corpus-hosted.sh</string>
+    <string>--zero-on-stop</string>
+    <string>APP_DB_NAME=qa_generator</string>
+    <string>SPEND_CAP=50</string>
+  </array>
+  <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>60</integer>
+  <key>ExitTimeOut</key><integer>330</integer>
 </dict>
+</plist>
 ```
 
-A restart by either keeps the ledger (`RESUME=1`), so the cap holds across
+A restart by either resumes the run with its ledger, so the cap holds across
 restarts. `make corpus-hosted RESET=1`, or a fresh `make corpus` without
-`RESUME=1`, starts a run's count again.
+`RESUME=1`, starts a run's count again. A unit enabled at boot starts a fresh
+run after one that finished, which draws the release again at the verifier's
+cost: disable it once the run is done.
 
 ## Upgrading to v0.5.1
 

@@ -210,12 +210,6 @@ CORPUS_LEDGER = logs/corpus-spend.usd
 HOSTED_PID = logs/corpus-hosted.pid
 HOSTED_LOG = logs/corpus-hosted.log
 
-# How long `corpus-hosted-stop` waits for the run's drains after TERM before
-# it kills what is left, in seconds: a model stage's grace and the time to
-# give its row back (DEFAULT_GRACE_SECONDS and RELEASE_MARGIN in
-# backend/stages/worker.py, which a static test holds this to).
-HOSTED_GRACE = 300
-
 # What the hosted run is given: the database it acts on, recorded beside its
 # process group, and RESET when asked for. The rest of a command line, such
 # as SPEND_CAP, reaches its `make corpus` through MAKEFLAGS.
@@ -2295,8 +2289,8 @@ corpus:
 # the stages' failed rows go back to the queue and the spend so far still
 # counts against SPEND_CAP. A run that finished, or RESET=1, makes the next
 # one fresh. A supervisor that restarts it for you (docs/operations.md has a
-# launchd and a systemd unit) runs `make corpus RESUME=1` in the foreground
-# instead.
+# launchd and a systemd unit) runs scripts/corpus-hosted.sh in the
+# foreground instead, which exits with the stage's own code.
 #
 #   make corpus-hosted SPEND_CAP=50     stops at USD 50 for the whole run
 #   make corpus-hosted RESET=1          a fresh run, not the stopped one's resume
@@ -2311,14 +2305,10 @@ corpus-hosted:
 
 # Stop the hosted run: TERM to its whole process group, so the drain in hand
 # finishes its row or gives it back and exits 75, then KILL to whatever is
-# left after HOSTED_GRACE seconds. The spend ledger is kept.
+# left after a model stage's grace, 300 seconds. The spend ledger and the
+# record are kept, so the next `make corpus-hosted` resumes it.
 corpus-hosted-stop:
-	@group=; [ ! -f $(HOSTED_PID) ] || read -r group database < $(HOSTED_PID); \
-	if [ -z "$$group" ] || ! kill -0 -- -$$group 2>/dev/null; then echo "no hosted run is going"; exit 0; fi; \
-	echo "stopping the hosted run (process group $$group): each drain finishes or gives back its row, for up to $(HOSTED_GRACE)s"; \
-	kill -TERM -- -$$group; \
-	for i in $$(seq $(HOSTED_GRACE)); do kill -0 -- -$$group 2>/dev/null || exit 0; sleep 1; done; \
-	echo "the run is still going after $(HOSTED_GRACE)s: killing what is left" >&2; kill -KILL -- -$$group
+	@scripts/corpus-hosted.sh --stop
 
 # Every container, whether it is listening, and where to open it.
 #

@@ -104,22 +104,26 @@ def _project(
     return tmp_path
 
 
-def _make(project: Path, *arguments: str, **environment: str):
+def _environment(project: Path, **environment: str) -> dict[str, str]:
     inherited = {
         name: value
         for name, value in os.environ.items()
         if not name.startswith("MAKE") and name != "MFLAGS"
     }
+    return {
+        **inherited,
+        "PATH": f"{project / 'bin'}:{inherited['PATH']}",
+        "COMPOSE": str(project / "bin/compose"),
+        "LOG": str(project / "drains.log"),
+        **environment,
+    }
+
+
+def _make(project: Path, *arguments: str, **environment: str):
     return subprocess.run(
         ["make", "--no-print-directory", *arguments],
         cwd=project,
-        env={
-            **inherited,
-            "PATH": f"{project / 'bin'}:{inherited['PATH']}",
-            "COMPOSE": str(project / "bin/compose"),
-            "LOG": str(project / "drains.log"),
-            **environment,
-        },
+        env=_environment(project, **environment),
         capture_output=True,
         text=True,
         check=False,
@@ -459,6 +463,80 @@ def test_a_stopped_run_is_not_resumed_on_another_database(tmp_path: Path) -> Non
     assert not _drained(project), "refused before the preflight"
 
 
+# ── the runner a supervisor runs ───────────────────────────────────────────
+
+
+def _run(project: Path, *arguments: str, **environment: str):
+    """scripts/corpus-hosted.sh in the foreground, as a supervisor's unit runs it."""
+    return subprocess.run(
+        ["scripts/corpus-hosted.sh", *arguments],
+        cwd=project,
+        env=_environment(project, **environment),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+
+
+@pytest.mark.parametrize(
+    ("failing", "code", "exit"),
+    [
+        ("", "", 0),
+        ("extraction.run --digests", "75", 75),
+        ("question_generation.run --balance", "75", 75),
+        ("extraction.run --start", "3", 3),
+        ("assessment.run", "3", 3),
+        ("extraction.run --digests", "1", 1),
+    ],
+    ids=["finished", "stopped", "stopped-late", "failed-rows", "failed-late", "crash"],
+)
+def test_the_runner_exits_with_the_stage_code_and_not_make_s(
+    tmp_path: Path, failing: str, code: str, exit: int
+) -> None:
+    """0 finished, 75 stopped, 3 failed rows: a supervisor restarts only a crash."""
+    project = _project(tmp_path)
+
+    ran = _run(project, FAIL=failing, CODE=code)
+
+    assert ran.returncode == exit, (ran.stdout, ran.stderr)
+
+
+@pytest.mark.parametrize(("code", "exit"), [("75", 0), ("3", 0), ("1", 1)])
+def test_for_launchd_a_stop_the_operator_clears_exits_0(
+    tmp_path: Path, code: str, exit: int
+) -> None:
+    """The daemon restarts on any code but 0, and a stop at SPEND_CAP is not to be restarted."""
+    project = _project(tmp_path)
+
+    ran = _run(project, "--zero-on-stop", FAIL="extraction.run --digests", CODE=code)
+
+    assert ran.returncode == exit, (ran.stdout, ran.stderr)
+    assert (project / "logs/corpus-hosted.pid").exists(), "the run is still resumable"
+
+
+def test_a_runner_told_to_stop_stops_its_run_and_exits_75(tmp_path: Path) -> None:
+    """A supervisor's TERM reaches the drain once, through the run's group."""
+    project = _project(tmp_path)
+    runner = subprocess.Popen(
+        ["scripts/corpus-hosted.sh"],
+        cwd=project,
+        env=_environment(project, SLOW="60"),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        _until(lambda: _extracting(project))
+        runner.terminate()
+        code = runner.wait(timeout=60)
+    finally:
+        runner.kill()
+
+    assert code == 75
+    assert (project / "drains.log.stopped").read_text() == "stopped\n"
+    assert "question_generation" not in "\n".join(_drained(project))
+
+
 def test_a_stop_with_no_run_going_says_so(tmp_path: Path) -> None:
     """And signals nothing."""
     project = _project(tmp_path, env=GO_LIVE)
@@ -524,9 +602,48 @@ def test_the_runner_parses_in_the_bash_a_mac_ships() -> None:
     assert script.read_text().startswith("#!/bin/bash\n")
 
 
-def test_the_supervisor_unit_is_documented() -> None:
-    """A restart resumes the run: launchd or systemd runs `make corpus RESUME=1`."""
+def _unit(fence: str) -> str:
+    """The block of docs/operations.md's "After a stop" fenced as `fence`."""
     text = (ROOT / "docs/operations.md").read_text()
+    section = text[text.index("### After a stop") :]
+    (block,) = re.findall(
+        rf"```{fence}\n(.*?)```", section[: section.index("\n## ")], re.DOTALL
+    )
+    return block
 
-    assert "make corpus RESUME=1" in text
-    assert "launchd" in text and "systemd" in text
+
+def test_the_systemd_unit_restarts_only_a_crash() -> None:
+    """Not a stop at SPEND_CAP (75) nor failed rows or a refusal (3), and starts at boot."""
+    import configparser
+
+    unit = configparser.ConfigParser(strict=False, interpolation=None)
+    unit.optionxform = str  # type: ignore[assignment]
+    unit.read_string(_unit("ini"))
+    service = unit["Service"]
+
+    assert service["ExecStart"].split()[0].endswith("/scripts/corpus-hosted.sh")
+    assert "RESUME=1" not in service["ExecStart"], "the runner resumes by itself"
+    assert service["Restart"] == "on-failure"
+    assert set(service["RestartPreventExitStatus"].split()) == {"3", "75"}
+    assert service["User"]
+    assert service["Environment"].startswith("PATH=")
+    assert service["KillMode"] == "mixed", "the stop reaches the drain once"
+    assert int(service["TimeoutStopSec"]) > 300
+    assert unit["Install"]["WantedBy"] == "multi-user.target"
+
+
+def test_the_launchd_daemon_restarts_only_a_crash() -> None:
+    """A LaunchDaemon, run as a user with a PATH, its stops turned into 0."""
+    import plistlib
+
+    block = _unit("xml")
+    job = plistlib.loads(block[block.index("<?xml") :].encode())
+
+    assert "/Library/LaunchDaemons/" in block
+    assert job["UserName"]
+    assert job["EnvironmentVariables"]["PATH"]
+    assert job["ProgramArguments"][0].endswith("/scripts/corpus-hosted.sh")
+    assert job["ProgramArguments"][1] == "--zero-on-stop"
+    assert job["KeepAlive"] == {"SuccessfulExit": False}
+    assert job["RunAtLoad"] is True
+    assert job["ExitTimeOut"] > 300

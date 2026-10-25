@@ -1,18 +1,25 @@
 #!/bin/bash
 # The hosted corpus run: `make corpus` in a process group of its own, which is
 # recorded with the database it acts on in logs/corpus-hosted.pid, its output
-# appended to logs/corpus-hosted.log. `make corpus-hosted` runs this detached
-# and `make corpus-hosted-stop` signals the group it records.
+# appended to logs/corpus-hosted.log. `make corpus-hosted` runs this detached,
+# `make corpus-hosted-stop` asks it to --stop, and a supervisor runs it in the
+# foreground (docs/operations.md, "After a stop").
 #
-#   scripts/corpus-hosted.sh [--check] [VAR=value ...]
+#   scripts/corpus-hosted.sh [--check|--stop|--zero-on-stop] [VAR=value ...]
 #
 # The VAR=value words are `make corpus`'s command line; APP_DB_NAME among them
 # is the database recorded, and RESET=1 forgets a stopped run instead of
 # resuming it. --check stops after what a start refuses, which
 # `make corpus-hosted` asks before it pays for the preflight.
 #
-# The record outlives a run that ends other than finished - stopped at
-# SPEND_CAP, by a signal or by failed rows, or a crash - so the next start
+# It exits with the code of the stage that ended the run, not make's 2: 0 when
+# the run finished, 75 when a drain stopped itself (SPEND_CAP, a model that
+# cannot be reached) or a signal stopped the run, 3 when rows failed or a start
+# is refused, anything else for a crash. Neither 75 nor 3 is for a supervisor
+# to restart: each wants the operator. --zero-on-stop turns both into 0, for
+# launchd, which can only restart on every code but 0.
+#
+# The record outlives a run that ends other than finished, so the next start
 # resumes it and keeps its spend ledger. Only a run that finished, or RESET=1,
 # makes the next one fresh, and a fresh `make corpus` starts the ledger again.
 set -u
@@ -21,8 +28,14 @@ pid=logs/corpus-hosted.pid
 log=logs/corpus-hosted.log
 mkdir -p logs
 
-check=
-[ "${1:-}" != --check ] || { check=1; shift; }
+# How long a stop waits for the drains after TERM before it kills what is
+# left, in seconds: a model stage's grace and the time to give its row back
+# (DEFAULT_GRACE_SECONDS and RELEASE_MARGIN in backend/stages/worker.py,
+# which a test holds this to).
+grace=${HOSTED_GRACE:-300}
+
+mode=
+case ${1:-} in --check | --stop | --zero-on-stop) mode=$1; shift ;; esac
 database=
 reset=
 given=()
@@ -34,25 +47,55 @@ for word in "$@"; do
   given+=("$word")
 done
 
+# Ends with `code`, as --zero-on-stop wants it told.
+leave() {
+  [ "$mode" != --zero-on-stop ] || case $1 in 3 | 75) exit 0 ;; esac
+  exit "$1"
+}
+
+# Waits for the group to empty, killing what is left after `grace` seconds.
+outlast() {
+  local waited=0
+  while kill -0 -- "-$1" 2>/dev/null; do
+    if [ "$waited" -ge "$grace" ]; then
+      echo "the run is still going after ${grace}s: killing what is left" >&2
+      kill -KILL -- "-$1" 2>/dev/null
+      return
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
 # The run recorded: its process group and its database. A group with a member
 # alive is a run going on, whoever led it: a kill of the make at its head
 # leaves the drain under it running.
 group=
 recorded=
 [ ! -f "$pid" ] || read -r group recorded < "$pid"
-if [ -n "$group" ] && kill -0 -- "-$group" 2>/dev/null; then
+alive=
+[ -z "$group" ] || ! kill -0 -- "-$group" 2>/dev/null || alive=1
+
+if [ "$mode" = --stop ]; then
+  [ -n "$alive" ] || { echo "no hosted run is going"; exit 0; }
+  echo "stopping the hosted run (process group $group): each drain finishes or gives back its row, for up to ${grace}s"
+  kill -TERM -- "-$group"
+  outlast "$group"
+  exit 0
+fi
+if [ -n "$alive" ]; then
   echo "corpus-hosted is already running (process group $group${recorded:+, database $recorded});" \
     "follow it: tail -f $log; stop it: make corpus-hosted-stop" >&2
-  exit 3
+  leave 3
 fi
 # A stopped run's failed rows and spend are its own database's.
 if [ -z "$reset" ] && [ -n "$group" ] && [ -n "$recorded" ] && [ -n "$database" ] \
   && [ "$recorded" != "$database" ]; then
   echo "a stopped run on $recorded is recorded: resume it with APP_DB_NAME=$recorded," \
     "or start afresh on $database with RESET=1, which starts its spend again" >&2
-  exit 3
+  leave 3
 fi
-[ -z "$check" ] || exit 0
+[ "$mode" != --check ] || exit 0
 [ -z "$reset" ] || { rm -f "$pid"; group=; }
 
 # A record nobody holds is a run that stopped or died, so this one resumes it:
@@ -60,16 +103,36 @@ fi
 resume=
 [ -z "$group" ] || resume=RESUME=1
 
+start=0
+[ ! -f "$log" ] || start=$(wc -c < "$log")
 # Job control puts the run in a process group of its own, led by its make.
 set -m
 make --no-print-directory corpus $resume ${given[@]+"${given[@]}"} >> "$log" 2>&1 &
 run=$!
 echo "$run $database" > "$pid"
+# A stop asked of this script - a supervisor's - is passed to the whole run.
+stopping=
+trap 'stopping=1; kill -TERM -- "-$run" 2>/dev/null' TERM INT
 wait "$run"
 code=$?
+while kill -0 "$run" 2>/dev/null; do
+  wait "$run"
+  code=$?
+done
 # What a signal to the group left: a drain finishing its row after the makes
 # above it died. The record stands until the last of them has gone.
-while kill -0 -- "-$run" 2>/dev/null; do sleep 1; done
+outlast "$run"
+
+# make exits 2 whatever failed; the code of the recipe that failed first, which
+# GNU make prints as `[target] Error NN`, is the stage's.
+if [ "$code" -eq 2 ]; then
+  failed=$(tail -c +"$((start + 1))" "$log" | grep -m 1 -oE '\] Error [0-9]+$' | grep -oE '[0-9]+$')
+  code=${failed:-2}
+fi
+# make ended by TERM or INT, or this script asked to stop: a stop.
+case $code in 130 | 143) code=75 ;; esac
+[ -z "$stopping" ] || [ "$code" -eq 0 ] || code=75
+
 [ "$code" -ne 0 ] || rm -f "$pid"
 echo "corpus-hosted: the run ended with exit $code"
-exit "$code"
+leave "$code"
