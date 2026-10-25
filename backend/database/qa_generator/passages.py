@@ -37,12 +37,6 @@ _TRAIL = " > "
 _INSIDE = " › "
 
 
-#: What a lead-in ends on: the colon, in the Latin and the full-width forms. The
-#: chunker reads a block ending on one as the start of what follows, and
-#: extraction reads a list under a heading ending on one with it.
-LEAD_IN = (":", "：")
-
-
 def trail_of(headings: Sequence[str]) -> str:
     """Writes a heading trail as a section path.
 

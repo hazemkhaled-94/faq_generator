@@ -35,7 +35,6 @@ from docling_core.types.doc.items.text import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 
-from database.qa_generator.passages import LEAD_IN
 from nlp.analysis import _capitalises_nouns
 from nlp.pipelines import pipeline
 from nlp.text import printed, rejoined, right_to_left
@@ -87,6 +86,9 @@ _RESPACE_WORDS = 8
 #: What a sentence or a lead-in ends on. A block ending in none of these
 #: before a page or column break goes on in the next one.
 _ENDS = (".", "!", "?", ":", ";")
+
+#: What a lead-in ends on: the colon, in the Latin and the full-width forms.
+LEAD_IN = (":", "：")
 
 #: The tags of a word a sentence cannot end on while a noun follows.
 _WANTS_NOUN = frozenset({"DET", "ADP", "CCONJ", "SCONJ", "AUX"})
