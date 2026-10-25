@@ -3,7 +3,8 @@
 SPEND_CAP is held against an in-process tally, and a corpus run is one process
 per drain, so a cap met by one drain would start again at zero in the next.
 With SPEND_LEDGER set a process starts its tally at what the ledger holds and
-adds what it spent to it as it exits.
+writes the run's total back after every call it pays for, so a drain killed
+before it exits leaves what it spent counted.
 """
 
 from __future__ import annotations
@@ -15,22 +16,22 @@ from llm import tally
 
 @pytest.fixture(autouse=True)
 def fresh(monkeypatch):
-    """A tally that starts at zero and an exit that runs when the test says."""
-    exits: list = []
+    """A tally that starts at zero and names no ledger."""
     monkeypatch.setattr(tally, "_spent", {"usd": 0.0})
-    monkeypatch.setattr(tally.atexit, "register", lambda f, *a: exits.append((f, a)))
-    return exits
+    monkeypatch.setattr(tally, "_ledger", {"path": None})
 
 
-def test_no_ledger_changes_nothing(fresh) -> None:
+def test_no_ledger_changes_nothing(tmp_path, monkeypatch) -> None:
     """The development path."""
+    monkeypatch.chdir(tmp_path)
     tally.carry(None)
+    tally.add(0.5)
 
-    assert tally.spent_usd() == 0.0
-    assert fresh == []
+    assert tally.spent_usd() == 0.5
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_a_process_starts_at_what_earlier_drains_spent(tmp_path, fresh) -> None:
+def test_a_process_starts_at_what_earlier_drains_spent(tmp_path) -> None:
     """Counted as its own, so the cap holds for the run."""
     ledger = tmp_path / "spend.usd"
     ledger.write_text("1.25\n0.5\n")
@@ -40,38 +41,49 @@ def test_a_process_starts_at_what_earlier_drains_spent(tmp_path, fresh) -> None:
     assert tally.spent_usd() == pytest.approx(1.75)
 
 
-def test_a_missing_ledger_is_the_first_drain(tmp_path, fresh) -> None:
+def test_a_missing_ledger_is_the_first_drain(tmp_path) -> None:
     """Nothing spent yet."""
     tally.carry(str(tmp_path / "none.usd"))
 
     assert tally.spent_usd() == 0.0
 
 
-def test_what_a_process_spent_is_added_when_it_exits(tmp_path, fresh) -> None:
-    """Its own spend and not the carried part twice."""
+def test_the_run_total_is_written_after_every_priced_call(tmp_path) -> None:
+    """Not at exit: a drain killed by SIGKILL or the OOM killer never gets there."""
     ledger = tmp_path / "spend.usd"
     ledger.write_text("2.0\n")
     tally.carry(str(ledger))
+
     tally.add(0.75)
+    after_one = ledger.read_text()
+    tally.add(0.25)
 
-    for write, arguments in fresh:
-        write(*arguments)
-
-    assert [float(x) for x in ledger.read_text().split()] == [2.0, 0.75]
+    assert [float(x) for x in after_one.split()] == [2.75]
+    assert [float(x) for x in ledger.read_text().split()] == [3.0]
 
 
-def test_a_process_that_spent_nothing_adds_no_line(tmp_path, fresh) -> None:
-    """A status query or a parse."""
+def test_the_ledger_is_replaced_whole(tmp_path) -> None:
+    """A new file renamed over it, so a kill mid-write leaves the last total."""
     ledger = tmp_path / "spend.usd"
     tally.carry(str(ledger))
 
-    for write, arguments in fresh:
-        write(*arguments)
+    tally.add(1.5)
 
-    assert not ledger.exists() or ledger.read_text() == ""
+    assert [one.name for one in tmp_path.iterdir()] == ["spend.usd"]
+    assert sum(float(x) for x in ledger.read_text().split()) == pytest.approx(1.5)
 
 
-def test_a_ledger_that_cannot_be_read_stops_the_drain(tmp_path, fresh) -> None:
+def test_a_process_that_spent_nothing_writes_nothing(tmp_path) -> None:
+    """A status query, a parse, or a call nobody could price."""
+    ledger = tmp_path / "spend.usd"
+    tally.carry(str(ledger))
+
+    tally.add(0.0)
+
+    assert not ledger.exists()
+
+
+def test_a_ledger_that_cannot_be_read_stops_the_drain(tmp_path) -> None:
     """A cap nobody can count against is not a cap."""
     ledger = tmp_path / "spend.usd"
     ledger.write_text("lots\n")

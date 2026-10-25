@@ -1109,8 +1109,10 @@ SETTINGS: tuple[Setting, ...] = (
         fixed=True,
         help="A file of amounts, one per line, that carries a corpus run's "
         "spend from one drain's process to the next: a drain starts its "
-        "SPEND_CAP count at their sum and appends what it spent when it "
-        "exits. make corpus sets it; unset carries nothing.",
+        "SPEND_CAP count at their sum and replaces the file with the run's "
+        "total after every call it pays for, so a drain killed before it "
+        "exits leaves its spend counted. make corpus sets it; unset carries "
+        "nothing.",
     ),
     Setting(
         name="HOST_RUNNER",

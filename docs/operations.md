@@ -531,7 +531,9 @@ From a fresh clone, following only this page:
    `make corpus-hosted-stop` stops it. It names the database it acts on,
    gives every drain that name and `HF_HUB_OFFLINE=1`, and counts spend
    across the drains in `logs/corpus-spend.usd` (`SPEND_LEDGER`), so `SPEND_CAP` is the cost of
-   the whole run and not of each drain. Every drain logs the split it resolved
+   the whole run and not of each drain. The file holds the run's total and is
+   rewritten after every priced call, so a drain killed outright leaves its
+   spend counted. Every drain logs the split it resolved
    before its first row, and a role that resolves to an Ollama model stops
    the run before a model is asked.
 7. When it ends, the two workbooks: `make questions-export OUT=release.xlsx
