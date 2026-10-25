@@ -707,9 +707,13 @@ signal, which it passes to the whole run), 3 when rows failed or the start was
 refused, and anything else for a crash. Only a crash is restarted: a stop at the
 cap restarted would pay every model drain's preflight again for nothing, and
 failed rows want reading first. The runner resumes a run that did not finish by
-itself, so neither unit names `RESUME=1`. Its `PATH` must reach `make`,
-`poetry` and the container engine; give the database the run is for, and
-`ENV_FILE` where the secrets live outside the checkout.
+itself, so neither unit names `RESUME=1`, and every start proves what
+`make corpus-hosted` proves (`make corpus-preflight`: the go-live profile, no
+model worker or Dagster container up, the split, the password and the cache),
+refusing with 3 where it does not. A database it is not given is resolved as
+`make corpus` resolves it, and recorded. Its `PATH` must reach `make`,
+`poetry` and the container engine; give `ENV_FILE` where the secrets live
+outside the checkout.
 
 ```ini
 # /etc/systemd/system/qa-corpus.service

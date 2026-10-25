@@ -609,7 +609,7 @@ def test_the_runner_exits_with_the_stage_code_and_not_make_s(
     tmp_path: Path, failing: str, code: str, exit: int
 ) -> None:
     """0 finished, 75 stopped, 3 failed rows: a supervisor restarts only a crash."""
-    project = _project(tmp_path)
+    project = _project(tmp_path, env=GO_LIVE)
 
     ran = _run(project, FAIL=failing, CODE=code)
 
@@ -621,7 +621,7 @@ def test_for_launchd_a_stop_the_operator_clears_exits_0(
     tmp_path: Path, code: str, exit: int
 ) -> None:
     """The daemon restarts on any code but 0, and a stop at SPEND_CAP is not to be restarted."""
-    project = _project(tmp_path)
+    project = _project(tmp_path, env=GO_LIVE)
 
     ran = _run(project, "--zero-on-stop", FAIL="extraction.run --digests", CODE=code)
 
@@ -631,7 +631,7 @@ def test_for_launchd_a_stop_the_operator_clears_exits_0(
 
 def test_a_runner_told_to_stop_stops_its_run_and_exits_75(tmp_path: Path) -> None:
     """A supervisor's TERM reaches the drain once, through the run's group."""
-    project = _project(tmp_path)
+    project = _project(tmp_path, env=GO_LIVE)
     runner = subprocess.Popen(
         ["scripts/corpus-hosted.sh"],
         cwd=project,
@@ -861,3 +861,56 @@ def test_a_group_number_reused_by_another_process_is_not_the_run(
     assert alive_after_stop, "the stop signalled an unrelated group"
     assert started.returncode == 0, started.stderr
     assert any(" --retry" in line for line in _drained(project)), "a resume"
+
+
+# ── What the supervised runner proves, as make corpus-hosted does ──────────
+
+
+def test_a_supervisor_started_without_a_database_records_the_one_corpus_resolves(
+    tmp_path: Path,
+) -> None:
+    """Never a record naming no database, which a start on another would resume."""
+    project = _project(tmp_path, env=GO_LIVE)
+
+    ran = _run(project, FAIL="extraction.run --digests", CODE="75")
+
+    assert ran.returncode == 75, (ran.stdout, ran.stderr)
+    record = (project / "logs/corpus-hosted.pid").read_text().splitlines()[0]
+    assert record.split()[1:] == ["qa_scratch"]
+    assert {line.split()[0] for line in _drained(project)} == {"qa_scratch"}
+
+
+def test_the_supervised_runner_refuses_without_the_go_live_profile(
+    tmp_path: Path,
+) -> None:
+    """The check make corpus-hosted makes, before any drain: 3, which no unit restarts."""
+    project = _project(tmp_path, env="HOST_RUNNER=0\n")
+
+    ran = _run(project)
+
+    assert ran.returncode == 3
+    assert "HOST_RUNNER" in ran.stderr
+    assert not _drained(project)
+
+
+def test_the_supervised_runner_runs_the_preflight_before_the_first_drain(
+    tmp_path: Path,
+) -> None:
+    """The split, the password and the cache, as make corpus-hosted asks."""
+    project = _project(tmp_path, env=GO_LIVE)
+
+    assert _run(project).returncode == 0
+
+    drained = _drained(project)
+    assert "from api.doctor import preflight" in drained[0], drained[:2]
+    assert sum("preflight" in line for line in drained) == 1
+
+
+def test_corpus_hosted_asks_the_preflight_once(tmp_path: Path) -> None:
+    """Checked before it detaches, and not again by the run it detached."""
+    project = _project(tmp_path, env=GO_LIVE)
+
+    assert _make(project, "corpus-hosted").returncode == 0
+    _waited(project)
+
+    assert sum("preflight" in line for line in _drained(project)) == 1

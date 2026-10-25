@@ -222,11 +222,9 @@ NOT_GO_LIVE = $(LOADENV) && { ! $(GO_LIVE) || \
               { echo "the go-live profile runs the model stages through make corpus-hosted" >&2; exit 1; }; }
 
 # Where a corpus run keeps what its drains spent, one ledger a database, so a
-# run on one never empties another's; and where the hosted run keeps its
-# process group and database, and its log: scripts/corpus-hosted.sh writes both.
+# run on one never empties another's. The hosted run's record and log are
+# scripts/corpus-hosted.sh's, under logs/ too.
 CORPUS_LEDGER = logs/corpus-spend-$(CORPUS_DB).usd
-HOSTED_PID = logs/corpus-hosted.pid
-HOSTED_LOG = logs/corpus-hosted.log
 
 # What the hosted run is given: the database it acts on, recorded beside its
 # process group, and RESET when asked for. The rest of a command line, such
@@ -347,7 +345,7 @@ help:
         review-push-questions review-pull-questions review-delete review-all \
         phoenix-projects phoenix-prune phoenix-purge phoenix-retention \
         eval-upload eval-score prompts-publish \
-        all corpus corpus-hosted corpus-hosted-stop open services review pull auto manual pipeline runs \
+        all corpus corpus-hosted corpus-hosted-stop corpus-preflight corpus-database open services review pull auto manual pipeline runs \
         pipeline-status pipeline-stop pipeline-retry
 
 # ── Upgrade ────────────────────────────────────────────────────────────────
@@ -2386,13 +2384,20 @@ corpus:
 #   make corpus-hosted RESET=1          a fresh run, not the stopped one's resume
 corpus-hosted:
 	@mkdir -p logs
-	@scripts/corpus-hosted.sh --check $(HOSTED_ARGS)
+	@scripts/corpus-hosted.sh --detach $(HOSTED_ARGS)
+
+# What a hosted run proves before it starts, the detached one and a
+# supervisor's alike (scripts/corpus-hosted.sh asks it): the go-live profile,
+# no model worker or Dagster container up, and the preflight, which checks the
+# split, the database password and the cache with the Hub off.
+corpus-preflight:
 	@$(LOADENV) && { $(GO_LIVE) || { echo "make corpus-hosted is the go-live profile's runner: set HOST_RUNNER=1 in .env. Without it the container workers drain the queues; make corpus runs them in the foreground." >&2; exit 1; }; }
 	@$(OFF_PROFILE_UP); [ -z "$$up" ] || { echo "$$up up, which the go-live profile never runs: a model worker would write its stage with Ollama. Stop them first:" >&2; echo "  $(COMPOSE_CMD) stop$$up" >&2; exit 1; }
 	@$(LOADENV) && HF_HUB_OFFLINE=1 PYTHONPATH=backend poetry run python -c 'from api.doctor import preflight; raise SystemExit(preflight())'
-	@nohup scripts/corpus-hosted.sh $(HOSTED_ARGS) >> $(HOSTED_LOG) 2>&1 & \
-	  for i in $$(seq 50); do [ -f $(HOSTED_PID) ] && break; sleep 0.1; done; \
-	  echo "corpus-hosted started: log $(HOSTED_LOG), pid file $(HOSTED_PID); stop it with make corpus-hosted-stop"
+
+# The database a corpus run acts on, as `make corpus` resolves it.
+corpus-database:
+	@printf '%s\n' "$(CORPUS_DB)"
 
 # Stop the hosted run: TERM to its whole process group, so the drain in hand
 # finishes its row or gives it back and exits 75, then KILL to whatever is

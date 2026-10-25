@@ -5,12 +5,15 @@
 # `make corpus-hosted-stop` asks it to --stop, and a supervisor runs it in the
 # foreground (docs/operations.md, "After a stop").
 #
-#   scripts/corpus-hosted.sh [--check|--stop|--guard|--zero-on-stop] [VAR=value ...]
+#   scripts/corpus-hosted.sh [--detach|--stop|--guard|--zero-on-stop] [VAR=value ...]
 #
 # The VAR=value words are `make corpus`'s command line; APP_DB_NAME among them
-# is the database recorded, and RESET=1 forgets a stopped run instead of
-# resuming it. --check stops after what a start refuses, which
-# `make corpus-hosted` asks before it pays for the preflight. --guard is what
+# is the database recorded, resolved as `make corpus` resolves it where none is
+# given, and RESET=1 forgets a stopped run instead of resuming it. Every start
+# proves what `make corpus-preflight` checks first - the go-live profile, no
+# model worker or Dagster container up, the split, the password and the cache -
+# and refuses with 3 where it does not. --detach is `make corpus-hosted`'s: it
+# checks in the foreground, then runs the rest detached. --guard is what
 # `make corpus` asks first: it refuses beside a hosted run of its database that
 # is going, and, unless it resumes (RESUME=1), beside a stopped one, whose
 # spend ledger a fresh run would start again.
@@ -38,8 +41,9 @@ mkdir -p logs
 grace=${HOSTED_GRACE:-300}
 
 mode=
-case ${1:-} in --check | --stop | --guard | --zero-on-stop) mode=$1; shift ;; esac
+case ${1:-} in --detach | --checked | --stop | --guard | --zero-on-stop) mode=$1; shift ;; esac
 database=
+named=
 reset=
 resuming=
 given=()
@@ -47,10 +51,18 @@ for word in "$@"; do
   case $word in
     RESET=?*) reset=1; continue ;;
     RESUME=?*) resuming=1 ;;
-    APP_DB_NAME=*) database=${word#APP_DB_NAME=} ;;
+    APP_DB_NAME=*) database=${word#APP_DB_NAME=}; named=1 ;;
   esac
   given+=("$word")
 done
+# A start that names no database runs on the one `make corpus` would, which
+# is the one its record must name: a record of none is a run any database's
+# start would resume.
+if [ -z "$named" ] && [ "$mode" != --stop ] && [ "$mode" != --guard ]; then
+  database=$(make --no-print-directory -s corpus-database ${given[@]+"${given[@]}"})
+  given+=("APP_DB_NAME=$database")
+  set -- "$@" "APP_DB_NAME=$database"
+fi
 
 # Ends with `code`, as --zero-on-stop wants it told.
 leave() {
@@ -132,7 +144,17 @@ if [ -z "$reset" ] && [ -n "$group" ] && [ -n "$recorded" ] && [ -n "$database" 
     "or start afresh on $database with RESET=1, which starts its spend again" >&2
   leave 3
 fi
-[ "$mode" != --check ] || exit 0
+if [ "$mode" != --checked ] && ! make --no-print-directory corpus-preflight ${given[@]+"${given[@]}"}; then
+  echo "corpus-hosted: the preflight refused the run" >&2
+  leave 3
+fi
+if [ "$mode" = --detach ]; then
+  # Checked here, in the caller's terminal; the run goes on without it.
+  nohup "$0" --checked "$@" >> "$log" 2>&1 &
+  for _ in $(seq 50); do [ -f "$pid" ] && break; sleep 0.1; done
+  echo "corpus-hosted started: log $log, pid file $pid; stop it with make corpus-hosted-stop"
+  exit 0
+fi
 [ -z "$reset" ] || { rm -f "$pid"; group=; }
 
 # A record nobody holds is a run that stopped or died, so this one resumes it:
