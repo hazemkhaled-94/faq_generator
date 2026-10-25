@@ -700,6 +700,9 @@ services:
     environment:
       TZ: UTC
       BACKEND_URL: ${BACKEND_CONTAINER_URL}
+      # The database by name, not the URL with its password: the lineage
+      # panel names the Argilla dataset this database pushed to.
+      APP_DB_NAME: ${APP_DB_NAME}
       PAGE_SIZE: ${PAGE_SIZE}
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_DIR: /var/log/qa

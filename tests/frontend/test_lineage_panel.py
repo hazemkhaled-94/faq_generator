@@ -89,11 +89,18 @@ def test_dagster_opens_the_asset_that_stage_materialises() -> None:
     assert "http://localhost:3000/assets/questions" in dagster
 
 
+@pytest.fixture(autouse=True)
+def named_database(monkeypatch) -> None:
+    """The frontend container knows its database by name: APP_DB_NAME, no URL."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("APP_DB_NAME", "qa_shop")
+
+
 def test_argilla_names_the_numbered_dataset() -> None:
     """The reviewer has to be told which of three datasets to open."""
     *_, argilla = elsewhere(chain(), PUBLISHED)
 
-    assert "`6-questions`" in argilla
+    assert "`6-questions__qa_shop`" in argilla
     assert "http://localhost:6900/datasets" in argilla
 
 
@@ -102,7 +109,7 @@ def test_a_fact_points_at_its_own_stage_not_the_questions_one() -> None:
     _, dagster, argilla = elsewhere(chain(kind="fact"), PUBLISHED)
 
     assert "/assets/facts" in dagster
-    assert "`4-facts`" in argilla
+    assert "`4-facts__qa_shop`" in argilla
 
 
 def test_a_document_has_an_asset_and_no_dataset() -> None:
