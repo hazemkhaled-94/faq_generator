@@ -460,7 +460,9 @@ stores. It replaces the data of the stack it runs on.
 
 A restore from a backup taken before keys carried the database (v0.5.2) leaves
 bare keys in the buckets, which are read as they were; `make s3-prefix` copies
-them under the database's prefix.
+the ones this database's rows name under its prefix, never over an object the
+prefix already holds, and the other bare keys stay for the databases they
+belong to.
 
 ## Failure
 

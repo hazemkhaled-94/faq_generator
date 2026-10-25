@@ -126,20 +126,27 @@ def test_a_purge_raises_when_the_store_refuses_a_delete(buckets, monkeypatch) ->
 
 
 def test_the_one_off_copy_puts_bare_keys_under_the_prefix_and_keeps_them(
-    buckets, monkeypatch
+    engine, database, buckets
 ) -> None:
     """Copy, never move: the other database still reads the bare key."""
+    from seed import document
+    from sqlalchemy.orm import Session
+
     from blob_store.s3 import DocumentsBucket, s3_client
     from blob_store.s3.rekey import main
 
     documents = DocumentsBucket()
     key = documents.key_for(digest("d"), "application/pdf")
     s3_client().put_object(Bucket=documents.name, Key=key, Body=PDF)
+    with Session(engine) as session:
+        session.add(document(digest("d")))
+        session.commit()
 
-    use(monkeypatch, "qa_one")
     assert main() == 0
 
-    s3_client().head_object(Bucket=documents.name, Key=f"qa_one/{key}")
+    s3_client().head_object(
+        Bucket=documents.name, Key=f"{documents.database_name()}/{key}"
+    )
     s3_client().head_object(Bucket=documents.name, Key=key)
     assert documents.remove(key)
     assert documents.get(key) == PDF, "the bare key is still there to fall back to"
