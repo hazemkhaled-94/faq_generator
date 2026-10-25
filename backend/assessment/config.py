@@ -102,13 +102,20 @@ def judge_equals(settings: Settings, source: Source = None) -> list[str]:
     ]
 
 
-def judge_of(settings: Settings, source: Source = None) -> tuple[str | None, bool]:
-    """The model the next run judges with, and whether it is one of the pipeline's own.
+#: The roles that wrote and checked the questions a judge is asked about, the
+#: bulk of what it judges: a judge that is one of them marks its own work.
+MARKING = frozenset({"writer", "verifier"})
 
-    None where ASSESSMENT_JUDGE_MODEL names nothing, and then nothing is
-    judged.
+
+def judge_of(settings: Settings, source: Source = None) -> tuple[str | None, bool]:
+    """The model the next run judges with, and whether it marks its own work.
+
+    Its own work where the judge is the writer's or the verifier's model; a
+    judge that only shares another role's - the shipped split's digest
+    reader - is said, not warned about, as the build says it. None where
+    ASSESSMENT_JUDGE_MODEL names nothing, and then nothing is judged.
     """
-    return settings.judge_model, bool(judge_equals(settings, source))
+    return settings.judge_model, bool(MARKING & set(judge_equals(settings, source)))
 
 
 def judged_kinds(settings: Settings) -> tuple[str, ...]:

@@ -23,7 +23,7 @@ from api.errors import ApiError
 from api.params import Limit, Offset, SearchText
 from api.routes.stage import StageAction, answered, stage_router
 from assessment.config import Settings as AssessmentSettings
-from assessment.config import cannot_run, judge_of
+from assessment.config import cannot_run, judge_equals, judge_of
 from assessment.models import AssessmentQuality, StoredAssessment
 from assessment.templates import PROMPT_VERSION, TEMPLATES, metrics_of
 from settings.store import resolved
@@ -117,8 +117,11 @@ class JudgePlan:
     #: ASSESSMENT_JUDGE_MODEL, or None where that names nothing and nothing
     #: is judged.
     judge_model: str | None
-    #: Whether that model is the writer's.
+    #: Whether that model is the writer's or the verifier's, marking the
+    #: questions it judges.
     self_judging: bool
+    #: Every role whose model it also is, the digest reader's included.
+    judge_roles: list[str]
     kinds: list[str]
     sample: int
     prompt_version: str
@@ -141,6 +144,7 @@ def plan() -> JudgePlan:
         enabled=settings.enabled,
         judge_model=judge,
         self_judging=self_judging,
+        judge_roles=judge_equals(settings, source),
         kinds=list(settings.kinds),
         sample=settings.sample,
         prompt_version=PROMPT_VERSION,

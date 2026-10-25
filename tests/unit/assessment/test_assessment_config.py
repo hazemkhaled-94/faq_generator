@@ -291,7 +291,9 @@ def test_a_judge_equal_to_the_digest_model_names_the_digest_role() -> None:
     named = settings(ASSESSMENT_JUDGE_MODEL="azure/gpt-4o")
 
     assert judge_equals(named, _ROLES) == ["digest"]
-    assert judge_of(named, _ROLES) == ("azure/gpt-4o", True)
+    assert judge_of(named, _ROLES) == ("azure/gpt-4o", False), (
+        "sharing the digest reader's model is not marking its own work"
+    )
 
 
 def test_a_judge_equal_to_several_roles_names_each() -> None:

@@ -272,3 +272,36 @@ def test_a_backend_that_is_down_is_a_message_and_not_a_traceback(page) -> None:
 
     assert drawn.raised == []
     assert any("Failed to load" in one for one in drawn.errors())
+
+
+def test_a_judge_sharing_only_the_digest_reader_s_model_is_not_called_the_writer(
+    page,
+) -> None:
+    """The shipped split: azure/gpt-4o reads digests and judges, and that is said plainly."""
+    drawn = page(
+        assessment_plan={
+            **ASSESSMENT_PLAN,
+            "judge_model": "azure/gpt-4o",
+            "self_judging": False,
+            "judge_roles": ["digest"],
+        }
+    )
+
+    assert "marking its own work" not in drawn.text()
+    assert "the writer" not in drawn.text()
+    assert "digest" in drawn.text()
+
+
+def test_a_judge_that_is_the_verifier_is_named_as_the_verifier(page) -> None:
+    """Bold, as the build warns, and naming the roles it is."""
+    drawn = page(
+        assessment_plan={
+            **ASSESSMENT_PLAN,
+            "judge_model": "azure/gpt-4.1",
+            "self_judging": True,
+            "judge_roles": ["verifier", "topics"],
+        }
+    )
+
+    assert "marking its own work" in drawn.text()
+    assert "verifier" in drawn.text() and "the writer" not in drawn.text()

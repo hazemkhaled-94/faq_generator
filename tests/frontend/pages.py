@@ -338,6 +338,7 @@ ASSESSMENT_PLAN = {
     "enabled": True,
     "judge_model": "ollama_chat/qwen3:14b",
     "self_judging": False,
+    "judge_roles": [],
     "kinds": ["fact", "topic", "question"],
     "sample": 200,
     "prompt_version": "1",

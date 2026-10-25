@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from assessment.config import UNNAMED, Settings, judge_equals, judged_kinds
+from assessment.config import MARKING, UNNAMED, Settings, judge_equals, judged_kinds
 from assessment.judge import Judge
 from assessment.repository import AssessmentQueue
 from assessment.service import AssessmentService
@@ -50,7 +50,7 @@ def build_service(
     # bulk of what it is asked; a line where it only shares a reader's model.
     # The shipped split puts the judge and the digest reader both on
     # azure/gpt-4o, which warned at every build of a deployment as shipped.
-    level = logging.WARNING if {"writer", "verifier"} & set(marked) else logging.INFO
+    level = logging.WARNING if MARKING & set(marked) else logging.INFO
     if marked:
         log.log(
             level,

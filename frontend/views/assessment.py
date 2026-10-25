@@ -262,14 +262,17 @@ def _judging(plan: dict) -> list[tuple[str, str]]:
         ):
             picked.append(("kind", kind))
     judge = plan["judge_model"]
+    # The roles the judge's model also plays; the writer's where none is said.
+    shared = plan.get("judge_roles") or []
+    also = f" · also the {', '.join(shared)} model" if shared else ""
     row.caption(
         "**ASSESSMENT_JUDGE_MODEL names no model, so the next run judges nothing.**"
         if not judge
-        else f"**Next run: {judge}, the writer, marking its own work.** "
-        "`make assess-start` then `make assess` judges from the host with "
-        "ASSESSMENT_JUDGE_MODEL"
+        else f"**Next run: {judge}, the {', '.join(shared or ['writer'])} model, "
+        "marking its own work.** `make assess-start` then `make assess` judges "
+        "from the host with ASSESSMENT_JUDGE_MODEL"
         if plan["self_judging"]
-        else f"Judging {', '.join(plan['kinds'])} with {judge} · "
+        else f"Judging {', '.join(plan['kinds'])} with {judge}{also} · "
         f"template version {plan['prompt_version']}"
     )
     return picked
