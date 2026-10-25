@@ -186,3 +186,15 @@ def test_a_name_is_owned_only_when_the_whole_scope_matches(monkeypatch) -> None:
         assert pipeline.owned(name, other)
         assert not pipeline.owned(name, owner), (name, owner)
         assert pipeline.owned(pipeline.scoped("4-extraction", owner), owner)
+
+
+@pytest.mark.parametrize(
+    "tail",
+    ["?options=a@b/c", "?sslrootcert=/home/u@h/ca.pem", "?x=@y/z#f"],
+)
+def test_a_value_inside_the_query_is_never_the_database(monkeypatch, tail) -> None:
+    """The database is the path before the query, whatever `@host/` the options hold."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv("DATABASE_URL", f"postgresql+psycopg://u:p@h:5432/qa_x{tail}")
+
+    assert pipeline.database() == "qa_x"

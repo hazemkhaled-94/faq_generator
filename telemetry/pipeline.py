@@ -103,16 +103,19 @@ def database() -> str | None:
     Read from DATABASE_URL, or from APP_DB_NAME for the processes - the
     orchestrator's - that have no URL of the application database.
 
-    The path follows the last `@host/`, which ends the secret before the
-    host: a password holding `/`, `#` or `?`, or a query holding `@`, is not
-    a delimiter, and nothing of it may reach a name. No SQLAlchemy here, because the frontend image
-    shares this module and holds none.
+    The path follows the first `@host/path` that ends at the query, the
+    fragment or the end: a password's `@x/y` is followed by more of the
+    secret, and a query's `@h/c` comes after the path has ended, so neither
+    is a delimiter and nothing of the secret may reach a name. No SQLAlchemy
+    here, because the frontend image shares this module and holds none.
     """
     raw = os.environ.get("DATABASE_URL", "")
     url = raw.partition("://")[2] or raw
-    after_host = re.findall(r"@[^@/?#]*/([^/?#]*)", url)
+    after_host = re.search(r"@[^@/?#]*/([^/?#]*)(?=$|[?#])", url)
     named = (
-        after_host[-1] if after_host else re.split(r"[?#]", url.partition("/")[2])[0]
+        after_host.group(1)
+        if after_host
+        else re.split(r"[?#]", url.partition("/")[2])[0]
     )
     return named or os.environ.get("APP_DB_NAME") or None
 
