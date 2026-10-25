@@ -1546,10 +1546,11 @@ documents:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --list
 
 # Load every PDF in a directory of the host through the service the Upload
-# page uses, so a set too large for the page goes in at once. One line per
-# file, then a summary: a file the corpus holds already is reported as a
-# duplicate and stores nothing, and a file the service refuses fails the run.
-#   make ingest DIR=~/documents/prices
+# page uses, under its limits, a value stored on the page included, so a set
+# too large for the page goes in at once. One line per file, then a summary: a
+# file the corpus holds already is reported as a duplicate and stores nothing,
+# and a file the service refuses fails the run.
+#   make ingest DIR=$HOME/documents/prices
 ingest:
 	@[ -n "$(DIR)" ] || { echo 'usage: make ingest DIR=<directory of PDFs>'; exit 2; }
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --add "$(DIR)"

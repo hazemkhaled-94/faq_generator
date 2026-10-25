@@ -6,6 +6,7 @@ combinations are refused, what each one runs and what it returns.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import pytest
@@ -20,7 +21,12 @@ SHA = "a" * 64
 
 @pytest.fixture(autouse=True)
 def quiet(monkeypatch) -> None:
-    """Keeps the entry points from configuring logging or an engine."""
+    """Keeps the entry points from configuring logging or an engine.
+
+    And from reading the stored settings, which live in the database: the
+    environment stands in for them.
+    """
+    monkeypatch.setattr(ingestion_run, "resolved", lambda: dict(os.environ))
     for module in (ingestion_run, parsing_run, chunking_run):
         monkeypatch.setattr(module, "telemetry", _Telemetry(), raising=False)
         monkeypatch.setattr(module, "engine", lambda: None, raising=False)
@@ -363,6 +369,26 @@ def test_a_directory_is_ingested_through_the_service_and_the_copy_is_reported(
     assert lines.count(".pdf: duplicate_bytes") == 1
     assert "3 stored, 1 duplicate, 0 refused" in lines
     assert "notes.txt" not in lines
+
+
+def test_a_directory_is_ingested_under_the_limits_stored_for_the_upload_page(
+    folder, monkeypatch
+) -> None:
+    """The same service the page builds, from the environment and what was stored."""
+    from intake_drivers import IngestDriver
+
+    seen = []
+    stored = {**os.environ, "MAX_FILE_SIZE_MB": "7", "PARSING_MAX_PAGES": "40"}
+    monkeypatch.setattr(ingestion_run, "resolved", lambda: stored, raising=False)
+    monkeypatch.setattr(
+        ingestion_run,
+        "build_service",
+        lambda settings: seen.append(settings) or IngestDriver().service,
+    )
+
+    assert ingestion_run.main(["--add", str(folder)]) == 0
+
+    assert (seen[0].max_file_size_mb, seen[0].max_pages) == (7, 40)
 
 
 def test_a_file_the_service_refuses_makes_the_command_fail(

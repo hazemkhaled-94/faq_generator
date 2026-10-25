@@ -18,6 +18,7 @@ from ingestion.config import Settings
 from ingestion.factory import build_removal, build_service
 from ingestion.models import UploadedFile
 from settings.runs import run_id
+from settings.store import resolved
 
 log = logging.getLogger(__name__)
 
@@ -123,7 +124,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.add:
-        return _add(args.add, build_service(settings))
+        # The limits the Upload page applies, a value stored there included,
+        # so a file the page refuses is refused here too.
+        return _add(args.add, build_service(Settings.load(resolved())))
 
     removal = build_removal()
     if args.delete_all:
