@@ -1604,33 +1604,241 @@ def test_a_figure_of_another_kind_from_another_sentence_is_still_the_passages(
 
 
 @pytest.mark.parametrize(
-    ("text", "statement", "language"),
+    ("text", "statement", "language", "cited"),
     [
         (
-            (
-                "La cuenta corriente cuesta 5 EUR al mes. La cuenta de ahorro cuesta "
-                "2 EUR al mes."
-            ),
-            "La cuenta corriente cuesta 2 EUR al mes.",
-            "es",
+            "Orders over EUR 50 ship free. Below that, standard delivery costs EUR 4.95.",
+            "Standard delivery costs EUR 4.95 for orders under EUR 50.",
+            "en",
+            1,
         ),
         (
             (
-                "Le compte courant coûte 5 EUR par mois. Le compte épargne coûte 2 EUR "
-                "par mois."
+                "Ab einem Bestellwert von 50 EUR ist der Versand kostenlos. Darunter "
+                "kostet der Standardversand 4,95 EUR."
             ),
-            "Le compte courant coûte 2 EUR par mois.",
-            "fr",
+            "Unter einem Bestellwert von 50 EUR kostet der Standardversand 4,95 EUR.",
+            "de",
+            1,
+        ),
+        (
+            "The monthly account fee is EUR 5. Students pay EUR 2 instead.",
+            "Students pay a monthly account fee of EUR 2 instead of EUR 5.",
+            "en",
+            1,
+        ),
+        (
+            (
+                "Für Überweisungen ab 50.000 EUR gilt eine Sonderregelung. Eine "
+                "Online-Überweisung kostet dann 0,50 EUR."
+            ),
+            "Eine Online-Überweisung ab 50.000 EUR kostet 0,50 EUR.",
+            "de",
+            1,
+        ),
+        (
+            (
+                "Zamówienia powyżej 50 EUR są dostarczane bezpłatnie. Poniżej tej kwoty "
+                "dostawa kosztuje 4,95 EUR."
+            ),
+            "Dostawa kosztuje 4,95 EUR przy zamówieniach poniżej 50 EUR.",
+            "pl",
+            1,
         ),
     ],
 )
-def test_the_swapped_figure_guard_reads_nothing_in_an_unconfigured_language(
-    text, statement, language
+def test_a_cited_figure_the_statement_also_writes_is_no_swap(
+    text, statement, language, cited
 ) -> None:
-    """No pipeline, no part of speech: the guard stays out and gives no reason of its own."""
+    """A fact that keeps the cited figure and adds one from elsewhere swaps nothing."""
+    judged = Checker(passage(text, language=language)).atomic(statement, cited)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.parametrize(
+    ("text", "statement", "language", "swapped"),
+    [
+        (
+            "Die Kontoführung kostet 5,00 € im Monat. Eine Ersatzkarte kostet 12 Euro.",
+            "Die Kontoführung kostet 12 Euro im Monat.",
+            "de",
+            "5,00",
+        ),
+        (
+            "Die Kontoführung kostet 5 EUR im Monat. Eine Ersatzkarte kostet 12 €.",
+            "Die Kontoführung kostet 12 € im Monat.",
+            "de",
+            "5",
+        ),
+        (
+            "The monthly fee is USD 5. A wire transfer costs $25.",
+            "The monthly fee is $25.",
+            "en",
+            "5",
+        ),
+        (
+            "Account maintenance costs five euros a month. A replacement card costs 15 euros.",
+            "Account maintenance costs 15 euros a month.",
+            "en",
+            "5",
+        ),
+        (
+            "Account maintenance costs EUR 5 a month. Two statements a month are free.",
+            "Account maintenance costs two euros a month.",
+            "en",
+            "5",
+        ),
+        (
+            "Die Kontoführung kostet 5 Euro im Monat. Zwei Kontoauszüge im Monat sind kostenlos.",
+            "Die Kontoführung kostet zwei Euro im Monat.",
+            "de",
+            "5",
+        ),
+        (
+            "The basic account costs 5 euros a month. There are four account models.",
+            "The basic account costs four euros a month.",
+            "en",
+            "5",
+        ),
+        (
+            "Das Basiskonto kostet 5 Euro im Monat. Es gibt vier Kontomodelle.",
+            "Das Basiskonto kostet vier Euro im Monat.",
+            "de",
+            "5",
+        ),
+        (
+            "Delivery takes 5 working days. See Section 3 for details.",
+            "Delivery takes three working days.",
+            "en",
+            "5",
+        ),
+        (
+            "Returns are accepted within fourteen days. Refunds are paid within 30 days.",
+            "Returns are accepted within 30 days.",
+            "en",
+            "fourteen",
+        ),
+        (
+            (
+                "Die Rückgabe ist innerhalb von vierzehn Tagen möglich. Die Erstattung "
+                "erfolgt binnen 30 Tagen."
+            ),
+            "Die Rückgabe ist innerhalb von 30 Tagen möglich.",
+            "de",
+            "vierzehn",
+        ),
+        (
+            "Der Sollzins beträgt 11,9 Prozent. Der Habenzins beträgt 0,5 %.",
+            "Der Sollzins beträgt 0,5 %.",
+            "de",
+            "11,9",
+        ),
+        (
+            "The overdraft rate is 11.9 percent. Savings earn 0.5%.",
+            "The overdraft rate is 0.5%.",
+            "en",
+            "11.9",
+        ),
+        (
+            "Delivery takes 2 weeks. Returns are accepted within 30 days.",
+            "Delivery takes 30 days.",
+            "en",
+            "2",
+        ),
+        (
+            "Die Lieferung dauert 2 Wochen. Eine Rückgabe ist binnen 30 Tagen möglich.",
+            "Die Lieferung dauert 30 Tage.",
+            "de",
+            "2",
+        ),
+        (
+            "Prowadzenie konta kosztuje 5 PLN miesięcznie. Karta zastępcza kosztuje 25 PLN.",
+            "Prowadzenie konta kosztuje 25 PLN miesięcznie.",
+            "pl",
+            "5",
+        ),
+    ],
+)
+def test_a_swap_in_words_or_another_spelling_of_its_kind_is_refused(
+    text, statement, language, swapped
+) -> None:
+    """A figure in words, or a currency, share or span of time spelled another way, is of its kind."""
     judged = Checker(passage(text, language=language)).atomic(statement, 0)
 
-    assert "where the statement says" not in (judged.validation_error or "")
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
+    assert swapped in (judged.validation_error or ""), judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("text", "statement", "language"),
+    [
+        (
+            "Die Kontoführung kostet 5,00 € im Monat. Eine Ersatzkarte kostet 12 Euro.",
+            "Die Kontoführung kostet 5 € im Monat.",
+            "de",
+        ),
+        (
+            "Returns are accepted within fourteen days. Refunds are paid within 30 days.",
+            "Returns are accepted within 14 days.",
+            "en",
+        ),
+        (
+            "Der Sollzins beträgt 11,9 Prozent. Der Habenzins beträgt 0,5 %.",
+            "Der Sollzins beträgt 11,9 %.",
+            "de",
+        ),
+        (
+            "Delivery takes 2 weeks. A replacement card costs 5 euros.",
+            "Delivery takes two weeks.",
+            "en",
+        ),
+    ],
+)
+def test_one_figure_written_in_another_spelling_is_no_swap(
+    text, statement, language
+) -> None:
+    """The same value in words, a symbol or a code is the cited figure."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.parametrize(
+    ("text", "statement", "language", "validated"),
+    [
+        (
+            "Prowadzenie konta kosztuje 5 PLN miesięcznie. Karta zastępcza kosztuje 25 PLN.",
+            "Prowadzenie konta kosztuje 25 PLN miesięcznie.",
+            "pl",
+            False,
+        ),
+        (
+            (
+                "Zwrot towaru jest możliwy w ciągu 14 dni. Zwrot pieniędzy następuje "
+                "w ciągu 30 dni."
+            ),
+            "Zwrot towaru jest możliwy w ciągu 14 dni.",
+            "pl",
+            True,
+        ),
+    ],
+)
+def test_the_swapped_figure_guard_reads_words_only_where_the_language_is_configured(
+    text, statement, language, validated
+) -> None:
+    """Polish has a finite verb the default parse finds but no number words: a digit is read, a word is not.
+
+    A figure written out in a language no configuration names is no figure, so
+    it is neither a swap nor an excuse for one; the digits are compared as
+    in any language, and a correct fact stands.
+    """
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated is validated, (
+        judged.rejection_code,
+        judged.validation_error,
+    )
 
 
 def test_a_sub_number_of_the_passages_own_heading_is_no_support() -> None:

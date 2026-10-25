@@ -1204,6 +1204,24 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
     )
 
 
+def spoken_numbers(text: str, language: str | None) -> dict[int, str]:
+    """The cardinals a text writes out, by token index of `parse`, each as the digits it names.
+
+    Empty for a language with no row in `CARDINALS`: its number words are
+    read as words, never as figures.
+    """
+    document = _read(text, language)
+    cardinals = CARDINALS.get(document.lang_, {})
+    spoken = _spoken(document)
+    return {
+        token.i: value
+        for token in document
+        if token.text.casefold() in cardinals
+        and (value := spoken.get(token.i))
+        and value.isdigit()
+    }
+
+
 def as_noun(word: str, language: str | None) -> frozenset[str]:
     """The lemmas the language's rule lemmatizer gives a word read as a common noun.
 

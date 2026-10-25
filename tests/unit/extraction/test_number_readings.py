@@ -263,24 +263,25 @@ def test_a_language_without_amount_words_reads_no_grouped_number():
 
 
 # C-020: an atomic fact rests on its passage, so a spelled count another sentence
-# of the passage gives is supported.
+# of the passage gives is supported, unless the cited sentence gives another count
+# of the same kind: that is a swap, refused (test_fact_checker.py).
 @pytest.mark.parametrize(
     ("lang", "text", "fact"),
     [
         (
             "de",
             "Es gibt vier Kontomodelle. Das Basiskonto kostet 5 Euro im Monat.",
-            "Das Basiskonto kostet vier Euro im Monat.",
+            "Das Basiskonto kostet 5 Euro im Monat bei vier Kontomodellen.",
         ),
         (
             "en",
             "There are four account models. The basic account costs 5 euros a month.",
-            "The basic account costs four euros a month.",
+            "The basic account costs 5 euros a month across four account models.",
         ),
         (
             "en",
-            "See Section 3 for details. Delivery takes 5 working days.",
-            "Delivery takes three working days.",
+            "Parcels are sent in three boxes. Delivery takes 5 working days.",
+            "Delivery of three boxes takes 5 working days.",
         ),
     ],
 )

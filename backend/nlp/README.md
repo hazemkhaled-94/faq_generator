@@ -220,6 +220,8 @@ missing from one fails no test.
 | `_ENQUIRING` | same | Verbs of wanting, trying, checking and understanding, as lemmas: a premise whose main verbs, read through the infinitive one takes, are only these is asked again for the asker's own situation. A language with no row is never asked again | `prüfen`, `understand` |
 | `_STEP_LABEL` | [`gates.py`](../question_generation/gates.py) | The word a procedure's steps are numbered with: `Step 1:` is no figure the key lacks | `Schritt`, `Step` |
 | `_INFLECTIONS` | [`extraction/validation.py`](../extraction/validation.py) | The endings a label word takes to inflect: a form of a learned label word directly before a number counts as the label ("Sections 7"), a word that merely begins with it does not | `Abschnitte`, `Sections` |
+| `_SHARE_WORDS` | [`extraction/validation.py`](../extraction/validation.py) | The words that name a share (`%` and its word): a share is one kind of figure however it is written, so `0,5 %` for a cited `11,9 Prozent` is a swapped figure. A language missing here compares a share by the word as written | `Prozent`, `percent` |
+| `_TIME_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | The lemmas of the days, weeks and months a period is counted in: `30 days` for a cited `2 weeks` is a swapped figure. A language missing here compares a period by its unit as written | `Tag`, `week` |
 
 None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
 `_ASKING` are read by **lemma**, `_ATTRIBUTIONS`, `_SOURCE` and the two modifier tables by lemma or
