@@ -18,11 +18,8 @@ from nlp.models import named
 #: conditions, its exception and the set an "only" closes, carries a list's
 #: lead-in into each item, and leaves out claims about the document itself.
 #: 12 gives the heading trail as the situation a rule may hold only in, and
-#: keeps a list whose lead-in closes it as one fact. 15 gives the heading
-#: trail as what the excerpt is about and no frame to write: a scope is stated
-#: only where the excerpt states it, and no statement opens "In the <heading>
-#: situation".
-PROMPT_VERSION = "15"
+#: keeps a list whose lead-in closes it as one fact.
+PROMPT_VERSION = "12"
 
 #: Recorded on every fact the repair prompt wrote, which is how a later reader
 #: tells a claim split out of a refused statement from one the prompt above
@@ -128,26 +125,6 @@ Excerpt, under the context "Returns":
     2. sentences: [1]
        statement: "Staff should log every refund."
 
-NEVER OPEN A STATEMENT WITH A FRAME MADE OF THE HEADING. The context names the
-topic; a scope belongs in the statement only where the excerpt itself states
-it:
-
-Excerpt, under the context "Delivery > Express":
-
-  [0] Parcels arrive within 24 hours.
-
-  WRONG  statement: "In the express delivery situation, parcels arrive within
-                     24 hours."
-         (a frame built from the heading, which the excerpt never states)
-  RIGHT  statement: "Express parcels arrive within 24 hours."
-
-Excerpt, under the context "Cards > Fees":
-
-  [0] The annual fee is 20 EUR.
-
-  WRONG  statement: "In the fees situation, the annual fee is 20 EUR."
-  RIGHT  statement: "The annual fee is 20 EUR."
-
 A SENTENCE THAT ASKS SOMETHING STATES NOTHING, and is not to be turned round
 into the claim it would be if the answer were yes:
 
@@ -175,8 +152,7 @@ Rules, all of them mandatory:
   appear in the sentences you cite. Do not round, convert, infer or complete.
 - KEEP THE SCOPE. Carry the qualifiers that make the claim true on its own:
   the date, the place, the party, the unit, the condition, the exception,
-  the "only", and the situation the excerpt or its lead-in states. The section
-  context says what the excerpt is about; it is not a scope to write in.
+  the "only", and the situation a lead-in or heading sets.
 - A number, a date, a name, a limit, a duty and a definition are each a claim
   worth a fact of its own.
 - ABOUT THE SUBJECT, NOT THE DOCUMENT. Leave out claims about the document
@@ -491,9 +467,8 @@ class LlmExtractor(Extractor):
         """
         heading = (
             f"Context (not part of the excerpt): {passage.section_path}. It "
-            f"says what the excerpt is about. State a scope only where the "
-            f"excerpt itself states it, and never write a frame such as "
-            f'"In the <heading> situation".\n\n'
+            f"names the situation the excerpt sits in; when a rule holds only "
+            f"in that situation, the statement names it.\n\n"
             if passage.section_path
             else ""
         )

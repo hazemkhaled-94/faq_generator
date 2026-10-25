@@ -126,36 +126,15 @@ def test_a_heading_trail_is_fenced_off_and_labelled() -> None:
     assert sent.index("Context") < sent.index("Excerpt:")
 
 
-def test_the_context_is_given_as_what_the_excerpt_is_about_not_a_frame_to_write() -> (
-    None
-):
-    """Read as a situation to name, a heading became "In the <heading> situation"."""
+def test_the_context_is_given_as_the_situation_a_rule_holds_in() -> None:
+    """Labelled only as what the excerpt is about, a heading's scope was dropped."""
     client = _Client(_Answer())
     LlmExtractor(client).extract(passage(section_path="Accounts > Students"))
 
     assert client.asked["user"].startswith(
-        "Context (not part of the excerpt): Accounts > Students. It says what "
-        "the excerpt is about. State a scope only where the excerpt itself "
-        'states it, and never write a frame such as "In the <heading> '
-        'situation".'
-    )
-
-
-def test_the_prompt_forbids_a_heading_frame_and_shows_it_in_a_shop_and_a_bank() -> None:
-    """Scope is the excerpt's own; the examples are not football's."""
-    from extraction.extractors import llm
-
-    client = _Client(_Answer())
-    LlmExtractor(client).extract(passage())
-    system = " ".join(client.asked["system"].split())
-
-    assert llm.PROMPT_VERSION == "15"
-    assert "NEVER OPEN A STATEMENT WITH A FRAME MADE OF THE HEADING" in system
-    assert (
-        'WRONG statement: "In the express delivery situation, parcels arrive' in system
-    )
-    assert (
-        'WRONG statement: "In the fees situation, the annual fee is 20 EUR."' in system
+        "Context (not part of the excerpt): Accounts > Students. It names the "
+        "situation the excerpt sits in; when a rule holds only in that "
+        "situation, the statement names it."
     )
 
 
