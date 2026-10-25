@@ -274,7 +274,7 @@ class PdfPipeline(Pipeline):
             unread_pages=image_only_pages(source.data, self._ocr_characters),
             unseen_characters=unseen_characters(source.data),
             interleaved=_interleaved_pages(document, source.data),
-            page_scores=_page_scores(result),
+            page_scores=_page_scores(result, _blank_pages(source.data)),
             titles=_titles(document, source.data),
         )
 
@@ -1879,17 +1879,38 @@ def _score(result: ConversionResult, name: str) -> float | None:
     return None if value is None or math.isnan(value) else float(value)
 
 
-def _page_scores(result: ConversionResult) -> tuple[tuple[int, float], ...]:
+def _blank_pages(data: bytes) -> frozenset[int]:
+    """Names the pages that show nothing: no text, no picture, no drawing."""
+    blank = set()
+    with pymupdf.open(stream=data, filetype="pdf") as document:
+        for number in range(1, document.page_count + 1):
+            page = document[number - 1]
+            if not (
+                page.get_text("words") or page.get_image_info() or page.get_drawings()
+            ):
+                blank.add(number)
+    return frozenset(blank)
+
+
+def _page_scores(
+    result: ConversionResult, blank: frozenset[int] = frozenset()
+) -> tuple[tuple[int, float], ...]:
     """Reads each page's own lower-bound confidence off a conversion.
+
+    Args:
+        result: The conversion.
+        blank: The pages that show nothing, which have no text to be unsure of
+            and score zero.
 
     Returns:
         Each page's number and score in page order; a page with none, or a
-        NaN, is left out, and so is a conversion that reports none.
+        NaN, is left out, and so is a blank page and a conversion that
+        reports none.
     """
     pages = getattr(getattr(result, "confidence", None), "pages", None) or {}
     scores = []
     for number in sorted(pages):
         value = getattr(pages[number], "low_score", None)
-        if value is not None and not math.isnan(value):
+        if number not in blank and value is not None and not math.isnan(value):
             scores.append((number, float(value)))
     return tuple(scores)

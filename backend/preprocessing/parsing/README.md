@@ -251,7 +251,8 @@ conversion with no score is not checked. So that a page averaged away is not
 lost, every page whose own low score is under the floor is named in the parse
 note (`documents.parse_error`, beside the image-only pages) and in the
 converted object's `low-confidence-pages` metadata, and the document still
-parses.
+parses. A page that shows nothing (no text, no picture, no drawing) is not
+named: it scores zero and has no text to be unsure of.
 
 A document whose `content_sha256` another document already holds fails too.
 Ingestion catches a file uploaded twice by its bytes; the same report

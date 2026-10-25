@@ -108,3 +108,46 @@ def test_pages_read_across_their_columns_are_named_in_the_note() -> None:
     assert "page(s) 3, 4 are set in columns" in (driver.notes[SHA] or "")
     held = driver.parsed.metadata[driver.parsed.key_for(SHA)]
     assert held["interleaved-pages"] == "3,4"
+
+
+def _pdf(*pages: str) -> bytes:
+    """A PDF whose pages hold the given texts; an empty text is a blank page."""
+    import pymupdf
+
+    with pymupdf.open() as document:
+        for text in pages:
+            page = document.new_page()
+            if text:
+                page.insert_text((72, 100), text)
+        return document.tobytes()
+
+
+@pytest.mark.parametrize(
+    "texts",
+    [("Preisliste", "", "Zeilen"), ("Price list", "", "Rows")],
+    ids=["german", "english"],
+)
+def test_a_blank_page_is_not_named_as_one_the_converter_is_unsure_of(texts) -> None:
+    """A page that shows nothing has no text to be unsure of; a garbled one has."""
+    from preprocessing.parsing.pipelines.pdf import _blank_pages
+
+    blank = _blank_pages(_pdf(*texts))
+    result = scored(0.0, 0.0, 0.0)
+
+    assert blank == frozenset({2})
+    assert _page_scores(result, blank) == ((1, 0.0), (3, 0.0))
+
+
+def test_a_page_with_a_picture_and_no_text_is_not_blank() -> None:
+    """A picture is something to read, so its score stands."""
+    import pymupdf
+
+    from preprocessing.parsing.pipelines.pdf import _blank_pages
+
+    with pymupdf.open() as document:
+        page = document.new_page()
+        pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 20, 20), False)
+        page.insert_image(pymupdf.Rect(50, 50, 150, 150), pixmap=pixmap)
+        data = document.tobytes()
+
+    assert _blank_pages(data) == frozenset()
