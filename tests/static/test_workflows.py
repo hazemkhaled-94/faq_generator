@@ -239,3 +239,18 @@ def test_ci_installs_the_poetry_that_wrote_the_lock() -> None:
 
     assert written, "poetry.lock does not say which poetry wrote it"
     assert f"pipx install poetry=={written.group(1)}\n" in action
+
+
+def test_the_nightly_fails_rather_than_skips_where_weights_are_missing() -> None:
+    """Fetches the models, runs offline, and makes a skip on a weight an error."""
+    job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["weights"]
+    steps = {step["name"]: step for step in job["steps"] if "name" in step}
+    fetch = steps["Fetch the models at their pinned revisions"]["run"]
+    run = steps["Run what needs them"]
+
+    assert "EMBEDDING_MODEL" in fetch and "NLI_MODEL" in fetch
+    assert "snapshot_download" in fetch and "revision" in fetch
+    assert run["env"]["REQUIRE_MODELS"] == "1"
+    assert run["env"]["HF_HUB_OFFLINE"] == "1"
+    for tests in ("test_embedding.py", "test_fact_refusals.py", "tests/golden"):
+        assert tests in run["run"], tests

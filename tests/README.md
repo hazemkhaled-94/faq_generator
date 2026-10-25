@@ -126,6 +126,11 @@ all, and **a gate that accepts everything cannot be told from no gate**.
 - [`e2e/test_pipeline.py`](e2e/test_pipeline.py) stands the embedder in for
   with a digest.
 
+Every skip on a missing weight goes through
+[`weights.unavailable`](weights.py), which fails instead where
+`REQUIRE_MODELS=1`. The nightly `weights` job sets it, so a model that is not
+there is an error in the job and not a skip nobody reads.
+
 ## Every warning is an error
 
 `filterwarnings = error`, with five ignores in
@@ -187,6 +192,7 @@ request and every push to `main`:
 | `everything` | Every layer but `eval` and `perf`, images included |
 | `mutation` | `make mutation`, with the survivors in the job summary |
 | `ceilings` | `make test-perf` |
+| `weights` | Fetches the embedding, NLI and Docling weights at their pinned revisions, then runs the tests that need them offline with `REQUIRE_MODELS=1`: the embedder, the duplicate-verdict table, the chunker's tokenizer and the golden PDFs |
 | `evaluate` | The model evaluation — every test skips unless `LLM_MODEL` is a repository variable |
 
 ## Limits

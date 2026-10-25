@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 
 import pytest
+import weights
 from drivers import DIGEST_SHARE, Model, Queue, passage
 
 from database.qa_generator import Rejection
@@ -36,7 +37,7 @@ def embedder():
         isinstance(try_to_load_from_cache(MODEL, name), str)
         for name in ("model.safetensors", "pytorch_model.bin")
     ):
-        pytest.skip(f"{MODEL}'s weights are not in the cache")
+        weights.unavailable(f"{MODEL}'s weights are not in the cache")
     from nlp.embedding import Embedder
 
     return Embedder(MODEL, max_tokens=int(os.environ["EMBEDDING_MAX_TOKENS"]))

@@ -90,6 +90,49 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # The tests that need real weights skip on a laptop with none. Here a
+  # missing weight is the failure: the models are fetched at their pinned
+  # revisions (EMBEDDING_MODEL_REVISION, NLI_MODEL_REVISION, where
+  # configs/env/backend.env sets them), the run is offline, and
+  # REQUIRE_MODELS=1 turns a skip into an error. The log shows the duplicate
+  # verdict table and the golden PDFs as run, not skipped.
+  weights:
+    name: Real weights
+    needs: setup
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/setup
+        id: setup
+      - name: Cache the models
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}
+      - name: Fetch the models at their pinned revisions
+        run: |
+          set -a; . configs/env/backend.env; set +a
+          poetry run python - <<'PY'
+          import os
+          from huggingface_hub import snapshot_download
+          for model, revision in (
+              ("EMBEDDING_MODEL", "EMBEDDING_MODEL_REVISION"),
+              ("NLI_MODEL", "NLI_MODEL_REVISION"),
+          ):
+              snapshot_download(os.environ[model], revision=os.environ.get(revision) or None)
+          PY
+          PYTHONPATH=backend poetry run python -m preprocessing.parsing.weights
+      - name: Run what needs them
+        env:
+          HF_HUB_OFFLINE: "1"
+          REQUIRE_MODELS: "1"
+        run: >
+          poetry run pytest -rs
+          tests/unit/nlp/test_embedding.py
+          tests/regression/test_fact_refusals.py
+          tests/unit/chunking/test_chunking.py
+          tests/golden
+
   # The ceilings the code names in a comment. Reported rather than gated: a
   # wall-clock budget on a shared runner measures the runner.
   ceilings:

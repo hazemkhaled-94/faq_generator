@@ -19,6 +19,7 @@ import re
 from typing import ClassVar
 
 import pytest
+import weights
 from sqlalchemy import text
 
 from database.qa_generator import Status
@@ -376,7 +377,7 @@ def chunker():
             merge_peers=True,
         )
     except Exception as exc:  # noqa: BLE001 - any failure is the same answer
-        pytest.skip(f"the chunker's tokenizer is unavailable: {exc}")
+        weights.unavailable(f"the chunker's tokenizer is unavailable: {exc}")
 
 
 @pytest.fixture

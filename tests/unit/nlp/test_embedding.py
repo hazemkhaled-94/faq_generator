@@ -9,6 +9,7 @@ first time the chunk worker or the question worker starts.
 from __future__ import annotations
 
 import pytest
+import weights
 
 from nlp.embedding import WIDTH, Embedder, cosine
 
@@ -32,7 +33,7 @@ def embedder() -> Embedder:
         isinstance(try_to_load_from_cache(MODEL, name), str)
         for name in ("model.safetensors", "pytorch_model.bin")
     ):
-        pytest.skip(f"{MODEL}'s weights are not in the cache")
+        weights.unavailable(f"{MODEL}'s weights are not in the cache")
     return Embedder(MODEL, max_tokens=512)
 
 
@@ -97,7 +98,7 @@ def test_a_passage_cut_to_the_chunk_budget_fits_the_embedder() -> None:
     try:
         tokenizer = AutoTokenizer.from_pretrained(MODEL, local_files_only=True)
     except Exception as exc:  # noqa: BLE001 - any failure is the same answer
-        pytest.skip(f"{MODEL} is not in the cache: {exc}")
+        weights.unavailable(f"{MODEL} is not in the cache: {exc}")
     budget = PassageBuilder(
         embedding_model=MODEL, max_tokens=512, merge_peers=True
     )._max_tokens

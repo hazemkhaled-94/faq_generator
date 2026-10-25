@@ -13,6 +13,7 @@ import os
 from typing import Any
 
 import pytest
+import weights
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -678,7 +679,7 @@ def test_the_builder_keeps_a_lead_in_with_its_list() -> None:
             merge_peers=False,
         )
     except Exception as exc:  # noqa: BLE001 - any failure is the same answer
-        pytest.skip(f"the chunker's tokenizer is unavailable: {exc}")
+        weights.unavailable(f"the chunker's tokenizer is unavailable: {exc}")
 
     passages = builder.build(listed(), "en").passages
 
