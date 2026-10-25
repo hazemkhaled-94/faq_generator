@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import BigInteger, any_, literal, or_, select
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from database.qa_generator.engine import sessions
 from database.qa_generator.facts import Fact
@@ -39,47 +40,50 @@ def lock_reached(session, fact_ids: Any) -> None:
             of them.
     """
     session.execute(
-        select(Fact.id).where(Fact.id.in_(fact_ids)).order_by(Fact.id).with_for_update()
+        select(Fact.id)
+        .where(_among(Fact.id, fact_ids))
+        .order_by(Fact.id)
+        .with_for_update()
     ).all()
-    reached = set(
-        session.scalars(
-            select(QuestionFact.question_id).where(QuestionFact.fact_id.in_(fact_ids))
-        )
+    seed = select(QuestionFact.question_id.label("id")).where(
+        _among(QuestionFact.fact_id, fact_ids)
     )
-    thread = _thread(session, reached)
     session.execute(
         select(Question.id)
-        .where(Question.id.in_(sorted(thread)))
+        .where(Question.id == any_(_array(_thread(session, seed))))
         .order_by(Question.id)
         .with_for_update()
     ).all()
 
 
-def _thread(session, ids: set[int]) -> set[int]:
-    """These questions with every other question of their threads, root to last follow-up."""
-    found = set(ids)
-    upward = found
-    while upward:
-        upward = {
-            parent
-            for parent in session.scalars(
-                select(Question.follows_id).where(Question.id.in_(upward))
-            )
-            if parent is not None and parent not in found
-        }
-        found |= upward
-    downward = found
-    while downward:
-        downward = (
-            set(
-                session.scalars(
-                    select(Question.id).where(Question.follows_id.in_(downward))
-                )
-            )
-            - found
+def _array(ids: Any):
+    """A list of ids as one array parameter, whose size psycopg does not count against its limit."""
+    return literal(list(ids), ARRAY(BigInteger))
+
+
+def _among(column, ids: Any):
+    """`column` among some ids: a select of them, or a list sent as one array parameter."""
+    if isinstance(ids, list | tuple | set):
+        return column == any_(_array(ids))
+    return column.in_(ids)
+
+
+def _thread(session, seed) -> list[int]:
+    """The seed questions with every other question of their threads, root to last follow-up, by id.
+
+    Walked in SQL, so no id is sent back as a parameter of its own: a corpus
+    of a hundred thousand questions is one statement, not one parameter each.
+    """
+    reached = seed.subquery()
+    up = select(reached.c.id).cte("up", recursive=True)
+    up = up.union(
+        select(Question.follows_id).where(
+            Question.id == up.c.id, Question.follows_id.is_not(None)
         )
-        found |= downward
-    return found
+    )
+    down = select(up.c.id).cte("down", recursive=True)
+    down = down.union(select(Question.id).where(Question.follows_id == down.c.id))
+    return sorted(set(session.scalars(select(down.c.id))))
 
 
 def storable(text: str) -> bool:
