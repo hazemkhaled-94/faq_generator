@@ -70,6 +70,12 @@ _RETRY_CEILING = 60.0
 #: says what is wrong without scrolling.
 _RETRY_REPORT_SECONDS = 600.0
 
+#: How often a wait for a container worker says it is still waiting when the
+#: counts have not moved: a worker that never claims - held by a stale image,
+#: a refused stored row or a model it cannot reach - is otherwise one line,
+#: and then silence for as long as the hosted run waits.
+_WAIT_REPORT_SECONDS = 300.0
+
 #: How long a watching worker whose service would not build on new settings
 #: waits before building it again, and the ceiling that doubles towards.
 #: Every attempt is a preflight model call and a build, and a value that
@@ -451,30 +457,42 @@ def drain_once(service: StageService) -> int:
     return STOPPED if shutdown.requested() else exit_code(service)
 
 
-def wait_for_worker(name: str, queue: StageQueue, interval: float) -> int:
+def wait_for_worker(
+    name: str,
+    queue: StageQueue,
+    interval: float,
+    clock: Callable[[], float] = time.monotonic,
+) -> int:
     """Waits for the stage's container worker to empty the queue, and says how it ended.
 
     What the corpus chain does where that worker runs - parsing and chunking
     on the go-live profile - since a host drain beside it is what the
     Makefile's guard refuses. Polls the counts every `interval` seconds and
-    logs them when they move, until nothing is pending or in progress. Exits
-    as a drain would: 3 when rows failed while it waited, so the chain stops
-    there, and 75 when a stop is asked for, which it obeys at once because
-    it holds nothing.
+    logs them when they move, and every `_WAIT_REPORT_SECONDS` when they do
+    not, naming a worker that has claimed nothing in that time, until nothing
+    is pending or in progress. Exits as a drain would: 3 when rows failed
+    while it waited, so the chain stops there, and 75 when a stop is asked
+    for, which it obeys at once because it holds nothing.
     """
     shutdown = Shutdown().install()
     try:
         counts = queue.counts_by_status()
         failed = counts.get(Status.FAILED, 0)
-        said = None
+        said, said_at = None, clock()
         while any(left := tuple(counts.get(one, 0) for one in OUTSTANDING)):
-            if left != said:
+            idle = clock() - said_at
+            if left != said or idle >= _WAIT_REPORT_SECONDS:
+                still = left == said and not left[1]
                 log.info(
-                    "%s: waiting for its worker: %d pending, %d in progress",
+                    "%s: waiting for its worker: %d pending, %d in progress%s",
                     name,
                     *left,
+                    f"; it has claimed nothing for {_for(idle)}: read its log for a "
+                    "stale image, a refused setting or a model it cannot reach"
+                    if still
+                    else "",
                 )
-                said = left
+                said, said_at = left, clock()
             shutdown.wait(interval)
             if shutdown.requested():
                 return STOPPED

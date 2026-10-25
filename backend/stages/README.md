@@ -136,7 +136,7 @@ The actions are **mutually exclusive**.
 | `--retry` | Return failed rows to the queue | yes |
 | `--rerun` | Queue every row again, finished ones included, after the preflight, then drain | yes |
 | `--reclaim` | Return a row a dead worker still holds, without waiting out its lease | yes |
-| `--wait` | Wait for the stage's container worker to empty the queue, logging the counts as they move: what `make corpus` does where that worker runs. Exits 3 when rows failed meanwhile, 75 when told to stop. Topic modelling has no such flag | — |
+| `--wait` | Wait for the stage's container worker to empty the queue, logging the counts as they move and every five minutes when they do not, naming a worker that has claimed nothing: what `make corpus` does where that worker runs. Exits 3 when rows failed meanwhile, 75 when told to stop. Topic modelling has no such flag | — |
 | `--only SCOPE=VALUE` | Narrow the action to one item. Refused on a bare drain and on a `--rerun` while rows outside it are queued. Topic modelling takes no scope and ignores it | — |
 | `--watch` | Drain, and keep draining | — |
 | no flag | Drain the queue once, in the foreground, and stop | — |

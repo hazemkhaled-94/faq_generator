@@ -882,3 +882,24 @@ def test_a_wait_told_to_stop_exits_75(monkeypatch, _signals) -> None:
             return {Status.IN_PROGRESS: 1}
 
     assert _wait(monkeypatch, _Busy({})) == cli.STOPPED
+
+
+def test_a_wait_that_does_not_move_is_said_every_five_minutes(
+    monkeypatch, caplog
+) -> None:
+    """A worker that claims nothing - a stale image, a refused row, a model down - is named."""
+    from database.qa_generator import Status
+    from stages import cli
+
+    queue = _Emptied(*([{Status.PENDING: 2}] * 4), {Status.PARSED: 2})
+    clock = iter(range(0, 10_000, 301))
+
+    with caplog.at_level("INFO"):
+        code = cli.wait_for_worker(
+            "parsing", queue, 0.0, clock=lambda: float(next(clock))
+        )
+
+    said = [r.getMessage() for r in caplog.records if "waiting" in r.getMessage()]
+    assert code == 0
+    assert len(said) >= 3, said
+    assert any("claimed nothing" in line for line in said), said
