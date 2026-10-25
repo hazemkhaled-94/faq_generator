@@ -1,0 +1,19 @@
+{
+ "passages": [
+  {
+   "block_type": "table",
+   "pages": [
+    1,
+    1
+   ],
+   "section_path": "Delivery prices",
+   "text": "The price of a delivery depends on the weight of the parcel.\n| Weight      | Price    |   Days |\n|-------------|----------|--------|\n| up to 2 kg  | 4 euros  |      2 |\n| up to 10 kg | 9 euros  |      3 |\n| up to 30 kg | 19 euros |      5 |"
+  }
+ ],
+ "tables": [
+  {
+   "columns": 3,
+   "rows": 4
+  }
+ ]
+}

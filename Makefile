@@ -322,7 +322,7 @@ help:
         questions-runs questions-diff \
         documents ingest delete delete-derived wipe-all wipe-preflight dagster-wipe \
         archive archive-purge restore-documents s3-prefix backup restore-backup restore-backup-stack \
-        test test-fast test-unit test-integration test-e2e test-smoke \
+        test test-fast test-unit test-integration test-e2e test-golden golden-refresh test-smoke \
         test-eval test-coverage test-perf mutation \
         check typecheck audit lint lint-imports deps \
         eval-phrasing \
@@ -1822,16 +1822,16 @@ restore-documents:
 # failure that only happens in one order is a test depending on another,
 # and `-p randomly --randomly-seed=<n>` reproduces it.
 test:
-	poetry run pytest -m "not smoke and not eval and not perf"
+	poetry run pytest -m "not slow and not smoke and not eval and not perf"
 
 # Without the slow ones: no spaCy pipelines, no pyright, no containers.
 # Over every core, which the unit layer can be: it shares no container.
 test-fast:
-	poetry run pytest -n auto -m "not nlp and not types and not integration and not smoke and not eval and not perf"
+	poetry run pytest -n auto -m "not nlp and not types and not integration and not slow and not smoke and not eval and not perf"
 
 # The layers on their own, for working on one of them.
 test-unit:
-	poetry run pytest -n auto -m "not integration and not smoke and not eval and not perf"
+	poetry run pytest -n auto -m "not integration and not slow and not smoke and not eval and not perf"
 
 # Everything needing a Postgres and a SeaweedFS, short of end to end.
 test-integration:
@@ -1840,6 +1840,18 @@ test-integration:
 # One corpus, every stage, against a stack of its own.
 test-e2e:
 	poetry run pytest -m e2e
+
+# Real PDFs through the real converter and chunker, against the snapshots in
+# tests/golden/snapshots: what a Docling release does to text, headings, pages
+# and tables. Weights from the cache, offline, so a missing one fails the run.
+test-golden:
+	HF_HUB_OFFLINE=1 poetry run pytest -m slow tests/golden
+
+# After a change to the parse or the chunker that is meant: rewrite the
+# snapshots that test-golden compares against, then read the diff before
+# committing it.
+golden-refresh:
+	HF_HUB_OFFLINE=1 GOLDEN_REFRESH=1 poetry run pytest -m slow tests/golden
 
 # Builds both images and reads the compose file. Minutes, not seconds, and
 # it starts no stack: compose.yaml binds its ports from deployment.env, so a
@@ -1863,7 +1875,7 @@ test-eval:
 # and enforced per run it fails the first one for not being the second.
 test-coverage:
 	poetry run coverage erase
-	poetry run pytest -m "not integration and not smoke and not eval and not perf" \
+	poetry run pytest -m "not integration and not slow and not smoke and not eval and not perf" \
 	  --cov --cov-append --cov-report= --cov-fail-under=0
 	poetry run pytest -m "integration and not perf" --cov --cov-append --cov-report= --cov-fail-under=0
 	poetry run coverage report

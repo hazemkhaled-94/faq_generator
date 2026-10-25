@@ -1,0 +1,5 @@
+shopping_de.pdf and shopping_en.pdf: Your Europe, (c) European Union, 1995-2026, CC BY 4.0
+(https://european-union.europa.eu/legal-notice_en); printed to PDF on 2026-10-20.
+Each page was printed from a saved copy with its scripts removed, the site header, menu,
+share box and footer hidden, and every accordion open except the country pickers; the
+text is unchanged.

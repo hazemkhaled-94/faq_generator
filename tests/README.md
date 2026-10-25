@@ -28,6 +28,7 @@ make mutation       # change a gate and ask whether a test notices. Hours
 | [`contract/`](contract/) | The OpenAPI surface, the paths the frontend builds, the refusals each route declares, and generated calls against every read route | a container |
 | [`integration/`](integration/) | The database, the object store and the HTTP surface, against the images compose runs | a container |
 | [`e2e/`](e2e/) | One document through every stage in this process, then a German and an English shop's terms through the bridge pass, the release draw, a stub-judged assessment and the workbook export, with the PDF converter, the served models, the judge, the embedder and the topic fit stood in for | a container |
+| [`golden/`](golden/) | Real PDFs through the real converter and chunker, against stored snapshots of their text, heading trail, pages and tables. Two pages of the shop corpus (CC BY 4.0, see `pdfs/ATTRIBUTION.txt`) and one made in the test. `make test-golden`; `make golden-refresh` after a change that is meant | the cached Docling and tokenizer weights |
 | [`frontend/`](frontend/) | Each Streamlit page against a scripted backend | nothing |
 | [`smoke/`](smoke/) | Both images built and looked inside, and the compose file resolved | a container engine |
 | [`eval/`](eval/) | How a real served model reads the golden passages, answers the phrasing judgements and writes questions, and whether the round-trip gate splits the golden questions | a served model |
@@ -46,6 +47,7 @@ silently never runs.
 | `frontend` | Runs a Streamlit view |
 | `e2e` | Drives the whole pipeline in this process |
 | `smoke` | Builds images and reads the compose file |
+| `slow` | Converts real PDFs with Docling from the cached weights; `make test` leaves it out, `make test-golden` runs it |
 | `eval` | Scores a real served model; **never gates** |
 | `perf` | Times the ceilings the code names; **never gates** |
 

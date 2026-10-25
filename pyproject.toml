@@ -345,6 +345,7 @@ markers = [
     "frontend: runs a Streamlit view",
     "e2e: drives the whole pipeline in this process",
     "smoke: builds images and reads the compose file",
+    "slow: converts real PDFs with Docling, from the cached weights; make test-golden",
     "eval: scores a real served model; never gates",
     "perf: times the ceilings the code names; never gates",
 ]

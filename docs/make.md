@@ -586,6 +586,8 @@ calls too, and so is one whose spans Phoenix would not hand over.
 | `make test-unit` | Everything but integration, smoke, eval and perf |
 | `make test-integration` | The container layers, end to end aside, which is `make test-e2e` |
 | `make test-e2e` | One document through every stage, in this process, and on through the bridge pass, the release draw, a stub-judged assessment and the workbook export |
+| `make test-golden` | Real PDFs, two of the shop corpus and one made in the test, through the real converter and chunker, against the snapshots in `tests/golden/snapshots`: text, heading trail, pages and table size. Slow, offline from the weight cache, and fails rather than skips where a weight is missing. `make test` leaves it out |
+| `make golden-refresh` | Rewrite those snapshots after a change to the parse or the chunker that is meant; read the diff before committing it |
 | `make test-smoke` | Build both images and look inside them |
 | `make test-eval` | Score the served model against the golden passages. Never gates |
 | `make test-perf` | Time the ceilings the code names. Never gates |
