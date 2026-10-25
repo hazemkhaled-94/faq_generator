@@ -46,9 +46,12 @@
   },
   "/assessment/status": {
     "get": {
-      "parameters": [],
+      "parameters": [
+        "digests"
+      ],
       "responses": [
-        "200"
+        "200",
+        "422"
       ]
     }
   },
@@ -72,6 +75,7 @@
   "/assessment/{scope}/{value}/status": {
     "get": {
       "parameters": [
+        "digests",
         "scope",
         "value"
       ],
@@ -104,9 +108,12 @@
   },
   "/chunking/status": {
     "get": {
-      "parameters": [],
+      "parameters": [
+        "digests"
+      ],
       "responses": [
-        "200"
+        "200",
+        "422"
       ]
     }
   },
@@ -130,6 +137,7 @@
   "/chunking/{scope}/{value}/status": {
     "get": {
       "parameters": [
+        "digests",
         "scope",
         "value"
       ],
@@ -234,9 +242,12 @@
   },
   "/extraction/status": {
     "get": {
-      "parameters": [],
+      "parameters": [
+        "digests"
+      ],
       "responses": [
-        "200"
+        "200",
+        "422"
       ]
     }
   },
@@ -260,6 +271,7 @@
   "/extraction/{scope}/{value}/status": {
     "get": {
       "parameters": [
+        "digests",
         "scope",
         "value"
       ],
@@ -356,9 +368,12 @@
   },
   "/parsing/status": {
     "get": {
-      "parameters": [],
+      "parameters": [
+        "digests"
+      ],
       "responses": [
-        "200"
+        "200",
+        "422"
       ]
     }
   },
@@ -381,6 +396,7 @@
   "/parsing/{scope}/{value}/status": {
     "get": {
       "parameters": [
+        "digests",
         "scope",
         "value"
       ],
@@ -619,9 +635,12 @@
   },
   "/questions/status": {
     "get": {
-      "parameters": [],
+      "parameters": [
+        "digests"
+      ],
       "responses": [
-        "200"
+        "200",
+        "422"
       ]
     }
   },
@@ -666,6 +685,7 @@
   "/questions/{scope}/{value}/status": {
     "get": {
       "parameters": [
+        "digests",
         "scope",
         "value"
       ],
@@ -783,9 +803,12 @@
   },
   "/topics/status": {
     "get": {
-      "parameters": [],
+      "parameters": [
+        "digests"
+      ],
       "responses": [
-        "200"
+        "200",
+        "422"
       ]
     }
   },
