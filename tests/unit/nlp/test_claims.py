@@ -566,6 +566,28 @@ def test_one_rule_with_its_condition_or_alternatives_is_one_claim(
         ("de", "Die Bank haftet, und der Kunde haftet."),
         ("de", "Die Karte wird gesperrt, und der Kunde wird informiert."),
         ("en", "The customer pays, and the merchant delivers."),
+        # A short main clause after a main clause and a subordinate one: its
+        # subject and its verb are both second place and last place.
+        (
+            "de",
+            "Die Bank zahlt Zinsen, wenn das Guthaben 1.000 Euro übersteigt, und der Kunde haftet.",
+        ),
+        (
+            "de",
+            "Der Kunde meldet den Verlust, sobald er ihn bemerkt, und die Bank sperrt.",
+        ),
+        (
+            "de",
+            "Der Händler liefert die Ware, die der Kunde bestellt hat, und der Kunde zahlt.",
+        ),
+        (
+            "de",
+            "Die Bank belastet die Gebühr, die im Preisverzeichnis steht, und der Kunde zahlt.",
+        ),
+        (
+            "en",
+            "The bank pays interest if the balance exceeds EUR 1,000, and the customer is liable.",
+        ),
     ],
 )
 def test_two_independent_main_clauses_are_still_two_claims(

@@ -234,17 +234,27 @@ def _finite_of(verb):
 
 
 def _ends_on_verb(verb) -> bool:
-    """Whether a conjunct clause has words before its finite verb and ends on it.
+    """Whether a conjunct clause has several constituents before its finite verb and ends on it.
 
     The clause's own tokens, without the clauses coordinated to it and their
-    coordinators: German subordinate order, the finite verb last.
+    coordinators: German subordinate order, the finite verb last. One
+    constituent before it is a subject and its verb, which main-clause order
+    also writes: "und der Kunde zahlt".
     """
     dropped: set[int] = set()
     for child in verb.children:
         if child.dep_ in _COORDINATION or child.dep_ in ("cc", "cd"):
             dropped |= {one.i for one in child.subtree}
     own = [one for one in verb.subtree if one.i not in dropped and not one.is_punct]
-    return len(own) >= 2 and max(own, key=lambda one: one.i).i == _finite_of(verb).i
+    finite = _finite_of(verb)
+
+    def constituent(token) -> int:
+        while token.head.i not in (token.i, verb.i):
+            token = token.head
+        return token.i
+
+    before = {constituent(one) for one in own if one.i < finite.i}
+    return len(before) >= 2 and max(own, key=lambda one: one.i).i == finite.i
 
 
 def _after_subordinate(verb, verbs: list) -> bool:
