@@ -363,12 +363,13 @@ def test_corpus_hosted_runs_the_corpus_detached_with_a_pid_file_and_a_log(
 
 
 def _started(pid: int) -> str:
-    """A process's start time, as the runner records its run's leader."""
+    """A process's start time, as the runner records its run's leader: in C, at UTC."""
     return subprocess.run(
         ["ps", "-o", "lstart=", "-p", str(pid)],
         capture_output=True,
         text=True,
         check=True,
+        env={**os.environ, "LC_ALL": "C", "TZ": "UTC0"},
     ).stdout.strip()
 
 
@@ -920,3 +921,31 @@ def test_corpus_hosted_asks_the_preflight_once(tmp_path: Path) -> None:
     _waited(project)
 
     assert sum("preflight" in line for line in _drained(project)) == 1
+
+
+@pytest.mark.parametrize(
+    ("started", "stopped"),
+    [
+        ({"LC_ALL": "de_DE.UTF-8"}, {"LC_ALL": "C"}),
+        ({"LC_ALL": "C", "TZ": "America/New_York"}, {"LC_ALL": "C", "TZ": "UTC0"}),
+    ],
+    ids=["locale", "zone"],
+)
+def test_a_run_started_under_one_locale_or_zone_is_stopped_under_another(
+    tmp_path: Path, started: dict[str, str], stopped: dict[str, str]
+) -> None:
+    """A launchd daemon has no LANG, the Terminal that stops it the user's region."""
+    project = _project(tmp_path, env=GO_LIVE)
+    assert _make(project, "corpus-hosted", SLOW="60", **started).returncode == 0
+    _until(lambda: _extracting(project))
+    record = next(
+        (project / folder)
+        for folder in ("state", "logs")
+        if (project / folder / "corpus-hosted.pid").exists()
+    )
+    group = int((record / "corpus-hosted.pid").read_text().split()[0])
+
+    stop = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=20", **stopped)
+
+    assert (project / "drains.log.stopped").exists(), stop.stdout
+    assert not _alive(group)

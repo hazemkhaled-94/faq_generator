@@ -98,13 +98,20 @@ recorded=
 started=
 [ ! -f "$pid" ] || { read -r group recorded; read -r started; } < "$pid"
 
+# When a process started, in one locale and one zone whoever asks: ps prints
+# it in the caller's, so a run a launchd daemon (no LANG) started would not be
+# found by a stop from a Terminal in the user's region.
+started_at() {
+  LC_ALL=C TZ=UTC0 ps -o lstart= -p "$1" 2>/dev/null | sed 's/ *$//'
+}
+
 # Whether the recorded group is the run, going on: its leader alive with the
 # start time recorded or, that make killed, members of its group left - a
 # drain finishing under it. A record with no start time names no run.
 ours() {
   [ -n "$group" ] && [ -n "$started" ] || return 1
   if ps -p "$group" >/dev/null 2>&1; then
-    [ "$(ps -o lstart= -p "$group" | sed 's/ *$//')" = "$started" ]
+    [ "$(started_at "$group")" = "$started" ]
   else
     kill -0 -- "-$group" 2>/dev/null
   fi
@@ -173,7 +180,7 @@ start=0
 set -m
 make --no-print-directory corpus $resume ${given[@]+"${given[@]}"} >> "$log" 2>&1 &
 run=$!
-printf '%s %s\n%s\n' "$run" "$database" "$(ps -o lstart= -p "$run" | sed 's/ *$//')" > "$pid"
+printf '%s %s\n%s\n' "$run" "$database" "$(started_at "$run")" > "$pid"
 # A stop asked of this script - a supervisor's - is passed to the whole run.
 stopping=
 trap 'stopping=1; kill -TERM -- "-$run" 2>/dev/null' TERM INT

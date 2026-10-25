@@ -689,7 +689,8 @@ again. A start that names another database than a stopped run's is refused,
 since that run's failed rows and spend are not its own. A second
 `make corpus-hosted` while the first
 runs is refused: the pid file records the run's process group and when the make
-leading it started, and that group, its leader alive with that start time or, the
+leading it started (in C and at UTC, so a stop from a shell in another locale or
+zone than the start's finds it), and that group, its leader alive with that start time or, the
 leader killed, a drain of it left, is a run going on. A group number another
 process has taken since (after a reboot or a wrap of the pid count) is not the
 run: the stop signals nothing of it, and a start resumes. Each
