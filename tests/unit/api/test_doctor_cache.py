@@ -244,6 +244,7 @@ def test_an_absent_artifacts_path_still_loads() -> None:
         "PARSING_TABLE_MODE": "accurate",
         "PARSING_HEADING_HIERARCHY": "true",
         "PARSING_TIMEOUT_SECONDS": "60",
+        "PARSING_MAX_PAGES": "180",
     }
 
     assert Settings.load(env).artifacts_path is None
