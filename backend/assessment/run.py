@@ -641,7 +641,9 @@ def _corrected(
     """Prints each labelled share corrected by the judge's verdict on every row.
 
     The verdict is the Questions sheet's Judge column, approved 1 and
-    refused 0, and a row not judged is left out. Per group and label, the
+    refused 0, and a row not judged is left out. It is approved only where
+    every metric the judge scored approves, so what predicts a label is that
+    conjunction and not any one metric. Per group and label, the
     labelled rows give the label and the judged rows without one give what
     the judge says alone; prediction-powered inference (ARES, Saad-Falcon et
     al., NAACL 2024, section 3.3) corrects the second by the first. The
@@ -692,7 +694,7 @@ def _corrected(
     absent = sum(id not in texts for id in given)
 
     named = f"{by:<36}" if by else ""
-    print("\nLabelled shares corrected by the paper's judge:")
+    print("\nLabelled shares corrected by the conjunction of the judge's metrics:")
     print(
         f"{'language':<9}{named}{'label':<16}{'n':>5}{'N':>6}{'judge':>8}"
         f"{'labels':>8}{'corrected':>11}  {'95% interval':<26}"

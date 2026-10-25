@@ -1134,3 +1134,17 @@ def test_the_all_row_weighs_each_language_by_its_rows_in_the_workbook(
 
     de, en, pooled = (float(rows[one][6]) for one in ("de", "en", "all"))
     assert pooled == pytest.approx((40 * de + 4 * en) / 44, abs=2e-3)
+
+
+def test_the_table_names_its_predictor_as_the_conjunction_of_the_metrics(
+    exported, tmp_path, capsys
+) -> None:
+    """The Judge column is approved only if every metric is, not one judge score."""
+    path, file = labelled_set(
+        tmp_path, UNLABELLED + LABELLED, usable(range(9, 13), [1, 0, 0, 1])
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    out = capsys.readouterr().out
+
+    assert "Labelled shares corrected by the conjunction of the judge's metrics" in out
+    assert "paper's judge:\n" not in out.split("Labelled shares corrected", 1)[1][:90]

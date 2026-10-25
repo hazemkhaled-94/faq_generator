@@ -441,8 +441,9 @@ does not apply to that question: the row is in neither count for it).
 Keep it to those fields: a `released` flag in it would be read as a label
 too.
 
-The predictor is the Judge column: `approved` is 1, `refused` 0, and a row
-`not judged` is left out. The report prints, per language and per category
+The predictor is the Judge column, the conjunction of the judge's metrics:
+`approved` is 1 where every metric approves, `refused` 0 where any does not,
+and a row `not judged` is left out. The table's heading says so. The report prints, per language and per category
 or kind, and pooled as `all`:
 
 | Column | What it is |
