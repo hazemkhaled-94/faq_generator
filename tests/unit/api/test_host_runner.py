@@ -11,6 +11,8 @@ The routes are imported inside the fixture, never at module scope: see
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -24,7 +26,11 @@ def api(monkeypatch):
     from api.routes import pipeline
 
     monkeypatch.setattr(pipeline, "_fan", lambda action, names, trigger=None: ([], 0))
-    return TestClient(app, base_url="http://localhost:8000")
+    return TestClient(
+        app,
+        base_url="http://localhost:8000",
+        headers={"x-api-token": os.environ["API_TOKEN"]},
+    )
 
 
 @pytest.mark.parametrize(

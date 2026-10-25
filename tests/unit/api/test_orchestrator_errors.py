@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 from unit.api.test_orchestrator import FakeSession
@@ -70,7 +72,11 @@ def test_a_dagster_that_cannot_list_its_runs_refuses_a_run_with_503(
     from api.main import app
     from api.routes import pipeline
 
-    api = TestClient(app, base_url="http://localhost:8000")
+    api = TestClient(
+        app,
+        base_url="http://localhost:8000",
+        headers={"x-api-token": os.environ["API_TOKEN"]},
+    )
 
     monkeypatch.delenv("HOST_RUNNER", raising=False)
     monkeypatch.setattr(
