@@ -62,6 +62,16 @@ def connect(settings: Settings) -> rg.Argilla:
     return client
 
 
+def check(settings: Settings) -> None:
+    """Opens the client and asks Argilla who it is, creating nothing.
+
+    Raises:
+        Exception: Whatever the client raises when the address is wrong or the
+            key is refused, which is what a preflight is for.
+    """
+    _ = rg.Argilla(api_url=settings.api_url, api_key=settings.api_key).me
+
+
 def _warn_if_stale(found: rg.Dataset, name: str) -> None:
     """Says so when a dataset predates something the records now carry.
 

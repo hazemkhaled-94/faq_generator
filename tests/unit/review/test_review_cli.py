@@ -170,3 +170,19 @@ def test_all_pushes_the_corpus_rather_than_a_draw(cli) -> None:
     cli.run("--push", "facts", "--all")
 
     assert cli.pushed == [("facts", None, True)]
+
+
+def test_check_asks_who_the_key_belongs_to_and_pushes_nothing(cli, monkeypatch) -> None:
+    """The preflight of `make wipe`: an answer is exit 0, a refusal exit 1."""
+    from review import run as module
+
+    asked: list[object] = []
+    monkeypatch.setattr(module, "check", lambda settings: asked.append(settings))
+    assert cli.run("--check") == 0
+    assert asked and not cli.pushed and not cli.pulled
+
+    def refused(settings):
+        raise PermissionError("the key was refused")
+
+    monkeypatch.setattr(module, "check", refused)
+    assert cli.run("--check") == 1

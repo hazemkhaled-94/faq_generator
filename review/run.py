@@ -23,7 +23,7 @@ from question_generation.catalog import QuestionCatalog
 from review import datasets, judged
 from review.config import Settings
 from review.records import ReviewRepository
-from review.service import Catalogs, drop, pull, push
+from review.service import Catalogs, check, drop, pull, push
 from topic_modelling.repository import TopicCatalog
 
 log = logging.getLogger(__name__)
@@ -60,6 +60,12 @@ def parser() -> argparse.ArgumentParser:
         "questions. A dataset under any other name is left. What `make wipe` runs "
         "once the corpus is gone. Irreversible: pull first if a verdict "
         "nobody has brought back still matters.",
+    )
+    group.add_argument(
+        "--check",
+        action="store_true",
+        help="ask Argilla who the key belongs to and change nothing. What "
+        "`make wipe` asks first, so a wrong key stops it before it deletes.",
     )
     built.add_argument(
         "--all",
@@ -118,6 +124,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     settings = Settings.load()
+
+    if args.check:
+        try:
+            check(settings)
+        except Exception as exc:  # noqa: BLE001 - any refusal is the same answer
+            log.error("Argilla refused: %s: %s", type(exc).__name__, exc)
+            return 1
+        log.info("Argilla answers")
+        return 0
 
     # Before the catalogs, which read a database this does not need: a
     # wipe deletes the corpus first, and asking Argilla to forget it must

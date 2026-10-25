@@ -985,3 +985,56 @@ def test_a_restore_refuses_while_a_worker_runs_and_checks_the_manifest() -> None
     assert list(at.values()) == sorted(at.values()), at
     for name in DATABASES:
         assert f"${name}" in text, name
+
+
+def test_a_wipe_checks_every_store_before_it_deletes_anything() -> None:
+    """A wrong key found after the third deletion leaves a corpus half gone."""
+    lines = printed("wipe", CONFIRM="x")
+    asked = [at for at, line in enumerate(lines) if "telemetry.projects --list" in line]
+    deletes = [
+        at
+        for at, line in enumerate(lines)
+        if "--delete-all" in line or "--delete" in line
+    ]
+
+    assert asked and deletes, lines
+    assert asked[0] < deletes[0], lines
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "telemetry.projects --list",
+        "review.run --check",
+        "_cluster/health",
+        "dagster run list",
+    ],
+)
+def test_the_wipe_preflight_asks_each_store_only_while_its_service_runs(
+    asked: str,
+) -> None:
+    """A store whose profile is down is skipped with a note, not failed."""
+    joined = "\n".join(printed("wipe-preflight")).replace("\\\n", "")
+    (guarded,) = [one for one in joined.split("; fi") if asked in one]
+    assert "ps -q" in guarded, guarded
+
+
+def test_the_wipe_preflight_refuses_naming_the_store_that_did_not_answer(
+    tmp_path: Path,
+) -> None:
+    """Everything runs, Elasticsearch refuses: one actionable line, exit non-zero."""
+    engine = stand_in(
+        tmp_path,
+        'case "$*" in *"ps -q"*) echo 4f1c2a9e;; *_cluster/health*) exit 22;; *) ;; esac',
+    )
+    done = made("wipe-preflight", f"COMPOSE={engine}")
+    assert done.returncode != 0, done
+    assert "elasticsearch" in done.stderr.lower(), done.stderr
+
+
+def test_the_wipe_preflight_passes_when_no_store_runs(tmp_path: Path) -> None:
+    """A stack that is down has nothing to authenticate to, and says so."""
+    engine = stand_in(tmp_path, "exit 0")
+    done = made("wipe-preflight", f"COMPOSE={engine}")
+    assert done.returncode == 0, done
+    assert "not running" in done.stdout, done.stdout
