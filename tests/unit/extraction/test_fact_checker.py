@@ -2091,6 +2091,37 @@ def test_an_index_beyond_the_lines_of_the_last_sentence_stays_refused() -> None:
 
 
 @pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The bank charges a fee for each transfer.\nThe fee is charged at the end of the month and\nshown on the statement.",
+            "The fee is shown on the statement.",
+        ),
+        (
+            "de",
+            "Die Bank erhebt für jede Überweisung eine Gebühr.\nDie Gebühr wird am Monatsende erhoben und\nauf dem Kontoauszug ausgewiesen.",
+            "Die Gebühr wird auf dem Kontoauszug ausgewiesen.",
+        ),
+        (
+            "pl",
+            "Bank pobiera opłatę za każdy przelew.\nOpłata jest pobierana na koniec miesiąca i\nwykazana na wyciągu.",
+            "Opłata jest wykazana na wyciągu.",
+        ),
+    ],
+)
+def test_an_index_past_a_wrapped_prose_sentence_names_nothing(
+    language, text, statement
+) -> None:
+    """Only list lines are cited by their line: a wrapped line of prose is no fact's evidence."""
+    read = passage(text, language=language)
+
+    judged = Checker(read).atomic(statement, len(read.sentences))
+
+    assert judged.rejection_code == Rejection.EVIDENCE_ABSENT
+
+
+@pytest.mark.parametrize(
     ("language", "evidence", "statement"),
     [
         ("en", "The fee is EUR 12.30 a month.", "The fee is EUR 30 a month."),

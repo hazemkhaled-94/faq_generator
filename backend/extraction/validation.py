@@ -48,14 +48,22 @@ from settings import decimal
 _JOIN = "\n"
 
 
+#: A line that opens as a list item: a bullet, or a number and its mark.
+_LIST_LINE = re.compile(r"^\s*(?:[-\u2022*]|\d+[.)])\s", re.MULTILINE)
+
+
 def _lines_of(sentence: Sentence) -> list[Sentence]:
-    """The non-empty lines of a sentence, each located in the passage.
+    """The non-empty lines of a sentence that holds list lines, each located in the passage.
+
+    A sentence with none is one line: wrapped prose is not cited by its lines.
 
     A line keeps the index of the sentence it is in, so a citation of it
     resolves again as that sentence does.
     """
     lines = []
     at = sentence.start
+    if not _LIST_LINE.search(sentence.text):
+        return [sentence]
     for line in sentence.text.split("\n"):
         if line.strip():
             start = at + len(line) - len(line.lstrip())
@@ -662,7 +670,8 @@ class FactChecker:
             numbered = {
                 unit
                 for unit in units
-                if unit not in alone and _numbers_part_of(unit, passage.section_path)
+                if unit not in alone
+                and _numbers_part_of(unit, passage.section_path)
             }
             known -= numbered
             supported = _supported_units(units, known, numbers, language, statement)

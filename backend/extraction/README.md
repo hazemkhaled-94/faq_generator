@@ -154,7 +154,10 @@ cannot be half-right, and no check reads a similarity: the one similarity
 threshold in this service is the `duplicate` refusal below.
 
 The citation is resolved first — a citation naming nothing that exists is
-`evidence_absent` and no further check runs. Then the checks the kind calls
+`evidence_absent` and no further check runs. One index past the last sentence
+is read as a line of it only where that sentence holds list lines (a bullet or
+a numbered item), because the model reads a list line by line; past a sentence
+of wrapped prose it names nothing. Then the checks the kind calls
 for, first failure winning:
 
 | Check | Refuses | `atomic` | `summary` | `outline` | `bridge` |
