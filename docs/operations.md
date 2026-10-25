@@ -457,7 +457,7 @@ stores. It replaces the data of the stack it runs on.
    (`docker compose` for docker; `ps` lists what else runs).
 3. `make restore-backup DIR=/backups/<the directory> CONFIRM=<APP_DB_NAME>`.
    It refuses while a worker runs and unless `CONFIRM` names the database. It
-   runs `pg_restore --clean --if-exists` for the application database only,
+   runs `pg_restore --clean --if-exists` as the superuser for the application database only, keeping the owners the dump carries (without them the application role could not read its tables),
    uploads the objects under that database's own prefix, and checks that
    dump, those objects and every row count against the manifest. It exits 1
    and names each difference. The buckets, the SeaweedFS filer, Phoenix,

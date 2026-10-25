@@ -1742,7 +1742,7 @@ restore-backup:
 	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup DIR=<a directory make backup wrote> CONFIRM=<database>"; exit 2; }
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
 	@$(call CONFIRMED,restore-backup: it replaces the application database and its objects from $(DIR))
-	$(LOADENV) && $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --no-owner -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME" < "$(DIR)/db/$$APP_DB_NAME.dump"
+	$(LOADENV) && $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME" < "$(DIR)/db/$$APP_DB_NAME.dump"
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)"
 
 # Put the whole stack back from a backup: the five databases and every
@@ -1761,7 +1761,7 @@ restore-backup-stack:
 	@[ "$(CONFIRM)" = stack ] || { echo "REFUSED: restore-backup-stack rolls back the shared SeaweedFS filer, Phoenix, Dagster, Argilla and every database's objects to $(DIR)." >&2; echo "  Run it again with CONFIRM=stack to go on." >&2; exit 2; }
 	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
 	  [ "$$name" != "$$ARGILLA_DB_NAME" ] || [ -f "$(DIR)/db/$$name.dump" ] || continue; \
-	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --no-owner -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \
+	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \
 	done
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)" --stack
 

@@ -1220,3 +1220,17 @@ def test_a_backup_says_before_it_dumps_that_running_workers_make_it_inconsistent
     )
     dumped = next(at for at, one in enumerate(lines) if "pg_dump" in one)
     assert said is not None and said < dumped, lines
+
+
+@pytest.mark.parametrize(
+    ("target", "given"),
+    [
+        ("restore-backup", ("CONFIRM=qa_generator",)),
+        ("restore-backup-stack", ("CONFIRM=stack",)),
+    ],
+)
+def test_a_restore_keeps_the_owners_the_dump_carries(target: str, given) -> None:
+    """--no-owner as the superuser makes it own every table and leaves the application role none."""
+    text = "\n".join(printed(target, "DIR=/backups/x", *given))
+    assert "pg_restore --clean --if-exists -U" in text, text
+    assert "--no-owner" not in text, text
