@@ -21,6 +21,7 @@ from extraction.extractors.digest import _SYSTEM as DIGEST
 from extraction.extractors.digest import DigestExtractor
 from extraction.extractors.llm import _REPAIR_SYSTEM, _REPAIR_USER, LlmExtractor
 from extraction.extractors.llm import _SYSTEM as ATOMIC
+from extraction.links import Link
 from question_generation.generation import QuestionWriter
 
 PLANTED = {
@@ -101,3 +102,16 @@ def test_a_judge_template_fences_the_text_of_the_document(name: str) -> None:
             for field in one.material:
                 assert f'<material name="{field}">' in user
             assert (LINE in one.system) == bool(one.material), one.metric
+
+
+@pytest.mark.parametrize("name", sorted(PLANTED))
+@pytest.mark.parametrize("kind", ["reference", "sibling", "term"])
+def test_the_bridge_link_names_a_heading_inside_the_fence(name: str, kind: str) -> None:
+    """The heading a link names is the document's text, so it sits in the fence too."""
+    text = PLANTED[name]
+    bridged = group("Returns need a receipt.", "Urgent requests take 4 hours.")
+
+    user = BridgeExtractor._prompt(bridged, Link(tuple(bridged), kind, text), {})
+
+    assert text in user
+    assert "ignor" not in outside(user), user

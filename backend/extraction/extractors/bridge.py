@@ -23,7 +23,7 @@ _NAMES = ("none", *RELATIONS)
 #: Recorded on every bridge drawn with the prompt below. Bumped whenever that
 #: prompt changes what counts as a bridge or how one is cited: two prompts are
 #: two datasets.
-PROMPT_VERSION = "7"
+PROMPT_VERSION = "8"
 
 _SYSTEM = grounded(
     """ROLE
@@ -150,7 +150,7 @@ _USER = """Excerpts:
 
 {{excerpts}}
 
-{{link}}Write every statement in {{language}}."""
+Write every statement in {{language}}."""
 
 
 class _Chosen(BaseModel):
@@ -277,7 +277,8 @@ class BridgeExtractor:
         """Builds the user message: one numbered block per passage, then the link.
 
         The sentences are numbered within each block, as the atomic prompt
-        numbers them, and the validated facts follow them.
+        numbers them, and the validated facts follow them. The link line names
+        a heading of the documents, so it sits inside the fence with them.
         """
         blocks = []
         for position, passage in enumerate(offered):
@@ -294,26 +295,25 @@ class BridgeExtractor:
                 f"[P{position}]{heading}\n{numbered}"
                 + (f"\n  facts:{listed}" if held else "")
             )
+        if link is not None:
+            blocks.append(_linked(link))
         return fill(
             _USER,
             {
                 "{{excerpts}}": "\n\n".join(blocks),
-                "{{link}}": _linked(link),
                 "{{language}}": in_language(offered[0].language),
             },
             material=("{{excerpts}}",),
         )
 
 
-def _linked(link: Link | None) -> str:
+def _linked(link: Link) -> str:
     """The line that says how the documents link the first two passages."""
-    if link is None:
-        return ""
     if link.kind == "reference":
-        return f'[P0] names the heading "{link.named}" of [P1].\n\n'
+        return f'[P0] names the heading "{link.named}" of [P1].'
     if link.kind == "sibling":
-        return f'[P0] and [P1] are sections under the same heading "{link.named}".\n\n'
-    return f'[P0] and [P1] are among the few excerpts using "{link.named}".\n\n'
+        return f'[P0] and [P1] are sections under the same heading "{link.named}".'
+    return f'[P0] and [P1] are among the few excerpts using "{link.named}".'
 
 
 def _cited(named: list[tuple[int, Sequence[int]]]) -> tuple[Cited, ...]:
