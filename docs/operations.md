@@ -959,7 +959,92 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
 
 ## Upgrading to v0.5.2
 
-### Deployment conditions this release lifts
+v0.5.2 is the fix release after the final review of v0.5.1: data safety, the hosted model path, drains that stop and say why, scale, and the parse, fact and question fixes that passed their bars. `docs/bugs.md` lists each fix with its measure, what was withdrawn and the known limits. A build made from scratch on a new database needs only steps 1 and 2 and none of the reruns.
+
+### 1. Before the pull, then the code, the host environment and images
+
+Before `git pull`, pull the verdicts of the review datasets (`make review-pull-facts`, `make review-pull-topics`, `make review-pull-questions`): their names gain the database in this release (step 6). If `configs/env/backend.env` holds edits of your own, set them aside first, since this release removes its role models and renames `TOPIC_MIN_WEIGHT` and the pull stops there: the role models go into `.env`, `TOPIC_MIN_WEIGHT` goes (step 3), and `SPEND_CAP` is given on the command line rather than in the file.
+
+```bash
+git pull
+make setup        # once .env holds the new lines below
+podman compose --env-file configs/env/deployment.env --env-file .env stop parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker
+make backup DIR=/backups/$(date +%F)
+poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
+make upgrade
+```
+
+`.env` gains lines, and compose refuses to start without them: add those `.env.example` now carries that yours lacks, `HOST_RUNNER`, the seven role models with `LLM_REASONING_EFFORT`, and `API_TOKEN=change_me_api_token`, and `make setup` fills the placeholders and nothing else. `make backup` is new in this release ([Backups](#backups)); copy its `DIR` off the machine. `make upgrade` checks the engine has `UPGRADE_FREE_GB` (20) free, builds, prunes the images the build orphaned, stops the workers, runs `make schema` and `make up`, stopping at the first step that fails ([Upgrading a deployment](#upgrading-a-deployment)).
+
+- **Docling** goes from 2.141.0 to 2.142.1, docling-core to 2.104.0, docling-parse to 7.23.0 and doclang to 0.8.0, on the host and in the API image. It needs no re-parse: on the 30 football and 50 shop PDFs it changed nothing but the parentheses of 9 shop passages' link URLs, which it now percent-encodes.
+- **Pillow** goes from 12.3.0 to 13.0.0, which fixes the advisories accepted against 12.3.0. What `make audit` still accepts is in `configs/audit-accepted.txt`: filelock 3.32.7's three advisories, until **2026-11-30**, as litellm 1.106.2 requires filelock below 4.0 and the fix is 4.2.1. On that date the audit fails until the entry is read again.
+- **A container refuses a stale image.** Each image bakes the hash of the lock it installed, and a container whose checkout's lock differs waits ten minutes and exits ([A stale image](#a-stale-image)): after a pull that moved a lock, build before `make up`, as `make upgrade` does.
+
+Keep the secrets out of a synced folder from now on: `make doctor` warns when the checkout or `ENV_FILE` sits in one, and [Keeping the secrets out of the checkout](#keeping-the-secrets-out-of-the-checkout) says how to move them and why to rotate every key after.
+
+### 2. Three migrations, in order
+
+`make upgrade` runs `make schema`; `make schema-status` shows what it will do. Each revision now runs in a transaction of its own under a 5-second lock timeout, so one that waits on a table a drain holds fails instead of queueing every worker behind it: stop what holds the table and run `make schema` again. On top of v0.5.1's head `20e31b1656f7`, in this order:
+
+| Revision | What it does |
+|---|---|
+| `860d56b11032` | Adds `facts.language`, filled from each fact's first citation, then analyses `facts` so the first dedup probe plans with the new column and uses the vector index (C-090) |
+| `7a41c9d2e8b0` | Adds `facts.twin_id`, a foreign key set NULL when the twin goes, and its index. NULL on every stored refusal, so the first dedup replay after the upgrade reads each duplicate refusal once (C-068) |
+| `4a7c2e91d3b8` | Adds `questions.source_digests` and two BEFORE DELETE triggers on `passages` and `facts` that stamp it, and turns the trigger that deleted a question whose last fact went into one that rejects it as `source_changed` and keeps it (C-001) |
+
+Each comes off again with `make schema-down CONFIRM=<database>`, which drops what it added.
+
+### 3. Settings whose meaning or home moved
+
+- **`TOPIC_MIN_WEIGHT` is retired for `TOPIC_RELATIVE_WEIGHT`** (0.5): a membership is kept when it is at least that share of the passage's strongest, where the absolute floor it replaces kept weak memberships that bound unrelated passages, 3.7 topics a passage on the reviewed build. A value left in an environment file is no longer read. A row stored under the old name stops the topic stage's build and `make doctor`, naming the new one and the `DELETE` that removes the row: an absolute weight read as a share would be a floor of nearly nothing. Refit afterwards (step 5).
+- **`TOPIC_NUM_TOPICS`** ships at 300 a language, where it was 40, and topics are named 25 to a call. A corpus past 40 topics a language fits more of them, and the questions, written per topic, grow with them: `make estimate` says by how much.
+- **`PARSING_MAX_PAGES`** is new (180; 0 is no limit): a longer document is refused before conversion, naming its pages, where the parse worker ran out of its 4 GB and was killed holding its claim. `make parse-retry` returns it after a split.
+- **`SPEND_CAP`** is new and the deployment's: a cap in USD, given on a drain's command line, `make corpus-hosted SPEND_CAP=` among them, that stops a drain, the bridge pass, the release draw and the rejudge with exit 75 before the next row past it. Under `make corpus-hosted` it counts the whole run, through `SPEND_LEDGER`. With it set, a drain refuses a model litellm cannot price.
+- **`EMBEDDING_MODEL`, `NLI_MODEL` and `QA_MODEL` are fixed**, with their commits beside them in `backend.env` (`EMBEDDING_MODEL_REVISION`, `NLI_MODEL_REVISION`, `QA_MODEL_REVISION`, the build cache's commits): a model id and its commit change together, in the file. A row stored for one of the three ids stops every stage's build, naming its pin and the `DELETE` that removes it. `DOCLING_ARTIFACTS_PATH` is fixed as well, so a stored override of any of the four stops applying.
+- **`API_TOKEN`** is new, in `.env`: every write to the API, and every read of its settings, carries it as `X-API-Token`. The pages, the orchestrator and the make targets send it; a client of your own must too, and is refused with 401 without it.
+- **`HOST_RUNNER`** is new, in `.env`: `1` is the go-live profile, the model stages run on the host through `make corpus-hosted` and the model workers and Dagster stay stopped ([Go-live host](#go-live-host)). Unset, development runs as before.
+- **`ENV_FILE`** is new: the secrets file every host command reads and compose is handed, `.env` unless it names another.
+- **The role models** are `.env`'s alone: `backend.env` names none, and `.env.example` ships the go-live split. A role you leave unset follows `LLM_MODEL`.
+- **`LITELLM_LOCAL_MODEL_COST_MAP=true`** is committed in `backend.env`, so prices and which models are sent no reasoning effort follow the installed litellm and move only with its lock.
+- **`POSTGRES_*`** are new in `deployment.env` and size the server for the go-live corpus: 4 CPUs and 4 GB where it had 1 and 512 MB ([Sizing Postgres](#sizing-postgres)). The VM needs the room: the memory limits add up to about 33 GiB with every profile on.
+- **`PHOENIX_TRACE_RETENTION_DAYS`** is new in `deployment.env` (30): `make up` sets Phoenix's default trace retention to it.
+
+### 4. Prompts and model calls
+
+- **Prompt versions.** The writer moves from 29 to 32: 32 tells every writer the reader never sees the passage, and an answerable writer to put the case that makes its key the only answer into the question (30 and 31 were never released). The verifier moves from 12 to 15, for the settles reading of a why-question over a bare rule. Phrasing moves from 4 to 5, for the self-contained judge's definite sets. Every other prompt keeps its released version: atomic extraction 12, repair-1, the digest 5, the bridge prompt 6, `verifier: stated` 1, the assessment template 4 and topic naming 3.
+- **What that marks stale.** Stored rows keep the version they were written under, and only `make questions-rejudge` reads one: its first run after the upgrade asks again about every stored accepted unanswerable question, one `settles` reading each and a second where the cited passages are silent and the probe is on. No fact, bridge, digest, topic or judgement is stale by its prompt.
+- **Calls added.** A derived question citing two passages gets the parts reading, one verifier call. Topics are named 25 to a call, so a language of more than 25 topics makes more naming calls, each smaller. The digest pass of step 5 is one digest call a passage, and only when run.
+
+### 5. Reruns, in order
+
+None of these is needed to start v0.5.2. Each brings stored data up to what v0.5.2 reads differently; run only the steps your corpus needs. A rerun without `SHA` refuses unless `CONFIRM` names the database, and a re-chunk or re-extraction over questions refuses, naming how many released, accepted and reviewed questions rest on what it would replace, unless `FORCE=1`: those are rejected as `source_changed` and kept, never deleted.
+
+| Step | Command | Needed because of |
+|---|---|---|
+| Parse | `make parse-rerun CONFIRM=<database>` | The parse fixes: a document in a language no configured model names is refused, naming it (C-008); titles (C-096); hidden text dropped (C-107); low-confidence pages and interleaved columns named (C-109, C-426). Docling 2.142.1 alone needs none |
+| Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | The passage fixes: clauses a bookmark pass made headings (C-007), tables continued on the next page (C-121), running items, change boxes and letterheads (C-187, C-230, C-368). On the reviewed build it changes 108 passages of 9 documents and keeps every other with its facts and questions; on the shop corpus it changes none |
+| Extract the new passages | `make extract-start`, then `make extract` | The passages the re-chunk made have no facts yet; only those reach the model |
+| Judge facts again | `make extract-revalidate` | The fact checks (C-019, C-020, C-021, C-033, C-129, C-137, C-416). No model call. On a copy of the build the first run moved validated atomic facts from 10,468 to 10,761, bridges 189 to 203, outlines 559 to 593 and summaries 616 to 619, and writes only the facts whose verdict changed; a second run writes nothing |
+| Digest | `make extract-digests` | v0.5.1's digest floor of 500 characters and the floor's count of list items (C-057, C-098): passages above it that hold no digest get one. On a copy of the build at 500 characters, before the list items were counted, it digested 255 passages for USD 1.04 and left every atomic fact and question as it was |
+| Refit topics | `make topics-discover` | `TOPIC_RELATIVE_WEIGHT` (C-095): questions are dealt from memberships, which the old floor kept. A new topic that is an old generated one and gained no passage stays generated; the others are asked about by the next `make questions` |
+| Questions already stored | `make questions-reverify` | Holds every stored question to its facts after the steps above, and rejects one whose facts went or no longer hold. It never gives a rejected one back, so the gates this release loosens (C-144, C-149, C-188) keep only what is written from now on; `make questions-rerun` writes every topic again, at the writer's cost |
+| Ask unanswerables again | `make questions-rejudge` | Verifier 15 (C-022), as step 4 says |
+| Redraw the release | `make questions-balance` | The rows rejected above leave it. The draw is the same on the reviewed build, now in seconds at ten times its size (C-089) |
+| Export again | `make questions-export` | The workbook titles the band Retrieval spread, gives each row its earlier turns and its source, and its Summary names the judge and counts what no question reaches (C-023, C-029, C-102, C-135) |
+| Copy objects under the database's name | `make s3-prefix` | Object keys now carry the database (C-004). A bare key from before is still read, but only a copy under this database's prefix is out of reach of another database's delete or purge. Once per database that used the store |
+
+### 6. What else changes for you
+
+- **Phoenix, Argilla, logs and Dagster carry the database.** Projects are named `<name>__<database>`, every log line carries `db`, the corpus job tags its Dagster runs, and a wipe takes only its own database's. What was filed before belongs to none and is taken only with `ALL_DATABASES=1`.
+- **The golden sets** are named `<name>__<database>` too. Upload them again under their database's name with `make eval-upload` and `make eval-phrasing`; the old ones are deleted only with `ALL_DATABASES=1` (`make phoenix-purge ALL_DATABASES=1`, which takes every database's projects with them).
+- **The review datasets** carry the database in Argilla, and a dataset pushed under the bare name is left where it is: with its verdicts pulled before the upgrade (step 1), push again (`make review-push-*`).
+- **Destructive targets ask for the database.** `schema-down`, `schema-reset`, `wipe`, `delete`, `delete-derived`, `topics-delete`, an unnarrowed `*-rerun` and `archive-purge` with `TABLE`, `ALL` or `DAYS` refuse unless `CONFIRM=<database>`, and a restore is `make restore-documents AT=`, which puts back only the deletions it names.
+- **A deletion keeps no orphan.** `make delete` and `make delete-derived` take every question resting on the document, a two-document question included.
+- **Drains exit with a reason**: 0 done, 3 a row failed, 75 stopped (an outage, `SPEND_CAP`, a model that finds nothing, a signal). `make corpus` stops at the first non-zero exit, and on the go-live profile it runs as `make corpus-hosted`, which a systemd unit or a launchd daemon can supervise ([After a stop](#after-a-stop)).
+- **Two extraction drains** may run side by side, and no more ([Scaling](#scaling)).
+- **The go-live conditions** that still hold are in [Go-live deployment](#go-live-deployment), and those this release lifts are below.
+
+### 7. Deployment conditions this release lifts
 
 The final review's go-live gate made these conditions of a deployment. Each
 one's fix ships in v0.5.2, so it has left [Go-live deployment](#go-live-deployment).
