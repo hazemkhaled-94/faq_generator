@@ -385,7 +385,10 @@ needs_both, compound), read from the Kind column: the paper's judge is not
 told a question's kind, and a compound question asks two things it was
 never shown how to score. A second table gives each kind its factoid and
 open-ended shares as above; word bounds are a category's, so it has no
-in-bounds column.
+in-bounds column. The workbook's Kind column is the span of the answer's
+passages, so a question with no answer reads `single` there whatever it was
+asked as; the report puts those apart as `unanswerable`, and leaves them out
+of the `held` reading, which needs an answer's evidence.
 
 And where the workbook holds the paper's judge (the `rubric_*` judgements on
 its Assessment sheet), the report ends with that judge's mean scores for the

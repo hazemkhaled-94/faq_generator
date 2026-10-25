@@ -261,7 +261,8 @@ def diversity(argv: list[str]) -> int:
             read = [
                 share
                 for id, text in asked
-                if (share := _held(text, evidence.get(id, ""), language)) is not None
+                if label != _NO_ANSWER
+                and (share := _held(text, evidence.get(id, ""), language)) is not None
             ]
             scores["held"] = sum(read) / len(read) if read else float("nan")
             print(
@@ -335,6 +336,9 @@ def _content(text: str, language: str) -> frozenset[str]:
 #: The report's columns, in the paper's order.
 METRICS = ("NGD", "SR", "word-CR", "PoS-CR", "HS")
 
+#: The kind a question with no answer is reported under by `--by kind`.
+_NO_ANSWER = "unanswerable"
+
 #: What `--by` splits a language on: the Questions sheet's column, and what
 #: its labels are called where a workbook holds none.
 _BY = {"category": ("Categories", "categories"), "kind": ("Kind", "kinds")}
@@ -349,7 +353,10 @@ def _read(
     each label of the column `_BY` names: a question's kind, or each
     `categorization=category` label in the Categories cell, so a question
     counts once in each of its categories and a question told none in no
-    group.
+    group. A question with no answer is a kind of its own, `unanswerable`,
+    under `--by kind`: the workbook's Kind is the span of the answer's
+    passages, which a question without an answer does not have, so every one
+    of them would otherwise be counted as `single`.
     """
     # Here rather than above: the assess-worker imports this module and
     # never reads a workbook.
@@ -367,6 +374,11 @@ def _read(
     if column is not None and column not in frame:
         return {}
     labels = frame[column] if column else [""] * len(frame)
+    if by == "kind" and "Answerable" in frame:
+        labels = [
+            _NO_ANSWER if str(answerable).lower() in ("false", "0", "no") else kind
+            for kind, answerable in zip(labels, frame["Answerable"], strict=True)
+        ]
     asked: dict[tuple[str, str], list[tuple[int, str]]] = defaultdict(list)
     for id, language, text, held in zip(
         frame["ID"], frame["Language"], frame["Question"], labels, strict=True

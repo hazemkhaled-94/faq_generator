@@ -85,6 +85,8 @@ _COLUMNS = (
     ("source", "Source"),
     ("answerable", "Answerable"),
     ("question_type", "Type"),
+    # The span of the answer's passages (single, needs_both, compound), so a
+    # question with no answer reads `single`: filter on Answerable first.
     ("kind", "Kind"),
     ("answer_form", "Answer form"),
     ("cognitive_level", "Cognitive level"),

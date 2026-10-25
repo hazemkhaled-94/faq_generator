@@ -1148,3 +1148,70 @@ def test_the_table_names_its_predictor_as_the_conjunction_of_the_metrics(
 
     assert "Labelled shares corrected by the conjunction of the judge's metrics" in out
     assert "paper's judge:\n" not in out.split("Labelled shares corrected", 1)[1][:90]
+
+
+@pytest.fixture
+def with_unanswerable(tmp_path, exported):
+    """A German and an English question of kind single, and one of each that has no answer."""
+    path = tmp_path / "unanswerable.xlsx"
+    path.write_bytes(
+        workbook(
+            [
+                asked(1, "Wie lange dauert eine Antwort?", "de"),
+                replace(
+                    asked(2, "Wie lange dauert eine Prüfung?", "de"),
+                    answerable=False,
+                    target_answer=None,
+                ),
+                asked(3, "How long does an answer take?", "en"),
+                replace(
+                    asked(4, "Wie lange dauert eine Rücksendung?", "en"),
+                    answerable=False,
+                    target_answer=None,
+                ),
+            ],
+        )
+    )
+    return path
+
+
+def test_an_unanswerable_question_is_reported_apart_by_kind(
+    with_unanswerable, capsys
+) -> None:
+    """Its Kind says single, which is the span of an answer it does not have."""
+    assert (
+        cli.main(["--diversity", "--file", str(with_unanswerable), "--by", "kind"]) == 0
+    )
+    table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
+
+    assert [row.split()[:3] for row in table[1:]] == [
+        ["de", "single", "1"],
+        ["de", "unanswerable", "1"],
+        ["en", "single", "1"],
+        ["en", "unanswerable", "1"],
+    ]
+
+
+def test_an_unanswerable_group_holds_nothing_to_read_against_evidence(
+    with_unanswerable, capsys
+) -> None:
+    """The easiness reading needs an answer's evidence; it is left blank, not zero."""
+    assert (
+        cli.main(["--diversity", "--file", str(with_unanswerable), "--by", "kind"]) == 0
+    )
+    table = capsys.readouterr().out.split("\n\n", 1)[0].splitlines()
+    held = {
+        row.split()[1]: row.split()[-1] for row in table[1:] if row.startswith("de")
+    }
+
+    assert held["unanswerable"] == "-"
+    assert held["single"] != "-"
+
+
+def test_the_kind_is_not_replaced_without_asking_for_it(
+    with_unanswerable, capsys
+) -> None:
+    """By language alone nothing changes: both questions of a language are measured."""
+    rows = report(capsys, "--file", str(with_unanswerable))
+
+    assert [row[:2] for row in rows] == [["de", "2"], ["en", "2"]]
