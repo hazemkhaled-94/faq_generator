@@ -100,8 +100,12 @@ def _blocking_check(source: str) -> bool:
     """
     if "create_check_constraint(" in source:
         return True
+    # Named or not: `ADD CHECK (...)` scans the table as `ADD CONSTRAINT c
+    # CHECK (...)` does.
     adds = re.findall(
-        r"ADD\s+CONSTRAINT[^;\"']*?\bCHECK\b[^;]*", source, re.IGNORECASE | re.DOTALL
+        r"ADD\s+(?:CONSTRAINT[^;\"']*?)?\bCHECK\b[^;]*",
+        source,
+        re.IGNORECASE | re.DOTALL,
     )
     return any("NOT VALID" not in one.upper() for one in adds)
 
@@ -116,6 +120,9 @@ def _blocking_check(source: str) -> bool:
             False,
         ),
         ('op.execute("ALTER TABLE rechnungen ADD CONSTRAINT c CHECK (b)")', True),
+        ('op.execute("ALTER TABLE questions ADD CHECK (a > 0)")', True),
+        ('op.execute("ALTER TABLE bestellungen ADD CHECK (menge > 0)")', True),
+        ('op.execute("ALTER TABLE questions ADD CHECK (a > 0) NOT VALID")', False),
         ('op.add_column("orders", sa.Column("x", sa.Text()))', False),
     ],
 )
