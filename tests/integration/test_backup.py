@@ -116,6 +116,7 @@ def _two_databases(postgres, monkeypatch, tmp_path):
     _as(monkeypatch, postgres, "qa_a")
     ParsedBucket().put(mine, b"A-v1", content_type="application/json")
     monkeypatch.setattr(backup, "_counts", dict)
+    monkeypatch.setattr(backup.rekey, "digests", set)
     (tmp_path / "db").mkdir()
     backup.backup(tmp_path)
     _as(monkeypatch, postgres, "qa_b")

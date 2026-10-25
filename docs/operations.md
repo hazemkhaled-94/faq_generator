@@ -474,11 +474,18 @@ stores. It replaces the data of the stack it runs on.
    `make documents` (the documents the backup held). Open a document's page and
    a topic figure: the objects are read from the restored store.
 
-A restore from a backup taken before keys carried the database (v0.5.2) leaves
-bare keys in the buckets, which are read as they were; `make s3-prefix` copies
-the ones this database's rows name under its prefix, never over an object the
-prefix already holds, and the other bare keys stay for the databases they
-belong to.
+A database upgraded to v0.5.2 holds its objects under bare keys until `make
+s3-prefix` copies them under its prefix, and a backup taken then holds them
+bare. `make restore-backup` puts back and verifies, besides the keys under the
+database's prefix, the bare keys its rows name (its documents and archived
+documents, and its `topics/<database>/` keys), so the drill after `make
+down-volumes` gets its documents back; the other bare keys belong to the
+databases they were written for and come back only with `make
+restore-backup-stack`. `make s3-prefix` copies them under the prefix, never
+over an object the prefix already holds. Bare objects are never deleted: they
+stay after `make delete`, `make archive-purge` and `make wipe-all` until a
+person removes them from the buckets, once every database has run `make
+s3-prefix`.
 
 ## Failure
 

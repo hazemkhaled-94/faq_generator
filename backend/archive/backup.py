@@ -35,6 +35,7 @@ from blob_store.s3 import (
     ModelsBucket,
     ParsedBucket,
     bucket_names,
+    rekey,
     s3_client,
 )
 from blob_store.s3.bucket import Bucket
@@ -90,13 +91,21 @@ def _dumps(directory: Path) -> dict[str, dict]:
     }
 
 
-def _in_scope(key: str, stack: bool) -> bool:
+def _in_scope(bucket: str, key: str, stack: bool, held: set[str]) -> bool:
     """Whether a key is one this restore may touch: this database's own, or any on a stack restore.
 
-    A bare key from before keys carried the database is shared, so only a
-    stack restore puts it back.
+    A bare key from before keys carried the database is touched too when this
+    database's rows name it, by the ownership `make s3-prefix` uses: a
+    content-addressed key is the same bytes whoever wrote it, and a topic key
+    names its database. Another database's bare keys are only a stack
+    restore's.
     """
-    return stack or key.startswith(f"{Bucket.database_name()}/")
+    database = Bucket.database_name()
+    return (
+        stack
+        or key.startswith(f"{database}/")
+        or (rekey.is_bare(bucket, key, database) and rekey.named(bucket, key, held))
+    )
 
 
 def backup(directory: Path) -> dict:
@@ -145,8 +154,9 @@ def restore(directory: Path, stack: bool = False) -> None:
         stack: Put back every database's objects, not only this database's.
     """
     client = s3_client()
+    owned = set() if stack else rekey.digests()
     for held in json.loads((directory / MANIFEST).read_text())["objects"]:
-        if not _in_scope(held["key"], stack):
+        if not _in_scope(held["bucket"], held["key"], stack, owned):
             continue
         client.put_object(
             Bucket=held["bucket"],
@@ -171,8 +181,9 @@ def verify(directory: Path, stack: bool = False) -> list[str]:
         if not dump.exists() or _sha256(dump.read_bytes()) != held["sha256"]:
             wrong.append(f"dump {name} differs from the manifest")
     client = s3_client()
+    owned = set() if stack else rekey.digests()
     for held in manifest["objects"]:
-        if not _in_scope(held["key"], stack):
+        if not _in_scope(held["bucket"], held["key"], stack, owned):
             continue
         try:
             data = client.get_object(Bucket=held["bucket"], Key=held["key"])[
