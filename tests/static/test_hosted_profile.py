@@ -90,6 +90,7 @@ def _project(
         # A long extraction drain, stopped as drain_once stops one: 75 on SIGTERM.
         'case "$*" in *"extraction.run") [ -n "$SLOW" ] && {\n'
         "  trap 'echo stopped >> \"$LOG.stopped\"; exit 75' TERM\n"
+        '  echo started >> "$LOG.slow"\n'
         '  sleep "$SLOW" & wait $!; };; esac\n'
         "exit 0\n"
     )
@@ -353,7 +354,8 @@ def _until(done: Callable[[], bool], seconds: float = 20) -> None:
 
 
 def _extracting(project: Path) -> bool:
-    return any(line.endswith("extraction.run") for line in _drained(project))
+    """The slow extraction drain runs, with its stop handler in place."""
+    return (project / "drains.log.slow").exists()
 
 
 def _alive(group: int) -> bool:
