@@ -611,22 +611,33 @@ def test_the_status_line_stops_naming_after_twenty() -> None:
     assert "doc-20" not in str(never)
 
 
+@pytest.mark.parametrize("reported", [False, True])
 def test_diversity_by_document_prints_what_the_summary_says_no_question_reaches(
-    tmp_path, capsys
+    tmp_path, capsys, reported: bool
 ) -> None:
-    """The curve covers the documents that have questions; this is the other half."""
+    """The curve covers the documents that have questions; this is the other half.
+
+    With the quality report, as the API and `make questions-export` write the
+    workbook, the Summary holds rows with no count, and the counts still print
+    as the whole numbers they are.
+    """
     from assessment import run as assessment_run
 
+    quality = (
+        QuestionQuality(*[0] * 9, *[{}] * 9, cognitive_level_checked=0, planned_met=0)
+        if reported
+        else None
+    )
     never = NeverAsked((("Terms of sale", 12),), 14)
     path = tmp_path / "set.xlsx"
-    path.write_bytes(workbook([stored()], [cited()], None, None, never))
+    path.write_bytes(workbook([stored()], [cited()], quality, None, never))
 
     assessment_run._never_asked(path)
 
-    said = capsys.readouterr().out
+    said = capsys.readouterr().out.splitlines()
     assert f"{NEVER_DOCUMENTS}: 1" in said
     assert f"{NEVER_PASSAGES}: 14" in said
-    assert "Terms of sale (12 passage(s))" in said
+    assert "  Terms of sale (12 passage(s))" in said
 
 
 def test_the_two_modules_read_the_same_summary_words() -> None:

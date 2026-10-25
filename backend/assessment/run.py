@@ -455,11 +455,15 @@ def _never_asked(path: Path) -> None:
     if not all(label in held for label in _NEVER):
         return
     print()
+    # A Summary with notes has rows with no count, so pandas reads the
+    # column as floats: these counts are whole, and are printed as such.
     for label in _NEVER:
-        print(f"{label}: {held[label]}")
+        print(f"{label}: {int(held[label])}")
     for measure, count in held.items():
         if measure.startswith(f"{_NEVER[0]}: "):
-            print(f"  {measure.removeprefix(f'{_NEVER[0]}: ')} ({count} passage(s))")
+            print(
+                f"  {measure.removeprefix(f'{_NEVER[0]}: ')} ({int(count)} passage(s))"
+            )
 
 
 def _texts(
