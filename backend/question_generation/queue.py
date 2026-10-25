@@ -68,9 +68,10 @@ _NEXT_PENDING = (
 )
 
 #: A fact some accepted question already rests on. Skipping these is what
-#: makes a second run cheap: a refit returns every topic it fits to `new`, and
-#: without it the writer would be paid for once per duplicate before the
-#: dedup gate could throw the duplicate away.
+#: makes a second run cheap: a refit returns to `new` every topic it fits that
+#: is not an old one already asked about, unchanged, and without it the writer
+#: would be paid for once per duplicate before the dedup gate could throw the
+#: duplicate away.
 _ALREADY_ASKED = (
     select(QuestionFact.fact_id)
     .join(Question, Question.id == QuestionFact.question_id)
