@@ -92,3 +92,74 @@ def test_a_changed_object_dump_or_row_count_fails_the_verification(
     assert any("dump" in line for line in wrong)
     assert any("documents/" in line and "differs" in line for line in wrong)
     assert any("documents holds 1 row" in line for line in wrong)
+
+
+def _as(monkeypatch, postgres: str, name: str) -> None:
+    """Points this process at another database name (the key prefix follows DATABASE_URL)."""
+    from sqlalchemy.engine import make_url
+
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        make_url(postgres).set(database=name).render_as_string(hide_password=False),
+    )
+
+
+def _two_databases(postgres, monkeypatch, tmp_path):
+    """A backup taken as qa_a while qa_b holds an object; qa_b then rewrites it and qa_a loses its own."""
+    from archive import backup
+    from blob_store.s3 import ParsedBucket
+
+    key = ParsedBucket.key_for("12" * 32)
+    mine = ParsedBucket.key_for("34" * 32)
+    _as(monkeypatch, postgres, "qa_b")
+    ParsedBucket().put(key, b"B-v1", content_type="application/json")
+    _as(monkeypatch, postgres, "qa_a")
+    ParsedBucket().put(mine, b"A-v1", content_type="application/json")
+    monkeypatch.setattr(backup, "_counts", dict)
+    (tmp_path / "db").mkdir()
+    backup.backup(tmp_path)
+    _as(monkeypatch, postgres, "qa_b")
+    ParsedBucket().put(key, b"B-v2", content_type="application/json")
+    _as(monkeypatch, postgres, "qa_a")
+    ParsedBucket().put(mine, b"A-v2", content_type="application/json")
+    return backup, key, mine
+
+
+def test_a_restore_of_one_database_puts_back_only_its_own_objects(
+    postgres, buckets, monkeypatch, tmp_path
+) -> None:
+    """Another database on the stack keeps the bytes it wrote after the backup."""
+    from blob_store.s3 import ParsedBucket
+
+    backup, key, mine = _two_databases(postgres, monkeypatch, tmp_path)
+
+    backup.restore(tmp_path)
+
+    assert ParsedBucket().get(mine) == b"A-v1"
+    _as(monkeypatch, postgres, "qa_b")
+    assert ParsedBucket().get(key) == b"B-v2", "qa_b's object was rolled back"
+
+
+def test_a_restore_of_the_stack_puts_back_every_database(
+    postgres, buckets, monkeypatch, tmp_path
+) -> None:
+    """The whole-stack restore is the one that rolls the others back."""
+    from blob_store.s3 import ParsedBucket
+
+    backup, key, _ = _two_databases(postgres, monkeypatch, tmp_path)
+
+    backup.restore(tmp_path, stack=True)
+
+    _as(monkeypatch, postgres, "qa_b")
+    assert ParsedBucket().get(key) == b"B-v1"
+
+
+def test_a_scoped_verification_ignores_another_databases_objects(
+    postgres, buckets, monkeypatch, tmp_path
+) -> None:
+    """After qa_a's restore, qa_b's newer object is not a difference."""
+    backup, *_ = _two_databases(postgres, monkeypatch, tmp_path)
+    backup.restore(tmp_path)
+
+    assert backup.verify(tmp_path) == []
+    assert backup.verify(tmp_path, stack=True) != []

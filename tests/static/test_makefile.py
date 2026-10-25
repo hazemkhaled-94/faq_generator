@@ -948,7 +948,7 @@ DATABASES = (
 )
 
 
-@pytest.mark.parametrize("target", ["backup", "restore-backup"])
+@pytest.mark.parametrize("target", ["backup", "restore-backup", "restore-backup-stack"])
 def test_a_backup_target_names_a_directory(target: str) -> None:
     """Without one it says how to call it and does nothing."""
     first = printed(target)[0]
@@ -970,7 +970,7 @@ def test_a_backup_dumps_the_five_databases_and_copies_no_secret() -> None:
 
 def test_a_restore_refuses_while_a_worker_runs_and_checks_the_manifest() -> None:
     """The workers first, CONFIRM second, pg_restore of the five, the manifest last."""
-    lines = printed("restore-backup", "DIR=/backups/x", "CONFIRM=qa_generator")
+    lines = printed("restore-backup-stack", "DIR=/backups/x", "CONFIRM=stack")
     text = "\n".join(lines)
     at = {
         part: text.index(part)
@@ -1043,3 +1043,33 @@ def test_the_wipe_preflight_passes_when_no_store_runs(tmp_path: Path) -> None:
 def test_doctor_prints_what_the_archive_holds() -> None:
     """The archive grows with every rerun; nobody looks unless doctor does."""
     assert any("archive.run --size" in line for line in printed("doctor"))
+
+
+def test_a_restore_of_one_database_restores_that_database_alone() -> None:
+    """Phoenix, Dagster, Argilla and the SeaweedFS filer are shared by every database: not rolled back."""
+    text = "\n".join(
+        printed("restore-backup", "DIR=/backups/x", "CONFIRM=qa_generator")
+    )
+    assert "pg_restore --clean" in text and "$APP_DB_NAME" in text, text
+    for shared in (
+        "SEAWEEDFS_DB_NAME",
+        "PHOENIX_DB_NAME",
+        "DAGSTER_DB_NAME",
+        "ARGILLA_DB_NAME",
+    ):
+        assert shared not in text, shared
+    assert "--stack" not in text, text
+
+
+def test_the_stack_restore_names_what_it_rolls_back_and_refuses_beside_other_databases() -> (
+    None
+):
+    """CONFIRM=stack, and more than one application database refuses unless ALL_DATABASES=1."""
+    first = printed("restore-backup-stack")[0]
+    assert "usage: make" in first and "exit 2" in first, first
+    text = "\n".join(printed("restore-backup-stack", "DIR=/backups/x", "CONFIRM=stack"))
+    for name in DATABASES:
+        assert f"${name}" in text, name
+    assert "archive.backup --restore" in text and "--stack" in text, text
+    assert "ALL_DATABASES" in text and "pg_database" in text, text
+    assert "rolls back" in text, text

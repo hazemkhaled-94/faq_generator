@@ -442,9 +442,18 @@ stores. It replaces the data of the stack it runs on.
    (`docker compose` for docker; `ps` lists what else runs).
 3. `make restore-backup DIR=/backups/<the directory> CONFIRM=<APP_DB_NAME>`.
    It refuses while a worker runs and unless `CONFIRM` names the database. It
-   runs `pg_restore --clean --if-exists` for each of the five, uploads the
-   objects again, and checks every dump, every object and every row count
-   against the manifest. It exits 1 and names each difference.
+   runs `pg_restore --clean --if-exists` for the application database only,
+   uploads the objects under that database's own prefix, and checks that
+   dump, those objects and every row count against the manifest. It exits 1
+   and names each difference. The buckets, the SeaweedFS filer, Phoenix,
+   Dagster and Argilla are shared by every database on the stack, so it
+   leaves them and every other database's objects as they are.
+
+   To put the whole stack back (the five databases and every database's
+   objects), run `make restore-backup-stack DIR=... CONFIRM=stack`. It rolls
+   every database's objects, the filer's entries, the traces and the Dagster
+   runs back to the backup's, so it refuses while more than one application
+   database exists on the server, unless `ALL_DATABASES=1`.
 4. `make up`, then `make schema-status` (at the newest revision) and
    `make documents` (the documents the backup held). Open a document's page and
    a topic figure: the objects are read from the restored store.

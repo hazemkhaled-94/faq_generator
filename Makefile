@@ -235,7 +235,7 @@ help:
         questions-balance questions-export questions-rejudge \
         questions-runs questions-diff \
         documents delete delete-derived wipe-all wipe-preflight dagster-wipe \
-        archive archive-purge restore-documents s3-prefix backup restore-backup \
+        archive archive-purge restore-documents s3-prefix backup restore-backup restore-backup-stack \
         test test-fast test-unit test-integration test-e2e test-smoke \
         test-eval test-coverage test-perf mutation \
         check typecheck audit lint lint-imports deps \
@@ -1609,19 +1609,39 @@ backup:
 	done
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --backup "$(DIR)"
 
-# Put a backup back: pg_restore of the five databases over what they hold, the
-# objects uploaded again, and every dump, object and row count checked against
-# the manifest. Refuses while any worker runs, and unless CONFIRM names the
-# database. Stop everything but postgres and seaweedfs first, as the drill in
-# docs/operations.md says: pg_restore cannot replace a database in use.
+# Put one database back from a backup: pg_restore of the application database
+# alone and the objects under its own prefix, each checked against the manifest.
+# Phoenix, Dagster, Argilla, the SeaweedFS filer and every other database's
+# objects are shared by the whole stack and stay as they are; restore-backup-stack
+# is the target that puts those back. Refuses while any worker runs, and unless
+# CONFIRM names the database. Stop everything but postgres and seaweedfs first,
+# as the drill in docs/operations.md says: pg_restore cannot replace a database
+# in use.
 restore-backup:
 	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup DIR=<a directory make backup wrote> CONFIRM=<database>"; exit 2; }
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
-	@$(call CONFIRMED,restore-backup: it replaces the five databases and the buckets from $(DIR))
+	@$(call CONFIRMED,restore-backup: it replaces the application database and its objects from $(DIR))
+	$(LOADENV) && $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --no-owner -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME" < "$(DIR)/db/$$APP_DB_NAME.dump"
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)"
+
+# Put the whole stack back from a backup: the five databases and every
+# database's objects. The SeaweedFS filer, Phoenix, Dagster and Argilla are
+# shared, so this rolls back every other database's objects, traces and runs to
+# the backup's, and the objects the filer wrote since are lost to it. It refuses
+# while more than one application database exists on the server, unless
+# ALL_DATABASES=1, and unless CONFIRM=stack.
+restore-backup-stack:
+	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup-stack DIR=<a directory make backup wrote> CONFIRM=stack"; exit 2; }
+	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
+	@$(LOADENV) && n=$$($(COMPOSE_CMD) exec -T postgres sh -c "psql -At -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME -c \"SELECT count(*) FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','\$$POSTGRES_USER','$$SEAWEEDFS_DB_NAME','$$PHOENIX_DB_NAME','$$DAGSTER_DB_NAME','$$ARGILLA_DB_NAME')\"") && \
+	  { [ "$$n" -le 1 ] || [ "$(ALL_DATABASES)" = 1 ] || \
+	    { echo "REFUSED: $$n application databases share this stack, and restore-backup-stack rolls back all of them." >&2; \
+	      echo "  restore-backup puts one database back. Run this with ALL_DATABASES=1 to roll the rest back too." >&2; exit 2; }; }
+	@[ "$(CONFIRM)" = stack ] || { echo "REFUSED: restore-backup-stack rolls back the shared SeaweedFS filer, Phoenix, Dagster, Argilla and every database's objects to $(DIR)." >&2; echo "  Run it again with CONFIRM=stack to go on." >&2; exit 2; }
 	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
 	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --no-owner -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \
 	done
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)"
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)" --stack
 
 # Put back what a deletion archived, after an accidental wipe.
 #
