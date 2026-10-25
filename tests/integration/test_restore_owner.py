@@ -9,7 +9,7 @@ from sqlalchemy import text
 pytestmark = pytest.mark.integration
 
 #: The flags the Makefile's restore targets run pg_restore with (a static test holds them equal).
-FLAGS = "--clean --if-exists"
+FLAGS = "--clean --if-exists --single-transaction"
 
 
 def test_the_application_role_reads_its_tables_after_a_restore_by_the_superuser(

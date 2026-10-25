@@ -1236,7 +1236,7 @@ def test_a_backup_says_before_it_dumps_that_running_workers_make_it_inconsistent
 def test_a_restore_keeps_the_owners_the_dump_carries(target: str, given) -> None:
     """--no-owner as the superuser makes it own every table and leaves the application role none."""
     text = "\n".join(printed(target, "DIR=/backups/x", *given))
-    assert "pg_restore --clean --if-exists -U" in text, text
+    assert "pg_restore --clean --if-exists --single-transaction -U" in text, text
     assert "--no-owner" not in text, text
 
 
@@ -1252,3 +1252,38 @@ def test_a_confirm_exported_in_the_shell_does_not_satisfy_the_guard(
     ran = refusal(lines[at], tmp_path, CONFIRM="qa_generator")
 
     assert ran.returncode == 2, ran
+
+
+@pytest.mark.parametrize(
+    "target", ["extract-bridge", "questions-reverify", "questions-rejudge"]
+)
+def test_a_rewriting_host_command_names_the_database_it_acts_on(target: str) -> None:
+    """The banner comes before the command that rewrites rows."""
+    lines = printed(target)
+    banner = next((at for at, one in enumerate(lines) if "on database" in one), None)
+    acting = next(at for at, one in enumerate(lines) if "python -m" in one)
+    assert banner is not None and banner < acting, lines
+
+
+def test_a_backup_is_written_readable_by_its_owner_alone() -> None:
+    """The Argilla dump holds the owner's API key in clear."""
+    lines = printed("backup", "DIR=/backups/x", "ARGILLA=1")
+    dumped = next(at for at, one in enumerate(lines) if "pg_dump" in one)
+    assert any("umask 077" in one for one in lines[: dumped + 1]), lines
+
+
+def test_the_stack_restore_says_what_it_rolls_back_and_what_it_does_not() -> None:
+    """The other databases keep their rows; their objects go back to the backup's."""
+    text = "\n".join(printed("restore-backup-stack", "DIR=/backups/x"))
+    assert "keep their rows" in text and "objects" in text, text
+    assert "rolls back all of them" not in text, text
+
+
+@pytest.mark.parametrize("target", ["restore-backup", "restore-backup-stack"])
+def test_a_restore_is_one_transaction(target: str) -> None:
+    """An error part-way must not leave the database half restored."""
+    given = (
+        ("CONFIRM=qa_generator",) if target == "restore-backup" else ("CONFIRM=stack",)
+    )
+    text = "\n".join(printed(target, "DIR=/backups/x", *given))
+    assert "--single-transaction" in text, text

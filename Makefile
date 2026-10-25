@@ -939,6 +939,7 @@ extract-revalidate:
 #   make extract-bridge FORCE=1
 #   make extract-bridge MISSING=1
 extract-bridge:
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --bridge $(if $(filter 1,$(FORCE)),--force) $(if $(filter 1,$(MISSING)),--missing) $(ONLY)
 
 # Refuse the atomic facts a passage yielded above the cap
@@ -1163,6 +1164,7 @@ questions-rerun:
 # gate overrules the person. This is what carries extract-revalidate, or a
 # re-extraction of one document, through to the questions resting on it.
 questions-reverify:
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --reverify $(ONLY)
 
 # Rewrite every stored question's passage, document and topic scope and its
@@ -1204,6 +1206,7 @@ confidence-recalibrate:
 #   make questions-rejudge TOPIC=473    one topic
 #   make questions-rejudge              every accepted unanswerable question
 questions-rejudge:
+	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m question_generation.run --rejudge $(ONLY)
 
 # Draw the balanced release out of every accepted question, and report what
@@ -1728,7 +1731,7 @@ backup:
 	@[ ! -e "$(DIR)/manifest.json" ] || { echo "REFUSED: $(DIR) already holds a backup." >&2; exit 2; }
 	@echo "A worker still running writes while this copies: the dumps, the objects and the row counts are of different moments. Stop the workers first (docs/operations.md, Backups)." >&2
 	@mkdir -p "$(DIR)/db"
-	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $(if $(filter 1,$(ARGILLA)),$$ARGILLA_DB_NAME); do \
+	$(LOADENV) && umask 077 && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $(if $(filter 1,$(ARGILLA)),$$ARGILLA_DB_NAME); do \
 	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_dump -Fc -U \"\$$POSTGRES_USER\" -d $$name" > "$(DIR)/db/$$name.dump" || exit 1; \
 	done
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --backup "$(DIR)"
@@ -1745,7 +1748,7 @@ restore-backup:
 	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup DIR=<a directory make backup wrote> CONFIRM=<database>"; exit 2; }
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
 	@$(call CONFIRMED,restore-backup: it replaces the application database and its objects from $(DIR))
-	$(LOADENV) && $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME" < "$(DIR)/db/$$APP_DB_NAME.dump"
+	$(LOADENV) && $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --single-transaction -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME" < "$(DIR)/db/$$APP_DB_NAME.dump"
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)"
 
 # Put the whole stack back from a backup: the five databases and every
@@ -1759,12 +1762,12 @@ restore-backup-stack:
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
 	@$(LOADENV) && n=$$($(COMPOSE_CMD) exec -T postgres sh -c "psql -At -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME -c \"SELECT count(*) FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','\$$POSTGRES_USER','$$SEAWEEDFS_DB_NAME','$$PHOENIX_DB_NAME','$$DAGSTER_DB_NAME','$$ARGILLA_DB_NAME')\"") && \
 	  { [ "$$n" -le 1 ] || [ "$(ALL_DATABASES)" = 1 ] || \
-	    { echo "REFUSED: $$n application databases share this stack, and restore-backup-stack rolls back all of them." >&2; \
-	      echo "  restore-backup puts one database back. Run this with ALL_DATABASES=1 to roll the rest back too." >&2; exit 2; }; }
+	    { echo "REFUSED: $$n application databases share this stack. restore-backup-stack puts every database's objects back to the backup's, and what they wrote since is lost to the restored filer; the other databases keep their rows." >&2; \
+	      echo "  restore-backup puts one database back. Run this with ALL_DATABASES=1 to go on regardless." >&2; exit 2; }; }
 	@[ "$(CONFIRM)" = stack ] || { echo "REFUSED: restore-backup-stack rolls back the shared SeaweedFS filer, Phoenix, Dagster, Argilla and every database's objects to $(DIR)." >&2; echo "  Run it again with CONFIRM=stack to go on." >&2; exit 2; }
 	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
 	  [ "$$name" != "$$ARGILLA_DB_NAME" ] || [ -f "$(DIR)/db/$$name.dump" ] || continue; \
-	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \
+	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --single-transaction -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \
 	done
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)" --stack
 
