@@ -106,8 +106,9 @@ not apply and does not count toward the version.
 The catalogue moves under a stored row: a floor is raised, a choice dropped, a
 name retired. Whenever a stage reads its settings (`store.snapshot(<stage>)`,
 which every stage's build and command goes through, parsing and chunking
-included, and the upload route, which builds ingestion and answers 503
-`stored_setting_refused` naming the row) each row is checked against the catalogue as it stands. A row the
+included, the upload route, which builds ingestion, the assessment enrolment
+and `make confidence-recalibrate`; a route answers 503 `stored_setting_refused`
+naming the row, and the recalibration exits 3) each row is checked against the catalogue as it stands. A row the
 catalogue now refuses, or one stored under a name in `store.RETIRED`
 (`TOPIC_MIN_WEIGHT`, which `TOPIC_RELATIVE_WEIGHT` replaces), stops the
 build of a stage that reads it, a setting of that stage's or of the platform,

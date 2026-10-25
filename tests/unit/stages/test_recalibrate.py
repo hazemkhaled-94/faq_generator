@@ -116,10 +116,21 @@ def test_the_command_reads_both_floors_from_the_settings(monkeypatch) -> None:
     monkeypatch.setenv("QUESTIONS_DUPLICATE_FLOOR", "0.75")
     monkeypatch.setenv("EXTRACTION_DUPLICATE_FLOOR", "0.70")
     monkeypatch.setattr(store, "sessions", lambda: None)
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    monkeypatch.delenv("QA_COMMAND_LINE", raising=False)
     monkeypatch.setattr(
         store.Settings,
-        "overrides",
-        lambda self: {"QUESTIONS_DUPLICATE_FLOOR": "0.81"},
+        "rows",
+        lambda self: [
+            SimpleNamespace(
+                name="QUESTIONS_DUPLICATE_FLOOR",
+                value="0.81",
+                updated_at=datetime(2026, 9, 1),
+                service="questions",
+            )
+        ],
     )
     asked: dict[str, float] = {}
 

@@ -281,9 +281,11 @@ class AssessmentQueue(RowQueue):
         ):
             return self._kinds, self._sample, self._stratify
         from assessment.config import Settings, judged_kinds
-        from settings.store import resolved
+        from settings.store import snapshot
 
-        settings = Settings.load(resolved())
+        # Through the audit the stage's build reads through: a stored row it
+        # refuses stops an enrolment too, naming the row.
+        settings = Settings.load(snapshot("assessment")[0])
         if not settings.enabled:
             # The phase off enrols nothing, as ASSESSMENT_ENABLED says.
             return (), 0, False
