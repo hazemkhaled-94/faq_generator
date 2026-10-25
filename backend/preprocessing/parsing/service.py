@@ -29,7 +29,7 @@ from preprocessing.parsing.pipelines import (
     UnsupportedFormat,
 )
 from preprocessing.parsing.repository import ParseQueue
-from stages import StageService
+from stages import Gone, StageService
 from telemetry import tracer, working
 
 log = logging.getLogger(__name__)
@@ -71,6 +71,10 @@ class ParsedStore(Protocol):
         metadata: dict[str, str],
     ) -> None:
         """Stores an object under `key`."""
+        ...
+
+    def remove(self, key: str) -> bool:
+        """Deletes an object, reporting whether one was there."""
         ...
 
 
@@ -144,6 +148,10 @@ class ParsingService(StageService):
         ) as current:
             try:
                 self._parse(document, current)
+            except Gone as exc:
+                current.set_attribute("stage.name", self.name)
+                current.set_attribute("stage.outcome", "deleted")
+                log.info("%s: %s", self.name, exc)
             except (
                 UnsupportedFormat,
                 ConversionFailed,
@@ -266,6 +274,7 @@ class ParsingService(StageService):
         # head request on the bucket is the upgrade.
         earlier = self._parsed.find(key) is not None
         if not earlier:
+            self._stay(document.sha256)
             store()
 
         parsed = self._analyser.analyse(converted)
@@ -273,8 +282,14 @@ class ParsingService(StageService):
         self._unheld(document.sha256, parsed)
         parsed = self._distinct(document.sha256, parsed, converted.titles)
         if earlier:
+            self._stay(document.sha256)
             store()
-        self._repository.complete(document.sha256, parsed, note)
+        try:
+            self._repository.complete(document.sha256, parsed, note)
+        except Gone:
+            # Deleted since the check: what was just written belongs to no row.
+            self._parsed.remove(key)
+            raise
 
         self._done(current)
         current.set_attribute("parse.pages", parsed.page_count)
@@ -288,6 +303,16 @@ class ParsingService(StageService):
             "n/a" if parsed.confidence is None else f"{parsed.confidence:.3f}",
             parsed.title,
         )
+
+    def _stay(self, sha256: str) -> None:
+        """Refuses to write for a document whose row has been deleted.
+
+        Raises:
+            Gone: If the row is not there. A converted document written now
+                would be an object no row names.
+        """
+        if not self._repository.exists(sha256):
+            raise Gone(f"{sha256} was deleted while this worker held it")
 
     def _trustworthy(self, parsed: ParsedDocument) -> None:
         """Refuses a conversion whose lower-bound confidence is under the floor.

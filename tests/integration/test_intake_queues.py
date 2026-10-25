@@ -1043,3 +1043,16 @@ def test_deleting_a_document_that_is_not_there_removes_nothing(catalogue) -> Non
     """A count of zero rather than a failure."""
     assert catalogue.delete(digest("z")) == 0
     assert catalogue.delete_derived(digest("z")) == 0
+
+
+def test_a_row_deleted_while_held_is_gone_not_lost(parsable, engine) -> None:
+    """Nobody claimed it since: it no longer exists, and the log must say so."""
+    from stages.queue import Gone
+
+    queue = ParseQueue()
+    queue.claim()
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM documents"))
+
+    with pytest.raises(Gone, match="deleted while this worker held it"):
+        queue.complete(A, PARSED)

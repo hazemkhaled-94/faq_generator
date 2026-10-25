@@ -633,3 +633,50 @@ def test_a_duplicate_by_content_keeps_its_file_and_its_converted_form() -> None:
         [driver.parsed.key_for(SHA), driver.parsed.key_for(OTHER)]
     )
     assert OTHER in driver.failures
+
+
+def test_a_document_deleted_before_the_store_leaves_no_parsed_object(caplog) -> None:
+    """The row is looked at again before the converted document is written."""
+    driver = ParseDriver(queued=(claimed(),))
+    driver.rows.gone.add(SHA)
+
+    with caplog.at_level("INFO"):
+        assert driver.run() == SHA
+
+    assert driver.parsed.objects == {}
+    assert driver.rows.failures == {}, "a deletion is not a failure to record"
+    assert "deleted while this worker held it" in caplog.text
+
+
+def test_a_document_deleted_after_the_store_has_the_object_taken_back(caplog) -> None:
+    """The row went between the write and the completion: nothing is left."""
+    driver = ParseDriver(queued=(claimed(),))
+    original = driver.rows.exists
+    calls = []
+
+    def exists(sha256: str) -> bool:
+        calls.append(sha256)
+        found = original(sha256)
+        driver.rows.gone.add(SHA)  # deleted right after the check
+        return found
+
+    driver.rows.exists = exists  # pyright: ignore[reportAttributeAccessIssue]
+
+    with caplog.at_level("INFO"):
+        assert driver.run() == SHA
+
+    assert calls and driver.parsed.objects == {}
+    assert driver.rows.failures == {} and SHA not in driver.rows.completed
+    assert "deleted while this worker held it" in caplog.text
+    assert not any(r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_a_later_parse_of_a_held_document_still_replaces_its_object() -> None:
+    """The row is there: nothing changes for a re-parse."""
+    driver = ParseDriver(queued=(claimed(),))
+    driver.parsed.objects[driver.parsed.key_for(SHA)] = b"earlier"
+
+    driver.run()
+
+    assert driver.parsed.objects[driver.parsed.key_for(SHA)] != b"earlier"
+    assert SHA in driver.rows.completed

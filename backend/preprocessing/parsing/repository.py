@@ -63,6 +63,11 @@ class ParseQueue(RowQueue):
             char_count=claimed.char_count,
         )
 
+    def exists(self, sha256: str) -> bool:
+        """Whether the document row is still there, or was deleted meanwhile."""
+        with self._session() as session:
+            return self._exists(session, sha256)
+
     def holder_of(self, content_sha256: str, besides: str) -> str | None:
         """Names another document holding this exact text, if one does.
 

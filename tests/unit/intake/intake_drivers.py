@@ -38,6 +38,7 @@ from preprocessing.parsing.models import (
 )
 from preprocessing.parsing.pipelines import Pipeline, PipelineRegistry
 from preprocessing.parsing.service import ParsingService
+from stages.queue import Gone
 
 #: A one-page PDF, small enough to keep here and real enough for PyMuPDF.
 PDF = (
@@ -704,6 +705,12 @@ class ParseRows:
         self.completed: dict[str, Any] = {}
         self.failures: dict[str, str] = {}
         self.notes: dict[str, str | None] = {}
+        #: Documents deleted while a worker held them.
+        self.gone: set[str] = set()
+
+    def exists(self, sha256: str) -> bool:
+        """Whether the document row is still there."""
+        return sha256 not in self.gone
 
     def claim(self) -> ParseClaim | None:
         """Takes the next pending document."""
@@ -729,6 +736,8 @@ class ParseRows:
         The content digest becomes this document's, which is what the real
         repository writes here and what `holder_of` reads back.
         """
+        if sha256 in self.gone:
+            raise Gone(f"{sha256} was deleted while this worker held it")
         self.completed[sha256] = parsed
         self.notes[sha256] = note
         self.holders.setdefault(parsed.content_sha256, sha256)

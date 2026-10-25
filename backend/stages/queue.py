@@ -46,6 +46,14 @@ class Lost(Exception):
     """
 
 
+class Gone(Lost):
+    """A row this worker claimed no longer exists: it was deleted meanwhile.
+
+    A `Lost` too, since the write goes nowhere, but not another worker's
+    doing, and the log must not say it was.
+    """
+
+
 class Unnarrowable(Exception):
     """A narrowing a stage cannot make, and why.
 
@@ -255,6 +263,7 @@ class StageQueue(Repository):
         """Writes a row's outcome and clears its claim.
 
         Raises:
+            Gone: If this instance claimed the row and it was deleted since.
             Lost: If this instance claimed the row and another worker has
                 claimed it since.
         """
@@ -268,11 +277,26 @@ class StageQueue(Repository):
             if session is None:
                 with self._session.begin() as opened:
                     written = opened.execute(statement).rowcount
+                    exists = bool(written) or self._exists(opened, key)
             else:
                 written = session.execute(statement).rowcount
+                exists = bool(written) or self._exists(session, key)
             if holding and not written:
+                if not exists:
+                    raise Gone(f"{key} was deleted while this worker held it")
                 raise Lost(f"{key} was claimed by another worker since this one")
             self._held = None
+
+    def _exists(self, session: Any, key: Any) -> bool:
+        """Whether the row is still there."""
+        return (
+            session.scalar(
+                select(func.count())
+                .select_from(self.columns.entity)
+                .where(self.columns.key == key)
+            )
+            > 0
+        )
 
     def _finish(
         self,
