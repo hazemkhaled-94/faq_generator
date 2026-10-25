@@ -1332,3 +1332,50 @@ def test_logs_wipe_deletes_by_an_exact_term_on_the_db_field() -> None:
 def test_no_text_keeps_a_claim_the_branch_made_false(path: str, stale: str) -> None:
     """Questions are rejected and kept, an unnarrowed rerun refuses without CONFIRM, a purge is this database's."""
     assert stale not in (ROOT / path).read_text(), path
+
+
+def run_for_real(
+    tmp_path: Path, *arguments: str
+) -> tuple[subprocess.CompletedProcess, str]:
+    """A target run in a copy of the Makefile with a compose and a poetry that only log their arguments."""
+    sandbox(tmp_path)
+    (tmp_path / "Makefile").write_text((ROOT / "Makefile").read_text())
+    log = tmp_path / "log"
+    log.write_text("")
+    for name in ("compose", "poetry"):
+        stand = tmp_path / name
+        stand.write_text(f'#!/bin/sh\necho "{name} $*" >> "{log}"\nexit 0\n')
+        stand.chmod(0o755)
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("MAKE") and name != "MFLAGS"
+    }
+    environment["PATH"] = f"{tmp_path}:{environment['PATH']}"
+    ran = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            f"COMPOSE={tmp_path}/compose",
+            *arguments,
+        ],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return ran, log.read_text()
+
+
+def test_dagster_wipe_leaves_the_runs_when_keep_names_them(tmp_path: Path) -> None:
+    """The line read as (SPARED || set -a) && ... and deleted what it said it left."""
+    ran, log = run_for_real(
+        tmp_path, "dagster-wipe", "CONFIRM=qa_generator", "KEEP=runs"
+    )
+    assert ran.returncode == 0, ran
+    assert "leaving the Dagster run history" in ran.stdout, ran
+    assert "orchestration.wipe" not in log, log
+
+    ran, log = run_for_real(tmp_path, "dagster-wipe", "CONFIRM=qa_generator")
+    assert "orchestration.wipe" in log, (ran, log)

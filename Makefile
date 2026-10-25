@@ -1708,7 +1708,7 @@ wipe-all: wipe
 dagster-wipe:
 	@$(call CONFIRMED,dagster-wipe: it deletes this database's Dagster runs)
 	@$(call SPARED,runs,the Dagster run history) || \
-	  $(if $(filter 1,$(ALL_DATABASES)),$(COMPOSE_CMD) exec -T dagster-webserver dagster run wipe --force,$(LOADENV) && $(COMPOSE_CMD) exec -T -e APP_DB_NAME="$$APP_DB_NAME" dagster-webserver python -m orchestration.wipe)
+	  { $(if $(filter 1,$(ALL_DATABASES)),$(COMPOSE_CMD) exec -T dagster-webserver dagster run wipe --force,$(LOADENV) && $(COMPOSE_CMD) exec -T -e APP_DB_NAME="$$APP_DB_NAME" dagster-webserver python -m orchestration.wipe); }
 
 # Delete what the pipeline built from one document: its passages, and with
 # them their topic memberships, any fact left citing no passage, any bridge
