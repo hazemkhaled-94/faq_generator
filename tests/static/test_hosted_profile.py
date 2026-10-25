@@ -177,6 +177,26 @@ def test_the_corpus_says_its_database_and_pins_what_every_drain_reads(
     assert all(line.startswith("qa_scratch 1 ") for line in drains), drains[:3]
 
 
+@pytest.mark.parametrize("target", ["corpus", "corpus-hosted"])
+def test_a_database_given_on_the_command_line_is_the_one_announced_and_used(
+    tmp_path: Path, target: str
+) -> None:
+    """It beats the files, as every host command's OVERRIDE makes it."""
+    project = _project(tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n")
+
+    ran = _make(project, target, "APP_DB_NAME=qa_other")
+
+    assert ran.returncode == 0, ran.stderr
+    if target == "corpus-hosted":
+        _waited(project)
+        said = (project / "logs/corpus-hosted.log").read_text()
+    else:
+        said = ran.stdout + ran.stderr
+    assert "corpus: database qa_other" in said, said
+    drains = _drained(project)
+    assert drains and {line.split()[0] for line in drains} == {"qa_other"}, drains
+
+
 def test_the_corpus_hands_every_drain_one_spend_ledger(tmp_path: Path) -> None:
     """The tally is per process, so the run's spend is carried between them."""
     project = _project(tmp_path)

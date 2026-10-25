@@ -213,11 +213,12 @@ HOSTED_LOG = logs/corpus-hosted.log
 # mid-row leaves its row failed, and rows left failed are not claimed again.
 CORPUS_RETRIES = parse-retry chunk-retry extract-retry topics-retry questions-retry assess-retry
 
-# The database a run acts on, read as every host command reads it: the same
-# files in the same order. Lazy, so only a target that names it pays for the
-# shell.
-CORPUS_DB = $(shell set -a; . ./configs/env/deployment.env 2>/dev/null; \
-              [ ! -f "$(ENV_PATH)" ] || . "$(ENV_PATH)" 2>/dev/null; printf %s "$$APP_DB_NAME")
+# The database a run acts on, as every host command reads it: the one a
+# command line gives, which OVERRIDE puts over the files, else the files' in
+# their order. Lazy, so only a target that names it pays for the shell.
+CORPUS_DB = $(if $(filter command line,$(origin APP_DB_NAME)),$(APP_DB_NAME),$(shell \
+              set -a; . ./configs/env/deployment.env 2>/dev/null; \
+              [ ! -f "$(ENV_PATH)" ] || . "$(ENV_PATH)" 2>/dev/null; printf %s "$$APP_DB_NAME"))
 
 # What every target of the corpus is given on its command line, which beats the
 # files a host command sources: the database the run announced, the Hub off,
