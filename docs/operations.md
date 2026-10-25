@@ -572,7 +572,8 @@ From a fresh clone, following only this page:
    reachable: `make docling-weights HOST=1` for Docling and the
    `poetry run hf download` line the doctor prints for a missing encoder, as
    [configuration](configuration.md#pinning-the-encoders) says.
-5. Upload the documents on the Upload page, or with `curl -F file=@x.pdf`.
+5. Upload the documents on the Upload page, or with
+   `curl -H "X-API-Token: $API_TOKEN" -F file=@x.pdf http://localhost:8000/documents`.
 6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
    detached: `logs/corpus-hosted.log` holds what it does and
    `logs/corpus-hosted.pid` its process group, database and leader's start time;
