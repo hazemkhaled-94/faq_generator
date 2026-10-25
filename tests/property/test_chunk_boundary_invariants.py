@@ -93,6 +93,11 @@ def documents(draw) -> tuple[DoclingDocument, str]:
     return document, language
 
 
+def _plain(text: str) -> str:
+    """A text with spaces, punctuation and case set aside, as `tidied` compares."""
+    return "".join(c for c in text.casefold() if c.isalnum())
+
+
 def cut(document: DoclingDocument, language: str, budget: int):
     """The chunks and the document they index."""
     return chunks_of(document, word_chunker(budget), language)
@@ -168,13 +173,21 @@ def test_every_word_of_the_body_reaches_a_passage(drawn, budget) -> None:
         .split()
     }
 
+    headings = {
+        _plain(item.text)
+        for item in document.texts
+        if item.label == DocItemLabel.SECTION_HEADER
+    }
+
     for item in document.texts:
         # A heading with nothing under it heads no passage; a lone letter
-        # may be an index divider.
+        # may be an index divider; a paragraph that only repeats a heading is
+        # read as that heading, `tidied` says, and heads nothing either.
         if (
             item.content_layer != ContentLayer.BODY
             or item.label == DocItemLabel.SECTION_HEADER
             or len(item.text.strip()) == 1
+            or _plain(item.text) in headings
         ):
             continue
         for word in item.text.lower().replace(":", " ").replace(".", " ").split():
