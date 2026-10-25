@@ -13,14 +13,15 @@ FLAGS = "--clean --if-exists --single-transaction"
 
 
 def test_the_application_role_reads_its_tables_after_a_restore_by_the_superuser(
-    runtime,
+    runtime, own_postgres
 ) -> None:
     """The dump and the restore run as POSTGRES_USER; the application connects as APP_DB_USER, the owner."""
-    from conftest import POSTGRES_IMAGE, _migrate
     from sqlalchemy import create_engine
     from testcontainers.community.postgres import PostgresContainer
 
-    container = PostgresContainer(POSTGRES_IMAGE, driver="psycopg").start()
+    container = own_postgres.started(
+        lambda: PostgresContainer(own_postgres.image, driver="psycopg")
+    )
     try:
         superuser = container.get_connection_url()
         root = create_engine(superuser, isolation_level="AUTOCOMMIT")
@@ -36,7 +37,7 @@ def test_the_application_role_reads_its_tables_after_a_restore_by_the_superuser(
             connection.execute(text("GRANT ALL ON SCHEMA public TO qa_app"))
         on_x.dispose()
         app_url = base.replace("test:test@", "qa_app:qa_app@") + "/qa_x"
-        _migrate(app_url)
+        own_postgres.migrate(app_url)
         app = create_engine(app_url)
         with app.begin() as connection:
             connection.execute(
