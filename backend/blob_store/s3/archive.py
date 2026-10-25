@@ -141,7 +141,12 @@ class ArchiveBucket(Bucket):
             if before is None or entry["LastModified"] < before
         ]
 
-    def purge(self, *, before: datetime | None = None) -> int:
+    def purge(
+        self,
+        *,
+        before: datetime | None = None,
+        held: list[tuple[str, int]] | None = None,
+    ) -> int:
         """Deletes what the database's part of the archive holds. Irreversible.
 
         Only this database's prefix: another database's copies are its own
@@ -149,6 +154,11 @@ class ArchiveBucket(Bucket):
 
         Args:
             before: Only objects last written before this, or all of them.
+            held: A listing taken earlier, as `held` returns it, to delete
+                exactly those and not what was archived since. The store's
+                modification times are whole seconds, so a moment cannot
+                tell an object written just after it from one written just
+                before.
 
         Returns:
             How many objects were deleted.
@@ -157,7 +167,7 @@ class ArchiveBucket(Bucket):
             RuntimeError: If the store refused to delete any of them, which
                 it reports in the body of a successful answer.
         """
-        keys = [key for key, _ in self.held(before=before)]
+        keys = [key for key, _ in (self.held(before=before) if held is None else held)]
         client = s3_client()
         for start in range(0, len(keys), _BATCH):
             answer = client.delete_objects(

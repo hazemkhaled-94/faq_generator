@@ -338,6 +338,42 @@ def test_a_full_purge_leaves_the_rows_archived_after_it_started(
     assert archived(engine) == {"facts": 1}, "the row that arrived was purged too"
 
 
+def test_a_full_purge_keeps_the_objects_of_a_deletion_made_while_it_runs(
+    archive, engine, buckets, monkeypatch
+) -> None:
+    """The rows archived after the purge started stay, and so do their files."""
+    from sqlalchemy import event
+
+    from archive import store
+    from blob_store.s3 import ArchiveBucket, DocumentsBucket, ParsedBucket
+
+    fill(engine, 25)
+    sha = digest("purge-objects")
+    source, parsed = DocumentsBucket(), ParsedBucket()
+    source.put(
+        source.key_for(sha, "application/pdf"), PDF, content_type="application/pdf"
+    )
+    parsed.put(parsed.key_for(sha), b"{}", content_type="application/json")
+    with Session(engine) as session:
+        session.add(document(sha, chunk_status="chunked"))
+        session.flush()
+        session.add(passage(sha, ordinal=1))
+        session.commit()
+    monkeypatch.setattr(store, "BATCH", 10)
+    seen: list[int] = []
+
+    def arrive(connection) -> None:
+        """After the first batch, a document is deleted."""
+        seen.append(1)
+        if len(seen) == 2:
+            build_removal().delete(sha)
+
+    event.listen(archive._session.kw["bind"], "commit", arrive)
+    archive.purge()
+
+    assert len(ArchiveBucket().held()) == 2, "the new deletion's files were purged"
+
+
 def test_the_archive_size_is_estimated_without_counting_it(archive, engine) -> None:
     """What `make doctor` prints: the planner's row count and the table's size."""
     fill(engine, 25)

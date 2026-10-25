@@ -129,6 +129,9 @@ class Archive:
             )
             started = cutoff or session.execute(select(func.now())).scalar_one()
         wanted = wanted.where(ArchivedRow.archived_at < started)
+        # Listed now, before the batches: an object archived while they run
+        # belongs to a deletion whose rows this purge leaves.
+        listed = None if table is not None else self._bucket.held(before=cutoff)
 
         rows = 0
         while True:
@@ -142,6 +145,6 @@ class Archive:
             if taken < BATCH:
                 break
 
-        objects = 0 if table is not None else self._bucket.purge(before=cutoff)
+        objects = 0 if table is not None else self._bucket.purge(held=listed)
         log.info("purged %d archived row(s) and %d archived object(s)", rows, objects)
         return Purged(rows=rows, objects=objects)
