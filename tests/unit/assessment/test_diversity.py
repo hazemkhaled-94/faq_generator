@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import replace
@@ -1268,3 +1269,47 @@ def test_the_fields_flag_reaches_the_report(exported, tmp_path, capsys) -> None:
 
     assert cli.main([*argv, "--fields", "usable"]) == 0
     assert {row[1] for row in corrected_rows(capsys)} == {"usable"}
+
+
+LONG = "Phrasing=" + "a-category-named-at-great-length-" + "xxxxxxxx"
+
+
+def _tables(out: str) -> list[list[str]]:
+    """Every block of the report that starts with a `language` heading, as its lines."""
+    blocks = []
+    for block in out.split("\n\n"):
+        lines = block.splitlines()
+        heads = [at for at, line in enumerate(lines) if line.startswith("language")]
+        if heads:
+            blocks.append(lines[heads[0] :])
+    return blocks
+
+
+def test_every_table_sizes_its_label_column_to_the_longest_label(
+    tmp_path, exported, configured, capsys
+) -> None:
+    """A 50-character category does not push its own row's figures out of line."""
+    assert len(LONG) == 50
+    path = tmp_path / "long.xlsx"
+    rows = [
+        asked(i, f"Frage {i}?", "de", (LONG if i % 2 else CONCISE,))
+        for i in range(1, 13)
+    ]
+    path.write_bytes(workbook(rows, judged={i: judged(i, 1.0) for i in range(1, 13)}))
+    file = tmp_path / "labels.jsonl"
+    file.write_text(
+        "\n".join(json.dumps(one) for one in usable(range(1, 5), [1, 0, 1, 1]))
+    )
+
+    argv = ["--diversity", "--file", str(path), "--by", "category"]
+    assert cli.main([*argv, "--labels", str(file)]) == 0
+    tables = _tables(capsys.readouterr().out)
+
+    assert len(tables) == 4, "the measures, the conformance, the judge and the labels"
+    for lines in tables:
+        heading, *body = lines
+        edge = re.search(r"\bn\b", heading).end()  # type: ignore[union-attr]
+        assert body
+        for line in (one for one in body if "not pooled" not in one):
+            assert line[edge - 1].isdigit(), (heading, line)
+            assert line[edge : edge + 1] in ("", " "), (heading, line)

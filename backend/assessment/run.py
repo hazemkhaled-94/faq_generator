@@ -245,14 +245,15 @@ def diversity(argv: list[str]) -> int:
     if args.against is not None:
         _compare(_texts(groups), _texts(_read(args.against, args.language)), tagged_by)
     else:
-        named = f"{args.by:<36}" if args.by else ""
+        width = _width(args.by, groups)
+        named = f"{args.by:<{width}}" if args.by else ""
         print(
             f"{'language':<9}{named}{'n':>6}"
             + "".join(f"{one:>9}" for one in (*METRICS, "held"))
         )
         evidence = _evidence(args.file)
         for (language, label), asked in sorted(groups.items()):
-            shown = f"{label:<36}" if args.by else ""
+            shown = f"{label:<{width}}" if args.by else ""
             if args.size:
                 if len(asked) < args.size:
                     print(
@@ -300,6 +301,15 @@ def diversity(argv: list[str]) -> int:
                 args.fields.split(",") if args.fields else None,
             )
     return 0
+
+
+def _width(by: str | None, groups: dict[tuple[str, str], list[tuple[int, str]]]) -> int:
+    """The label column's width: the longest label or heading, and two spaces.
+
+    One place for every table of the report, so a label of any length keeps the
+    figures after it in line.
+    """
+    return max([len(by or ""), *(len(label) for _, label in groups)]) + 2
 
 
 def _evidence(path: Path) -> dict[int, str]:
@@ -542,7 +552,10 @@ def _conformance(
     else:
         print("\nAnswer forms as stored:")
     bound = f"{'in bounds':>11}" if by == "category" else ""
-    print(f"{'language':<9}{by:<36}{'n':>6}{bound}{'factoid':>9}{'open-ended':>12}")
+    width = _width(by, groups)
+    print(
+        f"{'language':<9}{by:<{width}}{'n':>6}{bound}{'factoid':>9}{'open-ended':>12}"
+    )
     for (language, label), asked in sorted(groups.items()):
         least, most = bounds.get(label, (None, None))
         inside = ""
@@ -554,7 +567,7 @@ def _conformance(
                 inside = f"{kept / len(asked):>11.3f}"
         kinds = [factuality(forms.get(id)) for id, _ in asked]
         print(
-            f"{language:<9}{label:<36}{len(asked):>6}{inside}"
+            f"{language:<9}{label:<{width}}{len(asked):>6}{inside}"
             f"{kinds.count('factoid') / len(asked):>9.3f}"
             f"{kinds.count('open-ended') / len(asked):>12.3f}"
         )
@@ -586,7 +599,8 @@ def _judged(
     if scored.empty:
         return
     metrics = [one for one in _PAPER_ORDER if one in set(scored["Judgement"])]
-    named = f"{by:<36}" if by else ""
+    width = _width(by, groups)
+    named = f"{by:<{width}}" if by else ""
     print("\nThe paper's judge, mean scores from 0 to 1:")
     print(
         f"{'language':<9}{named}{'n':>6}"
@@ -597,7 +611,7 @@ def _judged(
         if held.empty:
             continue
         means = held.groupby("Judgement")["Score"].mean()
-        shown = f"{label:<36}" if by else ""
+        shown = f"{label:<{width}}" if by else ""
         print(
             f"{language:<9}{shown}{held['Question ID'].nunique():>6}"
             + "".join(
@@ -736,7 +750,8 @@ def _corrected(
     unjudged = sum(id in texts and id not in verdict for id in given)
     absent = sum(id not in texts for id in given)
 
-    named = f"{by:<36}" if by else ""
+    width = _width(by, groups)
+    named = f"{by:<{width}}" if by else ""
     print("\nLabelled shares corrected by the conjunction of the judge's metrics:")
     print(
         f"{'language':<9}{named}{'label':<16}{'n':>5}{'N':>6}{'judge':>8}"
@@ -766,7 +781,7 @@ def _corrected(
                 if field not in given.get(id, {})
                 and (not applies[field] or kinds.get(id) in applies[field])
             ]
-            shown = f"{language:<9}{label:<36}" if by else f"{language:<9}"
+            shown = f"{language:<9}{label:<{width}}" if by else f"{language:<9}"
             if len(tagged) < 2:
                 print(
                     f"{shown}{field:<16}{len(tagged):>5}{len(rest):>6}  "
@@ -782,7 +797,7 @@ def _corrected(
             pool[(label, field)].append((one, tagged, rest, language, len(group)))
             _print_corrected(shown, field, one, tagged + rest, tagged, verdict, given)
     for (label, field), parts in sorted(pool.items()):
-        shown = f"{'all':<9}{label:<36}" if by else f"{'all':<9}"
+        shown = f"{'all':<9}{label:<{width}}" if by else f"{'all':<9}"
         if unmeasured[(label, field)]:
             missing = ", ".join(unmeasured[(label, field)])
             print(f"{shown}{field} not pooled: {missing} not measured")
