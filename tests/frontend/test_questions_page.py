@@ -428,6 +428,24 @@ def test_the_listing_shows_the_stored_kind_apart_from_the_type(open_view) -> Non
     assert "Written as" not in listed.columns
 
 
+def test_the_band_is_titled_by_what_it_measures(open_view) -> None:
+    """Retrieval spread, as the workbook titles it: how far an answer is spread, not how hard."""
+    question = changed(QUESTION, difficulty="hard", planned_difficulty="medium")
+    client = Answers(**answers(questions=_one(question), question=_detail(question)))
+    view = open_view("questions", client)
+    listed = view.table_with("Question")
+    filters = set(view.pickers())
+
+    fields = list(view.select(0).table_with("Field")["Field"])
+
+    assert list(listed["Retrieval spread"]) == ["hard"]
+    assert "Difficulty" not in listed.columns
+    assert {"Retrieval spread", "Spread planned"} <= set(fields)
+    assert not {"Difficulty", "Planned difficulty"} & set(fields)
+    assert "Retrieval spread" in filters
+    assert "Difficulties" not in filters
+
+
 def _recorded(name: str) -> dict:
     """One prompt as /prompts answers it."""
     return {

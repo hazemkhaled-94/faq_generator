@@ -397,7 +397,7 @@ def view() -> None:
             ),
             "answer_form": ("Shapes", list(_FORMS), "The shape the answer takes."),
             "difficulty": (
-                "Difficulties",
+                "Retrieval spread",
                 list(_DIFFICULTY),
                 "The band the question turned out to be.",
             ),
@@ -504,7 +504,7 @@ def view() -> None:
                     "Type": row["question_type"] or "—",
                     "Answer shape": row["answer_form"] or "—",
                     "Answerable": "yes" if row["answerable"] else "no",
-                    "Difficulty": row["difficulty"] or "—",
+                    "Retrieval spread": row["difficulty"] or "—",
                     "Kind": row["kind"],
                     "Passages": _scope(row["passage_scope"], "single_passage"),
                     "Documents": _scope(row["document_scope"], "single_document"),
@@ -529,7 +529,7 @@ def view() -> None:
                     help="no means it was written on purpose to have no "
                     "answer in the corpus, to test whether a chatbot admits it."
                 ),
-                "Difficulty": st.column_config.TextColumn(
+                "Retrieval spread": st.column_config.TextColumn(
                     help="How far the answer is spread, not how clever it is. "
                     "Five things each count one point: the three scopes, a "
                     "long answer, and following another question."
@@ -777,8 +777,8 @@ def _detail(client, question: dict) -> None:
                 "Level": question["cognitive_level"],
                 "Answer shape": question["answer_form"],
                 "Answerable": question["answerable"],
-                "Difficulty": question["difficulty"],
-                "Planned difficulty": question["planned_difficulty"],
+                "Retrieval spread": question["difficulty"],
+                "Spread planned": question["planned_difficulty"],
                 "Kind": question["kind"],
                 "Categories": question["categories"],
                 "Passages": question["passage_scope"],
