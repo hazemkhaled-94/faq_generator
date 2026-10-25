@@ -6640,6 +6640,27 @@ def test_a_compound_row_stores_both_halves_whatever_the_verdict(
     assert stored[0]["margin"] is None, "a stored detail takes no part in confidence"
 
 
+@pytest.mark.parametrize("language", ["en", "de"])
+def test_a_compound_row_a_structural_rule_refuses_stores_its_halves(
+    language: str,
+) -> None:
+    """A draft stopped before the compound check, by a missing question mark, keeps them too."""
+    _, _, asked, parts = _BANK[language]
+    recording = PerHalf({part[1]: part[2] for part in parts})
+
+    result = build(recording).check(_compound(language, asked.rstrip("?")))
+
+    assert result.rejected_reason == QuestionRejection.MALFORMED
+    assert result.gates_ran == ("structural",)
+    stored = [one.recorded() for one in result.readings if one.gate == "halves"]
+    assert [one["detail"] for one in stored] == [
+        [
+            {"passage_id": one, "question": two, "answer": three}
+            for one, two, three in parts
+        ]
+    ]
+
+
 def test_a_question_that_is_not_compound_stores_no_halves() -> None:
     """Only the compound kind has halves."""
     result = build(Recording(recovers="4 kg")).check(candidate())

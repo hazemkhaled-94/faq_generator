@@ -63,6 +63,7 @@ from confidence import Measurement
 from database.qa_generator import (
     AnswerForm,
     Derivation,
+    QuestionKind,
     QuestionRejection,
     QuestionStatus,
     QuestionType,
@@ -489,6 +490,22 @@ class QuestionChecker:
         # when one did: the words a recycled answerable question is written
         # from.
         settled: list[Settled] = []
+        # A compound draft's halves are the writer's and cannot be recomputed
+        # from the merged question, so the row keeps them whatever verdict it
+        # gets, a structural refusal's included.
+        if candidate.kind == QuestionKind.COMPOUND:
+            readings.append(
+                Measurement(
+                    "halves",
+                    float(len(candidate.parts)),
+                    2.0,
+                    shadow=True,
+                    detail=[
+                        {"passage_id": one, "question": two, "answer": three}
+                        for one, two, three in candidate.parts
+                    ],
+                )
+            )
         kind = retyped(
             candidate.question_text, candidate.spec.name, candidate.group.language
         )
@@ -646,20 +663,6 @@ class QuestionChecker:
         """
         resting = {passage.id for passage in candidate.group.resting}
         parts = candidate.parts
-        # The halves are the writer's and cannot be recomputed from the merged
-        # question, so the row keeps them whatever verdict it gets.
-        readings.append(
-            Measurement(
-                "halves",
-                float(len(parts)),
-                2.0,
-                shadow=True,
-                detail=[
-                    {"passage_id": one, "question": two, "answer": three}
-                    for one, two, three in parts
-                ],
-            )
-        )
         if (
             len(parts) != 2
             or parts[0][0] == parts[1][0]

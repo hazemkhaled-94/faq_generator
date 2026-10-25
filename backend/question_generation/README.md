@@ -394,7 +394,8 @@ its halves (a word such as "differ", "both" or "together", by the per-language
 `_RELATES` table, read only in the words that join the halves) is refused as
 `wrong_type`. The key is held to its answer form one half at a time. The row keeps both halves
 (passage, question, answer) in `gate_scores` as a `halves` reading that takes no
-part in confidence, because they cannot be recomputed from the merged question. The
+part in confidence, whatever verdict it gets, a structural refusal's included,
+because they cannot be recomputed from the merged question. The
 partner is the passage of the slot's topic and its bridges that shares least
 with the head; a slot that is dealt one passage is written as `single`. A
 compound slot is dealt from claims of the passages' own, so a topic left with
