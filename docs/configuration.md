@@ -133,6 +133,11 @@ split needs: a hosted model that does not reason is sent none of it.
 `backend.env` names no role model, so a role you leave unset follows `LLM_MODEL`
 and never the project's default.
 
+The judge shares `azure/gpt-4o` with the digest reader, which is accepted: an
+assessment build says so in an INFO line, and warns only where the judge is the
+writer's or the verifier's model, the roles that wrote and checked the
+questions it judges.
+
 The split has one address: every role model is reached through `LLM_BASE_URL`. A split
 across more than one Azure resource, each with its own endpoint and key, needs
 a gateway in front of them that routes by model id; litellm does not pick an

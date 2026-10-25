@@ -314,21 +314,43 @@ def test_a_judge_distinct_from_every_role_is_not_warned_about() -> None:
     assert judge_of(named, _ROLES)[1] is False
 
 
-def test_a_judge_that_is_one_of_the_roles_is_warned_about_naming_it(
-    caplog, monkeypatch
+@pytest.mark.parametrize(
+    ("judge", "roles"),
+    [("azure/gpt-5.6-sol", "writer"), ("azure/gpt-4.1", "verifier, topics")],
+)
+def test_a_judge_that_is_the_writer_or_the_verifier_is_warned_about_naming_it(
+    caplog, monkeypatch, judge: str, roles: str
 ) -> None:
-    """The log line says which role it is marking."""
+    """They wrote and checked the questions it judges: the log says which roles."""
     from assessment.factory import build_service
 
     for name, value in _ROLES.items():
         monkeypatch.setenv(name, value)
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("INFO"):
+        build_service(
+            settings(ASSESSMENT_JUDGE_MODEL=judge), model(LLM_MODEL="azure/gpt-5.4")
+        )
+
+    (said,) = [r for r in caplog.records if "own output" in r.getMessage()]
+    assert said.levelname == "WARNING"
+    assert roles in said.getMessage()
+
+
+def test_a_judge_sharing_only_the_digest_reader_s_model_is_said_not_warned(
+    caplog, monkeypatch
+) -> None:
+    """The shipped split puts both on azure/gpt-4o: an INFO line, at every build."""
+    from assessment.factory import build_service
+
+    for name, value in _ROLES.items():
+        monkeypatch.setenv(name, value)
+
+    with caplog.at_level("INFO"):
         build_service(
             settings(ASSESSMENT_JUDGE_MODEL="azure/gpt-4o"),
             model(LLM_MODEL="azure/gpt-5.4"),
         )
 
-    assert (
-        "digest" in caplog.text and "judging the pipeline's own output" in caplog.text
-    )
+    (said,) = [r for r in caplog.records if "digest" in r.getMessage()]
+    assert said.levelname == "INFO"

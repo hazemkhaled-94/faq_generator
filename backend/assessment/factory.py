@@ -46,8 +46,14 @@ def build_service(
     marked = judge_equals(settings, source) or (
         ["writer"] if asked.model == model.model else []
     )
+    # A warning where the judge wrote or checked the questions it judges, the
+    # bulk of what it is asked; a line where it only shares a reader's model.
+    # The shipped split puts the judge and the digest reader both on
+    # azure/gpt-4o, which warned at every build of a deployment as shipped.
+    level = logging.WARNING if {"writer", "verifier"} & set(marked) else logging.INFO
     if marked:
-        log.warning(
+        log.log(
+            level,
             "%s is judging the pipeline's own output, because "
             "ASSESSMENT_JUDGE_MODEL names it: it is the %s model. A model marking "
             "its own work agrees with itself, and this phase exists to hold "
