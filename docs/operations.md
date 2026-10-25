@@ -841,7 +841,8 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
 ### Settings
 
 - **The model stages run on the host** (C-006): `HOST_RUNNER=1`, `make
-  corpus-hosted`, and the model workers stopped. The orchestrated path is not
+  corpus-hosted`, and the model workers stopped; a run refuses to start while
+  a model worker or a Dagster container is up (`make corpus-preflight`). The orchestrated path is not
   part of this profile (C-073): `make all`, `make pipeline`, `make auto` and the
   pipeline's routes refuse, naming the host runner.
 - **The judge and the provider are the host's** (C-006).
@@ -870,13 +871,17 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
 
 ### Resources
 
-- **Postgres sized for the corpus** (C-011). `configs/env/deployment.env`
-  ships the go-live row of [Sizing Postgres](#sizing-postgres). Its measure is
-  the 10x load test `make test-perf` runs: a dedup probe and a fact write
-  within twice their time at the reviewed build's size. It has not yet been
-  read on an idle machine; until it has, raise `POSTGRES_MEMORY` and
-  `POSTGRES_SHARED_BUFFERS` by the table's next row if the probes slow down
-  as the corpus grows.
+- **Postgres sized as shipped, its probe time watched** (C-011).
+  `configs/env/deployment.env` ships the go-live row of
+  [Sizing Postgres](#sizing-postgres). Its measure is the 10x load test
+  `make test-perf` runs: a dedup probe and a fact write within twice their
+  time at the reviewed build's size. On CI's runner, in two runs, the
+  single-pass probe p95 went from 4.5 ms to 9.7 ms, 2.15x against the 2x the
+  bar allows; the warm probe held at 1.00x and the write at 1.66x. The sizing
+  ships with that limit by the user's decision: the database is about 2% of a
+  drain's time at ten times the build. Watch the probe time as the corpus
+  grows, and raise `POSTGRES_MEMORY` and `POSTGRES_SHARED_BUFFERS` by the
+  table's next row if it climbs.
 - **The podman VM's memory** at least what the limits of the services it runs
   add up to ([Memory](#memory)): the eleven the go-live profile starts come to
   about 15 GiB at the shipped sizes, PostgreSQL and the parse worker 4 each and
@@ -940,7 +945,8 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
 | C-085 | Every published port stays on 127.0.0.1, and one operator uses the host. `API_TOKEN` guards the API's writes but is shared, and the pages have no login: serving the stack to a team, or binding another interface, makes this a blocker | A login on the pages and the API |
 | C-366 | Every role model on one endpoint, `LLM_BASE_URL`; a split across Azure resources needs a gateway in front of them that routes by model id | An address per role (deferred: the measured split fits one resource) |
 | C-106 | Ingest only documents the customer authored or controls, no user reviews or third-party submissions: a document's text reaches every prompt as it is, so an instruction planted in it is read as one | Fencing the material in every prompt. It was tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9 |
-| C-054 | After a deletion through the pages or the API, run `make extract-dedup`: it gives back the repeats refused against what was deleted, and on this profile no extraction worker runs to replay it. `make delete` and `make delete-derived` run it themselves | A replay the host runner makes after a deletion |
+| C-054 | After a deletion through the pages or the API, run `make extract-dedup`: every deletion says how many duplicate refusals lost their twin, and on this profile no extraction worker runs to give them back. `make delete` and `make delete-derived` run it themselves | A replay the host runner makes after a deletion |
+| C-066 | Export a large corpus with `make questions-export` on the host, never through the pages: the API builds the whole workbook in its 512 MB and fails past about 13,000 questions | The streaming export, deferred to v0.5.3 |
 | C-029 | Report the difficulty band as retrieval spread, never as hardness, and leave `QUESTIONS_RELEASE_DIFFICULTY` unset: equal thirds drew nearly every multi-passage question, where the welds sit. The workbook titles the column Retrieval spread since v0.5.2 | A grading of how hard a question is to answer, not built |
 | C-031 | Leave distant-from-document out of per-category reports: most of its released rows use the document's words | A per-question reading of how far a row's words are from its evidence, calibrated on two corpora (deferred) |
 | C-052 | Before a release from price lists or fee schedules, read by hand its questions whose explanation states a space-grouped amount (`12 500 €`): a wrong total there can still pass the explanation check. Since v0.5.2 the figure reader takes such an amount as one figure with a marked currency, a price dash, a no-break space or any currency sign after it | The explanation half of the fix, which needs the arithmetic check's model call to tell a right total from a wrong one |
@@ -1055,7 +1061,6 @@ one's fix ships in v0.5.2, so it has left [Go-live deployment](#go-live-deployme
 | C-024 | `TOPIC_NUM_TOPICS=40` caps the topics, and with them the questions a run can write | The ceiling ships at 300 a language and topics are named 25 to a call; a synthetic language of 10,000 passages fits 250 topics, every one named |
 | C-058 | No refit or topic delete while a question drain runs | A fit request, `DELETE /topics` and `make topics-delete` refuse while a topic holds a live question claim (409 `questions_running`, or exit 1) |
 | C-059 | The workbook says that the judge's figures are not a quality estimate | The judged sample is drawn from each stratum in proportion to its size, from the released questions once a release exists, and the Summary says its counts are not a quality estimate |
-| C-066 | Export a large corpus with `make questions-export`, never through the pages | The workbook is written as it is read, from server-side cursors, in openpyxl's write-only mode: an export of 70,000 questions with their citations passes in a test, and a sheet past Excel's row limit goes on in another |
 | C-072 | `HF_HUB_OFFLINE=1` with a filled model cache | `make corpus-hosted` runs with `HF_HUB_OFFLINE=1` and refuses, before it detaches, a cache missing an encoder at its pinned commit or Docling's weights |
 | C-075 | Stop the workers and drains before `make schema` | Each migration runs in its own transaction under a 5-second lock timeout and a 10-minute statement timeout, so a busy table fails the migration rather than queueing every worker behind it, and `make upgrade` stops the workers first |
 | C-076 | Before ingest, list the page counts and split or try first any document far above 139 pages | `PARSING_MAX_PAGES` (180) refuses a longer document before conversion, naming its pages; `make parse-retry` returns it |

@@ -30,6 +30,7 @@ HOLDING = {
     "C-052": "space-grouped",
     "C-054": "make extract-dedup",
     "C-056": "image-only",
+    "C-066": "make questions-export",
     "C-082": "two model drains",
     "C-083": "OCR",
     "C-085": "127.0.0.1",
@@ -52,7 +53,6 @@ HOLDING = {
 LIFTED = (
     "C-058",
     "C-059",
-    "C-066",
     "C-072",
     "C-075",
     "C-076",
