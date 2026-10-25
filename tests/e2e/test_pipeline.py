@@ -716,19 +716,62 @@ def test_every_question_can_be_traced_back_to_a_passage(pipeline, engine) -> Non
     assert orphans == 0
 
 
-def test_re_extracting_the_corpus_takes_its_questions_with_it(pipeline, engine) -> None:
-    """question_facts cascades from facts, and the trigger does the rest.
+def _resting(engine) -> list:
+    """Each question, its status and reason, and the facts it rests on."""
+    with engine.connect() as connection:
+        return list(
+            connection.execute(
+                text(
+                    "SELECT q.id, q.status, q.rejected_reason, "
+                    "array_remove(array_agg(qf.fact_id ORDER BY qf.fact_id), NULL) "
+                    "FROM questions q "
+                    "LEFT JOIN question_facts qf ON qf.question_id = q.id "
+                    "GROUP BY q.id ORDER BY q.id"
+                )
+            ).all()
+        )
 
-    The destructive path, proved rather than assumed: `extract-rerun` is not
-    a cheap way to apply a prompt change once questions exist.
+
+class _Rewording(StubModel):
+    """The stub, reading each claim in other words than it did the first time."""
+
+    def answer(self, *, system: str, user: str, shape, prompt_version=None):
+        """One fact per numbered sentence, none of them as first read."""
+        self.calls += 1
+        numbered = [line for line in user.splitlines() if line.startswith("[")]
+        return shape(
+            facts=[
+                {"sentences": [index], "statement": f"Recorded: {_statement(line)}"}
+                for index, line in enumerate(numbered)
+            ]
+        )
+
+
+def test_re_extracting_the_corpus_keeps_its_questions(
+    pipeline, chunker, engine
+) -> None:
+    """A re-extraction never deletes a question; it rejects one whose fact went.
+
+    Read again as it was, a fact keeps its id and the question resting on it
+    stays as it was. Read otherwise, the fact goes and its question is
+    rejected as `source_changed` and kept, with its id, where it once went
+    with the fact.
     """
     _through_questions(pipeline, engine)
-    assert counts(engine)["questions"] > 0
+    before = _resting(engine)
+    assert before
 
     PassageQueue().reset()
     pipeline["extract"].drain()
 
-    assert counts(engine)["questions"] == 0, "the questions outlived their facts"
+    assert _resting(engine) == before, "a fact read again as it was moved a question"
+
+    PassageQueue().reset()
+    _pipeline_with(chunker, _Rewording())["extract"].drain()
+
+    after = _resting(engine)
+    assert [one[0] for one in after] == [one[0] for one in before], "a question went"
+    assert all(one[1:3] == ("rejected", "source_changed") for one in after), after
 
 
 def test_re_judging_a_fact_leaves_the_question_for_the_re_check_to_find(
