@@ -73,7 +73,7 @@ def test_every_service_is_in_the_go_live_set_or_has_a_profile_here() -> None:
     assert set(_services()) == GO_LIVE_SET | set(PROFILES)
 
 
-def _run(project: Path, line: str, compose_prints: str):
+def _run(project: Path, line: str, compose_prints: str, **environment: str):
     (project / "bin/compose").write_text(f"#!/bin/sh\n{compose_prints}\n")
     (project / "bin/compose").chmod(0o755)
     return subprocess.run(
@@ -84,6 +84,7 @@ def _run(project: Path, line: str, compose_prints: str):
             "PATH": f"{project / 'bin'}:{os.environ['PATH']}",
             "COMPOSE": str(project / "bin/compose"),
             "LOG": str(project / "calls.log"),
+            **environment,
         },
         capture_output=True,
         text=True,
@@ -134,13 +135,17 @@ def test_wipe_skips_a_service_that_is_not_running_and_says_so(
 def test_wipe_runs_the_step_of_a_service_that_is_up(
     tmp_path: Path, service: str, step: str
 ) -> None:
-    """The same line, with a container answering."""
+    """The same line, with a container answering, run as the wipe runs it.
+
+    `make wipe CONFIRM=<database>` hands its command line's CONFIRM to the
+    step's make through MAKEFLAGS; a step run alone without one refuses.
+    """
     project = _project(tmp_path)
     (project / "configs/env/review.env").write_text("")
     (project / "bin/poetry").write_text('#!/bin/sh\necho "poetry $*" >> "$LOG"\n')
     line = _wipe_line(project, f"ps -q {service}", f"make {step}")
 
-    ran = _run(project, line, 'echo "4f1c2a9e"')
+    ran = _run(project, line, 'echo "4f1c2a9e"', MAKEFLAGS=" -- CONFIRM=qa_scratch")
 
     assert ran.returncode == 0, ran
     assert "is not running" not in ran.stdout
