@@ -783,6 +783,34 @@ def test_a_genitive_or_those_with_nothing_before_it_still_points_outside(
             "these",
             True,
         ),
+        (
+            "de",
+            "Dieses Konto wird monatlich abgerechnet.",
+            "Girokonto Preisverzeichnis 2026",
+            "dieses",
+            False,
+        ),
+        (
+            "de",
+            "Dieser Onlineshop liefert nur nach Deutschland.",
+            "Onlineshop AGB",
+            "dieser",
+            False,
+        ),
+        (
+            "de",
+            "Diese Karten können im Ausland genutzt werden.",
+            "Kreditkarten Bedingungen 2025",
+            "diese",
+            False,
+        ),
+        (
+            "en",
+            "These terms apply to all accounts.",
+            "Terms and Conditions",
+            "these",
+            True,
+        ),
     ],
 )
 def test_a_demonstrative_naming_the_head_of_the_documents_title_names_the_document(

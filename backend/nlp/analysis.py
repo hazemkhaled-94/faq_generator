@@ -1923,6 +1923,10 @@ _TITLE_LINES = re.compile(r"\n| / ")
 #: labels the pipelines give.
 _PART_OF_NOUN_PHRASE = frozenset({"compound", "nmod"})
 
+#: How a noun set right after another is attached to it, in the labels the
+#: pipelines give: an apposition, a flat name, a German noun kernel.
+_JUXTAPOSED = frozenset({"app", "appos", "flat", "nk"})
+
 
 @lru_cache(maxsize=256)
 def _titled(title: str | None, language: str | None) -> frozenset[str]:
@@ -1945,6 +1949,16 @@ def _titled(title: str | None, language: str | None) -> frozenset[str]:
         for sentence in list(_read(line, language).sents)[-1:]:
             for noun in _conjuncts(sentence.root):
                 if noun.pos_ not in _NOMINAL:
+                    continue
+                # A root with a noun set right after it is two nouns side by
+                # side, "Girokonto Preisverzeichnis": the parse cannot say
+                # which one the title is about, so neither names it.
+                if any(
+                    child.i == noun.i + 1
+                    and child.pos_ in _NOMINAL
+                    and child.dep_ in _JUXTAPOSED
+                    for child in noun.children
+                ):
                     continue
                 heads |= {noun.lemma_.casefold(), noun.text.casefold()}
                 # A head that a number labels, "Edition 2026", names no
