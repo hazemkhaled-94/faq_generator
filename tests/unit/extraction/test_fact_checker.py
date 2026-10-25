@@ -1722,30 +1722,19 @@ def test_an_index_beyond_the_lines_of_the_last_sentence_stays_refused() -> None:
 @pytest.mark.parametrize(
     ("language", "evidence", "statement"),
     [
-        (
-            "de",
-            "Die Frist ist eingehalten, wenn die Handlung bis 24.00 Uhr MEZ erfolgt.",
-            "Die Frist endet um 24:00 Uhr MEZ.",
-        ),
-        (
-            "en",
-            "The shop closes at 18.00 CET on weekdays.",
-            "The shop closes at 18:00 CET on weekdays.",
-        ),
-        (
-            "de",
-            "Das Konto ist bis 18.00 Uhr geöffnet.",
-            "Das Konto ist bis 18:00 Uhr geöffnet.",
-        ),
+        ("en", "The fee is EUR 12.30 a month.", "The fee is EUR 30 a month."),
+        ("en", "The rate is 3.25% a year.", "The rate is 25% a year."),
+        ("de", "Der Zins beträgt 3.25 % im Jahr.", "Der Zins beträgt 25 % im Jahr."),
+        ("de", "Die Gebühr beträgt EUR 12.30 im Monat.", "Die Gebühr beträgt 30 EUR."),
     ],
 )
-def test_a_time_the_evidence_writes_with_a_dot_is_no_addition(
+def test_a_dotted_amount_or_rate_does_not_support_its_minute_part(
     language, evidence, statement
 ) -> None:
-    """`24.00 Uhr` in the evidence supports `24:00 Uhr` in the statement."""
+    """A dotted figure beside a currency or a percent is a value, never a clock time."""
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
-    assert judged.validated, (judged.rejection_code, judged.units_added)
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
 
 
 @pytest.mark.parametrize(

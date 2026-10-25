@@ -1037,10 +1037,6 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 _DIGITS = re.compile(r"\d+(?: \d{3})*(?:[.,]\d+)*")
 
 #: The zeros a run of digits opens with, which are no part of its value.
-#: A dotted run that reads as a time of day, a form of `24:00`: an hour to 24
-#: and a minute to 59. Any language writes a clock so.
-_CLOCK = re.compile(r"([01]?\d|2[0-4])\.([0-5]\d)")
-
 _PADDING = re.compile(r"^0+(?=\d)")
 
 #: The parts of speech a number word is tagged with when it is one: a count,
@@ -1194,9 +1190,7 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
     """The digit runs and number-word values a text carries, in any spelling.
 
     A run is read as the number it is, its leading zeros dropped, so
-    `08:00` carries the 8 and the 0 that `8:00` does and `09:00` does not. A
-    dotted run that can be a time, an hour to 24 and a minute to 59, carries
-    its hour and minute as well, so `24.00` covers `24:00`.
+    `08:00` carries the 8 and the 0 that `8:00` does and `09:00` does not.
     """
     document = _read(text, language)
     found: set[str] = set()
@@ -1205,9 +1199,6 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )
-            for one in digits:
-                if clock := _CLOCK.fullmatch(one):
-                    found.update(_PADDING.sub("", part) for part in clock.groups())
     return frozenset(
         found | {one for one in _spoken(document).values() if one and one.isdigit()}
     )
