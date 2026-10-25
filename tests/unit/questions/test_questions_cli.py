@@ -28,13 +28,6 @@ class Queue:
         self.calls.append("counts")
         return {"new": 2}
 
-    def never_asked(self):
-        """What no accepted question reaches."""
-        from question_generation.queue import NeverAsked
-
-        self.calls.append("never_asked")
-        return NeverAsked((("Terms of sale", 3),), 5)
-
     def start(self, within=None, *, trigger: str | None = None) -> int:
         """Queues what was never asked for."""
         self.calls.append("start")
@@ -88,6 +81,21 @@ class Service:
         return False
 
 
+class Catalog:
+    """A question catalogue that records, beside the queue, what it was asked."""
+
+    def __init__(self, calls: list[str]) -> None:
+        """Records into the queue's list, so the two reads keep their order."""
+        self.calls = calls
+
+    def never_asked(self):
+        """What no accepted question reaches."""
+        from question_generation.queue import NeverAsked
+
+        self.calls.append("never_asked")
+        return NeverAsked((("Terms of sale", 3),), 5)
+
+
 class Driver:
     """The command line with its collaborators replaced."""
 
@@ -123,7 +131,9 @@ class Driver:
             module, "snapshot", lambda *_: (dict(os.environ), "test-settings")
         )
         monkeypatch.setattr(module, "QuestionQueue", lambda **kwargs: self.queue)
-        monkeypatch.setattr(module, "QuestionCatalog", lambda: object())
+        monkeypatch.setattr(
+            module, "QuestionCatalog", lambda: Catalog(self.queue.calls)
+        )
         monkeypatch.setattr(module, "build_service", lambda *_: build())
         monkeypatch.setattr(
             module, "reverify", lambda catalog, settings, within: self._recheck(within)
@@ -192,7 +202,7 @@ def cli(monkeypatch) -> Driver:
 
 
 def test_status_reports_the_queue_and_builds_no_service(cli, caplog) -> None:
-    """The cheap flag: a read of the queue, and no model named."""
+    """The cheap flag: a read of the queue and the catalogue, and no model named."""
     caplog.set_level("INFO")
 
     assert cli.run("--status") == 0

@@ -52,13 +52,9 @@ class _Catalog:
             *[0] * 9, *[{}] * 9, cognitive_level_checked=0, planned_met=0
         )
 
-
-class _Queue:
-    """A question queue that has no database to ask what no question reaches."""
-
-    @staticmethod
-    def never_asked() -> NeverAsked:
+    def never_asked(self, read=None, **where) -> NeverAsked:
         """Every document has been asked."""
+        self.asked["never_asked"] = where
         return NeverAsked((), 0)
 
 
@@ -79,7 +75,6 @@ def held(monkeypatch) -> tuple[TestClient, _Catalog]:
     catalog = _Catalog()
     monkeypatch.setattr(questions, "question_catalog", catalog)
     monkeypatch.setattr(questions, "assessment_catalog", _NoJudgements())
-    monkeypatch.setattr(questions, "questions_queue", _Queue())
     app = FastAPI()
     app.include_router(questions.router)
     return TestClient(app), catalog
@@ -100,6 +95,18 @@ def test_released_reaches_the_catalogue(held, path, given, released) -> None:
     for read, where in catalog.asked.items():
         assert where["released"] is released, read
         assert "accepted" in (*where.get("given", ()), *where.values()), read
+
+
+def test_the_export_counts_what_no_question_reaches_under_its_filter(held) -> None:
+    """The Summary's never-asked rows take the filter its other counts take."""
+    client, catalog = held
+    params = {"status": "accepted", "released": "true", "document": "a" * 64}
+
+    assert client.get("/questions/export", params=params).status_code == 200
+    never = catalog.asked["never_asked"]
+    assert never["document"] == "a" * 64
+    assert never["status"] == "accepted"
+    assert never["released"] is True
 
 
 @pytest.mark.parametrize("path", READS)

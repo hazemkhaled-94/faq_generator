@@ -271,6 +271,7 @@ def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
             question_catalog.citations(read=read, **where) if chosen.citations else ()
         )
         quality = question_catalog.quality(read=read, **where)
+        never = question_catalog.never_asked(read=read, **where)
         earlier = question_catalog.earlier(rows, read=read)
     # ponytail: the whole workbook is built in memory before the first byte
     # is sent; the upgrade is a StreamingResponse over openpyxl's write-only
@@ -280,7 +281,7 @@ def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
         cited,
         quality,
         assessment_catalog.verdicts_for("question", [one.id for one in rows]),
-        questions_queue.never_asked(),
+        never,
         earlier,
     )
     return Response(

@@ -2802,10 +2802,41 @@ def test_never_asked_counts_the_documents_and_passages_no_accepted_question_reac
         )
         session.commit()
 
-    never = QuestionQueue().never_asked()
+    never = QuestionCatalog().never_asked()
 
     assert never.passages == 3
     assert never.documents == ((digest("b")[:12], 2),)
+
+
+def test_never_asked_is_read_under_the_filter_it_is_given(corpus, engine) -> None:
+    """In the filter's document and topic, reached only by the accepted questions it selects.
+
+    Two documents and two topics, a passage of each document in each topic, and
+    one accepted question on the first topic's passage of the first document.
+    """
+    written = corpus(topics=2, facts_per_topic=2, documents=2)
+    first, second = written["topics"]
+    with Session(engine) as session:
+        asked = question(status="accepted")
+        session.add(asked)
+        session.flush()
+        session.execute(
+            text("INSERT INTO question_facts (question_id, fact_id) VALUES (:q, :f)"),
+            {"q": asked.id, "f": written["facts"][first][0]},
+        )
+        session.commit()
+    catalog = QuestionCatalog()
+
+    whole = catalog.never_asked()
+    in_a = catalog.never_asked(document=digest("a"))
+    in_second = catalog.never_asked(topic=second)
+    unanswerable = catalog.never_asked(answerable=False)
+
+    assert (whole.passages, whole.documents) == (3, ((digest("b")[:12], 2),))
+    assert (in_a.passages, in_a.documents) == (1, ())
+    assert in_second.passages == 2
+    assert set(in_second.documents) == {(digest("a")[:12], 1), (digest("b")[:12], 1)}
+    assert (unanswerable.passages, len(unanswerable.documents)) == (4, 2)
 
 
 def test_a_rejected_question_reaches_nothing_so_nothing_is_asked(
@@ -2824,7 +2855,7 @@ def test_a_rejected_question_reaches_nothing_so_nothing_is_asked(
         )
         session.commit()
 
-    never = QuestionQueue().never_asked()
+    never = QuestionCatalog().never_asked()
 
     assert never.passages == 2
     assert len(never.documents) == 2
@@ -2836,7 +2867,7 @@ def test_a_passage_with_no_validated_fact_is_not_counted_as_never_asked(
     """Nothing in it could be asked about."""
     corpus(topics=1, facts_per_topic=2, documents=1, validated=False)
 
-    never = QuestionQueue().never_asked()
+    never = QuestionCatalog().never_asked()
 
     assert never.passages == 0
     assert never.documents == ()

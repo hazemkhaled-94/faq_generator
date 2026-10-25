@@ -373,11 +373,12 @@ class _Catalog:
         self._rows = rows
         self.limits: list[int | None] = []
         self.asked: dict[str, dict] = {}
+        self.read: dict[str, object] = {}
 
     @contextmanager
     def snapshot(self):
-        """The one session the three reads share, which here is nothing."""
-        yield None
+        """The one session the reads share, which here is a marker."""
+        yield "snapshot"
 
     def page(self, limit=50, read=None, **where):
         """Records the window asked for and answers within it."""
@@ -395,18 +396,15 @@ class _Catalog:
         """No report, which the workbook takes as None."""
         self.asked["quality"] = where
 
+    def never_asked(self, read=None, **where) -> NeverAsked:
+        """Every document has been asked, under whatever filter."""
+        self.asked["never_asked"] = where
+        self.read["never_asked"] = read
+        return NeverAsked((), 0)
+
     def earlier(self, questions, read=None):
         """No follow-up has a turn before it here."""
         return {}
-
-
-class _Nothing:
-    """A question queue that reaches no database for what no question reaches."""
-
-    @staticmethod
-    def never_asked() -> NeverAsked:
-        """Every document has been asked."""
-        return NeverAsked((), 0)
 
 
 class _NoJudgements:
@@ -439,7 +437,6 @@ def test_the_export_asks_for_every_row_in_one_window(tmp_path, monkeypatch) -> N
     monkeypatch.setattr("question_generation.catalog.QuestionCatalog", lambda: catalog)
     monkeypatch.setattr("database.qa_generator.engine", lambda: None)
     monkeypatch.setattr("telemetry.trace_engine", lambda engine: None)
-    monkeypatch.setattr("question_generation.export.QuestionQueue", _Nothing)
     # The judge's verdicts are looked up the same way the questions are,
     # and are the same kind of import inside `main`. Patched here so this
     # stays a test about the window and not about a database.
@@ -460,14 +457,13 @@ def test_the_export_asks_for_every_row_in_one_window(tmp_path, monkeypatch) -> N
 def test_released_narrows_every_read_to_the_release(
     tmp_path, monkeypatch, flags, released
 ) -> None:
-    """The rows, their citations and the Summary, combined with the rest."""
+    """The rows, their citations and the Summary, what no question reaches included."""
     from question_generation import export as module
 
     catalog = _Catalog(rows=1)
     monkeypatch.setattr("question_generation.catalog.QuestionCatalog", lambda: catalog)
     monkeypatch.setattr("database.qa_generator.engine", lambda: None)
     monkeypatch.setattr("telemetry.trace_engine", lambda engine: None)
-    monkeypatch.setattr("question_generation.export.QuestionQueue", _Nothing)
     monkeypatch.setattr(
         "assessment.repository.AssessmentCatalog", lambda: _NoJudgements()
     )
@@ -476,7 +472,8 @@ def test_released_narrows_every_read_to_the_release(
         ["--out", str(tmp_path / "release.xlsx"), "--status", "accepted", *flags]
     )
 
-    assert set(catalog.asked) == {"page", "citations", "quality"}
+    assert set(catalog.asked) == {"page", "citations", "quality", "never_asked"}
+    assert catalog.read["never_asked"] == "snapshot", "read in the rows' moment"
     for read, where in catalog.asked.items():
         assert where["released"] is released, read
         assert where["status"] == "accepted", read
@@ -572,7 +569,7 @@ def test_two_documents_sharing_a_title_are_told_apart_by_their_id() -> None:
 def test_the_summary_counts_the_documents_and_passages_no_question_reaches(
     never,
 ) -> None:
-    """The corpus, beside what the filter selected: a reader sees what is missing."""
+    """What the filter selected and no accepted question reaches: a reader sees what is missing."""
     summary = sheets(workbook([stored()], [cited()], None, None, never))["Summary"]
     counted = dict(zip(summary["Measure"], summary["Count"], strict=True))
 

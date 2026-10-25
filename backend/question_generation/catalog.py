@@ -63,7 +63,7 @@ from question_generation.models import (
     Unanswered,
     pages,
 )
-from question_generation.queue import AROUND, ASSERTS, HOLDS, IS_TOPIC
+from question_generation.queue import AROUND, ASSERTS, HOLDS, IS_TOPIC, NeverAsked
 from question_generation.types import CHECKED
 
 #: Which columns the search box looks in, by the name the API accepts.
@@ -1482,6 +1482,71 @@ class QuestionCatalog(Repository):
             if chain:
                 walked[one.id] = chain[::-1]
         return walked
+
+    def never_asked(
+        self,
+        document: str | None = None,
+        topic: int | None = None,
+        search: str | None = None,
+        status: str | None = None,
+        answerable: bool | None = None,
+        field: str | None = None,
+        read: Session | None = None,
+        **scopes: Any,
+    ) -> NeverAsked:
+        """The documents and passages no accepted question the filter selects rests on.
+
+        Over the passages a fact a question may rest on is drawn from, which is
+        what a run is dealt, in the filter's document and topic: a passage some
+        accepted question the filter selects reaches through one of its facts is
+        asked, and a document is never asked when none of its passages is. What a
+        run left out cannot be seen in the questions, which are what it wrote, so
+        this reads the corpus instead. Under no filter it is the whole corpus;
+        under the export's, in its snapshot, it is what its Summary counts.
+        """
+        reached = (
+            select(FactPassage.passage_id)
+            .join(QuestionFact, QuestionFact.fact_id == FactPassage.fact_id)
+            .join(Question, Question.id == QuestionFact.question_id)
+            .where(
+                Question.status == QuestionStatus.ACCEPTED,
+                Question.id.in_(
+                    _ids(document, topic, search, status, answerable, field, **scopes)
+                ),
+            )
+        )
+        query = (
+            select(
+                Passage.doc_sha256,
+                Document.title,
+                func.count(Passage.id.distinct()),
+                func.count(Passage.id.distinct()).filter(Passage.id.not_in(reached)),
+            )
+            .join(Document, Document.sha256 == Passage.doc_sha256)
+            .join(FactPassage, FactPassage.passage_id == Passage.id)
+            .join(Fact, Fact.id == FactPassage.fact_id)
+            .where(HOLDS, Fact.kind != FactKind.BRIDGE)
+        )
+        if document:
+            query = query.where(Passage.doc_sha256 == document)
+        if topic:
+            query = query.join(DOMINANT, DOMINANT.c.passage_id == Passage.id).where(
+                DOMINANT.c.topic_id == topic
+            )
+        with self._reading(read) as session:
+            rows = session.execute(
+                query.group_by(Passage.doc_sha256, Document.title).order_by(
+                    Passage.doc_sha256
+                )
+            ).all()
+        return NeverAsked(
+            documents=tuple(
+                (title or sha[:12], held)
+                for sha, title, held, never in rows
+                if never == held
+            ),
+            passages=sum(never for *_, never in rows),
+        )
 
     def quality(
         self,

@@ -59,7 +59,7 @@ from openpyxl.utils import get_column_letter
 
 from database.qa_generator.outcomes import AnswerForm, QuestionType
 from question_generation.models import Citation, QuestionQuality, StoredQuestion
-from question_generation.queue import NeverAsked, QuestionQueue
+from question_generation.queue import NeverAsked
 
 log = logging.getLogger(__name__)
 
@@ -463,7 +463,8 @@ def _summary(
             ("Reading the judge", None, _JUDGE_READING),
         ]
     if never is not None:
-        # The corpus, not the filter: what no accepted question reaches.
+        # Under the filter, as every count here: what no accepted question it
+        # selects reaches, in its documents and topic.
         rows += [
             (NEVER_DOCUMENTS, len(never.documents), None),
             (NEVER_PASSAGES, never.passages, None),
@@ -719,6 +720,7 @@ def main(argv: list[str] | None = None) -> int:
         _, questions = catalog.page(limit=None, read=read, **where)
         citations = () if args.no_citations else catalog.citations(read=read, **where)
         quality = catalog.quality(read=read, **where)
+        never = catalog.never_asked(read=read, **where)
         earlier = catalog.earlier(questions, read=read)
 
     # Imported inside `main` rather than at the top of the module, like
@@ -734,7 +736,7 @@ def main(argv: list[str] | None = None) -> int:
                 citations,
                 quality,
                 judged,
-                QuestionQueue().never_asked(),
+                never,
                 earlier,
             )
         )

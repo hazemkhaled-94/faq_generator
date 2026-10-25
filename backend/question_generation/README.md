@@ -1130,7 +1130,10 @@ spread** is the `difficulty` band under the name that says what it measures.
 The Summary adds the questions by language, how many the judge can judge
 (answerable and answered) beside how many it judged, by language, the judge
 model and template it ran under, and says its counts are not a quality
-estimate. Its **Count** column is numeric: the words are in **Note**.
+estimate. It counts the documents and passages with facts that no accepted
+question the filter selects reaches, in the filter's document and topic, in
+the same snapshot as the rest; `make questions-status` counts them over the
+whole corpus. Its **Count** column is numeric: the words are in **Note**.
 
 The Questions sheet's **Categories** column, after Language, names the
 categories each question's writer was told, as `categorization=category`

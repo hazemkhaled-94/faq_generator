@@ -148,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
         extra=extra,
         preflight=preflight,
         prompts=record_prompts,
-        report=lambda: str(QuestionQueue().never_asked()),
+        report=lambda: str(QuestionCatalog().never_asked()),
     )
 
 
