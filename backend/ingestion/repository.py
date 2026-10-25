@@ -43,12 +43,12 @@ def _passages(*where) -> ScalarSelect[int]:
     )
 
 
-#: Every question that rests on these documents' passages and on nothing
-#: outside them. The trigger on `question_facts` rejects a question that loses
-#: a fact and never deletes one, so what a person asked to delete is deleted
-#: here first, and a question that also rests elsewhere is left for the
-#: trigger to reject.
-_QUESTIONS_ONLY_ON = text(
+#: Every question that rests on any fact citing these documents' passages,
+#: whatever else it rests on: one written from two documents cannot stand on
+#: half its sources, and holds text derived from the deleted one. The trigger
+#: on `question_facts` rejects a question that loses a fact and never deletes
+#: one, so what a person asked to delete is deleted here first.
+_QUESTIONS_ON_ANY = text(
     """
     DELETE FROM questions q
      WHERE EXISTS (
@@ -56,11 +56,6 @@ _QUESTIONS_ONLY_ON = text(
                  JOIN fact_passages fp ON fp.fact_id = qf.fact_id
                  JOIN passages p ON p.id = fp.passage_id
                 WHERE qf.question_id = q.id AND p.doc_sha256 = ANY(:digests))
-       AND NOT EXISTS (
-               SELECT 1 FROM question_facts qf
-                 JOIN fact_passages fp ON fp.fact_id = qf.fact_id
-                 JOIN passages p ON p.id = fp.passage_id
-                WHERE qf.question_id = q.id AND p.doc_sha256 <> ALL(:digests))
     """
 )
 
@@ -73,7 +68,7 @@ _QUESTIONS_STAMPED = text(
 
 
 def _delete_questions(session, digests: list[str]) -> None:
-    """Deletes the questions resting only on these documents, in the caller's transaction.
+    """Deletes the questions resting on any of these documents, in the caller's transaction.
 
     Also the questions stamped with one of these digests: a rerun left them
     with no fact, and `source_digests` is all that still names the document.
@@ -87,7 +82,7 @@ def _delete_questions(session, digests: list[str]) -> None:
         .join(Passage, Passage.id == FactPassage.passage_id)
         .where(Passage.doc_sha256.in_(digests)),
     )
-    session.execute(_QUESTIONS_ONLY_ON, {"digests": digests})
+    session.execute(_QUESTIONS_ON_ANY, {"digests": digests})
     session.execute(_QUESTIONS_STAMPED, {"digests": digests})
 
 

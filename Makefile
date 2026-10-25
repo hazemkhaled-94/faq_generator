@@ -1422,8 +1422,8 @@ documents:
 # it. The rows are archived and the objects are moved to the `archive` bucket,
 # so `make archive-purge` is what makes it final. The upload record in
 # ingest_events is kept. A fact another document's passage also cites
-# stays, and so does a question that also rests on another document's
-# facts, rejected as `source_changed`.
+# stays; a question that also rests on another document's facts is deleted,
+# since it cannot stand on half its sources.
 #
 # Then extract-dedup, which calls no model. A duplicate refusal cites only
 # its own passage, so a fact another document repeats rests on this one
@@ -1548,9 +1548,9 @@ dagster-wipe:
 
 # Delete what the pipeline built from one document: its passages, and with
 # them their topic memberships, any fact left citing no passage, any bridge
-# that cited one, and every question left resting on no fact, with its
-# follow-ups and the assessments of each. A question that also rests on
-# another document's facts stays, rejected as `source_changed`. The document
+# that cited one, and every question resting on a fact of this document, with its
+# follow-ups and the assessments of each; one that also rests on another
+# document's facts goes too. The document
 # and its file stay, and chunking goes back to `new`, so the next run
 # rebuilds them once somebody starts it. Then extract-dedup, as `make delete`
 # runs it and for the same reason, with the same recovery and the same guard

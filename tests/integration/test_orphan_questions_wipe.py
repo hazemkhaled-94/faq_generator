@@ -217,3 +217,53 @@ def test_a_question_that_keeps_its_facts_is_not_stamped(engine, database) -> Non
             == 0
         )
     assert sha
+
+
+@pytest.mark.parametrize(
+    ("language", "body_a", "body_b"),
+    [
+        ("de", "Die Karte kostet 30 EUR.", "Die Rückgabe dauert 14 Tage."),
+        ("en", "The card costs 30 EUR.", "Returns take 14 days."),
+    ],
+)
+@pytest.mark.parametrize("gone", ["a", "b"])
+@pytest.mark.parametrize("how", ["delete", "delete_all", "delete_derived"])
+def test_a_live_question_on_two_documents_goes_with_either(
+    engine, database, language, body_a, body_b, gone, how
+) -> None:
+    """Never stamped, both facts alive: it holds text derived from the deleted document."""
+    from ingestion.repository import DocumentRepository
+
+    shas = {"a": digest(f"live-a-{language}"), "b": digest(f"live-b-{language}")}
+    bodies = {"a": body_a, "b": body_b}
+    with Session(engine) as session:
+        claims = []
+        for key in ("a", "b"):
+            session.add(document(shas[key], language=language, parse_status="parsed"))
+            session.flush()
+            cut = passage(shas[key], ordinal=1, language=language, text=bodies[key])
+            session.add(cut)
+            session.flush()
+            claim = fact(cut.id, statement=bodies[key])
+            session.add(claim)
+            session.flush()
+            claims.append(claim)
+        asked = question(status="accepted", release_id=uuid.uuid4(), language=language)
+        session.add(asked)
+        session.flush()
+        for claim in claims:
+            session.add(link(asked.id, claim.id))
+        session.commit()
+    other = hold_another(engine, f"alone-{language}-{gone}-{how}")
+
+    repo = DocumentRepository()
+    if how == "delete":
+        repo.delete(shas[gone])
+    elif how == "delete_all":
+        repo.delete_all([shas[gone]])
+    else:
+        repo.delete_derived(shas[gone])
+
+    # Only the question on the other document alone stays.
+    assert questions(engine) == 1
+    assert other

@@ -236,10 +236,10 @@ def test_an_explicit_deletion_deletes_the_questions_resting_only_on_it(
     assert _rows(engine, "facts") == []
 
 
-def test_a_question_resting_on_two_documents_is_rejected_when_one_is_deleted(
+def test_a_question_resting_on_two_documents_is_deleted_with_either(
     engine, database
 ) -> None:
-    """The other document still holds one of its facts: rejected, not deleted."""
+    """It cannot stand on half its sources: deleted, though the other document still holds a fact."""
     one, two = digest("one"), digest("two")
     with Session(engine) as session:
         session.add_all([document(one), document(two)])
@@ -258,14 +258,7 @@ def test_a_question_resting_on_two_documents_is_rejected_when_one_is_deleted(
         session.flush()
         session.add_all([link(asked.id, fa.id), link(asked.id, fb.id)])
         session.commit()
-        kept = asked.id
 
     DocumentRepository().delete(one)
 
-    [row] = _rows(engine, "questions", "id, status, rejected_reason, release_id")
-    assert row.id == kept
-    assert (row.status, row.rejected_reason, row.release_id) == (
-        "rejected",
-        "source_changed",
-        None,
-    )
+    assert _rows(engine, "questions") == []
