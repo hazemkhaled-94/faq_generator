@@ -21,13 +21,17 @@ class Repository:
 
 
 def lock_reached(session, fact_ids: Any) -> None:
-    """Locks the facts, then the questions on them, in id order, before a delete.
+    """Locks the facts, then the questions on them and their whole threads, in id order, before a delete.
 
     The orphan triggers lock each fact and question as the cascade reaches
     it, in the order the rows are stored, so two deletions that reach the
     same facts through different rows each hold one and wait for the other's.
     Taking them first in id order makes both wait in the same line, and the
-    triggers' own locks find them held.
+    triggers' own locks find them held. A rejected root's follow-ups are
+    updated by a trigger and a deleted root's are cascaded, and a thread
+    crossing two passages is reached from both, so each question's whole
+    thread (parents and follow-ups, through `follows_id`) is locked in the
+    same line.
 
     Args:
         session: The transaction that is about to delete.
@@ -37,18 +41,45 @@ def lock_reached(session, fact_ids: Any) -> None:
     session.execute(
         select(Fact.id).where(Fact.id.in_(fact_ids)).order_by(Fact.id).with_for_update()
     ).all()
+    reached = set(
+        session.scalars(
+            select(QuestionFact.question_id).where(QuestionFact.fact_id.in_(fact_ids))
+        )
+    )
+    thread = _thread(session, reached)
     session.execute(
         select(Question.id)
-        .where(
-            Question.id.in_(
-                select(QuestionFact.question_id).where(
-                    QuestionFact.fact_id.in_(fact_ids)
-                )
-            )
-        )
+        .where(Question.id.in_(sorted(thread)))
         .order_by(Question.id)
         .with_for_update()
     ).all()
+
+
+def _thread(session, ids: set[int]) -> set[int]:
+    """These questions with every other question of their threads, root to last follow-up."""
+    found = set(ids)
+    upward = found
+    while upward:
+        upward = {
+            parent
+            for parent in session.scalars(
+                select(Question.follows_id).where(Question.id.in_(upward))
+            )
+            if parent is not None and parent not in found
+        }
+        found |= upward
+    downward = found
+    while downward:
+        downward = (
+            set(
+                session.scalars(
+                    select(Question.id).where(Question.follows_id.in_(downward))
+                )
+            )
+            - found
+        )
+        found |= downward
+    return found
 
 
 def storable(text: str) -> bool:
