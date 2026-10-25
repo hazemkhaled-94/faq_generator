@@ -241,9 +241,19 @@ CORPUS_RETRIES = parse-retry chunk-retry extract-retry topics-retry questions-re
 # The database a run acts on, as every host command reads it: the one a
 # command line gives or the shell exports, which OVERRIDE puts over the files,
 # else the files' in their order. Lazy, so only a target that names it pays for the shell.
-CORPUS_DB = $(if $(filter command line environment,$(origin APP_DB_NAME)),$(APP_DB_NAME),$(shell \
-              set -a; . ./configs/env/deployment.env 2>/dev/null; \
-              [ ! -f "$(ENV_PATH)" ] || . "$(ENV_PATH)" 2>/dev/null; printf %s "$$APP_DB_NAME"))
+CORPUS_DB = $(if $(filter command line environment,$(origin APP_DB_NAME)),$(APP_DB_NAME),$(STACK_DB))
+
+# The database the files name, which is the one compose starts the containers
+# on: their workers drain no other.
+STACK_DB = $(shell set -a; . ./configs/env/deployment.env 2>/dev/null; \
+             [ ! -f "$(ENV_PATH)" ] || . "$(ENV_PATH)" 2>/dev/null; printf %s "$$APP_DB_NAME")
+
+# Under WAIT, refuses with 3 while $(1), the container worker of the stage, runs
+# and the run is on another database than the one compose started it on: the
+# rows it waited for would be taken by nobody.
+SERVES = ! $(call RUNNING,$(1)) || [ "$(APP_DB_NAME)" = "$(STACK_DB)" ] || \
+         { echo "$(1) is running on database $(STACK_DB), and this run is on $(APP_DB_NAME): it would wait for rows that worker never takes. Run on $(STACK_DB) or stop it first:" >&2; \
+           echo "  $(COMPOSE_CMD) stop $(1)" >&2; exit 3; }
 
 # What every target of the corpus is given on its command line, which beats the
 # files a host command sources: the database the run announced, the Hub off,
@@ -835,7 +845,7 @@ schema-reset:
 
 # Drain the parsing queue here. The first run downloads Docling's weights.
 parse:
-	@$(if $(WAIT),,$(call IDLE,parse-worker))
+	@$(if $(WAIT),$(call SERVES,parse-worker),$(call IDLE,parse-worker))
 	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.parsing.run $(call AWAIT,parse-worker)
 
@@ -869,7 +879,7 @@ parse-rerun:
 # already had and the new cut does not repeat, which cascades to the facts and
 # questions drawn from them; a passage repeated exactly keeps its facts.
 chunk:
-	@$(if $(WAIT),,$(call IDLE,chunk-worker))
+	@$(if $(WAIT),$(call SERVES,chunk-worker),$(call IDLE,chunk-worker))
 	@$(BANNER)
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m preprocessing.chunking.run $(call AWAIT,chunk-worker)
 

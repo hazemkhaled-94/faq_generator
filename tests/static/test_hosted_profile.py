@@ -1069,3 +1069,18 @@ def test_a_reused_group_number_whose_leader_is_gone_is_not_the_run(
     assert alive_after_stop, "the stop signalled an unrelated group"
     assert started.returncode == 0, started.stderr
     assert any(" --retry" in line for line in _drained(project)), "a resume"
+
+
+@pytest.mark.parametrize("worker", ["parse-worker", "chunk-worker"])
+def test_a_worker_serving_another_database_is_not_waited_for_but_refused(
+    tmp_path: Path, worker: str
+) -> None:
+    """Compose started it on the files' database; a run on another would wait for ever."""
+    project = _project(tmp_path, env=GO_LIVE, running=(worker,))
+
+    ran = _run(project, "APP_DB_NAME=qa_other")
+
+    assert ran.returncode == 3, (ran.stdout, ran.stderr)
+    said = (project / "logs/corpus-hosted.log").read_text()
+    assert worker in said and "qa_scratch" in said and "qa_other" in said, said
+    assert not any("--wait" in line for line in _drained(project))

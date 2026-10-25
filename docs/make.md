@@ -193,7 +193,9 @@ Each but the drain is the same operation as the stage's route of that name,
 A drain here — the bare target, every `-rerun` and `topics-discover` —
 **refuses while that stage's container worker is running**, and prints the
 `podman compose … stop <worker>` that stops it. `WAIT=1` on `parse` or
-`chunk` waits for that worker to empty the queue instead, polling its counts every `WORKER_POLL_SECONDS`, and
+`chunk` waits for that worker to empty the queue instead, where the worker
+serves the run's database (compose starts it on the files' `APP_DB_NAME`); a
+run on another database refuses with 3, naming both, polling its counts every `WORKER_POLL_SECONDS`, and
 exits 3 if it failed rows meanwhile; `make corpus` runs its drains so. With no container engine
 answering, or the stack down, it drains as before. `extract-dedup`,
 `extract-revalidate` and `extract-recap`, which rewrite stored verdicts
