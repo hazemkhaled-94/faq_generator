@@ -140,7 +140,7 @@ override, on every upload. Tuning is in
 | Setting | What it does |
 |---|---|
 | `MAX_FILE_SIZE_MB` | Largest upload accepted, by the measured size and, with the framing added, by the `Content-Length` check, and at most 150, which the 512 MB api can hold. Keep in step with `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
-| `PARSING_MAX_PAGES`, `PARSING_TIMEOUT_SECONDS` | The parse stage's settings, read here too: the most pages a PDF may have (absent: no cap) and the longest the upload may spend reading its text |
+| `PARSING_MAX_PAGES`, `PARSING_TIMEOUT_SECONDS` | The parse stage's settings, read here too: the most pages a PDF may have (0: no cap, as the parse worker reads it) and the longest the upload may spend reading its text |
 | `ALLOWED_MIME_TYPES` | Comma-separated. May only name types this build can detect from leading bytes. Anything else stops the service at start-up |
 
 The `pipeline-version` written into every stored object's metadata is not a

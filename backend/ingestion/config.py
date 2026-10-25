@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from settings import Source, csv, decimal, integer, optional
+from settings import Source, csv, decimal, integer
 
 
 @lru_cache(maxsize=1)
@@ -53,7 +53,8 @@ class Settings:
         max_file_size_mb: Largest upload accepted.
         allowed_mime_types: Media types the service stores.
         max_pages: Most pages a PDF may have, or None for no cap. Shared
-            with the parse stage, whose setting it is.
+            with the parse stage, whose setting it is, and read as it reads
+            it: 0 is no cap.
         read_seconds: Longest the upload may spend reading a PDF's text.
             Shared with the parse stage's conversion timeout.
     """
@@ -84,17 +85,10 @@ class Settings:
             ValueError: If MAX_FILE_SIZE_MB or PARSING_MAX_PAGES is not an
                 integer.
         """
-        pages = optional("PARSING_MAX_PAGES", source)
-        try:
-            max_pages = None if pages is None else int(pages)
-        except ValueError:
-            raise ValueError(
-                f"PARSING_MAX_PAGES={pages!r} is not a whole number"
-            ) from None
         return cls(
             pipeline_version=pipeline_version(),
             max_file_size_mb=integer("MAX_FILE_SIZE_MB", source),
             allowed_mime_types=csv("ALLOWED_MIME_TYPES", source),
-            max_pages=max_pages,
+            max_pages=integer("PARSING_MAX_PAGES", source) or None,
             read_seconds=decimal("PARSING_TIMEOUT_SECONDS", source),
         )

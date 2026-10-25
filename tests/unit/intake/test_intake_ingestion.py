@@ -597,15 +597,33 @@ def test_the_service_hands_its_caps_to_the_reader(monkeypatch) -> None:
 
 
 def test_the_caps_are_read_from_the_settings_the_stages_share() -> None:
-    """PARSING_MAX_PAGES is optional: absent is no page cap."""
+    """PARSING_MAX_PAGES means at upload what it means at parse: 0 is no page cap."""
     from ingestion.config import Settings
 
     base = {
         "MAX_FILE_SIZE_MB": "5",
         "ALLOWED_MIME_TYPES": "application/pdf",
         "PARSING_TIMEOUT_SECONDS": "90",
+        "PARSING_MAX_PAGES": "0",
     }
 
     assert Settings.load(base).max_pages is None
     assert Settings.load(base).read_seconds == 90.0
     assert Settings.load(base | {"PARSING_MAX_PAGES": "40"}).max_pages == 40
+
+
+def test_a_page_cap_of_zero_refuses_no_upload(monkeypatch) -> None:
+    """As the parse worker converts any document at 0, the upload takes any."""
+    from ingestion.config import Settings
+    from ingestion.pdf import read_pdf
+
+    settings = Settings.load(
+        {
+            "MAX_FILE_SIZE_MB": "5",
+            "ALLOWED_MIME_TYPES": "application/pdf",
+            "PARSING_TIMEOUT_SECONDS": "90",
+            "PARSING_MAX_PAGES": "0",
+        }
+    )
+
+    assert read_pdf(built_pdf(pages=3), max_pages=settings.max_pages).page_count == 3
