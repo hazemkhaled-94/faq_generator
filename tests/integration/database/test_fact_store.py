@@ -1191,6 +1191,54 @@ def test_a_re_judgement_never_reaches_a_fact_refused_as_a_duplicate(
     assert len(offered) == 1, "the duplicate was offered for re-judgement"
 
 
+def test_a_re_judgement_reads_whole_facts_in_id_order_a_short_transaction_at_a_time(
+    engine, database, monkeypatch
+) -> None:
+    """Five facts, one of them across two passages, read two facts per transaction."""
+    from seed import digest, document, fact, passage
+    from sqlalchemy.orm import Session
+
+    from extraction import repository
+    from extraction.repository import FactCatalog
+
+    with Session(engine) as session:
+        sha = digest("c")
+        session.add(document(sha))
+        at = passage(sha, ordinal=1, text="The device weighs 4 kg.", language="en")
+        other = passage(sha, ordinal=2, text="The device is blue.", language="en")
+        session.add_all([at, other])
+        session.flush()
+        facts = [fact(at.id) for _ in range(4)] + [fact(at.id, other.id)]
+        session.add_all(facts)
+        session.commit()
+        ids = sorted(one.id for one in facts)
+
+    class Opened:
+        """The session factory, counting the transactions it opens."""
+
+        def __init__(self, inner) -> None:
+            self.inner = inner
+            self.count = 0
+
+        def __call__(self, *args, **kwargs):
+            self.count += 1
+            return self.inner(*args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    monkeypatch.setattr(repository, "_BATCH", 2)
+    catalog = FactCatalog()
+    catalog._session = opened = Opened(catalog._session)
+
+    read = [(one, len(passages)) for one, passages, _, _ in catalog.judged()]
+
+    assert read == [(one, 2 if one == ids[-1] else 1) for one in ids]
+    assert opened.count >= 3, (
+        f"{opened.count} transaction(s) for five facts, two apiece"
+    )
+
+
 def test_a_raised_cap_gives_back_the_facts_a_lower_one_refused(store, corpus) -> None:
     """`make extract-recap` moves a verdict both ways, as a cap moves."""
     first = corpus["a"][0]

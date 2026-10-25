@@ -309,9 +309,10 @@ def test_a_fact_written_by_a_worker_that_knows_no_version_records_none(
 def test_re_judging_a_fact_records_the_settings_that_judged_it(store, engine) -> None:
     """A verdict and the settings it was reached under are one fact about a row.
 
-    `extract-revalidate` rewrites the verdict from the current shares, so a
-    fact left carrying the version that first wrote it would name settings
-    it is no longer being held to.
+    `extract-revalidate` rewrites a verdict that differs from the stored one
+    from the current shares, so a fact left carrying the version that first
+    wrote it would name settings it is no longer being held to. A verdict that
+    is the stored one is no rewrite, and its row keeps the version it has.
     """
     from facts import FactStore, checked
 

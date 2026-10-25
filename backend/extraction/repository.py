@@ -773,6 +773,36 @@ def _languages(session, passage_ids: set[int]) -> dict[int, str | None]:
     }
 
 
+#: The columns of a fact a re-judgement writes, which `_changed` compares.
+_COMPARED = (
+    "evidence_text",
+    "validated",
+    "rejection_code",
+    "validation_error",
+    "statement_predicates",
+    "evidence_predicates",
+    "units_statement",
+    "units_added",
+    "unresolved_references",
+    "spacy_model",
+    "spacy_version",
+    "twin_id",
+)
+
+
+def _compared(checked: CheckedFact) -> list[tuple[str, object]]:
+    """Each compared column beside the value a verdict would write to it."""
+    values = {
+        "units_statement": list(checked.units_statement),
+        "units_added": list(checked.units_added),
+        "unresolved_references": list(checked.unresolved_references),
+    }
+    return [
+        (column, values[column] if column in values else getattr(checked, column))
+        for column in _COMPARED
+    ]
+
+
 def _changed(
     session, verdicts: list[tuple[int, CheckedFact]]
 ) -> list[tuple[int, CheckedFact]]:
@@ -783,10 +813,13 @@ def _changed(
     the pointer to a twin and the spans it cites.
     """
     ids = [fact_id for fact_id, _ in verdicts]
+    # Only the columns compared: the row's embedding is a thousand floats.
     stored = {
         row.id: row
         for row in session.execute(
-            select(_FACTS).where(_FACTS.c.id.in_(ids))
+            select(*(_FACTS.c[name] for name in ("id", *_COMPARED))).where(
+                _FACTS.c.id.in_(ids)
+            )
         ).mappings()
     }
     spans = {
@@ -803,21 +836,7 @@ def _changed(
     for fact_id, checked in verdicts:
         row = stored.get(fact_id)
         same = row is not None and all(
-            row[column] == value
-            for column, value in (
-                ("evidence_text", checked.evidence_text),
-                ("validated", checked.validated),
-                ("rejection_code", checked.rejection_code),
-                ("validation_error", checked.validation_error),
-                ("statement_predicates", checked.statement_predicates),
-                ("evidence_predicates", checked.evidence_predicates),
-                ("units_statement", list(checked.units_statement)),
-                ("units_added", list(checked.units_added)),
-                ("unresolved_references", list(checked.unresolved_references)),
-                ("spacy_model", checked.spacy_model),
-                ("spacy_version", checked.spacy_version),
-                ("twin_id", checked.twin_id),
-            )
+            row[column] == value for column, value in _compared(checked)
         )
         if same:
             same = all(
@@ -1533,6 +1552,20 @@ class FactCatalog(Repository):
         Yields:
             One fact's id, passages, candidate and method.
         """
+        # Never a fact the cap refused. `over_cap` is the only verdict here
+        # that no check reaches: it says the passage had no room left, which
+        # is a fact about the passage's budget and not about this claim. A
+        # re-judgement asks the checks what they make of a statement, they
+        # make nothing of that, and the row would come back validated - quietly
+        # undoing EXTRACTION_MIN_OTHER_SHARE across the corpus. `make
+        # extract-recap` is what re-applies it. Nor a duplicate, which the
+        # dedup probe decided and no check reproduces.
+        resting = [
+            Fact.rejection_code.is_distinct_from(Rejection.OVER_CAP),
+            Fact.rejection_code.is_distinct_from(Rejection.DUPLICATE),
+        ]
+        if within is not None:
+            resting.append(_resting(within))
         query = (
             select(
                 Fact.id.label("fact_id"),
@@ -1549,31 +1582,27 @@ class FactCatalog(Repository):
             .join(FactPassage, FactPassage.fact_id == Fact.id)
             .join(Passage, Passage.id == FactPassage.passage_id)
             .join(Document, Document.sha256 == Passage.doc_sha256)
-            # Never a fact the cap refused. `over_cap` is the only verdict
-            # here that no check reaches: it says the passage had no room
-            # left, which is a fact about the passage's budget and not about
-            # this claim. A re-judgement asks the checks what they make of a
-            # statement, they make nothing of that, and the row would come
-            # back validated - quietly undoing EXTRACTION_MIN_OTHER_SHARE
-            # across the corpus. `make extract-recap` is what re-applies it.
-            # Nor a duplicate, which the dedup probe decided and no check
-            # reproduces.
-            .where(
-                Fact.rejection_code.is_distinct_from(Rejection.OVER_CAP),
-                Fact.rejection_code.is_distinct_from(Rejection.DUPLICATE),
-            )
             # One row per passage, consecutive per fact, so a fact is read off
             # the run of rows carrying its id.
             .order_by(Fact.id, FactPassage.position)
-            .execution_options(yield_per=_BATCH)
         )
-        if within is not None:
-            query = query.where(_resting(within))
-
-        with self._session() as session:
-            for fact_id, found in groupby(
-                session.execute(query), key=lambda row: row.fact_id
-            ):
+        # In batches of whole facts by id, each read in a transaction of its
+        # own, so a pass over millions holds no transaction open while it is
+        # judged and what an earlier batch wrote cannot move a later one.
+        last = 0
+        while True:
+            ids = (
+                select(Fact.id)
+                .where(Fact.id > last, *resting)
+                .order_by(Fact.id)
+                .limit(_BATCH)
+            )
+            with self._session() as session:
+                batch = list(session.execute(query.where(Fact.id.in_(ids))))
+            if not batch:
+                return
+            last = batch[-1].fact_id
+            for fact_id, found in groupby(batch, key=lambda row: row.fact_id):
                 rows = list(found)
                 reading = rows[0].bridge
                 yield (

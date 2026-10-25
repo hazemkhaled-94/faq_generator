@@ -50,7 +50,11 @@ reaches, and any fact whose citation recorded no sentence. A refusal it
 validates was refused before the dedup gate and the cap could see it, so it
 meets both now: probed in id order against the validated facts and the ones
 validated earlier in the pass, refused as a `duplicate` on a twin, and its
-passage re-capped.
+passage re-capped. It reads the facts in batches of whole facts by id, each in a
+transaction of its own, and writes only the rows whose verdict, words, readings
+or cited spans differ from what is stored, stamping only those with the current
+settings version: a second pass under unchanged code writes nothing, and a row
+keeps the version of the pass that last changed it.
 `make extract-recap` re-applies the cap, and `make extract-dedup` re-decides
 the duplicates.
 
