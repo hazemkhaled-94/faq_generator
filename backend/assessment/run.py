@@ -591,15 +591,16 @@ def _refuse(message: str) -> NoReturn:
 _YES, _NO = ("yes", "true"), ("no", "false")
 
 
-def _labels(path: Path) -> tuple[dict[int, dict[str, int]], dict[int, str]]:
+def _labels(path: Path) -> tuple[dict[int, dict[str, int | None]], dict[int, str]]:
     """Reads a JSONL file of an integer `id`, an optional `question` and labels.
 
     Every other field is a label: yes or true is 1, no or false 0 in any
-    case, na or null no label. Anything else is refused, naming the field
-    and the line. The questions are by id, for the check that the labels
+    case, na or null None, which says the label does not apply to that
+    question and is not the same as a label the line leaves out. Anything
+    else is refused, naming the field and the line. The questions are by id, for the check that the labels
     belong to the workbook.
     """
-    labels: dict[int, dict[str, int]] = {}
+    labels: dict[int, dict[str, int | None]] = {}
     questions: dict[int, str] = {}
     for number, line in enumerate(path.read_text().splitlines(), 1):
         if not line.strip():
@@ -621,11 +622,12 @@ def _labels(path: Path) -> tuple[dict[int, dict[str, int]], dict[int, str]]:
                 continue
             word = str(value).lower() if value is not None else "na"
             if word in ("na", "none"):
+                labels[id][field] = None
                 continue
             if word not in (*_YES, *_NO):
                 _refuse(f"{path} line {number}: {field} is {value!r}, not yes or no")
             labels[id][field] = int(word in _YES)
-    if not any(labels.values()):
+    if not any(one is not None for row in labels.values() for one in row.values()):
         _refuse(f"{path} holds no labels")
     return labels, questions
 
@@ -644,6 +646,11 @@ def _corrected(
     the judge says alone; prediction-powered inference (ARES, Saad-Falcon et
     al., NAACL 2024, section 3.3) corrects the second by the first. The
     languages of each label are then pooled by their size as the row `all`.
+
+    A label can apply to some rows only: a row labelled `na` for it is in
+    neither count, and a row left out of the labels is counted only if it is
+    of a kind (its Status and Answerable) the label was given on, so a key
+    label given on accepted rows is not corrected over the rejected ones.
     """
     import pandas as pd
 
@@ -659,6 +666,18 @@ def _corrected(
     if "Judge" not in frame:
         _refuse(f"{path} has no Judge column to correct by")
     texts = dict(zip(frame["ID"], frame["Question"], strict=True))
+    # What a row is, for what a label applies to; none where the workbook
+    # does not say, which leaves every judged row in N.
+    kinds = (
+        {
+            int(id): (str(status).lower(), str(answerable).lower())
+            for id, status, answerable in zip(
+                frame["ID"], frame["Status"], frame["Answerable"], strict=True
+            )
+        }
+        if {"Status", "Answerable"} <= set(frame.columns)
+        else {}
+    )
     # Only these two are verdicts: "not judged", and a blank cell, are none.
     verdict = {
         int(id): int(one == "approved")
@@ -682,11 +701,24 @@ def _corrected(
     # an `all` row over the others would pass for every language.
     unmeasured: dict[tuple[str, str], list[str]] = defaultdict(list)
     fields = sorted({f for id in verdict for f in given.get(id, {})})
+    applies = {
+        field: {
+            kinds[id]
+            for id in verdict
+            if id in kinds and given.get(id, {}).get(field) is not None
+        }
+        for field in fields
+    }
     for (language, label), group in sorted(groups.items()):
         ids = [id for id, _ in group if id in verdict]
         for field in fields:
-            tagged = [id for id in ids if field in given.get(id, {})]
-            rest = [id for id in ids if field not in given.get(id, {})]
+            tagged = [id for id in ids if given.get(id, {}).get(field) is not None]
+            rest = [
+                id
+                for id in ids
+                if field not in given.get(id, {})
+                and (not applies[field] or kinds.get(id) in applies[field])
+            ]
             shown = f"{language:<9}{label:<36}" if by else f"{language:<9}"
             if len(tagged) < 2:
                 print(
@@ -698,7 +730,7 @@ def _corrected(
             one = ppi.corrected_mean(
                 [verdict[id] for id in rest],
                 [verdict[id] for id in tagged],
-                [given[id][field] for id in tagged],
+                [given[id][field] or 0 for id in tagged],
             )
             pool[(label, field)].append((one, tagged, rest))
             _print_corrected(shown, field, one, tagged + rest, tagged, verdict, given)
@@ -731,7 +763,7 @@ def _print_corrected(
     ids: list[int],
     tagged: list[int],
     verdict: dict[int, int],
-    given: dict[int, dict[str, int]],
+    given: dict[int, dict[str, int | None]],
 ) -> None:
     """One row of the corrected table; the interval is clipped to [0, 1] to show.
 
@@ -745,7 +777,7 @@ def _print_corrected(
     print(
         f"{shown}{field:<16}{one.labelled:>5}{one.judged:>6}"
         f"{sum(verdict[id] for id in ids) / len(ids):>8.3f}"
-        f"{sum(given[id][field] for id in tagged) / len(tagged):>8.3f}"
+        f"{sum(given[id][field] or 0 for id in tagged) / len(tagged):>8.3f}"
         f"{one.estimate:>11.3f}  {interval:<18}{weight:>7}"
     )
 

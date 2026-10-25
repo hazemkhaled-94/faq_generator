@@ -776,22 +776,26 @@ def labelled_set(
     rows: list[tuple[int, str, bool | None]],
     labels: list[dict],
     english: frozenset[int] = frozenset(),
+    rejected: frozenset[int] = frozenset(),
 ) -> tuple[Path, Path]:
     """A workbook of (id, category, verdict) rows and its labels file.
 
-    German but for the ids in `english`. A verdict of None leaves the
-    question unjudged. The paper's judge is stored only for the questions it
+    German but for the ids in `english`, accepted but for the ids in
+    `rejected`. A verdict of None leaves the question unjudged. The paper's judge is stored only for the questions it
     judged, as the exporter reads it.
     """
     path, file = tmp_path / "labelled.xlsx", tmp_path / "labels.jsonl"
     path.write_bytes(
         workbook(
             [
-                asked(
-                    id,
-                    f"Frage {id}?",
-                    "en" if id in english else "de",
-                    (category,) if category else (),
+                replace(
+                    asked(
+                        id,
+                        f"Frage {id}?",
+                        "en" if id in english else "de",
+                        (category,) if category else (),
+                    ),
+                    status="rejected" if id in rejected else "accepted",
                 )
                 for id, category, _ in rows
             ],
@@ -845,7 +849,7 @@ def test_labels_are_read_from_jsonl(tmp_path) -> None:
         '{"id": 2, "usable": "No", "key_complete": false, "question": "Q?"}\n'
     )
     assert cli._labels(file) == (
-        {1: {"usable": 1}, 2: {"usable": 0, "key_complete": 0}},
+        {1: {"usable": 1, "key_complete": None}, 2: {"usable": 0, "key_complete": 0}},
         {2: "Q?"},
     )
 
@@ -1013,3 +1017,59 @@ def test_labels_take_no_against_and_no_document_curve(
     with pytest.raises(SystemExit) as refused:
         cli.main([*argv, *(one.format(exported) for one in other)])
     assert refused.value.code == 2
+
+
+#: Eight accepted rows only the judge saw, four it also had labelled, and
+#: eight rejected ones: a rejected question has no key, so no key label.
+ACCEPTED = UNLABELLED + LABELLED
+REJECTED = [(i, "", bool(i % 2)) for i in range(13, 21)]
+
+
+def key_labels(*, na: bool) -> list[dict]:
+    """Key labels on the four accepted rows; the rejected ones say na or say nothing.
+
+    Every labelled row also says whether it is usable, which applies to both.
+    """
+    labels = [
+        {"id": i, "usable": "yes", "key_correct": "yes" if a else "no"}
+        for i, a in zip(range(9, 13), [1, 0, 0, 1], strict=True)
+    ]
+    return labels + [
+        {"id": i, "usable": "yes", **({"key_correct": "na"} if na else {})}
+        for i, _, _ in REJECTED
+    ]
+
+
+@pytest.mark.parametrize("english", [frozenset(), frozenset(range(1, 21))])
+def test_a_label_that_is_na_on_rejected_rows_is_corrected_over_the_rows_it_applies_to(
+    exported, tmp_path, capsys, english
+) -> None:
+    """Eight judged rows without a key label are N, not sixteen: key labels exist only on accepted ones."""
+    path, file = labelled_set(
+        tmp_path,
+        ACCEPTED + REJECTED,
+        key_labels(na=True),
+        english=english,
+        rejected=frozenset(i for i, _, _ in REJECTED),
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    rows = {row[1]: row for row in corrected_rows(capsys) if row[0] != "all"}
+
+    assert rows["key_correct"][2:4] == ["4", "8"]
+    assert rows["usable"][2:4] == ["12", "8"]
+
+
+def test_a_label_left_out_of_a_row_is_still_corrected_over_that_row(
+    exported, tmp_path, capsys
+) -> None:
+    """Absent is not na: an answerable accepted row nobody labelled stays in N."""
+    path, file = labelled_set(
+        tmp_path,
+        ACCEPTED + REJECTED,
+        key_labels(na=False),
+        rejected=frozenset(i for i, _, _ in REJECTED),
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    rows = {row[1]: row for row in corrected_rows(capsys) if row[0] != "all"}
+
+    assert rows["key_correct"][2:4] == ["4", "8"]
