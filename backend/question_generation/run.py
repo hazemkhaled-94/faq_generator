@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         value written since this process started. One read for both, so the
         settings and the version recorded cannot come from two moments.
         """
-        source, version = snapshot()
+        source, version = snapshot("questions")
         return Settings.load(source), ModelSettings.load(source), version
 
     def balanced(within) -> int:

@@ -11,7 +11,7 @@ import sys
 from preprocessing.parsing.config import Settings
 from preprocessing.parsing.factory import build_service
 from preprocessing.parsing.repository import ParseQueue
-from settings.store import resolved
+from settings.store import snapshot
 from stages.cli import queue_main
 
 
@@ -28,8 +28,9 @@ def main(argv: list[str] | None = None) -> int:
         name="parsing",
         module="preprocessing.parsing.run",
         repository=ParseQueue,
-        # Read when the service is built, not captured here.
-        build_service=lambda: build_service(Settings.load(resolved())),
+        # Read when the service is built, not captured here, and audited for
+        # this stage as every stage's are.
+        build_service=lambda: build_service(Settings.load(snapshot("parsing")[0])),
         argv=sys.argv[1:] if argv is None else argv,
     )
 

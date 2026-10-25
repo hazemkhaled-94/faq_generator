@@ -16,6 +16,7 @@ import telemetry
 from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
 from database.qa_generator import engine
 from llm.check import before_work
+from llm.config import Settings as ModelSettings
 from llm.tally import carry
 from settings import decimal, optional
 from settings.runs import named_run, run_id
@@ -103,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         Called rather than captured: a watching worker rebuilds when a
         setting changes. One read for the settings and the version.
         """
-        source, version = snapshot()
+        source, version = snapshot("topics")
         return build_service(Settings.load(source), version)
 
     # With the run, as `stages/cli.queue_main` does for the other four
@@ -173,31 +174,46 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         log.info("fitting the topics: %s", reason)
 
-    service = build()
-
-    if args.discover:
+    # A worker builds its service in the watch loop, which waits on settings
+    # it cannot build on rather than exiting; a one-off drain and a fit asked
+    # for build it here.
+    service = build() if args.discover or not args.watch else None
+    if service is not None and args.discover:
         log.info("queued topic fit %d", service.request(run_id()))
 
-    # As `stages/cli.queue_main` does for the other four. Only when a model
-    # is configured: this stage names topics with one where it has one, and
-    # falls back to their terms where it does not, so an absent model is a
-    # choice and an unanswering one is a fit that would fail on every label.
-    if (naming := Settings.load(snapshot()[0]).model) is not None:
-        if not _ready("topic_modelling", lambda: before_work(naming), args.watch):
-            return 1
+    naming: list[ModelSettings | None] = []
+
+    def preflight() -> None:
+        """Reads the settings, and asks the naming model where one is configured.
+
+        As `stages/cli.queue_main` does for the other four, and through the
+        same wait, so a worker whose stored settings are refused waits in
+        place. The model only where one is configured: this stage names
+        topics with one where it has one, and falls back to their terms where
+        it does not, so an absent model is a choice and an unanswering one is
+        a fit that would fail on every label.
+        """
+        model = Settings.load(snapshot("topics")[0]).model
+        if model is not None:
+            before_work(model)
+        naming[:] = [model]
+
+    if not _ready("topic_modelling", preflight, args.watch):
+        return 1
+    if (model := naming[0]) is not None:
         # Here rather than at the top, for the same reason `before_work` is:
         # a deployment with no model never sends this prompt, and a row
         # saying it did would be a record of a call nothing made.
-        record(prompts.SERVICE, prompts.catalogue(), naming)
+        record(prompts.SERVICE, prompts.catalogue(), model)
 
     telemetry.configure("topic_modelling", run=run_id(), named=named_run())
     telemetry.trace_engine(engine())
 
-    if args.name:
+    if args.name and service is not None:
         service.name_unnamed()
         return 0
 
-    if not args.watch:
+    if service is not None and not args.watch:
         code = drain_once(service)
         if args.ensure:
             catalog = TopicCatalog()

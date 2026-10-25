@@ -89,7 +89,7 @@ def test_with_no_judge_named_the_command_line_judges_nothing(monkeypatch) -> Non
     """Refused before a claim, and not by `--status` or the queue verbs."""
     monkeypatch.setattr(
         "assessment.run.snapshot",
-        lambda: ({**VALUES, **_SHARED, "ASSESSMENT_JUDGE_MODEL": ""}, "environment"),
+        lambda *_: ({**VALUES, **_SHARED, "ASSESSMENT_JUDGE_MODEL": ""}, "environment"),
     )
     monkeypatch.setattr(cli, "before_work", lambda asked: None)
     handed: dict = {}
@@ -108,7 +108,7 @@ def test_with_no_judge_named_the_status_says_nothing_is_judged(
     """Beside the queue, naming the setting for the host and the containers."""
     monkeypatch.setattr(
         "assessment.run.snapshot",
-        lambda: ({**VALUES, **_SHARED, "ASSESSMENT_JUDGE_MODEL": ""}, "environment"),
+        lambda *_: ({**VALUES, **_SHARED, "ASSESSMENT_JUDGE_MODEL": ""}, "environment"),
     )
     monkeypatch.setattr("stages.cli.telemetry.configure", lambda *_, **__: None)
 
@@ -186,7 +186,7 @@ def test_the_command_line_stops_when_the_phase_is_off(monkeypatch, caplog) -> No
     """
     monkeypatch.setattr(
         "assessment.run.snapshot",
-        lambda: ({**VALUES, "ASSESSMENT_ENABLED": "false"}, "environment"),
+        lambda *_: ({**VALUES, "ASSESSMENT_ENABLED": "false"}, "environment"),
     )
     built = []
     monkeypatch.setattr(
@@ -210,7 +210,10 @@ def test_a_watching_worker_waits_for_the_phase_rather_than_exiting(monkeypatch) 
     flags = iter(["false", "false"])
     monkeypatch.setattr(
         "assessment.run.snapshot",
-        lambda: ({**VALUES, "ASSESSMENT_ENABLED": next(flags, "true")}, "environment"),
+        lambda *_: (
+            {**VALUES, "ASSESSMENT_ENABLED": next(flags, "true")},
+            "environment",
+        ),
     )
     monkeypatch.setenv("WORKER_POLL_SECONDS", "5")
     slept: list[float] = []
@@ -229,7 +232,7 @@ def test_the_phase_off_message_is_logged_once_logging_is_set_up(monkeypatch) -> 
     """Logged before the handlers exist, it reached nobody on the host."""
     monkeypatch.setattr(
         "assessment.run.snapshot",
-        lambda: ({**VALUES, "ASSESSMENT_ENABLED": "false"}, "environment"),
+        lambda *_: ({**VALUES, "ASSESSMENT_ENABLED": "false"}, "environment"),
     )
     events: list[str] = []
     monkeypatch.setattr(

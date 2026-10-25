@@ -104,12 +104,15 @@ not apply and does not count toward the version.
 ## Stored rows are audited at every build
 
 The catalogue moves under a stored row: a floor is raised, a choice dropped, a
-name retired. Whenever a service reads its settings (`store.snapshot`, which
-every build and every stage command goes through) each row is checked against
-the catalogue as it stands. A row the catalogue now refuses, or one stored under
-a name in `store.RETIRED`, stops the build with the row, its value and when it
-was written, naming the replacement for a retired name, so the worker waits as
-it does for any setting it cannot build on. A row that overrides the file is one
+name retired. Whenever a stage reads its settings (`store.snapshot(<stage>)`,
+which every stage's build and command goes through, parsing and chunking
+included) each row is checked against the catalogue as it stands. A row the
+catalogue now refuses, or one stored under a name in `store.RETIRED`, stops the
+build of a stage that reads it, a setting of that stage's or of the platform,
+with the row, its value and when it was written, naming the replacement for a
+retired name; every worker waits on it in place, as it does for any setting it
+cannot build on, and a one-off command says so and exits 1. Another stage's
+refused row is warned about and left for that stage. A row that overrides the file is one
 warning naming the stored value, the file's and the date. A row for a name the
 deployment now owns, or that nothing configures, is warned about and ignored: it
 cannot be deleted with `make settings-unset`, so it must not stop a build.

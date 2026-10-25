@@ -12,7 +12,7 @@ from preprocessing.chunking.config import Settings
 from preprocessing.chunking.factory import build_service
 from preprocessing.chunking.repository import ChunkQueue, PassageCatalog
 from preprocessing.chunking.service import revocabulary
-from settings.store import resolved
+from settings.store import snapshot
 from stages.cli import queue_main
 
 #: This stage's own operation, beyond the shared queue verbs: re-reads the
@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         repository=ChunkQueue,
         # Read when the service is built, not captured here. Building it
         # loads the tokenizer EMBEDDING_MODEL names.
-        build_service=lambda: build_service(Settings.load(resolved())),
+        build_service=lambda: build_service(Settings.load(snapshot("chunking")[0])),
         argv=sys.argv[1:] if argv is None else argv,
         extra=_EXTRA,
     )

@@ -202,7 +202,7 @@ class TestCommandLine:
         def refused(*_) -> None:
             raise Unreachable("ollama/test-model did not answer")
 
-        monkeypatch.setattr(run, "snapshot", lambda: (dict(os.environ), "v1"))
+        monkeypatch.setattr(run, "snapshot", lambda *_: (dict(os.environ), "v1"))
         monkeypatch.setattr(run, "before_work", refused)
         monkeypatch.setattr(run, "bridge", lambda *args: bridged.append(args) or 0)
         monkeypatch.setattr(run, "PassageQueue", lambda: None)

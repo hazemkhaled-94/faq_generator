@@ -29,7 +29,7 @@ def _configured(monkeypatch, kinds: str) -> None:
     monkeypatch.setattr(
         run,
         "snapshot",
-        lambda: ({**_ELSE, "EXTRACTION_KINDS": kinds, "LLM_MODEL": "x"}, "v1"),
+        lambda *_: ({**_ELSE, "EXTRACTION_KINDS": kinds, "LLM_MODEL": "x"}, "v1"),
     )
     monkeypatch.setattr(
         config.Settings, "load", classmethod(lambda cls, source=None: _MODEL)

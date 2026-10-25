@@ -102,20 +102,25 @@ def audit(
     rows: Iterable[Any],
     file: Mapping[str, str],
     given: Iterable[str] | None = None,
+    service: str | None = None,
 ) -> None:
     """Checks every stored row against the catalogue as it stands now.
 
     One warning per row that overrides the file, naming the stored value, the
     file's and when it was written. A row the catalogue would now refuse, or one
-    stored under a retired name, refuses the build, so the worker waits as it
-    does for any setting it cannot build on. A row for a name the deployment
-    owns or nothing configures is warned about and left: `make settings-unset`
-    cannot delete one, so it must not stop a build.
+    stored under a retired name, refuses the build of a stage that reads it, so
+    the worker waits as it does for any setting it cannot build on. A row for a
+    name the deployment owns or nothing configures is warned about and left:
+    `make settings-unset` cannot delete one, so it must not stop a build.
 
     Args:
         rows: What the table holds: a name, a value and `updated_at` each.
         file: What the files and the environment say, by name.
         given: Names a `make` command line gave, whose rows are not applied.
+        service: The stage building, whose own rows and the platform's are
+            the ones it refuses; another stage's refused row is warned about
+            and left for that stage. None refuses every one, as the doctor
+            asks.
 
     Raises:
         StoredRefused: On a row the catalogue refuses or a retired name.
@@ -125,14 +130,17 @@ def audit(
         if row.name in given:
             continue
         stored = f"{row.name}={row.value!r} (written {row.updated_at:%Y-%m-%d %H:%M})"
+        setting = catalog.BY_NAME.get(row.name)
         if row.name in RETIRED:
             replacement = RETIRED[row.name]
-            raise StoredRefused(
+            _refuse(
                 f"{stored} is stored under a retired setting"
                 + (f"; {replacement} replaces it" if replacement else "")
-                + f": delete the row (DELETE FROM service_settings WHERE name = '{row.name}')"
+                + f": delete the row (DELETE FROM service_settings WHERE name = '{row.name}')",
+                _owner(catalog.BY_NAME.get(replacement), row),
+                service,
             )
-        setting = catalog.BY_NAME.get(row.name)
+            continue
         if setting is None or setting.fixed:
             log.warning(
                 "%s is ignored: %s",
@@ -141,10 +149,13 @@ def audit(
             )
             continue
         if (found := catalog.refusal(setting, row.value)) is not None:
-            raise StoredRefused(
+            _refuse(
                 f"{stored} is refused now: {found[1]} Set a value the catalogue "
-                f"accepts, or return it to the file with make settings-unset {row.name}"
+                f"accepts, or return it to the file with make settings-unset {row.name}",
+                setting.service,
+                service,
             )
+            continue
         if row.value != file.get(row.name, ""):
             log.warning(
                 "%s overrides the file's %r",
@@ -153,17 +164,32 @@ def audit(
             )
 
 
-def snapshot() -> tuple[dict[str, str], str]:
+def _owner(setting: catalog.Setting | None, row: Any) -> str:
+    """The service a row configures: its setting's, else the one it was stored under."""
+    return setting.service if setting is not None else getattr(row, "service", "")
+
+
+def _refuse(said: str, owner: str, service: str | None) -> None:
+    """Refuses the build of `service` over a row of `owner`'s, or warns for another stage's."""
+    if service is None or owner in (service, "platform"):
+        raise StoredRefused(said)
+    log.warning("%s; it stops the %s stage, not this one", said, owner)
+
+
+def snapshot(service: str | None = None) -> tuple[dict[str, str], str]:
     """The source to read settings from, and the name of that configuration.
 
     Both from one read of the table, so a row cannot be stamped with a
-    configuration it was not produced under. The rows are audited first.
+    configuration it was not produced under. The rows are audited first, for
+    the stage `service` names: every stage builds on this, parsing and chunking
+    included, so a refused row of its own stops each one alike.
 
     Raises:
-        StoredRefused: If a stored row is one the catalogue now refuses.
+        StoredRefused: If a stored row the stage reads is one the catalogue
+            now refuses.
     """
     rows = Settings().rows()
-    audit(rows, os.environ, os.environ.get(COMMAND_LINE, "").split())
+    audit(rows, os.environ, os.environ.get(COMMAND_LINE, "").split(), service)
     source = _source(_applicable(rows))
     return source, version(source)
 

@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         value written since this process started. One read for both, so the
         settings and the version recorded cannot come from two moments.
         """
-        source, version = snapshot()
+        source, version = snapshot("extraction")
         return ModelSettings.load(source), Settings.load(source), version
 
     if digests and not configured()[1].digests:

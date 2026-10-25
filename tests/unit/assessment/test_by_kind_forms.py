@@ -72,7 +72,7 @@ def kinded(tmp_path, monkeypatch):
             ]
         )
     )
-    monkeypatch.setattr(cli, "snapshot", lambda: ({}, "test"))
+    monkeypatch.setattr(cli, "snapshot", lambda *_: ({}, "test"))
     monkeypatch.setattr(
         cli, "_tags", lambda texts, language: (["NOUN VERB"] * len(texts), "stub 1.0")
     )

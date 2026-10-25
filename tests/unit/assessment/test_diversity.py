@@ -242,7 +242,7 @@ def exported(tmp_path, monkeypatch):
         )
     )
 
-    def unread():
+    def unread(*_):
         raise AssertionError("the diversity report read a setting")
 
     monkeypatch.setattr(cli, "snapshot", unread)
@@ -459,7 +459,7 @@ def judged(question: int, fluency: float) -> StoredAssessment:
 def configured(monkeypatch):
     """The settings the report reads, as the snapshot holds them: none, at first."""
     stored: dict[str, str] = {}
-    monkeypatch.setattr(cli, "snapshot", lambda: (stored, "test"))
+    monkeypatch.setattr(cli, "snapshot", lambda *_: (stored, "test"))
     return stored
 
 

@@ -113,7 +113,7 @@ class Driver:
         # The settings the command reads, without the database they are
         # stored in. Settings.load is still the real one.
         monkeypatch.setattr(
-            module, "snapshot", lambda: (dict(os.environ), "test-settings")
+            module, "snapshot", lambda *_: (dict(os.environ), "test-settings")
         )
         monkeypatch.setattr(module, "QuestionQueue", lambda **kwargs: self.queue)
         monkeypatch.setattr(module, "QuestionCatalog", lambda: object())

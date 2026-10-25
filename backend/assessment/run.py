@@ -33,7 +33,7 @@ from llm.check import before_work
 from llm.config import Settings as ModelSettings
 from settings import decimal, integer, optional, required
 from settings.store import snapshot
-from stages.cli import queue_main
+from stages.cli import _ready, queue_main
 from stages.prompts import record
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         Called rather than captured, so every operation below answers to a
         value written since this process started.
         """
-        source, version = snapshot()
+        source, version = snapshot("assessment")
         return Settings.load(source), ModelSettings.load(source), version
 
     argv = sys.argv[1:] if argv is None else argv
@@ -68,17 +68,32 @@ def main(argv: list[str] | None = None) -> int:
     # default. A deployment with this phase off and no LLM_MODEL set is a
     # perfectly ordinary deployment, and it must not be stopped at
     # start-up by a setting for a model nothing is going to call.
-    if not Settings.load(snapshot()[0]).enabled:
+    #
+    # Read through `_ready`, the wait every worker's first read goes through,
+    # so a stored row the catalogue refuses makes a worker wait in place, as
+    # the other stages do, and a one-off run say so and exit 1.
+    # ponytail: argv read by hand, as for --status below.
+    watching = "--watch" in argv
+    phase: list[bool] = []
+
+    def switched() -> None:
+        """Reads ASSESSMENT_ENABLED as the stored rows leave it."""
+        phase[:] = [Settings.load(snapshot("assessment")[0]).enabled]
+
+    if not _ready("assessment", switched, watching):
+        return 1
+    if not phase[0]:
         telemetry.configure("assessment", tracing=False)
         log.info("%s", OFF)
         # A worker waits in place rather than exiting: under `restart:
         # unless-stopped` an exit is a restart every few seconds, and the
         # Assessment page switches the flag on without restarting anything.
-        # ponytail: argv read by hand, as for --status below.
-        if "--watch" not in argv:
+        if not watching:
             return 0
-        while not Settings.load(snapshot()[0]).enabled:
+        _ready("assessment", switched, True)
+        while not phase[0]:
             time.sleep(decimal("WORKER_POLL_SECONDS"))
+            _ready("assessment", switched, True)
         log.info("ASSESSMENT_ENABLED is on, so the worker starts claiming work")
 
     def build():
@@ -146,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     # Logged after queue_main, which configures the logs.
     # ponytail: argv read by hand, so an abbreviated `--stat` skips this line;
     # the upgrade is a status hook on queue_main.
-    if "--status" in argv and not Settings.load(snapshot()[0]).judge_model:
+    if "--status" in argv and not Settings.load(snapshot("assessment")[0]).judge_model:
         log.warning("%s", UNNAMED)
     return code
 
@@ -445,7 +460,7 @@ def _conformance(
 
     bounds = {}
     if by == "category":
-        source, _ = snapshot()
+        source, _ = snapshot("questions")
         bounds = {
             category.label: category.words
             for one in categorizations(

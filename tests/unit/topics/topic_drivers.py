@@ -590,7 +590,7 @@ class CommandDriver:
         # stored in. The environment is what a deployment with nothing
         # configured resolves to, and Settings.load is still the real one.
         monkeypatch.setattr(
-            module, "snapshot", lambda: (dict(os.environ), "test-settings")
+            module, "snapshot", lambda *_: (dict(os.environ), "test-settings")
         )
         monkeypatch.setattr(module, "_DRAWN", written)
         # The preflight, which is a collaborator like the rest and was the
