@@ -232,7 +232,7 @@ help:
         questions-balance questions-export questions-rejudge \
         questions-runs questions-diff \
         documents delete delete-derived wipe-all dagster-wipe \
-        archive archive-purge restore-documents s3-prefix \
+        archive archive-purge restore-documents s3-prefix backup restore-backup \
         test test-fast test-unit test-integration test-e2e test-smoke \
         test-eval test-coverage test-perf mutation \
         check typecheck audit lint lint-imports deps \
@@ -1558,6 +1558,39 @@ archive-purge:
 # the bare key, and another database may be reading it.
 s3-prefix:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m blob_store.s3.rekey
+
+# Every database and every bucket, to a directory: a pg_dump -Fc of the five
+# databases through the postgres container, a copy of every object of the five
+# buckets through the stack's S3 endpoint, and a manifest of the row counts of
+# the application database and the key and sha256 of every object and dump.
+# Never .env, provider.env or a certificate key: only what the stores hold.
+#
+#   make backup DIR=/backups/2026-10-24
+#
+# DIR must hold no backup yet. The drill that proves one restores is in
+# docs/operations.md.
+backup:
+	@[ -n "$(DIR)" ] || { echo "usage: make backup DIR=<directory>"; exit 2; }
+	@[ ! -e "$(DIR)/manifest.json" ] || { echo "REFUSED: $(DIR) already holds a backup." >&2; exit 2; }
+	@mkdir -p "$(DIR)/db"
+	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
+	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_dump -Fc -U \"\$$POSTGRES_USER\" -d $$name" > "$(DIR)/db/$$name.dump" || exit 1; \
+	done
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --backup "$(DIR)"
+
+# Put a backup back: pg_restore of the five databases over what they hold, the
+# objects uploaded again, and every dump, object and row count checked against
+# the manifest. Refuses while any worker runs, and unless CONFIRM names the
+# database. Stop everything but postgres and seaweedfs first, as the drill in
+# docs/operations.md says: pg_restore cannot replace a database in use.
+restore-backup:
+	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup DIR=<a directory make backup wrote> CONFIRM=<database>"; exit 2; }
+	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
+	@$(call CONFIRMED,restore-backup: it replaces the five databases and the buckets from $(DIR))
+	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
+	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --no-owner -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \
+	done
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)"
 
 # Put back what a deletion archived, after an accidental wipe.
 #

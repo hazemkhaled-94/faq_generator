@@ -776,6 +776,7 @@ DESTRUCTIVE = {
     "questions-rerun": (),
     "assess-rerun": (),
     "archive-purge": ("ALL=1",),
+    "restore-backup": ("DIR=/backups/x",),
 }
 
 
@@ -935,3 +936,52 @@ def test_the_phoenix_purge_takes_only_this_databases_projects(target: str) -> No
         one for one in printed(target, "ALL_DATABASES=1") if "telemetry.projects" in one
     ][:1]
     assert "--all-databases" in every, every
+
+
+#: The five databases a backup dumps, by the settings that name them.
+DATABASES = (
+    "APP_DB_NAME",
+    "SEAWEEDFS_DB_NAME",
+    "PHOENIX_DB_NAME",
+    "DAGSTER_DB_NAME",
+    "ARGILLA_DB_NAME",
+)
+
+
+@pytest.mark.parametrize("target", ["backup", "restore-backup"])
+def test_a_backup_target_names_a_directory(target: str) -> None:
+    """Without one it says how to call it and does nothing."""
+    first = printed(target)[0]
+    assert "usage: make" in first and "exit 2" in first, first
+
+
+def test_a_backup_dumps_the_five_databases_and_copies_no_secret() -> None:
+    """pg_dump of each, the objects and a manifest: never .env, provider.env or a key."""
+    lines = printed("backup", "DIR=/backups/x")
+    text = "\n".join(lines)
+    for name in DATABASES:
+        assert f"${name}" in text, name
+    assert "pg_dump -Fc" in text and "archive.backup --backup" in text, text
+    for forbidden in (" cp ", "rsync", "tar ", 'provider.env"', "certs/", ".key"):
+        assert forbidden not in text.replace(". ./.env", "").replace(
+            "./configs/env/provider.env", ""
+        ), forbidden
+
+
+def test_a_restore_refuses_while_a_worker_runs_and_checks_the_manifest() -> None:
+    """The workers first, CONFIRM second, pg_restore of the five, the manifest last."""
+    lines = printed("restore-backup", "DIR=/backups/x", "CONFIRM=qa_generator")
+    text = "\n".join(lines)
+    at = {
+        part: text.index(part)
+        for part in (
+            "ps -q parse-worker",
+            "ps -q assess-worker",
+            "REFUSED:",
+            "pg_restore --clean",
+            "archive.backup --restore",
+        )
+    }
+    assert list(at.values()) == sorted(at.values()), at
+    for name in DATABASES:
+        assert f"${name}" in text, name

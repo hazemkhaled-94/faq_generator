@@ -410,6 +410,49 @@ removes one.
 
 See [`telemetry/`](../telemetry/README.md) for the field names.
 
+## Backups
+
+The archive (`make archive`) is a second chance after a deletion, and it lives
+in the same database and the same object store it protects. A backup is a copy
+of both somewhere else.
+
+```bash
+make backup DIR=/backups/$(date +%F)
+```
+
+writes, under `DIR`: `db/<name>.dump`, a `pg_dump -Fc` of each of the five
+databases (the application's, SeaweedFS's, Phoenix's, Dagster's and Argilla's),
+taken through the postgres container; `s3/<bucket>/<key>`, every object of the
+five buckets, read through the stack's S3 endpoint; and `manifest.json`, the
+row count of every table of the application database and the key, size and
+sha256 of every object and dump. It never copies `.env`, `provider.env` or a
+certificate key: keep those where you keep secrets. `DIR` must hold no backup.
+
+Copy `DIR` off the machine. A backup on the volume it protects is not one.
+
+### The restore drill
+
+Run it on a scratch stack before you need it, and again after any change to the
+stores. It replaces the data of the stack it runs on.
+
+1. Bring up a stack of the same version beside the first (see "A second stack
+   beside the first"), or the same one after `make down-volumes`, then `make up`.
+2. Stop everything but postgres and seaweedfs, so that no connection holds a
+   database: `podman compose --env-file configs/env/deployment.env --env-file .env stop api frontend parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker dagster-webserver dagster-daemon phoenix argilla grafana`
+   (`docker compose` for docker; `ps` lists what else runs).
+3. `make restore-backup DIR=/backups/<the directory> CONFIRM=<APP_DB_NAME>`.
+   It refuses while a worker runs and unless `CONFIRM` names the database. It
+   runs `pg_restore --clean --if-exists` for each of the five, uploads the
+   objects again, and checks every dump, every object and every row count
+   against the manifest. It exits 1 and names each difference.
+4. `make up`, then `make schema-status` (at the newest revision) and
+   `make documents` (the documents the backup held). Open a document's page and
+   a topic figure: the objects are read from the restored store.
+
+A restore from a backup taken before keys carried the database (v0.5.2) leaves
+bare keys in the buckets, which are read as they were; `make s3-prefix` copies
+them under the database's prefix.
+
 ## Failure
 
 A row a worker died holding is failed by the next run of that stage with the
