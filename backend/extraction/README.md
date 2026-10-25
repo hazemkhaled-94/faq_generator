@@ -171,8 +171,11 @@ For an atomic fact, `unsupported_addition` reads the whole passage, its heading
 trail and the document's title as what the fact may rest on: a figure the list
 lead-in states or a name a neighbouring sentence gives is carried. A dotted
 number that numbers a part of the heading's own number ("3.2" under "Article 3")
-is carried only when the cited sentences say it. A digest rests on the sentences
-it cites. For every kind a word is also carried in the form the text layer wrote
+is carried only when the cited sentences say it. A figure only the rest of the
+passage states is refused, with the cited figure named in the reason, when the
+cited sentences state another of its kind (the same currency, unit or sign beside
+it, read from the parse): "costs EUR 2" for a cited "costs EUR 5". A digest rests
+on the sentences it cites. For every kind a word is also carried in the form the text layer wrote
 it in: an inflection, a hyphen split or dropped, and, where nouns are not all
 capitalised, a capitalised first word of a list item.
 

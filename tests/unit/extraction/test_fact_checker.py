@@ -1470,6 +1470,172 @@ def test_a_lead_in_figure_is_supported_by_the_passage(
     assert alone.validated, (alone.rejection_code, alone.units_added)
 
 
+@pytest.mark.parametrize(
+    ("text", "statement", "language", "cited", "swapped"),
+    [
+        (
+            (
+                "The current account costs EUR 5 per month. The savings account costs "
+                "EUR 2 per month. A replacement card costs EUR 15."
+            ),
+            "The current account costs EUR 2 per month.",
+            "en",
+            0,
+            "5",
+        ),
+        (
+            (
+                "Das Girokonto kostet 5 EUR im Monat. Das Sparkonto kostet 2 EUR im "
+                "Monat. Eine Ersatzkarte kostet 15 EUR."
+            ),
+            "Das Girokonto kostet 2 EUR im Monat.",
+            "de",
+            0,
+            "5",
+        ),
+        (
+            "Der Sollzins beträgt 11,9 % p. a. Der Habenzins beträgt 0,5 % p. a.",
+            "Der Sollzins beträgt 0,5 % p. a.",
+            "de",
+            0,
+            "11,9",
+        ),
+        (
+            (
+                "Standard delivery costs 4.95 EUR and takes 3 days. Express delivery "
+                "costs 9.95 EUR and takes 1 day."
+            ),
+            "Standard delivery costs 9.95 EUR.",
+            "en",
+            0,
+            "4.95",
+        ),
+        (
+            "Der Standardversand kostet 4,95 EUR. Der Expressversand kostet 9,95 EUR.",
+            "Der Standardversand kostet 9,95 EUR.",
+            "de",
+            0,
+            "4,95",
+        ),
+        (
+            (
+                "Clothing may be returned within 30 days. Electronics may be returned "
+                "within 14 days."
+            ),
+            "Electronics may be returned within 30 days.",
+            "en",
+            1,
+            "14",
+        ),
+        (
+            (
+                "Bestellungen bis 14 Uhr werden am selben Tag versandt. Bestellungen "
+                "nach 18 Uhr werden am nächsten Tag versandt."
+            ),
+            "Bestellungen bis 18 Uhr werden am selben Tag versandt.",
+            "de",
+            0,
+            "14",
+        ),
+    ],
+)
+def test_a_figure_of_the_same_kind_swapped_for_the_cited_one_is_refused(
+    text, statement, language, cited, swapped
+) -> None:
+    """The passage states the figure elsewhere, but the cited sentence states another."""
+    read = passage(text, language=language)
+
+    judged = Checker(read).atomic(statement, cited)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
+    assert swapped in (judged.validation_error or ""), judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("text", "statement", "language", "cited"),
+    [
+        (
+            (
+                "The current account costs EUR 5 per month. The savings account costs "
+                "EUR 2 per month."
+            ),
+            "The current account costs EUR 5 per month.",
+            "en",
+            0,
+        ),
+        (
+            "Standard delivery takes 3 days. Express delivery costs 9.95 EUR.",
+            "Standard delivery costs 9.95 EUR.",
+            "en",
+            0,
+        ),
+        (
+            "Der Standardversand dauert 3 Tage. Der Expressversand kostet 9,95 EUR.",
+            "Der Standardversand kostet 9,95 EUR.",
+            "de",
+            0,
+        ),
+        (
+            "Orders over EUR 50 are delivered free. Delivery to Austria takes two days.",
+            "Orders over EUR 50 are delivered free to Austria.",
+            "en",
+            1,
+        ),
+        (
+            "Orders must be placed by 23.59 CET. Late orders ship the day after 23:59 CET.",
+            "Orders must be placed by 23:59 CET.",
+            "en",
+            0,
+        ),
+        (
+            "Der Standardversand kostet 9,95 EUR. Der Expressversand kostet 12.50 EUR.",
+            "Der Standardversand kostet 9.95 EUR.",
+            "de",
+            0,
+        ),
+    ],
+)
+def test_a_figure_of_another_kind_from_another_sentence_is_still_the_passages(
+    text, statement, language, cited
+) -> None:
+    """Only a different figure of the same kind in the cited sentence is a swap."""
+    read = passage(text, language=language)
+
+    judged = Checker(read).atomic(statement, cited)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.parametrize(
+    ("text", "statement", "language"),
+    [
+        (
+            (
+                "La cuenta corriente cuesta 5 EUR al mes. La cuenta de ahorro cuesta "
+                "2 EUR al mes."
+            ),
+            "La cuenta corriente cuesta 2 EUR al mes.",
+            "es",
+        ),
+        (
+            (
+                "Le compte courant coûte 5 EUR par mois. Le compte épargne coûte 2 EUR "
+                "par mois."
+            ),
+            "Le compte courant coûte 2 EUR par mois.",
+            "fr",
+        ),
+    ],
+)
+def test_the_swapped_figure_guard_reads_nothing_in_an_unconfigured_language(
+    text, statement, language
+) -> None:
+    """No pipeline, no part of speech: the guard stays out and gives no reason of its own."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert "where the statement says" not in (judged.validation_error or "")
+
+
 def test_a_sub_number_of_the_passages_own_heading_is_no_support() -> None:
     """Under heading 3, a figure 3.2 the passage mentions elsewhere is no evidence."""
     from dataclasses import replace

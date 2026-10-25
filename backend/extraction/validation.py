@@ -29,6 +29,7 @@ from nlp.analysis import (
     claim,
     normalised,
     numerals,
+    parse,
     vocabulary,
     written_in,
 )
@@ -130,6 +131,9 @@ class Judged:
         language: The language the statement is read in.
         claims: The most claims the statement may carry: one, or two on a
             bridge that states a contrast or an exception.
+        swaps: The figures of the statement that only the rest of the passage
+            states, each with the figure of its own kind that the cited
+            sentences state instead.
     """
 
     statement: str
@@ -142,6 +146,7 @@ class Judged:
     labels: tuple[str, ...] = ()
     language: str | None = None
     claims: int = 1
+    swaps: tuple[tuple[str, str], ...] = ()
 
     @property
     def added(self) -> tuple[str, ...]:
@@ -228,9 +233,16 @@ def _supported(judged: Judged) -> Failure | None:
     added = judged.added
     if not added:
         return None
+    swapped = "".join(
+        f"; the cited text gives {cited} where the statement says {unit}"
+        for unit, cited in judged.swaps
+    )
     return (
         Rejection.UNSUPPORTED_ADDITION,
-        f"the statement asserts {', '.join(added)}, which the cited text does not say",
+        (
+            f"the statement asserts {', '.join(added)}, which the cited text does not "
+            f"say{swapped}"
+        ),
     )
 
 
@@ -637,8 +649,10 @@ class FactChecker:
         known, numbers = _carried(evidence, passage)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)
+        swaps: dict[str, str] = {}
         if candidate.kind == FactKind.ATOMIC:
             alone = known | supported
+            swaps = _swapped(statement, evidence, numbers, passage, language)
             known |= vocabulary(passage.text, language)
             numbers |= numerals(passage.text, language)
             known |= numbers
@@ -647,6 +661,7 @@ class FactChecker:
                 for unit in units
                 if unit not in alone and _numbers_part_of(unit, passage.section_path)
             }
+            numbered |= {unit for unit in units if unit in swaps and unit not in alone}
             known -= numbered
             supported = _supported_units(units, known, numbers, language, statement)
             supported -= numbered
@@ -665,6 +680,7 @@ class FactChecker:
                     end=end,
                 ),
             ),
+            swaps=tuple(swaps.items()),
         )
 
 
@@ -685,6 +701,79 @@ def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[st
         known |= vocabulary(headings, language)
         numbers |= numerals(headings, language)
     return known, numbers
+
+
+#: The parts of speech of a word naming what a figure measures or counts: the
+#: unit after it ("30 days"), the code or sign beside it ("EUR 5").
+_UNIT_WORDS = frozenset({"NOUN", "PROPN", "SYM"})
+
+
+def _kind_of(tokens: Sequence, at: int) -> str | None:
+    """What the figure at `at` measures or counts, from the word beside it.
+
+    A sign or unit written on the figure ("5%", "$5"), else the noun or sign
+    after it, else before it: "EUR" of "EUR 5 per month" and of "5 EUR", "days"
+    of "30 days". None where the parse names none, which is every figure of a
+    language no pipeline is configured for.
+    """
+    token = tokens[at]
+    if attached := re.sub(r"[\d.,:/\s()+\-−±]+", "", token.text):
+        return attached.casefold()
+    for near in (at + 1, at - 1):
+        if 0 <= near < len(tokens) and tokens[near].pos_ in _UNIT_WORDS:
+            return tokens[near].lemma_.casefold()
+    return None
+
+
+def _figure_tokens(
+    text: str, language: str | None
+) -> list[tuple[str, frozenset[str], tuple[int, ...], str]]:
+    """The figures of a text as written: with their numerals, their digit runs and kind.
+
+    The digit runs make `23.59` and `23:59`, or `9,95` and `9.95`, one figure
+    however it is punctuated.
+    """
+    tokens = list(parse(text, language))
+    found = []
+    for at, token in enumerate(tokens):
+        if not any(one.isdigit() for one in token.text):
+            continue
+        if (kind := _kind_of(tokens, at)) and (
+            digits := numerals(token.text, language)
+        ):
+            runs = tuple(int(run) for run in re.findall(r"\d+", token.text))
+            found.append((token.text.strip(".,;:()").casefold(), digits, runs, kind))
+    return found
+
+
+def _swapped(
+    statement: str,
+    evidence: str,
+    cited: set[str],
+    passage: PassageToExtract,
+    language: str | None,
+) -> dict[str, str]:
+    """Finds the figures a statement took from the passage in place of the cited one.
+
+    A figure only the rest of the passage states, where the cited sentences
+    state another of its kind (a currency amount, a share, a count of days, a
+    time of day: what stands beside it is the same), is a swap, not a figure
+    the passage supports: "costs EUR 2" for a cited "costs EUR 5". Maps each
+    such figure as the statement writes it to the one the evidence writes.
+    """
+    elsewhere = numerals(passage.text, language) - cited
+    swaps: dict[str, str] = {}
+    own = None
+    for unit, digits, runs, kind in _figure_tokens(statement, language):
+        if digits <= cited or not digits <= elsewhere:
+            continue
+        if own is None:
+            own = _figure_tokens(evidence, language)
+        for written, _, theirs, there in own:
+            if there == kind and theirs != runs:
+                swaps[unit] = written
+                break
+    return swaps
 
 
 def _numbers_part_of(unit: str, section_path: str | None) -> bool:
