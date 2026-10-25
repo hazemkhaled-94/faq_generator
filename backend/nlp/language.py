@@ -24,6 +24,12 @@ _MIN_CHARS = 40
 #: another language's names is a coin toss at lower confidence.
 _SURE = 0.9
 
+#: The confidence a language needs to name a whole document, over every
+#: language lingua knows, where a wrong call refuses the document. Prose of a
+#: language reads at 0.9 or more even in one sentence, and a body of figures,
+#: units and abbreviations spreads its confidence below 0.45 over many.
+_DOCUMENT_SURE = 0.7
+
 #: A web address. Markdown renders a link as [text](url), and a site writes
 #: its path segments in its own language whatever the page they lead to says.
 URL = re.compile(r"https?://\S+|www\.\S+")
@@ -57,10 +63,12 @@ def _detector() -> LanguageDetector:
 def _any_detector() -> LanguageDetector:
     """Builds the detector over every language lingua knows, once per process.
 
-    Low-accuracy mode keeps its memory small, and it is asked once per
-    document, of a long text.
+    Not in low-accuracy mode: that mode reads one rare token of a table, an
+    abbreviation or a unit, as another language with full confidence, and a
+    document of its own configured language would be refused for it. The
+    detector is built on the first document and asked once per document.
     """
-    return LanguageDetectorBuilder.from_all_languages().with_low_accuracy_mode().build()
+    return LanguageDetectorBuilder.from_all_languages().build()
 
 
 def document_language(text: str) -> tuple[str, str] | None:
@@ -71,15 +79,20 @@ def document_language(text: str) -> tuple[str, str] | None:
 
     Returns:
         The ISO 639-1 code and the English name, or None when the text is
-        too short to tell.
+        too short to tell or the detector is not sure of any language, as a
+        body of figures, units and abbreviations is not.
     """
     prose = URL.sub(" ", text).strip()
     if len(prose) < _MIN_CHARS:
         return None
-    found = _any_detector().detect_language_of(prose)
-    if found is None:
+    best = max(
+        _any_detector().compute_language_confidence_values(prose),
+        key=lambda one: one.value,
+        default=None,
+    )
+    if best is None or best.value < _DOCUMENT_SURE:
         return None
-    return found.iso_code_639_1.name.lower(), found.name.title()
+    return best.language.iso_code_639_1.name.lower(), best.language.name.title()
 
 
 def detect(text: str) -> str | None:

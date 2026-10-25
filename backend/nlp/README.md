@@ -89,7 +89,8 @@ The **document** is read once at parse by a second detector over every
 language lingua knows (`document_language`), so a document in a language
 `NLP_MODELS` does not name is refused at parse, naming its language, rather
 than read silently as one it does. Adding a language to `NLP_MODELS` is what
-lets such a document in.
+lets such a document in. A body of figures, units and abbreviations that
+no language holds at 0.7 of the confidence is not refused as a third language.
 
 ### One call, one judgement
 

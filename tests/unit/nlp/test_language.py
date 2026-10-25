@@ -93,3 +93,51 @@ def test_a_document_too_short_to_judge_has_no_language() -> None:
     from nlp.language import document_language
 
     assert document_language("Bonjour") is None
+
+
+def _price_list(heading: str, prose: str, header: str) -> str:
+    """A table-heavy body: a short heading, one sentence, rows of figures."""
+    rows = "\n".join(
+        f"A-{n:04d} | {n % 9 + 1} | {n * 3 + 5}.90 EUR | {n % 4}.5 kg"
+        for n in range(40)
+    )
+    return f"{heading}\n\n{prose}\n\n{header}\n{rows}"
+
+
+ENGLISH_LIST = _price_list(
+    "Price list for trade customers",
+    "All prices are net and valid until the end of the quarter.",
+    "SKU | Qty | Price | Weight",
+)
+GERMAN_LIST = _price_list(
+    "Preisliste für Geschäftskunden",
+    "Alle Preise sind Nettopreise und gelten bis zum Ende des Quartals.",
+    "Art.-Nr. | Menge | Preis | Gew.",
+)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [(ENGLISH_LIST, "en"), (GERMAN_LIST, "de")],
+    ids=["english", "german"],
+)
+def test_a_rare_token_in_a_table_does_not_change_the_documents_language(
+    text: str, expected: str
+) -> None:
+    """Abbreviations of a price list are not evidence of another language."""
+    from nlp.language import document_language
+
+    found = document_language(text + "\nQty")
+
+    assert found is not None and found[0] == expected, found
+
+
+def test_a_body_of_figures_and_abbreviations_is_not_another_language() -> None:
+    """With almost no words, the document is never refused as a third language."""
+    from preprocessing.parsing.analysis import DocumentAnalyser
+
+    body = "\n".join(
+        f"SKU {n} | Qty {n % 7} | {n}.5 kg | EUR {n * 2}" for n in range(60)
+    )
+
+    DocumentAnalyser._configured(body)
