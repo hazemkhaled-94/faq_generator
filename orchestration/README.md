@@ -110,7 +110,7 @@ against a check Dagster has never heard of.
 
 Its cursor holds the last worked and failed counts per stage and the
 `/status` digests of the worked rows, so a tick that finds none of them
-moved reports nothing. The digests are what show a rerun that finished
+moved reports nothing. The sensor asks for them (`/status?digests=true`); a page polling `/status` does not, because a hash reads every row of the queue. The digests are what show a rerun that finished
 between two ticks, or a refit that wrote as many topics as before. The
 first tick after an empty cursor records every stage that has produced or
 failed anything. A cursor written before failures were watched holds one

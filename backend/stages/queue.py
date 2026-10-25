@@ -527,12 +527,33 @@ class StageQueue(Repository):
                 update(self.columns.entity).where(*self._where(*where)).values(queued)
             ).rowcount
 
-    def queue_state(self, within: Any = None) -> QueueState:
-        """Reports the queue depth and whether a worker is on it."""
+    def queue_state(self, within: Any = None, *, digests: bool = False) -> QueueState:
+        """Reports the queue depth and whether a worker is on it.
+
+        Args:
+            within: A condition narrowing the rows read, or None.
+            digests: Whether to hash each status's rows. A hash reads and
+                sorts every row of the queue, so a page that polls for counts
+                leaves it off; the orchestrator, which compares them between
+                ticks, asks.
+        """
         # One query for both: a page polls this every few seconds.
-        # ponytail: the digests hash every row of the queue on every poll,
-        # linear in its size. Upgrade: a column recording when each row last
-        # changed, which is a migration.
+        digest = (
+            [
+                func.md5(
+                    func.string_agg(
+                        func.concat(
+                            self.columns.key,
+                            literal_column("':'"),
+                            self.columns.trigger,
+                        ),
+                        aggregate_order_by(literal_column("','"), self.columns.key),
+                    )
+                )
+            ]
+            if digests
+            else [literal_column("NULL")]
+        )
         with self._session() as session:
             rows = session.execute(
                 select(
@@ -541,16 +562,7 @@ class StageQueue(Repository):
                     func.count().filter(
                         self.columns.claimed_at >= func.now() - self.lease
                     ),
-                    func.md5(
-                        func.string_agg(
-                            func.concat(
-                                self.columns.key,
-                                literal_column("':'"),
-                                self.columns.trigger,
-                            ),
-                            aggregate_order_by(literal_column("','"), self.columns.key),
-                        )
-                    ),
+                    *digest,
                 )
                 .where(*self._where(within))
                 .group_by(self.columns.status)
@@ -562,7 +574,7 @@ class StageQueue(Repository):
                 status == Status.IN_PROGRESS and live for status, _, live, _ in rows
             ),
             rows={status: total for status, total, _, _ in rows},
-            digests={status: digest for status, _, _, digest in rows},
+            digests={status: hashed for status, _, _, hashed in rows if digests},
         )
 
     def counts_by_status(self, within: Any = None) -> dict[str, int]:

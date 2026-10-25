@@ -52,7 +52,7 @@ read as a question with the id `status`.
 ### The queue surface every stage shares
 
 ```
-GET  /{stage}/status                      how much work is waiting
+GET  /{stage}/status                      how much work is waiting; ?digests=true adds a hash of the rows per status, which reads the whole queue
 POST /{stage}/{action}                    start | stop | retry | rerun | reclaim
 GET  /{stage}/{scope}/{value}/status      the same, for one item
 POST /{stage}/{scope}/{value}/{action}    the same verb, against fewer rows

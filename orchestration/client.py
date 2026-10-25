@@ -71,7 +71,7 @@ class Backend:
 
     def status(self, stage: str) -> Queue:
         """Reports how much work one stage has waiting."""
-        body = self._call("GET", f"/{stage}/status")
+        body = self._call("GET", f"/{stage}/status", digests="true")
         return Queue(
             working=body["working"],
             rows=body["rows"],

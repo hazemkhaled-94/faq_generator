@@ -108,7 +108,7 @@ class StageQueueState(Protocol):
         """Builds the condition one scope's value selects, refusing either."""
         ...
 
-    def queue_state(self, within: Any = None) -> QueueState:
+    def queue_state(self, within: Any = None, *, digests: bool = False) -> QueueState:
         """Reports the depth of this queue and whether a worker is on it."""
         ...
 
@@ -190,8 +190,12 @@ def status_of(
     *,
     scope: str | None = None,
     value: str | None = None,
+    digests: bool = False,
 ) -> StageStatus:
     """Reports how much work one stage has waiting.
+
+    `digests` asks for the per-status hash of the rows, which reads the whole
+    queue: only the orchestrator, comparing ticks, wants it.
 
     Shared with the stages that build their own router, so every /status
     answers the same shape whatever built it.
@@ -201,7 +205,7 @@ def status_of(
             accepts or the value is not what its column holds.
     """
     within = None if scope is None else _narrowed(repository, scope, value or "")
-    state = repository.queue_state(within)
+    state = repository.queue_state(within, digests=digests)
     return StageStatus(
         stage=name,
         working=state.working,
@@ -360,9 +364,9 @@ def stage_router(
     }
 
     @router.get("/status")
-    def status() -> StageStatus:
+    def status(digests: bool = False) -> StageStatus:
         """Reports how much work this stage has waiting."""
-        return status_of(name, repository)
+        return status_of(name, repository, digests=digests)
 
     @router.post("/{action}", status_code=202, responses=refusals)
     def whole_queue(
@@ -422,13 +426,13 @@ def stage_router(
         return acted(name, repository, action, run=run)
 
     @router.get("/{scope}/{value}/status", responses=refusals)
-    def scoped_status(scope: str, value: str) -> StageStatus:
+    def scoped_status(scope: str, value: str, digests: bool = False) -> StageStatus:
         """Reports how much work this stage has waiting for one item.
 
         Raises:
             ApiError: 404 `unknown_scope`, 400 `invalid_value`.
         """
-        return status_of(name, repository, scope=scope, value=value)
+        return status_of(name, repository, scope=scope, value=value, digests=digests)
 
     @router.post("/{scope}/{value}/{action}", status_code=202, responses=refusals)
     def scoped_action(

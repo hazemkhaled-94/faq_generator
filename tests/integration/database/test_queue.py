@@ -287,14 +287,24 @@ def test_the_queue_reports_its_depth_and_whether_anyone_is_on_it(
 def test_equal_counts_of_other_rows_read_differently(documents, engine) -> None:
     """A batch swapped, or rows reworked under another run, keep their count."""
     documents(new=2)
-    before = ParseQueue().queue_state()
+    before = ParseQueue().queue_state(digests=True)
     with engine.begin() as connection:
         connection.execute(text("UPDATE documents SET parse_trigger = 'again'"))
 
-    after = ParseQueue().queue_state()
+    after = ParseQueue().queue_state(digests=True)
 
     assert after.rows == before.rows
     assert after.digests[Status.NEW] != before.digests[Status.NEW]
+
+
+def test_a_status_read_without_digests_still_counts(documents) -> None:
+    """The default read the pages poll: the same counts, no hash."""
+    documents(new=2)
+
+    state = ParseQueue().queue_state()
+
+    assert state.rows == {Status.NEW: 2}
+    assert state.digests == {}
 
 
 def test_a_stale_claim_does_not_count_as_a_worker(engine, database) -> None:

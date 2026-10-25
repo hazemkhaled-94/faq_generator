@@ -64,6 +64,7 @@ def test_a_status_says_which_rows_each_count_is() -> None:
     )
 
     assert Backend(BASE, session).status("parsing").digests == {"new": "4f1c"}
+    assert session.sent == [{"digests": "true"}], "the digests are asked for"
 
 
 def test_a_queue_with_nothing_claimable_is_idle() -> None:
@@ -186,9 +187,9 @@ def test_a_fit_carries_it_too() -> None:
 
 def test_nothing_is_sent_where_no_run_asked() -> None:
     """A query string naming nothing is a query string worth not sending."""
-    session = Session({"/parsing/status": [queue()]})
+    session = Session({"/parsing/start": [{"rows": 0, "detail": "nothing"}]})
 
-    Backend(BASE, session).status("parsing")
+    Backend(BASE, session).act("parsing", "start")
 
     assert session.sent == [{}]
 

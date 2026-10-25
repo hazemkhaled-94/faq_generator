@@ -28,6 +28,10 @@ from lib import page
 #: How often the panel redraws. The same interval the stage controls use.
 POLL_SECONDS = 3
 
+#: Whether anything is queued or running, as the last draw found it. While
+#: nothing is, the panel has no timer; a button redraws it.
+_BUSY = "pipeline-busy"
+
 #: What each Dagster run status means for somebody reading a page. Anything
 #: not here is shown as Dagster spells it, lower-cased.
 _RUN_READS = {
@@ -49,24 +53,32 @@ def panel(client) -> None:
     outside the guard the view was called under: an unreachable backend
     would otherwise replace the panel with a stack trace.
     """
+    polling = st.session_state.get(_BUSY, True)
 
-    # ponytail: the timer never stops, so every open tab polls the pipeline
-    # whether or not anything runs; the upgrade is stopping run_every while
-    # nothing is queued or running.
-    @st.fragment(run_every=POLL_SECONDS)
+    @st.fragment(run_every=POLL_SECONDS if polling else None)
     def drawn() -> None:
-        """Draws the controls, and keeps drawing them."""
-        page.render(lambda: _controls(client))
+        """Draws the controls, and keeps drawing them while anything moves."""
+        answers: list[bool] = []
+        page.render(lambda: answers.append(_controls(client)))
+        now = answers[0] if answers else True
+        if now != st.session_state.get(_BUSY, True):
+            st.session_state[_BUSY] = now
+            st.rerun()
 
     drawn()
 
 
-def _controls(client) -> None:
-    """Draws one pass of the panel."""
+def _controls(client) -> bool:
+    """Draws one pass of the panel.
+
+    Returns:
+        Whether anything is queued, running or unanswered, which is what
+        keeps the panel polling.
+    """
     state = client.state()
     if not state:
         st.caption("The backend is not answering.")
-        return
+        return True
 
     stages = state.get("stages") or []
     orchestration = state.get("orchestration") or {}
@@ -133,6 +145,7 @@ def _controls(client) -> None:
     row.caption(_reads(stages, running, working, failed))
     with row:
         _automation(client, orchestration.get("automation") or {})
+    return working or running is not None
 
 
 def _run_help(available: bool, running: dict | None, hosted: bool = False) -> str:

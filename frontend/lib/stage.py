@@ -20,7 +20,9 @@ for the stage after.
 
 The controls redraw on a timer, which is what the loading icon is for: a
 verb only queues rows, the worker does the work, and the spinner runs until
-that stage's queue is empty again.
+that stage's queue is empty again. A queue with nothing pending or in
+progress has no timer, so a tab left open polls nothing; an action redraws
+the panel, and the timer starts once the queue is busy.
 """
 
 from __future__ import annotations
@@ -102,7 +104,10 @@ def service(
     `redo_warning` makes Redo arm rather than act: it is shown with a
     separately labelled second button that sends the rerun.
     """
-    _polling(lambda: _verbs(client, queue, scope, scopes, redo_warning))
+    _polling(
+        lambda: _verbs(client, queue, scope, scopes, redo_warning),
+        _key("busy", queue, scope),
+    )
 
 
 def fit(client, queue: Queue) -> None:
@@ -111,24 +116,32 @@ def fit(client, queue: Queue) -> None:
     Every topic is fitted jointly over one vocabulary, so there is no single
     topic to start, stop or refit.
     """
-    _polling(lambda: _fit_verbs(client, queue))
+    _polling(lambda: _fit_verbs(client, queue), _key("busy", queue, None))
 
 
-def _polling(draw: Callable[[], None]) -> None:
-    """Redraws one set of controls every few seconds, busy or not.
+def _polling(draw: Callable[[], bool], key: str) -> None:
+    """Redraws one set of controls every few seconds while its queue is busy.
+
+    `draw` says whether the queue is busy. The timer is fixed when the
+    fragment is declared, so a change in that answer, which is the only thing
+    that moves it, reruns the page to declare it again. A draw that failed
+    counts as busy: the page keeps asking until the backend answers.
 
     Through page.render, because a fragment reruns on its own and so outside
     the guard the view was called under: an unreachable backend would replace
     the panel with a stack trace.
     """
+    polling = st.session_state.get(key, True)
 
-    # ponytail: the timer never stops, so every open tab polls every panel
-    # whether or not anything is queued; the upgrade is stopping run_every
-    # while the queue is not busy.
-    @st.fragment(run_every=POLL_SECONDS)
+    @st.fragment(run_every=POLL_SECONDS if polling else None)
     def drawn() -> None:
-        """Draws the controls, and goes on drawing them."""
-        page.render(draw)
+        """Draws the controls, and goes on drawing them while they move."""
+        answers: list[bool] = []
+        page.render(lambda: answers.append(draw()))
+        now = answers[0] if answers else True
+        if now != st.session_state.get(key, True):
+            st.session_state[key] = now
+            st.rerun()
 
     drawn()
 
@@ -150,8 +163,12 @@ def _verbs(
     scope: tuple[str, str] | None,
     scopes: Sequence[tuple[str, str]] | None = None,
     redo_warning: str | None = None,
-) -> None:
-    """Draws the four queue verbs once, for whatever scope was given."""
+) -> bool:
+    """Draws the four queue verbs once, for whatever scope was given.
+
+    Returns:
+        Whether the queue has work pending or in progress.
+    """
     counts = _counts(client, queue, scope, scopes)
     total = sum(counts.values())
     waiting = counts.get("new", 0)
@@ -221,6 +238,7 @@ def _verbs(
 
     if redo_warning and _confirmed(armed, redo_warning, "Yes, redo"):
         act("rerun")
+    return busy(counts)
 
     # The API's own count of what the rerun would reject, put to the person.
     if _confirmed(
@@ -244,8 +262,8 @@ def _confirmed(armed: str, warning: str, label: str) -> bool:
     return False
 
 
-def _fit_verbs(client, queue: Queue) -> None:
-    """Draws the three verbs a fit takes."""
+def _fit_verbs(client, queue: Queue) -> bool:
+    """Draws the three verbs a fit takes, and says whether a fit is queued or running."""
     counts = client.stage_status(queue.name)["rows"]
     queued = counts.get("pending", 0)
     failed = counts.get("failed", 0)
@@ -295,6 +313,7 @@ def _fit_verbs(client, queue: Queue) -> None:
         st.session_state.pop(armed, None)
     if _confirmed(armed, _REFIT, "Yes, fit"):
         _act(client, queue.name, None, "discover")
+    return running
 
 
 def _state(into, queue: Queue, counts: dict[str, int], failed: int) -> None:

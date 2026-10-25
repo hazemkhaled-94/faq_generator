@@ -23,12 +23,18 @@ class Queue:
     def __init__(self) -> None:
         """Holds three rows and has run nothing."""
         self.ran: list[str] = []
+        self.digests_asked: list[bool] = []
 
-    def queue_state(self, within=None):
+    def queue_state(self, within=None, *, digests=False):
         """Three rows, one of them finished."""
         from stages import QueueState
 
-        return QueueState(working=False, rows={"new": 2, "done": 1}, digests={})
+        self.digests_asked.append(digests)
+        return QueueState(
+            working=False,
+            rows={"new": 2, "done": 1},
+            digests={"new": "4f1c"} if digests else {},
+        )
 
     def start(self, within=None, *, trigger=None) -> int:
         """Records a start."""
@@ -98,6 +104,19 @@ def test_an_unnarrowed_rerun_with_confirm_is_queued(stage) -> None:
 
     assert answered.status_code == 202
     assert queue.ran == ["rerun"]
+
+
+@pytest.mark.parametrize("path", ["/chunking/status", "/chunking/passage/7/status"])
+def test_a_status_read_asks_for_no_digests_unless_told_to(stage, path: str) -> None:
+    """A page polls this, and the digests hash the whole queue."""
+    client, queue = stage
+
+    plain = client.get(path)
+    asked = client.get(path + "?digests=true")
+
+    assert plain.json()["digests"] == {}
+    assert asked.json()["digests"] == {"new": "4f1c"}
+    assert queue.digests_asked == [False, True]
 
 
 @pytest.mark.parametrize("scope", ["document/" + "a" * 64, "passage/7"])

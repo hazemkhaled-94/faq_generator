@@ -58,12 +58,12 @@ class TopicDescription(BaseModel):
 
 
 @router.get("/status")
-def status() -> StageStatus:
+def status(digests: bool = False) -> StageStatus:
     """Reports how many fits are queued and whether a worker is on one.
 
     `modelled` is the number of topics; the other states describe a fit.
     """
-    return status_of("topics", topics_queue)
+    return status_of("topics", topics_queue, digests=digests)
 
 
 @router.get("")
