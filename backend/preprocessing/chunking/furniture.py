@@ -148,10 +148,7 @@ class Furniture:
         numbered: The shapes, numerals masked, of the fields that number
             pages.
         offsets: What the running page numbers add to their page's number,
-            as each prints it: 0 where page 7 prints `7`; `number - sheet *
-            page` where a page prints several.
-        sheet: How many page numbers a page prints: 1, or 2 on a PDF whose
-            pages are two-page spreads.
+            as each prints it: 0 where page 7 prints `7`.
     """
 
     starts: tuple[int, ...] = ()
@@ -159,7 +156,6 @@ class Furniture:
     running: frozenset[tuple[str, ...]] = frozenset()
     numbered: frozenset[str] = frozenset()
     offsets: frozenset[int] = frozenset()
-    sheet: int = 1
 
     def chapter(self, page: int | None) -> tuple[str, ...]:
         """The chapter a page is in, empty when it is in none."""
@@ -211,25 +207,13 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             spelled.setdefault(_key(one), one)
     numbers = _numbers(pages_of, spelled)
     numbered = frozenset(_key(_NUMERAL.sub("#", spelled[key])) for key in numbers)
-    # The page numbers each page prints, once each: a spread prints two.
-    on_page: dict[int, set[int]] = defaultdict(set)
-    for page, found in printed:
-        for one in found:
-            if (
-                _key(one) in numbers
-                and len(pages_of[_key(one)]) == 1
-                and len(digits := re.findall(r"\d+", one)) == 1
-            ):
-                on_page[page].add(int(digits[0]))
-    sheet = (
-        Counter(len(printed_here) for printed_here in on_page.values()).most_common(1)[
-            0
-        ][0]
-        if on_page
-        else 1
-    )
     offsets = frozenset(
-        number - sheet * page for page, here in on_page.items() for number in here
+        int(digits[0]) - page
+        for page, found in printed
+        for one in found
+        if _key(one) in numbers
+        and len(pages_of[_key(one)]) == 1
+        and len(digits := re.findall(r"\d+", one)) == 1
     )
     spelled = _respaced(spelled, document)
     running = frozenset(
@@ -269,9 +253,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             "%s: its running heads come back out of order, so name no chapters",
             document.name,
         )
-        return Furniture(
-            running=running, numbered=numbered, offsets=offsets, sheet=sheet
-        )
+        return Furniture(running=running, numbered=numbered, offsets=offsets)
 
     def shape(keys: tuple[str, ...]) -> tuple[bool, ...]:
         """Which of an item's fields are constant, in the order it prints them."""
@@ -347,7 +329,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
         if label != before:
             starts.append(page)
             labels.append(label)
-    return Furniture(tuple(starts), tuple(labels), running, numbered, offsets, sheet)
+    return Furniture(tuple(starts), tuple(labels), running, numbered, offsets)
 
 
 def _respaced(spelled: dict[str, str], document: DoclingDocument) -> dict[str, str]:
@@ -771,8 +753,7 @@ def _page_number(
 
     A bare integer alone in its paragraph, in the top or bottom margin of its
     page, and - where the document's running page numbers show an offset -
-    equal to its page's number, times the numbers a page prints, plus one of
-    them. A value beside or under its
+    equal to its page's number plus one of them. A value beside or under its
     label, `30` after `Return period (days):`, is no page number, and neither
     is a value whose item has no position: it stays text. `after_lead_in`
     holds the items `_after_lead_in` finds.
@@ -789,7 +770,7 @@ def _page_number(
         return False
     if furniture.offsets:
         number = int(re.search(r"\d+", item.text).group())  # type: ignore[union-attr]
-        return number - furniture.sheet * page in furniture.offsets
+        return number - page in furniture.offsets
     return item.self_ref not in after_lead_in
 
 
