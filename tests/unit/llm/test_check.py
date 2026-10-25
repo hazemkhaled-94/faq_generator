@@ -178,7 +178,7 @@ def test_the_doctor_fails_on_a_stored_row_the_catalogue_now_refuses(
 
     def refused():
         raise StoredRefused(
-            "TOPIC_MIN_WEIGHT='-1' (written 2026-09-01 10:30) is below 0"
+            "EMBEDDING_MAX_TOKENS='4' (written 2026-09-01 10:30) is below 64"
         )
 
     monkeypatch.setattr("settings.store.snapshot", refused)
@@ -187,4 +187,4 @@ def test_the_doctor_fails_on_a_stored_row_the_catalogue_now_refuses(
     with caplog.at_level(logging.INFO):
         assert main() == 1
 
-    assert any("TOPIC_MIN_WEIGHT" in r.getMessage() for r in caplog.records)
+    assert any("EMBEDDING_MAX_TOKENS" in r.getMessage() for r in caplog.records)

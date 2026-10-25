@@ -33,10 +33,10 @@ def row(name: str, value: str) -> SimpleNamespace:
 def test_a_stored_value_below_the_catalogue_floor_refuses_the_build() -> None:
     """Named, with the value and when it was written."""
     with pytest.raises(store.StoredRefused) as refused:
-        store.audit([row("TOPIC_MIN_WEIGHT", "-1")], {})
+        store.audit([row("EMBEDDING_MAX_TOKENS", "4")], {})
 
     said = str(refused.value)
-    assert "TOPIC_MIN_WEIGHT" in said and "'-1'" in said and "2026-09-01" in said
+    assert "EMBEDDING_MAX_TOKENS" in said and "'4'" in said and "2026-09-01" in said
 
 
 def test_a_stored_flag_spelled_wrong_refuses_the_build() -> None:
@@ -48,7 +48,9 @@ def test_a_stored_flag_spelled_wrong_refuses_the_build() -> None:
 def test_a_row_that_still_passes_is_quiet_when_it_matches_the_file(caplog) -> None:
     """No warning for what changes nothing."""
     with caplog.at_level(logging.WARNING):
-        store.audit([row("TOPIC_MIN_WEIGHT", "0.2")], {"TOPIC_MIN_WEIGHT": "0.2"})
+        store.audit(
+            [row("EMBEDDING_MAX_TOKENS", "512")], {"EMBEDDING_MAX_TOKENS": "512"}
+        )
 
     assert caplog.records == []
 
@@ -56,22 +58,24 @@ def test_a_row_that_still_passes_is_quiet_when_it_matches_the_file(caplog) -> No
 def test_a_row_that_differs_from_the_file_is_one_warning_naming_both(caplog) -> None:
     """The stored value, the file's, and when the row was written."""
     with caplog.at_level(logging.WARNING):
-        store.audit([row("TOPIC_MIN_WEIGHT", "0.3")], {"TOPIC_MIN_WEIGHT": "0.2"})
+        store.audit(
+            [row("EMBEDDING_MAX_TOKENS", "256")], {"EMBEDDING_MAX_TOKENS": "512"}
+        )
 
     (said,) = [r.getMessage() for r in caplog.records]
-    assert "TOPIC_MIN_WEIGHT" in said
-    assert "'0.3'" in said and "'0.2'" in said and "2026-09-01" in said
+    assert "EMBEDDING_MAX_TOKENS" in said
+    assert "'256'" in said and "'512'" in said and "2026-09-01" in said
 
 
 def test_a_retired_name_refuses_the_build_naming_its_replacement(monkeypatch) -> None:
     """The settings that were renamed are listed, with what replaced them."""
-    monkeypatch.setitem(store.RETIRED, "OLD_WEIGHT_FLOOR", "TOPIC_MIN_WEIGHT")
+    monkeypatch.setitem(store.RETIRED, "EMBEDDING_TOKEN_LIMIT", "EMBEDDING_MAX_TOKENS")
 
     with pytest.raises(store.StoredRefused) as refused:
-        store.audit([row("OLD_WEIGHT_FLOOR", "0.1")], {})
+        store.audit([row("EMBEDDING_TOKEN_LIMIT", "512")], {})
 
-    assert "TOPIC_MIN_WEIGHT" in str(refused.value)
-    assert "OLD_WEIGHT_FLOOR" in str(refused.value)
+    assert "EMBEDDING_MAX_TOKENS" in str(refused.value)
+    assert "EMBEDDING_TOKEN_LIMIT" in str(refused.value)
 
 
 def test_a_row_for_a_setting_the_deployment_now_owns_is_ignored_with_a_warning(
@@ -86,7 +90,7 @@ def test_a_row_for_a_setting_the_deployment_now_owns_is_ignored_with_a_warning(
 
 def test_a_name_the_command_line_gave_is_not_audited() -> None:
     """The row is not applied, so what it holds does not matter."""
-    store.audit([row("TOPIC_MIN_WEIGHT", "-1")], {}, given={"TOPIC_MIN_WEIGHT"})
+    store.audit([row("EMBEDDING_MAX_TOKENS", "4")], {}, given={"EMBEDDING_MAX_TOKENS"})
 
 
 def test_a_snapshot_is_refused_when_a_stored_row_is(monkeypatch) -> None:
@@ -94,11 +98,11 @@ def test_a_snapshot_is_refused_when_a_stored_row_is(monkeypatch) -> None:
 
     class Table:
         def rows(self):
-            return [row("TOPIC_MIN_WEIGHT", "-1")]
+            return [row("EMBEDDING_MAX_TOKENS", "4")]
 
     monkeypatch.setattr(store, "Settings", Table)
 
-    with pytest.raises(store.StoredRefused, match="TOPIC_MIN_WEIGHT"):
+    with pytest.raises(store.StoredRefused, match="EMBEDDING_MAX_TOKENS"):
         store.snapshot()
 
 
@@ -107,14 +111,14 @@ def test_a_snapshot_of_good_rows_is_the_environment_over_them(monkeypatch) -> No
 
     class Table:
         def rows(self):
-            return [row("TOPIC_MIN_WEIGHT", "0.3")]
+            return [row("EMBEDDING_MAX_TOKENS", "256")]
 
     monkeypatch.setattr(store, "Settings", Table)
     monkeypatch.delenv("QA_COMMAND_LINE", raising=False)
 
     source, version = store.snapshot()
 
-    assert source["TOPIC_MIN_WEIGHT"] == "0.3"
+    assert source["EMBEDDING_MAX_TOKENS"] == "256"
     assert version == store.version(source)
 
 
