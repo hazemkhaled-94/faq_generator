@@ -295,6 +295,15 @@ def test_a_change_names_what_it_staled(client) -> None:
     assert "rerun" in answered["detail"]
 
 
+@pytest.mark.parametrize("name", ["EMBEDDING_MODEL", "NLI_MODEL", "QA_MODEL"])
+def test_a_model_id_its_commit_pins_is_not_written_from_the_page(client, name) -> None:
+    """It moves with its *_REVISION, in the file: the page answers it is fixed."""
+    answered = client.patch("/settings/platform", json={"values": {name: "org/other"}})
+
+    assert answered.status_code == 400, answered.text
+    assert answered.json()["code"] == "fixed_setting"
+
+
 def test_a_change_that_stales_nothing_says_nothing_about_rebuilding(client) -> None:
     """What the next run writes is not what the last one wrote."""
     answered = client.patch(
