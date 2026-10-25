@@ -115,7 +115,8 @@ cannot build on, and a one-off command says so and exits 1. Another stage's
 refused row is warned about and left for that stage. A row for a model id whose
 commit is pinned (`EMBEDDING_MODEL`, `NLI_MODEL`, `QA_MODEL`) is refused the
 same way: the id moves only with its `*_REVISION`, in the file. A row that overrides the file is one
-warning naming the stored value, the file's and the date. A row for a name the
+warning naming the stored value, the file's and the date, once per name and
+value in a process, where a worker reads its settings at every poll. A row for a name the
 deployment now owns, or that nothing configures, is warned about and ignored: it
 cannot be deleted with `make settings-unset`, so it must not stop a build.
 `make doctor` reads through the same snapshot and fails on the same row, asks

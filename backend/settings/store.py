@@ -41,6 +41,19 @@ _VERSION_CHARS = 12
 RETIRED: dict[str, str] = {}
 
 
+#: The rows this process has warned about, by name and value: a worker audits
+#: at every poll, and a row that has not changed is said once.
+_warned: set[tuple[str, str]] = set()
+
+
+def _warn(row: Any, message: str, *args: object) -> None:
+    """Warns about a stored row once per name and value in this process."""
+    if (row.name, row.value) in _warned:
+        return
+    _warned.add((row.name, row.value))
+    log.warning(message, *args)
+
+
 class StoredRefused(ValueError):
     """A stored row the catalogue no longer accepts, so a service will not build on it."""
 
@@ -107,7 +120,8 @@ def audit(
     """Checks every stored row against the catalogue as it stands now.
 
     One warning per row that overrides the file, naming the stored value, the
-    file's and when it was written. A row the catalogue would now refuse, or one
+    file's and when it was written, once per name and value in a process: a
+    worker audits at every poll. A row the catalogue would now refuse, or one
     stored under a retired name, refuses the build of a stage that reads it, so
     the worker waits as it does for any setting it cannot build on, and so does a
     row for a model id whose commit is pinned, which moves only with its pin. A
@@ -141,6 +155,7 @@ def audit(
                 + f": delete the row (DELETE FROM service_settings WHERE name = '{row.name}')",
                 _owner(catalog.BY_NAME.get(replacement), row),
                 service,
+                row,
             )
             continue
         if setting is not None and (pin := f"{row.name}_REVISION") in catalog.BY_NAME:
@@ -152,10 +167,12 @@ def audit(
                 f"row (DELETE FROM service_settings WHERE name = '{row.name}')",
                 setting.service,
                 service,
+                row,
             )
             continue
         if setting is None or setting.fixed:
-            log.warning(
+            _warn(
+                row,
                 "%s is ignored: %s",
                 stored,
                 "the deployment owns it" if setting else "nothing configures it",
@@ -167,10 +184,12 @@ def audit(
                 f"accepts, or return it to the file with make settings-unset {row.name}",
                 setting.service,
                 service,
+                row,
             )
             continue
         if row.value != file.get(row.name, ""):
-            log.warning(
+            _warn(
+                row,
                 "%s overrides the file's %r",
                 stored,
                 file.get(row.name),
@@ -182,11 +201,11 @@ def _owner(setting: catalog.Setting | None, row: Any) -> str:
     return setting.service if setting is not None else getattr(row, "service", "")
 
 
-def _refuse(said: str, owner: str, service: str | None) -> None:
+def _refuse(said: str, owner: str, service: str | None, row: Any) -> None:
     """Refuses the build of `service` over a row of `owner`'s, or warns for another stage's."""
     if service is None or owner in (service, "platform"):
         raise StoredRefused(said)
-    log.warning("%s; it stops the %s stage, not this one", said, owner)
+    _warn(row, "%s; it stops the %s stage, not this one", said, owner)
 
 
 def snapshot(service: str | None = None) -> tuple[dict[str, str], str]:

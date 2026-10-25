@@ -19,6 +19,12 @@ from settings import store
 WHEN = datetime(2026, 9, 1, 10, 30)
 
 
+@pytest.fixture(autouse=True)
+def _unwarned(monkeypatch):
+    """A process that has warned about nothing yet."""
+    monkeypatch.setattr(store, "_warned", set())
+
+
 def row(name: str, value: str) -> SimpleNamespace:
     """One stored row."""
     return SimpleNamespace(name=name, value=value, updated_at=WHEN)
@@ -246,3 +252,27 @@ def test_a_stored_encoder_row_is_refused_before_any_load(
 
     said = str(refused.value)
     assert name in said and f"{name}_REVISION" in said and "DELETE FROM" in said
+
+
+# ── Said once, not at every poll ───────────────────────────────────────────
+
+
+def test_an_override_is_warned_about_once_per_value(caplog) -> None:
+    """A worker reads its settings every poll; the log is not to fill with one row."""
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            store.audit([row("QUESTIONS_PER_TOPIC", "6")], {"QUESTIONS_PER_TOPIC": "4"})
+        store.audit([row("QUESTIONS_PER_TOPIC", "7")], {"QUESTIONS_PER_TOPIC": "4"})
+
+    said = [r.getMessage() for r in caplog.records]
+    assert len(said) == 2
+    assert "'6'" in said[0] and "'7'" in said[1]
+
+
+def test_a_row_left_alone_is_warned_about_once(caplog) -> None:
+    """A row for a setting the deployment owns, read at every poll."""
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            store.audit([row("SPEND_CAP", "5")], {})
+
+    assert len(caplog.records) == 1
