@@ -544,10 +544,10 @@ From a fresh clone, following only this page:
 
 ### What a queue verb says on this profile
 
-The Start button and `POST /{stage}/start` still queue rows, and `retry`,
-`rerun` and `reclaim` return them. For a model stage (extraction, topics,
-questions, assessment) the answer is 202 and its detail names the command that
-drains them, `make corpus-hosted` or the stage's own target, because no worker
+The Start button and `POST /{stage}/start` still queue rows, `retry`,
+`rerun` and `reclaim` return them, and `POST /assessment/enrol` enrols them. For
+a model stage (extraction, topics, questions, assessment) the answer is 202 and
+its detail names the command that drains them, `make corpus-hosted` or the stage's own target, because no worker
 does on this profile. A release that adds a stage ends its upgrade section with
 `make up`, so the worker or profile it brings is started.
 

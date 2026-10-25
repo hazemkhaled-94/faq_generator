@@ -55,3 +55,15 @@ def test_a_stop_names_no_runner(monkeypatch) -> None:
     monkeypatch.setenv("HOST_RUNNER", "1")
 
     assert "corpus-hosted" not in answered("extraction", "stop", 3).detail
+
+
+def test_an_enrolment_names_the_command_that_judges_it(monkeypatch) -> None:
+    """POST /assessment/enrol, as the other pipeline routes answer on this profile."""
+    from api.routes.stage import answered
+
+    monkeypatch.setenv("HOST_RUNNER", "1")
+
+    said = answered("assessment", "enrol", 3).detail
+
+    assert "make corpus-hosted" in said
+    assert said.startswith("3 row(s) enrolled"), "enrolled, not queued"

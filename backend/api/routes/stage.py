@@ -88,8 +88,9 @@ MODEL_STAGES = {
     "assessment": "assess",
 }
 
-#: The verbs that make rows claimable.
-_QUEUES = frozenset({"start", "retry", "rerun", "reclaim"})
+#: The verbs that make rows claimable, and assessment's enrolment, whose rows a
+#: start then makes so: each names what drains them on the go-live profile.
+_QUEUES = frozenset({"start", "retry", "rerun", "reclaim", "enrol"})
 
 
 class StageQueueState(Protocol):
@@ -270,8 +271,9 @@ def answered(
     if rows and name in MODEL_STAGES and action in _QUEUES and host_runner():
         # The workers are stopped by design on this profile; `done` would
         # promise one.
+        moved = "enrolled" if action == "enrol" else "queued"
         detail = (
-            f"{rows} row(s) queued; no worker drains {name} on the go-live "
+            f"{rows} row(s) {moved}; no worker drains {name} on the go-live "
             f"profile. Run make corpus-hosted, which drains every model stage, "
             f"or make {MODEL_STAGES[name]} for this one."
         )
