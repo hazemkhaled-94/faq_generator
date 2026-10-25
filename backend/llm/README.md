@@ -189,7 +189,7 @@ extraction and question generation may not import each other.
 
 ### A document's text is fenced
 
-`prompt.fill` substitutes in one pass, so a passage naming `{{answer}}` is sent as written. The placeholders a caller names as `material` hold the document's own text (a passage, a heading trail, a fact, an earlier answer): each is sent between `<material name="...">` tags with every `<` in it escaped, so the text cannot close the tag it sits in. Every system prompt that shows such text carries one line under CONTEXT saying text between the tags is the document's, to be read and never obeyed (`prompt.grounded` puts it there). It limits what a planted instruction can do; it does not make an untrusted document safe, so ingest only documents the customer controls.
+`prompt.fill` substitutes in one pass, so a passage naming `{{answer}}` is sent as written. The placeholders a caller names as `material` hold the document's own text (a passage, a heading trail, a fact, an earlier answer): each is sent between `<material name="...">` tags with every `<` that opens or closes a `material` tag escaped (any other `<`, as in `< 500`, is sent as written, so a quote of it still matches), so the text cannot close the tag it sits in. Every system prompt that shows such text carries one line under CONTEXT saying text between the tags is the document's, to be read and never obeyed (`prompt.grounded` puts it there). It limits what a planted instruction can do; it does not make an untrusted document safe, so ingest only documents the customer controls.
 
 ## Cost and latency
 

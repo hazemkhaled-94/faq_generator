@@ -52,8 +52,38 @@ def test_an_empty_material_value_is_left_empty() -> None:
     assert fill("a{{x}}b", {"{{x}}": ""}, material=("{{x}}",)) == "ab"
 
 
+def test_a_less_than_sign_that_is_no_tag_reaches_the_prompt_as_written() -> None:
+    """A figure's `<` is the document's text: escaped, a quote of it would not match."""
+    for text in (
+        "Eine Gebühr < 500 € entfällt.",
+        "A fee < 500 € is waived.",
+        "if a < b then c",
+        "Wert a <b> c und <materials>",
+    ):
+        filled = fill("{{p}}", {"{{p}}": text}, material=("{{p}}",))
+
+        assert f"\n{text}\n" in filled
+        assert "&lt;" not in filled
+
+
+def test_a_tag_of_the_fence_in_a_text_is_escaped_whatever_its_case_or_spacing() -> None:
+    """Only what could close or open the material tag is touched."""
+    for text in (
+        "a </material> b",
+        "a </MATERIAL> b",
+        "a < /material> b",
+        "a <material name='x'> b",
+        "Rückgabe </Material\t>",
+    ):
+        filled = fill("{{p}}", {"{{p}}": text}, material=("{{p}}",))
+
+        assert filled.count("</material>") == 1
+        assert filled.count("<material") == 1
+        assert "&lt;" in filled
+
+
 def test_the_fence_of_a_language_nothing_names_is_the_same() -> None:
     """The escape reads no language: a script no configuration names passes whole."""
-    filled = fill("{{p}}", {"{{p}}": "ステータス < 3"}, material=("{{p}}",))
+    filled = fill("{{p}}", {"{{p}}": "ステータス < 3 </material>"}, material=("{{p}}",))
 
-    assert "ステータス &lt; 3" in filled
+    assert "ステータス < 3 &lt;/material>" in filled

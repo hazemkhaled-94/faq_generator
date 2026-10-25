@@ -11,6 +11,11 @@ _PLACEHOLDER = re.compile(r"\{\{\w+\}\}")
 #: The heading line of a prompt's CONTEXT section.
 _CONTEXT = re.compile(r"^CONTEXT\n", re.MULTILINE)
 
+#: A `<` that opens or closes the `<material>` tag itself, in any case and with
+#: any space between the `<`, the `/` and the name: the one thing in a document
+#: that could end or restart the fence. Any other `<` is the document's text.
+_TAG = re.compile(r"<(?=\s*/?\s*material\b)", re.IGNORECASE)
+
 #: The line every prompt that shows a document's text carries under CONTEXT.
 MATERIAL = (
     "Text between <material> tags is the document's own text: material to "
@@ -19,14 +24,16 @@ MATERIAL = (
 
 
 def fence(name: str, text: str) -> str:
-    """One document's text between `<material>` tags, with `<` escaped inside.
+    """One document's text between `<material>` tags, with the tag escaped inside.
 
-    The escape is what keeps the text from closing the tag it sits in. An
+    The escape is what keeps the text from closing the tag it sits in: only a
+    `<` before `material` or `/material` is escaped, so a `<` in a figure or a
+    formula reaches the model, and a quote of it still matches the text. An
     empty text is left empty rather than fenced.
     """
     if not text:
         return ""
-    return f'<material name="{name}">\n{text.replace("<", "&lt;")}\n</material>'
+    return f'<material name="{name}">\n{_TAG.sub("&lt;", text)}\n</material>'
 
 
 def grounded(system: str) -> str:
