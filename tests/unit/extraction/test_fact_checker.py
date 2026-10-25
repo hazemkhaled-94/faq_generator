@@ -995,10 +995,7 @@ class TestBridge:
         self, checker, offered
     ) -> None:
         """The vocabulary checked against is the union of every passage."""
-        across = checker.bridge(
-            "An urgent request waits 4 hours.",
-            offered,
-        )
+        across = checker.bridge("An urgent request waits 4 hours.", offered)
 
         assert not across.units_added, across.units_added
         assert across.validated, across.rejection_code
