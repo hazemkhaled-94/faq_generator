@@ -128,3 +128,38 @@ def test_every_log_line_carries_its_database(monkeypatch) -> None:
     assert json.loads(JsonFormatter("api").format(record))["db"] == "qa_bank"
     use(monkeypatch, None)
     assert json.loads(JsonFormatter("api").format(record))["db"] == ""
+
+
+@pytest.mark.parametrize(
+    "password", ["plain", "ab/cd+ef==", "a#b", "a?b", "p@ss", "x/y?z#w@v"]
+)
+@pytest.mark.parametrize("database", ["qa_generator", "qa_kunden", "shop_orders"])
+def test_a_password_holding_url_characters_leaks_into_no_name(
+    monkeypatch, password, database
+) -> None:
+    """The database is the path of the URL, whatever the secret before the host holds."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv(
+        "DATABASE_URL", f"postgresql+psycopg://app:{password}@h:5432/{database}"
+    )
+
+    assert pipeline.database() == database
+    assert pipeline.scoped("6-questions") == f"6-questions__{database}"
+
+
+def test_a_url_with_a_query_names_its_database_alone(monkeypatch) -> None:
+    """Options after the path are not part of the name."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql://u:a/b@h:5432/qa_one?sslrootcert=/ca/x.pem"
+    )
+
+    assert pipeline.database() == "qa_one"
+
+
+def test_a_url_with_no_password_names_its_database(monkeypatch) -> None:
+    """No `@` at all: the path after the host."""
+    monkeypatch.delenv("APP_DB_NAME", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost:5432/qa_two")
+
+    assert pipeline.database() == "qa_two"

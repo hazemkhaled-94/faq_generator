@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import os
 import re
-from urllib.parse import urlparse
 
 #: What joins a store's name to the database it belongs to. Two underscores,
 #: because Argilla allows letters, digits, `-` and `_` in a dataset name.
@@ -103,8 +102,15 @@ def database() -> str | None:
 
     Read from DATABASE_URL, or from APP_DB_NAME for the processes - the
     orchestrator's - that have no URL of the application database.
+
+    The path is what follows the last `@`, which ends the secret before the
+    host: a password holding `/`, `#` or `?` is not a delimiter, and nothing
+    of it may reach a name. No SQLAlchemy here, because the frontend image
+    shares this module and holds none.
     """
-    named = urlparse(os.environ.get("DATABASE_URL", "")).path.strip("/")
+    url = os.environ.get("DATABASE_URL", "")
+    path = (url.partition("://")[2] or url).rpartition("@")[2].partition("/")[2]
+    named = re.split(r"[?#]", path, maxsplit=1)[0].strip("/")
     return named or os.environ.get("APP_DB_NAME") or None
 
 
