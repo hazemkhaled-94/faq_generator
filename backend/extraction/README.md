@@ -227,7 +227,12 @@ Two more refusals are the service refusing what the checks passed:
   statements about one subject score high on the subject alone. The
   refusal names the stored fact it repeats and writes nothing onto it: the
   stored fact rests on its own passage alone, so a passage it was refused
-  against never counts towards the scope of a question asked of it.
+  against never counts towards the scope of a question asked of it. The
+  refusal does keep that fact's id (`twin_id`, indexed, set NULL when the fact
+  is deleted), so after a drain that replaced facts the replay reads only the
+  refusals that lost their twin. A refusal stored before the column existed
+  has none, so the first replay after the upgrade reads every stored refusal
+  once.
   `make extract-dedup` re-decides every stored refusal under the rule as it
   stands, giving back the ones it would no longer make with the reading
   taken against today's bar, or none, and takes out the
