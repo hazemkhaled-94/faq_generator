@@ -91,12 +91,16 @@ def _run(project: Path, line: str, compose_prints: str):
     )
 
 
-def _wipe_line(project: Path, holding: str) -> str:
-    """The wipe's line for one service, printed with the project's stand-in as compose."""
-    joined = "\n".join(printed("wipe", COMPOSE=str(project / "bin/compose"))).replace(
-        "\\\n", ""
-    )
-    (line,) = [one for one in joined.splitlines() if holding in one and "ps -q" in one]
+def _wipe_line(project: Path, holding: str, also: str, *arguments: str) -> str:
+    """The wipe's line holding all three, printed with the stand-in as compose."""
+    joined = "\n".join(
+        printed("wipe", *arguments, COMPOSE=str(project / "bin/compose"))
+    ).replace("\\\n", "")
+    (line,) = [
+        one
+        for one in joined.splitlines()
+        if holding in one and "ps -q" in one and also in one
+    ]
     return line
 
 
@@ -113,12 +117,13 @@ def test_wipe_skips_a_service_that_is_not_running_and_says_so(
 ) -> None:
     """Its profile is off, so there is nothing of its to delete and the wipe goes on."""
     project = _project(tmp_path)
-    line = _wipe_line(project, f"ps -q {service}")
+    line = _wipe_line(project, f"ps -q {service}", f"make {step}")
 
     ran = _run(project, line, "")
 
     assert ran.returncode == 0, ran
-    assert f"skipped: {service} is not running" in ran.stdout
+    assert f"{service} is not running" in ran.stdout
+    assert f"{step} is skipped by the wipe" in ran.stdout
     assert not (project / "drains.log").exists()
 
 
@@ -133,25 +138,42 @@ def test_wipe_runs_the_step_of_a_service_that_is_up(
     project = _project(tmp_path)
     (project / "configs/env/review.env").write_text("")
     (project / "bin/poetry").write_text('#!/bin/sh\necho "poetry $*" >> "$LOG"\n')
-    line = _wipe_line(project, f"ps -q {service}")
+    line = _wipe_line(project, f"ps -q {service}", f"make {step}")
 
     ran = _run(project, line, 'echo "4f1c2a9e"')
 
     assert ran.returncode == 0, ran
-    assert "skipped" not in ran.stdout
+    assert "is not running" not in ran.stdout
 
 
-def test_wipe_still_empties_the_log_files_without_elasticsearch(tmp_path: Path) -> None:
+def test_a_wipe_of_every_database_still_empties_the_log_files_without_elasticsearch(
+    tmp_path: Path,
+) -> None:
     """The stream is the review profile's; the files are everyone's."""
     project = _project(tmp_path)
     (project / "logs").mkdir()
     (project / "logs/api.log").write_text("before\n")
-    line = _wipe_line(project, "ps -q elasticsearch")
+    line = _wipe_line(project, "ps -q elasticsearch", "truncate", "ALL_DATABASES=1")
 
     ran = _run(project, line, "")
 
     assert ran.returncode == 0, ran
     assert (project / "logs/api.log").read_text() == ""
+
+
+def test_a_wipe_of_one_database_leaves_the_shared_log_files_without_elasticsearch(
+    tmp_path: Path,
+) -> None:
+    """Every database writes to the same files, so one database's wipe keeps them."""
+    project = _project(tmp_path)
+    (project / "logs").mkdir()
+    (project / "logs/api.log").write_text("before\n")
+    line = _wipe_line(project, "ps -q elasticsearch", "truncate")
+
+    ran = _run(project, line, "")
+
+    assert ran.returncode == 0, ran
+    assert (project / "logs/api.log").read_text() == "before\n"
 
 
 def test_doctor_does_not_check_the_containers_model_where_the_workers_are_stopped() -> (
