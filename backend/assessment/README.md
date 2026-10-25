@@ -472,7 +472,9 @@ Read it with three caveats:
 
 - The labelled rows must be a random sample of the workbook's rows. A
   sample drawn evenly over languages is read per language and pooled by
-  size, which the `all` row does.
+  size, which the `all` row does: each language weighs its workbook rows of
+  the kinds (Status and Answerable) the label was given on, so a key label
+  given on accepted rows pools languages by their accepted rows.
 - The guarantee is asymptotic, so an interval on a few dozen labels is
   rough: under 30 labels the corrected interval covered about 70% at 17
   labels in a simulation, and the report prints the labels' own Wilson

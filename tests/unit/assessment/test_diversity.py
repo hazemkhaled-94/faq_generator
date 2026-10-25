@@ -1137,6 +1137,33 @@ def test_the_all_row_weighs_each_language_by_its_rows_in_the_workbook(
     assert pooled == pytest.approx((40 * de + 4 * en) / 44, abs=2e-3)
 
 
+def test_the_all_row_weighs_each_language_by_the_rows_its_labels_apply_to(
+    exported, tmp_path, capsys
+) -> None:
+    """A label given on accepted rows weighs a language by its accepted rows.
+
+    German holds 40 rows, half of them rejected, English 4 accepted: the
+    usable label was given on accepted rows only, so the languages pool 20 to
+    4 and not 40 to 4, as their corrected rows already count only those.
+    """
+    german = [(i, "", bool(i % 2)) for i in range(1, 41)]
+    english = [(i, "", True) for i in range(101, 105)]
+    labels = usable(range(1, 5), [1, 0, 1, 0]) + usable(range(101, 104), [1, 1, 0])
+    path, file = labelled_set(
+        tmp_path,
+        german + english,
+        labels,
+        english=frozenset(range(101, 105)),
+        rejected=frozenset(range(21, 41)),
+    )
+    assert cli.main(["--diversity", "--file", str(path), "--labels", str(file)]) == 0
+    rows = {row[0]: row for row in corrected_rows(capsys)}
+
+    de, en, pooled = (float(rows[one][6]) for one in ("de", "en", "all"))
+    assert rows["de"][3] == "16", "the rejected rows are not in N"
+    assert pooled == pytest.approx((20 * de + 4 * en) / 24, abs=2e-3)
+
+
 def test_the_table_names_its_predictor_as_the_conjunction_of_the_metrics(
     exported, tmp_path, capsys
 ) -> None:

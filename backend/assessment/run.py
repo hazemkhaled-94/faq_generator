@@ -704,8 +704,9 @@ def _corrected(
     labelled rows give the label and the judged rows without one give what
     the judge says alone; prediction-powered inference (ARES, Saad-Falcon et
     al., NAACL 2024, section 3.3) corrects the second by the first. The
-    languages of each label are then pooled by their rows in the workbook,
-    not by how many the judge scored, as the row `all`.
+    languages of each label are then pooled by their rows in the workbook of
+    the kinds the label applies to, not by how many the judge scored, as the
+    row `all`.
 
     A label can apply to some rows only: a row labelled `na` for it is in
     neither count, and a row left out of the labels is counted only if it is
@@ -794,7 +795,14 @@ def _corrected(
                 [verdict[id] for id in tagged],
                 [given[id][field] or 0 for id in tagged],
             )
-            pool[(label, field)].append((one, tagged, rest, language, len(group)))
+            # The language's weight: its workbook rows of the kinds the label
+            # applies to, judged or not, as its own row counts only those.
+            size = sum(
+                1
+                for id, _ in group
+                if not applies[field] or kinds.get(id) in applies[field]
+            )
+            pool[(label, field)].append((one, tagged, rest, language, size))
             _print_corrected(shown, field, one, tagged + rest, tagged, verdict, given)
     for (label, field), parts in sorted(pool.items()):
         shown = f"{'all':<9}{label:<{width}}" if by else f"{'all':<9}"
