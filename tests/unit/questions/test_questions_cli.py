@@ -342,3 +342,19 @@ def test_rejudge_asks_the_verifier_model_and_proves_it_first(cli, monkeypatch) -
     assert cli.proved == ["ollama_chat/verifier"]
     assert cli.rejudged == [("ollama_chat/verifier", "topic=4")]
     assert cli.built == 0, "a re-judge writes no question and needs no service"
+
+
+def test_a_release_draw_whose_verifier_does_not_answer_is_a_refused_start(
+    cli, monkeypatch
+) -> None:
+    """3, as a drain's refused start, and not a traceback the runner reads as a crash."""
+    from llm.check import Unreachable
+    from question_generation import run as module
+
+    def refused(*_) -> None:
+        raise Unreachable("azure/verifier did not answer")
+
+    monkeypatch.setattr(module, "before_work", refused)
+
+    assert cli.run("--balance") == 3
+    assert cli.balanced == []

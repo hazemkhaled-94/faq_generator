@@ -209,8 +209,7 @@ class TestCommandLine:
         monkeypatch.setattr(run, "FactCatalog", lambda version: None)
         monkeypatch.setattr("stages.cli.telemetry.configure", lambda *_, **__: None)
 
-        with pytest.raises(SystemExit, match="no bridge was deleted"):
-            run.main(["--bridge"])
+        assert run.main(["--bridge"]) == 3, "a refused start, which no unit restarts"
         assert bridged == []
 
 

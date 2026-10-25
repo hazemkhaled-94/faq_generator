@@ -23,7 +23,7 @@ from question_generation.service import balance, rejudge, rescore, reverify
 from question_generation.verifier import Verifier
 from settings.runs import named_run, run_id
 from settings.store import snapshot
-from stages.cli import queue_main, trace
+from stages.cli import proved, queue_main
 from stages.prompts import record
 
 log = logging.getLogger(__name__)
@@ -50,9 +50,15 @@ def main(argv: list[str] | None = None) -> int:
         """
         if within is not None:
             raise SystemExit("--balance draws the whole release and takes no --only")
-        settings, model, _ = configured()
-        _, verifier, _ = models(settings, model)
-        before_work(verifier)
+
+        def ready() -> tuple[Settings, ModelSettings]:
+            """The settings, and the verifier proved, before a pair is asked."""
+            settings, model, _ = configured()
+            _, verifier, _ = models(settings, model)
+            before_work(verifier)
+            return settings, verifier
+
+        settings, verifier = proved(ready)
         # `queue_main` installs tracing only for a drain, so without this the
         # draw's spans and the verifier's calls were never exported, and its
         # log lines read trace 0. After the preflight, as a drain's is, so a
@@ -70,7 +76,6 @@ def main(argv: list[str] | None = None) -> int:
         settings, model, _ = configured()
         _, verifier, _ = models(settings, model)
         before_work(verifier)
-        trace("questions")
         return rejudge(QuestionCatalog(), settings, Verifier(Client(verifier)), within)
 
     #: This stage's own operation. No model is called: it puts the stored
@@ -149,7 +154,6 @@ def main(argv: list[str] | None = None) -> int:
         extra=extra,
         preflight=preflight,
         prompts=record_prompts,
-        report=lambda: str(QuestionCatalog().never_asked()),
     )
 
 

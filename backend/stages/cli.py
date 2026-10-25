@@ -324,6 +324,9 @@ def queue_main(
                 # What the pass wrote is kept; it stopped itself, as a drain does.
                 log.error("%s: --%s stopped itself: %s", name, flag, stop)
                 return STOPPED
+            except StartRefused as refusal:
+                log.error("%s: --%s will not start: %s", name, flag, refusal)
+                return REFUSED
             log.info("%s: %d row(s) %s", name, done, verb)
             return 0
 
@@ -512,6 +515,29 @@ def wait_for_worker(
         return FAILED
     log.info("%s: its worker has emptied the queue", name)
     return 0
+
+
+class StartRefused(Exception):
+    """A pass of a stage's own refused before it changed anything."""
+
+
+def proved[T](ready: Callable[[], T], kept: str | None = None) -> T:
+    """What a pass of a stage's own reads and proves first, or its refused start.
+
+    `ready` reads the settings and asks the models the pass calls; a model
+    that does not answer, or a setting refused - the split, a stored row the
+    catalogue refuses - is the refused start a drain's preflight is, which
+    `queue_main` answers with REFUSED. `kept` says what that left as it was.
+
+    Raises:
+        StartRefused: Where `ready` was refused.
+    """
+    from llm.check import Unreachable
+
+    try:
+        return ready()
+    except (Unreachable, ValueError) as refusal:
+        raise StartRefused(f"{refusal}{f'; {kept}' if kept else ''}") from None
 
 
 def give_back(serving: dict[str, Any]) -> Callable[[], object]:

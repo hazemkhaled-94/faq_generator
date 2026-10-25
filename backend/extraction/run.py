@@ -18,11 +18,11 @@ from extraction.factory import build_bridge, build_service, models
 from extraction.repository import FactCatalog, PassageQueue
 from extraction.service import CitedBridges, bridge, dedup, embed, recap, revalidate
 from extraction.validation import FactChecker
-from llm.check import Unreachable, before_work
+from llm.check import before_work
 from llm.config import Settings as ModelSettings
 from settings.runs import named_run, run_id
 from settings.store import snapshot
-from stages.cli import queue_main, trace
+from stages.cli import proved, queue_main
 from stages.prompts import record
 
 log = logging.getLogger(__name__)
@@ -92,15 +92,14 @@ def main(argv: list[str] | None = None) -> int:
 
     def run_bridge(within) -> int:
         """Reads every topic's passage groups for the claims they share."""
-        model, settings, version = configured()
-        # Before the pass deletes the bridges it replaces.
-        try:
+
+        def ready() -> tuple[ModelSettings, Settings, str]:
+            """The settings, and the reader proved, before a bridge is deleted."""
+            model, settings, version = configured()
             before_work(model.overridden(settings.model))
-        except Unreachable as refusal:
-            raise SystemExit(f"{refusal}; no bridge was deleted") from None
-        # After the proof, as a drain's is: a model that will not answer
-        # leaves no Phoenix project, and the pass's spans reach one.
-        trace("extraction")
+            return model, settings, version
+
+        model, settings, version = proved(ready, "no bridge was deleted")
         try:
             return bridge(
                 FactCatalog(version=version),

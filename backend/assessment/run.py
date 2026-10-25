@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     #
     # Read through `_ready`, the wait every worker's first read goes through,
     # so a stored row the catalogue refuses makes a worker wait in place, as
-    # the other stages do, and a one-off run say so and exit 1.
+    # the other stages do, and a one-off run say so and exit REFUSED (3).
     # ponytail: argv read by hand, as for --status below.
     watching = "--watch" in argv
     phase: list[bool] = []
