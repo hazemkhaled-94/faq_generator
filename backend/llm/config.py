@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from urllib.parse import urlsplit
 
 from settings import Source, decimal, integer, optional, required
 from settings.env import _TRUE
@@ -117,6 +118,18 @@ def check_split(source: Source = None) -> None:
                 f"HOST_RUNNER=1 runs hosted models only, and the {role} role "
                 f"resolves to {model}: set {setting}"
             )
+    # A hosted-shaped id is served from LLM_BASE_URL, which may be Ollama's
+    # OpenAI-compatible endpoint: a self-hosted model under another prefix.
+    # Kept only where `Settings.load` keeps it, which drops OLLAMA_BASE_URL.
+    address = optional("LLM_BASE_URL", source)
+    if ollama_address(address) and not _same_address(
+        address, optional("OLLAMA_BASE_URL", source)
+    ):
+        raise ValueError(
+            f"HOST_RUNNER=1 runs hosted models only, and LLM_BASE_URL {address} "
+            "is an Ollama runtime's address (its port 11434, or a host named "
+            "ollama): set it to the provider's, or unset it"
+        )
 
 
 def _provider(model: str) -> str:
@@ -146,6 +159,23 @@ def _cannot_reason(model: str) -> bool:
         model.split("/", 1)[-1]
     )
     return known is not None and not known.get("supports_reasoning")
+
+
+#: The port an Ollama runtime listens on unless told otherwise.
+_OLLAMA_PORT = 11434
+
+
+def ollama_address(address: str | None) -> bool:
+    """Whether an address is an Ollama runtime's: its port, or a host named ollama.
+
+    Its OpenAI-compatible endpoint serves `openai/<name>`, an id whose prefix
+    says nothing of who runs the model.
+    """
+    if not address:
+        return False
+    parts = urlsplit(address if "//" in address else f"//{address}")
+    host = (parts.hostname or "").split(".")[0]
+    return parts.port == _OLLAMA_PORT or host == "ollama"
 
 
 def _same_address(one: str | None, other: str | None) -> bool:

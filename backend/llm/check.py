@@ -34,6 +34,7 @@ from llm.config import (
     check_split,
     describe,
     host_runner,
+    ollama_address,
     spend_cap,
 )
 from llm.tally import unpriced_models
@@ -155,10 +156,11 @@ def before_work(*models: Settings) -> None:
     check_split()
     if host_runner():
         for settings in models:
-            if _self_hosted(settings.model):
+            if _self_hosted(settings.model) or ollama_address(settings.base_url):
                 raise ValueError(
                     f"HOST_RUNNER=1 runs hosted models only, and this stage "
                     f"resolved {settings.model}"
+                    + (f" at {settings.base_url}" if settings.base_url else "")
                 )
     for settings in {(m.model, m.base_url): m for m in models}.values():
         reachable(settings)

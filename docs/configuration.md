@@ -140,9 +140,10 @@ endpoint per role.
 
 Every drain logs the split it resolved as one line, `split: writer=... effort=...`,
 before it claims a row, and `make doctor` checks it. With `HOST_RUNNER=1` a
-drain and the doctor refuse a role that resolves to an Ollama model, and a
-judge left unset while `ASSESSMENT_ENABLED` is true, naming the role and the
-setting that moves it. The containers keep calling Ollama by design: `.env`'s
+drain and the doctor refuse a role that resolves to an Ollama model, an
+OpenAI-compatible id served from an Ollama address (`LLM_BASE_URL` on port
+11434, or a host named `ollama`) included, and a judge left unset while
+`ASSESSMENT_ENABLED` is true, naming the role and the setting that moves it. The containers keep calling Ollama by design: `.env`'s
 role models never reach them, and compose gives them `LLM_CONTAINER_MODEL`.
 
 ### Prices follow the installed litellm

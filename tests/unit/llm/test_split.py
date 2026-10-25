@@ -182,3 +182,58 @@ def test_the_doctor_fails_on_an_ollama_role_under_the_host_runner(
 
     assert any("topics" in r.getMessage() for r in caplog.records)
     assert any(r.getMessage().startswith("split:") for r in caplog.records)
+
+
+# ── An Ollama runtime behind an OpenAI-compatible id ───────────────────────
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:11434",
+        "http://ollama:11434/v1",
+        "http://ollama.internal/v1",
+    ],
+)
+def test_a_hosted_id_served_from_an_ollama_address_is_refused(address: str) -> None:
+    """openai/<name> at Ollama's port or host: a self-hosted model by another prefix."""
+    with pytest.raises(ValueError, match="LLM_BASE_URL"):
+        check_split({**GO_LIVE, "LLM_BASE_URL": address})
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "https://example-resource.openai.azure.com",
+        "https://gateway.example.com/v1",
+        "https://ollama-docs.example.com",
+        "http://localhost:4000",
+        "",
+    ],
+)
+def test_a_hosted_address_passes(address: str) -> None:
+    """A provider, a gateway, a host whose first label only starts with the word."""
+    check_split({**GO_LIVE, "LLM_BASE_URL": address})
+
+
+def test_without_the_host_runner_an_ollama_address_is_the_development_path() -> None:
+    """Development serves a hosted-shaped id from Ollama by design."""
+    check_split(
+        {**GO_LIVE, "HOST_RUNNER": "", "LLM_BASE_URL": "http://localhost:11434"}
+    )
+
+
+def test_a_drain_refuses_a_resolved_role_at_an_ollama_address(monkeypatch) -> None:
+    """What a stage resolved, a stored LLM_BASE_URL included, before a model is asked."""
+    for name, value in GO_LIVE.items():
+        monkeypatch.setenv(name, value)
+    asked: list[object] = []
+    monkeypatch.setattr("llm.check.reachable", asked.append)
+
+    with pytest.raises(ValueError, match="11434"):
+        before_work(
+            settings(model="openai/local", base_url="http://localhost:11434/v1")
+        )
+
+    assert asked == []
