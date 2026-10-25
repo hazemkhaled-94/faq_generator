@@ -33,6 +33,8 @@ FRONTEND = ROOT / "tests/frontend"
 ALLOWED = {"pages.py", "conftest.py"}
 
 TESTS = sorted(path for path in FRONTEND.glob("test_*.py") if path.name not in ALLOWED)
+#: Every test module, for the conftest rule, which is not the frontend's alone.
+EVERY = sorted((ROOT / "tests").rglob("test_*.py"))
 
 
 def _reaches_through(source: str) -> list[str]:
@@ -57,7 +59,9 @@ def test_a_page_test_works_the_page_object_and_not_the_app(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("path", TESTS, ids=lambda path: path.name)
+@pytest.mark.parametrize(
+    "path", EVERY, ids=lambda path: str(path.relative_to(ROOT / "tests"))
+)
 def test_a_test_module_does_not_import_a_conftest_by_name(path: Path) -> None:
     """Which conftest that names depends on what ran first."""
     imported = [
@@ -68,5 +72,6 @@ def test_a_test_module_does_not_import_a_conftest_by_name(path: Path) -> None:
 
     assert not imported, (
         f"{path.name} imports from `conftest`, which resolves to whichever "
-        f"conftest.py pytest loaded first. Put the name in pages.py."
+        f"conftest.py pytest loaded first. Take it as a fixture, or put it in "
+        f"a module of its own (pages.py for the frontend's)."
     )
