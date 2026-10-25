@@ -88,10 +88,14 @@ def _project(
         'case "$*" in *"$FAIL"*) [ -n "$FAIL" ] && exit "${CODE:-3}";; esac\n'
         'case "$*" in *topic_modelling*--ensure*) echo "x" >> "$SPEND_LEDGER";; esac\n'
         # A long extraction drain, stopped as drain_once stops one: 75 on SIGTERM.
+        # Its sleep ignores the TERM the group gets, so the wait is always the
+        # one interrupted and the handler always runs; a sleep that died first
+        # let sh return from the wait and exit before it ran, now and then.
         'case "$*" in *"extraction.run") [ -n "$SLOW" ] && {\n'
-        "  trap 'echo stopped >> \"$LOG.stopped\"; exit 75' TERM\n"
+        '  (trap "" TERM; exec sleep "$SLOW") & held=$!\n'
+        "  trap 'kill -KILL $held; echo stopped >> \"$LOG.stopped\"; exit 75' TERM\n"
         '  echo started >> "$LOG.slow"\n'
-        '  sleep "$SLOW" & wait $!; };; esac\n'
+        "  wait $held; };; esac\n"
         "exit 0\n"
     )
     (stand_ins / "compose").write_text(
