@@ -755,6 +755,34 @@ def test_a_genitive_or_those_with_nothing_before_it_still_points_outside(
             "diese",
             False,
         ),
+        (
+            "en",
+            "These services are free of charge.",
+            "Payment Services Terms 2026",
+            "these",
+            False,
+        ),
+        (
+            "en",
+            "These cards can be used abroad.",
+            "Payment Cards Terms 2025",
+            "these",
+            False,
+        ),
+        (
+            "en",
+            "These funds may lose value.",
+            "Investment Funds Terms 2026",
+            "these",
+            False,
+        ),
+        (
+            "en",
+            "These terms apply to every payment.",
+            "Payment Services Terms 2026",
+            "these",
+            True,
+        ),
     ],
 )
 def test_a_demonstrative_naming_the_head_of_the_documents_title_names_the_document(

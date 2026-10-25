@@ -1952,8 +1952,12 @@ def _titled(title: str | None, language: str | None) -> frozenset[str]:
                 # noun before it: "Regulations" of "Customer Regulations
                 # Edition 2026". Only a plural one, which names the document
                 # as a set of rules; a singular is what the document is
-                # about: "Card" of "Credit Card Conditions 2025".
-                if any(child.pos_ == "NUM" for child in noun.children):
+                # about: "Card" of "Credit Card Conditions 2025". Nor when the
+                # plural noun is the title's own head, which a number dates:
+                # "Services" of "Payment Services Terms 2026".
+                if "Plur" not in noun.morph.get("Number") and any(
+                    child.pos_ == "NUM" for child in noun.children
+                ):
                     labelled = [
                         child
                         for child in noun.children
