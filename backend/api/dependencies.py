@@ -9,6 +9,7 @@ SQLAlchemy and nothing else: no Docling, no litellm, no gensim, no spaCy.
 from __future__ import annotations
 
 import telemetry
+from api.errors import ApiError
 from api.orchestrator import Dagster
 from api.status import Counter, StatusService
 from assessment.repository import AssessmentCatalog, AssessmentQueue
@@ -24,7 +25,7 @@ from preprocessing.parsing.repository import ParseQueue
 from question_generation.catalog import QuestionCatalog
 from question_generation.config import Settings as QuestionSettings
 from question_generation.queue import QuestionQueue
-from settings.store import resolved
+from settings.store import StoredRefused, snapshot
 from topic_modelling.repository import TopicCatalog, TopicQueue
 
 #: Read at import so a bad allowlist or mix stops the API at start-up naming
@@ -86,8 +87,19 @@ def ingesting() -> IngestService:
 
     Cheap: the repository captures the cached session factory and the bucket
     wraps the cached S3 client.
+
+    Read through the audit every stage's build reads through, so a stored row
+    the catalogue now refuses stops an upload, naming the row, as it stops a
+    stage, rather than being applied.
+
+    Raises:
+        ApiError: 503 `stored_setting_refused`, naming the row.
     """
-    return build_service(Settings.load(resolved()))
+    try:
+        source, _ = snapshot("ingestion")
+    except StoredRefused as refusal:
+        raise ApiError(503, "stored_setting_refused", str(refusal)) from None
+    return build_service(Settings.load(source))
 
 
 #: What each service reports about itself on the status panel, which renders
