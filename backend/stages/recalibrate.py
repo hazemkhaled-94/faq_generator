@@ -54,6 +54,7 @@ def _reading(stored: dict, floor: float) -> Measurement:
         opinion=bool(stored.get("opinion")),
         version=stored.get("version"),
         shadow=bool(stored.get("shadow")),
+        detail=stored.get("detail"),
     )
 
 

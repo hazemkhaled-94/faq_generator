@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from confidence import scored
 from stages.recalibrate import _reading
 
 
@@ -63,6 +64,39 @@ def test_an_unknown_legacy_gate_is_read_as_the_common_direction() -> None:
     )
 
     assert rebuilt.high_is_safe is True
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ("What does the express fee cost?", "When is a refund paid out?"),
+        ("Was kostet die Expressgebühr?", "Wann wird eine Erstattung ausgezahlt?"),
+        ("速達料金はいくらですか。", "返金はいつ支払われますか。"),
+    ],
+)
+def test_a_compound_reading_keeps_its_halves_through_a_recalibration(
+    first, second
+) -> None:
+    """The halves cannot be recomputed from the row, so the rebuild carries them."""
+    halves = [
+        {"passage_id": 1, "question": first, "answer": "10 EUR"},
+        {"passage_id": 2, "question": second, "answer": "14 days"},
+    ]
+    stored = {
+        "gate": "halves",
+        "value": 2.0,
+        "threshold": 2.0,
+        "margin": None,
+        "high_is_safe": True,
+        "safe_end": 1.0,
+        "shadow": True,
+        "detail": halves,
+    }
+
+    rebuilt = _reading(stored, floor=0.75)
+
+    assert rebuilt.detail == halves
+    assert scored([rebuilt]) == [stored]
 
 
 def test_the_command_reads_both_floors_from_the_settings(monkeypatch) -> None:
