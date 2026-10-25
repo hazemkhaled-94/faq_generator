@@ -56,3 +56,7 @@ class ArchiveStore(Protocol):
     def take(self, origin: str, key: str) -> bool:
         """Moves an object out of `origin`, reporting whether one was there."""
         ...
+
+    def give_back(self, origin: str, key: str) -> bool:
+        """Copies an archived object back into `origin`, unless one is there."""
+        ...

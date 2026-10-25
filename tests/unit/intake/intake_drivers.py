@@ -312,13 +312,27 @@ class MemoryArchive:
         """Wires the archive over the object dict of each named bucket."""
         self.origins = origins
         self.objects: dict[str, bytes] = {}
+        #: Which take (counting from 1) fails after moving nothing, if any.
+        self.fails_on: int | None = None
+        self.takes = 0
 
     def take(self, origin: str, key: str) -> bool:
         """Moves an object out of `origin`, reporting whether one was there."""
+        self.takes += 1
+        if self.takes == self.fails_on:
+            raise RuntimeError("the store refused the move")
         data = self.origins[origin].pop(key, None)
         if data is None:
             return False
         self.objects[f"{origin}/{key}"] = data
+        return True
+
+    def give_back(self, origin: str, key: str) -> bool:
+        """Copies an archived object back into `origin`."""
+        data = self.objects.get(f"{origin}/{key}")
+        if data is None:
+            return False
+        self.origins[origin][key] = data
         return True
 
 
@@ -382,15 +396,33 @@ class DocumentRows:
             }
         )
 
-    def delete(self, sha256: str) -> int:
-        """Removes a document row and everything derived from it."""
-        self.documents.pop(sha256, None)
-        self.chunk_status.pop(sha256, None)
-        return self.passages.pop(sha256, 0)
+    def delete(self, sha256: str, before_commit=None) -> int:
+        """Removes a document row and everything derived from it.
 
-    def delete_all(self, digests: list[str]) -> dict[str, int]:
-        """Removes these document rows at once."""
-        return {sha256: self.delete(sha256) for sha256 in digests}
+        `before_commit` runs inside the transaction: if it raises, the rows
+        are as they were.
+        """
+        return self.delete_all([sha256], before_commit).get(sha256, 0)
+
+    def delete_all(self, digests: list[str], before_commit=None) -> dict[str, int]:
+        """Removes these document rows at once, or none if `before_commit` raises."""
+        kept = (
+            dict(self.documents),
+            dict(self.chunk_status),
+            dict(self.passages),
+        )
+        removed = {}
+        for sha256 in digests:
+            self.documents.pop(sha256, None)
+            self.chunk_status.pop(sha256, None)
+            removed[sha256] = self.passages.pop(sha256, 0)
+        if before_commit is not None:
+            try:
+                before_commit()
+            except BaseException:
+                self.documents, self.chunk_status, self.passages = kept
+                raise
+        return removed
 
     def digests(self) -> list[str]:
         """Every stored document's digest, in digest order."""

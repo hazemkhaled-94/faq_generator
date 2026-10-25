@@ -14,8 +14,11 @@ log = logging.getLogger(__name__)
 class RemovalService:
     """Deletes a document, its file, its converted form and its derived rows.
 
-    Nothing is atomic across two stores, so the order is fixed: the objects
-    go first and the row last.
+    Nothing is atomic across two stores, so the order is fixed: the rows are
+    deleted inside a transaction, the objects are moved while it is open, and
+    it commits only after every move succeeded. A move that fails rolls the
+    rows back and gives back the objects already moved, so a document is
+    never left as a row with no file.
 
     Nothing is destroyed. The objects are moved to the archive bucket and
     the rows are copied into `archived_rows` by the trigger on each table,
@@ -53,26 +56,54 @@ class RemovalService:
         Returns:
             What was removed, or None if no document has that digest.
         """
-        objects = self._take_objects(sha256)
-        if objects is None:
-            return None
-        return self._removed(sha256, self._repository.delete(sha256), *objects)
-
-    def _take_objects(self, sha256: str) -> tuple[bool, bool] | None:
-        """Moves a document's file and converted form to the archive.
-
-        Returns:
-            Whether each was there, or None if no document has that digest.
-        """
         media_type = self._repository.media_type(sha256)
         if media_type is None:
             return None
-        return (
-            self._archive.take(
-                self._store.name, self._store.key_for(sha256, media_type)
-            ),
-            self._archive.take(self._parsed.name, self._parsed.key_for(sha256)),
-        )
+        taken: list[tuple[str, str]] = []
+        found: dict[str, tuple[bool, bool]] = {}
+
+        def move() -> None:
+            found[sha256] = self._take_objects(sha256, media_type, taken)
+
+        passages = self._guarded(taken, lambda: self._repository.delete(sha256, move))
+        return self._removed(sha256, passages, *found[sha256])
+
+    def _guarded(self, taken: list[tuple[str, str]], delete):
+        """Runs a deletion, giving back the objects already moved if it fails."""
+        try:
+            return delete()
+        except BaseException:
+            for origin, key in taken:
+                try:
+                    self._archive.give_back(origin, key)
+                except Exception:
+                    log.exception("could not give back %s/%s", origin, key)
+            raise
+
+    def _take_objects(
+        self, sha256: str, media_type: str, taken: list[tuple[str, str]]
+    ) -> tuple[bool, bool]:
+        """Moves a document's file and converted form to the archive.
+
+        Args:
+            sha256: The document's digest.
+            media_type: Its detected media type.
+            taken: Appended with each (bucket, key) moved, so a failure after
+                the first can put it back.
+
+        Returns:
+            Whether each was there.
+        """
+        moved = []
+        for bucket, key in (
+            (self._store.name, self._store.key_for(sha256, media_type)),
+            (self._parsed.name, self._parsed.key_for(sha256)),
+        ):
+            there = self._archive.take(bucket, key)
+            if there:
+                taken.append((bucket, key))
+            moved.append(there)
+        return moved[0], moved[1]
 
     def _removed(
         self, sha256: str, passages: int, file_gone: bool, parsed_gone: bool
@@ -117,16 +148,25 @@ class RemovalService:
         Returns:
             What was removed, one entry per document.
         """
-        taken = {
-            digest: objects
+        media_types = {
+            digest: media
             for digest in self._repository.digests()
-            if (objects := self._take_objects(digest)) is not None
+            if (media := self._repository.media_type(digest)) is not None
         }
-        passages = self._repository.delete_all(list(taken))
+        taken: list[tuple[str, str]] = []
+        found: dict[str, tuple[bool, bool]] = {}
+
+        def move() -> None:
+            for digest, media in media_types.items():
+                found[digest] = self._take_objects(digest, media, taken)
+
+        passages = self._guarded(
+            taken, lambda: self._repository.delete_all(list(media_types), move)
+        )
         events = self._repository.forget_uploads()
         removed = [
             self._removed(digest, passages.get(digest, 0), *objects)
-            for digest, objects in taken.items()
+            for digest, objects in found.items()
         ]
         log.info(
             "deleted %d document(s) and %d upload record(s); topics are not a "

@@ -76,8 +76,10 @@ metadata cannot change without rewriting the object.
 `delete` removes the object in `documents`, the object in `parsed`, and the
 row — which cascades to passages, and from those to facts, memberships and
 questions. Only the `ingest_events` rows survive, digest and all.
-Nothing is atomic across two stores, so the order is fixed: objects first,
-row last.
+Nothing is atomic across two stores, so the order is fixed: the rows are
+deleted in a transaction, the objects are moved while it is open, and it
+commits only after every move succeeded. A move that fails rolls the rows back
+and gives back the objects already moved.
 
 `delete_derived` drops only the passages and what cascades from them, and
 returns `chunk_status` to `new`. Both objects stay.

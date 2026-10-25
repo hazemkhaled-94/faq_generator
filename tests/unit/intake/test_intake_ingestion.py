@@ -337,20 +337,22 @@ def test_a_document_with_no_converted_form_still_deletes() -> None:
     assert removed.parsed is False
 
 
-def test_the_objects_go_before_the_row(monkeypatch) -> None:
-    """A row pointing at a missing object fails every later stage."""
+def test_a_database_that_fails_leaves_the_objects_in_place(monkeypatch) -> None:
+    """The row is deleted first, in a transaction: nothing moves if that fails."""
     driver = RemovalDriver(held=(SHA,))
     monkeypatch.setattr(
         driver.rows,
         "delete",
-        lambda sha: (_ for _ in ()).throw(RuntimeError("the database went away")),
+        lambda sha, before_commit=None: (_ for _ in ()).throw(
+            RuntimeError("the database went away")
+        ),
     )
 
     with pytest.raises(RuntimeError, match="went away"):
         driver.delete(SHA)
 
-    assert not driver.holds_file(SHA), "the row was deleted before its object"
-    assert not driver.holds_parsed(SHA)
+    assert driver.holds_file(SHA), "a row without an object, or the reverse"
+    assert driver.holds_parsed(SHA)
 
 
 def test_deleting_one_document_leaves_the_other_alone() -> None:
@@ -511,3 +513,30 @@ def test_the_reader_is_not_what_decides_a_file_is_a_pdf() -> None:
     from ingestion.pdf import read_pdf
 
     assert read_pdf(NOT_A_PDF).char_count == 0
+
+
+@pytest.mark.parametrize("fails_on", [1, 2])
+def test_a_failed_move_leaves_the_row_and_both_objects(fails_on: int) -> None:
+    """The row goes in a transaction that commits after every move succeeded."""
+    driver = RemovalDriver(held=(SHA,), passages=3)
+    driver.archive.fails_on = fails_on
+
+    with pytest.raises(RuntimeError, match="refused the move"):
+        driver.delete(SHA)
+
+    assert SHA in driver.rows.documents and driver.rows.passages[SHA] == 3
+    assert driver.holds_file(SHA) and driver.holds_parsed(SHA)
+
+
+def test_a_failed_move_while_emptying_the_corpus_leaves_every_document() -> None:
+    """One document's objects fail: no row of any goes, and no object is lost."""
+    driver = RemovalDriver(held=(SHA, OTHER))
+    driver.archive.fails_on = 3
+
+    with pytest.raises(RuntimeError, match="refused the move"):
+        driver.delete_every()
+
+    assert sorted(driver.rows.documents) == [SHA, OTHER]
+    assert all(
+        driver.holds_file(one) and driver.holds_parsed(one) for one in (SHA, OTHER)
+    )

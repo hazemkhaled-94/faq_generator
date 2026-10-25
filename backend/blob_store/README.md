@@ -61,8 +61,9 @@ an order and accepts the one failure that order leaves.
 bytes its key means and is harmless; a row pointing at a missing object fails
 every later stage. If the row cannot be written, the object is left.
 
-**Deleting:** objects first, row last. The reverse leaves an object nothing
-names.
+**Deleting:** the row inside a transaction, the objects moved while it is
+open, the commit last. A failed move rolls the row back and gives back what
+was moved, so a row is never left without its file.
 
 The topics go the other way both times: a fit and `make topics-delete` write
 or delete the rows first and the model and figure after.

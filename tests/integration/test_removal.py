@@ -302,3 +302,29 @@ def test_a_wipe_that_cannot_move_an_object_keeps_the_upload_history(
             == 1
         )
     assert counts(engine)["documents"] == 1
+
+
+@pytest.mark.parametrize("fails_on", [1, 2])
+def test_a_move_the_store_refuses_rolls_the_rows_back(
+    service, held, engine, monkeypatch, fails_on
+) -> None:
+    """Rows deleted in a transaction that commits only after every move."""
+    from blob_store.s3 import ArchiveBucket, DocumentsBucket, ParsedBucket
+
+    before = counts(engine)
+    real, calls = ArchiveBucket.take, []
+
+    def take(self, origin, key):
+        calls.append(origin)
+        if len(calls) == fails_on:
+            raise RuntimeError("the store refused the move")
+        return real(self, origin, key)
+
+    monkeypatch.setattr(ArchiveBucket, "take", take)
+
+    with pytest.raises(RuntimeError, match="refused the move"):
+        service.delete(held)
+
+    assert counts(engine) == before
+    assert DocumentsBucket().find(DocumentsBucket.key_for(held, "application/pdf"))
+    assert ParsedBucket().find(ParsedBucket.key_for(held)) is not None

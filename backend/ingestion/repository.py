@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from sqlalchemy import ScalarSelect, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
@@ -114,13 +116,18 @@ class DocumentRepository(Repository):
         with self._session.begin() as session:
             return session.execute(delete(IngestEvent)).rowcount
 
-    def delete(self, sha256: str) -> int:
+    def delete(
+        self, sha256: str, before_commit: Callable[[], object] | None = None
+    ) -> int:
         """Removes a document row and everything derived from it.
 
         Ingest events survive, keeping the digest.
 
         Args:
             sha256: The document's digest.
+            before_commit: Run inside the transaction after the rows are
+                deleted, so that a failure in it, an object that could not be
+                moved, rolls the deletion back.
 
         Returns:
             Passages the cascade took with it.
@@ -133,13 +140,18 @@ class DocumentRepository(Repository):
             )
             _delete_questions(session, [sha256])
             session.execute(delete(Document).where(Document.sha256 == sha256))
+            if before_commit is not None:
+                before_commit()
         return passages or 0
 
-    def delete_all(self, digests: list[str]) -> dict[str, int]:
+    def delete_all(
+        self, digests: list[str], before_commit: Callable[[], object] | None = None
+    ) -> dict[str, int]:
         """Removes these document rows, and what is derived from them, at once.
 
         Args:
             digests: The documents' digests.
+            before_commit: As for `delete`.
 
         Returns:
             Passages the cascade took with it, by digest.
@@ -154,6 +166,8 @@ class DocumentRepository(Repository):
             )
             _delete_questions(session, digests)
             session.execute(delete(Document).where(Document.sha256.in_(digests)))
+            if before_commit is not None:
+                before_commit()
         return passages
 
     def delete_derived(self, sha256: str) -> int:
