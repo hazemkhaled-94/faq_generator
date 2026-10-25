@@ -1040,6 +1040,49 @@ def test_the_wipe_preflight_passes_when_no_store_runs(tmp_path: Path) -> None:
     assert "not running" in done.stdout, done.stdout
 
 
+#: The wipe's four steps beyond the database, by the service each one reaches.
+WIPE_STEPS = {
+    "phoenix": "phoenix-purge",
+    "argilla": "review-delete",
+    "elasticsearch": "logs-wipe",
+    "dagster-webserver": "dagster-wipe",
+}
+
+
+@pytest.mark.parametrize(("service", "step"), WIPE_STEPS.items())
+def test_a_store_that_is_down_is_skipped_by_the_preflight_and_by_the_wipe(
+    service: str, step: str, tmp_path: Path
+) -> None:
+    """The preflight must not pass a store whose step the wipe then runs and fails on."""
+    engine = stand_in(tmp_path, "exit 0")
+    note = made("wipe-preflight", f"COMPOSE={engine}").stdout
+    (said,) = [line for line in note.splitlines() if line.startswith(f"{service} ")]
+    assert step in said, said
+
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "make").write_text('#!/bin/sh\necho "RAN $*"\n')
+    (fake / "make").chmod(0o755)
+
+    def wiped(compose: Path) -> str:
+        """What the wipe's line for this step prints when it is run, with a stand-in make."""
+        lines = printed("wipe", f"COMPOSE={compose}", f"MAKE={fake}/make", CONFIRM="x")
+        (guarded,) = [line for line in lines if f"/make {step}" in line]
+        ran = subprocess.run(
+            ["bash", "-c", guarded],
+            check=False,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert ran.returncode == 0, ran
+        return ran.stdout
+
+    assert "RAN" not in wiped(engine) and said in wiped(engine)
+    up = stand_in(tmp_path, 'case "$*" in *"ps -q"*) echo 4f1c2a9e;; esac')
+    assert f"RAN {step}" in wiped(up)
+
+
 def test_doctor_prints_what_the_archive_holds() -> None:
     """The archive grows with every rerun; nobody looks unless doctor does."""
     assert any("archive.run --size" in line for line in printed("doctor"))

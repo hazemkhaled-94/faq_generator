@@ -156,6 +156,14 @@ IDLE = ! $(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q . || \
 # True while compose has a running container for the service $(1).
 RUNNING = $(COMPOSE_CMD) ps -q $(1) 2>/dev/null | grep -q .
 
+# What `wipe` and `wipe-preflight` both say of a store that is not running: it
+# is not checked, and the wipe skips its step $(2), so the preflight never
+# passes a store whose step the wipe then fails on half way.
+STORE_DOWN = echo "$(1) is not running: not checked, and $(2) is skipped by the wipe."
+
+# Runs the wipe step $(2) when the service $(1) runs, and says it skips it otherwise.
+WIPE_STEP = if $(call RUNNING,$(1)); then $(MAKE) $(2); else $(call STORE_DOWN,$(1),$(2)); fi
+
 # Names where a command acts, once the settings are loaded.
 BANNER = $(LOADENV) && echo "on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT" >&2
 
@@ -1480,34 +1488,35 @@ wipe:
 	$(MAKE) wipe-preflight
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m ingestion.run --delete-all
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m topic_modelling.run --delete
-	$(MAKE) phoenix-purge
-	$(MAKE) review-delete
-	$(MAKE) logs-wipe
-	$(MAKE) dagster-wipe
+	@$(call WIPE_STEP,phoenix,phoenix-purge)
+	@$(call WIPE_STEP,argilla,review-delete)
+	@$(call WIPE_STEP,elasticsearch,logs-wipe)
+	@$(call WIPE_STEP,dagster-webserver,dagster-wipe)
 
 # What `wipe` asks first: that each store it is about to empty answers to
 # the key this shell holds. Six irreversible steps run in turn, and a key
 # Argilla refuses was found after Phoenix and the database were already
 # gone, leaving a corpus half deleted. Reads only. A store whose service is
-# not running is skipped with a note, since a wipe of it would find nothing
-# either; every store that fails is named, with where its setting lives.
+# not running is skipped with a note, and the wipe skips its step with the
+# same note: a wipe step on a stopped store fails on connect, half way.
+# Every store that fails is named, with where its setting lives.
 wipe-preflight:
 	@failed=0; \
 	if $(call RUNNING,phoenix); then out=$$($(LOADENV) && poetry run python -m telemetry.projects --list 2>&1) || \
 	  { echo "REFUSED: Phoenix did not answer: $$(echo "$$out" | tail -n 1)" >&2; \
 	    echo "  Check PHOENIX_BASE_URL and PHOENIX_API_KEY in .env." >&2; failed=1; }; \
-	else echo "phoenix is not running: not checked."; fi; \
+	else $(call STORE_DOWN,phoenix,phoenix-purge); fi; \
 	if $(call RUNNING,argilla); then out=$$($(REVIEW) --check 2>&1) || \
 	  { echo "REFUSED: Argilla did not answer: $$(echo "$$out" | tail -n 1)" >&2; \
 	    echo "  Check ARGILLA_API_URL and ARGILLA_API_KEY in .env." >&2; failed=1; }; \
-	else echo "argilla is not running: not checked."; fi; \
+	else $(call STORE_DOWN,argilla,review-delete); fi; \
 	if $(call RUNNING,elasticsearch); then out=$$($(COMPOSE_CMD) exec -T elasticsearch sh -c 'curl -fsS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" https://localhost:9200/_cluster/health' 2>&1) || \
 	  { echo "REFUSED: elasticsearch did not answer: $$(echo "$$out" | tail -n 1)" >&2; \
 	    echo "  Check ELASTIC_PASSWORD in .env and that the container is healthy." >&2; failed=1; }; \
-	else echo "elasticsearch is not running: not checked."; fi; \
+	else $(call STORE_DOWN,elasticsearch,logs-wipe); fi; \
 	if $(call RUNNING,dagster-webserver); then out=$$($(COMPOSE_CMD) exec -T dagster-webserver dagster run list --limit 1 2>&1) || \
 	  { echo "REFUSED: dagster-webserver did not answer: $$(echo "$$out" | tail -n 1)" >&2; failed=1; }; \
-	else echo "dagster-webserver is not running: not checked."; fi; \
+	else $(call STORE_DOWN,dagster-webserver,dagster-wipe); fi; \
 	[ $$failed = 0 ]
 
 # Both deletions, in the only order they work in: `wipe` fills the archive
