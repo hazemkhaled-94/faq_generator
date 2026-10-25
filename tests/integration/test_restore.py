@@ -875,7 +875,7 @@ def test_a_fact_archived_before_it_carried_a_language_comes_back_with_one(
             )
         )
 
-    monkeypatch.setenv("SINCE", since)
+    monkeypatch.setenv("AT", chosen(engine, since))
     assert restore.main() == 0
 
     assert rows(engine)["facts"] == before["facts"]
