@@ -14,7 +14,7 @@ from typing import Any
 
 import telemetry
 from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
-from database.qa_generator import engine
+from database.qa_generator import Status, engine
 from llm.check import before_work
 from llm.config import Settings as ModelSettings
 from llm.tally import carry
@@ -83,8 +83,9 @@ def main(argv: list[str] | None = None) -> int:
         "--ensure",
         action="store_true",
         help="with --discover, fit only when a language holds passages and no "
-        "topic or its topics are stale, and fail if a language still has no "
-        "topic afterwards. What make corpus asks for.",
+        "topic or its topics are stale, else drain a fit already queued, and "
+        "fail if a language still has no topic afterwards. What make corpus "
+        "asks for.",
     )
     built.add_argument(
         "--language",
@@ -166,19 +167,27 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    asking = args.discover
     if args.ensure:
         catalog = TopicCatalog()
         reason = fit_needed(catalog.fit_state(), catalog.languages())
-        if reason is None:
+        # A fit a resume returned to the queue (make corpus RESUME=1 runs
+        # topics-retry first) is drained rather than left pending for good.
+        waiting = TopicQueue().counts_by_status().get(Status.PENDING, 0)
+        if reason is None and not waiting:
             log.info("every language holds topics that fit its passages")
             return 0
-        log.info("fitting the topics: %s", reason)
+        if reason is None:
+            log.info("draining the %d fit(s) already queued", waiting)
+            asking = False
+        else:
+            log.info("fitting the topics: %s", reason)
 
     # A worker builds its service in the watch loop, which waits on settings
     # it cannot build on rather than exiting; a one-off drain and a fit asked
     # for build it here.
     service = build() if args.discover or not args.watch else None
-    if service is not None and args.discover:
+    if service is not None and asking:
         log.info("queued topic fit %d", service.request(run_id()))
 
     naming: list[ModelSettings | None] = []

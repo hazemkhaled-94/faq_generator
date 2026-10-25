@@ -215,7 +215,7 @@ one vocabulary.
 
 | Target | Does |
 |---|---|
-| `make topics-discover` | Ask for a fit over the whole corpus, and run it. The corpus job does not; `make corpus` runs it as `make topics-discover ENSURE=1`, which fits only when a language holds passages and no topic or its topics are stale |
+| `make topics-discover` | Ask for a fit over the whole corpus, and run it. The corpus job does not; `make corpus` runs it as `make topics-discover ENSURE=1`, which fits only when a language holds passages and no topic or its topics are stale, and otherwise drains a fit already queued, as the `topics-retry` of `make corpus RESUME=1` leaves one, rather than leave it pending |
 | `make topics` | Run any queued fit here, in the foreground |
 | `make topics-status` | The topics held, any queued fit, and how many passages are in no topic |
 | `make topics-stop` | Withdraw a queued fit |

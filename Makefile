@@ -2242,6 +2242,7 @@ all:
 # extraction and the bridges, and the run stops if a language still has no
 # topic afterwards. A corpus whose topics are live is not refitted, because a
 # fit replaces them; `make topics-discover` is the refit asked for on its own.
+# A fit a resume returned to the queue is drained there all the same.
 #
 # A stage whose container worker is running is waited for, not drained: the
 # go-live `make up` starts the parse and chunk workers, so the chain waits

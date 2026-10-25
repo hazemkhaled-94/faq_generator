@@ -249,3 +249,32 @@ def test_the_model_check_runs_before_the_exporter_is_installed(
 
     assert cli.run() == 0
     assert happened == [False, "check", True]
+
+
+# ── --ensure, as make corpus runs it ───────────────────────────────────────
+
+
+def test_ensure_with_every_language_fitted_asks_for_nothing(cli) -> None:
+    """A corpus whose topics are live is not refitted."""
+    cli.fits = cli.corpus = ["de", "en"]
+
+    assert cli.run("--discover", "--ensure") == 0
+    assert cli.queued == [] and cli.drains == 0
+
+
+def test_ensure_drains_a_fit_a_resume_returned_to_the_queue(cli) -> None:
+    """RESUME's topics-retry puts a failed fit back; it is run, not left pending."""
+    cli.fits = cli.corpus = ["de", "xx"]
+    cli.pending = 1
+
+    assert cli.run("--discover", "--ensure") == 0
+    assert cli.queued == [], "no second fit is asked for"
+    assert cli.drains == 1
+
+
+def test_ensure_fits_a_language_with_passages_and_no_topic(cli) -> None:
+    """And fails when the fit left it with none."""
+    cli.fits, cli.corpus = ["de"], ["de", "en"]
+
+    assert cli.run("--discover", "--ensure") == 3
+    assert cli.queued == [1] and cli.drains == 1

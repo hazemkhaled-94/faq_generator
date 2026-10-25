@@ -456,6 +456,10 @@ class CommandDriver:
         self.stored_models: dict[str, bytes] = {}
         self.rendered: list[str] = []
         self.fits: list[str] = ["de"]
+        #: The languages the corpus holds passages in.
+        self.corpus: list[str] = ["de"]
+        #: Fits waiting on the queue, as a resume's retry leaves one.
+        self.pending = 0
         self.queued: list[int] = []
         self.drains = 0
         #: Every model the preflight was asked to reach before working.
@@ -486,6 +490,10 @@ class CommandDriver:
                 driver.calls.append("retry")
                 return 1
 
+            def counts_by_status(self, within=None) -> dict[str, int]:
+                """The fits by status: those waiting."""
+                return {Status.PENDING: driver.pending}
+
         class Catalog:
             """The stored topics."""
 
@@ -493,6 +501,10 @@ class CommandDriver:
                 """Removes every topic."""
                 driver.calls.append("delete_all")
                 return TopicRemoval(topics=12, memberships=40, labels=3)
+
+            def languages(self) -> list[str]:
+                """The languages the corpus holds passages in."""
+                return list(driver.corpus)
 
             def fit_state(self):
                 """Reports which languages hold topics."""
@@ -510,6 +522,8 @@ class CommandDriver:
                             corpus_vocabulary=1,
                             passages_without_topics=0,
                             fitted_at=None,
+                            live_passages=1,
+                            memberships=1,
                         )
                         for code in driver.fits
                     ],
