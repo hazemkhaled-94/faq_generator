@@ -6728,12 +6728,18 @@ def test_a_date_is_no_author_and_year(question, language, cites) -> None:
         ("Rechnungen ausstellen", "de", True),
         ("returning the item", "en", True),
         ("to cancel the order", "en", True),
+        ("deux documents manquants", "fr", False),
+        ("annuler la commande", "fr", False),
+        ("不足している二つの書類", "ja", False),
     ],
 )
 def test_a_participle_inside_a_noun_phrase_is_not_an_action(
     answer: str, language: str, refused: bool
 ) -> None:
-    """`two missing documents` names things; `returning the item` describes an act."""
+    """`two missing documents` names things; `returning the item` describes an act.
+
+    A language no configuration names is inert: it is never refused for its form.
+    """
     failed = checked(
         question_text="Welche Unterlagen fehlen?"
         if language == "de"
