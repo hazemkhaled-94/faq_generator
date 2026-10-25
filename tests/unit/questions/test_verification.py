@@ -6695,23 +6695,47 @@ def test_a_sentence_key_echoing_the_question_around_a_new_word_does_not_restate(
     assert not restates(question, answer, language)
 
 
-def test_a_sentence_key_adding_nothing_still_restates_and_an_unknown_language_is_inert() -> (
-    None
-):
-    """A non-why key with no new lemma is an echo; a language with no model cannot raise."""
+def test_a_sentence_key_adding_nothing_still_restates() -> None:
+    """A non-why key with no new lemma is an echo."""
     assert restates(
         "Which fee applies to a card replaced abroad?",
         "The fee applies to a card replaced abroad.",
         "en",
     )
-    assert isinstance(
-        restates(
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "restated"),
+    [
+        (
+            "Pourquoi le client doit-il signer le contrat avant le paiement?",
+            "Parce que le client doit signer le contrat avant le paiement.",
+            "fr",
+            True,
+        ),
+        (
+            "¿Por qué debe el cliente firmar el contrato antes del pago?",
+            "Porque el cliente debe firmar el contrato antes del pago, siempre.",
+            "es",
+            True,
+        ),
+        (
             "Où le médecin doit-il s'asseoir?",
             "Le médecin doit s'asseoir sur le banc.",
             "fr",
+            False,
         ),
-        bool,
-    )
+    ],
+)
+def test_a_language_with_no_question_openings_keeps_the_share_test(
+    question: str, answer: str, language: str, restated: bool
+) -> None:
+    """Where no opening is read, a why cannot be told apart, so every key is held to the share.
+
+    A why answered by its own rule behind `parce que` or `porque` is refused
+    as before, and a key adding one word in four is kept.
+    """
+    assert restates(question, answer, language) is restated
 
 
 @pytest.mark.parametrize(
