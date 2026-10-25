@@ -420,13 +420,20 @@ of both somewhere else.
 make backup DIR=/backups/$(date +%F)
 ```
 
-writes, under `DIR`: `db/<name>.dump`, a `pg_dump -Fc` of each of the five
-databases (the application's, SeaweedFS's, Phoenix's, Dagster's and Argilla's),
-taken through the postgres container; `s3/<bucket>/<key>`, every object of the
+writes, under `DIR`: `db/<name>.dump`, a `pg_dump -Fc` of each of four
+databases (the application's, SeaweedFS's, Phoenix's and Dagster's), taken
+through the postgres container; `s3/<bucket>/<key>`, every object of the
 five buckets, read through the stack's S3 endpoint; and `manifest.json`, the
 row count of every table of the application database and the key, size and
 sha256 of every object and dump. It never copies `.env`, `provider.env` or a
 certificate key: keep those where you keep secrets. `DIR` must hold no backup.
+
+Argilla's database is left out. Its users table holds the owner's API key in
+clear, so a dump of it is a secret, and a backup folder is copied off the
+machine. `make backup DIR=... ARGILLA=1` adds it: store that `DIR` as you
+store secrets, and rotate `ARGILLA_API_KEY` if it leaks. Without it, the review
+datasets come back from the database with `make review-push-*`, and an answer
+not yet pulled with `make review-pull-*` is not in the backup.
 
 Copy `DIR` off the machine. A backup on the volume it protects is not one.
 
@@ -450,7 +457,8 @@ stores. It replaces the data of the stack it runs on.
    leaves them and every other database's objects as they are.
 
    To put the whole stack back (the five databases and every database's
-   objects), run `make restore-backup-stack DIR=... CONFIRM=stack`. It rolls
+   objects, Argilla's only if the backup took it), run
+   `make restore-backup-stack DIR=... CONFIRM=stack`. It rolls
    every database's objects, the filer's entries, the traces and the Dagster
    runs back to the backup's, so it refuses while more than one application
    database exists on the server, unless `ALL_DATABASES=1`.

@@ -957,7 +957,7 @@ def test_a_backup_target_names_a_directory(target: str) -> None:
 
 def test_a_backup_dumps_the_five_databases_and_copies_no_secret() -> None:
     """pg_dump of each, the objects and a manifest: never .env, provider.env or a key."""
-    lines = printed("backup", "DIR=/backups/x")
+    lines = printed("backup", "DIR=/backups/x", "ARGILLA=1")
     text = "\n".join(lines)
     for name in DATABASES:
         assert f"${name}" in text, name
@@ -1073,3 +1073,19 @@ def test_the_stack_restore_names_what_it_rolls_back_and_refuses_beside_other_dat
     assert "archive.backup --restore" in text and "--stack" in text, text
     assert "ALL_DATABASES" in text and "pg_database" in text, text
     assert "rolls back" in text, text
+
+
+def test_a_backup_leaves_out_the_argilla_dump_unless_asked() -> None:
+    """Argilla's database holds the owner's API key in clear: no secret in a backup by default."""
+    own = "\n".join(printed("backup", "DIR=/backups/x"))
+    assert "$$ARGILLA_DB_NAME" not in own and "$ARGILLA_DB_NAME" not in own, own
+    asked = "\n".join(printed("backup", "DIR=/backups/x", "ARGILLA=1"))
+    assert "$ARGILLA_DB_NAME" in asked, asked
+    for name in DATABASES[:-1]:
+        assert f"${name}" in own, name
+
+
+def test_the_stack_restore_skips_a_dump_the_backup_did_not_take() -> None:
+    """A backup without Argilla's dump restores without it."""
+    text = "\n".join(printed("restore-backup-stack", "DIR=/backups/x", "CONFIRM=stack"))
+    assert "continue" in text and "ARGILLA_DB_NAME" in text, text

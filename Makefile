@@ -1590,13 +1590,16 @@ archive-purge:
 s3-prefix:
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m blob_store.s3.rekey
 
-# Every database and every bucket, to a directory: a pg_dump -Fc of the five
-# databases through the postgres container, a copy of every object of the five
-# buckets through the stack's S3 endpoint, and a manifest of the row counts of
-# the application database and the key and sha256 of every object and dump.
-# Never .env, provider.env or a certificate key: only what the stores hold.
+# Every database and every bucket, to a directory: a pg_dump -Fc of the
+# application, SeaweedFS, Phoenix and Dagster databases through the postgres
+# container, a copy of every object of the five buckets through the stack's S3
+# endpoint, and a manifest of the row counts of the application database and the
+# key and sha256 of every object and dump. Never .env, provider.env or a
+# certificate key. Argilla's database is left out unless ARGILLA=1: its users
+# table holds the owner's API key in clear, so that dump is a secret to store as
+# one, and without it the review datasets come back from `make review-push-*`.
 #
-#   make backup DIR=/backups/2026-10-24
+#   make backup DIR=/backups/2026-10-24 [ARGILLA=1]
 #
 # DIR must hold no backup yet. The drill that proves one restores is in
 # docs/operations.md.
@@ -1604,7 +1607,7 @@ backup:
 	@[ -n "$(DIR)" ] || { echo "usage: make backup DIR=<directory>"; exit 2; }
 	@[ ! -e "$(DIR)/manifest.json" ] || { echo "REFUSED: $(DIR) already holds a backup." >&2; exit 2; }
 	@mkdir -p "$(DIR)/db"
-	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
+	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $(if $(filter 1,$(ARGILLA)),$$ARGILLA_DB_NAME); do \
 	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_dump -Fc -U \"\$$POSTGRES_USER\" -d $$name" > "$(DIR)/db/$$name.dump" || exit 1; \
 	done
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --backup "$(DIR)"
@@ -1639,6 +1642,7 @@ restore-backup-stack:
 	      echo "  restore-backup puts one database back. Run this with ALL_DATABASES=1 to roll the rest back too." >&2; exit 2; }; }
 	@[ "$(CONFIRM)" = stack ] || { echo "REFUSED: restore-backup-stack rolls back the shared SeaweedFS filer, Phoenix, Dagster, Argilla and every database's objects to $(DIR)." >&2; echo "  Run it again with CONFIRM=stack to go on." >&2; exit 2; }
 	$(LOADENV) && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $$ARGILLA_DB_NAME; do \
+	  [ "$$name" != "$$ARGILLA_DB_NAME" ] || [ -f "$(DIR)/db/$$name.dump" ] || continue; \
 	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --no-owner -U \"\$$POSTGRES_USER\" -d $$name" < "$(DIR)/db/$$name.dump" || exit 1; \
 	done
 	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --restore "$(DIR)" --stack

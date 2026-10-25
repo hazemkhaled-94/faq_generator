@@ -27,6 +27,7 @@ from pathlib import Path
 
 from sqlalchemy import text
 
+import telemetry
 from blob_store.s3 import (
     ArchiveBucket,
     DocumentsBucket,
@@ -211,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
         help="with --restore or --verify: every database's objects, not only this one's",
     )
     args = built.parse_args(sys.argv[1:] if argv is None else argv)
+    telemetry.configure("backup")
 
     if args.backup:
         directory = Path(args.backup)
@@ -225,7 +227,10 @@ def main(argv: list[str] | None = None) -> int:
     wrong = verify(directory, args.stack)
     for line in wrong:
         log.error("%s", line)
-    log.info("the backup matches" if not wrong else "%d difference(s)", len(wrong))
+    if wrong:
+        log.info("%d difference(s)", len(wrong))
+    else:
+        log.info("the backup matches")
     return 1 if wrong else 0
 
 
