@@ -1513,7 +1513,7 @@ _BESIDE = frozenset({"oa", "oc", "re"})
 _POSSESSIVE_DEPS = frozenset({"poss", "nmod:poss"})
 
 #: The German demonstratives that stand for a noun as an adnominal genitive,
-#: "die UEFA und deren Lieferanten", and the relation the parser gives them:
+#: "die Bank und deren Lieferanten", and the relation the parser gives them:
 #: a possessive in all but name, so read like one, by ISO 639-1 code. A closed
 #: class of the language; a newly configured language supplies its own or reads
 #: no genitive demonstrative as resolved.
@@ -1891,8 +1891,8 @@ _COMPOUND_PART = 3
 _TITLE_LINES = re.compile(r"\n| / ")
 
 
-#: How a noun is attached as a part of the noun phrase it modifies, `Regulations`
-#: of `Disciplinary Regulations Edition 2026`, in the labels the pipelines give.
+#: How a noun is attached as a part of the noun phrase it modifies, in the
+#: labels the pipelines give.
 _PART_OF_NOUN_PHRASE = frozenset({"compound", "nmod"})
 
 
@@ -1900,27 +1900,40 @@ _PART_OF_NOUN_PHRASE = frozenset({"compound", "nmod"})
 def _titled(title: str | None, language: str | None) -> frozenset[str]:
     """The nouns a document's title is about: those heading each of its lines.
 
-    The root of each line's parse and the nouns coordinated with it, with the
-    nouns that are parts of their noun phrase, as lemma and as written -
-    "Terms" and "Conditions" of "General Terms and Conditions of Sale",
-    "Regulations" of "Disciplinary Regulations Edition 2026" - so a statement
-    saying "these terms" under it names the document. A converter that joined
-    a title's lines with a space leaves the line's head on its last word, and
-    the noun phrase is what is left of the first. Read from the parse, so no
-    word is listed.
+    The root of each line's parse and the nouns coordinated with it, as lemma
+    and as written - "Terms" and "Conditions" of "General Terms and Conditions
+    of Sale" - so a statement saying "these terms" under it names the
+    document. A noun that only modifies the head is not one: "card" of
+    "Credit Card Agreement" is what the agreement is about, not the agreement.
+    Read from the parse, so no word is listed.
     """
     heads: set[str] = set()
     for line in _TITLE_LINES.split(title or ""):
         if not line.strip():
             continue
-        for sentence in _read(line, language).sents:
-            stack = [noun for noun in _conjuncts(sentence.root)]
-            while stack:
-                noun = stack.pop()
+        # A parser that cuts one line into two sentences leaves its head on
+        # the last, as nouns end their noun phrase: "Sparkonto
+        # Sonderbedingungen" is about conditions, not about an account.
+        for sentence in list(_read(line, language).sents)[-1:]:
+            for noun in _conjuncts(sentence.root):
                 if noun.pos_ not in _NOMINAL:
                     continue
                 heads |= {noun.lemma_.casefold(), noun.text.casefold()}
-                stack += [c for c in noun.children if c.dep_ in _PART_OF_NOUN_PHRASE]
+                # A head that a number labels, "Edition 2026", names no
+                # document but the noun phrase it labels, whose head is the
+                # noun before it: "Regulations" of "Customer Regulations
+                # Edition 2026".
+                if any(child.pos_ == "NUM" for child in noun.children):
+                    labelled = [
+                        child
+                        for child in noun.children
+                        if child.dep_ in _PART_OF_NOUN_PHRASE
+                        and child.pos_ in _NOMINAL
+                        and child.i < noun.i
+                    ]
+                    if labelled:
+                        last = max(labelled, key=lambda child: child.i)
+                        heads |= {last.lemma_.casefold(), last.text.casefold()}
     return frozenset(heads)
 
 

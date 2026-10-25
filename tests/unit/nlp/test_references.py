@@ -535,7 +535,7 @@ def test_a_german_dies_standing_for_a_clause_before_a_semicolon_resolves(
 @pytest.mark.parametrize(
     ("language", "statement", "pointer"),
     [
-        ("de", "Die UEFA und deren Lieferanten halten die Regeln ein.", "deren"),
+        ("de", "Die Bank und deren Lieferanten halten die Regeln ein.", "deren"),
         ("de", "Der Händler und dessen Lieferant haften gemeinsam.", "dessen"),
         ("en", "All fees apply except those related to the price cap.", "those"),
         (
@@ -592,36 +592,29 @@ def test_a_genitive_or_those_with_nothing_before_it_still_points_outside(
         ),
         (
             "en",
-            "These regulations apply to every club.",
-            "Disciplinary Regulations\nEdition 2026",
+            "These regulations apply to every customer.",
+            "Customer Regulations\nEdition 2026",
             "these",
             True,
         ),
         (
             "en",
-            "These regulations apply to every club.",
-            "Disciplinary Regulations / Edition 2026",
+            "These regulations apply to every customer.",
+            "Customer Regulations / Edition 2026",
             "these",
             True,
         ),
         (
             "en",
-            "These regulations apply to every club.",
-            "UEFA Disciplinary Regulations Edition 2026",
-            "these",
-            True,
-        ),
-        (
-            "en",
-            "These provisions apply to every club.",
-            "Disciplinary Regulations / Edition 2026",
+            "These provisions apply to every customer.",
+            "Customer Regulations / Edition 2026",
             "these",
             False,
         ),
         (
             "en",
-            "These provisions apply to every club.",
-            "UEFA Disciplinary Regulations Edition 2026",
+            "These provisions apply to every customer.",
+            "Bank Customer Regulations Edition 2026",
             "these",
             False,
         ),
@@ -630,6 +623,79 @@ def test_a_genitive_or_those_with_nothing_before_it_still_points_outside(
             "These terms apply to every order placed online.",
             None,
             "these",
+            False,
+        ),
+        (
+            "de",
+            "Diese Bedingungen gelten für jedes Sparkonto.",
+            "Sparkonto Sonderbedingungen",
+            "diese",
+            True,
+        ),
+        (
+            "en",
+            "These regulations apply to every customer.",
+            "Bank Customer Regulations Edition 2026",
+            "these",
+            True,
+        ),
+        (
+            "en",
+            "This bank pays interest every month.",
+            "Bank Customer Regulations Edition 2026",
+            "this",
+            False,
+        ),
+        (
+            "en",
+            "These terms apply to every order placed online.",
+            "Online Shop Terms Version 3",
+            "these",
+            True,
+        ),
+        (
+            "en",
+            "This shop opens at 9 am.",
+            "Online Shop Terms Version 3",
+            "this",
+            False,
+        ),
+        # A modifier of the title's head noun is not what the title names.
+        ("en", "This card can be used abroad.", "Credit Card Agreement", "this", False),
+        (
+            "en",
+            "This card can be used abroad.",
+            "Credit Card Terms and Conditions",
+            "this",
+            False,
+        ),
+        (
+            "en",
+            "This account pays interest every month.",
+            "Savings Account Conditions",
+            "this",
+            False,
+        ),
+        (
+            "en",
+            "This product must be returned in its original packaging.",
+            "Product Return Policy",
+            "this",
+            False,
+        ),
+        ("en", "This store opens at 9 am.", "Online Store Terms of Use", "this", False),
+        (
+            "de",
+            "Dieses Konto wird monatlich abgerechnet.",
+            "Sparkonto Sonderbedingungen",
+            "dieses",
+            False,
+        ),
+        (
+            "de",
+            "Diese Karte ist drei Jahre gültig.",
+            "Kreditkarte Bedingungen",
+            "diese",
             False,
         ),
     ],
@@ -646,11 +712,32 @@ def test_a_demonstrative_naming_the_head_of_the_documents_title_names_the_docume
 
 
 @pytest.mark.nlp
-def test_a_title_changes_nothing_in_a_language_no_pipeline_is_configured_for() -> None:
-    """French reads no demonstrative here, with or without a title."""
+@pytest.mark.parametrize(
+    ("language", "statement", "title"),
+    [
+        (
+            "fr",
+            "Ces conditions s'appliquent à toute commande.",
+            "Conditions générales de vente",
+        ),
+        (
+            "fr",
+            "Cette carte peut être utilisée à l'étranger.",
+            "Contrat de carte de crédit",
+        ),
+        (
+            "pl",
+            "Te warunki obowiązują wszystkie zamówienia.",
+            "Ogólne warunki sprzedaży",
+        ),
+    ],
+)
+def test_a_title_changes_nothing_in_a_language_no_pipeline_is_configured_for(
+    language: str, statement: str, title: str
+) -> None:
+    """French and Polish read no demonstrative here, with or without a title."""
     from nlp.analysis import claim
 
-    statement = "Ces conditions s'appliquent à toute commande."
-    titled = claim(statement, "fr", title="Conditions générales de vente")
+    titled = claim(statement, language, title=title)
 
-    assert titled.references == claim(statement, "fr").references
+    assert titled.references == claim(statement, language).references
