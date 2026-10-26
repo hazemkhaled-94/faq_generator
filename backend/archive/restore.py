@@ -52,8 +52,8 @@ _CHOSEN = "a.archived_at = ANY(CAST(:chosen AS timestamptz[]))"
 #: unique key, so the archived row has nothing to rest on.
 #:
 #: A key missing from an older payload is filled from :defaults, the column's
-#: server default, which jsonb_populate_record would leave NULL. A key of
-#: `_CLEARED` is set NULL where the row it names is gone (`{cleared}`).
+#: server default, which jsonb_populate_record would leave NULL, and a SET NULL
+#: key to the table's own rows is cleared where its row is gone (`_cleared`).
 _FROM = (
     """
 FROM archived_rows a,
@@ -74,35 +74,72 @@ ON CONFLICT DO NOTHING
 _ORPHANS = "SELECT count(*) " + _FROM + "AND NOT ({parents})"
 
 
-#: The keys to a table's own rows that a restore clears where the row they
-#: name is neither live nor put back beside them: a duplicate refusal's twin,
-#: deleted or read again since. NULL is what marks a refusal for the dedup
-#: replay, which points it at a twin again; kept, the key would fail the
-#: foreign key and roll the whole restore back.
-_CLEARED = {"facts": "twin_id"}
+def _own(table: str, action: str) -> list[str]:
+    """The table's single-column keys to its own rows whose ON DELETE is `action`."""
+    return [
+        key.elements[0].parent.name
+        for key in Base.metadata.tables[table].foreign_key_constraints
+        if key.referred_table.name == table
+        and len(key.elements) == 1
+        and (key.ondelete or "").upper() == action
+    ]
 
 
-def _cleared(table: str) -> str:
-    """What `_FROM` adds to a payload: its `_CLEARED` key set NULL where that row is gone."""
-    if (column := _CLEARED.get(table)) is None:
-        return ""
-    named = f"(a.payload->>'{column}')::bigint"
+def _back(table: str, named: str) -> str:
+    """That the row of `table` whose id is `named` is live or among the chosen rows."""
     return (
-        f" || CASE WHEN a.payload->>'{column}' IS NULL"
-        f" OR EXISTS (SELECT 1 FROM {table} t WHERE t.id = {named})"
+        f"(EXISTS (SELECT 1 FROM {table} t WHERE t.id = {named})"
         " OR EXISTS (SELECT 1 FROM archived_rows c"
         f" WHERE c.table_name = '{table}'"
         " AND c.archived_at = ANY(CAST(:chosen AS timestamptz[]))"
-        f" AND (c.payload->>'id')::bigint = {named})"
-        f" THEN '{{}}'::jsonb ELSE jsonb_build_object('{column}', NULL) END"
+        f" AND (c.payload->>'id')::bigint = {named}))"
     )
+
+
+def _cleared(table: str) -> str:
+    """What `_FROM` adds to a payload: a SET NULL key to its own table cleared where that row is gone.
+
+    As the delete of that row would have left it: a duplicate refusal's twin,
+    deleted or read again since. NULL is what marks a refusal for the dedup
+    replay, which points it at a twin again; kept, the key would fail the
+    foreign key and roll the whole restore back.
+    """
+    return "".join(
+        f" || CASE WHEN a.payload->>'{column}' IS NULL OR "
+        + _back(table, f"(a.payload->>'{column}')::bigint")
+        + f" THEN '{{}}'::jsonb ELSE jsonb_build_object('{column}', NULL) END"
+        for column in _own(table, "SET NULL")
+    )
+
+
+def _stranded(table: str) -> list[str]:
+    """That a CASCADE key to the row's own table reaches a live or restored row.
+
+    As the delete of that row would have taken this one: a follow-up whose
+    root a later transaction deleted is left behind, with every turn below it,
+    and counted, rather than failing the foreign key and the whole restore.
+    """
+    return [
+        "r.id NOT IN (WITH RECURSIVE chosen AS ("
+        f"SELECT (c.payload->>'id')::bigint AS id, (c.payload->>'{column}')::bigint AS up "
+        f"FROM archived_rows c WHERE c.table_name = '{table}' "
+        "AND c.archived_at = ANY(CAST(:chosen AS timestamptz[]))), "
+        "stranded AS (SELECT x.id FROM chosen x WHERE x.up IS NOT NULL "
+        f"AND NOT EXISTS (SELECT 1 FROM {table} t WHERE t.id = x.up) "
+        "AND NOT EXISTS (SELECT 1 FROM chosen y WHERE y.id = x.up) "
+        "UNION SELECT x.id FROM chosen x JOIN stranded s ON x.up = s.id) "
+        "SELECT id FROM stranded)"
+        for column in _own(table, "CASCADE")
+    ]
 
 
 def _parents(table: str) -> str:
     """The condition that every foreign key of a row has its parent.
 
-    A key to the table's own rows is left out: its parent comes back in the
-    same statement, which cannot see it yet. A NULL key rests on nothing.
+    A key to the table's own rows is read apart: its row may come back in the
+    same statement, which cannot see it yet, so it holds where that row is
+    live or among the chosen ones, and otherwise `_stranded` and `_cleared`
+    do what its ON DELETE would have done. A NULL key rests on nothing.
     """
     conditions = [
         "("
@@ -116,7 +153,7 @@ def _parents(table: str) -> str:
         + "))"
         for key in Base.metadata.tables[table].foreign_key_constraints
         if key.referred_table.name != table
-    ]
+    ] + _stranded(table)
     return " AND ".join(conditions) or "true"
 
 

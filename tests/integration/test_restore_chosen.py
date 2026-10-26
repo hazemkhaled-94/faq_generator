@@ -411,3 +411,87 @@ def test_a_refusal_whose_twin_is_live_or_restored_beside_it_keeps_it(
 
     assert restore(monkeypatch, AT=deleted_at(engine, "documents")) == 0
     assert twin_of(engine, int(made["refusal"])) == made["twin"]
+
+
+#: A root question and its follow-up, each written from another document.
+THREADS = {
+    "de": ("Was kostet die Karte im Jahr?", "Und im zweiten Jahr?"),
+    "en": ("What does the card cost a year?", "And in the second year?"),
+}
+
+
+def threaded(engine, language: str) -> dict[str, int | str]:
+    """Documents r and f; the root rests on r's fact, its follow-up on f's."""
+    from blob_store.s3 import DocumentsBucket, ParsedBucket
+
+    made: dict[str, int | str] = {}
+    with Session(engine) as session:
+        for name in ("r", "f"):
+            sha = digest(f"thread-{name}-{language}")
+            source, parsed = DocumentsBucket(), ParsedBucket()
+            source.put(
+                source.key_for(sha, "application/pdf"),
+                b"%PDF-1.7",
+                content_type="application/pdf",
+            )
+            parsed.put(parsed.key_for(sha), b"{}", content_type="application/json")
+            session.add(document(sha, language=language))
+            session.flush()
+            cut = passage(sha, text=f"{name} {language}", language=language)
+            session.add(cut)
+            session.flush()
+            drawn = fact(cut.id, statement=f"{name} {language} fact")
+            session.add(drawn)
+            session.flush()
+            made[name], made[name + "_fact"] = sha, drawn.id
+        asked, then = THREADS[language]
+        root = question(status="accepted", language=language, question_text=asked)
+        session.add(root)
+        session.flush()
+        follow = question(
+            status="accepted",
+            language=language,
+            question_text=then,
+            follows_id=root.id,
+            thread_position=2,
+        )
+        session.add(follow)
+        session.flush()
+        session.add_all(
+            [link(root.id, made["r_fact"]), link(follow.id, made["f_fact"])]
+        )
+        session.commit()
+        made["root"], made["follow"] = root.id, follow.id
+    return made
+
+
+@pytest.mark.parametrize("language", sorted(THREADS))
+def test_a_follow_up_whose_root_a_later_deletion_took_is_left_behind(
+    engine, database, buckets, monkeypatch, capsys, language
+) -> None:
+    """Deleted with its own document, the root with another later: the rest comes back.
+
+    The live database cascades a deleted root to its follow-ups, so a follow-up
+    with no root is not a state it holds; the restore leaves it behind, as it
+    leaves any row whose parent is gone, and does not roll back.
+    """
+    from ingestion.repository import DocumentRepository
+
+    made = threaded(engine, language)
+    DocumentRepository().delete(str(made["f"]))
+    first = deleted_at(engine, "documents")
+    DocumentRepository().delete(str(made["r"]))
+
+    assert restore(monkeypatch, AT=first) == 0
+
+    shown = capsys.readouterr().out
+    assert "Nothing restored" not in shown, shown
+    assert (
+        count(engine, f"SELECT count(*) FROM documents WHERE sha256 = '{made['f']}'")
+        == 1
+    )
+    assert (
+        count(engine, f"SELECT count(*) FROM questions WHERE id = {made['follow']}")
+        == 0
+    )
+    assert "questions: 1 row(s) left behind" in shown

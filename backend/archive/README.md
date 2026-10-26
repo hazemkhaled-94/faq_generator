@@ -93,6 +93,11 @@ what it held.
   where it is neither live nor put back by the same restore, `twin_id` comes
   back NULL, which marks the refusal for the dedup replay that points it at a
   twin again, rather than failing its foreign key and the whole restore.
+- **A follow-up whose root is gone is left behind**, with every turn below it,
+  and counted with the rows whose parent is gone. Deleted with its own
+  document while its root rested on another, deleted later, it comes back only
+  where its root is live or put back by the same restore: the root's deletion
+  would have taken it, and `follows_id` cannot name a row that is not there.
 - **A fact left resting on no passage is dropped.** Its citations were left
   behind, and the trigger that drops such a fact fires only on `DELETE`, so
   the restore does it, with the question links that cascade from it.
