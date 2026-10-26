@@ -8,20 +8,21 @@ before anything else.
 
 | Tool | Holds | Does not hold |
 |---|---|---|
-| The application | The artefacts and the chain between them: what one question was produced from, which gates read it, and a link into each of the four below | Anything about a run it did not store on a row |
-| Phoenix | The logic: every stage's spans, every model call with its shape and prompt version, and every validation as an annotation of its own | Services. No HTTP, no SQL, no object store, no frontend |
-| Grafana | Every line every process writes, per service, joined to its trace and its run | Container logs of the infrastructure |
+| The application | The artefacts and the chain between them, with a link into each tool below | Anything about a run not stored on a row |
+| Phoenix | Every stage's spans, every model call with its shape and prompt version, and every validation as an annotation | HTTP, SQL, object store and frontend spans |
+| Grafana | Every line every process writes, joined to its trace and run | Infrastructure container logs |
 | Argilla | The artefacts a person judged, one dataset per kind | |
-| Dagster | The workflow: what ran, what it produced, in what order, whoever started it | Row-level lineage |
+| Dagster | What ran, what it produced, in what order | Row-level lineage |
 
 ### One number, in all five
 
-[`pipeline.py`](pipeline.py) holds the seven stages once. The number in front
-of a name is the stage's place among them:
+[`pipeline.py`](pipeline.py) holds the seven stages once. The number in a name
+is the stage's place in the pipeline, so each tool's alphabetical order is the
+pipeline's order:
 
 | Stage | Phoenix project (a run named with `RUN_ID` adds `-<name>`) | Argilla dataset | Dagster group |
 |---|---|---|---|
-| 1 ingestion | `1-ingestion` (the host commands; an upload sends nothing) | none | none |
+| 1 ingestion | `1-ingestion` (host commands only; an upload sends nothing) | none | none |
 | 2 parsing | `2-parsing` | none | `stage_2_parsing` |
 | 3 chunking | `3-chunking` | none | `stage_3_chunking` |
 | 4 extraction | `4-extraction` | `4-facts` | `stage_4_extraction` |
@@ -29,52 +30,36 @@ of a name is the stage's place among them:
 | 6 question generation | `6-question_generation` | `6-questions` | `stage_6_question_generation` |
 | 7 assessment | `7-assessment` | none | `stage_7_assessment` |
 
-Each tool sorts its own names alphabetically. The number makes each tool's
-ordering the pipeline's order, and it means the same thing in every tool.
-
-`pipeline.py` also names each stage's Dagster asset and Argilla dataset,
-because the two modules those live in cannot be imported from where they are
-needed: `orchestration` is a code location in an image of its own, and no
-container carries the Argilla client.
-[`tests/static/test_tool_names.py`](../tests/static/test_tool_names.py) reads
-both as syntax and fails if a copy has gone stale. A stale asset name would
-leave the application linking to a Dagster page that returns 404, which looks
-like Dagster being down.
+`pipeline.py` also names each stage's Dagster asset and Argilla dataset.
+[`tests/static/test_tool_names.py`](../tests/static/test_tool_names.py) fails
+if a copy has gone stale.
 
 ### Where a person starts
 
 `GET /lineage/{kind}/{id}` and the How this was produced fold on every
-artefact page. They walk a question up to its facts, a fact to its passages
-and a passage to its document. Each step is reported under the stage that
-produced it and linked to its own span. No single tool answers this, because
-each holds one slice of it.
+artefact page walk a question to its facts, a fact to its passages and a
+passage to its document, each step linked to its span.
 
 Two rules in [`traces.py`](traces.py) keep that line:
 
 - Only a run exports. `configure(name, run=...)` builds an exporter only when
   `run` is given. A stage and the ingestion host commands pass
-  `settings.runs.run_id()`. The api, the frontend, the orchestrator and every
-  other host command pass nothing.
-- Only the logic is instrumented: litellm, and the spans the stages open
-  themselves. No requests, no botocore, no FastAPI. The database is
-  instrumented only behind `TRACE_DATABASE`.
+  `settings.runs.run_id()`. Everything else passes nothing.
+- Only the logic is instrumented: litellm, and the spans the stages open. No
+  requests, no botocore, no FastAPI. The database is instrumented only behind
+  `TRACE_DATABASE`.
 
-The passes that call a model outside a drain (`make extract-bridge`, `make
-questions-balance` and `make questions-rejudge`) configure the exporter
-themselves, through `stages.cli.trace`, after the preflight that proves the
-model answers. The order is the one a drain uses: logged, proved, traced,
-worked. The bridge pass opens one `bridge_link` span per offered link, the
-parent of that link's model call, so a Phoenix trace is one link.
+`make extract-bridge`, `make questions-balance` and `make questions-rejudge`
+configure the exporter through `stages.cli.trace` after their preflight. The
+bridge pass opens one `bridge_link` span per link.
 
-A run's id is spelled the same in all three stores: `questions.run_id` on the
-rows, and `run.id` on every span in Phoenix and on every log line. A run named
-with `RUN_ID` also gets a Phoenix project of its own. The Run dashboard joins
-those three on one page.
+A run's id is `questions.run_id` on the rows and `run.id` on every Phoenix
+span and log line. The Run dashboard joins them.
 
 ## Logs
 
-Each record is rendered twice: as a line of text on stdout, which `make logs`
-shows, and as one JSON object per line in a file, which reaches Elasticsearch.
+Each record is rendered twice: as text on stdout (`make logs`), and as one
+JSON object per line in a file that reaches Elasticsearch.
 
 ```
 api, 6 workers, streamlit, dagster  ──▶  logs volume  ─┐
@@ -82,25 +67,19 @@ api, 6 workers, streamlit, dagster  ──▶  logs volume  ─┐
 a make target, dagster dev, by hand  ──▶  ./logs  ─────┘
 ```
 
-Nothing is aggregated and nothing is dropped. Every level from `LOG_LEVEL`
-upwards is shipped.
+Every level from `LOG_LEVEL` upwards is shipped. An exception is written
+whole: `error.type`, `error.message` and the entire traceback in
+`error.stack_trace`.
 
-An exception is written whole: `error.type`, `error.message` and the entire
-traceback in `error.stack_trace`, so a failure is readable in Grafana without
-going back to the container.
+### Field names
 
-### Field names are ECS
-
-`log.level`, `service.name`, `log.logger` and `error.type` are names that
-[Elasticsearch's own
-template](https://www.elastic.co/guide/en/ecs/current/index.html) already maps
-as keywords. `trace.id` is on every line and ties a log line to its span.
-`run.id` ties it to the run that wrote it.
-
-### What a line says it was working on
+`log.level`, `service.name`, `log.logger` and `error.type` are
+[ECS](https://www.elastic.co/guide/en/ecs/current/index.html) names that
+Elasticsearch's template already maps as keywords. `trace.id` ties a line to
+its span, and `run.id` to its run.
 
 Each stage binds its unit of work where it claims it, and every line beneath
-carries it, including the lines a library logs:
+carries it:
 
 ```python
 with working(span, "extract", {"stage": self.name, "passage.id": passage.id}):
@@ -109,90 +88,58 @@ with working(span, "extract", {"stage": self.name, "passage.id": passage.id}):
     )
 ```
 
-One call sets both, because the span and the log line state one fact. A trace
-annotated with `document.sha256` while its log lines spell the field
-differently cannot be joined to the logs that explain it.
-
-`stage`, `document.sha256`, `passage.id`, `topic.id`, `llm.duration_ms`,
-`facts.stored` and the rest are fields rather than prose inside `message`.
-They are not ECS, so they are declared in `setup.template.append_fields` in
+One call sets both, so a trace and its logs use the same names. `stage`,
+`document.sha256`, `passage.id`, `topic.id`, `llm.duration_ms`, `facts.stored`
+and the rest are fields, not prose in `message`. They are not ECS, so they are
+declared in `setup.template.append_fields` in
 [`configs/filebeat/filebeat.yml`](../configs/filebeat/filebeat.yml). Under
-dynamic mapping a string arrives as `text`, and a panel grouping by `stage`
-finds nothing to group on.
+dynamic mapping a string arrives as `text`, and panels grouping by `stage`
+find nothing.
 
 ### The log file
 
-The file is named `{service}-{host}-{pid}.log`. The name must be unique per
-writer, because two processes rotating one file take each other's lines with
-them. Neither half of the name is enough alone: a scaled stage is several
-containers over one volume, and `./logs` is one machine over many runs.
-
-Every run leaves a file, including one-second runs. `make logs-prune` sweeps
+The file is named `{service}-{host}-{pid}.log`, unique per writer, because two
+processes rotating one file take each other's lines. `make logs-prune` sweeps
 files by age, and `make logs-wipe`, which `make wipe` runs, deletes every one.
 Files rotate at 50 MB, three kept.
 
-### Two directories, one data stream
-
 | Where | `LOG_DIR` | Set by |
 |---|---|---|
-| A container | `/var/log/qa`, the `logs` volume | compose, over the value below |
+| A container | `/var/log/qa`, the `logs` volume | compose |
 | The host | `./logs`, bind-mounted into filebeat read-only | `configs/env/deployment.env` |
 | Anywhere else | unset: stdout only | nothing |
 
-`LOG_DIR` is one name, set over per container, as
-`OTEL_EXPORTER_OTLP_ENDPOINT` and `PHOENIX_BASE_URL` are. The Makefile sources
-`configs/env/deployment.env`, and a host process must read the host's answer
-from the name the code reads.
-
 Filebeat reads both paths in one input, so a `make` target's lines land in
 Grafana beside a worker's, on the same trace. `host.name` tells them apart.
-
-`make up` creates `./logs`. The container engine would create a missing
-bind-mount source itself and can leave it owned by root.
+`make up` creates `./logs`.
 
 ## Traces
 
-OpenTelemetry, to Phoenix. A span per unit of work of the logic, annotated
-with the same names the log fields use.
+OpenTelemetry, to Phoenix. A span per unit of work, annotated with the log
+field names.
 
 A stage passes `settings.runs.run_id()` to `configure`, which sets
-`openinference.project.name` on the resource. The project is the stage,
-numbered so one pass over the pipeline sorts in the order a corpus moves.
-
-A run gets a project of its own only when somebody named it:
+`openinference.project.name`. The project is the numbered stage. A run gets a
+project of its own only when named:
 
 ```bash
 make questions                      # 6-question_generation
 make questions RUN_ID=a-gpt-4.1     # 6-question_generation-a-gpt-4.1
 ```
 
-A project per unnamed run would not survive a worker. `run_id` falls back to a
-uuid per process, and `restart: unless-stopped` makes a process per restart,
-so a failing credential would file one project per attempt, each holding the
-single span its preflight made. Comparing runs is what a name is for.
-
-Two runs sharing a project stay separable. `run.id` is an attribute on every
-span, the same id the logs and the rows carry, so telling them apart is a
+`run.id` is on every span, so two runs sharing a project stay separable by
 filter.
 
 The id a row carries is the run that asked for it, not the worker that took
-it: a Dagster run, a Start button or a `make …-start`, whichever queued the
-row. See [`settings/README.md`](../backend/settings/README.md).
+it: a Dagster run, a Start button or a `make …-start` (see
+[`settings/README.md`](../backend/settings/README.md)). The span attribute
+carries the same value on every span begun while the row is worked, so a fact,
+its log lines and its model calls filter on one id. A run named with `RUN_ID`
+writes the name on its rows and files its spans under a project of that name.
 
-- The span attribute is the same value. It is written on every span begun
-  while the row is worked, model calls included, so a fact, its log lines and
-  its model calls all filter on one id whoever set the stage going.
-- The resource's `run.id` stays the process's own.
-- A run named with `RUN_ID` writes the name on its rows and files its spans
-  under a project of that name. Its spans still carry the run that queued each
-  row, so no trace names two runs.
-
-The exporter is installed after the preflight, not before. A project is
-created by the first span filed under it, and a stage's first span is the
-model call its preflight makes. With an expired credential, installing the
-exporter first would create a project per restart. `stages/cli.py` and
-`topic_modelling/run.py` configure the logs first and tracing only once the
-process knows it will claim rows.
+The exporter is installed after the preflight, because a project is created by
+the first span filed under it. `stages/cli.py` and `topic_modelling/run.py`
+configure tracing only once the process will claim rows.
 
 ```bash
 make phoenix-projects   # what Phoenix holds
@@ -200,105 +147,70 @@ make phoenix-prune      # take back the ones in which no work happened
 ```
 
 `prune` takes a project only when every span in it is a model call and it
-could read every span. A project too big to read in a page is left alone: the
-first fifty spans of a real run are model calls too, and `5-topic_modelling`
-reads exactly that way. Neither `prune` nor `make phoenix-purge`, which takes
-every project, takes `default`.
+could read every span. A project too big to read in a page is left alone.
+Neither `prune` nor `make phoenix-purge` takes `default`.
 
-The api, the frontend, the orchestrator and every other host command pass
-nothing, which turns their exporter off rather than filing them under
-`default`.
+Each question's span carries the gate that stopped it and every gate that read
+it, in order, as `question.gates_ran`.
 
-Question generation also opens a span per question, carrying the gate that
-stopped it and every gate that read it, in order, as `question.gates_ran`. The
-checker returns on the first failure, so the gate alone could not say how far
-a question got.
-
-`telemetry.asking` puts two things the instrumentor cannot know beside its own
-attributes:
+`telemetry.asking` adds two attributes the instrumentor cannot know:
 
 | On the span | Is |
 |---|---|
-| `tag.tags` | the Pydantic shape (`_Answered`, `_NamesItsSource`, `_Recovered`). This is `llm.shape` in the log, spelled the same |
-| `llm.prompt_template.version` | the caller's `PROMPT_VERSION` |
+| `tag.tags` | the Pydantic shape (`_Answered`, `_NamesItsSource`, `_Recovered`), spelled as `llm.shape` in the log |
+| `llm.prompt_template.version` | the caller's `PROMPT_VERSION`. A caller that names none sets none |
 
-Both are context rather than a span of their own. A caller that names no
-version sets none.
-
-The span carries the prompt filled in. What a version asked for, the template,
-is the `prompts` table. See
-[`backend/stages/prompts.py`](../backend/stages/prompts.py).
+The span carries the prompt filled in. The template is in the `prompts` table
+(see [`backend/stages/prompts.py`](../backend/stages/prompts.py)).
 
 ### How much reaches Phoenix, and when
 
-Three channels, three mechanisms, and they fail differently.
-
 | | Carries | Sent |
 |---|---|---|
-| Spans | a stage's unit of work, and one `completion` per model call | batched: every 5 s or 512 spans, whichever comes first |
-| Annotations | the gate verdicts, extraction's validations and the judge's, per span | batched at 100, flushed after every passage in extraction and every topic in question generation, and by the judge when its queue empties and at the end of a drain |
-| Prompts | what a version asked for | when a stage starts and finds one changed. `make prompts-publish` republishes the lot |
-| Datasets | the golden cases | only when `make eval-upload` or `make eval-phrasing` is run |
+| Spans | a stage's unit of work, and one `completion` per model call | batched: every 5 s or 512 spans |
+| Annotations | gate verdicts, extraction's validations and the judge's | batched at 100, flushed after every passage in extraction and every topic in question generation, and by the judge when its queue empties and at the end of a drain |
+| Prompts | what a version asked for | when a stage starts and finds one changed. `make prompts-publish` republishes all |
+| Datasets | the golden cases | only on `make eval-upload` or `make eval-phrasing` |
 
-OpenTelemetry batches the spans itself, configured by
-`OTEL_BSP_MAX_QUEUE_SIZE`, `OTEL_BSP_SCHEDULE_DELAY` and
-`OTEL_BSP_MAX_EXPORT_BATCH_SIZE`. Nothing is passed in code, because an
-argument would override the environment.
+OpenTelemetry batches spans itself, configured by `OTEL_BSP_MAX_QUEUE_SIZE`,
+`OTEL_BSP_SCHEDULE_DELAY` and `OTEL_BSP_MAX_EXPORT_BATCH_SIZE`. A full queue
+logs `Queue full, dropping spans`.
 
-The defaults suit this pipeline by a wide margin: a queue of 2,048 drained
-every 5 s is sized for a service answering requests, and the unit of work here
-is one passage through a model. A queue that did fill would log `Queue full,
-dropping spans` per overflow, a loud failure rather than a quiet one.
-
-A span and an annotation are both dropped when Phoenix is down. The exporter
-discards what it cannot send. `evaluations.py` drops the batch it held, warns
-once per outage and posts nothing for five minutes, then tries again, so a
-watch worker's annotations resume after Phoenix restarts. The verdict is in
+When Phoenix is down, spans and annotations are dropped. `evaluations.py`
+warns once per outage and posts nothing for five minutes. The verdict is in
 Postgres either way.
 
 ## Verdicts
 
-A gate verdict is written three times:
+A gate verdict is written three times: the row in Postgres (the truth), the
+span attribute (what a trace is filtered by), and the annotation in Phoenix's
+Evaluations view ([`evaluations.py`](evaluations.py), through
+`arize-phoenix-client`). `annotator_kind` is CODE for every gate, phrasing
+included, and every extraction validation.
 
-- The row in Postgres is the truth.
-- The span attribute is what a trace is filtered by.
-- The annotation puts a label, a score and an explanation in Phoenix's
-  Evaluations view. [`evaluations.py`](evaluations.py) posts it through
-  `arize-phoenix-client`.
-
-`annotator_kind` separates them. Every gate, phrasing included, is CODE, and
-so is every extraction validation.
-
-The evaluation phase is the one writer of LLM annotations. It writes one per
-metric, named as `arize-phoenix-evals` names it (`hallucination`, `relevance`,
+The evaluation phase writes the LLM annotations: one per metric, named as
+`arize-phoenix-evals` names it (`hallucination`, `relevance`,
 `qa_correctness`, `summarization`, `toxicity`, `conciseness`, `refusal`), plus
-an `assessment` summary per artefact. It uses the same client and batching,
-and handles an unreachable Phoenix the same way. See
+an `assessment` summary per artefact. See
 [`backend/assessment/`](../backend/assessment/README.md). `hallucination`
-scores 1.0 for the bad label, because its optimisation direction is minimise.
-Each annotation carries its `direction` as metadata so a chart is read the
-right way up.
+scores 1.0 for the bad label (direction minimise). Each annotation carries its
+`direction` as metadata.
 
-A question produces a summary, `gate`, labelled with whatever stopped it or
-`accepted`, and then one annotation per gate that read it, named `gate 1:
-structural` through `gate 6: round_trip`:
+A question gets a `gate` summary (what stopped it, or `accepted`) and one
+annotation per gate that read it, `gate 1: structural` through `gate 6:
+round_trip`:
 
 | Annotation | On an accepted question | On one refused at phrasing |
 |---|---|---|
 | `gate` | `accepted`, 1.0 | `leaks_source`, 0.0 |
 | `gate 1: structural` | `passed`, 1.0 | `passed`, 1.0 |
-| `gate 4: near_duplicate` | `passed`, 1.0 | `passed`, 1.0 |
 | `gate 5: phrasing` | `passed`, 1.0 | **`refused`, 0.0** |
 | `gate 6: round_trip` | `passed`, 1.0 | absent |
 
-Only the gates that ran are annotated. A gate's rate is over the questions
-that reached it, and scoring an unreached gate as passed would make a run that
-refused everything at the first rule read as a round trip that passed
-everything. The number is the gate's fixed position, not its order in that
-question, because Phoenix sorts its columns by name.
+Only gates that ran are annotated, so a gate's rate is over the questions that
+reached it. The number is the gate's fixed position, because Phoenix sorts
+columns by name.
 
-Annotations are best-effort, like the exporter: a Phoenix that is down costs
-the annotation and not the run, and warns once rather than once per batch.
 `PHOENIX_BASE_URL` is where they are posted. The bearer is `PHOENIX_API_KEY`
 where compose set it and `PHOENIX_ADMIN_SECRET` where `.env` did.
 
@@ -311,22 +223,16 @@ where compose set it and `PHOENIX_ADMIN_SECRET` where `.env` did.
 | `OTEL_CONTAINER_ENDPOINT` | `configs/env/deployment.env` | Trace collector, as the containers reach it |
 | `TRACE_DATABASE` | unset | A span per SQL statement and per pool connect |
 
-`service.name` is not a setting: each process passes its own name to
-`telemetry.configure(...)`.
-
-`LOG_DIR` is read through a variable rather than a literal, so the static
-settings scan cannot see it. It is checked by hand.
+`LOG_DIR` is read through a variable, so the static settings scan cannot see
+it. It is checked by hand.
 
 ## Spend
 
 The cost log is the spend of record, and `make spend` reads it. The cost
 Phoenix shows on a span is indicative, since Phoenix prices a model from its
-own table and may price a new model differently. Where the two differ, `make
-spend` is right.
+own table.
 
 ## Retention
-
-A log line is in two places, so retention has two halves:
 
 ```bash
 make logs-retention                        # 30 days in Elasticsearch
@@ -335,39 +241,26 @@ make logs-prune                            # 30 days of files on the volume
 make logs-prune LOGS_KEEP_DAYS=7
 ```
 
-`logs-retention` runs once against a running stack, after the shipper has
-written something. Every backing index the stream rolls over to afterwards
-inherits it. Until it has run, nothing is deleted.
+Run `logs-retention` once against a running stack, after the shipper has
+written something. Until then, nothing is deleted.
 
-`logs-prune` deletes by mtime, so a file a live process is appending to is
-never old enough to take. It goes through the api container, which mounts the
+`logs-prune` deletes by mtime, through the api container, which mounts the
 volume writable.
 
-The volume needs its own target because the file name carries the container.
-`RotatingFileHandler` rotates only its own process's file, and filebeat's
-`ignore_older` and `clean_inactive` age its registry, not the disk.
-
 The retention belongs to the data stream, not to an ILM policy. The index is
-named `qa-logs` and not `qa-logs-<date>`, because a date in the name creates a
-second data stream every midnight. Naming an ILM policy in `filebeat.yml` does
-not work either: Filebeat strips `index.lifecycle` out of the template when
-`setup.ilm.enabled` is false.
-
-`setup.template.overwrite: true` makes an edit to `filebeat.yml` take effect
-at all.
+`qa-logs`, not `qa-logs-<date>`, because a date in the name creates a second
+data stream every midnight. Naming an ILM policy in `filebeat.yml` does not
+work: Filebeat strips `index.lifecycle` from the template when
+`setup.ilm.enabled` is false. `setup.template.overwrite: true` makes an edit
+to `filebeat.yml` take effect at all.
 
 ## What is shipped, and what is not
 
-Only this project's processes are shipped. The other containers (Postgres,
-SeaweedFS, Redis, Elasticsearch itself, Phoenix, Argilla, Grafana, Adminer and
-Filebeat) keep the `json-file` driver and are read with `make logs`.
-Collecting those too would mean reading the engine's own log store. That store
-is in a different place under Docker and Podman and, on macOS, inside a
-virtual machine a bind mount cannot see.
+Only this project's processes. The other containers (Postgres, SeaweedFS,
+Redis, Elasticsearch, Phoenix, Argilla, Grafana, Adminer and Filebeat) keep
+the `json-file` driver and are read with `make logs`.
 
-```bash
-make logs-shipper    # why nothing is arriving, when nothing is arriving
-```
+`make logs-shipper` shows why nothing is arriving.
 
 ## Tests
 
@@ -377,51 +270,37 @@ poetry run pytest tests/unit/telemetry
 
 | File | Covers |
 |---|---|
-| [`test_logs.py`](../tests/unit/telemetry/test_logs.py) | The JSON line the shipper reads: the ECS names, the bound fields, and an exception written whole |
-| [`test_evaluations.py`](../tests/unit/telemetry/test_evaluations.py) | The annotation a verdict becomes, the address it is posted to, a run surviving a Phoenix that is down, and posting again once it is back |
-| [`test_traces.py`](../tests/unit/telemetry/test_traces.py) | That only a run exports, under the project its name gives it, that a span carries the run that queued its row, and only the logic is instrumented |
-| [`test_projects.py`](../tests/unit/telemetry/test_projects.py) | Which Phoenix projects a prune takes back, and which it keeps |
-| [`test_dashboards.py`](../tests/static/test_dashboards.py) | The provisioned dashboards against the datasources and fields that serve them |
-| [`test_log_fields.py`](../tests/static/test_log_fields.py) | Every field the code binds against what the shipper declares |
+| [`test_logs.py`](../tests/unit/telemetry/test_logs.py) | The JSON line and its fields |
+| [`test_evaluations.py`](../tests/unit/telemetry/test_evaluations.py) | Annotations, and a run surviving a Phoenix that is down |
+| [`test_traces.py`](../tests/unit/telemetry/test_traces.py) | Only a run exports, and only the logic is instrumented |
+| [`test_projects.py`](../tests/unit/telemetry/test_projects.py) | Which projects a prune takes back |
+| [`test_dashboards.py`](../tests/static/test_dashboards.py), [`test_log_fields.py`](../tests/static/test_log_fields.py) | Dashboards and bound fields against the datasources and the shipper |
 
 ## Limits
 
-- Nothing is deleted until `make logs-retention` has run once.
-- `make logs-retention` never deletes a file. `make logs-prune` does.
-- The api and the frontend produce no span at all: no exporter, and no Phoenix
-  secret. What they did is in the logs, in full.
-- An HTTP call and an S3 GET produce no span.
-- SQL statements produce no span unless `TRACE_DATABASE` is set.
-- `run.id` is empty on a line a run did not write. It is present and empty
-  rather than absent, so there is one shape of line.
-- A host command leaves a file per invocation.
-- `LOG_DIR` unset means stdout only: a bare `python -m …` in a shell that
-  sourced nothing, and pytest.
-- Editing `filebeat.yml` without `setup.template.overwrite` changes nothing.
-- A new bound field needs adding to `append_fields`, or it arrives as `text`
-  and nothing can group on it.
-- A declared field reaches the template at once and the index at rollover. A
-  data stream's backing index keeps the mapping it was created with.
-- The Elasticsearch heap is shared with Argilla. `ES_JAVA_OPTS` is where to
-  raise it.
+- `make logs-retention` never deletes a file: `make logs-prune` does.
+- The api and the frontend produce no span: no exporter, and no Phoenix
+  secret.
+- An HTTP call and an S3 GET produce no span. SQL statements produce none
+  unless `TRACE_DATABASE` is set.
+- A new bound field needs adding to `append_fields`, or it arrives as `text`.
+  A declared field reaches the template at once and the index at rollover.
+- Elasticsearch shares its heap with Argilla. `ES_JAVA_OPTS` raises it.
 
 ## One server, many databases
 
-Phoenix, Argilla and the log stream are one server for every database on the
-stack, so each name here carries the database. `pipeline.scoped` appends
-`__<database>`, read from `DATABASE_URL`, or from `APP_DB_NAME` where a
-process has no URL. A Phoenix project is `4-extraction__qa_generator`, and
-`make phoenix-purge` takes only the projects that end so. A project filed
-before names carried the database belongs to none and is left unless
-`ALL_DATABASES=1`.
+Each Phoenix, Argilla and log name carries the database. `pipeline.scoped`
+appends `__<database>`, read from `DATABASE_URL` or `APP_DB_NAME`: a Phoenix
+project is `4-extraction__qa_generator`, and `make phoenix-purge` takes only
+the projects that end so. A project filed before names carried the database
+belongs to none and is left unless `ALL_DATABASES=1`.
 
 Every log line carries a `db` field, which `make logs-wipe` deletes by. The
 corpus job tags each Dagster run with the database, and `make dagster-wipe`
 deletes the runs so tagged.
 
-The Phoenix datasets (the golden cases) carry the database too, as
-`<name>__<database>`. `make eval-upload` and `make eval-phrasing` upload this
-database's, and `make phoenix-purge` takes only those unless `KEEP=golden`. A
-set uploaded before names carried the database is taken only with
-`ALL_DATABASES=1`: upload it again under its database's name. Dashboards that
-match a run by project name strip the database suffix.
+Phoenix datasets (the golden cases) are named `<name>__<database>`. `make
+eval-upload` and `make eval-phrasing` upload this database's, and `make
+phoenix-purge` takes only those unless `KEEP=golden`. A set uploaded before
+names carried the database is taken only with `ALL_DATABASES=1`: upload it
+again.
