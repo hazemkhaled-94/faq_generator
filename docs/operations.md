@@ -897,13 +897,18 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
   [Sizing Postgres](#sizing-postgres). Its measure is the 10x load test
   `make test-perf` runs: a dedup probe and a fact write within twice their
   time at the reviewed build's size. On CI's runner the single-pass probe p95
-  was 2.15x in both runs, against the 2x the bar allows (4.4 to 9.5 ms and 4.5
-  to 9.7 ms); the warm probe held at 1.07x and 1.00x and the write at 1.47x and
-  1.66x. The sizing
-  ships with that limit by the user's decision: the database is about 2% of a
-  drain's time at ten times the build. Watch the probe time as the corpus
-  grows, and raise `POSTGRES_MEMORY` and `POSTGRES_SHARED_BUFFERS` by the
-  table's next row if it climbs.
+  was 2.15x in the first two runs (4.4 to 9.5 ms and 4.5 to 9.7 ms) and 7.14x,
+  5.47x and 7.80x in the three on the release's last commits (up to 32.8 ms),
+  against the 2x the bar allows. All five read the same plan and a
+  single-pass median of 6.0 to 6.9 ms at 10x: what moved is the slowest probe
+  in twenty. The warm probe held at 1.00x to 1.29x and the write at 1.21x to
+  1.66x. The sizing ships with that limit by the user's decision, taken on the
+  first two runs: the database is about 2% of a drain's time at ten times the
+  build. At the medians a passage's database time at ten times the build is
+  about 0.13 s, and about 0.5 s with every probe and write at the slowest
+  run's p95. Watch the probe time as the corpus grows, and raise
+  `POSTGRES_MEMORY` and `POSTGRES_SHARED_BUFFERS` by the table's next row if
+  it climbs.
 - **The podman VM's memory** at least what the limits of the services it runs
   add up to ([Memory](#memory)): the eleven the go-live profile starts come to
   about 15 GiB at the shipped sizes, PostgreSQL and the parse worker 4 each and
