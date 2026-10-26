@@ -134,17 +134,33 @@ bits = st.lists(st.integers(0, 1), min_size=2, max_size=30)
 @given(
     constant=st.integers(-3, 3),
     judged=st.integers(1, 30),
-    labels=bits,
+    labels=st.lists(st.integers(0, 1), min_size=2, max_size=2 * MIN_LABELS),
 )
 def test_a_judge_that_never_varies_gives_the_classical_interval(
     constant: int, judged: int, labels: list[int]
 ) -> None:
-    """A constant judge leaves the labels' mean and its own error and interval."""
+    """A constant judge leaves the labels' mean, its own error and its interval.
+
+    The interval the labels alone get: Wilson's under the floor, and from it
+    the t interval, or the rule of three where they leave no spread.
+    """
     result = corrected_mean([constant] * judged, [constant] * len(labels), labels)
     y = np.asarray(labels, float)
+    se = math.sqrt(np.var(y, ddof=1) / len(y))
     assert result.estimate == pytest.approx(y.mean(), abs=1e-9)
-    assert result.se == pytest.approx(math.sqrt(np.var(y, ddof=1) / len(y)), abs=1e-9)
-    assert result.interval() == pytest.approx(wilson(y.mean(), len(y)), abs=1e-9)
+    assert result.se == pytest.approx(se, abs=1e-9)
+    if len(y) < MIN_LABELS:
+        half = None
+    elif se == 0:
+        half = 3 / len(y)
+    else:
+        half = t.ppf(0.975, len(y) - 1) * se
+    assert result.interval() == pytest.approx(
+        wilson(y.mean(), len(y))
+        if half is None
+        else (y.mean() - half, y.mean() + half),
+        abs=1e-9,
+    )
 
 
 @given(
