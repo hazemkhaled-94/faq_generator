@@ -8,6 +8,8 @@ first time the chunk worker or the question worker starts.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 import weights
 
@@ -25,14 +27,7 @@ loads_the_model = pytest.mark.nlp
 @pytest.fixture(scope="module")
 def embedder() -> Embedder:
     """The real embedder, or a skip when its weights are not here."""
-    from huggingface_hub import try_to_load_from_cache
-
-    # The weights, not config.json: the tokenizer caches that on its own,
-    # and a guard reading it downloads 2.2 GB instead of skipping.
-    if not any(
-        isinstance(try_to_load_from_cache(MODEL, name), str)
-        for name in ("model.safetensors", "pytorch_model.bin")
-    ):
+    if not weights.cached(MODEL, os.environ["EMBEDDING_MODEL_REVISION"]):
         weights.unavailable(f"{MODEL}'s weights are not in the cache")
     return Embedder(MODEL, max_tokens=512)
 
@@ -81,6 +76,17 @@ def test_the_model_is_as_wide_as_the_column_that_holds_it(embedder) -> None:
     assert len(embedder.embed("anything at all")) == WIDTH
 
 
+def test_the_guard_finds_weights_fetched_at_their_pinned_commit(tmp_path) -> None:
+    """A fetch by commit writes snapshots/<commit> and no refs/main, as the nightly job's does."""
+    commit = "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"
+    held = tmp_path / "models--intfloat--multilingual-e5-large" / "snapshots" / commit
+    held.mkdir(parents=True)
+    (held / "model.safetensors").write_bytes(b"weights")
+
+    assert weights.cached(MODEL, commit, cache_dir=str(tmp_path))
+    assert not weights.cached(MODEL, "0" * 40, cache_dir=str(tmp_path))
+
+
 def test_cosine_needs_two_vectors_of_the_same_width() -> None:
     """A silent zip would compare the first half of one with all of another."""
     with pytest.raises(ValueError):
@@ -96,7 +102,11 @@ def test_a_passage_cut_to_the_chunk_budget_fits_the_embedder() -> None:
     from preprocessing.chunking.passages import PassageBuilder
 
     try:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL, local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(
+            MODEL,
+            local_files_only=True,
+            revision=os.environ["EMBEDDING_MODEL_REVISION"],
+        )
     except Exception as exc:  # noqa: BLE001 - any failure is the same answer
         weights.unavailable(f"{MODEL} is not in the cache: {exc}")
     budget = PassageBuilder(

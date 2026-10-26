@@ -29,14 +29,7 @@ MODEL = os.environ["EMBEDDING_MODEL"]
 @pytest.fixture(scope="module")
 def embedder():
     """The real embedder, or a skip when its weights are not cached."""
-    from huggingface_hub import try_to_load_from_cache
-
-    # The weights, not config.json: the tokenizer caches that on its own,
-    # and a guard reading it downloads 2.2 GB instead of skipping.
-    if not any(
-        isinstance(try_to_load_from_cache(MODEL, name), str)
-        for name in ("model.safetensors", "pytorch_model.bin")
-    ):
+    if not weights.cached(MODEL, os.environ["EMBEDDING_MODEL_REVISION"]):
         weights.unavailable(f"{MODEL}'s weights are not in the cache")
     from nlp.embedding import Embedder
 
