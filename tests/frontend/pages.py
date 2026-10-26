@@ -907,6 +907,10 @@ class View:
         """The file picker, which only the upload page has."""
         return list(self.app.get("file_uploader"))
 
+    def in_order(self, *kinds: str) -> list[Any]:
+        """The elements of the named kinds, in the order the page draws them."""
+        return [node for node in self.app.main if getattr(node, "type", None) in kinds]
+
     def table_with(self, column: str):
         """The one table carrying a named column.
 

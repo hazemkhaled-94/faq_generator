@@ -1031,11 +1031,7 @@ def test_the_upload_page_names_its_caps_before_anything_is_chosen(open_view) -> 
     from lib import config
 
     page = open_view("upload")
-    order = [
-        node
-        for node in page.app.main
-        if getattr(node, "type", None) in ("caption", "file_uploader")
-    ]
+    order = page.in_order("caption", "file_uploader")
     first_caption = next(at for at, node in enumerate(order) if node.type == "caption")
     picker = next(at for at, node in enumerate(order) if node.type == "file_uploader")
     said = str(order[first_caption].value)
