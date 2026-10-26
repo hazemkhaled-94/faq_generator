@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -44,6 +45,11 @@ from database.qa_generator import Base, engine
 log = logging.getLogger(__name__)
 
 MANIFEST = "manifest.json"
+
+#: What a backup's folders and files may be read by: their owner alone. A
+#: backup holds every customer document, its parse and the archive, whatever
+#: umask the operator's shell has.
+_PRIVATE = 0o077
 
 #: The buckets this project keeps, by the classes that own them.
 _NAMED = [
@@ -230,7 +236,14 @@ def main(argv: list[str] | None = None) -> int:
         if (directory / MANIFEST).exists():
             log.error("%s already holds a backup; use an empty directory", directory)
             return 2
-        backup(directory)
+        before = os.umask(_PRIVATE)
+        try:
+            for folder in (directory, directory / "db"):
+                folder.mkdir(parents=True, exist_ok=True)
+                folder.chmod(0o700)
+            backup(directory)
+        finally:
+            os.umask(before)
         return 0
     directory = Path(args.restore or args.verify)
     if args.restore:

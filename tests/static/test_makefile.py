@@ -1303,10 +1303,26 @@ def test_a_rewriting_host_command_names_the_database_it_acts_on(target: str) -> 
 
 
 def test_a_backup_is_written_readable_by_its_owner_alone() -> None:
-    """The Argilla dump holds the owner's API key in clear."""
+    """Every line that writes under DIR does it under umask 077.
+
+    The dumps hold every row and the Argilla dump the owner's API key in
+    clear; the objects are every customer document. Each recipe line is a
+    shell of its own, so one line's umask covers no other.
+    """
     lines = printed("backup", "DIR=/backups/x", "ARGILLA=1")
-    dumped = next(at for at, one in enumerate(lines) if "pg_dump" in one)
-    assert any("umask 077" in one for one in lines[: dumped + 1]), lines
+    commands = "\n".join(lines).replace("\\\n", " ").splitlines()
+    writing = [
+        one
+        for one in commands
+        if any(verb in one for verb in ("mkdir", "pg_dump", "archive.backup --backup"))
+    ]
+
+    assert any("mkdir" in one for one in writing), lines
+    assert any("pg_dump" in one for one in writing), lines
+    assert any("archive.backup --backup" in one for one in writing), lines
+    for one in writing:
+        assert "umask 077" in one, one
+    assert any('chmod 700 "/backups/x"' in one for one in writing), lines
 
 
 def test_the_stack_restore_says_what_it_rolls_back_and_what_it_does_not() -> None:

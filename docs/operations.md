@@ -450,6 +450,9 @@ five buckets, read through the stack's S3 endpoint; and `manifest.json`, the
 row count of every table of the application database and the key, size and
 sha256 of every object and dump. It never copies `.env`, `provider.env` or a
 certificate key: keep those where you keep secrets. `DIR` must hold no backup.
+Every folder and file it writes there, `DIR` itself included, is readable by
+its owner alone (700 and 600), whatever the shell's umask: the objects are
+every customer document.
 
 Argilla's database is left out. Its users table holds the owner's API key in
 clear, so a dump of it is a secret, and a backup folder is copied off the

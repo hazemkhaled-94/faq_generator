@@ -1800,11 +1800,11 @@ backup:
 	@[ -n "$(DIR)" ] || { echo "usage: make backup DIR=<directory>"; exit 2; }
 	@[ ! -e "$(DIR)/manifest.json" ] || { echo "REFUSED: $(DIR) already holds a backup." >&2; exit 2; }
 	@echo "A worker still running writes while this copies: the dumps, the objects and the row counts are of different moments. Stop the workers first (docs/operations.md, Backups)." >&2
-	@mkdir -p "$(DIR)/db"
+	@umask 077 && mkdir -p "$(DIR)/db" && chmod 700 "$(DIR)" "$(DIR)/db"
 	$(LOADENV) && umask 077 && for name in $$APP_DB_NAME $$SEAWEEDFS_DB_NAME $$PHOENIX_DB_NAME $$DAGSTER_DB_NAME $(if $(filter 1,$(ARGILLA)),$$ARGILLA_DB_NAME); do \
 	  $(COMPOSE_CMD) exec -T postgres sh -c "pg_dump -Fc -U \"\$$POSTGRES_USER\" -d $$name" > "$(DIR)/db/$$name.dump" || exit 1; \
 	done
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m archive.backup --backup "$(DIR)"
+	$(LOADENV) && umask 077 && PYTHONPATH=backend poetry run python -m archive.backup --backup "$(DIR)"
 
 # Put one database back from a backup: pg_restore of the application database
 # alone and the objects under its own prefix, each checked against the manifest.
