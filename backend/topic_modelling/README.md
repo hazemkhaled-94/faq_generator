@@ -1,223 +1,121 @@
 # Topic modelling
 
-Finds what a corpus is about: the groups of words that tend to appear
-together, one model per language, over the corpus's own vocabulary.
+Finds what a corpus is about: groups of words that tend to appear together,
+one model per language, built from the corpus's own vocabulary. Nothing is
+pretrained, so no word list or domain model has to be supplied.
 
-Nothing here is pretrained and the fit embeds nothing, so no word list,
-ontology or domain model has to be supplied. A passage the fit places in no
-topic joins its language's nearest topic by the passage vectors stored with
-`EMBEDDING_MODEL`.
-
-Question generation works one topic at a time, so a topic is the unit of
-work, the unit of coverage reporting, and what makes a question's subject
-measurable. A corpus with no topics generates no questions.
-
-`tests/static/test_topics_pinned.py` pins this service's surface — the
-routes it serves, that every setting it names is catalogued, and the
-sections of this README.
+Question generation works one topic at a time. A corpus with no topics
+generates no questions.
 
 ## What it does
 
-Chunking has already stored each passage's language and its content lemmas.
-Only the passages carrying a validated fact are fitted, where a language has
-any: a heading, a page number or a contents page extraction found nothing in
-still has lemmas, and fitted with the rest it padded topics and named them.
-For each language separately this service builds a vocabulary, drops the
-terms too rare or too common to distinguish anything, weights the rest by
-tf-idf, and factorises the passage-by-term matrix into a small number of
-non-negative components. Each component is a topic. Every passage is then
-scored against the fitted model, a served model names each topic from its
-terms, and the whole model is drawn as an interactive figure.
+For each language separately, the service builds a vocabulary from the
+passages' content lemmas, drops terms that are too rare or too common, weights
+the rest by tf-idf and factorises the passage-by-term matrix into
+non-negative components. Each component is a topic. Every passage is scored
+against the model, a served model names each topic, and the model is drawn as
+a figure.
 
-**One model per language**, because a mixed corpus fitted as one model spends
-its topics telling the languages apart — "delivery" and "Lieferung" are the
-same subject and share no characters. The cost is that topic numbers are only
-meaningful within a language.
+Only passages carrying a validated fact are fitted, where a language has any.
+Each language has its own model, so topic numbers mean something only within a
+language.
 
-**A fit is always the whole corpus.** Non-negative matrix factorisation
-estimates every component jointly, so there is no refitting one topic: adding
-a document makes all of them stale. That is why this stage has no per-item
-controls and no `start` — a fit is asked for, and one ask replaces the model
-of every language it fits. Gensim's `Nmf.update()` is deliberately not used:
-the vocabulary is fixed when the model is constructed, so a new document's
-novel terms would be silently dropped.
-
-Factorisation rather than LDA, and a passage rather than a sentence, are both
-measured choices — see [measurements](../../docs/measurements.md).
+A fit is always the whole corpus. The components are estimated jointly, so one
+topic cannot be refitted, and adding a document makes every topic stale. This
+stage has no per-item controls and no `start`: one fit request replaces the
+model of every language it fits.
 
 ### The steps
 
-`topics` is both the queue and the result: a row whose `topic_index` is NULL
-is an outstanding request, and a row that has one is a topic.
+`topics` is both the queue and the result. A row with a NULL `topic_index` is
+an outstanding request. A row with an index is a topic.
 
-1. **Claim the request.** The oldest row that is both outstanding and
-   `pending`, with `FOR UPDATE SKIP LOCKED`.
-2. **List the languages** present in `passages.language`. A passage with no
-   language is in no model; `GET /topics/fit` reports how many there are. If
-   no passage carries one, the fit fails saying to chunk the corpus first.
-3. **Build the vocabulary** from `passages.lemmas`, streamed by id in batches
-   of 500. The lemmas are read, not computed. What the fitter takes is a
-   callable returning a fresh walk, because a fit reads the corpus once to
-   build the vocabulary, once to read each passage's tf-idf vector (which it
-   holds), and for each of its eight draws once per pass to fit and once more
-   to score. A language whose passages are all one text, one passage or copies
-   of it, is not fitted: it gets one topic holding them, its most frequent
-   lemmas as terms, so the facts it carries still reach a question unit.
-4. **Filter it.** `filter_extremes` drops terms below `TOPIC_NO_BELOW`
-   passages and above `TOPIC_NO_ABOVE` of them. Two failures are raised
-   rather than fitted through: an empty vocabulary, and a vocabulary whose
-   every surviving term has an idf of zero, which would make every topic
-   `NaN`. A language too small to split, with fewer distinct passages than
-   two topics' worth of `TOPIC_PASSAGES_PER_TOPIC` (or than `TOPIC_NUM_TOPICS`
-   with that sizing off), whose passages the filter or tf-idf cannot tell
-   apart gets the one topic of step 3 instead of either failure. Two distinct
-   passages that cannot be told apart still fail at `TOPIC_NUM_TOPICS=2` with
-   the sizing off, since two passages are then enough to split.
-5. **Fit.** `Nmf` over as many components as `TOPIC_NUM_TOPICS` and
-   `TOPIC_PASSAGES_PER_TOPIC` allow and `TOPIC_PASSES` passes, eight times,
+1. Claim the request: the oldest row that is outstanding and `pending`, with
+   `FOR UPDATE SKIP LOCKED`.
+2. List the languages in `passages.language`. A passage with no language is in
+   no model, and `GET /topics/fit` reports how many. If no passage has a
+   language, the fit fails and says to chunk the corpus first.
+3. Build the vocabulary from `passages.lemmas`, streamed by id in batches of
+   500. A language whose passages are one text, or copies of it, is not
+   fitted. It gets one topic holding them.
+4. Filter the vocabulary. `filter_extremes` drops terms in fewer than
+   `TOPIC_NO_BELOW` passages or more than `TOPIC_NO_ABOVE` of them. The fit
+   fails on an empty vocabulary, and on one whose terms all have an idf of
+   zero. A language with fewer distinct passages than two topics' worth of
+   `TOPIC_PASSAGES_PER_TOPIC` (or than `TOPIC_NUM_TOPICS` with that sizing
+   off), whose passages the filter cannot tell apart, gets the one topic of
+   step 3 instead of failing.
+5. Fit `Nmf` with the components `TOPIC_NUM_TOPICS` and
+   `TOPIC_PASSAGES_PER_TOPIC` allow and `TOPIC_PASSES` passes, in eight draws
    seeded from `TOPIC_RANDOM_STATE` on. The draw kept is the one whose topics'
-   members are most alike, as the mean cosine of their tf-idf vectors: seeds
-   over one corpus differ in that by as much as two rebuilds did.
-6. **Read the topics out.** `TOPIC_TOP_TERMS` highest-weighted terms each.
-7. **Score every passage.** One walk produces the memberships (every weight
-   at least `TOPIC_RELATIVE_WEIGHT` times the passage's strongest, which is
-   always kept, clamped to 1.0), the passages placed in no
-   topic, and the whole fitted space the figure needs.
-8. **Carry what a person decided.** `carry_labels` takes an old topic and
-   a new one for the same topic when each holds more than half of the
-   other's dominant passages: all of the old topic's, so one passage left of
-   many cannot carry a decision onto a topic of passages new to the corpus,
-   and the new topic's among the passages both fits hold, so a topic grown
-   by new passages still matches. Two topics cannot both hold more than half
-   of one, so there is no threshold to set and no decision lands twice. A
-   person's name, the coverage choice and when it was made travel; a
-   model's name does not, and the new topic is named again in step 9. A
-   decision matching no topic - after a re-chunk no passage is held by both
-   fits - is logged as a warning and counted on the span as
-   `topic.decisions_dropped`, beside `topic.decisions_carried`. A decision
-   a person makes while the fit runs, after this read, is carried the same
-   way in step 10, under a lock on the rows it replaces; one this read saw
-   is not carried, logged or counted there again. Two are not carried: an
-   undo made while the fit runs - a name cleared, a topic put back in
-   coverage - so the new topic keeps the decision read here; and a decision
-   `make review-pull-topics` records with the time it was given in the
-   review, when that is before the fit was asked for.
-9. **Name the unnamed topics.** Only topics holding no label are offered to
-   the model, 25 to a call and each call told the names the calls before it
-   gave, so it sees a set it can tell the topics of apart and a prompt of
-   hundreds of topics is never sent. A call the model cannot answer is split
-   once into two halves, each asked on its own; a half refused too leaves its
-   topics unnamed and the other calls named. `make topics-name` names the
-   topics a fit left unnamed off the stored memberships, with no refit, and
-   leaves a topic that has a name as it is. For each topic it is shown the terms and up to four
-   excerpts, and it is told which language to answer in. The excerpts are passages the topic is strongest
-   in, those carrying a validated fact when any does, ranked by weight times
-   lemma count: a heading can sit wholly in one topic and say nothing a name
-   could be read off. What the model answers is held to the excerpts: a word
-   they print takes their spelling, case aside (`Grosskunden` where the
-   model wrote `Großkunden`); a letter they never use is folded; and two or
-   more trailing words that more than half of three or more names end on —
-   the domain the whole corpus shares — are taken off, but only when they are a
-   prepositional phrase (`im Fussball`, `in banking`: the first word tagged
-   as an adposition by the language's pipeline), so a name is never cut to a
-   dangling `Fees for` or a lone `Debit`. A topic the model flags
-   `no_subject` is stored as no name, whatever language it would have said so
-   in. `labelled_by` records `person` or the model identifier.
-10. **Replace the fitted languages, in one transaction** for all of them. A
-    language the fit skipped keeps its topics and memberships; one that no
-    passage carries any more, its last document removed, loses its topics,
-    since no fit would reach them again, and its figure and model are archived
-    with them; each decision a person made on
-    them is logged as a warning. The fit's own span counts those, and those
-    made during the fit that match no topic, in `topic.decisions_dropped`
-    with every decision a language's carry dropped. Topic ids are read back
-    after the insert rather than from `RETURNING`, whose row order for an
-    `executemany` is not guaranteed, and are keyed by
-    `(language, topic_index)`. A passage the fit placed in no topic — the
-    vocabulary filter dropped its words, so it holds no
-    term — joins its language's topic whose centroid is nearest, held as
-    weakly as the fit holds any passage of that language; one with no
-    vector stays out, and only those are counted as in no topic, in the
-    stored count and the warning alike. If the request was withdrawn, or
-    swept and claimed again, after this fit claimed it, the fit writes
-    nothing, keeps no model and draws no figure.
-11. **Keep the model and draw the figure**, after the topics are written, so
-    a failure here is logged and left. Each language's previous model and
-    figure go to the `archive` bucket first. `pyLDAvis` is imported inside
-    the function. Two shims are marked `ponytail:` — the complex residue
-    from `js_PCoA`'s eigendecomposition, and a log of zero in the relevance
-    ranking.
+   members are most alike.
+6. Read out the `TOPIC_TOP_TERMS` highest-weighted terms of each topic.
+7. Score every passage. A membership is every topic whose weight is at least
+   `TOPIC_RELATIVE_WEIGHT` times the passage's strongest, which is always
+   kept. Weights are clamped to 1.0.
+8. Carry over what a person decided. `carry_labels` matches an old topic to a
+   new one when each holds more than half of the other's dominant passages,
+   counted over the passages both fits hold. A person's name, coverage choice
+   and decision time are carried. A model's name is not. A decision matching
+   no topic is logged as a warning and counted on the span as
+   `topic.decisions_dropped`. A decision made while the fit runs is carried
+   too, but an undo made then, and a `make review-pull-topics` decision dated
+   before the fit was requested, are not.
+9. Name the unnamed topics. Only topics with no label are offered to the
+   model, 25 to a call, each call told the names the earlier calls gave. A
+   call the model cannot answer is split once into two halves. The model sees
+   each topic's terms and up to four excerpts (passages the topic is strongest
+   in, those with a validated fact first), and is told which language to answer
+   in. A trailing phrase shared by more than half of three or more names, such
+   as `im Fussball` or `in banking`, is removed. A topic the model flags
+   `no_subject` is stored with no name. A topic that is no passage's strongest
+   is never offered. `labelled_by` records `person` or the model.
+   `make topics-name` names the topics a fit left unnamed, with no refit.
+10. Replace the fitted languages in one transaction. A language the fit
+    skipped keeps its topics and memberships. A language no passage carries
+    any more loses its topics, and its figure and model move to the `archive`
+    bucket. A passage placed in no topic joins its language's topic with the
+    nearest centroid. A passage with no vector stays out. If the request was
+    withdrawn or claimed again meanwhile, the fit writes nothing.
+11. Keep the model and draw the figure. This runs after the topics are
+    written, so a failure is logged and left. The previous model and figure go
+    to the `archive` bucket first.
 
-On failure the previous topics stay exactly as they were, readable beside the
-reason. One language the fitter refuses is logged and left out; the run fails
-only if no language produced a model.
+On failure, the previous topics stay as they were, beside the reason. A
+language the fitter refuses is logged and left out. The run fails only if no
+language produced a model.
 
-Where `LLM_MODEL` is set, the worker asks the naming model (`TOPIC_MODEL`,
-or `LLM_MODEL` without one) one question before claiming the request. See
+Where `LLM_MODEL` is set, the worker asks the naming model (`TOPIC_MODEL`, or
+`LLM_MODEL` without one) one question before claiming the request. See
 [`backend/llm/`](../llm/README.md).
-
-### Where a topic sits
-
-`topics.embedding` is the mean of the vectors of the passages a topic holds,
-normalised to length 1, written in SQL out of `passages.embedding` by every
-fit. The fit reads it to place a passage it put in no topic, and writes it
-again once those are in.
-
-No HNSW index on that column: a fit is tens of rows.
-
-A topic is offered to the labeller only when it is some passage's main topic:
-one that is nobody's strongest holds no fact and has no excerpt to read a name
-off, so it stays unnamed. That reads the memberships rather than the terms,
-which is what keeps it language-neutral. The labeller is also shown the names
-already given and refuses one it repeats, or one it gives two topics of the
-same call.
 
 ### Limits of the output
 
-Properties of the input, not defects here. Figures in
-[measurements](../../docs/measurements.md).
+Figures are in [measurements](../../docs/measurements.md).
 
-- **Title-cased foreign text reaches the German vocabulary.** Every word in a
-  title-cased English heading is capitalised, so the rule that drops
-  lower-case nouns as foreign does not fire. Fixing it needs a signal other
-  than case in `backend/nlp/analysis.py`.
-- **German compounds fragment the vocabulary.** `Gewerbeimmobilienmärkte` is
-  one term where English writes three the factorisation can share across
-  topics. A decompounder in chunking would be the fix.
-- **Some German topics are document apparatus** — table headers, figure
-  captions, financial-statement scaffolding. That is what
-  `include_in_coverage` is for, and a refit needs a few minutes of review.
+- Title-cased foreign text reaches the German vocabulary.
+- German compounds fragment the vocabulary: `Gewerbeimmobilienmärkte` is one
+  term where English writes three words.
+- Some topics are document apparatus, such as table headers. A person
+  excludes them with `include_in_coverage`, so a refit needs a few minutes of
+  review.
 
 ## Inputs and outputs
 
-**Reads:** `topics` (the queue), `passages.language`, `passages.lemmas`,
-`passages.text` for excerpts, `passages.block_type` and `doc_sha256` and
-`facts.validated` for reporting.
+**Reads:** `topics`, `passages` (language, lemmas, text, block type) and
+`facts.validated`.
 
-**Writes:** `topics`, one row per topic per language; `passage_topics`, one
-row per passage-topic pair kept by the relative weight;
-`topics/<database>/<language>.npz` in the `models` bucket; and
-`topics/<database>/<language>.html` in the `export` bucket, `<database>`
-being the path of `DATABASE_URL`, moving the previous fit's two into the
-`archive` bucket.
+**Writes:**
 
-### The model and the picture of it are two artefacts
+- `topics`: one row per topic per language.
+- `passage_topics`: one row per passage-topic pair kept by the relative
+  weight.
+- `topics/<database>/<language>.npz` in the `models` bucket, the factorisation.
+- `topics/<database>/<language>.html` in the `export` bucket, the figure.
 
-`models` holds the **factorisation**; `export` holds a pyLDAvis page drawn
-from it. Until `models` existed, a fit's one durable trace was a view of
-itself with d3 inlined, and the matrix it was drawn from went out of scope
-when scoring returned — so the disposable half was the kept half.
-
-They have opposite durability contracts: the picture is derivable from the
-model, and the model is derivable from nothing short of another fit. See
+`<database>` is the path of `DATABASE_URL`. The previous fit's files move to
+the `archive` bucket. See
 [`blob_store/`](../blob_store/README.md#the-five-buckets).
-
-`.npz` rather than gensim's own `Nmf.save()`, which is pickle underneath. A
-pickle is a promise about the class that wrote it, so a gensim upgrade can
-make last year's fit unloadable — which is the one thing keeping it was
-for. Five arrays and a version tag load in anything that has numpy. It is
-compressed because a term-topic matrix is mostly zeros: a factorisation
-puts a term in few of its topics, and deflate is very good at that.
 
 | Route | Answers |
 |---|---|
@@ -231,94 +129,67 @@ puts a term in few of its topics, and deflate is very good at that.
 | `POST /topics/retry` | Returns a failed fit to the queue |
 | `DELETE /topics?confirm=true` | Deletes every topic, membership, stored model and figure into the archive, which `make restore-documents` restores from |
 
-There is no `POST /topics/start` and no `/topics/rerun`: asking is what
-creates the work, and a fit has no scope to narrow to.
-
 **Command line:** `python -m topic_modelling.run`. `--status`, `--discover`,
-`--stop`, `--retry` and `--delete` do what their routes do, `--visualise`
-writes the figures the visualisation route serves, and `--render` redraws
-them from the stored models with no route of its own. The listing, the fit
-state and the label edit have no flag.
-`--discover` queues and drains in one go; `--watch` is what the worker
-container runs. Every flag but `--watch` has a `make` target.
+`--stop`, `--retry` and `--delete` do what their routes do. `--visualise`
+writes the figures, and `--render` redraws them from the stored models.
+`--discover` queues and drains in one go. `--watch` is what the worker runs.
 
-`make topics-discover` is the fit on the host, the first one as much as every
-refit: neither `make corpus` nor the Dagster corpus job asks for one. Bare
-`make topics` drains only a fit already queued. `make topics-status` also
-reports how many passages are in no topic.
+`make topics-discover` runs a fit on the host, first or refit.
+Neither `make corpus` nor the Dagster corpus job requests one. Bare
+`make topics` drains only a fit already queued. `make topics-status` reports
+how many passages are in no topic.
 
-A refit keeps `question_status` `generated` on a new topic that is an old
-generated one (`matches`: each holds more than half of the other's dominant
-passages) and holds no passage the old fit did not, so adding a document asks
-again only about the topics that gained its passages. A passage with no
-vocabulary joins its nearest topic after the fit and is not counted in this.
+A refit keeps `question_status` as `generated` on a new topic that matches an
+old generated one and holds no new passage.
+
 A fit request, `DELETE /topics` and `make topics-delete` are refused (409
-`questions_running`, or exit 1) while a topic holds a live question claim: one
+`questions_running`, or exit 1) while a topic holds a live question claim, one
 the worker beat within the queue's lease. A fit that finds one at the end fails
-with the same message, and `make topics-retry` returns it to the queue.
+with the same message. `make topics-retry` returns it to the queue.
 
-A refit that changed the topics leaves stored questions with the topic scope
-(`single` or `multi`) and difficulty band of the old fit: `reverify` skips
-the topic scope, which a refit moves. After it run `make questions-reverify`
-and then `make questions-rescore`, in that order, so a question that lost a
-citation is still caught as `source_changed` before the rescore makes its
-scope current.
+After a refit that changed the topics, run `make questions-reverify` and then
+`make questions-rescore`, in that order, so stored questions take the new topic
+scope and band, and one that lost a citation is caught as `source_changed`
+first.
 
 ### The database
 
-`topics` carries two queues at once: `status` is this stage's and
-`question_status` is question generation's. A CHECK named
-`topics_modelled_is_a_topic` enforces that a `modelled` row has an index, a
-language and at least one term. `(language, topic_index)` is unique; NULLs do
-not collide.
+`topics` carries two queues: `status` is this stage's and `question_status` is
+question generation's. A CHECK requires a `modelled` row to have an index, a
+language and at least one term. `(language, topic_index)` is unique.
 
-`topics` has no foreign key to anything. `passage_topics` cascades from both
-sides, so re-chunking a document takes its memberships with it — which is
-what leaves a model stale, and what `GET /topics/fit` makes visible. It
-counts the live passages as a fit reads them, those carrying a validated
-fact or every one of a language holding none, so a fit is not stale the
-moment it is written, and a passage gaining its first fact makes it stale.
-
-The dominant topic is derived, not stored. It is declared once as `DOMINANT`
-beside the table because two services read it, with `DISTINCT ON` so two
-topics tied at the same weight yield one row.
+`passage_topics` cascades from both sides, so re-chunking a document removes
+its memberships and leaves the model stale, which `GET /topics/fit` shows. The
+dominant topic is derived, not stored.
 
 ## Configuration
 
-Read from the environment with the values stored on the settings page over
-it, with no default in code; a watching worker rebuilds when a setting
-changes. `TOPIC_MODEL` and `LLM_MODEL` are fixed: served read-only and never
-stored, so changing one needs a restart. The values are in
+Settings come from the environment, overridden by values stored on the
+settings page, with no default in code. A watching worker rebuilds when one
+changes. `TOPIC_MODEL` and `LLM_MODEL` are served read-only and never stored,
+so changing one needs a restart. Values are in
 [`configs/env/backend.env`](../../configs/env/backend.env), and `LLM_MODEL`'s
 in `.env`.
-Changing any of the first eight changes what the topics are, and there is no
-partial refit.
+
+Changing any of the first eight changes what the topics are. There is no
+partial refit: run `make topics-discover`.
 
 | Setting | What it does |
 | --- | --- |
-| `TOPIC_PASSAGES_PER_TOPIC` | How many passages one topic is worth. Above 0 this turns `TOPIC_NUM_TOPICS` into a ceiling and fits `passages / this`, floored at 2, counting the passages that carry a validated fact once the language has any. `0` turns it off |
-| `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2. Shipped at 300, which a language of 12,000 passages reaches at the shipped `TOPIC_PASSAGES_PER_TOPIC`; the topic worker's memory and the naming calls, 25 topics each, are what bound it |
+| `TOPIC_PASSAGES_PER_TOPIC` | How many passages one topic is worth. Above 0 it turns `TOPIC_NUM_TOPICS` into a ceiling and fits `passages / this`, at least 2, counting the passages that carry a validated fact. `0` turns it off |
+| `TOPIC_NUM_TOPICS` | Topics per language, and the ceiling above. At least 2. Shipped at 300 |
 | `TOPIC_PASSES` | Times the factorisation walks the corpus |
-| `TOPIC_RANDOM_STATE` | Seed of the first of the fit's eight draws. Fixed, so the same passages read in the same order give the same topics. The fit reads them by id, and another order can give other topics: a document whose passages are deleted and chunked again (`make delete-derived`) comes back under new ids, is read last, and can regroup the passages of other documents. A re-chunk keeps an unchanged passage's id |
+| `TOPIC_RANDOM_STATE` | Seed of the first of the eight draws. The same passages in the same order give the same topics. A document deleted and chunked again (`make delete-derived`) returns under new ids and can regroup other documents' passages |
 | `TOPIC_TOP_TERMS` | Terms stored as a topic's signature |
-| `TOPIC_RELATIVE_WEIGHT` | The share of a passage's strongest membership weight another must reach to be stored. In `(0, 1)`. It replaces `TOPIC_MIN_WEIGHT`, an absolute floor that was a share of one over the topic count and so moved with it; a row stored under `TOPIC_MIN_WEIGHT` stops the topic stage, naming this setting, until it is deleted (see the settings README), and `make topics-discover` refits the topics to apply the new setting |
+| `TOPIC_RELATIVE_WEIGHT` | The share of a passage's strongest weight another must reach to be stored. In `(0, 1)`. A stored row named `TOPIC_MIN_WEIGHT` stops the topic stage until it is deleted (see the settings README) |
 | `TOPIC_NO_BELOW` | Drop a term appearing in fewer than this many passages |
 | `TOPIC_NO_ABOVE` | Drop a term appearing in more than this share. In `(0, 1]` |
 | `TOPIC_LANGUAGE_NAMES` | ISO code to language name, for the naming prompt |
 | `TOPIC_MODEL` | The model that names a topic. Read only when `LLM_MODEL` is set |
 | `LLM_MODEL` | What `TOPIC_MODEL` falls back to. Without it, topics are fitted but not named |
 
-Not configurable, on purpose: how many excerpts the labeller sees (4), how
-much of each (400 characters), the figure's bar-chart length (30) and the
-streaming batch size (500). `include_in_coverage` is a per-topic human
-decision with no rule behind it.
-
-## The user interface
-
-The Topics page is the whole service in one screen: the stored model's
-figures, a model-health row per thing that has to hold, every topic with its
-terms and size, the pyLDAvis map, one topic's own controls, the three
-corpus-wide fit controls, and delete behind a confirmation.
+Fixed in code: excerpts per naming call (4), excerpt length (400 characters),
+the figure's bar-chart length (30) and the streaming batch size (500).
 
 ## Tests
 
@@ -326,22 +197,11 @@ corpus-wide fit controls, and delete behind a confirmation.
 
 | Layer | Covers |
 |---|---|
-| Unit | The fitter, the labeller, the visualisation, the stored model, the service flow, the wiring, the command line, reporting and what reaches the vocabulary |
-| Regression | One test per defect this service has had, named for the symptom |
-| Property | Invariants over generated corpora: every weight a probability, every passage placed or counted, a seeded fit reproducible |
+| Unit | The fitter, the labeller, the visualisation, the service flow and reporting |
+| Regression | One test per defect |
+| Property | Every weight a probability, every passage placed or counted, a seeded fit reproducible |
 | Integration | Both repositories against a migrated Postgres, and all nine routes |
-| Frontend | The page against a scripted backend, including every refusal |
+| Frontend | The Topics page against a scripted backend |
 | Static | The pinned surface |
 
-Most tests act through an object rather than the code under test directly —
-`FitterDriver`, `FittingDriver`, `LabellerDriver`, `ServiceDriver` and
-`CommandDriver` in `tests/unit/topics/topic_drivers.py`, `TopicStore` and
-`TopicsApi` in `tests/integration/topics.py`, and the `View` in
-`tests/frontend/pages.py` that `open_view("topics")` opens.
-
-The quality of the topics themselves is not asserted. Whether the number of
-topics is right is a measurement, and a threshold on coherence would fail on
-somebody else's corpus rather than on a regression. What is asserted is that
-the prompt carries what it should, that a topic flagged `no_subject` is stored
-as no name, and
-that an unreachable model does not lose the fit.
+The quality of the topics is not asserted. It is a measurement.
