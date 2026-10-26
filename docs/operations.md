@@ -903,7 +903,7 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
   single-pass median of 6.0 to 6.9 ms at 10x: what moved is the slowest probe
   in twenty. The warm probe held at 1.00x to 1.29x and the write at 1.21x to
   1.66x. The sizing ships with that limit by the user's decision, taken on the
-  first two runs: the database is about 2% of a drain's time at ten times the
+  first two runs and confirmed on all five: the database is about 2% of a drain's time at ten times the
   build. At the medians a passage's database time at ten times the build is
   about 0.13 s, and about 0.5 s with every probe and write at the slowest
   run's p95. Watch the probe time as the corpus grows, and raise
