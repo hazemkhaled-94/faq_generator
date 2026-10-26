@@ -169,7 +169,7 @@ that is gone (`twin_id` set NULL). `make delete` and `make delete-derived` run
 or the UI, the worker replays the dedup when its queue is empty; with no worker
 running, run `make extract-dedup`. It is also the recovery when the replay of a
 `make delete` fails. `make extract-dedup` re-decides every stored refusal under
-the current rule, gives back those the rule would no longer make, and re-judges
+the current rule, gives back those it would not make, and re-judges
 and re-caps their passages, with no model call. It, `extract-revalidate` and
 `extract-recap` refuse to run while the `extract-worker` container drains the
 queue.
