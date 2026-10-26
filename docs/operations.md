@@ -1260,7 +1260,7 @@ undone.
    `assessment_cannot_run` before touching any verdict when the assessment
    cannot run.
 
-## Upgrading to v0.3.36 to v0.3.2
+## Upgrading to v0.3.2 through v0.3.36
 
 Each is rebuild and `make up` with no setting change, unless noted. A stack on
 v0.3.12 uses the v0.4.0 section instead.
