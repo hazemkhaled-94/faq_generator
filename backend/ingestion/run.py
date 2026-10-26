@@ -18,7 +18,8 @@ from ingestion.config import Settings
 from ingestion.factory import build_removal, build_service
 from ingestion.models import UploadedFile
 from settings.runs import run_id
-from settings.store import resolved
+from settings.store import StoredRefused, snapshot
+from stages.cli import REFUSED
 
 log = logging.getLogger(__name__)
 
@@ -100,7 +101,8 @@ def main(argv: list[str] | None = None) -> int:
         argv: Arguments to parse, defaulting to the process's own.
 
     Returns:
-        0, or 1 when no document has the given digest.
+        0, 1 when no document has the given digest or a file was refused, or
+        3 when a stored setting the catalogue refuses stops `--add`.
     """
     args = _parser().parse_args(sys.argv[1:] if argv is None else argv)
 
@@ -125,8 +127,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.add:
         # The limits the Upload page applies, a value stored there included,
-        # so a file the page refuses is refused here too.
-        return _add(args.add, build_service(Settings.load(resolved())))
+        # read through the same audit, so a file or a stored row the upload
+        # route refuses is refused here too.
+        try:
+            source, _ = snapshot("ingestion")
+        except StoredRefused as refusal:
+            log.error("ingestion will not start: %s", refusal)
+            return REFUSED
+        return _add(args.add, build_service(Settings.load(source)))
 
     removal = build_removal()
     if args.delete_all:

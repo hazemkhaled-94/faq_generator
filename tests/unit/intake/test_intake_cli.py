@@ -26,7 +26,9 @@ def quiet(monkeypatch) -> None:
     And from reading the stored settings, which live in the database: the
     environment stands in for them.
     """
-    monkeypatch.setattr(ingestion_run, "resolved", lambda: dict(os.environ))
+    monkeypatch.setattr(
+        ingestion_run, "snapshot", lambda *_: (dict(os.environ), "v1"), raising=False
+    )
     for module in (ingestion_run, parsing_run, chunking_run):
         monkeypatch.setattr(module, "telemetry", _Telemetry(), raising=False)
         monkeypatch.setattr(module, "engine", lambda: None, raising=False)
@@ -379,7 +381,13 @@ def test_a_directory_is_ingested_under_the_limits_stored_for_the_upload_page(
 
     seen = []
     stored = {**os.environ, "MAX_FILE_SIZE_MB": "7", "PARSING_MAX_PAGES": "40"}
-    monkeypatch.setattr(ingestion_run, "resolved", lambda: stored, raising=False)
+    asked = []
+    monkeypatch.setattr(
+        ingestion_run,
+        "snapshot",
+        lambda service: asked.append(service) or (stored, "v1"),
+        raising=False,
+    )
     monkeypatch.setattr(
         ingestion_run,
         "build_service",
@@ -389,6 +397,31 @@ def test_a_directory_is_ingested_under_the_limits_stored_for_the_upload_page(
     assert ingestion_run.main(["--add", str(folder)]) == 0
 
     assert (seen[0].max_file_size_mb, seen[0].max_pages) == (7, 40)
+    assert asked == ["ingestion"], "read through the audit the upload route reads"
+
+
+@pytest.mark.parametrize(
+    "stored", ["MAX_FILE_SIZE_MB=400", "ALLOWED_MIME_TYPES=text/plain"]
+)
+def test_a_stored_setting_the_catalogue_refuses_stops_the_load_naming_it(
+    folder, monkeypatch, caplog, stored: str
+) -> None:
+    """As the upload route answers 503: exit 3, the row named, nothing stored."""
+    from intake_drivers import IngestDriver
+
+    from settings.store import StoredRefused
+
+    def refused(service):
+        raise StoredRefused(f"{stored} is stored and the catalogue refuses it")
+
+    driver = IngestDriver()
+    monkeypatch.setattr(ingestion_run, "snapshot", refused, raising=False)
+    monkeypatch.setattr(ingestion_run, "build_service", lambda settings: driver.service)
+
+    assert ingestion_run.main(["--add", str(folder)]) == 3
+
+    assert driver.stored == []
+    assert stored in caplog.text
 
 
 def test_a_file_the_service_refuses_makes_the_command_fail(
