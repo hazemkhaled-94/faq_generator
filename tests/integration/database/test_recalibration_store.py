@@ -223,3 +223,46 @@ def test_a_fact_gets_a_question_link_while_it_runs(engine, stored, monkeypatch) 
 def select_one(model):
     """Every row of one table, which the fixture wrote exactly one of."""
     return select(model)
+
+
+def test_the_rows_are_read_and_written_in_id_order(
+    engine, database, monkeypatch
+) -> None:
+    """As a deletion locks them, so the two lock in one line, and a batch is a range.
+
+    The rows of lower id are updated first, which moves them to the end of the
+    heap, where a read with no order finds them last.
+    """
+    from stages import recalibrate as module
+
+    with Session(engine) as session:
+        session.add_all(
+            question(
+                status=QuestionStatus.ACCEPTED,
+                gate_scores=[dict(UNCALIBRATED)],
+                confidence=0.0538,
+                language=language,
+            )
+            for language in ("de", "en") * 10
+        )
+        session.commit()
+        ids = sorted(session.scalars(select(Question.id)))
+    with engine.begin() as connection:
+        connection.execute(
+            Question.__table__.update()
+            .where(Question.id.in_(ids[:10]))
+            .values(confidence=0.0539)
+        )
+    batches: list[list[int]] = []
+    writing = module._write
+    monkeypatch.setattr(
+        module,
+        "_write",
+        lambda model, pending: (
+            batches.append([one[0] for one in pending]) or writing(model, pending)
+        ),
+    )
+
+    assert recalibrate(Question, floor=0.75) == len(ids)
+
+    assert [key for batch in batches for key in batch] == ids

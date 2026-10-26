@@ -144,9 +144,12 @@ def recalibrate(model, floor: float) -> int:
         pending.clear()
 
     with sessions()() as reading:
+        # In id order, as a deletion locks them, so the two wait in one line
+        # rather than deadlock, and a batch is the range its message names.
         rows = reading.execute(
             select(model.id, model.gate_scores)
             .where(model.gate_scores.is_not(None))
+            .order_by(model.id)
             .execution_options(yield_per=_READ)
         )
         for key, scores in rows:
