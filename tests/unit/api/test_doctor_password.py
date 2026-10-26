@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from api.doctor import password_problem, preflight
+from api.doctor import database_url_problem, preflight
 
 
 @pytest.mark.parametrize("password", ["Xy7@pq/2", "a:b", "pa#ss", "what?", "50%off"])
@@ -18,9 +18,18 @@ def test_a_password_with_a_url_character_is_refused_naming_the_setting(
     password: str,
 ) -> None:
     """Each of `@ / : # ? %`."""
-    said = password_problem({"APP_DB_PASSWORD": password})
+    said = database_url_problem({"APP_DB_PASSWORD": password})
 
     assert said is not None and "APP_DB_PASSWORD" in said
+
+
+@pytest.mark.parametrize("password", ["Xy7@pq/2", "a:b", "pa#ss", "what?", "50%off"])
+def test_the_refusal_says_nothing_of_the_password(password: str) -> None:
+    """The same words whichever characters it holds, so a log reader learns none of them."""
+    said = database_url_problem({"APP_DB_PASSWORD": password})
+
+    assert said == database_url_problem({"APP_DB_PASSWORD": "@"})
+    assert password not in (said or "")
 
 
 @pytest.mark.parametrize(
@@ -28,12 +37,12 @@ def test_a_password_with_a_url_character_is_refused_naming_the_setting(
 )
 def test_a_password_of_letters_digits_and_dashes_passes(password: str) -> None:
     """What `make setup` generates, and more."""
-    assert password_problem({"APP_DB_PASSWORD": password}) is None
+    assert database_url_problem({"APP_DB_PASSWORD": password}) is None
 
 
 def test_an_unset_password_is_not_this_checks_to_say() -> None:
     """Compose refuses it already."""
-    assert password_problem({}) is None
+    assert database_url_problem({}) is None
 
 
 def test_the_host_runner_refuses_to_start_on_such_a_password(
@@ -49,6 +58,7 @@ def test_the_host_runner_refuses_to_start_on_such_a_password(
         assert preflight() == 1
 
     assert any("APP_DB_PASSWORD" in r.getMessage() for r in caplog.records)
+    assert not any("Xy7@pq/2" in r.getMessage() for r in caplog.records)
 
 
 def test_a_percent_in_the_url_reaches_the_engine_unchanged(monkeypatch) -> None:

@@ -69,9 +69,9 @@ def overridden(
     A second stack moves its ports this way, and a value set twice by mistake
     wins the same way unseen, so `make doctor` names each one.
     """
-    secrets = _assigned(env_file)
+    names = _assigned(env_file)
     return [
-        (name, path) for path in committed for name in sorted(secrets & _assigned(path))
+        (name, path) for path in committed for name in sorted(names & _assigned(path))
     ]
 
 
@@ -251,23 +251,26 @@ def stored_source() -> Mapping[str, str]:
 #: as written, by the Makefile and by compose, neither of which percent-encodes.
 _URL_CHARACTERS = "@/:#?%"
 
+#: Why such a password is refused, naming the setting and never its characters.
+_URL_REFUSAL = (
+    "APP_DB_PASSWORD holds one of @ / : # ? %, which a connection string reads "
+    "as structure and nothing here percent-encodes: set one of letters, "
+    "digits, `-`, `_` and `.` (make setup generates one)"
+)
 
-def password_problem(source: Mapping[str, str] | None = None) -> str | None:
+
+def database_url_problem(source: Mapping[str, str] | None = None) -> str | None:
     """Why APP_DB_PASSWORD cannot go into a connection string as written, or None.
 
     A password holding one of `@ / : # ? %` makes the URL name another host or
-    none, and the failure names the database and never the password.
+    none, and the failure names the database and never the password. The
+    refusal is the same words whichever of them it holds, so a log says
+    nothing of the password.
     """
     source = os.environ if source is None else source
-    password = source.get("APP_DB_PASSWORD") or ""
-    found = sorted({one for one in password if one in _URL_CHARACTERS})
-    if not found:
+    if not any(one in _URL_CHARACTERS for one in source.get("APP_DB_PASSWORD") or ""):
         return None
-    return (
-        f"APP_DB_PASSWORD holds {' '.join(found)}, which a connection string reads "
-        "as structure and nothing here percent-encodes: set one of letters, "
-        "digits, `-`, `_` and `.` (make setup generates one)"
-    )
+    return _URL_REFUSAL
 
 
 def _split_and_password() -> int:
@@ -280,7 +283,7 @@ def _split_and_password() -> int:
     except ValueError as refusal:
         log.error("%s", refusal)
         failed = 1
-    if problem := password_problem():
+    if problem := database_url_problem():
         log.error("%s", problem)
         failed = 1
     return failed
@@ -393,9 +396,9 @@ def main() -> int:
                 where,
                 folder,
             )
-    secrets = Path(os.environ.get("ENV_FILE") or ".env")
-    for name, path in overridden(secrets):
-        log.info("%s sets %s over %s", secrets, name, path)
+    env_file = Path(os.environ.get("ENV_FILE") or ".env")
+    for name, path in overridden(env_file):
+        log.info("%s sets %s over %s", env_file, name, path)
     log.info("%s", describe())
     failed = _split_and_password()
     failed = cache_check() or failed
