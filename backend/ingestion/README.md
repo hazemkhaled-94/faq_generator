@@ -1,154 +1,110 @@
 # Ingestion
 
-Takes a file somebody uploaded, decides whether the corpus will hold it, and
-if so puts the bytes in an object store and writes one row.
+Takes an uploaded file, decides whether the corpus accepts it, and if so
+stores the bytes and writes one row. It runs synchronously in the API
+process, with no queue or worker, and does only what takes about a second.
 
-This is the only stage a person waits on, so it does only what can be done in
-about a second. Everything expensive happens later, in a worker, off a queue.
+A document's identity is the SHA-256 of its bytes: the primary key of
+`documents`, the object key in both buckets and the basis of duplicate
+detection. `ingest_events` records every attempt, refused ones included.
 
-**A document's identity is the SHA-256 of its bytes.** It is the primary key
-of `documents`, the object key in both buckets, and what a duplicate is
-detected by. No filename, declared content type or extension is evidence of
-anything.
-
-**Every attempt that declares its length is recorded, refused ones included.** `ingest_events` is the
-record of what was offered; `documents` is the record of what was kept.
-
-The other two stages that turn a PDF into passages are
-[parsing](../preprocessing/parsing/README.md) and
+The next stages are [parsing](../preprocessing/parsing/README.md) and
 [chunking](../preprocessing/chunking/README.md).
 
 ## What it does
 
-Synchronous, inside the API process. There is no queue and no worker: the
-route calls `IngestService.ingest` and returns its answer. The document
-arrives with every stage at `new`, and a worker only claims `pending`.
+The route calls `IngestService.ingest`. The document arrives with every
+stage at `new`.
 
-### Step 1 — Refuse before reading the file
+### Step 1: Refuse before reading the file
 
 The route checks the declared `Content-Length` before it parses the
-multipart form. If it exceeds `MAX_FILE_SIZE_MB` by more than the multipart
-framing (`_FRAMING` in the upload route), the route refuses it without
-reading the body.
-[`refuse_oversized`](service.py) writes the event and stops: with no bytes
-there is no digest and no document to point at, and the filename, which is
-in the body, is recorded as `unnamed`. A request declaring no length is
-refused `length_required` and writes no event.
+multipart form. A length above `MAX_FILE_SIZE_MB` plus the multipart framing
+(`_FRAMING` in the upload route) is refused without reading the body, and
+[`refuse_oversized`](service.py) writes the event with the filename
+`unnamed`. A request declaring no length is refused `length_required` and
+writes no event. Any other request is read to at most one byte past the
+limit and measured by the checks below.
 
-`Content-Length` covers the whole multipart body, so it is an upper bound.
-Any other request is read to at most one byte past the limit and measured by
-the check below.
+### Step 2: Run the checks
 
-### Step 2 — Run the checks, cheapest first
-
-Nothing is written until every check passes.
+The checks run cheapest first, and nothing is written until all pass.
 
 | Order | Check | Refusal |
 |---|---|---|
-| 1 | `size_bytes > MAX_FILE_SIZE_MB` | `too_large`, carrying both figures |
-| 2 | leading bytes are in `ALLOWED_MIME_TYPES` | `unsupported_type`, naming what was detected |
-| 3 | the digest is not already in `documents` | `duplicate_bytes` |
-| 4 | the PDF opens, is not password protected, has at most `PARSING_MAX_PAGES` pages and is read within `PARSING_TIMEOUT_SECONDS` | `unsupported_type`, carrying the reader's reason, or the count and the setting |
+| 1 | `size_bytes > MAX_FILE_SIZE_MB` | `too_large`, with both figures |
+| 2 | The leading bytes are not in `ALLOWED_MIME_TYPES` | `unsupported_type`, naming what was detected |
+| 3 | The digest is already in `documents` | `duplicate_bytes` |
+| 4 | The PDF does not open, is password protected, has more than `PARSING_MAX_PAGES` pages or is not read within `PARSING_TIMEOUT_SECONDS` | `unsupported_type`, with the reader's reason, or the count and the setting |
 
-Hashing bytes already in memory is cheaper than walking every page, so a
-re-upload of something the corpus holds never reads the document.
+### Step 3: Write the object, then the row
 
-The type check is on the leading bytes. PyMuPDF is not the type check: handed
-bytes no magic number claims, it returns a one-page empty document rather
-than an error.
+The object is written first, so a failed row write leaves a harmless object.
+The object carries S3 user metadata: the digest, the original filename, the
+time and the pipeline version.
 
-### Step 3 — Write the object, then the row
+### Step 4: Delete
 
-A fixed order, because the key is content-addressed: an object with no row
-holds exactly the bytes that key means and is harmless, where a row pointing
-at a missing object fails every later stage. If the row cannot be written,
-the object is left, harmless as above.
+[`removal.py`](removal.py) offers three operations.
 
-The stored object carries four pieces of S3 user metadata — the digest, the
-original filename, the time and the pipeline version — which is enough for
-the bucket alone to rebuild the row. Nothing mutable is included, because S3
-metadata cannot change without rewriting the object.
+- `delete` removes the object in `documents`, the object in `parsed` and the
+  row. The cascade removes the passages, facts, memberships and questions.
+  Only the `ingest_events` rows survive. The objects are moved while the
+  row deletion is open, and it commits only after every move succeeded. A
+  failed move rolls the rows back and returns the objects already moved.
+- `delete_derived` drops the passages and what cascades from them, returns
+  `chunk_status` to `new` and keeps both objects.
+- `delete_every`, behind `make wipe`, runs `delete` on every document, then
+  drops the `ingest_events` rows.
 
-### Step 4 — Delete
-
-[`removal.py`](removal.py). Two operations, because they are two decisions.
-
-`delete` removes the object in `documents`, the object in `parsed`, and the
-row — which cascades to passages, and from those to facts, memberships and
-questions. Only the `ingest_events` rows survive, digest and all.
-Nothing is atomic across two stores, so the order is fixed: the rows are
-deleted in a transaction, the objects are moved while it is open, and it
-commits only after every move succeeded. A move that fails rolls the rows back
-and gives back the objects already moved.
-
-`delete_derived` drops only the passages and what cascades from them, and
-returns `chunk_status` to `new`. Both objects stay.
-
-A question a rerun left with no fact (rejected `source_changed`) keeps no link
-to its document through `question_facts`, so a trigger on `passages`, on `fact_passages` and on
-`facts` stamps `questions.source_digests` with the documents a deleted source
-belonged to, and a deletion deletes every question stamped with one of its
-digests: one written from two documents goes with either.
-
-`delete_every`, behind `make wipe`, does what `delete` does to every
-document and then drops the `ingest_events` rows too. Those go last, so a
-move that fails leaves every document still held with its name and date.
-
-Neither destroys anything: the rows are copied into `archived_rows` by an
-AFTER DELETE trigger and the objects are **moved** to the `archive` bucket.
-See [`archive/`](../archive/README.md).
+No deletion destroys data. An AFTER DELETE trigger copies the rows into
+`archived_rows`, and the objects are **moved** to the `archive` bucket. See
+[`archive/`](../archive/README.md).
 
 ## Inputs and outputs
 
-**In:** one PDF, up to `MAX_FILE_SIZE_MB`, born-digital. Posted to
-`POST /documents` or picked on the Upload page.
-
-**Written, in PostgreSQL:**
+The input is one born-digital PDF, up to `MAX_FILE_SIZE_MB`, posted to
+`POST /documents` or picked on the Upload page. SeaweedFS keeps the bytes
+unchanged, without expiry, at `documents/{sha[0:2]}/{sha[2:4]}/{sha}.pdf`.
 
 | Table | Holds |
 |---|---|
-| `ingest_events` | every upload attempt that declares its length, refused ones included: the submitted filename, the size, the outcome, the reason, and the document it became |
-| `documents` | the digest, the media type, the page and character counts, and every stage's status at `new` |
-
-**Written, in SeaweedFS:** `documents`, at
-`{sha[0:2]}/{sha[2:4]}/{sha}.pdf` — the uploaded bytes exactly as they
-arrived, never expiring. The key is derived in code and never stored. The
-two-by-two hex fanout is not cosmetic: the filer keys its metadata on
-(directory hash, name), so one flat directory becomes a write hotspot.
+| `ingest_events` | Filename, size, outcome, reason and the document it became |
+| `documents` | Digest, media type, page and character counts, and every stage's status |
 
 | Route | Answers |
 |---|---|
-| `POST /documents` | Upload one file, and what became of it |
-| `GET /documents` | The corpus, with each document's stage statuses and passage counts |
-| `GET /documents/names` | Digests and filenames, for the pickers |
-| `GET /documents/{sha256}/file` | The stored bytes back |
-| `DELETE /documents/{sha256}` | Remove the document and everything derived from it. A fact another document repeats was refused as a duplicate of this one's: the answer's `twinless` counts those refusals, and the extraction worker gives them back when its queue is empty, by the replay `make delete` runs itself, or `make extract-dedup` where no worker runs |
-| `DELETE /documents/{sha256}/derived` | Remove the passages and what cascades, keep both objects. The same count, and the same replay as after a deletion; `make delete-derived` runs it itself |
+| `POST /documents` | Uploads one file and reports what became of it |
+| `GET /documents` | Lists the corpus with stage statuses and passage counts |
+| `GET /documents/names` | Lists digests and filenames |
+| `GET /documents/{sha256}/file` | Returns the stored bytes |
+| `DELETE /documents/{sha256}` | Removes the document and everything derived from it. `twinless` in the answer counts facts that were refused as duplicates of this document's and now lack a source. The extraction worker re-decides them when its queue is empty, or `make extract-dedup` does where no worker runs |
+| `DELETE /documents/{sha256}/derived` | Removes the passages and what cascades, and keeps both objects. It gives the same count; `make delete-derived` runs the replay |
 
-**Command line:** `make documents`, `make ingest DIR=…` (every PDF in a host
-directory, through this service, one line per file), `make delete SHA=… CONFIRM=<database>`,
-`make delete-derived SHA=… CONFIRM=<database>`, `make wipe`.
+```sh
+make documents
+make ingest DIR=<directory>
+make delete SHA=<sha256> CONFIRM=<database>
+make delete-derived SHA=<sha256> CONFIRM=<database>
+make wipe
+```
 
-**Read by:** [parsing](../preprocessing/parsing/README.md).
+`make ingest` sends every PDF in a host directory through this service.
 
 ## Configuration
 
-Read from the environment with no defaults in code, overlaid with any stored
-override, on every upload. Tuning is in
+Settings are read from the environment on every upload and overlaid with any
+stored override. Tuning lives in
 [`configs/env/backend.env`](../../configs/env/backend.env).
 
 | Setting | What it does |
 |---|---|
-| `MAX_FILE_SIZE_MB` | Largest upload accepted, by the measured size and, with the framing added, by the `Content-Length` check, and at most 150, which the 512 MB api can hold. Keep in step with `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
-| `PARSING_MAX_PAGES`, `PARSING_TIMEOUT_SECONDS` | The parse stage's settings, read here too: the most pages a PDF may have (0: no cap, as the parse worker reads it) and the longest the upload may spend reading its text. That is the conversion's budget (1800 s as shipped), not the Upload page's: the page gives up on its request after 60 s, so a PDF slower to read than that is reported there as a timeout while the api goes on reading it, and stores it if it finishes in time |
-| `ALLOWED_MIME_TYPES` | Comma-separated. May only name types this build can detect from leading bytes. Anything else stops the service at start-up |
+| `MAX_FILE_SIZE_MB` | Largest accepted upload, at most 150. Keep it equal to `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
+| `PARSING_MAX_PAGES`, `PARSING_TIMEOUT_SECONDS` | The parse stage's settings, read here too (0 pages: no cap; timeout 1800 s as shipped). The Upload page gives up after 60 s and reports a timeout, while the api keeps reading and stores the PDF if it finishes |
+| `ALLOWED_MIME_TYPES` | Comma-separated. May name only types this build detects from leading bytes. Any other value stops the service at start-up |
 
-The `pipeline-version` written into every stored object's metadata is not a
-setting: it is read from `version` in `pyproject.toml`, because it describes
-the build rather than the deployment. Documents already held keep the version
-they arrived under.
-
-Connection settings are not here: `database` and `blob_store` own theirs.
+The `pipeline-version` in object metadata is the `version` in
+`pyproject.toml`.
 
 ## Tests
 
@@ -157,34 +113,16 @@ poetry run pytest tests/unit/intake/test_intake_ingestion.py
 poetry run pytest tests/unit/ingestion tests/integration/test_ingest.py
 ```
 
-`IngestDriver` and `RemovalDriver` live in
-[`tests/unit/intake/intake_drivers.py`](../../tests/unit/intake/intake_drivers.py),
-over `MemoryDocuments`, `MemoryParsed`, `MemoryArchive` and `DocumentRows`.
-Only the database, the three buckets and, where a test passes `ReaderSpy`,
-the PDF reader are stood in for.
-
-| File | Covers |
-|---|---|
-| [`test_uploaded_file.py`](../../tests/unit/ingestion/test_uploaded_file.py) | What an upload's bytes say about it: magic-byte detection, the digest, the size |
-| [`test_intake_ingestion.py`](../../tests/unit/intake/test_intake_ingestion.py) | The check order, both size boundaries, the object metadata, the two store-failure paths, the insert race, and the deletion ordering across three stores |
-| [`test_intake_cli.py`](../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses, and a listing that says when it is cut |
-| [`test_ingest.py`](../../tests/integration/test_ingest.py), [`test_removal.py`](../../tests/integration/test_removal.py) | Both flows against a real PostgreSQL and SeaweedFS |
-| [`test_documents.py`](../../tests/integration/api/test_documents.py) | The HTTP surface: status codes, the digest guard, the refusal shapes |
-| [`test_orphans.py`](../../tests/integration/test_orphans.py) | That deleting a document leaves nothing derived from it behind |
-| [`test_views.py`](../../tests/frontend/test_views.py) | The Upload and Documents pages under Streamlit's own runner |
-| [`test_intake_pinned.py`](../../tests/static/test_intake_pinned.py) | That parsing dispatches exactly the types this stage may accept, and that this README carries its three sections |
+Unit tests stand in only for the database, the three buckets and the PDF
+reader. Integration tests run against a real PostgreSQL and SeaweedFS.
+[`test_intake_pinned.py`](../../tests/static/test_intake_pinned.py) checks that
+parsing handles exactly the types this stage accepts.
 
 ## Limits
 
-- **A re-upload's filename is recorded and never shown.** The same bytes
-  under a new name are refused as `duplicate_bytes`, and the only reader of
-  that column takes the earliest row.
-- **A duplicate by *content* gets through here.** Different bytes carrying
-  the same text pass every check, because nothing knows the text yet. Parsing
-  refuses them on `content_sha256`.
-- **`Content-Length` is an upper bound, and required.** It covers the whole
-  multipart body. An upload refused on it is recorded as `unnamed`, and one
-  declaring none is refused `length_required` with no `ingest_events` row.
-- **An upload that fails on the object store writes no `ingest_events`
-  row.** A stored upload's event is written with its document row, after the
-  object; an unreachable bucket is a 500.
+- Different bytes with the same text pass ingestion. Parsing refuses them on
+  `content_sha256`.
+- An upload refused on `Content-Length` is recorded as `unnamed`. One
+  declaring none writes no `ingest_events` row.
+- An upload that fails on the object store returns a 500 and writes no
+  `ingest_events` row.
