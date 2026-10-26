@@ -1,336 +1,234 @@
 # Parsing
 
 Turns the uploaded PDF into a structured document: headings in a hierarchy,
-tables as cell grids, text in reading order.
+tables as cell grids, text in reading order. It is the expensive stage, so it
+runs in a worker, one document at a time, off a queue.
 
-This is the expensive stage — layout and table-structure models over every
-page — so it runs in a worker, one document at a time, off a queue.
+The converted document is stored before anything reads values from it, so
+the two refusals in Step 7 fire after the object exists. A re-parse is
+stored only after they pass, so a refused one leaves the earlier converted
+document in place.
 
-The converted document is written to its bucket **before** anything reads
-values out of it, so a bug in the reading does not mean paying for the
-conversion twice. Two refusals therefore fire after the object exists. A
-re-parse is written only after them, so a refused one leaves the earlier
-converted document, which the standing passages were cut from, in place.
+Parsing does not start the next stage. It writes neither `page_count` nor
+`chunk_status`, so a re-parse leaves the old passages standing and chunking
+must be redone.
 
-Nothing this stage does starts the next one. `complete` writes neither
-`page_count`, which is ingestion's, nor `chunk_status`, which is chunking's,
-so a re-parse leaves the old passages standing.
-
-The other two stages that turn a PDF into passages are
-[ingestion](../../ingestion/README.md) and [chunking](../chunking/README.md).
+The neighbouring stages are [ingestion](../../ingestion/README.md) and
+[chunking](../chunking/README.md).
 
 ## What it does
 
-One worker process, `parse-worker`, running
+One worker process, `parse-worker`, runs
 `python -m preprocessing.parsing.run --watch`. It claims the next document
 whose `parse_status` is `pending` with `FOR UPDATE SKIP LOCKED`. A worker
-killed mid-document leaves its row `in_progress`; the next run's sweep fails
-any claim older than the lease every stage shares; see
+killed mid-document leaves its row `in_progress`, and the next run's sweep
+fails any claim older than the shared lease; see
 [`backend/stages/`](../../stages/README.md).
 
-The worker sits on the internal `parsing` network, which holds only
-Postgres, the S3 gateway and Phoenix, with the Hugging Face hub offline:
-Docling's weights are read from the `models` volume, never fetched.
-`make install` puts them there through `make docling-weights`, which runs
+The worker sits on the internal `parsing` network with the Hugging Face hub
+offline and reads Docling's weights from the `models` volume. `make install`
+puts them there through `make docling-weights`, which runs
 [`weights.py`](weights.py) in a container that can reach the hub.
 
-### Step 1 — Dispatch on the media type
+### Step 1: Dispatch on the media type
 
-[`PipelineRegistry`](pipelines/__init__.py) picks the pipeline that owns the
-format ingestion detected from the leading bytes. A type no pipeline handles
-fails the document with the list of types that are handled.
+[`PipelineRegistry`](pipelines/__init__.py) picks the pipeline for the media
+type ingestion detected. An unhandled type fails the document with the list
+of handled types.
 
-### Step 2 — Decide whether the document is scanned
+### Step 2: Decide whether the document is scanned
 
-`char_count / page_count < PARSING_OCR_CHAR_THRESHOLD`, read from counts that
-already exist. A document with no counts counts as scanned.
+A document is scanned when `char_count / page_count` is below
+`PARSING_OCR_CHAR_THRESHOLD`, or when it has no counts. OCR is not
+implemented, so a scanned document is refused here.
 
-OCR is not implemented, so a scanned document is refused here, where the
-reason is still known.
+A digital PDF page with at most `PARSING_OCR_CHAR_THRESHOLD` characters
+(a merge tool's `Seite 2 von 3` stamp included) and a picture over at least
+half of it is image-only. The document is parsed for its text pages, and the
+page is named in a warning, in the `image-only-pages` metadata and in
+`documents.parse_error`, which the documents page, the API and
+`make parse-status` show. A re-parse clears it.
 
-A digital PDF that holds a page with at most `PARSING_OCR_CHAR_THRESHOLD` characters of text, a merge tool's `Seite 2 von 3` stamp among them, and a picture over at least half of it is parsed for its text pages, and the page is named in a warning, in the stored parse's `image-only-pages` metadata and in `documents.parse_error`, so the documents page, the API and `make parse-status` show it; a re-parse clears it.
+### Step 3: Convert
 
-### Step 3 — Convert
+A document longer than `PARSING_MAX_PAGES` is refused before conversion. The
+pipeline counts the pages with pymupdf and fails the row, naming the count
+and the setting. `make parse-retry` returns refused documents to the queue.
 
-A document longer than `PARSING_MAX_PAGES` is refused first, before the
-converter is touched: the pipeline counts its pages with pymupdf and fails the
-row naming the count and the setting. Docling holds every page it converts, so
-the worker's memory grows with the document, and a document too long for it
-ends the container with the claim held. Measured offline, the resident memory
-of a conversion is 1.5 GB at 35 pages, 2.0 GB at 70, 2.4 GB at 139 (the Laws
-of the Game, the longest document of the reviewed corpus) and 4.9 GB at 278,
-against the 4 GB the worker is given; that curve crosses 4 GB at about 229
-pages, and the shipped 180 is about 3.1 GB by it, so 20% more pages still
-fits. It did not reproduce on a second host, so it is to be measured in the
-worker's Linux image at the next build. Raise the limit together with the
-worker's memory limit in `compose.yaml`.
-`make parse-retry` returns what it refused to the queue.
+Docling holds every page it converts, and a document too long for the
+worker's 4 GB ends the container with the claim held. Measured offline, a
+conversion needs 1.5 GB at 35 pages, 2.0 GB at 70, 2.4 GB at 139 and 4.9 GB
+at 278, so the shipped limit of 180 needs about 3.1 GB. The curve did not
+reproduce on a second host. Raise the limit together with the worker's
+memory limit in `compose.yaml`.
 
-Docling, built to accept PDF and no other input format, with heading
-hierarchy and table structure on and OCR off. Any failure becomes a
-`ConversionFailed` carrying the exception's type and message.
-`PARSING_TIMEOUT_SECONDS` is passed to Docling as its own document timeout.
-When it runs out, or a page cannot be parsed, Docling returns only the
-finished pages without raising; a conversion that did not end in success is
-failed with Docling's errors rather than stored as the whole document.
+Docling accepts PDF only, with heading hierarchy and table structure on and
+OCR off. Any failure becomes a `ConversionFailed` carrying the exception's
+type and message. `PARSING_TIMEOUT_SECONDS` is Docling's document timeout.
+When it runs out, Docling returns the finished pages without raising, and a
+conversion that did not end in success is failed and not stored.
 
-### Step 4 — Remove struck-through and hidden words, then repair the text
+### Step 4: Remove struck and hidden words, then repair the text
 
-A PDF marks a deletion with nothing but a line drawn through the word: no
-annotation, no font flag, no colour. The converter keeps the word, so
-"a maximum of six eight" reaches a passage where the page shows only
-"eight". [`_unstruck`](pipelines/pdf.py) reads the source again with
-pymupdf and finds every word a stroke deletes. A stroke qualifies when it:
+A PDF marks a deletion with a line drawn through the word, which the
+converter ignores. [`_unstruck`](pipelines/pdf.py) rereads the source with
+pymupdf and removes every word a stroke deletes. A stroke qualifies when it:
 
-- is horizontal — a line of a stroked path made of nothing but level lines
-  (each rising or falling less than 0.3 pt), or a filled bar — and longer
-  than 2 pt
+- is horizontal (a stroked path of level lines, each rising or falling less
+  than 0.3 pt, or a filled bar) and longer than 2 pt
 - covers at least 60% of the width of a run of letters or digits, or 50% of
-  a punctuation mark: a word is cut into such runs and single marks, and
-  only the struck ones are removed, so a stroke through "six" in
-  "six/eight" or through "not" in "(not" leaves the rest of the word standing
-- sits, its own line width included, between 0.15 and 0.55 × the font size
-  above the word's baseline: through the x-height, in any colour
+  a punctuation mark, so a stroke through "six" in "six/eight" leaves "eight"
+- sits between 0.15 and 0.55 times the font size above the word's baseline,
+  which is through the x-height in any colour
 
-One path may draw many strokes, so each of its lines, and each rectangle of
-a filled path made of rectangles alone, is read on its own. A path striking
-two words of a line keeps the word between them, and one striking a word on
-each of two lines strikes both.
+An underline, a table rule and the frame of a highlight are not strikes.
+Struck words are removed from every text item, its `orig` and every table
+cell. An item left with no text moves to the `invisible` content layer, so no
+other item's reference moves.
 
-So an underline below the baseline, a table rule above the capitals or below
-the descenders, and the frame of a highlight are not strikes. The struck
-words are removed from every text item and its `orig` — section headers
-included — and from every table cell, whose provenance box holds them. An
-item left with no text moves to the `invisible` content layer, so a struck
-bullet is not rendered as an empty one and a struck heading heads nothing;
-it stays in place, so no other item's reference moves. The
-converter's boxes may count up from the page foot and pymupdf's count down,
-so each box is turned to a top-left origin before it is matched. The string
-is aligned with the page word by word in reading order, so the same word
-printed unstruck elsewhere in it stays.
+Text a clip path hides, such as a diagram's label layer, is removed the same
+way. So is text no reader sees (`page.get_texttrace()`): render mode 3, fully
+transparent, set under 2 points, or white with no fill and no picture under
+it. It is dropped only on a page whose other text paints ink, so a scan's OCR
+layer stays. The count of dropped characters is noted in
+`documents.parse_error` and the metadata `hidden-characters`.
 
-Text a clip path hides — a diagram's label layer — reaches the converter
-too, and goes the same way. Each page is read twice, with its clip and
-without, and a character of the second read is hidden when the first holds
-no same character within 1 pt of it: compared character to character, not by
-position alone, so a label hidden over a visible line or inside a large
-letter's box is still found, while a word a writer drew twice for a bold
-face is in both reads twice and stays. What the second read sets past the
-page's edge is dropped first, as the converter drops it, so a label cut at
-the edge is matched as the converter spells it. An item every page word in
-whose box is hidden goes whole, however the converter spelled it. Text drawn
-invisible is in both reads, so a scan's OCR layer is never hidden.
+A source pymupdf cannot open, or a page the two readers size differently, is
+left as converted, with a warning.
 
-Text no reader sees goes the same way, read off `page.get_texttrace()`:
-characters in render mode 3, fully transparent, set under 2 points, or white
-with no fill and no picture under them. It is dropped on a page whose other
-text paints ink, so a scan's OCR layer, which is all there is, is left; text
-that lies over a picture is that picture's text layer and is left; and a
-span a fill covers is left, because the drawing order of fill and text is
-not read, so white text on a dark bar is seen. The note counts the characters
-left out (`documents.parse_error`, metadata `hidden-characters`). A 2 point
-floor reaches diagram labels set that small on a small page; it changed two
-documents of the 80 measured, at every floor from 1.6 to 2.4 points.
+[`_mend`](pipelines/pdf.py) then rewrites every string, in the text items and
+the table grid:
 
-A page that strikes and hides nothing is never touched. A source pymupdf
-cannot open, or a page the two readers give different sizes, is left as
-converted, with a warning.
+- Compose to NFC and spell a Latin or Armenian ligature as its letters (`ﬀ`
+  as `ff`). Superscripts, fractions and full-width forms stay.
+- Rejoin words the page broke across two lines, at a soft hyphen or at a
+  real hyphen between letters. The join is skipped before a word that
+  completes a hanging hyphen (`und`, `als`, `bis`, `vs.` and kin, `JOINING`
+  in [`nlp/text.py`](../../nlp/text.py)), as in `Zoll- und Steuerrecht`. A
+  compound keeps its hyphen where the document prints it whole elsewhere:
+  `third- party` becomes `third-party`.
+- Drop control characters and format characters (zero-width marks, bidi
+  marks and isolates). A zero-width joiner stays between letters of a script
+  that spells words with one (`_JOINING_SCRIPTS`) and inside an emoji
+  sequence. A C1 control is read as the cp1252 character it stands for.
+- Fold every other kind of space to U+0020.
 
-[`_mend`](pipelines/pdf.py) then rewrites every string before anything reads
-it:
+[`_tabled`](pipelines/pdf.py) then joins tables the converter broke, reading
+the grid and the case, never a word. The rules are:
 
-- compose to NFC, and spell a Latin or Armenian ligature as its letters
-  (`ﬀ` as `ff`, `ﬁ` as `fi`), which a font's glyph list can name a glyph
-  with; superscripts, fractions and full-width forms are kept, as NFKC
-  would not keep them
-- rejoin words the page broke across two lines — both the soft-hyphen
-  spelling and a real hyphen after a letter of A–Z, an umlaut or ß and
-  before a lower-case one of those, unless a word that completes a hanging
-  hyphen follows (`und`, `als`, `bis`, `vs.` and their kin, `JOINING` in
-  [`nlp/text.py`](../../nlp/text.py), every configured language's at once),
-  because `Zoll- und Steuerrecht` is not a broken word; a word broken
-  beside another letter, `cré- dit`, is not rejoined; and a compound broken
-  at its own hyphen keeps it where the document prints the word whole
-  elsewhere, so `third- party` is `third-party` and not `thirdparty`
-- drop control characters and every format character (zero-width marks, bidi
-  marks and isolates), but for a zero-width non-joiner or joiner between two
-  letters or marks of a script that spells words with one (`_JOINING_SCRIPTS`:
-  Arabic and its kin, which write Persian and Urdu, the Indic scripts,
-  Khmer, Myanmar and Tibetan) or inside an emoji sequence, and read a C1
-  control as the cp1252
-  character it stands for (`U+0096` is an en dash), dropping the five it
-  leaves unassigned
-- fold every other kind of space to U+0020
+- A table with no header row that follows a table of its width, on the same
+  page or the next, is that table's rest. Its rows go under the first
+  table's. It moves to the furniture layer, so no stored reference moves.
+  A rest the converter flagged as having a header joins as data when each
+  cell of its first row uses its column's data font and holds a figure where
+  that data does.
+- A row with no label whose cell continues in lower case and none of whose
+  cells ends a sentence joins the row above. A second tier of one service
+  under an empty label is a known fault, and its test is marked as expected
+  to fail.
+- A label alone on a row that opens in lower case, or closes the bracket the
+  label above left open, joins that label. A row holding only a label, over
+  a row whose label opens in lower case, is that label's head and joins it.
 
-It runs on the text items *and* on the table grid. A character a model cannot
-reproduce is one no quote of it can match.
+Each join is mended again.
 
-[`_tabled`](pipelines/pdf.py) then joins the tables the converter broke,
-reading the grid and the case and never a word:
+### Step 5: Store the converted document
 
-- a table with no header row that comes right after a table of its width, on
-  the same page or the next, with nothing but pictures or items outside the
-  body, such as page headers and footers, between them, is that table's
-  rest: its rows go under the first table's, and it moves to the
-  furniture layer, so no reference a passage stores moves
-- a rest whose first row the converter flagged a header is a rest all the
-  same when each cell of that row is set in the font most of the first
-  table's data in its column is set in, and not in the font of its header
-  there, read off the PDF with pymupdf, and when it holds a figure in each
-  column most of the first table's data holds one in; the row then joins as
-  data. A second table whose header is set as the first's stays apart, so
-  does the rest of a table whose header and data share one font, and so does
-  a second schedule headed in its data's type, `Frist` over a column of
-  prices
-- a row with no label in its first column, one cell of which goes on in
-  lower case, and over which no cell ends a sentence (`.`, `!`, `?` — a
-  colon opens what follows), is a wrapped cell's rest and joins the row
-  above, whatever its other cells open with (`9,90 EUR` going on
-  `(inkl. MwSt.)`); a second tier of one service under an empty label,
-  `online` with its own fee, joins it too, a known fault its tests mark
-  as expected to fail
-- a label alone on a row that opens in lower case, or closes the bracket the
-  label above it left open, is that label's last line and joins it, however
-  many lines the label wraps over: each line joins the nearest row still
-  standing
-- a row holding a label and nothing else, over a row whose label opens in
-  lower case, is that label's head and joins it
+The converter's exported dictionary is stored as one JSON object in the
+`parsed` bucket, keyed by the source digest, with the digest and the Docling
+version as metadata. A re-parse overwrites it, but only after Step 7 passes.
+Chunking reads this object.
 
-Each join is mended again as `_mend` mends a line, since a word the cell
-wrapped at a hyphen (`Kontofüh-` over `rungsentgelt`) is whole only once its
-halves meet.
+### Step 6: Read the values the row holds
 
-A script without case joins no row, which is the safe side.
+[`DocumentAnalyser`](analysis.py) renders the body as text (tables included,
+running headers and footers excluded), finds the title, detects the language
+and hashes the body with whitespace collapsed and case folded. A conversion
+with no body text fails as `EmptyDocument`. A language that `NLP_MODELS` does
+not name fails as `UnconfiguredLanguage`.
 
-### Step 5 — Store the converted document
+The PDF pipeline offers title candidates, best first (`Conversion.titles`):
 
-The converter's own exported dictionary, one JSON object in the `parsed`
-bucket keyed by the source digest, carrying the digest and the Docling
-version that converted it as its metadata. Re-parsing overwrites, but only
-once Step 7 has passed. This is what chunking reads, so re-chunking never
-re-parses.
+1. The first heading, when it heads the document, is set in the largest type
+   of its page and does not end in a comma, colon or semicolon.
+2. The cover: the block of lines in the largest type of the first page with
+   text.
+3. The running head every page prints, unless it is a heading.
 
-### Step 6 — Read the values the row holds
+The analyser takes the first, or the document's first section heading if
+there is none. A title another document holds takes the next candidate, as
+`Title - Next`.
 
-[`DocumentAnalyser`](analysis.py) renders the body as text — table values
-included, running headers and footers excluded — finds the title, detects the
-language, and hashes the body with whitespace collapsed and case folded. A
-conversion with no body text fails as `EmptyDocument`, and one in a language
-`NLP_MODELS` does not name fails as `UnconfiguredLanguage`, naming the
-language, instead of being read as German or English by every later stage.
-
-The PDF pipeline offers the title candidates it reads off the type, best first
-(`Conversion.titles`): the first heading when it heads the document and is set
-in the largest type of its page (it does not end in a comma, colon or semicolon,
-which a salutation or a lead-in does); else the cover, the block of lines set
-in the largest type of the first page with text, joined across its lines (a
-lone word counts only where it stands out from the page's own type); else the
-running head every page prints, unless the document sets it as a heading. The
-analyser takes the first, and falls back to the document's own first title or
-section heading where there is none. A title another document already holds
-takes the next candidate added, as `Title - Next`; with none free it stays, and
-the workbook's Document ID columns tell the two apart.
-
-A page set in two columns whose lines sit at the same heights can come out of
-the converter with a line of each column joined into one block, so a sentence
-of the left column runs into one of the right. [`_interleaved_pages`](pipelines/pdf.py)
-finds the gutter on each page, read off the PDF's own lines (four or more lines
-of text on each side, at most two lines across the page, a title), and names the
-pages where a block of the converter's reading runs across it, in the parse
-note and in the converted object's `interleaved-pages` metadata. Nothing is
-reordered. On a generated two-column page the converter does this; on the 30
+[`_interleaved_pages`](pipelines/pdf.py) names the two-column pages where the
+converter joined a line of each column into one block, in the parse note and
+in the object's `interleaved-pages` metadata. Nothing is reordered. On the 30
 football and 50 shop PDFs it names no page.
 
-### Step 7 — Two refusals after the fact
+### Step 7: Two refusals after the fact
 
-A conversion whose **low score** is under `PARSING_MIN_CONFIDENCE` fails.
-The low score is Docling's: each page's 5% quantile of its component scores,
-averaged over the pages, so it reads the weak side of a typical page rather
-than the worst page, and one garbled page among many is averaged away. A
-conversion with no score is not checked. So that a page averaged away is not
-lost, every page whose own low score is under the floor is named in the parse
-note (`documents.parse_error`, beside the image-only pages) and in the
-converted object's `low-confidence-pages` metadata, and the document still
-parses. A page that shows nothing (no text, no picture, no drawing) is not
-named: it scores zero and has no text to be unsure of.
+A conversion whose low score is under `PARSING_MIN_CONFIDENCE` fails. The low
+score is Docling's: each page's 5% quantile of its component scores, averaged
+over the pages, so one garbled page among many is averaged away. A conversion
+with no score is not checked. Every page whose own low score is under the
+floor is named in `documents.parse_error` and in the object's
+`low-confidence-pages` metadata, and the document still parses. A page with
+no text, picture or drawing is not named.
 
-A document whose `content_sha256` another document already holds fails too.
-Ingestion catches a file uploaded twice by its bytes; the same report
-released as a second PDF has different bytes and the same text.
-`content_sha256` is not written on the copy that fails, so every later copy
-fails against the one that parsed.
+A document whose `content_sha256` another document holds fails too, which
+catches the same report released as a second PDF. The failed copy's digest is
+not written, so every later copy fails against the one that parsed.
 
-The digest is taken over the mended text, so a change to `_mend` changes it
-for every document whose body the change rewrites beyond case and spacing.
-Spelling a ligature out did so for a ligature right before a line-break
-hyphen, `Kontoeröﬀ-` over `nung`, now joined as `Kontoeröffnung` (a bare
-`ﬀ` does not move the digest, which casefolds it to `ff` anyway), and
-keeping a joiner did so for an Arabic-script or Indic document holding one.
-A copy parsed after such a change is told from a stored one only once the
-stored one is parsed again: `make parse-rerun` re-parses every document and
-writes its digest anew, though a document whose re-parse fails keeps its old
-one.
+The digest is taken over the mended text. After a change to `_mend` that
+rewrites a body beyond case and spacing, run `make parse-rerun` to write
+every digest anew. A document whose re-parse fails keeps its old digest.
 
-Both run after Step 5, so a new document failing either leaves a converted
-form in the `parsed` bucket with no row pointing at it. It is collected when
-the document is deleted. A re-parse failing either leaves the earlier
-converted form untouched.
+A new document that fails either refusal leaves a converted object in the
+`parsed` bucket with no row, collected when the document is deleted.
 
 ## Inputs and outputs
 
-**In:** one claimed row of `documents` where `parse_status = 'pending'`, and
-the object it names in the `documents` bucket.
+The input is one claimed row of `documents` with `parse_status = 'pending'`
+and the object it names in the `documents` bucket.
 
-**Written, in PostgreSQL:** on `documents` — `title`, `language`,
-`content_sha256`, `parse_confidence`, `parse_confidence_low`, the run, trace
-and span that parsed it (`parse_run_id`, `parse_trace_id`, `parse_span_id`),
-the `parse_status` / `parse_error` / `parse_claimed_at` triple, and the
-`parse_trigger` its verbs set. Nothing else.
-
-**Written, in SeaweedFS:** `parsed`, at
-`{sha[0:2]}/{sha[2:4]}/{sha}.json` — the converted document, regenerable from
-the uploaded bytes.
+The stage writes only these columns on `documents`: `title`, `language`,
+`content_sha256`, `parse_confidence`, `parse_confidence_low`, `parse_run_id`,
+`parse_trace_id`, `parse_span_id`, `parse_status`, `parse_error`,
+`parse_claimed_at` and `parse_trigger`. The converted document goes to
+`parsed` at `{sha[0:2]}/{sha[2:4]}/{sha}.json`.
 
 | Route | Answers |
 |---|---|
 | `GET /parsing/status` | The queue depth, and whether a worker is on it |
-| `POST /parsing/{action}` | `start`, `stop`, `retry`, `rerun`, `reclaim`; a whole-stage `rerun` or `reclaim` needs `?confirm=true` |
+| `POST /parsing/{action}` | `start`, `stop`, `retry`, `rerun`, `reclaim`. A whole-stage `rerun` or `reclaim` needs `?confirm=true` |
 | `GET\|POST /parsing/{scope}/{value}/…` | The same, narrowed to one document |
 
-The routes only move rows between statuses; the worker picks up whatever
-became claimable on its next poll.
-
-**Command line:** `make parse-status`, `parse-start`, `parse-stop`,
-`parse-retry`, `parse-rerun`, `parse`; `SHA=<sha>` (`--only document=<sha>`)
-narrows every one but `parse`, which drains the whole queue on the host, for
+Commands: `make parse-status`, `parse-start`, `parse-stop`, `parse-retry`,
+`parse-rerun` and `parse`. `SHA=<sha>` (`--only document=<sha>`) narrows every
+target except `parse`, which drains the whole queue on the host, for
 developing the stage. The container workers build the dataset.
-
-**Read by:** [chunking](../chunking/README.md).
+[Chunking](../chunking/README.md) reads the output.
 
 ## Configuration
 
-Read from the environment with no defaults in code, and overridable as
+Settings are read from the environment and can be overridden as
 [`backend/settings/`](../../settings/README.md) describes. Tuning is in
 [`configs/env/backend.env`](../../../configs/env/backend.env).
 
 | Setting | What it does |
 |---|---|
-| `PARSING_OCR_CHAR_THRESHOLD` | Characters per page below which a document is treated as scanned and refused, and the most a page a picture covers may hold and still be named as image-only |
-| `PARSING_MIN_CONFIDENCE` | Lowest low score a conversion may carry and be kept, in [0, 1]: Docling's, averaged over the pages, as Step 7 says |
-| `PARSING_TABLE_MODE` | TableFormer mode: `fast` or `accurate`. Anything else is refused when the pipeline is constructed |
-| `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. Turning it on also turns on `generate_parsed_pages` |
-| `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run; also the longest an upload may spend reading a PDF's text |
-| `PARSING_MAX_PAGES` | Longest document converted, in pages; 0 for any. A longer one is refused before conversion, and at upload, naming this setting |
-| `DOCLING_ARTIFACTS_PATH` | Where Docling's weights are. Must be a real path or absent — an empty value resolves to the working directory |
+| `PARSING_OCR_CHAR_THRESHOLD` | Characters per page below which a document is scanned and refused. Also the most text an image-only page may hold |
+| `PARSING_MIN_CONFIDENCE` | Lowest low score a conversion may carry, in [0, 1]: Docling's, averaged over the pages (Step 7) |
+| `PARSING_TABLE_MODE` | TableFormer mode, `fast` or `accurate`. Any other value is refused when the pipeline is built |
+| `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. On also turns on `generate_parsed_pages` |
+| `PARSING_TIMEOUT_SECONDS` | Longest one conversion may run. Also the longest an upload may spend reading a PDF's text |
+| `PARSING_MAX_PAGES` | Longest document converted, in pages; 0 for any. A longer one is refused before conversion and at upload, naming this setting |
+| `DOCLING_ARTIFACTS_PATH` | Where Docling's weights are. A real path or absent: an empty value resolves to the working directory |
 
-The language settings are shared with chunking and described there.
-Connection settings belong to `database` and `blob_store`.
+The language settings are described under chunking.
 
-Docling is configured with its own `docling-parse` backend rather than
-pypdfium2, because that is the backend reporting the font style heading
-levels are ranked by. `enforce_same_font` is turned **off**; left on, a text
-cell is cut wherever the font changes, and an f-ligature is set in a font of
-its own.
+Docling uses its own `docling-parse` backend, which reports the font style
+that ranks heading levels. `enforce_same_font` is **off**: on, a text cell is
+cut wherever the font changes.
 
 ## Tests
 
@@ -339,51 +237,27 @@ poetry run pytest tests/unit/intake/test_intake_parsing.py
 poetry run pytest tests/unit/parsing
 ```
 
-Non-UI tests act through a driver. `ParseDriver` lives in
-[`tests/unit/intake/intake_drivers.py`](../../../tests/unit/intake/intake_drivers.py),
-over `MemoryDocuments`, `MemoryParsed` and `ParseRows`. Only the database,
-the two buckets and Docling itself are stood in for.
+Unit tests stand in only for the database, the two buckets and Docling
+(`ParseDriver` in
+[`tests/unit/intake/intake_drivers.py`](../../../tests/unit/intake/intake_drivers.py)).
 
 | File | Covers |
 |---|---|
-| [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the converter taking PDF alone, the scanned decision at its boundaries, the store-before-read ordering, a refused re-parse leaving the earlier converted form, all five failure paths, the confidence floor, the content-digest refusal, and the analyser |
-| [`test_text_repair.py`](../../../tests/unit/parsing/test_text_repair.py) | The text repair, case by case, on real corpus strings |
-| [`test_soft_hyphen.py`](../../../tests/unit/parsing/test_soft_hyphen.py) | A soft hyphen kept as a drawn one between digits or before a capital or a space, and dropped inside a word |
-| [`test_format_characters.py`](../../../tests/unit/parsing/test_format_characters.py) | Bidi marks and isolates dropped, and a C1 control read as the cp1252 character it stands for |
-| [`test_label_wrapped_three_lines.py`](../../../tests/unit/parsing/test_label_wrapped_three_lines.py) | A table label wrapped over three lines joined whole, each tail onto the nearest row still standing |
-| [`test_tables.py`](../../../tests/unit/parsing/test_tables.py) | A table's rest on the next page joined to it, past a picture, and when its first row was flagged a header but is set in the data's font, and not one with a header in the header's font, after a table whose header is set as its data, headed in the data's font with no figure over a column of prices, of another width or with text between; a wrapped cell's rest, one going on in a bracket or a German noun, and a wrapped label's head joined to their row, a second tier under an empty label joined as well (expected to fail), a cell wrapped at a hyphen made one word and one wrapped inside a compound the document prints keeping its hyphen, and a row whose label did not span kept |
-| [`test_strikethrough.py`](../../../tests/unit/parsing/test_strikethrough.py) | Struck words removed from paragraphs, `orig`, headings and table cells, from boxes of either origin; each line of one path read as its own stroke; underlines, table rules, a frame's edge, partial strokes and a short mark over a decimal comma removing nothing; clipped labels removed over visible text, inside a large letter, at the page's edge and spelled apart, and a fake-bold line and an OCR layer kept; an unreadable source changing nothing; and, as a property, a page with no strike coming out unchanged |
-| [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes nothing at run time would report if they were undone |
-| [`test_intake_cli.py`](../../../tests/unit/intake/test_intake_cli.py) | Which flag combinations the command line refuses |
-| [`tests/property/test_invariants.py`](../../../tests/property/test_invariants.py) | The repair is idempotent and leaves no control character |
-| [`tests/integration/test_intake_queues.py`](../../../tests/integration/test_intake_queues.py) | Which columns this stage writes and which it must leave alone |
-| [`tests/integration/database/test_queue.py`](../../../tests/integration/database/test_queue.py) | The claim mechanics, including `SKIP LOCKED` and the abandoned-claim sweep |
-| [`tests/e2e/test_pipeline.py`](../../../tests/e2e/test_pipeline.py) | One document through every stage, with the converter stood in for |
-| [`tests/static/test_intake_pinned.py`](../../../tests/static/test_intake_pinned.py) | That the PDF pipeline handles exactly the types ingestion may accept, and that this README carries its three sections |
+| [`test_intake_parsing.py`](../../../tests/unit/intake/test_intake_parsing.py) | Dispatch, the scanned decision, store-before-read order, a refused re-parse, the failure paths, the confidence floor, the content-digest refusal and the analyser |
+| `tests/unit/parsing/` | The text repair, the table joins, and struck and clipped words, with the cases that must stay unchanged |
+| [`test_intake_regression.py`](../../../tests/unit/intake/test_intake_regression.py) | Fixes that nothing at run time would report if undone |
+| `tests/integration/test_intake_queues.py`, `tests/integration/database/test_queue.py` | The columns this stage writes, and the claim mechanics |
+| `tests/e2e/test_pipeline.py` | One document through every stage, with the converter stood in for |
+| [`test_intake_pinned.py`](../../../tests/static/test_intake_pinned.py) | That the PDF pipeline handles exactly the types ingestion accepts |
 
-The regression suite holds one test each for: every space codepoint folding
-to U+0020 and every zero-width mark removed between Latin letters, named
-one at a time; every
-control character except newline and tab dropped; the repair reaching `orig`
-and the table grid; `enforce_same_font` off and the backend Docling's own;
-`generate_parsed_pages` following `PARSING_HEADING_HIERARCHY`; `do_ocr` off;
-table structure on with mode, timeout and weights path passed through; a bad
-table mode refused at construction; the converter built once; and a
-conversion Docling finished only in part refused.
-
-Not covered: the five lines of `PdfPipeline.convert` that call Docling, whose
-models are a multi-gigabyte download. OCR and any format other than PDF are
-not covered because neither exists.
+Not covered: the lines of `PdfPipeline.convert` that call Docling, whose
+models are a multi-gigabyte download.
 
 ## Limits
 
-- **A re-parse does not re-chunk.** After re-parsing, redo chunking.
-- **A failed parse can leave an object in the `parsed` bucket.** It is
-  collected when the document is deleted.
-- **A duplicate by content costs a stored file and a failed row.**
-- **Only a drawn strike is read.** A deletion marked by a strikeout
-  annotation, by a font, or on a line of text that is not horizontal is kept
-  as text. So is a struck word the converter and pymupdf split or spell
-  differently, because the two are aligned word by word.
-- **A struck word is removed, not reported.** Nothing in the converted
-  document records that the page deleted it.
+- A re-parse does not re-chunk. Redo chunking after it.
+- A duplicate by content costs a stored file and a failed row.
+- Only a drawn strike is read. A strikeout annotation, a font strike or a
+  line that is not horizontal is kept as text, as is a struck word that the
+  converter and pymupdf split or spell differently.
+- A struck word is removed without a record in the converted document.

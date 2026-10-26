@@ -492,7 +492,7 @@ def test_min_confidence_is_not_called_the_worst_page() -> None:
     step = _flat(
         _section(
             _read("backend/preprocessing/parsing/README.md"),
-            "### Step 7 — Two refusals after the fact",
+            "### Step 7: Two refusals after the fact",
         )
     )
     said = _help("PARSING_MIN_CONFIDENCE")
@@ -512,7 +512,7 @@ def test_parsing_readme_names_hidden_words() -> None:
     """Parsing removes words a clip hides, so Step 4 of its README says so."""
     pdf = _read("backend/preprocessing/parsing/pipelines/pdf.py")
     readme = _read("backend/preprocessing/parsing/README.md")
-    (heading,) = re.findall(r"^### Step 4 — .*$", readme, re.MULTILINE)
+    (heading,) = re.findall(r"^### Step 4: .*$", readme, re.MULTILINE)
     step = _flat(_section(readme, heading))
 
     assert "def _hidden(" in pdf and "_UNCLIPPED" in pdf
