@@ -432,12 +432,12 @@ logs and Dagster is final.
 | `make s3-prefix` | Copy the objects a store holds from before keys carried the database's name under this database's prefix. Once per database that used the store. Copies only the objects this database's rows name, never over an object it already holds, never moves |
 | `make documents` | List the newest 1000 documents with their parse state, and warn when the corpus holds more |
 | `make ingest DIR=<directory>` | Ingest every PDF directly in a directory of the host through the service the Upload page uses, under its limits as stored there (`MAX_FILE_SIZE_MB`, `PARSING_MAX_PAGES`, `PARSING_TIMEOUT_SECONDS`) and read through the same audit, so a stored row the catalogue refuses stops it with exit 3 where the page answers 503, for a set too large for that page (it refuses more than 20 files or 200 MB at once). One line per file and a summary; a copy of a stored file is reported as a duplicate and stores nothing; a file the service refuses makes the run exit 1 |
-| `make delete SHA=<sha256>` | Delete a document and everything derived from it. A question on a fact it removes goes, one written from two documents with either; a fact another document also cites stays, with its question. Refuses, deleting nothing, while `extract-worker` runs, which it does after `make up` or `make dev`: stop it first. Then `extract-dedup` over the whole corpus, which gives back a fact another document repeats and had refused as a duplicate of this one's. If that replay fails, the document is already gone: run `make extract-dedup`. The deletion ends with one line naming how many duplicate refusals lost the fact they repeated; after a deletion through the API or the UI the extraction worker re-decides them once its queue is empty, or `make extract-dedup` where none runs |
-| `make delete-derived SHA=<sha256>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Refuses while `extract-worker` runs, as `make delete` does, then runs the same replay |
+| `make delete SHA=<sha256> CONFIRM=<database>` | Delete a document and everything derived from it. A question on a fact it removes goes, one written from two documents with either; a fact another document also cites stays, with its question. Refuses, deleting nothing, while `extract-worker` runs, which it does after `make up` or `make dev`: stop it first. Then `extract-dedup` over the whole corpus, which gives back a fact another document repeats and had refused as a duplicate of this one's. If that replay fails, the document is already gone: run `make extract-dedup`. The deletion ends with one line naming how many duplicate refusals lost the fact they repeated; after a deletion through the API or the UI the extraction worker re-decides them once its queue is empty, or `make extract-dedup` where none runs |
+| `make delete-derived SHA=<sha256> CONFIRM=<database>` | Delete its passages, and with them their memberships, the facts and questions resting on them alone, follow-ups and assessments. Refuses while `extract-worker` runs, as `make delete` does, then runs the same replay |
 | `make wipe-preflight` | Read only: authenticates to Phoenix, Argilla and Elasticsearch and asks the Dagster webserver, each only while its service runs (a store that is down is named, and `make wipe` skips its step with the same note), and names every store that refuses with the setting to check. What `make wipe` runs after the `CONFIRM` check and before it deletes anything |
 | `make wipe` | Every document, the topics, then Phoenix, Argilla, the logs and Dagster, in that order, stopping at the first that fails: run it again once that service answers. Refuses unless `CONFIRM` names the database |
 | `make wipe-all` | The same, then the archive. The one command for "leave nothing" |
-| `make wipe KEEP=golden,runs` | Spare the Phoenix datasets and the Dagster run history |
+| `make wipe KEEP=golden,runs CONFIRM=<database>` | Spare the Phoenix datasets and the Dagster run history |
 
 `wipe` runs both deletions because deleting every document leaves the topics
 standing. It also drops the upload history, which a single deletion keeps.
@@ -496,9 +496,9 @@ Every deletion of a row or an object above is the first of two.
 | `make archive-purge` | The second deletion. **This one is final** |
 
 ```bash
-make archive-purge TABLE=questions   # one table's rows
-make archive-purge DAYS=30           # everything archived before then
-make archive-purge ALL=1             # the whole thing, objects included
+make archive-purge TABLE=questions CONFIRM=<database>  # one table's rows
+make archive-purge DAYS=30 CONFIRM=<database>          # everything archived before then
+make archive-purge ALL=1 CONFIRM=<database>            # the whole thing, objects included
 ```
 
 `TABLE` is about rows and leaves the bucket alone. `DAYS` and `ALL` take the
@@ -560,7 +560,7 @@ make review-push-questions IDS=12,34,56
 | `make phoenix-retention` | Set Phoenix's default trace retention policy to `PHOENIX_TRACE_RETENTION_DAYS` days (30 where unset), so a prompt, which is a passage of a customer's document, is not kept for ever. Run by `make up` and `make dev` |
 | `make phoenix-prune` | Delete this database's projects in which no work happened (`ALL_DATABASES=1`: every database's). **Irreversible**, and asks nothing first: it names at most 25 of the projects it takes, then deletes them |
 | `make phoenix-purge` | Delete **every** project of this database (names end in `__<database>`; `ALL_DATABASES=1` takes every database's and those filed before) but `default`, whatever it holds, and every dataset of this database. What `make wipe` runs, and what `prune` will not do |
-| `make phoenix-purge KEEP=golden` | The same, but leave the datasets and their experiments |
+| `make phoenix-purge KEEP=golden CONFIRM=<database>` | The same, but leave the datasets and their experiments |
 | `make dagster-wipe` | The runs this database launched (the corpus job tags each with it), and the event log under each; untagged history stays. `ALL_DATABASES=1` takes every run Dagster remembers |
 
 A Phoenix project is created by whatever sends the first span to it and

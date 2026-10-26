@@ -409,12 +409,12 @@ Grafana encrypts the secrets it stores in its database with
 ## Logs
 
 ```bash
-make logs                # everything, from the container engine
+make logs                          # everything, from the container engine
 make logs-api
-make logs-shipper        # why nothing is arriving
-make logs-retention      # how long Elasticsearch keeps them. Run once
-make logs-prune          # delete the files on the volume
-make logs-wipe           # every line, emptying every file. What make wipe runs
+make logs-shipper                  # why nothing is arriving
+make logs-retention                # how long Elasticsearch keeps them. Run once
+make logs-prune                    # delete the files on the volume
+make logs-wipe CONFIRM=<database>  # this database's lines; ALL_DATABASES=1 every stream and file. What make wipe runs
 ```
 
 Only this project's processes are shipped to Elasticsearch, but all of them
@@ -724,7 +724,7 @@ fails every time - a document parsing refuses for its language, an empty or
 broken PDF - stops every resume at the same stage with 3. Read why before
 starting it again: `logs/corpus-hosted.log` names each failed row and its
 error, and the stage's page lists them. Then put the row right or take it out:
-`make delete SHA=<sha256>` removes a document that cannot be processed, and
+`make delete SHA=<sha256> CONFIRM=<database>` removes a document that cannot be processed, and
 once the cause is fixed the stage's `-retry` target (`make parse-retry
 SHA=<sha256>`, `make extract-retry PASSAGE=<id>`) returns that row alone.
 `make corpus-hosted RESET=1` starts a fresh run, which retries no failed row
@@ -1066,7 +1066,7 @@ None of these is needed to start v0.5.2. Each brings stored data up to what v0.5
 ### 6. What else changes for you
 
 - **Phoenix, Argilla, logs and Dagster carry the database.** Projects are named `<name>__<database>`, every log line carries `db`, the corpus job tags its Dagster runs, and a wipe takes only its own database's. What was filed before belongs to none and is taken only with `ALL_DATABASES=1`.
-- **The golden sets** are named `<name>__<database>` too. Upload them again under their database's name with `make eval-upload` and `make eval-phrasing`; the old ones are deleted only with `ALL_DATABASES=1` (`make phoenix-purge ALL_DATABASES=1`, which takes every database's projects with them).
+- **The golden sets** are named `<name>__<database>` too. Upload them again under their database's name with `make eval-upload` and `make eval-phrasing`; the old ones are deleted only with `ALL_DATABASES=1` (`make phoenix-purge ALL_DATABASES=1 CONFIRM=<database>`, which takes every database's projects with them).
 - **The review datasets** carry the database in Argilla, and a dataset pushed under the bare name is left where it is: with its verdicts pulled before the upgrade (step 1), push again (`make review-push-*`).
 - **Destructive targets ask for the database.** `schema-down`, `schema-reset`, `wipe`, `delete`, `delete-derived`, `topics-delete`, an unnarrowed `*-rerun` and `archive-purge` with `TABLE`, `ALL` or `DAYS` refuse unless `CONFIRM=<database>` is given on the command line: one exported in the shell does not count. `make down-volumes`, which deletes every database's volumes, wants `CONFIRM=all-volumes`, and `make restore-backup-stack` `CONFIRM=stack`, both on the command line. A restore is `make restore-documents AT=`, which puts back only the deletions it names.
 - **A deletion takes the questions on what it removes.** A question on a fact the deletion removes goes, one written from two documents with either; a fact another document also cites stays, with its question. A question a rerun left with no fact is found by the documents stamped on it (`questions.source_digests`). Every deletion ends saying how many duplicate refusals lost their twin, which the extraction worker gives back when its queue is empty, or `make extract-dedup` where none runs.
@@ -2120,10 +2120,10 @@ question.
 ## Deleting things
 
 ```bash
-make delete SHA=<sha256>          # a document and everything from it
-make delete-derived SHA=<sha256>  # only its passages and facts
-make wipe                         # every document, then the topics
-make topics-delete                # every topic, membership, model and figure
+make delete SHA=<sha256> CONFIRM=<database>          # a document and everything from it
+make delete-derived SHA=<sha256> CONFIRM=<database>  # only its passages and facts
+make wipe CONFIRM=<database>                         # every document, then the topics
+make topics-delete CONFIRM=<database>                # every topic, membership, model and figure
 ```
 
 Each is the first of two deletions. An AFTER DELETE trigger copies the row
@@ -2131,10 +2131,10 @@ into `archived_rows`, and the removal paths move objects into the `archive`
 bucket:
 
 ```bash
-make archive                      # what is held, by table, with its age
-make restore-documents SINCE=<time>  # list the deletions from then on
-make restore-documents AT=<archived_at>  # put those deletions back
-make archive-purge DAYS=30        # the second deletion. This one is final
+make archive                                   # what is held, by table, with its age
+make restore-documents SINCE=<time>            # list the deletions from then on
+make restore-documents AT=<archived_at>        # put those deletions back
+make archive-purge DAYS=30 CONFIRM=<database>  # the second deletion. This one is final
 ```
 
 Nothing purges itself, so the archive grows on ordinary runs too — a
@@ -2150,7 +2150,7 @@ row trigger:
 
 ```bash
 make down-volumes CONFIRM=all-volumes  # the containers' data, all of it
-make schema-reset                 # every table, rebuilt from the revisions
+make schema-reset CONFIRM=<database>   # every table, rebuilt from the revisions
 ```
 
 Deleting a document takes everything derived from it. What it does **not**
@@ -2175,6 +2175,6 @@ a deletion: the questions that rested on the deleted facts went with them.
 The deletion and the replay are two steps. Both refuse beside a running
 `extract-worker` container, and `make delete` asks before it deletes, so that
 refusal leaves the document where it was. If the replay fails after the
-deletion, the document is already gone, and running `make delete SHA=…`
+deletion, the document is already gone, and running `make delete SHA=… CONFIRM=<database>`
 again finds nothing to delete. The recovery is `make extract-dedup`, once
 whatever stopped it is out of the way.

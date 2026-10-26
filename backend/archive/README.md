@@ -4,10 +4,10 @@ Every deletion is the first of two. This is what the first one leaves behind,
 and the second one that takes it.
 
 ```bash
-make archive                          # what is held, by table, with its age
-make archive-purge TABLE=questions    # one table's rows
-make archive-purge DAYS=30            # everything held longer than that
-make archive-purge ALL=1              # the whole thing, objects included
+make archive                                           # what is held, by table, with its age
+make archive-purge TABLE=questions CONFIRM=<database>  # one table's rows
+make archive-purge DAYS=30 CONFIRM=<database>          # everything held longer than that
+make archive-purge ALL=1 CONFIRM=<database>            # the whole thing, objects included
 # a purge deletes 10,000 rows per committed transaction; `python -m archive.run --size` estimates rows and size from pg_class
 ```
 
@@ -27,7 +27,7 @@ The table it fills is declared in
 [`archived_rows.py`](../database/qa_generator/archived_rows.py).
 
 A trigger because the services are not where most of the deleting happens.
-`make delete SHA=...` removes one row; the foreign keys take its passages,
+`make delete SHA=... CONFIRM=<database>` removes one row; the foreign keys take its passages,
 their memberships and their citations, then
 `fact_passages_delete_orphan_fact` takes every bridge resting on a passage
 that is gone and every other fact left resting on none, then
@@ -45,8 +45,8 @@ the same key keeps a second copy. A copy taken before the stamp is keyed
 
 | Deletion | What it archives |
 |---|---|
-| `make delete SHA=` | The document's rows and everything cascading from them; its file and its parsed form |
-| `make delete-derived SHA=` | Its passages, and by cascade its facts and questions |
+| `make delete SHA= CONFIRM=<database>` | The document's rows and everything cascading from them; its file and its parsed form |
+| `make delete-derived SHA= CONFIRM=<database>` | Its passages, and by cascade its facts and questions |
 | `make wipe` | All of that for every document, plus the upload history and the topics |
 | `make topics-delete` | Every topic and membership, the stored factorisations and the pyLDAvis figures |
 | A re-chunk, a re-extraction, a rerun | Whatever the new run replaced |
@@ -188,7 +188,7 @@ which purges the command line refuses.
 - **The embedding does not come back.** Restored passages and facts carry
   NULL until `make extract-embed`; a restored question keeps NULL.
 - **A question the deletion rejected comes back rejected.** A partial
-  `make delete SHA=` rejects, as `source_changed`, every question that loses
+  `make delete SHA= CONFIRM=<database>` rejects, as `source_changed`, every question that loses
   one fact and keeps another. That was an update, which nothing archives, so
   the restore puts every fact link back and leaves the status as it is;
   a person decides it again.

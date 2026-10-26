@@ -475,23 +475,23 @@ Changing `EXTRACTION_KINDS` or either bridge setting affects the next run;
 ### Commands
 
 ```bash
-make extract-start                  # queue every passage never asked for
-make extract                        # drain the queue here, for developing the stage
-make extract-status                 # passages by state, and facts held
-make extract-stop                   # take back whatever has not begun
-make extract-retry                  # return every failed passage to the queue
-make extract-rerun                  # read every passage again
-make extract-revalidate             # re-judge stored facts; no model call
-make extract-bridge                 # read every topic's groups for bridges
-make extract-bridge FORCE=1         # even over bridges accepted questions cite
-make extract-bridge MISSING=1       # only the topics holding no bridge yet
-make extract-recap                  # re-apply the atomic cap; no model call
-make extract-dedup                  # re-decide the duplicate refusals, then re-judge and re-cap what moved; no model call
-make extract-embed                  # write vectors onto rows already stored
-make extract-digests                # digest the passages that finished without one
+make extract-start                     # queue every passage never asked for
+make extract                           # drain the queue here, for developing the stage
+make extract-status                    # passages by state, and facts held
+make extract-stop                      # take back whatever has not begun
+make extract-retry                     # return every failed passage to the queue
+make extract-rerun CONFIRM=<database>  # read every passage again
+make extract-revalidate                # re-judge stored facts; no model call
+make extract-bridge                    # read every topic's groups for bridges
+make extract-bridge FORCE=1            # even over bridges accepted questions cite
+make extract-bridge MISSING=1          # only the topics holding no bridge yet
+make extract-recap                     # re-apply the atomic cap; no model call
+make extract-dedup                     # re-decide the duplicate refusals, then re-judge and re-cap what moved; no model call
+make extract-embed                     # write vectors onto rows already stored
+make extract-digests                   # digest the passages that finished without one
 
-make extract-retry PASSAGE=<id>     # any of them but extract, narrowed to one passage
-make extract-rerun SHA=<sha256>     # or to one document
+make extract-retry PASSAGE=<id>        # any of them but extract, narrowed to one passage
+make extract-rerun SHA=<sha256>        # or to one document
 ```
 
 `extract-embed` does **not** apply the dedup gate: a fact accepted before

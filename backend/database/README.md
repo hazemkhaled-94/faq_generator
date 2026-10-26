@@ -135,8 +135,8 @@ existing database there.
 make migration m="add the dropped counts"  # write a revision from the models
 make schema                                # apply everything outstanding
 make schema-status                         # where the database is
-make schema-down                           # take the newest revision back off
-make schema-reset                          # drop every table and rebuild. Irreversible
+make schema-down CONFIRM=<database>        # take the newest revision back off
+make schema-reset CONFIRM=<database>       # drop every table and rebuild. Irreversible
 make schema-stamp                          # adopt a database that already holds the tables
 ```
 

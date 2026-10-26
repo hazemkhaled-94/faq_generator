@@ -1270,7 +1270,7 @@ make questions                  # drain the queue here, in the foreground
 make questions-status           # also: documents and passages no accepted question reaches
 make questions-stop
 make questions-retry
-make questions-rerun
+make questions-rerun CONFIRM=<database>
 make questions-start TOPIC=7    # any of the five, over one topic
 make questions-reverify         # re-check stored questions; no model call
 make questions-rejudge          # ask whether the passages settle each accepted unanswerable; calls the verifier

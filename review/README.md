@@ -49,18 +49,18 @@ this runs on the host, like `make schema`.
 ## Using it
 
 ```bash
-make review-push-facts       # a sample, spread over the verdicts
-make review-pull-facts       # write the submitted verdicts back
+make review-push-facts                 # a sample, spread over the verdicts
+make review-pull-facts                 # write the submitted verdicts back
 make review-push-topics
 make review-pull-topics
-make review-push-questions   # a sample, spread over the gates
+make review-push-questions             # a sample, spread over the gates
 make review-pull-questions
-make review-status           # how much has been looked at, and who agreed
+make review-status                     # how much has been looked at, and who agreed
 
-make review                  # push both samples and every topic in one go
-make review-all              # every row of every kind still to review, not a sample
-make pull                    # pull all three back
-make review-delete           # delete the three review datasets, and no other
+make review                            # push both samples and every topic in one go
+make review-all                        # every row of every kind still to review, not a sample
+make pull                              # pull all three back
+make review-delete CONFIRM=<database>  # delete the three review datasets, and no other
 ```
 
 Push, review in the UI at `ARGILLA_API_URL`, then pull.

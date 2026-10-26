@@ -126,8 +126,8 @@ two-by-two hex fanout is not cosmetic: the filer keys its metadata on
 | `DELETE /documents/{sha256}/derived` | Remove the passages and what cascades, keep both objects. The same count, and the same replay as after a deletion; `make delete-derived` runs it itself |
 
 **Command line:** `make documents`, `make ingest DIR=…` (every PDF in a host
-directory, through this service, one line per file), `make delete SHA=…`,
-`make delete-derived SHA=…`, `make wipe`.
+directory, through this service, one line per file), `make delete SHA=… CONFIRM=<database>`,
+`make delete-derived SHA=… CONFIRM=<database>`, `make wipe`.
 
 **Read by:** [parsing](../preprocessing/parsing/README.md).
 

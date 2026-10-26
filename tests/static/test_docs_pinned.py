@@ -1090,8 +1090,8 @@ def test_the_delete_row_names_the_extract_worker_refusal() -> None:
     lines = _make("-n", "delete", "SHA=abc")
     guards = [at for at, line in enumerate(lines) if "ps -q extract-worker " in line]
     deleting = [at for at, line in enumerate(lines) if "ingestion.run --delete" in line]
-    (delete,) = _make_md_rows("make delete SHA=<sha256>")
-    (derived,) = _make_md_rows("make delete-derived SHA=<sha256>")
+    (delete,) = _make_md_rows("make delete SHA=<sha256> CONFIRM=<database>")
+    (derived,) = _make_md_rows("make delete-derived SHA=<sha256> CONFIRM=<database>")
 
     assert guards and deleting and guards[0] < deleting[0], lines
     assert "`extract-worker`" in delete and "`extract-worker`" in derived
