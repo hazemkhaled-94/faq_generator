@@ -7,6 +7,7 @@ the models is a question for a live one.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -68,8 +69,6 @@ def test_every_parent_named_exists(scripts: ScriptDirectory) -> None:
 
 def test_every_revision_can_be_taken_back_out(scripts: ScriptDirectory) -> None:
     """An upgrade with no downgrade is a one-way door."""
-    import ast
-
     for revision in scripts.walk_revisions():
         tree = ast.parse(Path(revision.path).read_text())
         downgrade = next(
@@ -92,22 +91,51 @@ def test_every_revision_can_be_taken_back_out(scripts: ScriptDirectory) -> None:
 _BEFORE_THE_RULE = "20261021_0300"
 
 
+def _called(node: ast.AST) -> str:
+    """The name a call calls: `op.create_table` and `create_table` alike."""
+    if not isinstance(node, ast.Call):
+        return ""
+    return getattr(node.func, "attr", "") or getattr(node.func, "id", "")
+
+
 def _blocking_check(source: str) -> bool:
     """Whether a revision adds a CHECK that scans the table under its lock.
 
     A CHECK added `NOT VALID` takes a short lock and is validated by a later
-    revision; `op.create_check_constraint` has no such option.
+    revision; `op.create_check_constraint` has no such option, and neither has
+    a `sa.CheckConstraint` outside `op.create_table`, whose table is empty.
+    The SQL is read as the parser joins it, adjacent literals as one string,
+    and `NOT VALID` counts only within the statement it ends; comments are
+    not read.
     """
-    if "create_check_constraint(" in source:
-        return True
-    # Named or not: `ADD CHECK (...)` scans the table as `ADD CONSTRAINT c
-    # CHECK (...)` does.
-    adds = re.findall(
-        r"ADD\s+(?:CONSTRAINT[^;\"']*?)?\bCHECK\b[^;]*",
-        source,
-        re.IGNORECASE | re.DOTALL,
-    )
-    return any("NOT VALID" not in one.upper() for one in adds)
+    tree = ast.parse(source)
+    above = {
+        child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)
+    }
+
+    def in_new_table(node: ast.AST) -> bool:
+        while node in above:
+            node = above[node]
+            if _called(node) == "create_table":
+                return True
+        return False
+
+    for node in ast.walk(tree):
+        if _called(node) == "create_check_constraint":
+            return True
+        if _called(node) == "CheckConstraint" and not in_new_table(node):
+            return True
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            for statement in node.value.split(";"):
+                # Named or not: `ADD CHECK (...)` scans the table as `ADD
+                # CONSTRAINT c CHECK (...)` does.
+                if re.search(
+                    r"\bADD\s+(?:CONSTRAINT\b.*?)?\bCHECK\b",
+                    statement,
+                    re.IGNORECASE | re.DOTALL,
+                ) and not re.search(r"\bNOT\s+VALID\b", statement, re.IGNORECASE):
+                    return True
+    return False
 
 
 @pytest.mark.parametrize(
@@ -124,6 +152,50 @@ def _blocking_check(source: str) -> bool:
         ('op.execute("ALTER TABLE bestellungen ADD CHECK (menge > 0)")', True),
         ('op.execute("ALTER TABLE questions ADD CHECK (a > 0) NOT VALID")', False),
         ('op.add_column("orders", sa.Column("x", sa.Text()))', False),
+        # The name and the CHECK in two literals, as this codebase splits SQL.
+        (
+            (
+                'op.execute(\n    "ALTER TABLE konten ADD CONSTRAINT saldo_positiv "\n'
+                '    "CHECK (saldo >= 0)"\n)'
+            ),
+            True,
+        ),
+        # NOT VALID counts in its own statement only, never in the next one.
+        (
+            (
+                'op.execute("ALTER TABLE orders ADD CONSTRAINT a CHECK (total > 0)")\n'
+                'op.execute("ALTER TABLE invoices ADD CONSTRAINT b CHECK (amount > 0) '
+                'NOT VALID")'
+            ),
+            True,
+        ),
+        (
+            (
+                'op.execute("ALTER TABLE orders ADD CONSTRAINT a CHECK (total > 0)")\n'
+                "# the next revision adds the other one NOT VALID"
+            ),
+            True,
+        ),
+        (
+            'op.execute("alter table bestellungen add constraint m check (menge > 0)")',
+            True,
+        ),
+        # A column's CHECK is added with the column, under the same lock.
+        (
+            (
+                'op.add_column("orders", sa.Column("total", sa.Numeric(), '
+                'sa.CheckConstraint("total > 0")))'
+            ),
+            True,
+        ),
+        # A new table holds no row to scan.
+        (
+            (
+                'op.create_table("rechnungen", sa.Column("betrag", sa.Numeric()), '
+                'sa.CheckConstraint("betrag > 0"))'
+            ),
+            False,
+        ),
     ],
 )
 def test_the_check_rule_reads_a_revision(source: str, blocks: bool) -> None:
