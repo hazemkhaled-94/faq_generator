@@ -896,9 +896,10 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
   `configs/env/deployment.env` ships the go-live row of
   [Sizing Postgres](#sizing-postgres). Its measure is the 10x load test
   `make test-perf` runs: a dedup probe and a fact write within twice their
-  time at the reviewed build's size. On CI's runner, in two runs, the
-  single-pass probe p95 went from 4.5 ms to 9.7 ms, 2.15x against the 2x the
-  bar allows; the warm probe held at 1.00x and the write at 1.66x. The sizing
+  time at the reviewed build's size. On CI's runner the single-pass probe p95
+  was 2.15x in both runs, against the 2x the bar allows (4.4 to 9.5 ms and 4.5
+  to 9.7 ms); the warm probe held at 1.07x and 1.00x and the write at 1.47x and
+  1.66x. The sizing
   ships with that limit by the user's decision: the database is about 2% of a
   drain's time at ten times the build. Watch the probe time as the corpus
   grows, and raise `POSTGRES_MEMORY` and `POSTGRES_SHARED_BUFFERS` by the
@@ -913,9 +914,12 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
 - **At most two drains of a model stage a database**, and at most two of
   extraction (C-082, C-026, below).
 - **Time and spend**: `make estimate` says both for the rows still to do
-  (C-084). [Sizing a corpus](#sizing-a-corpus) works the go-live corpus: 43
-  hours and USD 725 at two drains of extraction and questions, the questions
-  growing with `TOPIC_NUM_TOPICS`.
+  (C-084). [Sizing a corpus](#sizing-a-corpus) works the go-live corpus: USD
+  725, and 81 hours under `make corpus-hosted`, which runs one drain a stage.
+  Two drains of extraction and of questions would make it 43 hours, but no
+  documented path runs a second drain beside a hosted run, and one started by
+  hand would not count against the run's `SPEND_CAP`. The questions grow with
+  `TOPIC_NUM_TOPICS`.
 
 ### Backups
 
@@ -956,6 +960,17 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
   on the next page joins its table since v0.5.2 (C-121), but a table's wrong
   section path (C-097) and a second tier joined to the row above (C-282) are
   open.
+- **Tell the customer what the reviewed build measured**, and report the
+  release as a whole or each slice with its own share:
+  - released two-passage questions were 0.548 usable (n 126) and accepted hard
+    questions 0.514 (n 70), against 0.841 for the release; never report either
+    slice alone as the system's quality;
+  - 13 of the 128 released unanswerable questions are answered by the corpus
+    and 11 are invalid, mostly the same rows, so a refusal evaluation built on
+    them drops or rechecks those rows, or about one expected refusal in ten is
+    wrong;
+  - the automatic judge agrees with the labels at kappa 0.18, close to chance:
+    quality figures need labels, not the judge.
 
 ### The conditions that still hold
 
@@ -968,7 +983,7 @@ passages, German and English. The review measured 30 PDFs and 1,973 passages.
 | C-106 | Ingest only documents the customer authored or controls, no user reviews or third-party submissions: a document's text reaches every prompt as it is, so an instruction planted in it is read as one | Fencing the material in every prompt. It was tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9 |
 | C-114 | Bulk loads go through the host with `make ingest DIR=`, and the Upload page takes a few files at a time: the page refuses more than 20 files or 200 MB, but Streamlit has uploaded every picked file into its 1 GB process before that check, so a picked corpus can kill it. The page says so above its picker | A check before the upload, which Streamlit's uploader cannot make |
 | C-054 | After a deletion through the pages or the API, run `make extract-dedup`: every deletion says how many duplicate refusals lost their twin, and on this profile no extraction worker runs to give them back. `make delete` and `make delete-derived` run it themselves | A replay the host runner makes after a deletion |
-| C-066 | Export a large corpus with `make questions-export` on the host, never through the pages: the API builds the whole workbook in its 512 MB and fails past about 13,000 questions | The streaming export, deferred to v0.5.3 |
+| C-066 | Export a large corpus with `make questions-export` on the host, never through the pages: the API builds the whole workbook in its 512 MB, which failed past about 13,000 questions in v0.5.1; the workbook holds more columns now, and the bound is not measured again | The streaming export, deferred to v0.5.3 |
 | C-029 | Report the difficulty band as retrieval spread, never as hardness, and leave `QUESTIONS_RELEASE_DIFFICULTY` unset: equal thirds drew nearly every multi-passage question, where the welds sit. The workbook titles the column Retrieval spread since v0.5.2 | A grading of how hard a question is to answer, not built |
 | C-031 | Leave distant-from-document out of per-category reports: most of its released rows use the document's words | A per-question reading of how far a row's words are from its evidence, calibrated on two corpora (deferred) |
 | C-052 | Before a release from price lists or fee schedules, read by hand its questions whose explanation states a space-grouped amount (`12 500 €`): a wrong total there can still pass the explanation check. Since v0.5.2 the figure reader takes such an amount as one figure with a marked currency, a price dash, a no-break space or any currency sign after it | The explanation half of the fix, which needs the arithmetic check's model call to tell a right total from a wrong one |
@@ -1027,7 +1042,7 @@ Each comes off again with `make schema-down CONFIRM=<database>`, which drops wha
 
 - **`TOPIC_MIN_WEIGHT` is retired for `TOPIC_RELATIVE_WEIGHT`** (0.5): a membership is kept when it is at least that share of the passage's strongest, where the absolute floor it replaces kept weak memberships that bound unrelated passages, 3.7 topics a passage on the reviewed build. A value left in an environment file is no longer read. A row stored under the old name stops the topic stage's build and `make doctor`, naming the new one and the `DELETE` that removes the row: an absolute weight read as a share would be a floor of nearly nothing. Refit afterwards (step 5).
 - **`TOPIC_NUM_TOPICS`** ships at 300 a language, where it was 40, and topics are named 25 to a call. A corpus past 40 topics a language fits more of them, and the questions, written per topic, grow with them: `make estimate` says by how much.
-- **`MAX_FILE_SIZE_MB`** is bounded at 150, what the API's 512 MB holds whole. A value above it stored under v0.5.1 is now a row the catalogue refuses: an upload answers 503 `stored_setting_refused`, `make ingest` exits 3 and `make doctor` fails, each naming it. Store 150 or less, or delete the row.
+- **`MAX_FILE_SIZE_MB`** is bounded at 150, meant as what the API's 512 MB holds whole, which is not measured. A value above it stored under v0.5.1 is now a row the catalogue refuses: an upload answers 503 `stored_setting_refused`, `make ingest` exits 3 and `make doctor` fails, each naming it. Store 150 or less, or delete the row.
 - **`PARSING_MAX_PAGES`** is new (180; 0 is no limit): a longer document is refused before conversion, naming its pages, where the parse worker ran out of its 4 GB and was killed holding its claim. `make parse-retry` returns it after a split.
 - **`SPEND_CAP`** is new and the deployment's: a cap in USD, given on a drain's command line, `make corpus-hosted SPEND_CAP=` among them, that stops a drain, the bridge pass, the release draw and the rejudge with exit 75 before the next row past it. Under `make corpus-hosted` it counts the whole run, through a spend ledger kept for each database (`SPEND_LEDGER`). With it set, a drain refuses a model litellm cannot price.
 - **`EMBEDDING_MODEL`, `NLI_MODEL` and `QA_MODEL` are fixed**, with their commits beside them in `backend.env` (`EMBEDDING_MODEL_REVISION`, `NLI_MODEL_REVISION`, `QA_MODEL_REVISION`, the build cache's commits): a model id and its commit change together, in the file. A row stored for one of the three ids stops every stage's build, naming its pin and the `DELETE` that removes it. `DOCLING_ARTIFACTS_PATH` is fixed as well, so a stored override of any of the four stops applying.
@@ -1054,7 +1069,7 @@ None of these is needed to start v0.5.2. Each brings stored data up to what v0.5
 | Parse | `make parse-rerun CONFIRM=<database>` | The parse fixes: a document in a language no configured model names is refused, naming it (C-008); titles (C-096); hidden text dropped (C-107); low-confidence pages and interleaved columns named (C-109, C-426). Docling 2.142.1 alone needs none |
 | Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | The passage fixes: clauses a bookmark pass made headings (C-007), tables continued on the next page (C-121), running items, change boxes and letterheads (C-187, C-230, C-368). On the reviewed build it changes 108 passages of 9 documents and keeps every other with its facts and questions; on the shop corpus it changes none |
 | Extract the new passages | `make extract-start`, then `make extract` | The passages the re-chunk made have no facts yet; only those reach the model |
-| Judge facts again | `make extract-revalidate` | The fact checks (C-019, C-020, C-021, C-033, C-129, C-137, C-416). No model call. On a copy of the build, with this release's code, the first run moved validated atomic facts from 10,468 to 10,757, bridges 189 to 203, outlines 559 to 593 and summaries 616 to 619, and writes only the facts whose verdict changed; a second run writes nothing |
+| Judge facts again | `make extract-revalidate` | The fact checks (C-019, C-020, C-021, C-033, C-129, C-416). No model call. On a copy of the build, with this release's code, the first run moved validated atomic facts from 10,468 to 10,757, bridges 189 to 203, outlines 559 to 593 and summaries 616 to 619, and writes only the facts whose verdict changed; a second run writes nothing |
 | Digest | `make extract-digests` | v0.5.1's digest floor of 500 characters and the floor's count of list items (C-057, C-098): passages above it that hold no digest get one. On a copy of the build at 500 characters, before the list items were counted, it digested 255 passages for USD 1.04 and left every atomic fact and question as it was |
 | Refit topics | `make topics-discover` | `TOPIC_RELATIVE_WEIGHT` (C-095): questions are dealt from memberships, which the old floor kept. A new topic that is an old generated one and gained no passage stays generated; the others are asked about by the next `make questions` |
 | Questions already stored | `make questions-reverify` | Holds every stored question to its facts after the steps above, and rejects one whose facts went or no longer hold. It never gives a rejected one back, so the gates this release loosens (C-144, C-188) keep only what is written from now on; `make questions-rerun` writes every topic again, at the writer's cost |
@@ -1070,7 +1085,7 @@ None of these is needed to start v0.5.2. Each brings stored data up to what v0.5
 - **The review datasets** carry the database in Argilla, and a dataset pushed under the bare name is left where it is: with its verdicts pulled before the upgrade (step 1), push again (`make review-push-*`).
 - **Destructive targets ask for the database.** `schema-down`, `schema-reset`, `wipe`, `delete`, `delete-derived`, `topics-delete`, an unnarrowed `*-rerun` and `archive-purge` with `TABLE`, `ALL` or `DAYS` refuse unless `CONFIRM=<database>` is given on the command line: one exported in the shell does not count. `make down-volumes`, which deletes every database's volumes, wants `CONFIRM=all-volumes`, and `make restore-backup-stack` `CONFIRM=stack`, both on the command line. A restore is `make restore-documents AT=`, which puts back only the deletions it names.
 - **A deletion takes the questions on what it removes.** A question on a fact the deletion removes goes, one written from two documents with either; a fact another document also cites stays, with its question. A question a rerun left with no fact is found by the documents stamped on it (`questions.source_digests`). Every deletion ends saying how many duplicate refusals lost their twin, which the extraction worker gives back when its queue is empty, or `make extract-dedup` where none runs.
-- **The first empty extraction queue replays every duplicate refusal, once.** `facts.twin_id` is NULL on every refusal stored before the upgrade (step 2), and a NULL is what marks a refusal whose twin went. So the first time an extraction drain finds its queue empty, a worker's poll or the end of a host `make extract`, it re-decides each of them on the deployed database against the facts stored now: one that repeats no stored fact any more is given back, and its passage's facts are judged and capped again. No served model is called. Later replays read only the refusals a deletion or a rerun leaves without a twin.
+- **The first empty extraction queue replays every duplicate refusal, once.** `facts.twin_id` is NULL on every refusal stored before the upgrade (step 2), and a NULL is what marks a refusal whose twin went. So the first time an extraction drain finds its queue empty, a worker's poll or the end of a host `make extract`, it re-decides each of them on the deployed database against the facts stored now: one that repeats no stored fact any more is given back, an outline refused as a twin of its own passage's summary among them (C-137), and its passage's facts are judged and capped again. No served model is called. Later replays read only the refusals a deletion or a rerun leaves without a twin.
 - **The first `make up` sets a trace retention for every database on the stack.** Phoenix's default policy becomes `PHOENIX_TRACE_RETENTION_DAYS` (30) days for every project, whichever database it belongs to, and its next run deletes the older spans, among them those a reconciliation of Phoenix's cost against `make spend` reads ([What the model costs](#what-the-model-costs)). Reconcile first, or raise the value in `deployment.env` before that `make up`.
 - **Drains exit with a reason**: 0 done, 3 a row failed, 75 stopped (an outage, `SPEND_CAP`, a model that finds nothing, a signal). `make corpus` stops at the first non-zero exit, waits only for the parse and chunk workers, and refuses beside a model worker or a hosted run of its database. On the go-live profile it runs as `make corpus-hosted`, which a systemd unit or a launchd daemon can supervise; `RESET=1` starts a stopped run afresh, and `RESET=0` or none resumes it ([After a stop](#after-a-stop)).
 - **Two extraction drains** may run side by side, and no more ([Scaling](#scaling)).
@@ -1107,7 +1122,7 @@ one's fix ships in v0.5.2, so it has left [Go-live deployment](#go-live-deployme
 | C-201 | A database password without URL-reserved characters | `make doctor` and `make corpus-hosted` refuse an `APP_DB_PASSWORD` holding `@ / : # ? %`, naming it |
 | C-219 | After any model change, a preflight log must show a price for each role | A drain with `SPEND_CAP` set refuses a model litellm cannot price, naming it, and an unpriced call is logged as one |
 | C-253 | Build images locally only and never push them | `.dockerignore` lets in only what the three Dockerfiles copy: no workbook, document, `.env` or key reaches a build |
-| C-299 | Keep `MAX_FILE_SIZE_MB` at or below its shipped 100 | `MAX_FILE_SIZE_MB` is bounded at 150, what the API's 512 MB holds whole, and the API refuses a PDF of more than `PARSING_MAX_PAGES` pages or one read past `PARSING_TIMEOUT_SECONDS`, naming the setting |
+| C-299 | Keep `MAX_FILE_SIZE_MB` at or below its shipped 100 | `MAX_FILE_SIZE_MB` is bounded at 150, meant as what the API's 512 MB holds whole (not measured), and the API refuses a PDF of more than `PARSING_MAX_PAGES` pages or one read past `PARSING_TIMEOUT_SECONDS`, naming the setting |
 | C-416 | Before ingest, list the currency codes in the corpus's tables, and ship the currency fix first beyond EUR, USD, GBP and CHF | A currency is any ISO 4217 code or currency sign beside a number, or the language's own word for one |
 
 ## Upgrading to v0.5.1
