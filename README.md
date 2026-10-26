@@ -1,392 +1,258 @@
 # FAQ Generator
 
-Builds a verified question-and-answer dataset from a corpus of documents, so
-a retrieval-augmented chatbot can be measured against a fixed benchmark
-instead of against an opinion.
+FAQ Generator builds a question-and-answer dataset from a set of documents.
+The dataset is a fixed benchmark for testing a retrieval-augmented chatbot.
 
-Documents are parsed into passages, read into atomic facts that each cite one
-sentence of their source, grouped into topics, and turned into questions with
-known answers. Every question carries the facts it was written from, and every
-fact carries the sentence it came from, so any answer in the set can be traced
-back to a page. A deliberate share of the questions written have no answer
-in the corpus at all, which is what measures whether a chatbot recognises the
-limits of its knowledge. As shipped, the release holds up to a tenth of
-them: `QUESTIONS_RELEASE_UNANSWERABLE` is 0.10. The verifier's `settles`
-judgement that keeps them still keeps about a third that the corpus answers,
-a known defect, so some released ones test a chatbot for saying no to a
-question it should answer. At 0 the release holds none, and they stay in the
-accepted pool, where `make questions-export FILTER="--status accepted
---unanswerable"` exports them and `FILTER="--released"` does not.
+The pipeline parses each document into passages, extracts facts that each
+cite one source sentence, groups the passages into topics, and writes
+questions with known answers. Every answer traces back to its facts, their
+sentences and the page they sit on.
 
-The pipeline is subject-agnostic: no prompt names a domain, and topics are
-discovered from the corpus's own vocabulary rather than supplied. German and
-English ship configured in `NLP_MODELS`; adding a third language is a short
-list of edits in [`backend/nlp/`](backend/nlp/README.md).
+Some released questions have no answer in the corpus. They test whether a
+chatbot declines to answer. `QUESTIONS_RELEASE_UNANSWERABLE` is 0.10, so up
+to a tenth of the release is unanswerable. About a third of the questions
+kept as unanswerable are in fact answered by the corpus, a known defect
+listed in [docs/bugs.md](docs/bugs.md).
 
-Everything but a hosted model runs on infrastructure you control. **No
-document content leaves the deployment**, except to whichever model provider
-you configure — and with a locally served model, not even that. The
-architecture supports local serving through Ollama; the measured run in
-[docs/measurements.md](docs/measurements.md) used hosted models.
+No prompt names a subject, and topics come from the corpus vocabulary.
+German and English are configured in `NLP_MODELS`; [backend/nlp](backend/nlp/README.md)
+lists the edits for another language. Every service runs on the operator's
+own machines. Document text leaves only to the configured model provider.
 
-## What you get
+## Output
 
-An Excel workbook of four sheets, plus the same rows through the API and the
-database:
+An Excel workbook with four sheets. The API (`GET /questions`) and the
+PostgreSQL database hold the same rows.
 
 | Sheet | One row per |
 |---|---|
-| Questions | Question, with its answer, difficulty, type, and what it rests on |
-| Citations | Question × fact × passage, with the page number and the evidence |
+| Questions | Question, with its answer, difficulty, type and sources |
+| Citations | Question, fact and passage, with the page number and the evidence |
 | Assessment | Judgement of a question by an independent model |
-| Summary | The counts for what the filter selected |
+| Summary | Counts for the rows the filter selected |
 
-See [docs/measurements.md](docs/measurements.md) for what one run produced.
+The main columns of the Questions sheet:
 
-## Prerequisites
+| Column | Content |
+|---|---|
+| `question_text` | The question |
+| `target_answer` | The answer a chatbot is scored against |
+| `answer_explanation` | The same answer in full, for a human marker |
+| `answerable` | `false` for questions the corpus does not answer |
+| `difficulty` | `easy`, `medium` or `hard`, from how widely the answer is spread |
+| `question_type` | One of thirteen question forms |
 
-| | | |
+[docs/measurements.md](docs/measurements.md) shows what a full run produced.
+
+## Requirements
+
+| Tool | Version | Notes |
 |---|---|---|
 | [Python](https://www.python.org/downloads/) | 3.12 or 3.13 | 3.14 is not supported: gensim does not build there |
-| [Poetry](https://python-poetry.org/docs/#installation) | 2.0 or later | Dependency management |
-| [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-started/get-docker/) | with Compose | 23 containers |
-| [Ollama](https://ollama.com/download) | any recent | **Required** for the container workers. See below |
-| Disk | ~15 GB | Images, model weights and volumes |
-| RAM | 16 GB | 6 GB of it for the question worker. Podman's machine has a size of its own: see [Memory](docs/operations.md#memory) |
+| [Poetry](https://python-poetry.org/docs/#installation) | 2.0 or later | |
+| [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-started/get-docker/) | with Compose | Runs 23 containers |
+| [Ollama](https://ollama.com/download) | any recent | Development profile only |
+| Disk | 15 GB | Images, model weights and volumes |
+| RAM | 16 GB | 6 GB for the question worker. The Podman machine needs its own size: see [Memory](docs/operations.md#memory) |
 
-**The containers call Ollama and nothing else.** `LLM_CONTAINER_MODEL` has
-to name a model Ollama serves: compose refuses to start without it, `make
-doctor` refuses one that is not an Ollama model, and a container never
-inherits the host's `LLM_MODEL`. The host may call a hosted provider as
-well. Without Ollama, the stages that call a model run on the host instead:
-see [A hosted model only](#a-hosted-model-only). Otherwise pull at least one
-model before the first run:
+## Installation
+
+Clone outside any cloud-synced folder.
+
+```bash
+git clone https://github.com/hazemkhaled-94/qa_generator.git
+cd qa_generator
+make setup      # copies .env.example to .env and fills every placeholder secret
+make install    # Python dependencies, spaCy pipelines and Docling's weights
+```
+
+`make setup` is safe to run again: it replaces only `change_me_*`
+placeholders. `make install` needs the container engine running.
+
+`.env` ships the production profile: `HOST_RUNNER=1`,
+`LLM_MODEL=azure/gpt-5.4` and seven role models on Azure
+([the production split](docs/configuration.md#the-production-split)). The
+model stages run on the host. Put the provider credentials in
+`configs/env/provider.env`.
+
+`LLM_MODEL` is a [LiteLLM](https://docs.litellm.ai/docs/providers) model id.
+Its prefix selects the provider:
+
+```ini
+LLM_MODEL=azure/<deployment>           # an API key, or Entra ID
+LLM_MODEL=openai/gpt-4o                # OPENAI_API_KEY in provider.env
+LLM_MODEL=anthropic/claude-sonnet-4-5  # ANTHROPIC_API_KEY
+LLM_MODEL=ollama_chat/gemma4:31b       # local, no credentials
+```
+
+### Development profile
+
+The development profile runs every stage in its container worker against a
+local Ollama model. In `.env`, switch `LLM_MODEL` and `LLM_BASE_URL` to the
+commented Ollama lines beside them, empty the role models that name Azure,
+and remove `HOST_RUNNER=1`. Then pull the model:
 
 ```bash
 ollama pull gemma4:31b
 ```
 
-Pick a tag whose quantisation matches the runner serving it — an `-mlx` build
-with nvfp4 weights will not load under Ollama's MLX runner.
+Pick a tag whose quantisation the runner can load: an `-mlx` build with
+nvfp4 weights does not load under Ollama's MLX runner.
 
-## Install
+On both profiles `LLM_CONTAINER_MODEL` must name an Ollama model, and
+compose refuses to start without it. A container never reads `LLM_MODEL`.
 
-```bash
-git clone https://github.com/hazemkhaled-94/qa_generator.git && cd qa_generator
-make setup      # writes .env and configs/env/provider.env, fills every placeholder
-```
+## Usage
 
-`setup` is safe to run twice: it replaces `change_me_*` placeholders and
-nothing else.
-
-Then name the model. `LLM_MODEL` in `.env` is a
-[LiteLLM](https://docs.litellm.ai/docs/providers) identifier whose prefix
-picks the provider:
-
-```ini
-LLM_MODEL=ollama_chat/gemma4:31b       # local, no credentials
-LLM_MODEL=openai/gpt-4o                # OPENAI_API_KEY in provider.env
-LLM_MODEL=anthropic/claude-sonnet-4-5  # ANTHROPIC_API_KEY
-LLM_MODEL=azure/<deployment>           # a key, or Entra ID
-```
-
-`LLM_CONTAINER_MODEL` is what the containers call and compose refuses to start
-without it. Set both to the same value if one model serves both.
-
-`.env.example`, which `make setup` copies, ships the go-live profile:
-`HOST_RUNNER=1`, `LLM_MODEL=azure/gpt-5.4` and the seven roles split across
-Azure models ([the go-live split](docs/configuration.md#the-go-live-split)),
-run on the host by `make corpus-hosted`
-([the runbook](docs/operations.md#the-runbook)). `configs/env/backend.env`
-names no role model: a role left unset follows `LLM_MODEL`, the digest reader
-follows the passage reader, the phrasing judge the verifier, and the judge
-nothing. For development with Ollama, switch `LLM_MODEL` to the commented
-Ollama line beside it, empty the role models that name Azure (they then follow
-it) and leave `HOST_RUNNER` unset, together.
+### Production run
 
 ```bash
-make install    # dependencies, the spaCy pipelines NLP_MODELS names, and Docling's weights
-make doctor     # checks the tools and the config, then asks each model one question
+make docling-weights HOST=1             # Docling's weights into the host cache
+make up                                 # database, object store, API, parse and chunk workers, frontend, Phoenix
+make schema                             # creates the tables
+make doctor                             # checks the config and sends one request to every model
+make ingest DIR=<folder of PDFs>        # loads the corpus
+make corpus-hosted SPEND_CAP=50         # runs every stage on the host, detached, up to USD 50
+make questions-export OUT=release.xlsx FILTER="--released"
 ```
 
-`install` needs the container engine running. The parse worker has no
-internet access, so `install` downloads Docling's weights into the `models`
-volume from a container that has. After `make down-volumes`, run
-`make docling-weights` again before parsing.
+`make corpus-hosted` returns at once. Progress goes to
+`logs/corpus-hosted.log`, and `make corpus-hosted-stop` stops the run. The
+next `make corpus-hosted` resumes it. On this profile `make all`,
+`make pipeline` and `make auto` refuse to run.
+[The runbook](docs/operations.md#the-runbook) covers each step in detail.
 
-`doctor` ends with a real call to every model a stage calls, `LLM_MODEL` and
-each of the seven roles, so a wrong model id, an unreachable address or a
-stale credential fails there rather than on the first passage of a run.
-
-## Run
+### Development run
 
 ```bash
-make dev
+make dev        # certificates, every service, the schema
+make doctor
 ```
 
-Generates TLS certificates, starts every service, waits for PostgreSQL and
-creates the schema. The frontend is then at <http://localhost:8501> and the
-API documentation at <http://localhost:8000/docs>. Those are the default
-ports, set in `configs/env/deployment.env`;
-[a second stack](docs/operations.md#a-second-stack-beside-the-first) moves
-them.
+The frontend is at <http://localhost:8501> and the API documentation at
+<http://localhost:8000/docs>. The ports are set in
+`configs/env/deployment.env`. `make services` lists the running containers
+and their URLs, and `make help` lists every target.
+
+Podman is the default container engine. To use Docker:
 
 ```bash
-make services   # which containers are up, and where to open them
-make help       # every target, grouped
+make CONTAINER=docker COMPOSE="docker compose" dev
 ```
 
-### Choosing a setup
-
-Four choices. The model provider can settle the third: with no Ollama, the
-stages that call a model run on the host.
-
-**Container engine.** Podman is the default; the Makefile calls
-`podman compose`.
+Upload a PDF on the Upload page, or with curl. Every write to the API needs
+`API_TOKEN` from `.env`:
 
 ```bash
-make CONTAINER=docker COMPOSE="docker compose" dev    # Docker instead
+curl -H "X-API-Token: $API_TOKEN" -F file=@guide.pdf http://localhost:8000/documents
 ```
 
-**Model provider.** Ollama alone is the simplest and needs no credentials.
-A hosted provider is faster per call. The containerised workers call Ollama
-for `LLM_CONTAINER_MODEL`; `ASSESSMENT_JUDGE_CONTAINER_MODEL` may point the
-judge at a hosted one. Credentials go in `configs/env/provider.env`, which
-compose gives to the four workers that call a model.
-
-**Where the stages run.** The workers in their containers, or `make extract`
-and friends on the host, never both for one stage: a host drain refuses while
-that stage's worker is running, and prints the command that stops it. The
-container workers build the dataset. A host drain is for developing a stage,
-and nothing keeps its rows out of the dataset: it writes the same tables in
-the same database as the workers, nothing but a `RUN_ID`, where one is set,
-tells its rows apart, and the refusal checks only that the stage's worker is
-stopped. Do not build the dataset with one, unless the only model you have is
-hosted: then the host drains are the way, as
-[A hosted model only](#a-hosted-model-only) shows.
-
-**How the pipeline is driven.**
-
-| | Start it with | Suits |
-|---|---|---|
-| Browser | **Run the pipeline** on the Documents page | Trying it out — the easiest |
-| Terminal | `make all`, or `make pipeline` on a stack already up | A scripted or reproducible run |
-| HTTP | `POST /pipeline/run` | A deployment nobody drives interactively |
-| Unattended | `make auto` | An upload starting a run by itself |
-
-`make corpus` and the bare stage targets drain on the host instead, for
-developing a stage.
-
-**The easiest path is `make setup`, `.env` switched to Ollama as above, then `make install` → `make doctor` → `make dev`,
-with Podman for the engine and the browser for the pipeline.** Nothing runs
-until asked; every stage is incremental and skips what is already done. On
-the go-live profile `.env.example` ships, `make all`, `make pipeline` and
-`make auto` refuse, and `make up` then `make corpus-hosted` is the run.
-
-## An example, end to end
-
-Upload a PDF on the Upload page, or from a terminal, with the deployment's
-`API_TOKEN` from `.env`, which every write to the api carries:
+The response gives the outcome (`stored` on the first upload) and the
+file's `sha256`. Then run the pipeline in the container workers:
 
 ```bash
-curl -H "X-API-Token: $API_TOKEN" -F file=@guide.pdf http://localhost:8000/documents   # BACKEND_PORT, in configs/env/deployment.env
-```
-
-which answers with the outcome (`stored` the first time) and the file's
-`sha256`. Then take it through:
-
-```bash
-make all                                 # every stage but the topic fit, in the workers
-# once that run ends: Fit all on the Topics page, or POST /topics/discover
-make pipeline                            # now with questions about those topics
-make questions-balance                   # once that run ends: draw an evenly composed release
+make all                                 # every stage except the topic fit
+# when the run ends: Fit all on the Topics page, or POST /topics/discover
+make pipeline                            # the stages again, now with questions for those topics
+make questions-balance                   # draws the release
 make questions-export OUT=exam.xlsx FILTER="--released"
 ```
 
-`all` brings the stack up and launches Dagster's corpus job, which starts the
-stages in order and waits for each to drain before starting the next; the
-container workers do the draining. It never fits the topics: a fit replaces
-the topics of every language it fits, so it is asked for on its own, and
-`make topics-status` says how many passages are in no topic.
+The pipeline also starts from **Run the pipeline** on the Documents page,
+from `POST /pipeline/run`, or on every upload with `make auto`. Follow it
+with `make pipeline-status`, the Documents page or the Grafana pipeline
+dashboard.
 
-`make corpus` runs the same stages on the host, for developing a stage, and
-`make corpus-hosted` runs it detached on the go-live profile. A parse or chunk
-stage whose container worker is running is waited for until that worker has
-emptied its queue rather than drained beside it; a model stage refuses beside
-its worker. Stage by stage, which is what it runs:
+### Running stages on the host
+
+`make corpus` runs every stage on the host, in order, for developing a
+stage. A model stage refuses to run on the host while its container worker
+runs. Host drains write to the same tables as the workers. Stage by stage:
 
 ```bash
 make parse-start     && make parse       # a stored file becomes a structured document
-make chunk-start     && make chunk       # that document becomes passages
-make extract-start   && make extract     # those passages become facts citing a sentence
-make extract-digests                     # a digest for the passages that finished without one
-make topics-discover ENSURE=1            # fit the topics only when a language has none or they are stale
-make topics-status                       # how many passages are in no topic
-make extract-bridge MISSING=1            # facts joining a topic's passages, for topics holding none yet
+make chunk-start     && make chunk       # the document becomes passages
+make extract-start   && make extract     # passages become facts citing a sentence
+make extract-digests                     # a digest for passages that finished without one
+make topics-discover ENSURE=1            # fits topics when a language has none or they are stale
+make topics-status                       # passages in no topic
+make extract-bridge MISSING=1            # facts joining a topic's passages, for topics without any
 make questions-start && make questions   # each topic's facts become questions
-make questions-balance                   # draw the release again
+make questions-balance                   # draws the release
 make assess-start    && make assess      # the judge, when ASSESSMENT_ENABLED is true
 ```
 
-Watch it with `make pipeline-status`, the Documents page, or Grafana's
-pipeline dashboard.
+### Independent assessment
 
-The result is `exam.xlsx` — the four sheets above — and the same rows in
-PostgreSQL behind `GET /questions`. A single row reads on its own:
-
-| Column | Example |
-|---|---|
-| `question_text` | *Under what conditions may a test be re-run?* |
-| `target_answer` | The key a chatbot is scored against |
-| `answer_explanation` | The same answer at length, for a marker |
-| `answerable` | `false` on the questions with no answer in the corpus |
-| `difficulty` | `easy`, `medium` or `hard`, derived from how far the answer is spread |
-| `question_type` | One of thirteen forms, never a subject |
-| Citations | The facts it cites, their evidence, and the page each sits on |
-
-Turning the evaluation phase on adds an independent model's opinion beside
-each verdict — it decides nothing, and the pairs where the two disagree are a
-queue for a person:
+An optional second model judges each question. It changes no verdict: the
+questions where the two models disagree form a queue for human review.
 
 ```ini
 ASSESSMENT_ENABLED=true                           # .env
-ASSESSMENT_JUDGE_CONTAINER_MODEL=azure/gpt-4.1    # who judges in assess-worker; not LLM_MODEL
+ASSESSMENT_JUDGE_CONTAINER_MODEL=azure/gpt-4.1    # the judge in assess-worker, not LLM_MODEL
 ```
 
 ```bash
-make up                                  # assess-worker reads them
-make assess-enrol                        # enrol and count, before paying; not a dry run
-make assess-start                        # assess-worker judges what this queues
-```
-
-### A hosted model only
-
-The container workers call Ollama and nothing else, so a deployment whose
-only model is hosted drains the stages that call one on the host, where
-`LLM_MODEL` and `configs/env/provider.env` reach the provider. Parsing and
-chunking call no model and stay in their workers, which keeps the parse of
-an uploaded file off the host.
-
-In `.env`, name the hosted model in `LLM_MODEL`. `LLM_BASE_URL` may keep the
-Ollama address `make setup` wrote: a hosted model is then sent to its
-provider's own. Leave `LLM_CONTAINER_MODEL` as it is, since compose and
-`make doctor` need an Ollama model there and on this path no container calls
-it. Point the three judgements in `configs/env/backend.env` at the hosted
-model or blank them (see [Install](#install)), put the credentials in
-`configs/env/provider.env`, and run `make doctor`, which asks every model a
-stage calls.
-
-Start the [smaller set of services](docs/operations.md#a-smaller-stack), the
-frontend and the parse and chunk workers, and none of the four workers that
-call a model:
-
-```bash
-make certs logs-dir
-export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
-podman compose up -d api streamlit phoenix seaweedfs-volume seaweedfs-volume2 parse-worker chunk-worker
-make schema
-```
-
-Then upload a file as above, and:
-
-```bash
-make parse-start                         # parse-worker parses it; make parse-status says when
-make chunk-start                         # once it is parsed; chunk-worker cuts it into passages
-make extract-start   && make extract     # on the host from here on
-make topics-discover
-make extract-bridge MISSING=1
-make questions-start && make questions
-make questions-balance
-make questions-export OUT=exam.xlsx FILTER="--released"
+make up                                  # assess-worker reads the new settings
+make assess-enrol                        # enrols and counts before any spend; not a dry run
+make assess-start                        # queues the enrolled rows for assess-worker
 ```
 
 ## Documentation
 
-The [**project wiki**](https://github.com/hazemkhaled-94/qa_generator/wiki) is
-the long form of everything below, on one site and cross-linked. In this
-repository, each service documents itself beside its code.
+The [wiki](https://github.com/hazemkhaled-94/qa_generator/wiki) holds the
+full documentation. Each service also documents itself in its own directory.
 
-**The pipeline, in the order a document moves:**
-
-| | |
+| Pipeline stage | |
 |---|---|
-| [`backend/ingestion/`](backend/ingestion/README.md) | Upload validation, hashing and storage |
-| [`backend/preprocessing/parsing/`](backend/preprocessing/parsing/README.md) | A stored file becomes a structured document |
-| [`backend/preprocessing/chunking/`](backend/preprocessing/chunking/README.md) | That document becomes passages |
-| [`backend/extraction/`](backend/extraction/README.md) | Those passages become facts citing a sentence |
-| [`backend/topic_modelling/`](backend/topic_modelling/README.md) | Each language becomes topics over its own vocabulary |
-| [`backend/question_generation/`](backend/question_generation/README.md) | Each topic's facts become questions with known answers |
-| [`backend/assessment/`](backend/assessment/README.md) | An independent model reads it all back, and decides nothing |
+| [backend/ingestion](backend/ingestion/README.md) | Upload validation, hashing and storage |
+| [backend/preprocessing/parsing](backend/preprocessing/parsing/README.md) | Stored file to structured document |
+| [backend/preprocessing/chunking](backend/preprocessing/chunking/README.md) | Document to passages |
+| [backend/extraction](backend/extraction/README.md) | Passages to facts |
+| [backend/topic_modelling](backend/topic_modelling/README.md) | Topics per language |
+| [backend/question_generation](backend/question_generation/README.md) | Facts to questions |
+| [backend/assessment](backend/assessment/README.md) | Independent judgement |
 
-**The surfaces:**
-
-| | |
+| Component | |
 |---|---|
-| [`backend/api/`](backend/api/README.md) | The HTTP surface |
-| [`backend/stages/`](backend/stages/README.md) | The queue, the worker and the command line every stage shares |
-| [`frontend/`](frontend/README.md) | The Streamlit application |
-| [`docs/make.md`](docs/make.md) | Every `make` target |
+| [backend/api](backend/api/README.md) | HTTP API |
+| [backend/stages](backend/stages/README.md) | Queue, worker and command line shared by every stage |
+| [backend/database](backend/database/README.md) | Schema, migrations and triggers |
+| [backend/blob_store](backend/blob_store/README.md) | Object storage buckets |
+| [backend/archive](backend/archive/README.md) | Deleted documents and restore |
+| [backend/nlp](backend/nlp/README.md) | Sentences, claims, vocabulary and language |
+| [backend/llm](backend/llm/README.md) | Model calls |
+| [backend/settings](backend/settings/README.md) | Runtime settings |
+| [frontend](frontend/README.md) | Streamlit application |
+| [orchestration](orchestration/README.md) | Dagster assets |
+| [review](review/README.md) | Human review in Argilla |
+| [evaluation](evaluation/README.md) | Model evaluation in Phoenix |
+| [telemetry](telemetry/README.md) | Logging and tracing |
+| [configs](configs/README.md) | Service configuration and init scripts |
+| [tests](tests/README.md) | Test layers and what each needs |
 
-**What they stand on:**
-
-| | |
+| Guide | |
 |---|---|
-| [`backend/database/`](backend/database/README.md) | The schema, the migrations and the triggers |
-| [`backend/blob_store/`](backend/blob_store/README.md) | The five buckets |
-| [`backend/archive/`](backend/archive/README.md) | What a deletion leaves behind |
-| [`backend/nlp/`](backend/nlp/README.md) | Sentences, claims, vocabulary and language |
-| [`backend/llm/`](backend/llm/README.md) | The served model |
-| [`backend/settings/`](backend/settings/README.md) | Configuration, and what a change stales |
-| [`telemetry/`](telemetry/README.md) | Logging and tracing |
-
-**Around the edges:**
-
-| | |
-|---|---|
-| [`orchestration/`](orchestration/README.md) | Dagster: one asset per stage |
-| [`review/`](review/README.md) | Argilla: where a person overrules a model |
-| [`evaluation/`](evaluation/README.md) | Phoenix: scoring a served model against the golden cases |
-| [`tests/`](tests/README.md) | The layers, and what each needs |
-| [`configs/`](configs/README.md) | Service configuration and init scripts |
-| [`docs/architecture.md`](docs/architecture.md) | The four graphs |
-| [`docs/configuration.md`](docs/configuration.md) | Where every setting lives |
-| [`docs/operations.md`](docs/operations.md) | Scaling, dashboards, and what goes wrong |
-| [`docs/measurements.md`](docs/measurements.md) | What one run produced |
-| [`docs/bugs.md`](docs/bugs.md) | What is wrong with what it produced, and the fix |
-
-## How it is put together
-
-No backend service imports another. Each owns a repository over the shared
-models; `database/`, `blob_store/` and `llm/` build the connections, and
-`nlp/` loads the language models, beside the two a stage loads itself:
-parsing's Docling converter and chunking's tokenizer. Stages hand work to
-each other through their own status column and share only what is in
-`backend/stages/`.
-
-A service package re-exports nothing, so a caller naming
-`extraction.repository` pays for that submodule and no more — which is what
-keeps LiteLLM, Docling, gensim and spaCy out of the API process.
-
-They are independent modules, not independent services: one PostgreSQL schema,
-one `Status` enum, one container image. The rules are enforced by
-`make lint-imports`.
+| [docs/architecture.md](docs/architecture.md) | Module structure and dependency rules |
+| [docs/configuration.md](docs/configuration.md) | Where each setting lives |
+| [docs/make.md](docs/make.md) | Every `make` target |
+| [docs/operations.md](docs/operations.md) | Deployment, scaling, monitoring and troubleshooting |
+| [docs/measurements.md](docs/measurements.md) | Results of measured runs |
+| [docs/bugs.md](docs/bugs.md) | Known defects and their fixes |
 
 ## Limitations
 
-- **Scanned documents are refused rather than parsed.** OCR is not enabled.
-- **Figures become no passage of their own**, and key-value form regions are
+- Scanned documents are refused. OCR is off.
+- Figures produce no passage of their own, and key-value form regions are
   not modelled.
-- **`EMBEDDING_MODEL` cannot be changed without a migration.**
-  `questions.embedding` is `vector(1024)`.
-- **The model is the bottleneck, not the pipeline.** On the reviewed build,
-  30 documents, question generation took most of the spend (USD 55 of 76) and
-  of the time, 2 h 47 min on two drains, against extraction's 2 h 01 min on
-  one, of 5 h 41 min in all. Both scale with
-  the corpus, extraction with its passages and the questions with its topics,
-  and at ten times the corpus extraction is 20 hours and the questions 56 hours
-  of one drain each. [Sizing a corpus](docs/operations.md#sizing-a-corpus) says
-  how to estimate yours, and `make estimate` does. A locally served model is one
-  to two orders slower per call than a hosted one.
+- Changing `EMBEDDING_MODEL` requires a migration: `questions.embedding` is
+  `vector(1024)`.
+- Model calls dominate time and cost. A 30-document run took 5 h 41 min and
+  USD 76. Question generation took USD 55 and 2 h 47 min on two drains;
+  extraction took 2 h 01 min on one. `make estimate` and
+  [Sizing a corpus](docs/operations.md#sizing-a-corpus) estimate a corpus.
+  A local model is one to two orders of magnitude slower per call than a
+  hosted one.
 
 ## Licence
 
