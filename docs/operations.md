@@ -581,14 +581,18 @@ From a fresh clone, following only this page:
    `curl -H "X-API-Token: $API_TOKEN" -F file=@x.pdf http://localhost:8000/documents`.
 6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
    detached: `logs/corpus-hosted.log` holds what it does and
-   `logs/corpus-hosted.pid` its process group, database and leader's start time;
+   `state/corpus-hosted.pid` its process group, database and leader's start time;
    `make corpus-hosted-stop` stops it. It names the database it acts on,
    gives every drain that name and `HF_HUB_OFFLINE=1`, and counts spend
-   across the drains in `logs/corpus-spend-<database>.usd` (`SPEND_LEDGER`), one
+   across the drains in `state/corpus-spend-<database>.usd` (`SPEND_LEDGER`), one
    ledger a database, so `SPEND_CAP` is the cost of
    the whole run and not of each drain. The file holds the run's total and is
    rewritten after every priced call, so a drain killed outright leaves its
-   spend counted. Every drain logs the split it resolved
+   spend counted. `state/` is the run's, not a log folder: `make wipe
+   ALL_DATABASES=1` and `make logs-prune`, which empty and delete files under
+   `logs/`, leave it, so a stopped run still resumes with its spend and a live
+   one can still be stopped. Leave it out of any clean-up of your own while a
+   run is recorded. Every drain logs the split it resolved
    before its first row, and a role that resolves to an Ollama model stops
    the run before a model is asked.
 7. When it ends, the two workbooks: `make questions-export OUT=release.xlsx

@@ -236,6 +236,8 @@ configs/env/provider.env
 # What a host command writes its JSON log lines to, and what compose
 # bind-mounts into the shipper. Made by `make up`.
 /logs/
+# A corpus run's spend ledgers and the hosted run's record (scripts/corpus-hosted.sh).
+/state/
 
 # macOS
 .DS_Store

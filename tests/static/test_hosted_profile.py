@@ -376,9 +376,9 @@ def _started(pid: int) -> str:
 def test_corpus_hosted_refuses_a_second_start(tmp_path: Path) -> None:
     """While the process group the first one recorded, its leader as started, lives."""
     project = _project(tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n")
-    (project / "logs").mkdir()
+    (project / "state").mkdir()
     running = subprocess.Popen(["sleep", "60"], start_new_session=True)
-    (project / "logs/corpus-hosted.pid").write_text(
+    (project / "state/corpus-hosted.pid").write_text(
         f"{running.pid} qa_scratch\n{_started(running.pid)}\n"
     )
 
@@ -396,7 +396,7 @@ def test_corpus_hosted_refuses_a_second_start(tmp_path: Path) -> None:
 GO_LIVE = "HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n"
 
 #: The spend ledger of the database the stand-in files name: one a database.
-LEDGER = "logs/corpus-spend-qa_scratch.usd"
+LEDGER = "state/corpus-spend-qa_scratch.usd"
 
 
 def _until(done: Callable[[], bool], seconds: float = 20) -> None:
@@ -427,7 +427,7 @@ def test_killing_the_make_at_the_head_of_the_run_leaves_a_start_refused(
     project = _project(tmp_path, env=GO_LIVE)
     assert _make(project, "corpus-hosted", SLOW="6").returncode == 0
     _until(lambda: _extracting(project))
-    group, database = (project / "logs/corpus-hosted.pid").read_text().split()[:2]
+    group, database = (project / "state/corpus-hosted.pid").read_text().split()[:2]
 
     os.kill(int(group), signal.SIGKILL)
     second = _make(project, "corpus-hosted")
@@ -446,7 +446,7 @@ def test_the_stop_signals_the_whole_run_and_its_drain_stops_as_asked(
     ledger = project / LEDGER
     assert _make(project, "corpus-hosted", SLOW="60").returncode == 0
     _until(lambda: _extracting(project))
-    group = int((project / "logs/corpus-hosted.pid").read_text().split()[0])
+    group = int((project / "state/corpus-hosted.pid").read_text().split()[0])
     ledger.write_text("3.5\n")
 
     stopped = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=20")
@@ -464,7 +464,7 @@ def test_a_stopped_run_keeps_its_record_and_its_spend_and_the_next_start_resumes
 ) -> None:
     """75 at the cap or 3 for failed rows: the restart counts the spend so far."""
     project = _project(tmp_path, env=GO_LIVE)
-    pidfile = project / "logs/corpus-hosted.pid"
+    pidfile = project / "state/corpus-hosted.pid"
     ledger = project / LEDGER
 
     first = _make(
@@ -504,7 +504,7 @@ def test_a_fresh_corpus_on_another_database_keeps_a_stopped_run_s_spend(
 
     assert other.returncode == 0, other.stderr
     assert again.returncode == 0, again.stderr
-    assert (project / "logs/corpus-spend-qa_b.usd").exists()
+    assert (project / "state/corpus-spend-qa_b.usd").exists()
     assert ledger.read_text().startswith("45.0\n"), "the resume still counts 45.0"
 
 
@@ -633,7 +633,7 @@ def test_for_launchd_a_stop_the_operator_clears_exits_0(
     ran = _run(project, "--zero-on-stop", FAIL="extraction.run --digests", CODE=code)
 
     assert ran.returncode == exit, (ran.stdout, ran.stderr)
-    assert (project / "logs/corpus-hosted.pid").exists(), "the run is still resumable"
+    assert (project / "state/corpus-hosted.pid").exists(), "the run is still resumable"
 
 
 def test_a_runner_told_to_stop_stops_its_run_and_exits_75(tmp_path: Path) -> None:
@@ -671,8 +671,8 @@ def test_a_stop_with_no_run_going_says_so(tmp_path: Path) -> None:
 def test_corpus_hosted_resumes_after_a_run_that_was_killed(tmp_path: Path) -> None:
     """A pid file nobody holds is a run that died, and the drains resume by lease."""
     project = _project(tmp_path, env="HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n")
-    (project / "logs").mkdir()
-    (project / "logs/corpus-hosted.pid").write_text("999999\n")
+    (project / "state").mkdir()
+    (project / "state/corpus-hosted.pid").write_text("999999\n")
 
     ran = _make(project, "corpus-hosted")
 
@@ -851,9 +851,9 @@ def test_a_group_number_reused_by_another_process_is_not_the_run(
 ) -> None:
     """The stop signals nothing of it, and a start resumes rather than refuses."""
     project = _project(tmp_path, env=GO_LIVE)
-    (project / "logs").mkdir()
+    (project / "state").mkdir()
     unrelated = subprocess.Popen(["sleep", "60"], start_new_session=True)
-    (project / "logs/corpus-hosted.pid").write_text(record.format(pid=unrelated.pid))
+    (project / "state/corpus-hosted.pid").write_text(record.format(pid=unrelated.pid))
 
     try:
         stopped = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=3")
@@ -882,7 +882,7 @@ def test_a_supervisor_started_without_a_database_records_the_one_corpus_resolves
     ran = _run(project, FAIL="extraction.run --digests", CODE="75")
 
     assert ran.returncode == 75, (ran.stdout, ran.stderr)
-    record = (project / "logs/corpus-hosted.pid").read_text().splitlines()[0]
+    record = (project / "state/corpus-hosted.pid").read_text().splitlines()[0]
     assert record.split()[1:] == ["qa_scratch"]
     assert {line.split()[0] for line in _drained(project)} == {"qa_scratch"}
 
@@ -938,14 +938,81 @@ def test_a_run_started_under_one_locale_or_zone_is_stopped_under_another(
     project = _project(tmp_path, env=GO_LIVE)
     assert _make(project, "corpus-hosted", SLOW="60", **started).returncode == 0
     _until(lambda: _extracting(project))
-    record = next(
-        (project / folder)
-        for folder in ("state", "logs")
-        if (project / folder / "corpus-hosted.pid").exists()
-    )
-    group = int((record / "corpus-hosted.pid").read_text().split()[0])
+    group = int((project / "state/corpus-hosted.pid").read_text().split()[0])
 
     stop = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=20", **stopped)
 
     assert (project / "drains.log.stopped").exists(), stop.stdout
     assert not _alive(group)
+
+
+# ── Run state is not a log ─────────────────────────────────────────────────
+
+
+def _kept(project: Path, name: str) -> Path:
+    """Where the run keeps one of its files: its record or a ledger."""
+    (found,) = [one for one in project.rglob(name) if "bin" not in one.parts]
+    return found
+
+
+def _stopped_on_qa_b(project: Path) -> Path:
+    """A hosted run on qa_b stopped at 75, its ledger at 12.5; the ledger's path."""
+    _make(
+        project,
+        "corpus-hosted",
+        "APP_DB_NAME=qa_b",
+        FAIL="extraction.run --digests",
+        CODE="75",
+    )
+    _waited(project)
+    ledger = _kept(project, "corpus-spend-qa_b.usd")
+    ledger.write_text("12.5\n")
+    (project / "drains.log").unlink()
+    return ledger
+
+
+def test_a_wipe_of_every_database_leaves_a_stopped_run_and_its_spend(
+    tmp_path: Path,
+) -> None:
+    """A wipe of every database empties the log files, never a run's record or ledger."""
+    project = _project(tmp_path, env=GO_LIVE)
+    ledger = _stopped_on_qa_b(project)
+
+    _make(project, "wipe", "ALL_DATABASES=1", "CONFIRM=qa_scratch")
+    ended = (project / "logs/corpus-hosted.log").read_text().count("the run ended")
+    again = _make(project, "corpus-hosted", "APP_DB_NAME=qa_b")
+    _waited(project, runs=ended + 1)
+
+    assert again.returncode == 0, again.stderr
+    assert any(" --retry" in line for line in _drained(project)), "a resume"
+    assert ledger.read_text().startswith("12.5"), "its spend still counts"
+
+
+def test_a_wipe_of_every_database_leaves_a_live_run_stoppable(tmp_path: Path) -> None:
+    """The record it empties no more: the stop still finds the run."""
+    project = _project(tmp_path, env=GO_LIVE)
+    assert (
+        _make(project, "corpus-hosted", "APP_DB_NAME=qa_b", SLOW="60").returncode == 0
+    )
+    _until(lambda: _extracting(project))
+    group = int(_kept(project, "corpus-hosted.pid").read_text().split()[0])
+
+    _make(project, "wipe", "ALL_DATABASES=1", "CONFIRM=qa_scratch")
+    stop = _make(project, "corpus-hosted-stop", "HOSTED_GRACE=20")
+
+    assert (project / "drains.log.stopped").exists(), stop.stdout
+    assert not _alive(group)
+
+
+def test_pruning_old_logs_leaves_a_stopped_run_and_its_spend(tmp_path: Path) -> None:
+    """Pruning deletes idle files under ./logs; run state is not one."""
+    project = _project(tmp_path, env=GO_LIVE)
+    ledger = _stopped_on_qa_b(project)
+    record = _kept(project, "corpus-hosted.pid")
+    month_ago = time.time() - 40 * 86400
+    for one in (ledger, record):
+        os.utime(one, (month_ago, month_ago))
+
+    _make(project, "logs-prune")
+
+    assert ledger.exists() and record.exists()

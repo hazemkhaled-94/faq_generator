@@ -1,7 +1,8 @@
 #!/bin/bash
 # The hosted corpus run: `make corpus` in a process group of its own, which is
-# recorded with the database it acts on in logs/corpus-hosted.pid, its output
-# appended to logs/corpus-hosted.log. `make corpus-hosted` runs this detached,
+# recorded with the database it acts on in state/corpus-hosted.pid, its output
+# appended to logs/corpus-hosted.log. state/, beside the spend ledgers, is no
+# log folder: no log or wipe target walks it, so a record outlives them. `make corpus-hosted` runs this detached,
 # `make corpus-hosted-stop` asks it to --stop, and a supervisor runs it in the
 # foreground (docs/operations.md, "After a stop").
 #
@@ -30,9 +31,9 @@
 # makes the next one fresh, and a fresh `make corpus` starts the ledger again.
 set -u
 cd "$(dirname "$0")/.." || exit 3
-pid=logs/corpus-hosted.pid
+pid=state/corpus-hosted.pid
 log=logs/corpus-hosted.log
-mkdir -p logs
+mkdir -p state logs
 
 # How long a stop waits for the drains after TERM before it kills what is
 # left, in seconds: a model stage's grace and the time to give its row back
@@ -197,6 +198,8 @@ outlast "$run"
 # make exits 2 whatever failed; the code of the recipe that failed first, which
 # GNU make prints as `[target] Error NN`, is the stage's.
 if [ "$code" -eq 2 ]; then
+  # A log emptied meanwhile (make wipe ALL_DATABASES=1) is read whole.
+  [ "$(wc -c < "$log")" -ge "$start" ] || start=0
   failed=$(tail -c +"$((start + 1))" "$log" | grep -m 1 -oE '\] Error [0-9]+$' | grep -oE '[0-9]+$')
   code=${failed:-2}
 fi

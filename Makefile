@@ -222,9 +222,11 @@ NOT_GO_LIVE = $(LOADENV) && { ! $(GO_LIVE) || \
               { echo "the go-live profile runs the model stages through make corpus-hosted" >&2; exit 1; }; }
 
 # Where a corpus run keeps what its drains spent, one ledger a database, so a
-# run on one never empties another's. The hosted run's record and log are
-# scripts/corpus-hosted.sh's, under logs/ too.
-CORPUS_LEDGER = logs/corpus-spend-$(CORPUS_DB).usd
+# run on one never empties another's. In state/, beside the hosted run's
+# record (scripts/corpus-hosted.sh's), and not in logs/: `make wipe
+# ALL_DATABASES=1` empties every file there and `make logs-prune` deletes the
+# idle ones, and a run's spend and identity are no log.
+CORPUS_LEDGER = state/corpus-spend-$(CORPUS_DB).usd
 
 # What the hosted run is given: the database it acts on, recorded beside its
 # process group, and RESET as given, which the runner reads as a spelling of
@@ -2352,7 +2354,7 @@ all:
 # on the flag here would be a second reader of it, and the two would
 # eventually disagree about which spellings mean yes.
 corpus:
-	@mkdir -p logs && scripts/corpus-hosted.sh --guard APP_DB_NAME=$(CORPUS_DB) $(if $(RESUME),RESUME=1)
+	@mkdir -p logs state && scripts/corpus-hosted.sh --guard APP_DB_NAME=$(CORPUS_DB) $(if $(RESUME),RESUME=1)
 	@{ [ -n "$(RESUME)" ] || : > $(CORPUS_LEDGER); } && touch $(CORPUS_LEDGER)
 	@$(LOADENV) && echo "corpus: database $$APP_DB_NAME, Hub off, spend carried in $(CORPUS_LEDGER)$${SPEND_CAP:+, stopping at USD $$SPEND_CAP}"
 	$(if $(RESUME),$(foreach stage,$(CORPUS_RETRIES),$(MAKE) $(stage) $(CORPUS_PINS) &&) true)
