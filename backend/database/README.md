@@ -178,6 +178,16 @@ behind it. A revision written after `20261021_0300` therefore:
   transaction;
 - builds an index on a table with data `CONCURRENTLY`, in an autocommit block.
 
+Two revisions of this release on `facts` do not do the last two:
+`20261024_0100_a_duplicate_refusal_keeps_its_twin.py` builds
+`ix_facts_twin_id` and adds its foreign key inside its transaction, and
+`20261024_1300_a_fact_carries_its_language.py` backfills `facts.language` in
+one `UPDATE` there and analyses the table. Each holds `facts` for its whole
+run: on a copy of the reviewed build (13,716 facts) each upgrade took 21 s,
+the process's start included, inside the timeouts above, with the workers
+stopped as the upgrade order in [operations](../../docs/operations.md) says.
+On a corpus many times that size, time them on a copy first.
+
 A revision's docstring says **why**; the diff says what.
 
 `/status` and every queue compare the revision the database records with the
